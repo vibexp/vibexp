@@ -8,12 +8,12 @@ package container
 
 import (
 	"github.com/google/wire"
+	"github.com/sirupsen/logrus"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container/providers"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/pkg/events"
-	"github.com/sirupsen/logrus"
 )
 
 // Injectors from wire.go:

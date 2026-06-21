@@ -5,8 +5,8 @@ package mocks
 import (
 	context "context"
 
-	external "github.com/vibexp/vibexp/internal/external"
 	mock "github.com/stretchr/testify/mock"
+	external "github.com/vibexp/vibexp/internal/external"
 
 	models "github.com/vibexp/vibexp/internal/models"
 

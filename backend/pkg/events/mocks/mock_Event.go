@@ -3,8 +3,8 @@
 package mocks
 
 import (
-	events "github.com/vibexp/vibexp/pkg/events"
 	mock "github.com/stretchr/testify/mock"
+	events "github.com/vibexp/vibexp/pkg/events"
 
 	time "time"
 )
