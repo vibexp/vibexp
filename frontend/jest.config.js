@@ -30,6 +30,13 @@ export default {
       'ts-jest',
       {
         tsconfig: 'jest.tsconfig.json',
+        // import.meta is invalid in ts-jest's CommonJS output. The transformer
+        // below rewrites it to globalThis["import.meta"] (provided via the
+        // `globals` config); ignore the now-moot TS1343 type diagnostic.
+        diagnostics: { ignoreCodes: [1343] },
+        astTransformers: {
+          before: ['<rootDir>/tests/transformers/importMeta.cjs'],
+        },
       },
     ],
   },
