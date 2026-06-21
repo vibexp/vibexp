@@ -1,0 +1,185 @@
+# auth path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-auth-login:
+  get:
+    summary: Initiate WorkOS login
+    description: |
+      Generates a CSRF state, stores it in a signed `vx_state` cookie, and returns the
+      WorkOS AuthKit authorization URL. The client should redirect the user to this URL
+      to begin the authentication flow.
+    operationId: login
+    security: []  # No authentication required
+    responses:
+      '200':
+        description: WorkOS authorization URL generated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/LoginResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Authentication
+
+api-v1-auth-callback:
+  get:
+    summary: Handle WorkOS OAuth callback
+    description: |
+      Validates the CSRF `vx_state` cookie, exchanges the authorization code with WorkOS,
+      looks up or creates the user, writes a session cookie, and issues a 302 redirect
+      to the frontend home page. This endpoint is called by the browser after the user
+      authenticates with WorkOS — it does not return a JSON body on success.
+    operationId: authCallback
+    security: []  # No authentication required
+    parameters:
+      - name: code
+        in: query
+        required: true
+        description: Authorization code returned by WorkOS after user authentication
+        schema:
+          type: string
+          example: "01ABCDEF1234567890"
+      - name: state
+        in: query
+        required: false
+        description: CSRF state value that must match the signed `vx_state` cookie
+        schema:
+          type: string
+          example: "a3f8b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+    responses:
+      '302':
+        description: Authentication successful — redirects browser to frontend home page
+        headers:
+          Location:
+            description: Frontend home URL (e.g. https://app.example.com/)
+            schema:
+              type: string
+              format: uri
+          Set-Cookie:
+            description: Encrypted session cookie (`vx_session`) containing the WorkOS access token
+            schema:
+              type: string
+      '400':
+        description: Authorization code is missing
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Invalid or expired CSRF state cookie
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: WorkOS authentication failed or session could not be created
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Authentication
+
+api-v1-auth-logout:
+  post:
+    summary: Log out current user
+    description: |
+      Clears the session cookie and returns a JSON confirmation. After calling this
+      endpoint the client should discard any cached user state and redirect to the
+      login page.
+    operationId: logout
+    security: []  # Cookie-based; no bearer token needed
+    responses:
+      '200':
+        description: Logged out successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/LogoutResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Authentication
+
+api-v1-auth-dev-login:
+  post:
+    summary: Dev login (development only)
+    description: |
+      Creates or retrieves a user by email address and sets a session cookie without
+      going through WorkOS. Only available when the server is running in development
+      mode (`DEV_LOGIN_ENABLED=true`). Returns 404 in all other environments.
+    operationId: devLogin
+    security: []  # No authentication required
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/DevLoginRequest'
+    responses:
+      '200':
+        description: Dev authentication successful — session cookie set, user object returned
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/User'
+      '400':
+        description: Invalid request body or missing required fields
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Endpoint not available outside development environment
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Authentication failed or session could not be created
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Authentication
+
+api-v1-auth-me:
+  get:
+    summary: Get current user information
+    description: |
+      Returns information about the currently authenticated user. Authentication is
+      verified via the encrypted session cookie (`vx_session`) set during the WorkOS
+      OAuth flow or dev login.
+    operationId: getMe
+    responses:
+      '200':
+        description: User information retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/User'
+      '401':
+        description: Unauthorized - invalid or missing session cookie
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: User not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Authentication

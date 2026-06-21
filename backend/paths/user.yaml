@@ -1,0 +1,196 @@
+# user path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-preferences:
+  get:
+    summary: Get user preferences
+    description: |
+      Returns the authenticated user's preferences (email notification settings and
+      per-channel/per-type notification delivery preferences). Defaults are created
+      on first access if the user has no stored preferences.
+    operationId: getPreferences
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: User preferences retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/PreferencesResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error — failed to retrieve preferences
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings
+  put:
+    summary: Update user preferences
+    description: |
+      Updates the authenticated user's preferences. Both top-level fields are optional;
+      only the categories present in the request body are updated.
+    operationId: updatePreferences
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdatePreferencesRequest'
+    responses:
+      '200':
+        description: User preferences updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/PreferencesResponse'
+      '400':
+        description: Invalid request body (malformed JSON)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error — preferences update failed
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings
+
+api-v1-device-tokens:
+  post:
+    summary: Register a device token
+    description: |
+      Upserts a push notification device token for the authenticated user. Currently
+      only the "web" platform (Web Push / FCM browser push) is supported. Re-registering
+      the same token for the same user is idempotent. Request body is capped at 4 KB.
+      Free-tier accessible — push notification registration is not a gated resource.
+    operationId: registerDeviceToken
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/RegisterDeviceTokenRequest'
+    responses:
+      '201':
+        description: Device token registered successfully (empty body)
+      '400':
+        description: Invalid request body, missing/too-long token, or unsupported platform
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — token is registered to another account
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error — failed to register device token
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - User
+  delete:
+    summary: Delete a device token
+    description: |
+      Removes a push notification device token for the authenticated user. The token to
+      delete is supplied in the JSON request body. Request body is capped at 4 KB.
+    operationId: deleteDeviceToken
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/DeleteDeviceTokenRequest'
+    responses:
+      '204':
+        description: Device token deleted successfully (also returned if the token did not exist)
+      '400':
+        description: Invalid request body or missing token
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error — failed to delete device token
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - User
+
+api-v1-user-onboarding-complete:
+  post:
+    summary: Mark onboarding as completed
+    description: |
+      Marks the authenticated user's onboarding flow as completed and returns the
+      updated user object. Takes no request body.
+    operationId: completeOnboarding
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Onboarding marked as completed — returns the updated user
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/User'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error — failed to mark onboarding completed or fetch user
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - User

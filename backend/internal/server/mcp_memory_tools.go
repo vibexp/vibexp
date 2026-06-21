@@ -1,0 +1,380 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/sirupsen/logrus"
+
+	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services"
+)
+
+// Memory Tool Parameters
+
+// memoryWriteResponse is the slim response returned by create/update memory tools.
+type memoryWriteResponse struct {
+	ID      string `json:"id"`
+	FullURL string `json:"full_url"`
+}
+
+// memorySearchItem is the per-item shape returned by search_memories (text truncated to 300 chars).
+type memorySearchItem struct {
+	ID        string                 `json:"id"`
+	UserID    string                 `json:"user_id"`
+	TeamID    string                 `json:"team_id"`
+	ProjectID string                 `json:"project_id"`
+	Text      string                 `json:"text"`
+	Truncated bool                   `json:"truncated,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata"`
+	CreatedAt string                 `json:"created_at"`
+	UpdatedAt string                 `json:"updated_at"`
+}
+
+// memorySearchResponse is the list shape returned by search_memories.
+type memorySearchResponse struct {
+	Memories   []memorySearchItem `json:"memories"`
+	TotalCount int                `json:"total_count"`
+	Page       int                `json:"page"`
+	PerPage    int                `json:"per_page"`
+	TotalPages int                `json:"total_pages"`
+}
+
+// StoreMemoryParams defines the parameters for storing a new memory
+//
+//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
+type StoreMemoryParams struct {
+	TeamID    string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	ProjectID string                 `json:"project_id" jsonschema:"Project UUID — required; the project this memory belongs to"`
+	Text      string                 `json:"text" jsonschema:"Memory content/text"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty" jsonschema:"Additional key-value metadata pairs"`
+}
+
+// ListMemoriesByProjectParams defines the parameters for listing memories by project
+//
+//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
+type ListMemoriesByProjectParams struct {
+	TeamID      string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	ProjectID   string `json:"project_id" jsonschema:"Project UUID — required; scopes results to this project"`
+	Page        int    `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
+	Limit       int    `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
+	Search      string `json:"search,omitempty" jsonschema:"Search in memory text"`
+	FullDetails bool   `json:"full_details,omitempty" jsonschema:"Not supported — search_memories always truncates text; use get_memory for full text"`
+}
+
+// GetMemoryParams defines the parameters for getting a specific memory
+//
+//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
+type GetMemoryParams struct {
+	TeamID   string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	MemoryID string `json:"memory_id" jsonschema:"Memory identifier"`
+}
+
+// UpdateMemoryParams defines the parameters for updating a specific memory
+//
+//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
+type UpdateMemoryParams struct {
+	TeamID   string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	MemoryID string                 `json:"memory_id" jsonschema:"Memory identifier"`
+	Text     string                 `json:"text,omitempty" jsonschema:"New memory text"`
+	Metadata map[string]interface{} `json:"metadata,omitempty" jsonschema:"New metadata"`
+}
+
+// Memory Tool Implementations
+
+// storeMemory implements the tool that stores a new memory in the resolved team.
+func (s *Server) storeMemory(
+	ctx context.Context,
+	_ *mcp.CallToolRequest,
+	params *StoreMemoryParams,
+	userID string,
+) (*mcp.CallToolResult, any, error) {
+	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
+	if errResult != nil {
+		return errResult, nil, nil
+	}
+
+	if r := validateProjectID(params.ProjectID); r != nil {
+		logrus.WithFields(logrus.Fields{
+			"tool":       "vibexp_io_create_memory",
+			"user_id":    userID,
+			"team_id":    teamID,
+			"project_id": params.ProjectID,
+		}).Warn("MCP tool rejected: invalid project_id")
+		return r, nil, nil
+	}
+
+	createReq := &models.CreateMemoryRequest{
+		ProjectID: params.ProjectID,
+		Text:      params.Text,
+		Metadata:  params.Metadata,
+	}
+
+	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, createReq)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"tool":    "vibexp_io_create_memory",
+			"user_id": userID,
+			"team_id": teamID,
+			"error":   fmt.Sprintf("%+v", err),
+		}).Error("Failed to create memory via MCP")
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("Failed to create memory: %v", err)},
+			},
+			IsError: true,
+		}, nil, nil
+	}
+
+	if s.metrics != nil {
+		s.metrics.RecordMCPCreateMemory(ctx)
+	}
+
+	result := buildMemoryWriteResponse(s.config.FrontendBaseURL, memory.ID)
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(jsonData)},
+		},
+		StructuredContent: result,
+	}, result, nil
+}
+
+// buildMemoryWriteResponse builds the slim write response for a memory by ID.
+func buildMemoryWriteResponse(frontendBaseURL, memoryID string) *memoryWriteResponse {
+	baseURL := strings.TrimRight(frontendBaseURL, "/")
+	return &memoryWriteResponse{
+		ID:      memoryID,
+		FullURL: fmt.Sprintf("%s/memories/%s", baseURL, memoryID),
+	}
+}
+
+// listMemoriesByProject implements the search_memories tool scoped to the resolved team.
+//
+//nolint:funlen // resolve team, reject full_details, normalize pagination, call service, truncate, marshal
+func (s *Server) listMemoriesByProject(
+	ctx context.Context,
+	_ *mcp.CallToolRequest,
+	params *ListMemoriesByProjectParams,
+	userID string,
+) (*mcp.CallToolResult, any, error) {
+	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
+	if errResult != nil {
+		return errResult, nil, nil
+	}
+
+	// search_memories never returns full text — reject full_details=true
+	if params.FullDetails {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: "full_details is not supported on search_memories; call get_memory for full text"},
+			},
+			IsError: true,
+		}, nil, nil
+	}
+
+	if r := validateProjectID(params.ProjectID); r != nil {
+		logrus.WithFields(logrus.Fields{
+			"tool":       "vibexp_io_search_memories",
+			"user_id":    userID,
+			"team_id":    teamID,
+			"project_id": params.ProjectID,
+		}).Warn("MCP tool rejected: invalid project_id")
+		return r, nil, nil
+	}
+
+	page := params.Page
+	if page <= 0 {
+		page = 1
+	}
+	limit := params.Limit
+	if limit <= 0 || limit > 10 {
+		limit = 10
+	}
+
+	projectID := params.ProjectID
+	filters := services.MemoryFilters{
+		TeamID:    teamID,
+		ProjectID: &projectID,
+		Search:    params.Search,
+		Page:      page,
+		Limit:     limit,
+	}
+
+	response, err := s.container.MemoryService().ListMemories(userID, filters)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"tool":       "vibexp_io_search_memories",
+			"user_id":    userID,
+			"team_id":    teamID,
+			"project_id": params.ProjectID,
+			"error":      fmt.Sprintf("%+v", err),
+		}).Error("Failed to list memories via MCP")
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("Failed to search memories: %v", err)},
+			},
+			IsError: true,
+		}, nil, nil
+	}
+
+	if s.metrics != nil {
+		s.metrics.RecordMCPListMemories(context.Background())
+	}
+
+	searchResp := &memorySearchResponse{
+		Memories:   buildMemorySearchItems(response.Memories),
+		TotalCount: response.TotalCount,
+		Page:       response.Page,
+		PerPage:    response.PerPage,
+		TotalPages: response.TotalPages,
+	}
+
+	jsonData, marshalErr := json.MarshalIndent(searchResp, "", "  ")
+	if marshalErr != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", marshalErr)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(jsonData)},
+		},
+		StructuredContent: searchResp,
+	}, searchResp, nil
+}
+
+// buildMemorySearchItems converts service memories to the slim search-item shape with truncated text.
+func buildMemorySearchItems(memories []models.Memory) []memorySearchItem {
+	items := make([]memorySearchItem, 0, len(memories))
+	for _, m := range memories {
+		truncated, wasTruncated := truncateString(m.Text, excerptMaxLen)
+		items = append(items, memorySearchItem{
+			ID:        m.ID,
+			UserID:    m.UserID,
+			TeamID:    m.TeamID,
+			ProjectID: m.ProjectID,
+			Text:      truncated,
+			Truncated: wasTruncated,
+			Metadata:  m.Metadata,
+			CreatedAt: m.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+			UpdatedAt: m.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		})
+	}
+	return items
+}
+
+// getMemory implements the tool that gets a specific memory in the resolved team.
+func (s *Server) getMemory(
+	ctx context.Context,
+	_ *mcp.CallToolRequest,
+	params *GetMemoryParams,
+	userID string,
+) (*mcp.CallToolResult, any, error) {
+	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
+	if errResult != nil {
+		return errResult, nil, nil
+	}
+
+	memory, err := s.container.MemoryService().GetMemory(userID, teamID, params.MemoryID)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"tool":      "vibexp_io_get_memory",
+			"user_id":   userID,
+			"team_id":   teamID,
+			"memory_id": params.MemoryID,
+			"error":     fmt.Sprintf("%+v", err),
+		}).Error("Failed to get memory via MCP")
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("Failed to get memory: %v", err)},
+			},
+			IsError: true,
+		}, nil, nil
+	}
+
+	if s.metrics != nil {
+		s.metrics.RecordMCPGetMemory(ctx)
+	}
+
+	jsonData, err := json.MarshalIndent(memory, "", "  ")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)
+	}
+
+	// Record the successful detail read; MCP get-tools bypass the HTTP middleware.
+	// Recorded only after a successful response, mirroring the HTTP 2xx contract.
+	s.recordMCPResourceAccess(ctx, teamID, userID, resourceTypeMemory, memory.ID)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(jsonData)},
+		},
+		StructuredContent: memory,
+	}, memory, nil
+}
+
+// updateMemory implements the tool that updates a specific memory in the resolved team.
+func (s *Server) updateMemory(
+	ctx context.Context,
+	_ *mcp.CallToolRequest,
+	params *UpdateMemoryParams,
+	userID string,
+) (*mcp.CallToolResult, any, error) {
+	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
+	if errResult != nil {
+		return errResult, nil, nil
+	}
+
+	updateReq := &models.UpdateMemoryRequest{}
+	if params.Text != "" {
+		updateReq.Text = &params.Text
+	}
+	if params.Metadata != nil {
+		updateReq.Metadata = params.Metadata
+	}
+
+	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, params.MemoryID, updateReq)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"tool":      "vibexp_io_update_memory",
+			"user_id":   userID,
+			"team_id":   teamID,
+			"memory_id": params.MemoryID,
+			"error":     fmt.Sprintf("%+v", err),
+		}).Error("Failed to update memory via MCP")
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("Failed to update memory: %v", err)},
+			},
+			IsError: true,
+		}, nil, nil
+	}
+
+	if s.metrics != nil {
+		s.metrics.RecordMCPUpdateMemory(ctx)
+	}
+
+	result := buildMemoryWriteResponse(s.config.FrontendBaseURL, memory.ID)
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: string(jsonData)},
+		},
+		StructuredContent: result,
+	}, result, nil
+}

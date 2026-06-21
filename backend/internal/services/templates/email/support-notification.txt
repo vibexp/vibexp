@@ -1,0 +1,26 @@
+NEW SUPPORT REQUEST
+===================
+
+Hello Support Team,
+
+A new support request has been received. Please find the details below:
+
+User Name: {{.UserName}}
+User Email: {{.UserEmail}}
+Acknowledgement Requested: {{if .Acknowledgement}}Yes{{else}}No{{end}}
+
+MESSAGE:
+--------
+{{.Text}}
+
+{{if .AdditionalInfoText}}
+ADDITIONAL INFORMATION:
+-----------------------
+{{.AdditionalInfoText}}
+{{end}}
+
+Please review and respond to this request at your earliest convenience.
+
+---
+© {{.Year}} VibeXP. All rights reserved.
+This message was sent via the VibeXP support system.

@@ -1,0 +1,704 @@
+# AI agent management schemas
+
+Agent:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "agent_123"
+    user_id:
+      type: string
+      example: "user_123"
+    team_id:
+      type: string
+      format: uuid
+      description: Team that owns the agent. Immutable after creation.
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    name:
+      type: string
+      example: "Code Reviewer Agent"
+    description:
+      type: string
+      example: "AI agent for automated code reviews"
+    status:
+      type: string
+      enum: [active, paused, error]
+      example: "active"
+    card_url:
+      type: string
+      format: uri
+      nullable: true
+      example: "https://example.com/agent-card.json"
+    agent_card:
+      allOf:
+        - $ref: '#/AgentCard'
+      nullable: true
+      description: A2A agent card fetched from card_url
+    config:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: Serialized as null when the agent has no config (Go nil map)
+    has_credentials:
+      type: array
+      description: Names of credentials that are set (values are never returned)
+      items:
+        type: string
+      example: ["api_key"]
+    last_run:
+      type: string
+      format: date-time
+      nullable: true
+    last_synced_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the agent card was last re-fetched from card_url
+    total_runs:
+      type: integer
+      example: 42
+    success_rate:
+      type: number
+      format: float
+      example: 0.95
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    version:
+      type: integer
+      format: int64
+      description: Optimistic-locking version counter
+      example: 1
+  required:
+    - id
+    - user_id
+    - team_id
+    - name
+    - description
+    - status
+    - config
+    - total_runs
+    - success_rate
+    - created_at
+    - updated_at
+    - version
+
+AgentCard:
+  type: object
+  description: A2A (Agent-to-Agent) protocol agent card
+  properties:
+    name:
+      type: string
+      example: "Code Reviewer Agent"
+    description:
+      type: string
+    version:
+      type: string
+      example: "1.0.0"
+    protocolVersion:
+      type: string
+      example: "0.2.5"
+    url:
+      type: string
+      format: uri
+    preferredTransport:
+      type: string
+      example: "JSONRPC"
+    defaultInputModes:
+      type: array
+      nullable: true
+      items:
+        type: string
+      example: ["text"]
+    defaultOutputModes:
+      type: array
+      nullable: true
+      items:
+        type: string
+      example: ["text"]
+    iconUrl:
+      type: string
+      format: uri
+      nullable: true
+    documentationUrl:
+      type: string
+      format: uri
+      nullable: true
+    provider:
+      type: object
+      nullable: true
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+    capabilities:
+      type: object
+      nullable: true
+      properties:
+        streaming:
+          type: boolean
+        pushNotifications:
+          type: object
+          nullable: true
+          properties:
+            enabled:
+              type: boolean
+        stateTransitionHistory:
+          type: object
+          nullable: true
+          properties:
+            enabled:
+              type: boolean
+        extensions:
+          type: object
+          nullable: true
+          properties:
+            enabled:
+              type: boolean
+    skills:
+      type: array
+      nullable: true
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          description:
+            type: string
+          tags:
+            type: array
+            nullable: true
+            items:
+              type: string
+          examples:
+            type: array
+            nullable: true
+            items:
+              type: string
+          inputModes:
+            type: array
+            nullable: true
+            items:
+              type: string
+          outputModes:
+            type: array
+            nullable: true
+            items:
+              type: string
+          security:
+            type: string
+            nullable: true
+    security:
+      type: array
+      nullable: true
+      items:
+        type: object
+        additionalProperties: true
+    securitySchemes:
+      type: object
+      nullable: true
+      additionalProperties:
+        type: object
+        properties:
+          type:
+            type: string
+          description:
+            type: string
+          name:
+            type: string
+          in:
+            type: string
+          flows:
+            type: string
+    additionalInterfaces:
+      type: object
+      nullable: true
+      properties:
+        webSocket:
+          type: object
+          nullable: true
+          properties:
+            url:
+              type: string
+              format: uri
+        http:
+          type: object
+          nullable: true
+          properties:
+            url:
+              type: string
+              format: uri
+    supportsAuthenticatedExtendedCard:
+      type: boolean
+      nullable: true
+    signatures:
+      type: object
+      nullable: true
+      properties:
+        card:
+          type: object
+          nullable: true
+          properties:
+            algorithm:
+              type: string
+            value:
+              type: string
+
+CreateAgentRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      example: "Code Reviewer Agent"
+    description:
+      type: string
+      example: "AI agent for automated code reviews"
+    status:
+      type: string
+      enum: [active, paused]
+      example: "active"
+    card_url:
+      type: string
+      format: uri
+      example: "https://example.com/agent-card.json"
+    credentials:
+      type: object
+      additionalProperties:
+        $ref: '#/CredentialRequest'
+      example:
+        api_key:
+          type: apiKey
+          value: "sk-1234567890abcdef"
+  required:
+    - card_url
+
+CredentialRequest:
+  type: object
+  properties:
+    type:
+      type: string
+      enum: [apiKey, oauth2]
+      description: Credential type
+      example: "apiKey"
+    value:
+      type: string
+      format: password
+      description: The plain text credential value (will be encrypted on server)
+      example: "sk-1234567890abcdef"
+  required:
+    - type
+    - value
+
+UpdateAgentRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+    description:
+      type: string
+      minLength: 1
+      maxLength: 500
+    status:
+      type: string
+      enum: [active, paused, error]
+    card_url:
+      type: string
+      format: uri
+    credentials:
+      type: object
+      additionalProperties:
+        $ref: '#/CredentialRequest'
+
+UpdateAgentCredentialsRequest:
+  type: object
+  properties:
+    credentials:
+      type: object
+      additionalProperties:
+        $ref: '#/CredentialRequest'
+      example:
+        api_key:
+          type: apiKey
+          value: "sk-new-1234567890abcdef"
+  required:
+    - credentials
+
+AgentListResponse:
+  type: object
+  properties:
+    agents:
+      type: array
+      items:
+        $ref: '#/Agent'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - agents
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+AgentStatsResponse:
+  type: object
+  properties:
+    total_agents:
+      type: integer
+    active_agents:
+      type: integer
+    paused_agents:
+      type: integer
+    error_agents:
+      type: integer
+    total_runs:
+      type: integer
+    avg_success_rate:
+      type: number
+      format: float
+    runs_today:
+      type: integer
+    runs_this_week:
+      type: integer
+    recent_activities:
+      type: array
+      nullable: true
+      description: Serialized as null when there is no recent activity (Go nil slice)
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          agent_id:
+            type: string
+          agent_name:
+            type: string
+          action:
+            type: string
+          status:
+            type: string
+            enum: [success, warning, error]
+          description:
+            type: string
+          created_at:
+            type: string
+            format: date-time
+  required:
+    - total_agents
+    - active_agents
+    - paused_agents
+    - error_agents
+    - total_runs
+    - avg_success_rate
+    - runs_today
+    - runs_this_week
+    - recent_activities
+
+AgentExecution:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "execution_123"
+    agent_id:
+      type: string
+      example: "agent_123"
+    user_id:
+      type: string
+      example: "user_123"
+    status:
+      type: string
+      enum: [running, success, error, pending, submitted, working, completed, failed, cancelled]
+      example: "success"
+    input:
+      type: object
+      additionalProperties: true
+    error:
+      type: string
+      nullable: true
+    started_at:
+      type: string
+      format: date-time
+    ended_at:
+      type: string
+      format: date-time
+      nullable: true
+    duration:
+      type: integer
+      description: Duration in milliseconds
+      nullable: true
+    task_id:
+      type: string
+      nullable: true
+      description: A2A task identifier (streaming executions)
+    context_id:
+      type: string
+      nullable: true
+      description: A2A context identifier (streaming executions)
+    current_state:
+      type: string
+      nullable: true
+      enum: [submitted, working, input-required, auth-required, completed, failed, cancelled]
+      description: A2A task state for streaming executions
+    artifacts:
+      type: array
+      nullable: true
+      description: A2A artifacts produced by the execution
+      items:
+        type: object
+        additionalProperties: true
+    conversation_id:
+      type: string
+      nullable: true
+      description: Groups related executions into a conversation
+    version:
+      type: integer
+      format: int64
+      description: Optimistic-locking version counter
+      example: 1
+  required:
+    - id
+    - agent_id
+    - user_id
+    - status
+    - started_at
+    - version
+
+CreateAgentExecutionRequest:
+  type: object
+  properties:
+    agent_id:
+      type: string
+      description: Ignored if provided — the agent ID from the URL path is always used.
+      example: "agent_123"
+    input:
+      type: object
+      additionalProperties: true
+
+UpdateAgentExecutionRequest:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: [running, success, error]
+    output:
+      type: object
+      additionalProperties: true
+    error:
+      type: string
+  required:
+    - status
+
+PreviewAgentCardRequest:
+  type: object
+  properties:
+    card_url:
+      type: string
+      format: uri
+      description: URL of the A2A agent card to fetch and preview
+      example: "https://example.com/.well-known/agent-card.json"
+  required:
+    - card_url
+
+ExecuteAgentRequest:
+  type: object
+  properties:
+    input:
+      type: object
+      additionalProperties: true
+      description: Input payload forwarded to the agent
+    conversation_id:
+      type: string
+      nullable: true
+      description: Existing conversation to continue; a new conversation is started when omitted
+
+AgentExecutionListResponse:
+  type: object
+  properties:
+    executions:
+      type: array
+      items:
+        $ref: '#/AgentExecution'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - executions
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+AgentExecutionEvent:
+  type: object
+  properties:
+    id:
+      type: string
+    execution_id:
+      type: string
+    event_type:
+      type: string
+      description: Event type (task, status-update, artifact-update)
+      example: "status-update"
+    event_data:
+      type: object
+      additionalProperties: true
+    sequence_number:
+      type: integer
+    received_at:
+      type: string
+      format: date-time
+  required:
+    - id
+    - execution_id
+    - event_type
+    - event_data
+    - sequence_number
+    - received_at
+
+AgentExecutionEventsPollResponse:
+  type: object
+  description: Cursor-based polling response (returned when the `since` query parameter is provided)
+  properties:
+    execution_id:
+      type: string
+    status:
+      type: string
+      enum: [running, success, error, pending, submitted, working, completed, failed, cancelled]
+    current_state:
+      type: string
+      nullable: true
+    events:
+      type: array
+      items:
+        $ref: '#/AgentExecutionEvent'
+    has_more:
+      type: boolean
+      description: True while the execution is still pending or running
+    next_sequence:
+      type: integer
+      description: Pass as `since` on the next poll
+  required:
+    - execution_id
+    - status
+    - events
+    - has_more
+    - next_sequence
+
+AgentExecutionEventsPageResponse:
+  type: object
+  description: Page-based pagination response (returned when the `since` query parameter is absent)
+  properties:
+    events:
+      type: array
+      items:
+        $ref: '#/AgentExecutionEvent'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - events
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+ConversationSummary:
+  type: object
+  properties:
+    conversation_id:
+      type: string
+    agent_id:
+      type: string
+    message_count:
+      type: integer
+    first_message:
+      type: string
+    last_message:
+      type: string
+    started_at:
+      type: string
+      format: date-time
+    last_activity_at:
+      type: string
+      format: date-time
+    last_status:
+      type: string
+  required:
+    - conversation_id
+    - agent_id
+    - message_count
+    - first_message
+    - last_message
+    - started_at
+    - last_activity_at
+    - last_status
+
+ConversationListResponse:
+  type: object
+  properties:
+    conversations:
+      type: array
+      items:
+        $ref: '#/ConversationSummary'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - conversations
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+ConversationExecutionsResponse:
+  type: object
+  properties:
+    executions:
+      type: array
+      items:
+        $ref: '#/AgentExecution'
+    conversation_id:
+      type: string
+    has_more:
+      type: boolean
+    total_count:
+      type: integer
+    count:
+      type: integer
+      description: Number of executions in this page
+  required:
+    - executions
+    - conversation_id
+    - has_more
+    - total_count
+    - count

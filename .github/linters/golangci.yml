@@ -1,0 +1,151 @@
+version: "2"
+
+run:
+  # Set the Go version for accurate linting
+  go: "1.24"
+
+  # Timeout for analysis; the libopenapi/libopenapi-validator dependency
+  # graph (#1714) pushed cold-cache CI runs past the old 5m
+  timeout: 10m
+
+  # Concurrency based on available CPUs
+  concurrency: 4
+
+linters:
+  # In v2, disable-all is replaced with default: none
+  default: none
+  enable:
+    # --- Core & Correctness ---
+    - govet          # Reports suspicious constructs (shadowing, etc.)
+    - errcheck       # Checks for unhandled errors (CRITICAL for AI code)
+    - staticcheck    # Huge suite of static analysis checks (includes gosimple in v2)
+    - ineffassign    # Detects ineffective assignments
+    - unused         # Checks for unused code
+    - bodyclose      # Checks for unclosed response bodies
+    # Note: gosimple is now part of staticcheck in v2
+    # Note: deadcode, structcheck, varcheck, typecheck are deprecated in v2
+
+    # --- Style & Readability (Idiomatic Go) ---
+    # Note: gofmt and goimports moved to formatters section in v2
+    - revive         # A faster, more configurable `golint` replacement
+    - nakedret       # Reports naked returns (often confusing)
+    - unparam        # Reports unused function parameters
+    - durationcheck  # Checks for multiplication of time.Duration
+
+    # --- Complexity & Maintainability ---
+    - gocognit       # Checks for cognitive complexity (CRITICAL for AI)
+    - funlen         # Checks function length (lines)
+    - lll            # Checks line length
+    - gocyclo        # Checks cyclomatic complexity
+
+    # --- Performance & Efficiency ---
+    - gocritic       # Provides diagnostics on style, performance, and bugs
+    - makezero       # Finds `make` calls that can use a zero-length slice
+    - prealloc       # Finds places where pre-allocation could optimize loops
+
+    # --- Security ---
+    - gosec          # Scans for security vulnerabilities (CRITICAL)
+
+  settings:
+    # --- Linter-specific settings ---
+    govet:
+      # Enable all default checks (enable-all includes the shadow analyzer)
+      enable-all: true
+      disable:
+        # fieldalignment can be noisy and is a micro-optimization
+        - fieldalignment
+
+    errcheck:
+      # Check for unhandled errors in blank assignments (e.g., `_ = f()`)
+      check-blank: true
+
+    staticcheck:
+      # Enable all checks, but disable style-related ones (ST)
+      # as `revive` and `gocritic` handle style better
+      checks: ["all", "-ST1000", "-ST1003", "-ST1020", "-ST1021", "-ST1022"]
+
+    # --- Complexity Settings (Adjust these for your project) ---
+    gocognit:
+      # Cognitive complexity. 15 is a good strict starting point
+      # AI code can easily exceed this
+      min-complexity: 15
+    funlen:
+      # Max lines in a function. 60 is a good default
+      lines: 60
+      # Don't count comments/blank lines
+      statements: 40
+    lll:
+      # Max line length. 120 is standard
+      line-length: 120
+    gocyclo:
+      # Cyclomatic complexity. 10-15 is a common range
+      min-complexity: 12
+
+    # --- Other Settings ---
+    revive:
+      # Use a stricter, more idiomatic ruleset
+      confidence: 0.8
+      rules:
+        - name: "package-comments"
+          disabled: true
+        - name: "dot-imports"
+          disabled: true
+        - name: "blank-imports"
+          disabled: true
+
+    gosec:
+      # Enable all rules
+      excludes: []
+
+  # In v2, exclusions live under the linters section.
+  exclusions:
+    paths:
+      - "internal/services/mocks"
+      - "internal/repositories/mocks"
+      - "internal/external/mocks"
+      - "third_party"
+    rules:
+      # Exclude complexity checks from test files
+      - path: "(_test|\\.test|\\.gen|\\.mock)\\.go$"
+        linters:
+          - gocognit
+          - funlen
+          - gocyclo
+          - lll
+
+      # Exclude checks from mock directories
+      - path: "internal/(services|repositories|external)/mocks/.*\\.go$"
+        linters:
+          - errcheck # Mocks often intentionally ignore errors
+          - gosec
+          - unparam
+
+      # Exclude errcheck for common test helper patterns
+      - text: "Error return value of .*(Error|Errorf|Fatal|Fatalf|Log|Logf|Print|Printf|Skip|Skipf) is not checked"
+        linters:
+          - errcheck
+
+      # cmd/root.go: setupShutdownContext uses context.Background as the root
+      # application lifecycle context; cancel is both returned to the caller and
+      # called from the goroutine on OS signal receipt.
+      - path: "cmd/root\\.go"
+        text: "G118"
+        linters:
+          - gosec
+
+formatters:
+  # In v2, gofmt and goimports are formatters, not linters
+  enable:
+    - gofmt          # Enforces `gofmt` formatting
+    - goimports      # Enforces `goimports` (gofmt + import sorting)
+
+  settings:
+    goimports:
+      # Enforce local prefixes for better import grouping
+      local-prefixes:
+        - "github.com/vibexp/vibexp"
+
+issues:
+  # Show all issues from all linters
+  max-issues-per-linter: 0
+  max-same-issues: 0

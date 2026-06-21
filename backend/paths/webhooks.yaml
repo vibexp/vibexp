@@ -1,0 +1,44 @@
+# webhooks path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-webhooks-github:
+  post:
+    summary: Handle GitHub webhook events
+    description: |
+      Receives and processes GitHub webhook events (e.g., push, installation changes).
+      This endpoint validates the webhook signature using the configured GitHub webhook secret.
+      This is a public endpoint — no authentication header is required; GitHub signs the payload.
+    operationId: handleGitHubWebhook
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            description: GitHub webhook event payload (varies by event type)
+            additionalProperties: true
+    responses:
+      '200':
+        description: Webhook received and processed successfully
+      '400':
+        description: Invalid payload or missing required headers
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Invalid webhook signature
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Webhooks

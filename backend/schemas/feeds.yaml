@@ -1,0 +1,343 @@
+# Feed-related schemas for OpenAPI specification
+
+# Core Feed model
+Feed:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the feed
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    team_id:
+      type: string
+      format: uuid
+      description: UUID of the team this feed belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    name:
+      type: string
+      description: Human-readable name for the feed
+      maxLength: 255
+      example: "Product Updates"
+    description:
+      type: string
+      nullable: true
+      description: Optional description of the feed
+      maxLength: 1000
+      example: "AI-generated product update summaries"
+    created_by_user_id:
+      type: string
+      description: ID of the user who created this feed
+      example: "user-123"
+    created_at:
+      type: string
+      format: date-time
+      description: Timestamp when the feed was created
+      example: "2024-01-15T10:30:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: Timestamp when the feed was last updated
+      example: "2024-01-15T14:30:00Z"
+  required:
+    - id
+    - team_id
+    - name
+    - created_by_user_id
+    - created_at
+    - updated_at
+
+# Core FeedItem model
+FeedItem:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the feed item
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    team_id:
+      type: string
+      format: uuid
+      description: UUID of the team this item belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    feed_id:
+      type: string
+      format: uuid
+      description: UUID of the feed this item belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    project_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Optional UUID of the associated project
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    title:
+      type: string
+      description: Title of the feed item
+      maxLength: 255
+      example: "Sprint 42 Retrospective"
+    content:
+      type: string
+      description: Full content of the feed item (max 200 KB)
+      example: "## Summary\nThe sprint went well..."
+    excerpt:
+      type: string
+      description: Server-computed plain-text excerpt (first 300 chars, markdown stripped)
+      example: "The sprint went well and the team delivered all committed features."
+    ai_assistant_name:
+      type: string
+      description: Name of the AI assistant that generated this item
+      maxLength: 30
+      example: "claude-sonnet-4-5"
+    posted_by_user_id:
+      type: string
+      description: ID of the user who posted this item
+      example: "user-123"
+    archived_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Timestamp when the item was archived, null if active
+      example: null
+    posted_at:
+      type: string
+      format: date-time
+      description: Server-set timestamp when the item was posted
+      example: "2024-01-15T10:30:00Z"
+  required:
+    - id
+    - team_id
+    - feed_id
+    - title
+    - content
+    - excerpt
+    - ai_assistant_name
+    - posted_by_user_id
+    - posted_at
+
+# Request model for creating a feed
+CreateFeedRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Name of the feed (unique within the team)
+      minLength: 1
+      maxLength: 255
+      example: "Product Updates"
+    description:
+      type: string
+      description: Optional description of the feed
+      maxLength: 1000
+      example: "AI-generated product update summaries"
+  required:
+    - name
+
+# Request model for updating a feed
+UpdateFeedRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Updated name of the feed
+      minLength: 1
+      maxLength: 255
+      example: "Product Updates v2"
+    description:
+      type: string
+      description: Updated description of the feed
+      maxLength: 1000
+      example: "Updated AI-generated product summaries"
+
+# Request model for creating a feed item
+CreateFeedItemRequest:
+  type: object
+  properties:
+    title:
+      type: string
+      description: Title of the feed item
+      minLength: 1
+      maxLength: 255
+      example: "Sprint 42 Retrospective"
+    content:
+      type: string
+      description: Full content of the feed item (max 200 KB)
+      minLength: 1
+      example: "## Summary\nThe sprint went well..."
+    ai_assistant_name:
+      type: string
+      description: Name of the AI assistant that generated this item (no normalization applied)
+      minLength: 1
+      maxLength: 30
+      example: "claude-sonnet-4-5"
+    project_id:
+      type: string
+      format: uuid
+      description: Optional UUID of the associated project (must belong to the same team)
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+  required:
+    - title
+    - content
+    - ai_assistant_name
+
+# Paginated response for feed lists
+FeedListResponse:
+  type: object
+  properties:
+    feeds:
+      type: array
+      items:
+        $ref: '#/Feed'
+      description: List of feeds
+    total_count:
+      type: integer
+      description: Total number of feeds matching the filter criteria
+      example: 12
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 20
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 1
+  required:
+    - feeds
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+# Paginated response for feed item lists
+FeedItemListResponse:
+  type: object
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/FeedItem'
+      description: List of feed items
+    total_count:
+      type: integer
+      description: Total number of items matching the filter criteria
+      example: 42
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 20
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 3
+  required:
+    - items
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+# Core FeedItemReply model — a threaded reply to a feed item
+FeedItemReply:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the reply
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    team_id:
+      type: string
+      format: uuid
+      description: UUID of the team this reply belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    feed_item_id:
+      type: string
+      format: uuid
+      description: UUID of the feed item this reply belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    content:
+      type: string
+      description: Content of the reply
+      maxLength: 10000
+      example: "Great summary — the deploy step needs one correction."
+    posted_by_user_id:
+      type: string
+      description: ID of the user who posted this reply
+      example: "user-123"
+    ai_assistant_name:
+      type: string
+      nullable: true
+      description: Name of the AI assistant that posted this reply, null for human replies
+      maxLength: 30
+      example: "claude-sonnet-4-5"
+    posted_at:
+      type: string
+      format: date-time
+      description: Server-set timestamp when the reply was posted
+      example: "2024-01-15T10:30:00Z"
+  required:
+    - id
+    - team_id
+    - feed_item_id
+    - content
+    - posted_by_user_id
+    - posted_at
+
+# Request model for posting a reply to a feed item
+CreateFeedItemReplyRequest:
+  type: object
+  properties:
+    content:
+      type: string
+      description: Content of the reply (leading/trailing whitespace is trimmed)
+      minLength: 1
+      maxLength: 10000
+      example: "Great summary — the deploy step needs one correction."
+    ai_assistant_name:
+      type: string
+      description: Optional name of the AI assistant posting this reply
+      maxLength: 30
+      example: "claude-sonnet-4-5"
+  required:
+    - content
+
+# Paginated response for feed item reply lists
+FeedItemReplyListResponse:
+  type: object
+  properties:
+    replies:
+      type: array
+      items:
+        $ref: '#/FeedItemReply'
+      description: List of feed item replies
+    total_count:
+      type: integer
+      description: Total number of replies for the feed item
+      example: 7
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 20
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 1
+  required:
+    - replies
+    - total_count
+    - page
+    - per_page
+    - total_pages

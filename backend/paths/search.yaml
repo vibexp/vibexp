@@ -1,0 +1,127 @@
+# search path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-team_id-search:
+  post:
+    summary: Semantic search across team resources
+    description: >-
+      Performs a pgvector cosine-similarity semantic search over the team's
+      prompts, artifacts, blueprints and memories, returning relevance-ranked
+      chunk excerpts for RAG retrieval. One result is returned per matching
+      embedding chunk.
+    operationId: searchTeamResources
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team ID
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/SearchRequest'
+    responses:
+      '200':
+        description: Search results retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SearchResultsResponse'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: User is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Search
+
+api-v1-team_id-resource-access-metrics:
+  get:
+    summary: Per-resource daily access metrics
+    description: >-
+      Returns a zero-filled daily access timeseries for a single resource,
+      grouped by source (web, cli, mcp, api), for the resource detail-page
+      chart. Every day in the requested range appears even when its count is
+      zero. Free-tier accessible to team members.
+    operationId: getResourceAccessMetrics
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team ID
+        schema:
+          type: string
+          format: uuid
+      - name: resource_type
+        in: query
+        required: true
+        description: The resource type to report on (singular form).
+        schema:
+          type: string
+          enum: [prompt, artifact, blueprint, memory, project, agent]
+      - name: resource_id
+        in: query
+        required: true
+        description: The resource UUID.
+        schema:
+          type: string
+          format: uuid
+      - name: range
+        in: query
+        required: false
+        description: The reporting window. Defaults to 30d.
+        schema:
+          type: string
+          enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+          default: '30d'
+    responses:
+      '200':
+        description: Resource access metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceAccessMetricsResponse'
+      '400':
+        description: Invalid request parameters
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: User is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to retrieve resource access metrics
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Resource Access Metrics

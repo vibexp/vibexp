@@ -1,0 +1,521 @@
+# Team management schemas
+
+Team:
+  type: object
+  description: A team (workspace) in the system. `role` and `member_count` are computed at read time for the requesting user.
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    owner_id:
+      type: string
+      description: User ID of the team owner
+      example: "user_01HXYZABC123"
+    name:
+      type: string
+      maxLength: 100
+      example: "Engineering Team"
+    slug:
+      type: string
+      example: "engineering-team"
+    description:
+      type: string
+      maxLength: 500
+      example: "Team for the core engineering group"
+    is_personal:
+      type: boolean
+      description: Whether this is the user's personal workspace (cannot be deleted or hold a team subscription)
+      example: false
+    role:
+      type: string
+      description: >-
+        The requesting user's role in this team: owner, admin, or member.
+        Populated at runtime on list and single-team reads; empty string on
+        create responses (not an enum constraint for that reason).
+      example: "owner"
+    member_count:
+      type: integer
+      description: >-
+        Number of members in this team. Populated only on list responses;
+        0 on create and single-team reads.
+      example: 5
+    created_at:
+      type: string
+      format: date-time
+      example: "2025-01-15T10:30:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      example: "2025-01-20T14:45:00Z"
+  required:
+    - id
+    - owner_id
+    - name
+    - slug
+    - description
+    - is_personal
+    - created_at
+    - updated_at
+
+CreateTeamRequest:
+  type: object
+  description: Request body for creating a team
+  properties:
+    name:
+      type: string
+      maxLength: 100
+      description: Team name (required, at most 100 characters)
+      example: "Engineering Team"
+    description:
+      type: string
+      maxLength: 500
+      description: Optional team description (at most 500 characters)
+      example: "Team for the core engineering group"
+  required:
+    - name
+
+UpdateTeamRequest:
+  type: object
+  description: Request body for updating a team. At least one of `name` or `description` must be provided.
+  properties:
+    name:
+      type: string
+      maxLength: 100
+      description: New team name (must be non-empty when provided)
+      example: "Platform Team"
+    description:
+      type: string
+      maxLength: 500
+      description: New team description
+      example: "Renamed from Engineering Team"
+
+TeamListResponse:
+  type: object
+  description: Paginated list of teams the user belongs to
+  properties:
+    teams:
+      type: array
+      items:
+        $ref: '#/Team'
+    total_count:
+      type: integer
+      example: 3
+    page:
+      type: integer
+      example: 1
+    page_size:
+      type: integer
+      example: 20
+  required:
+    - teams
+    - total_count
+    - page
+    - page_size
+
+TeamMemberDetail:
+  type: object
+  description: Detailed information about a team member, including invitation status
+  properties:
+    user_id:
+      type: string
+      example: "user_01HXYZABC123"
+    email:
+      type: string
+      format: email
+      example: "member@example.com"
+    name:
+      type: string
+      example: "Jane Doe"
+    role:
+      type: string
+      enum: [owner, admin, member]
+      example: "member"
+    joined_at:
+      type: string
+      format: date-time
+      description: When the member joined the team
+      example: "2025-02-01T09:00:00Z"
+    invitation_status:
+      type: string
+      enum: [pending, accepted]
+      description: Invitation status for this member (omitted when not applicable)
+      example: "accepted"
+  required:
+    - user_id
+    - email
+    - name
+    - role
+    - joined_at
+
+TeamMembersListResponse:
+  type: object
+  description: Paginated list of team members
+  properties:
+    members:
+      type: array
+      items:
+        $ref: '#/TeamMemberDetail'
+    total_count:
+      type: integer
+      example: 5
+    page:
+      type: integer
+      example: 1
+    page_size:
+      type: integer
+      example: 100
+  required:
+    - members
+    - total_count
+    - page
+    - page_size
+
+SendInvitationsRequest:
+  type: object
+  description: Request body for sending team invitations (1–50 email addresses per request)
+  properties:
+    emails:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items:
+        type: string
+        format: email
+      example: ["invitee1@example.com", "invitee2@example.com"]
+    role:
+      type: string
+      enum: [member, admin]
+      description: Role granted to invitees when they accept
+      example: "member"
+  required:
+    - emails
+    - role
+
+AcceptInvitationResponse:
+  type: object
+  description: Response after successfully accepting a team invitation
+  properties:
+    team_id:
+      type: string
+      format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    team_name:
+      type: string
+      example: "Engineering Team"
+    message:
+      type: string
+      example: "Successfully joined team Engineering Team"
+  required:
+    - team_id
+    - team_name
+    - message
+
+TeamQuotaTypeDetail:
+  type: object
+  description: Quota details for a specific resource type
+  properties:
+    resource_type:
+      type: string
+      description: Resource type the quota applies to
+      example: "prompts"
+    limit:
+      type: integer
+      description: Maximum allowed
+      example: 100
+    used:
+      type: integer
+      description: Current usage
+      example: 45
+    remaining:
+      type: integer
+      description: Available quota
+      example: 55
+  required:
+    - resource_type
+    - limit
+    - used
+    - remaining
+
+TeamDeleteConflictError:
+  type: object
+  description: |
+    RFC 9457 problem details returned when team deletion is blocked (HTTP 409).
+    Codes are UPPERCASE and all `metadata` values are strings:
+    - `ACTIVE_SUBSCRIPTION_EXISTS` — metadata: `subscription_id`, `subscription_tier`, `billing_portal_url`, `help_text`
+    - `SUBSCRIPTION_CANCELING` — metadata: `cancel_at` (date the cancellation takes effect)
+    - `TEAM_HAS_MEMBERS` — metadata: `member_count` (stringified integer)
+  properties:
+    type:
+      type: string
+      description: URI reference that identifies the problem type
+      example: "https://api.example.com/errors/ACTIVE_SUBSCRIPTION_EXISTS"
+    title:
+      type: string
+      description: Short, human-readable summary of the problem type
+      enum: ["Active Subscription Exists", "Subscription Canceling", "Team Has Members"]
+      example: "Active Subscription Exists"
+    status:
+      type: integer
+      example: 409
+    detail:
+      type: string
+      description: Human-readable explanation specific to this occurrence
+      example: "team has an active professional subscription. Cancel the subscription before deleting the team"
+    code:
+      type: string
+      enum: [ACTIVE_SUBSCRIPTION_EXISTS, SUBSCRIPTION_CANCELING, TEAM_HAS_MEMBERS]
+      example: "ACTIVE_SUBSCRIPTION_EXISTS"
+    request_id:
+      type: string
+      example: "abc123-def456"
+    timestamp:
+      type: string
+      format: date-time
+      example: "2026-06-09T10:15:30Z"
+    instance:
+      type: string
+      description: URI reference that identifies the specific occurrence
+      example: "/api/v1/teams/550e8400-e29b-41d4-a716-446655440000"
+    metadata:
+      type: object
+      description: Code-specific string-valued metadata (see schema description for per-code keys)
+      additionalProperties:
+        type: string
+      example:
+        subscription_id: "sub_1QabcDEF"
+        subscription_tier: "professional"
+        billing_portal_url: "https://billing.stripe.com/p/session/abc123"
+        help_text: "Cancel your subscription via the billing portal, then delete the team."
+  required:
+    - type
+    - title
+    - status
+    - detail
+    - code
+    - request_id
+    - timestamp
+
+# RFC 9457 problem-details payload for invitation 409s (code DUPLICATE_MEMBERS).
+# Self-contained (schema files do not cross-reference common.yaml) and extends
+# the standard error shape with the top-level duplicate_emails array the
+# handler emits (internal/errors/builder.go BuildDuplicateMembersError).
+InvitationDuplicateMembersError:
+  type: object
+  properties:
+    type:
+      type: string
+      example: "about:blank"
+    title:
+      type: string
+      example: "Conflict"
+    status:
+      type: integer
+      example: 409
+    detail:
+      type: string
+      example: "Some invitees are already members of this team"
+    code:
+      type: string
+      example: "DUPLICATE_MEMBERS"
+    duplicate_emails:
+      type: array
+      items:
+        type: string
+        format: email
+      description: The submitted emails that already belong to team members
+      example: ["dev@example.com"]
+  required:
+    - title
+    - status
+    - code
+
+# Response model for team-wide resource statistics (team analytics page).
+TeamStatsResponse:
+  type: object
+  required: [total_projects, total_prompts, total_artifacts, total_blueprints, total_memories, total_feed_items]
+  properties:
+    total_projects:
+      type: integer
+      description: Total number of projects belonging to this team
+      example: 4
+    total_prompts:
+      type: integer
+      description: Total number of prompts belonging to this team
+      example: 25
+    total_artifacts:
+      type: integer
+      description: Total number of artifacts belonging to this team
+      example: 13
+    total_blueprints:
+      type: integer
+      description: Total number of blueprints belonging to this team
+      example: 6
+    total_memories:
+      type: integer
+      description: Total number of memories belonging to this team
+      example: 40
+    total_feed_items:
+      type: integer
+      description: Total number of feed items belonging to this team
+      example: 52
+
+TeamResourceCreationDailyCount:
+  type: object
+  description: Per-resource-type creation counts for a single calendar day (UTC), zero-filled.
+  required: [date, prompts, artifacts, blueprints, memories, projects, total]
+  properties:
+    date:
+      type: string
+      format: date
+      example: '2026-05-01'
+    prompts:
+      type: integer
+      example: 3
+    artifacts:
+      type: integer
+      example: 1
+    blueprints:
+      type: integer
+      example: 0
+    memories:
+      type: integer
+      example: 2
+    projects:
+      type: integer
+      example: 1
+    total:
+      type: integer
+      example: 7
+
+TeamResourceCreationMetricsData:
+  type: object
+  required: [total_created, range, counts]
+  properties:
+    total_created:
+      type: integer
+      description: Sum of every creation count across the whole window.
+      example: 142
+    range:
+      type: string
+      enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+      example: '30d'
+    counts:
+      type: array
+      items:
+        $ref: '#/TeamResourceCreationDailyCount'
+
+TeamResourceCreationMetricsResponse:
+  type: object
+  required: [status, message, data]
+  properties:
+    status:
+      type: string
+      example: success
+    message:
+      type: string
+      example: Team resource creation metrics retrieved successfully
+    data:
+      $ref: '#/TeamResourceCreationMetricsData'
+
+TeamFeedCreationDailyCount:
+  type: object
+  description: Per-feed-entity creation counts for a single calendar day (UTC), zero-filled.
+  required: [date, feeds, feed_items, total]
+  properties:
+    date:
+      type: string
+      format: date
+      example: '2026-05-01'
+    feeds:
+      type: integer
+      description: Feeds (channels) created on this day.
+      example: 0
+    feed_items:
+      type: integer
+      description: Feed items (AI updates posted) created on this day.
+      example: 3
+    total:
+      type: integer
+      description: feeds + feed_items for this day.
+      example: 3
+
+TeamFeedCreationMetricsData:
+  type: object
+  required: [total_created, range, counts]
+  properties:
+    total_created:
+      type: integer
+      description: Sum of every feed/feed_item creation across the whole window.
+      example: 42
+    range:
+      type: string
+      enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+      example: '30d'
+    counts:
+      type: array
+      items:
+        $ref: '#/TeamFeedCreationDailyCount'
+
+TeamFeedCreationMetricsResponse:
+  type: object
+  required: [status, message, data]
+  properties:
+    status:
+      type: string
+      example: success
+    message:
+      type: string
+      example: Team feed creation metrics retrieved successfully
+    data:
+      $ref: '#/TeamFeedCreationMetricsData'
+
+TopAccessedResourceItem:
+  type: object
+  description: One row of the team's most-accessed resources ranking.
+  required: [resource_type, resource_id, name, access_count]
+  properties:
+    resource_type:
+      type: string
+      description: The accessed resource's type (e.g. prompt, artifact, blueprint, memory, project).
+      example: prompt
+    resource_id:
+      type: string
+      format: uuid
+      example: 'b3f1c2d4-5678-49ab-9cde-0123456789ab'
+    name:
+      type: string
+      description: >-
+        Resolved display name of the resource (prompt/project name, artifact/blueprint
+        title, or truncated memory text). Empty when the resource no longer exists.
+      example: 'Onboarding checklist'
+    access_count:
+      type: integer
+      description: Number of access events for the resource within the window.
+      example: 128
+
+TeamTopAccessedResourcesData:
+  type: object
+  required: [range, items]
+  properties:
+    range:
+      type: string
+      enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+      example: '30d'
+    items:
+      type: array
+      items:
+        $ref: '#/TopAccessedResourceItem'
+
+TeamTopAccessedResourcesResponse:
+  type: object
+  required: [status, message, data]
+  properties:
+    status:
+      type: string
+      example: success
+    message:
+      type: string
+      example: Team top accessed resources retrieved successfully
+    data:
+      $ref: '#/TeamTopAccessedResourcesData'

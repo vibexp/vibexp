@@ -1,0 +1,30 @@
+# subscriptions path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-resource-usage:
+  get:
+    summary: Get resource usage statistics
+    description: Returns resource usage information for the authenticated user
+    operationId: getResourceUsage
+    responses:
+      '200':
+        description: Resource usage information
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceUsageResponse'
+      '401':
+        description: Unauthorized - JWT token missing or invalid
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden - subscription required or invalid
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Subscriptions

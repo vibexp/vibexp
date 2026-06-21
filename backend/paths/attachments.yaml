@@ -1,0 +1,233 @@
+api-v1-team_id-attachments:
+  post:
+    summary: Upload an attachment
+    description: >
+      Uploads a single file (multipart field `file`) as an attachment on the
+      resource identified by `owner_type` + `owner_id`. The owner_type must have a
+      registered authorizer (currently `artifact`, `prompt`, `blueprint`); an unsupported
+      owner_type returns 404. Enforces a 5 MB per-file limit, a 10 MB cumulative limit per
+      owner, and a safe file-type allowlist.
+    operationId: uploadAttachment
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              owner_type:
+                type: string
+                description: Type of the owning resource (e.g. "artifact")
+                example: artifact
+              owner_id:
+                type: string
+                format: uuid
+                description: UUID of the owning resource
+              file:
+                type: string
+                format: binary
+                description: The file to attach
+            required:
+              - owner_type
+              - owner_id
+              - file
+    responses:
+      '201':
+        description: Attachment uploaded successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Attachment'
+      '400':
+        description: Missing fields/file, invalid owner_id, file too large, cumulative limit exceeded, or disallowed type
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Unsupported owner_type, or the owning resource was not found / is not accessible
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '503':
+        description: Attachment storage is not available
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Attachments
+
+  get:
+    summary: List attachments for an owner
+    description: >
+      Returns all attachments for the resource identified by the `owner_type` and
+      `owner_id` query parameters, newest first, plus their combined size.
+    operationId: listAttachments
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: owner_type
+        in: query
+        required: true
+        description: Type of the owning resource (e.g. "artifact")
+        schema:
+          type: string
+      - name: owner_id
+        in: query
+        required: true
+        description: UUID of the owning resource
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Attachments retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AttachmentListResponse'
+      '400':
+        description: Missing or invalid owner_type / owner_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Unsupported owner_type, or the owning resource was not found / is not accessible
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Attachments
+
+api-v1-team_id-attachments-id:
+  get:
+    summary: Download an attachment
+    description: >
+      Streams the attachment file as a download (Content-Disposition: attachment).
+      The attachment id is sufficient; its owner is read from the stored row and
+      authorized via the owner authorizer registry.
+    operationId: downloadAttachment
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        description: Attachment identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Attachment file stream
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '400':
+        description: Invalid attachment id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Attachment not found, or its owner is not accessible
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '503':
+        description: Attachment storage is not available
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Attachments
+
+  delete:
+    summary: Delete an attachment
+    description: >
+      Deletes the attachment metadata row and the stored object. The attachment id
+      is sufficient; its owner is read from the stored row and authorized via the
+      owner authorizer registry.
+    operationId: deleteAttachment
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        description: Attachment identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Attachment deleted successfully
+      '400':
+        description: Invalid attachment id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Attachment not found, or its owner is not accessible
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Attachments

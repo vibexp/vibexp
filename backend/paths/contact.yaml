@@ -1,0 +1,64 @@
+# contact path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-website-contact-send-message:
+  post:
+    summary: Send a contact form message
+    description: |
+      Submits a contact form message from the public marketing website and fans it out
+      to the email provider. This is a public endpoint (no authentication) with a very
+      strict per-IP rate limit; exceeding it returns 429. Request body is capped at 64 KB.
+      Note — error responses deviate from the standard `ErrorResponse` shape: validation
+      failures (400) and email-send failures (500) return a `ContactFormResponse` with
+      `success: false`, while malformed JSON (400) and oversized bodies (413) return a
+      plain-text message.
+    operationId: sendContactMessage
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/ContactFormRequest'
+    responses:
+      '200':
+        description: Message sent successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ContactFormResponse'
+      '400':
+        description: |
+          Validation failed (JSON body with `success: false`) or malformed JSON
+          (plain-text "Invalid JSON format")
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ContactFormResponse'
+          text/plain:
+            schema:
+              type: string
+              example: "Invalid JSON format"
+      '413':
+        description: Request body exceeds the 64 KB size limit (plain-text body)
+        content:
+          text/plain:
+            schema:
+              type: string
+              example: "Request body too large"
+      '429':
+        description: Per-IP rate limit exceeded (plain-text body)
+        content:
+          text/plain:
+            schema:
+              type: string
+              example: "Too Many Requests"
+      '500':
+        description: Failed to send message via the email provider (JSON body with `success` false)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ContactFormResponse'
+    tags:
+      - Contact

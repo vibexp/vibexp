@@ -1,0 +1,759 @@
+/* ==========================================================================
+ * Version History — redesign stylesheet
+ *
+ * Ported verbatim (px-for-px) from the design source `_vhpage_bundle_src.html`
+ * (concept C list + full-page compare + restore confirmation). Every colour is
+ * a `@vibexp/design-system` token via `var(--…)`; the ONLY raw colours are
+ * the three author-avatar tones, which the design documents as the single
+ * exception. All tokens flip automatically in `.dark`, so light + dark both work.
+ *
+ * Class prefixes mirror the design: `vhp-` (page chrome) · `vhc-` (list table) ·
+ * `vcmp-` (compare takeover) · `vhd-` (restore dialog) · `vha-` (unified diff).
+ * ========================================================================== */
+
+.vh-root,
+.vh-compare {
+  /* Prefer the design tokens; fall back to equivalent stacks because the app
+   * intentionally does not import the design-system fonts.css globally. */
+  --vh-font-system: var(
+    --font-system,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif
+  );
+  --vh-font-mono: var(
+    --font-mono,
+    ui-monospace,
+    'JetBrains Mono',
+    'SFMono-Regular',
+    Menlo,
+    Consolas,
+    monospace
+  );
+  --vh-radius-sm: var(--radius-sm, calc(var(--radius) - 4px));
+  --vh-radius-md: var(--radius-md, calc(var(--radius) - 2px));
+  --vh-radius-lg: var(--radius-lg, var(--radius));
+  font-family: var(--vh-font-system);
+  color: var(--foreground);
+}
+
+/* ============================ page head ============================ */
+.vh-list {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+/* generic author chip */
+.vhp-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.vhp-ava {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.vhp-ava img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.vhp-ava--s {
+  width: 18px;
+  height: 18px;
+  font-size: 0.5625rem;
+}
+/* Author tones come from the design-system identity palette (--avatar-1/2/3),
+   which also ships lifted dark-mode variants — no raw oklch() literals here. */
+.vhp-ava--1 {
+  background: var(--avatar-1);
+}
+.vhp-ava--2 {
+  background: var(--avatar-2);
+}
+.vhp-ava--3 {
+  background: var(--avatar-3);
+}
+.vhp-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* +/- diffstat */
+.vhp-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--vh-font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.vhp-stat__add {
+  color: var(--success);
+}
+.vhp-stat__del {
+  color: var(--destructive);
+}
+.vhp-stat__bars {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 2px;
+}
+.vhp-stat__bars i {
+  width: 7px;
+  height: 7px;
+  border-radius: 1.5px;
+  background: var(--border);
+}
+.vhp-stat__bars i.is-add {
+  background: var(--success);
+}
+.vhp-stat__bars i.is-del {
+  background: var(--destructive);
+}
+.vhp-stat__none {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+/* ============================ list toolbar ============================ */
+.vhc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.vhc-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--vh-radius-md);
+  background: var(--background);
+  flex: 1;
+  /* min-width mirrors ArtifactFilters: the search wraps to its own row on narrow
+   * screens instead of crushing to "Sear…" beside the filters. */
+  min-width: 240px;
+  max-width: 320px;
+}
+.vhc-search svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.vhc-search input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--foreground);
+  width: 100%;
+}
+.vhc-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--vh-radius-md);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.vhc-filter:hover {
+  background: var(--accent);
+}
+.vhc-filter svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.55;
+}
+.vhc-filter.is-active {
+  border-color: var(--primary);
+  color: var(--foreground);
+}
+.vhc-toolbar__sp {
+  flex: 1;
+}
+.vhc-selbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+.vhc-selbar b {
+  color: var(--foreground);
+}
+
+/* ============================ list table ============================ */
+.vhc-tablewrap {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--vh-radius-lg);
+  background: var(--card);
+  /* Scroll the dense table horizontally on narrow screens (mobile) instead of
+   * squeezing/clipping columns; the rounded corners still clip the content. */
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+table.vhc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.vhc-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--muted);
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.vhc-table th.vhc-sort {
+  cursor: pointer;
+  user-select: none;
+}
+.vhc-table th .vhc-sortic {
+  display: inline-flex;
+  width: 11px;
+  vertical-align: middle;
+  margin-left: 3px;
+  opacity: 0.6;
+}
+.vhc-table th .vhc-sortic svg {
+  width: 11px;
+  height: 11px;
+}
+.vhc-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.vhc-table tbody tr:last-child {
+  border-bottom: 0;
+}
+.vhc-table tbody tr:hover {
+  background: var(--accent);
+}
+.vhc-table tbody tr.is-sel {
+  background: var(--secondary);
+}
+.vhc-table td {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+.vhc-check {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--input);
+  border-radius: var(--vh-radius-sm);
+  display: grid;
+  place-items: center;
+  color: transparent;
+}
+.vhc-check.is-on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.vhc-check.is-disabled {
+  opacity: 0.4;
+}
+.vhc-check svg {
+  width: 11px;
+  height: 11px;
+}
+.vhc-vcell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  /* Keep "Version N" + the Current tag on one line; the auto-layout table grows
+   * this column and the wrappable Change summary column absorbs the width. */
+  white-space: nowrap;
+}
+.vhc-vdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.vhc-vdot.is-cur {
+  background: var(--primary);
+}
+.vhc-summary {
+  color: var(--foreground);
+}
+.vhc-when {
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.vhc-actcell {
+  text-align: right;
+  white-space: nowrap;
+}
+.vhc-actbtns {
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.vhc-table tbody tr:hover .vhc-actbtns,
+.vhc-table tbody tr:focus-within .vhc-actbtns {
+  opacity: 1;
+}
+.vhc-rowbtn {
+  width: 30px;
+  height: 30px;
+}
+
+/* empty state */
+.vhc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 56px 16px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.vhc-empty svg {
+  width: 30px;
+  height: 30px;
+  opacity: 0.7;
+}
+
+/* ====================== restore-safety dialog ====================== */
+.vhd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: color-mix(in oklch, black 32%, transparent);
+}
+.vhd-modal {
+  width: min(440px, calc(100vw - 2rem));
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: var(--vh-radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 22px;
+}
+.vhd-ico {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--vh-radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--warning-subtle);
+  color: color-mix(in oklch, var(--warning) 70%, black);
+  margin-bottom: 14px;
+}
+.vhd-ico svg {
+  width: 19px;
+  height: 19px;
+}
+.vhd-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 7px;
+}
+.vhd-text {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+.vhd-text b {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.vhd-note {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 16px 0 0;
+  padding: 11px 13px;
+  background: var(--secondary);
+  border-radius: var(--vh-radius-md);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.vhd-note svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.vhd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 20px;
+}
+
+/* ===================================================================
+ * Compare result — full-page takeover
+ * =================================================================== */
+.vh-compare {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--background);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vcmp-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 58px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.vcmp-back {
+  flex-shrink: 0;
+}
+.vcmp-chips {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 auto;
+}
+.vcmp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 13px;
+  border: 1px solid var(--input);
+  border-radius: var(--vh-radius-md);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: inherit;
+  cursor: pointer;
+}
+.vcmp-chip:hover {
+  background: var(--accent);
+}
+.vcmp-chip__sw {
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.vcmp-chip__main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+.vcmp-chip__v {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vcmp-chip__t {
+  font-size: 0.625rem;
+  color: var(--muted-foreground);
+}
+.vcmp-chip__chev svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0.5;
+}
+.vcmp-swap {
+  width: 34px;
+  height: 34px;
+}
+.vcmp-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.vcmp-seg {
+  display: inline-flex;
+  border: 1px solid var(--input);
+  border-radius: var(--vh-radius-md);
+  overflow: hidden;
+  height: 34px;
+}
+.vcmp-seg button {
+  border: 0;
+  background: var(--background);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  padding: 0 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.vcmp-seg button.is-on {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+.vcmp-seg button svg {
+  width: 13px;
+  height: 13px;
+}
+.vcmp-seg button + button {
+  border-left: 1px solid var(--input);
+}
+
+/* base/compare meta strip */
+.vcmp-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.vcmp-mcol {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.vcmp-mcol + .vcmp-mcol {
+  border-left: 1px solid var(--border);
+}
+.vcmp-mtag {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--vh-radius-sm);
+  flex-shrink: 0;
+}
+.vcmp-mtag--base {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+.vcmp-mtag--cmp {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.vcmp-minfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.vcmp-mv {
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vcmp-msub {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vcmp-mright {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* split diff */
+.vcmp-diffwrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.vcmp-colhead {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.vcmp-colhead > div {
+  padding: 7px 18px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.vcmp-colhead > div + div {
+  border-left: 1px solid var(--border);
+}
+.vcmp-split {
+  font-family: var(--vh-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.75;
+}
+.vcmp-srow {
+  display: grid;
+  grid-template-columns: 42px 1fr 42px 1fr;
+}
+.vcmp-num {
+  text-align: right;
+  padding: 0 10px;
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  font-size: 0.6875rem;
+  user-select: none;
+}
+.vcmp-numr {
+  border-left: 1px solid var(--border);
+}
+.vcmp-code {
+  padding: 0 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.vcmp-code.is-del {
+  background: color-mix(in oklch, var(--destructive) 11%, transparent);
+  color: color-mix(in oklch, var(--destructive) 80%, black);
+}
+.vcmp-code.is-add {
+  background: color-mix(in oklch, var(--success) 12%, transparent);
+  color: color-mix(in oklch, var(--success) 88%, black);
+}
+.vcmp-code.is-empty {
+  background-color: var(--secondary);
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--border) 0 1px,
+    transparent 1px 8px
+  );
+}
+.vcmp-word {
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.vcmp-code.is-del .vcmp-word {
+  background: color-mix(in oklch, var(--destructive) 22%, transparent);
+}
+.vcmp-code.is-add .vcmp-word {
+  background: color-mix(in oklch, var(--success) 26%, transparent);
+}
+.vcmp-hunk {
+  grid-column: 1 / -1;
+  padding: 4px 18px;
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ===================================================================
+ * Unified diff (compare "Unified" toggle) — ported from `.vha-diff`
+ * =================================================================== */
+.vha-diff {
+  font-family: var(--vh-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.vha-hunk {
+  padding: 4px 18px;
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.vha-dline {
+  display: grid;
+  grid-template-columns: 44px 44px 1fr;
+  align-items: baseline;
+}
+.vha-dnum {
+  text-align: right;
+  padding: 0 10px;
+  color: var(--muted-foreground);
+  opacity: 0.65;
+  font-size: 0.6875rem;
+  user-select: none;
+}
+.vha-dtext {
+  padding: 0 14px 0 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.vha-dline.is-add {
+  background: color-mix(in oklch, var(--success) 12%, transparent);
+}
+.vha-dline.is-add .vha-dtext {
+  color: color-mix(in oklch, var(--success) 88%, black);
+}
+.vha-dline.is-del {
+  background: color-mix(in oklch, var(--destructive) 11%, transparent);
+}
+.vha-dline.is-del .vha-dtext {
+  color: color-mix(in oklch, var(--destructive) 80%, black);
+}
+.vha-dmark {
+  display: inline-block;
+  width: 12px;
+}
+.vha-dword {
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.vha-dline.is-add .vha-dword {
+  background: color-mix(in oklch, var(--success) 26%, transparent);
+}
+.vha-dline.is-del .vha-dword {
+  background: color-mix(in oklch, var(--destructive) 22%, transparent);
+}
+
+/* shared "Current" tag sizing */
+.vhb-current-tag {
+  font-size: 0.6875rem;
+}

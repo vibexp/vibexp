@@ -1,0 +1,1048 @@
+# prompts path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-team_id-prompts:
+  post:
+    summary: Create a new prompt
+    description: |
+      Creates a new prompt template for the specified team. The prompt can be used to store
+      reusable AI instructions with placeholders and references.
+    operationId: createPrompt
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreatePromptRequest'
+    responses:
+      '201':
+        description: Prompt created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Prompt'
+      '400':
+        description: Invalid request (validation error)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required or resource limit exceeded)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict (prompt with slug already exists)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+  get:
+    summary: List prompts
+    description: |
+      Retrieves a paginated list of prompts for the specified team with optional filtering.
+    operationId: listPrompts
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+        description: Page number for pagination
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 10
+          minimum: 1
+          maximum: 100
+        description: Number of items per page
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Search term to filter prompts by name or description
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [draft, published]
+        description: Filter by prompt status
+      - name: labels
+        in: query
+        schema:
+          type: string
+        description: Comma-separated list of labels to filter by
+      - name: project_id
+        in: query
+        schema:
+          type: string
+          format: uuid
+        description: Filter by project ID
+      - name: mcp_expose
+        in: query
+        schema:
+          type: boolean
+        description: Filter by MCP exposure flag. Non-boolean values are ignored (no filter applied).
+      - name: shared
+        in: query
+        schema:
+          type: boolean
+        description: Filter by share status (prompts with an active share). Non-boolean values are ignored (no filter applied).
+      - name: sort_by
+        in: query
+        description: "Field to sort results by. Allowed: name, status, updated_at, created_at. Returns 400 for unknown values."
+        schema:
+          type: string
+          enum: [name, status, updated_at, created_at]
+      - name: sort_order
+        in: query
+        description: Sort direction (asc or desc, default desc)
+        schema:
+          type: string
+          enum: [asc, desc]
+          default: desc
+    responses:
+      '200':
+        description: List of prompts retrieved successfully
+        content:
+          application/json:
+            schema:
+              # The handler wraps the list in the legacy success envelope
+              # (writeOK with {status, message, data}); document the wire shape.
+              allOf:
+                - $ref: '../openapi.yaml#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../openapi.yaml#/components/schemas/PromptListResponse'
+                  required:
+                    - data
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+api-v1-team_id-prompts-labels:
+  get:
+    summary: Get prompt labels
+    description: |
+      Retrieves all unique labels used across prompts for the specified team.
+    operationId: getPromptLabels
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    responses:
+      '200':
+        description: Labels retrieved successfully
+        content:
+          application/json:
+            schema:
+              # The handler wraps the labels in the legacy success envelope
+              # (writeOK with {status, message, data}); document the wire shape.
+              allOf:
+                - $ref: '../openapi.yaml#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      properties:
+                        labels:
+                          type: array
+                          items:
+                            type: string
+                          example: ["code-review", "documentation", "testing"]
+                      required:
+                        - labels
+                  required:
+                    - data
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+api-v1-team_id-prompts-slug:
+  get:
+    summary: Get a prompt by slug
+    description: |
+      Retrieves a specific prompt by its slug identifier for the specified team.
+    operationId: getPrompt
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Prompt slug identifier
+    responses:
+      '200':
+        description: Prompt retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Prompt'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+  put:
+    summary: Update a prompt
+    description: |
+      Updates an existing prompt for the specified team. All fields are optional.
+    operationId: updatePrompt
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Prompt slug identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdatePromptRequest'
+    responses:
+      '200':
+        description: Prompt updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Prompt'
+      '400':
+        description: Invalid request (validation error)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict (slug already exists)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+  delete:
+    summary: Delete a prompt
+    description: |
+      Deletes a prompt and its associated embeddings for the specified team.
+    operationId: deletePrompt
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Prompt slug identifier
+    responses:
+      '204':
+        description: Prompt deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+api-v1-team_id-prompts-slug-placeholders:
+  get:
+    summary: Get prompt placeholders
+    description: |
+      Extracts and returns all placeholders (e.g., {{variable}}) found in the prompt body.
+    operationId: getPromptPlaceholders
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Prompt slug identifier
+    responses:
+      '200':
+        description: Placeholders retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/PromptPlaceholdersResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+api-v1-team_id-prompts-slug-dependencies:
+  get:
+    summary: Get prompt dependencies
+    description: |
+      Returns prompts that reference this prompt using @references syntax.
+    operationId: getPromptDependencies
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Prompt slug identifier
+    responses:
+      '200':
+        description: Dependencies retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dependencies:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      prompt_id:
+                        type: string
+                      prompt_slug:
+                        type: string
+                      prompt_name:
+                        type: string
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+api-v1-team_id-prompts-slug-render:
+  post:
+    summary: Render a prompt
+    description: |
+      Renders a prompt by resolving @references and substituting placeholders with provided values.
+    operationId: renderPrompt
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Prompt slug identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/RenderPromptRequest'
+    responses:
+      '200':
+        description: Prompt rendered successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/RenderPromptResponse'
+      '400':
+        description: Invalid request
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+api-v1-team_id-prompts-slug-share:
+  post:
+    summary: Create or update prompt share
+    description: |
+      Creates or updates a share for a prompt. Supports two share types:
+      - `public`: Anyone with the link can access the prompt
+      - `restricted`: Only specific email addresses can access the prompt
+    operationId: createPromptShare
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Prompt slug identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateShareRequest'
+    responses:
+      '200':
+        description: Share created or updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ShareResponse'
+      '400':
+        description: Invalid request (e.g., restricted share without emails)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompt Sharing
+
+  get:
+    summary: Get prompt share details
+    description: Retrieves the share configuration for a prompt
+    operationId: getPromptShare
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Prompt slug identifier
+    responses:
+      '200':
+        description: Share details retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ShareResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt or share not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompt Sharing
+
+  delete:
+    summary: Delete prompt share
+    description: Removes the share for a prompt, making it no longer accessible via the shared link
+    operationId: deletePromptShare
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Prompt slug identifier
+    responses:
+      '204':
+        description: Share deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt or share not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompt Sharing
+
+api-v1-prompt-gallery-categories:
+  get:
+    summary: Get prompt gallery categories
+    description: Retrieves all prompt categories with counts
+    operationId: getPromptGalleryCategories
+    responses:
+      '200':
+        description: Categories retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../openapi.yaml#/components/schemas/PromptGalleryCategory'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompt Gallery
+
+api-v1-prompt-gallery-prompts:
+  get:
+    summary: List prompt gallery prompts
+    description: Retrieves prompts from the gallery with optional filtering
+    operationId: listPromptGalleryPrompts
+    parameters:
+      - name: category
+        in: query
+        description: Filter by category
+        schema:
+          type: string
+      - name: search
+        in: query
+        description: Search in title and description
+        schema:
+          type: string
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Prompts retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/PromptGalleryListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompt Gallery
+
+api-v1-prompt-gallery-prompts-id:
+  get:
+    summary: Get prompt gallery prompt by ID
+    description: Retrieves a specific prompt from the gallery
+    operationId: getPromptGalleryPrompt
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Prompt ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Prompt retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/PromptGalleryTemplate'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompt Gallery
+
+api-v1-prompt-gallery-prompts-id-use:
+  post:
+    summary: Track prompt gallery usage
+    description: Tracks when a user uses a prompt from the gallery
+    operationId: trackPromptGalleryUsage
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Prompt ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Usage tracked successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SuccessResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompt Gallery
+
+api-v1-shared-prompts-token:
+  get:
+    summary: Access shared prompt
+    description: |
+      Public endpoint to access a shared prompt via its share token.
+      - For `public` shares: No authentication required
+      - For `restricted` shares: JWT authentication required and email must be in the access list
+
+      Returns the prompt with @references resolved but {{placeholders}} preserved for client-side substitution.
+    operationId: getSharedPrompt
+    security:
+      - BearerAuth: []
+      - {} # Allow unauthenticated access for public shares
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Share token
+    responses:
+      '200':
+        description: Shared prompt retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SharedPromptResponse'
+      '401':
+        description: Authentication required for restricted share
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Access denied (share disabled, expired, or email not in access list)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Shared prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompt Sharing
+
+api-v1-team_id-prompts-slug-versions:
+  get:
+    summary: List prompt content versions
+    description: >-
+      Returns the content-version history (newest first) for a prompt. Each
+      snapshot holds the raw prompt Body template (placeholders and @slug
+      references), not any rendered output.
+    operationId: listPromptVersions
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        description: Prompt slug
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Prompt versions retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/PromptVersionListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+api-v1-team_id-prompts-slug-versions-version_number:
+  get:
+    summary: Get a specific prompt content version
+    description: Returns a single content-version snapshot of a prompt by version number
+    operationId: getPromptVersion
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        description: Prompt slug
+        schema:
+          type: string
+      - name: version_number
+        in: path
+        required: true
+        description: Version number
+        schema:
+          type: integer
+          minimum: 1
+    responses:
+      '200':
+        description: Prompt version retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ContentVersion'
+      '400':
+        description: Invalid version_number
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt or version not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts
+
+api-v1-team_id-prompts-slug-versions-version_number-restore:
+  post:
+    summary: Restore a prompt to a content version
+    description: >-
+      Restores the prompt's raw Body template to the given version. The
+      pre-restore body is snapshotted as a new version, so restore is
+      non-destructive and preserves placeholders and @slug references. Returns
+      the updated prompt.
+    operationId: restorePromptVersion
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        description: Prompt slug
+        schema:
+          type: string
+      - name: version_number
+        in: path
+        required: true
+        description: Version number to restore
+        schema:
+          type: integer
+          minimum: 1
+    responses:
+      '200':
+        description: Prompt restored successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Prompt'
+      '400':
+        description: Invalid version_number
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Prompt or version not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Prompts

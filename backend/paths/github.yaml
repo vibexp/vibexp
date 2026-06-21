@@ -1,0 +1,419 @@
+# github path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-team_id-integrations-github-status:
+  get:
+    summary: Get GitHub App installation status
+    description: Returns the GitHub App installation status for the specified team. Requires an active subscription.
+    operationId: getGitHubStatus
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Team ID (UUID)
+    responses:
+      '200':
+        description: GitHub installation status retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/GitHubInstallationStatus'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden - user does not have access to this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - GitHub Integration
+
+api-v1-team_id-integrations-github-install-url:
+  get:
+    summary: Get GitHub App installation URL
+    description: Returns a signed GitHub App installation URL with CSRF protection. Requires an active subscription.
+    operationId: getGitHubInstallURL
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Team ID (UUID)
+    responses:
+      '200':
+        description: Install URL generated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/GitHubInstallURL'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden - user does not have access to this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - GitHub Integration
+
+api-v1-team_id-integrations-github-callback:
+  post:
+    summary: Handle GitHub App installation callback
+    description: |
+      Completes the GitHub App installation flow after the user authorizes the app on GitHub.
+      The request must include the `installation_id` returned by GitHub and the signed `state`
+      parameter from the install URL to prevent CSRF attacks. Requires an active subscription.
+    operationId: handleGitHubCallback
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Team ID (UUID)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              installation_id:
+                type: integer
+                format: int64
+                description: GitHub App installation ID from the callback URL
+                example: 12345678
+              state:
+                type: string
+                description: HMAC-signed state parameter from the install URL (CSRF protection)
+                example: "team-id:1234567890:signature"
+            required:
+              - installation_id
+              - state
+    responses:
+      '201':
+        description: GitHub App installation connected successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/GitHubCallbackResponse'
+      '400':
+        description: Invalid request body, missing required fields, or invalid/expired state parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden - state does not match team or user lacks access
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict - this GitHub organization is already connected to another team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - GitHub Integration
+
+api-v1-team_id-integrations-github-repositories:
+  get:
+    summary: List GitHub repositories
+    description: Lists GitHub repositories accessible by the team's GitHub App installation with pagination. Requires an active subscription.
+    operationId: listGitHubRepositories
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Team ID (UUID)
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        description: Page number for pagination (1-based)
+    responses:
+      '200':
+        description: Repositories listed successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/GitHubRepositoriesResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden - user does not have access to this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: GitHub App not installed for this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - GitHub Integration
+
+api-v1-team_id-integrations-github-repositories-repo_id-import-project:
+  post:
+    summary: Import GitHub repository as a project
+    description: |
+      Imports a GitHub repository as a VibeXP project for the team. If a project already exists
+      for the repository URL it returns the existing project (idempotent). Requires an active subscription.
+    operationId: importGitHubProject
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Team ID (UUID)
+      - name: repo_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+        description: GitHub repository ID
+    responses:
+      '200':
+        description: Project already exists — returned without creating a new one
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                project:
+                  $ref: '../openapi.yaml#/components/schemas/Project'
+                created:
+                  type: boolean
+                  example: false
+                message:
+                  type: string
+                  example: "Project already exists for this repository"
+      '201':
+        description: Project created successfully from the GitHub repository
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                project:
+                  $ref: '../openapi.yaml#/components/schemas/Project'
+                created:
+                  type: boolean
+                  example: true
+      '400':
+        description: Invalid repository ID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden - user does not have access to this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: GitHub App not installed for this team or repository not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - GitHub Integration
+
+api-v1-team_id-integrations-github-import-blueprints:
+  post:
+    summary: Import AI assistant configurations as blueprints
+    description: |
+      Scans the specified GitHub repository for AI assistant configuration files
+      (`.claude/`, `.cursor/`, `.codex/`, `.agents/`, `CLAUDE.md`, `CURSOR.md`, `AGENTS.md`)
+      and imports each markdown file as a blueprint. A project must already exist for the
+      repository — use the import-project endpoint first. Requires an active subscription.
+    operationId: importGitHubBlueprints
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Team ID (UUID)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              repository_id:
+                type: integer
+                format: int64
+                description: GitHub repository ID to import blueprints from
+                example: 123456789
+            required:
+              - repository_id
+    responses:
+      '200':
+        description: Import completed — check the report for per-file results
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/BlueprintImportReport'
+      '400':
+        description: Invalid request body or missing repository_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden - user does not have access to this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: GitHub App not installed for this team or repository not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '412':
+        description: Precondition Failed - no project exists for this repository; import the repository as a project first
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - GitHub Integration
+
+api-v1-team_id-integrations-github-disconnect:
+  delete:
+    summary: Disconnect GitHub App installation
+    description: Removes the GitHub App installation link for the team. Requires an active subscription.
+    operationId: disconnectGitHub
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Team ID (UUID)
+    responses:
+      '204':
+        description: GitHub installation disconnected successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden - user does not have access to this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - GitHub Integration

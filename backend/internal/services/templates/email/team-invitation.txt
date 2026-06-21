@@ -1,0 +1,14 @@
+You've been invited to join {{.TeamName}}!
+
+Hello!
+
+{{.InviterName}} has invited you to join their team {{.TeamName}} on VibeXP as a {{.Role}}.
+
+To accept this invitation, visit:
+{{.AcceptURL}}
+
+This invitation will expire on {{.ExpiryDate}}.
+If you don't want to join this team, you can safely ignore this email.
+
+---
+© {{.Year}} VibeXP. All rights reserved.

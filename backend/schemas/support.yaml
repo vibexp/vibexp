@@ -1,0 +1,38 @@
+# Support request schemas for authenticated users
+
+SupportRequest:
+  type: object
+  properties:
+    text:
+      type: string
+      minLength: 10
+      maxLength: 2000
+      example: "I need help with configuring my API keys."
+    additional_info:
+      type: object
+      additionalProperties:
+        type: string
+      example:
+        source_url: "/settings/api-keys"
+        browser: "Chrome"
+        subscription_tier: "basic"
+    acknowledgement:
+      type: boolean
+      default: false
+      description: "Whether to send an acknowledgement email to the user"
+      example: true
+  required:
+    - text
+
+SupportResponse:
+  type: object
+  properties:
+    message:
+      type: string
+      example: "Thank you for your message! We'll get back to you soon."
+    success:
+      type: boolean
+      example: true
+  required:
+    - message
+    - success

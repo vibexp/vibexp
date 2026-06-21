@@ -1,0 +1,1 @@
+ALTER TABLE prompts ADD COLUMN description VARCHAR(200) DEFAULT '';
