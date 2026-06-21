@@ -1,0 +1,116 @@
+# VibeXP — run the published stack with Docker Compose.
+#
+#   docker compose up -d
+#
+# Pulls the released backend + frontend images from GitHub Container Registry and
+# runs them alongside PostgreSQL (pgvector). Data persists in named volumes, so
+# it survives `docker compose down` (use `down -v` to wipe).
+#
+# This file is for *running* VibeXP. Local development uses `make` (see the
+# Makefile), which builds from source instead.
+#
+# Before any real/shared use, change every "change-me"/dummy value below.
+
+name: vibexp
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vibexp
+      POSTGRES_USER: vibexp
+      POSTGRES_PASSWORD: change-me-postgres-password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [vibexp]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d vibexp -U vibexp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: ghcr.io/vibexp/backend:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: vibexp
+      DB_PASSWORD: change-me-postgres-password
+      DB_NAME: vibexp
+
+      # REQUIRED. Exactly 32 bytes (AES-256). Generate your own:
+      #   openssl rand -base64 24 | cut -c1-32
+      ENCRYPTION_KEY: "changemechangemechangeme32bytes!"
+
+      # Embedding dimensions MUST match the pgvector column (vector(768)).
+      EMBEDDING_MODEL: "gemini-embedding-001"
+      EMBEDDING_DIMENSIONS: "768"
+      # Semantic search/embeddings need a separate AI service (optional):
+      # AI_SERVICE_URL: "http://ai-service:8000"
+
+      # YOUR deployment's public URLs — change these for a remote deploy.
+      FRONTEND_BASE_URL: "http://localhost:5173"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173"
+      LOG_LEVEL: info
+
+      # --- Authentication -------------------------------------------------
+      # Local evaluation uses the dev-login bypass (only works with a localhost
+      # FRONTEND_BASE_URL). Replace with WorkOS AuthKit for any real deployment.
+      DEV_LOGIN_ENABLED: "true"
+      WORKOS_COOKIE_PASSWORD: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      # WORKOS_API_KEY: "sk_..."
+      # WORKOS_CLIENT_ID: "client_..."
+      # WORKOS_REDIRECT_URI: "http://localhost:8080/api/v1/auth/callback"
+
+      # --- Attachments (optional) -----------------------------------------
+      # File uploads need GCS-compatible object storage. Enable the `gcs` service
+      # below, then uncomment these two lines:
+      # STORAGE_EMULATOR_HOST: "http://gcs:4443"
+      # GCS_RESOURCE_ATTACHMENTS_BUCKET: "vibexp-attachments"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [vibexp]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  frontend:
+    image: ghcr.io/vibexp/frontend:latest
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    environment:
+      # The SPA calls a relative /api base; nginx reverse-proxies it here.
+      BACKEND_ORIGIN: "http://backend:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [vibexp]
+
+  # --- Optional: GCS emulator for persistent file attachments ---------------
+  # Uncomment this service AND the STORAGE_EMULATOR_HOST /
+  # GCS_RESOURCE_ATTACHMENTS_BUCKET vars on `backend` above to enable uploads.
+  # gcs:
+  #   image: fsouza/fake-gcs-server:latest
+  #   restart: unless-stopped
+  #   command: ["-scheme", "http", "-port", "4443", "-external-url", "http://gcs:4443"]
+  #   volumes:
+  #     - gcsdata:/data
+  #   networks: [vibexp]
+
+volumes:
+  pgdata:
+  # gcsdata:
+
+networks:
+  vibexp:
+    driver: bridge

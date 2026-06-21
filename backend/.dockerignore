@@ -1,0 +1,13 @@
+# Keep the build context small. Dependencies are fetched inside the image via
+# `go mod download`; local build/test artifacts and secrets are never needed.
+.air.tmp
+dist
+bin
+coverage.out
+coverage.html
+*.test
+*.log
+.env
+.env.*
+!.env.example
+.git
