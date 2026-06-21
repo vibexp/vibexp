@@ -41,7 +41,9 @@ describe('getConfigSections', () => {
   const sections = getConfigSections(serverName)
 
   it('exposes the single team-agnostic MCP endpoint', () => {
-    expect(MCP_ENDPOINT).toBe('https://connect.vibexp.io/mcp/v1/common')
+    // Neutral placeholder default from siteConfig; real deployments override it
+    // via VITE_MCP_ENDPOINT (this is an open-source, self-hostable app).
+    expect(MCP_ENDPOINT).toBe('https://connect.example.com/mcp/v1/common')
   })
 
   it('returns four configuration sections', () => {
