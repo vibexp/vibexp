@@ -1,0 +1,13 @@
+# Keep the build context small and reproducible. Dependencies are installed
+# inside the image from package-lock.json; build outputs and test artifacts are
+# never needed.
+node_modules
+dist
+coverage
+playwright-report
+test-results
+*.log
+.env
+.env.*
+!.env.example
+.git
