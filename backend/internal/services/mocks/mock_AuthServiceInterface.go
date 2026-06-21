@@ -5,8 +5,8 @@ package mocks
 import (
 	context "context"
 
-	idp "github.com/vibexp/vibexp/internal/auth/idp"
 	mock "github.com/stretchr/testify/mock"
+	idp "github.com/vibexp/vibexp/internal/auth/idp"
 
 	models "github.com/vibexp/vibexp/internal/models"
 )
