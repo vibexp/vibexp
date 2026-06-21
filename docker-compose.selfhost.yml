@@ -1,0 +1,111 @@
+# VibeXP — whole-stack self-host compose (cloud-agnostic).
+#
+#   docker compose -f docker-compose.selfhost.yml up --build
+#
+# This brings up PostgreSQL (with pgvector), the backend API, and the frontend.
+# Everything is driven by environment variables — set your own values below.
+# Semantic search/embeddings need a separate ai-service (see the comment on the
+# backend service). Billing/Stripe has been removed; all features are unlocked.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: vibexp
+      POSTGRES_USER: vibexp
+      POSTGRES_PASSWORD: change-me-postgres-password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d vibexp -U vibexp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend-api
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: vibexp
+      DB_PASSWORD: change-me-postgres-password
+      DB_NAME: vibexp
+
+      # REQUIRED. Must be EXACTLY 32 bytes (AES-256). Generate your own, e.g.
+      #   openssl rand -base64 24 | cut -c1-32
+      ENCRYPTION_KEY: "changemechangemechangeme32bytes!"
+
+      # Embedding dimensions MUST match the pgvector column (vector(768)). Point
+      # AI_SERVICE_URL at any OpenAI-compatible /v1/embeddings endpoint.
+      EMBEDDING_MODEL: "gemini-embedding-001"
+      EMBEDDING_DIMENSIONS: "768"
+      # AI_SERVICE_URL: "http://ai-service:8000"   # https://github.com/vibexp/ai-service
+
+      # These are YOUR deployment's URLs — change them when you deploy.
+      FRONTEND_BASE_URL: "http://localhost:5173"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173"
+      LOG_LEVEL: info
+
+      # --- Authentication ---------------------------------------------------
+      # Production login uses WorkOS AuthKit. Provide your own WorkOS tenant:
+      # WORKOS_API_KEY: "sk_..."
+      # WORKOS_CLIENT_ID: "client_..."
+      # WORKOS_REDIRECT_URI: "http://localhost:8080/api/v1/auth/callback"
+      # WORKOS_COOKIE_PASSWORD: "<64 hex chars = 32 bytes>"
+      #
+      # For local evaluation WITHOUT WorkOS, you can enable the dev-login bypass
+      # (only works with a localhost FRONTEND_BASE_URL):
+      # DEV_LOGIN_ENABLED: "true"
+      # WORKOS_COOKIE_PASSWORD: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+      # --- Optional integrations (all disabled until configured) -------------
+      # Object storage for attachments (S3/GCS/MinIO). Without it, uploads 503.
+      # STORAGE_EMULATOR_HOST: "http://minio:9000"
+      # GCS_RESOURCE_ATTACHMENTS_BUCKET: "vibexp-attachments"
+      # Email (SMTP), web push (FCM), analytics (GA4), telemetry (OTEL_*) — see
+      # backend-api/.env.example for the full list.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  frontend:
+    build:
+      # Build from the workspace ROOT so the in-repo @vibexp/api-client and
+      # @vibexp/design-system workspace packages are visible to npm.
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # Your backend API URL. For a remote deploy, set this to your API origin.
+        VITE_API_BASE_URL: "http://localhost:8080/api/v1"
+        VITE_GTM_ENABLED: "false"
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Optional: S3-compatible object storage for attachments. Uncomment + wire
+  # STORAGE_EMULATOR_HOST / bucket env on the backend to enable.
+  # minio:
+  #   image: minio/minio
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: minioadmin
+  #     MINIO_ROOT_PASSWORD: change-me-minio-password
+  #   ports: ["9000:9000", "9001:9001"]
+  #   volumes: ["miniodata:/data"]
+
+volumes:
+  pgdata:
+  # miniodata:

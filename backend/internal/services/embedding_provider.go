@@ -1,0 +1,524 @@
+package services
+
+import (
+	"bytes"
+	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
+)
+
+type EmbeddingProviderService struct {
+	repo          repositories.EmbeddingProviderRepository
+	encryptionKey []byte
+}
+
+// Ensure EmbeddingProviderService implements EmbeddingProviderServiceInterface
+var _ EmbeddingProviderServiceInterface = (*EmbeddingProviderService)(nil)
+
+func NewEmbeddingProviderService(
+	repo repositories.EmbeddingProviderRepository, encryptionKey string,
+) *EmbeddingProviderService {
+	// Use a fixed 32-byte key for AES-256
+	key := make([]byte, 32)
+	copy(key, []byte(encryptionKey))
+
+	return &EmbeddingProviderService{
+		repo:          repo,
+		encryptionKey: key,
+	}
+}
+
+func (eps *EmbeddingProviderService) encrypt(plaintext string) (string, error) {
+	if plaintext == "" {
+		return "", nil
+	}
+
+	block, err := aes.NewCipher(eps.encryptionKey)
+	if err != nil {
+		return "", err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+func (eps *EmbeddingProviderService) decrypt(ciphertext string) (string, error) {
+	if ciphertext == "" {
+		return "", nil
+	}
+
+	data, err := base64.StdEncoding.DecodeString(ciphertext)
+	if err != nil {
+		return "", err
+	}
+
+	block, err := aes.NewCipher(eps.encryptionKey)
+	if err != nil {
+		return "", err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(data) < nonceSize {
+		return "", fmt.Errorf("ciphertext too short")
+	}
+
+	nonce, cipherData := data[:nonceSize], data[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, cipherData, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
+}
+
+func (eps *EmbeddingProviderService) prepareAPIKey(req models.CreateEmbeddingProviderRequest) (*string, error) {
+	if req.APIKey == nil || *req.APIKey == "" {
+		return nil, nil
+	}
+
+	encrypted, err := eps.encrypt(*req.APIKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt API key: %w", err)
+	}
+	return &encrypted, nil
+}
+
+func (eps *EmbeddingProviderService) prepareConfiguration(req models.CreateEmbeddingProviderRequest) (string, error) {
+	if req.Configuration == nil {
+		return "{}", nil
+	}
+
+	configBytes, err := json.Marshal(req.Configuration)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal configuration: %w", err)
+	}
+	return string(configBytes), nil
+}
+
+func (eps *EmbeddingProviderService) buildEmbeddingProvider(
+	userID string,
+	req models.CreateEmbeddingProviderRequest,
+	encryptedAPIKey *string,
+	configJSON string,
+) *models.EmbeddingProvider {
+	isDefault := false
+	if req.IsDefault != nil {
+		isDefault = *req.IsDefault
+	}
+
+	now := time.Now()
+	return &models.EmbeddingProvider{
+		UserID:          userID,
+		Name:            req.Name,
+		ProviderType:    req.ProviderType,
+		IsDefault:       isDefault,
+		BaseURL:         req.BaseURL,
+		APIKeyEncrypted: encryptedAPIKey,
+		Configuration:   configJSON,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+}
+
+func (eps *EmbeddingProviderService) CreateEmbeddingProvider(
+	ctx context.Context,
+	userID string,
+	req models.CreateEmbeddingProviderRequest,
+) (*models.EmbeddingProvider, error) {
+	if eps == nil || eps.repo == nil {
+		return nil, fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	encryptedAPIKey, err := eps.prepareAPIKey(req)
+	if err != nil {
+		return nil, err
+	}
+
+	configJSON, err := eps.prepareConfiguration(req)
+	if err != nil {
+		return nil, err
+	}
+
+	provider := eps.buildEmbeddingProvider(userID, req, encryptedAPIKey, configJSON)
+
+	if err := eps.repo.Create(ctx, provider); err != nil {
+		// Check for duplicate/already exists errors from the database
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "already exists") ||
+			strings.Contains(errStr, "duplicate") ||
+			strings.Contains(errStr, "unique constraint") {
+			return nil, fmt.Errorf("%w: %s", ErrProviderAlreadyExists, req.Name)
+		}
+		return nil, fmt.Errorf("failed to create embedding provider: %w", err)
+	}
+
+	if req.IsDefault != nil && *req.IsDefault {
+		if err := eps.repo.SetDefault(ctx, userID, provider.ID); err != nil {
+			return nil, fmt.Errorf("failed to set as default: %w", err)
+		}
+	}
+
+	return provider, nil
+}
+
+func (eps *EmbeddingProviderService) GetEmbeddingProvidersByUserID(
+	ctx context.Context, userID string,
+) ([]models.EmbeddingProviderResponse, error) {
+	if eps == nil || eps.repo == nil {
+		return nil, fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	// Use repository to list providers with no filters (get all for user)
+	filters := repositories.EmbeddingProviderFilters{
+		Page:  1,
+		Limit: 1000, // Get all providers for the user
+	}
+
+	providers, _, err := eps.repo.List(ctx, userID, filters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query embedding providers: %w", err)
+	}
+
+	// Convert to response format
+	responses := make([]models.EmbeddingProviderResponse, 0, len(providers))
+	for _, provider := range providers {
+		response := models.EmbeddingProviderResponse{
+			EmbeddingProvider: provider,
+			HasAPIKey:         provider.APIKeyEncrypted != nil && *provider.APIKeyEncrypted != "",
+		}
+
+		// Clear the encrypted API key from response
+		response.APIKeyEncrypted = nil
+
+		responses = append(responses, response)
+	}
+
+	return responses, nil
+}
+
+func (eps *EmbeddingProviderService) GetEmbeddingProvider(
+	ctx context.Context, userID, providerID string,
+) (*models.EmbeddingProviderResponse, error) {
+	if eps == nil || eps.repo == nil {
+		return nil, fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	provider, err := eps.repo.GetByID(ctx, userID, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
+	}
+
+	response := &models.EmbeddingProviderResponse{
+		EmbeddingProvider: *provider,
+		HasAPIKey:         provider.APIKeyEncrypted != nil && *provider.APIKeyEncrypted != "",
+	}
+
+	// Clear the encrypted API key from response
+	response.APIKeyEncrypted = nil
+
+	return response, nil
+}
+
+func (eps *EmbeddingProviderService) handleDefaultProviderUpdate(
+	ctx context.Context,
+	userID, providerID string,
+	req models.UpdateEmbeddingProviderRequest,
+	provider *models.EmbeddingProvider,
+) error {
+	if req.IsDefault != nil && *req.IsDefault {
+		setDefaultErr := eps.repo.SetDefault(ctx, userID, providerID)
+		if setDefaultErr != nil {
+			return fmt.Errorf("failed to set as default: %w", setDefaultErr)
+		}
+		provider.IsDefault = true
+	}
+	return nil
+}
+
+func (eps *EmbeddingProviderService) updateProviderFields(
+	req models.UpdateEmbeddingProviderRequest,
+	provider *models.EmbeddingProvider,
+) error {
+	if req.Name != nil {
+		provider.Name = *req.Name
+	}
+	if req.ProviderType != nil {
+		provider.ProviderType = *req.ProviderType
+	}
+	if req.IsDefault != nil {
+		provider.IsDefault = *req.IsDefault
+	}
+	if req.BaseURL != nil {
+		provider.BaseURL = req.BaseURL
+	}
+
+	if req.APIKey != nil {
+		var encryptedAPIKey *string
+		if *req.APIKey != "" {
+			encrypted, encryptErr := eps.encrypt(*req.APIKey)
+			if encryptErr != nil {
+				return fmt.Errorf("failed to encrypt API key: %w", encryptErr)
+			}
+			encryptedAPIKey = &encrypted
+		}
+		provider.APIKeyEncrypted = encryptedAPIKey
+	}
+
+	if req.Configuration != nil {
+		configBytes, marshalErr := json.Marshal(req.Configuration)
+		if marshalErr != nil {
+			return fmt.Errorf("failed to marshal configuration: %w", marshalErr)
+		}
+		provider.Configuration = string(configBytes)
+	}
+
+	return nil
+}
+
+func (eps *EmbeddingProviderService) UpdateEmbeddingProvider(
+	ctx context.Context,
+	userID, providerID string,
+	req models.UpdateEmbeddingProviderRequest,
+) (*models.EmbeddingProvider, error) {
+	if eps == nil || eps.repo == nil {
+		return nil, fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	provider, err := eps.repo.GetByID(ctx, userID, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
+	}
+
+	err = eps.handleDefaultProviderUpdate(ctx, userID, providerID, req, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	err = eps.updateProviderFields(req, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	provider.UpdatedAt = time.Now()
+
+	err = eps.repo.Update(ctx, provider)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update embedding provider: %w", err)
+	}
+
+	return provider, nil
+}
+
+func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(ctx context.Context, userID, providerID string) error {
+	if eps == nil || eps.repo == nil {
+		return fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	// First, verify the provider exists and belongs to the user (security check)
+	_, err := eps.repo.GetByID(ctx, userID, providerID)
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
+	}
+
+	// Check if this is the last provider using the efficient Count method
+	count, err := eps.repo.Count(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to count embedding providers: %w", err)
+	}
+
+	if count <= 1 {
+		return ErrLastProviderDelete
+	}
+
+	// Proceed with deletion
+	err = eps.repo.Delete(ctx, userID, providerID)
+	if err != nil {
+		return fmt.Errorf("failed to delete embedding provider: %w", err)
+	}
+
+	return nil
+}
+
+func (eps *EmbeddingProviderService) GetDefaultEmbeddingProvider(
+	ctx context.Context, userID string,
+) (*models.EmbeddingProvider, error) {
+	if eps == nil || eps.repo == nil {
+		return nil, fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	provider, err := eps.repo.GetDefault(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("no default embedding provider found: %w", err)
+	}
+
+	return provider, nil
+}
+
+func (eps *EmbeddingProviderService) ValidateEmbeddingProvider(
+	ctx context.Context, req models.ValidateEmbeddingProviderRequest,
+) (*models.ValidateEmbeddingProviderResponse, error) {
+	if eps == nil {
+		return nil, fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	response := &models.ValidateEmbeddingProviderResponse{
+		IsValid: false,
+		Message: "Validation failed",
+	}
+
+	switch req.ProviderType {
+	case "openai_compatible":
+		return eps.validateOpenAICompatibleProvider(ctx, req)
+	default:
+		response.Message = fmt.Sprintf("Unsupported provider type: %s", req.ProviderType)
+		return response, nil
+	}
+}
+
+func prepareEmbeddingTestPayload(req models.ValidateEmbeddingProviderRequest) ([]byte, error) {
+	testPayload := map[string]interface{}{
+		"input": "test embedding validation",
+		"model": "all-MiniLM-L6-v2",
+	}
+
+	if req.Configuration != nil {
+		if model, ok := req.Configuration["model"].(string); ok && model != "" {
+			testPayload["model"] = model
+		}
+	}
+
+	return json.Marshal(testPayload)
+}
+
+func createEmbeddingValidationRequest(
+	ctx context.Context,
+	req models.ValidateEmbeddingProviderRequest,
+	payloadBytes []byte,
+) (*http.Request, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", req.BaseURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	if req.APIKey != nil && *req.APIKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+*req.APIKey)
+	}
+
+	return httpReq, nil
+}
+
+func handleEmbeddingValidationResponse(
+	resp *http.Response,
+	response *models.ValidateEmbeddingProviderResponse,
+) {
+	response.Details.StatusCode = resp.StatusCode
+
+	switch {
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		response.IsValid = true
+		response.Message = "Embedding provider validation successful"
+	case resp.StatusCode == 401:
+		response.Message = "Authentication failed - please check your API key"
+	case resp.StatusCode == 404:
+		response.Message = "Embeddings endpoint not found - please check your base URL"
+	case resp.StatusCode >= 400 && resp.StatusCode < 500:
+		response.Message = "Client error - please check your configuration"
+	default:
+		response.Message = "Server error from embedding provider"
+	}
+}
+
+func extractEmbeddingErrorDetails(resp *http.Response, response *models.ValidateEmbeddingProviderResponse) {
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil || len(responseBody) == 0 {
+		return
+	}
+
+	var errorResp map[string]interface{}
+	if json.Unmarshal(responseBody, &errorResp) == nil {
+		if errorMsg, ok := errorResp["error"].(string); ok {
+			response.Details.ErrorDetails = errorMsg
+		} else if errorDetail, ok := errorResp["detail"].(string); ok {
+			response.Details.ErrorDetails = errorDetail
+		} else {
+			response.Details.ErrorDetails = string(responseBody)
+		}
+	} else {
+		response.Details.ErrorDetails = string(responseBody)
+	}
+}
+
+func (eps *EmbeddingProviderService) validateOpenAICompatibleProvider(
+	ctx context.Context,
+	req models.ValidateEmbeddingProviderRequest,
+) (*models.ValidateEmbeddingProviderResponse, error) {
+	response := &models.ValidateEmbeddingProviderResponse{
+		IsValid: false,
+		Message: "Validation failed",
+	}
+
+	payloadBytes, err := prepareEmbeddingTestPayload(req)
+	if err != nil {
+		response.Message = "Failed to prepare test request"
+		response.Details.ErrorDetails = err.Error()
+		return response, nil
+	}
+
+	httpReq, err := createEmbeddingValidationRequest(ctx, req, payloadBytes)
+	if err != nil {
+		response.Message = "Failed to create HTTP request"
+		response.Details.ErrorDetails = err.Error()
+		return response, nil
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	startTime := time.Now()
+	// #nosec G704 - URL is from embedding provider configuration (admin-controlled), not user input
+	resp, err := client.Do(httpReq)
+	response.Details.ResponseTime = int(time.Since(startTime).Milliseconds())
+
+	if err != nil {
+		response.Message = "Failed to connect to embedding provider"
+		response.Details.ErrorDetails = err.Error()
+		return response, nil
+	}
+	defer func() {
+		_ = resp.Body.Close() //nolint:errcheck
+	}()
+
+	handleEmbeddingValidationResponse(resp, response)
+
+	if !response.IsValid {
+		extractEmbeddingErrorDetails(resp, response)
+	}
+
+	return response, nil
+}

@@ -1,0 +1,272 @@
+# GitHub integration-related schemas for OpenAPI specification
+
+# GitHub installation status
+GitHubInstallationStatus:
+  type: object
+  description: Status of the GitHub App installation for a team
+  properties:
+    installed:
+      type: boolean
+      description: Whether the GitHub App is installed for the team
+      example: true
+    installation_id:
+      type: integer
+      format: int64
+      description: GitHub installation ID (present when installed is true)
+      example: 12345678
+    account_login:
+      type: string
+      description: GitHub account or organization login that installed the app
+      example: "my-org"
+    account_type:
+      type: string
+      description: Type of GitHub account (User or Organization)
+      enum: [User, Organization]
+      example: "Organization"
+    target_type:
+      type: string
+      description: Target type of the installation
+      example: "Organization"
+    permissions:
+      type: object
+      additionalProperties:
+        type: string
+      description: Permissions granted by the installation
+      example:
+        contents: "read"
+        metadata: "read"
+    events:
+      type: array
+      items:
+        type: string
+      description: Events the installation is subscribed to
+      example: ["push", "pull_request"]
+    suspended_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the installation was suspended (null if not suspended)
+      example: null
+  required:
+    - installed
+
+# Individual GitHub repository
+GitHubRepository:
+  type: object
+  description: A GitHub repository accessible by the installation
+  properties:
+    id:
+      type: integer
+      format: int64
+      description: GitHub repository ID
+      example: 123456789
+    name:
+      type: string
+      description: Repository name (without owner)
+      example: "my-repo"
+    full_name:
+      type: string
+      description: Full repository name including owner (owner/repo)
+      example: "my-org/my-repo"
+    description:
+      type: string
+      nullable: true
+      description: Repository description
+      example: "A sample repository"
+    private:
+      type: boolean
+      description: Whether the repository is private
+      example: false
+    html_url:
+      type: string
+      description: GitHub web URL for the repository
+      example: "https://github.com/my-org/my-repo"
+    owner:
+      type: object
+      description: Repository owner information
+      properties:
+        login:
+          type: string
+          description: Owner's GitHub login
+          example: "my-org"
+        type:
+          type: string
+          description: Owner type (User or Organization)
+          enum: [User, Organization]
+          example: "Organization"
+      required:
+        - login
+        - type
+    imported_project_slug:
+      type: string
+      description: Slug of the existing VibeXP project imported from this repository (when the repo's html_url matches an existing project's git_url within the team). Omitted/empty when no matching project exists.
+      example: "my-repo"
+  required:
+    - id
+    - name
+    - full_name
+    - private
+    - html_url
+    - owner
+
+# Paginated list of GitHub repositories
+GitHubRepositoriesResponse:
+  type: object
+  description: Paginated list of GitHub repositories accessible by the installation
+  properties:
+    repositories:
+      type: array
+      items:
+        $ref: "#/GitHubRepository"
+      description: List of repositories for the current page
+    total_count:
+      type: integer
+      description: Total number of repositories accessible by the installation
+      example: 42
+    page:
+      type: integer
+      description: Current page number (1-based)
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 100
+  required:
+    - repositories
+    - total_count
+    - page
+    - per_page
+
+# Response from GitHub OAuth callback
+GitHubCallbackResponse:
+  type: object
+  description: Response returned after successfully completing the GitHub App installation callback
+  properties:
+    reconnected:
+      type: boolean
+      description: Whether this was a reconnection to an existing installation (true) or a new installation (false)
+      example: false
+  required:
+    - reconnected
+
+# Response containing GitHub App install URL
+GitHubInstallURL:
+  type: object
+  description: GitHub App installation URL with CSRF protection state parameter
+  properties:
+    install_url:
+      type: string
+      description: URL to redirect the user to for installing the GitHub App
+      example: "https://github.com/apps/vibexp-app/installations/new?state=team-id%3A1234567890%3Asignature"
+  required:
+    - install_url
+
+# Failed blueprint import item
+BlueprintImportFailed:
+  type: object
+  description: Details of a file that failed to be imported as a blueprint
+  properties:
+    file_path:
+      type: string
+      description: Path of the file that failed to import
+      example: ".claude/agents/my-agent.md"
+    error:
+      type: string
+      description: Generic error message (internal details are not exposed)
+      example: "failed to import blueprint"
+  required:
+    - file_path
+    - error
+
+# Successfully imported blueprint item
+BlueprintImportSuccess:
+  type: object
+  description: Details of a file successfully imported as a blueprint
+  properties:
+    file_path:
+      type: string
+      description: Path of the file that was imported
+      example: ".claude/agents/my-agent.md"
+    blueprint_id:
+      type: string
+      description: ID of the created blueprint
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    title:
+      type: string
+      description: Title of the created blueprint
+      example: "my-agent from my-repo"
+    type:
+      type: string
+      description: Blueprint type
+      example: "claude-code"
+    subtype:
+      type: string
+      description: Blueprint subtype
+      example: "sub-agents"
+  required:
+    - file_path
+    - blueprint_id
+    - title
+    - type
+
+# Skipped blueprint import item
+BlueprintImportSkipped:
+  type: object
+  description: Details of a file that was skipped during blueprint import
+  properties:
+    file_path:
+      type: string
+      description: Path of the file that was skipped
+      example: ".claude/agents/script.py"
+    reason:
+      type: string
+      description: Human-readable reason why the file was skipped
+      example: "Not a markdown file"
+  required:
+    - file_path
+    - reason
+
+# Blueprint import report
+BlueprintImportReport:
+  type: object
+  description: Summary report of a blueprint import operation
+  properties:
+    total_scanned:
+      type: integer
+      description: Total number of files scanned during the import
+      example: 10
+    total_successful:
+      type: integer
+      description: Number of files successfully imported as blueprints
+      example: 7
+    total_failed:
+      type: integer
+      description: Number of files that failed to import
+      example: 1
+    total_skipped:
+      type: integer
+      description: Number of files skipped (non-markdown, empty, too large, or already exists)
+      example: 2
+    failed_items:
+      type: array
+      items:
+        $ref: "#/BlueprintImportFailed"
+      description: Details of files that failed to import
+    success_items:
+      type: array
+      items:
+        $ref: "#/BlueprintImportSuccess"
+      description: Details of files successfully imported
+    skipped_items:
+      type: array
+      items:
+        $ref: "#/BlueprintImportSkipped"
+      description: Details of files that were skipped
+  required:
+    - total_scanned
+    - total_successful
+    - total_failed
+    - total_skipped
+    - failed_items
+    - success_items
+    - skipped_items

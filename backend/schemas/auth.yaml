@@ -1,0 +1,119 @@
+# Authentication and user management schemas
+
+User:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "user_123"
+    google_id:
+      type: string
+      nullable: true
+      description: Legacy Google OAuth subject identifier (may be null for WorkOS-only accounts)
+      example: "google_456"
+    idp_provider:
+      type: string
+      nullable: true
+      description: Identity provider name (e.g. "workos")
+      example: "workos"
+    idp_subject:
+      type: string
+      nullable: true
+      description: Subject identifier from the identity provider
+      example: "user_01ABCDEF1234567890"
+    email:
+      type: string
+      format: email
+      example: "user@example.com"
+    name:
+      type: string
+      example: "John Doe"
+    avatar_url:
+      type: string
+      nullable: true
+      format: uri
+      example: "https://example.com/avatar.jpg"
+    stripe_customer_id:
+      type: string
+      nullable: true
+      example: "cus_123"
+    subscription_status:
+      type: string
+      example: "active"
+    trial_ends_at:
+      type: string
+      format: date-time
+      nullable: true
+    subscription_plan:
+      type: string
+      nullable: true
+      example: "professional"
+    default_team_id:
+      type: string
+      nullable: true
+      example: "team_abc123"
+    onboarding_completed:
+      type: boolean
+      example: false
+    onboarding_completed_at:
+      type: string
+      format: date-time
+      nullable: true
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    version:
+      type: integer
+      format: int64
+      example: 1
+  required:
+    - id
+    - email
+    - name
+    - subscription_status
+    - onboarding_completed
+    - created_at
+    - updated_at
+    - version
+
+LoginResponse:
+  type: object
+  description: Response body returned by GET /api/v1/auth/login containing the WorkOS authorization URL
+  properties:
+    url:
+      type: string
+      format: uri
+      description: WorkOS authorization URL to redirect the user to for authentication
+      example: "https://api.workos.com/user_management/authorize?client_id=...&redirect_uri=...&state=...&provider=GoogleOAuth"
+  required:
+    - url
+
+LogoutResponse:
+  type: object
+  description: Response body returned by POST /api/v1/auth/logout
+  properties:
+    message:
+      type: string
+      description: Confirmation message
+      example: "logged out"
+  required:
+    - message
+
+DevLoginRequest:
+  type: object
+  description: Request body for POST /api/v1/auth/dev/login (development environment only)
+  properties:
+    email:
+      type: string
+      format: email
+      description: Email address to authenticate as
+      example: "dev@example.com"
+    name:
+      type: string
+      description: Display name for the dev user (defaults to "Dev User" if omitted)
+      example: "Dev User"
+  required:
+    - email

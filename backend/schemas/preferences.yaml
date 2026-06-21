@@ -1,0 +1,126 @@
+# User preferences schemas
+
+# Email notification category toggles
+EmailNotificationPreferences:
+  type: object
+  properties:
+    platform_announcement:
+      type: boolean
+      description: Receive platform announcement emails
+      example: true
+    account_security:
+      type: boolean
+      description: Receive account security emails
+      example: true
+    new_feature:
+      type: boolean
+      description: Receive new feature emails
+      example: true
+    marketing_promotional:
+      type: boolean
+      description: Receive marketing and promotional emails
+      example: false
+  required:
+    - platform_announcement
+    - account_security
+    - new_feature
+    - marketing_promotional
+
+# Per-notification-type delivery settings for each channel
+NotificationTypePreference:
+  type: object
+  properties:
+    in_app:
+      type: boolean
+      description: Deliver this notification type in-app
+      example: true
+    email:
+      type: string
+      description: Email delivery mode for this notification type
+      enum: [instant, digest, none]
+      example: "digest"
+    web_push:
+      type: boolean
+      description: Deliver this notification type via web push
+      example: true
+  required:
+    - in_app
+    - email
+    - web_push
+
+# Global per-channel on/off switches
+NotificationChannelPreferences:
+  type: object
+  properties:
+    in_app:
+      type: boolean
+      description: Enable in-app notifications globally
+      example: true
+    email:
+      type: boolean
+      description: Enable email notifications globally
+      example: true
+    web_push:
+      type: boolean
+      description: Enable web push notifications globally
+      example: false
+  required:
+    - in_app
+    - email
+    - web_push
+
+# Aggregated channel and per-type notification preferences
+NotificationPreferences:
+  type: object
+  properties:
+    channels:
+      $ref: '#/NotificationChannelPreferences'
+    types:
+      type: object
+      description: Per-type delivery preferences keyed by notification type (e.g. "feed.item.created", "feed.reply.created")
+      additionalProperties:
+        $ref: '#/NotificationTypePreference'
+  required:
+    - channels
+    - types
+
+# All user preference categories
+Preferences:
+  type: object
+  properties:
+    email_notification:
+      $ref: '#/EmailNotificationPreferences'
+    notifications:
+      $ref: '#/NotificationPreferences'
+  required:
+    - email_notification
+    - notifications
+
+# Wire shape of GET/PUT /api/v1/preferences responses
+# (models.PreferencesResponse — the stored entity's id/user_id/created_at/
+# version fields are never serialized to clients)
+PreferencesResponse:
+  type: object
+  properties:
+    preferences:
+      $ref: '#/Preferences'
+    updated_at:
+      type: string
+      format: date-time
+      description: >-
+        When the preferences were last persisted. Zero value
+        (0001-01-01T00:00:00Z) when the user has never saved preferences
+        and defaults are being returned.
+      example: "2024-01-20T14:45:00Z"
+  required:
+    - preferences
+    - updated_at
+
+# Request model for updating user preferences (both fields optional)
+UpdatePreferencesRequest:
+  type: object
+  properties:
+    email_notification:
+      $ref: '#/EmailNotificationPreferences'
+    notifications:
+      $ref: '#/NotificationPreferences'

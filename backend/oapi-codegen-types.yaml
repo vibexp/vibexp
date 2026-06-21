@@ -1,0 +1,22 @@
+# oapi-codegen configuration for the Types domain (#1846), the second
+# spec-first strict-server domain after Notifications.
+#
+# friction-6 (decision doc §"Multi-domain packaging") resolution: each
+# spec-first domain generates into its OWN package under internal/server/gen/<domain>
+# rather than sharing one package with Notifications. This keeps a single,
+# self-contained StrictServerInterface per domain (so each mounts independently
+# and the Notifications wiring stays untouched) at the cost of regenerating the
+# shared error schemas per package — they are unused under the apierrors bridge,
+# so no import-mapping is needed.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: typesgen
+output: internal/server/gen/types/types.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - Types

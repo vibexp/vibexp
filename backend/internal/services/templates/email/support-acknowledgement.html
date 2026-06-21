@@ -1,0 +1,18 @@
+{{define "content"}}
+<h1>Support Request Received</h1>
+<p>Hello {{.FirstName}},</p>
+<p>Thank you for contacting VibeXP Support!</p>
+<p>We have received your message and our team will get back to you as soon as possible.</p>
+
+<p><strong>Your Message:</strong></p>
+<div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #000000; margin: 15px 0; white-space: pre-wrap;">{{.Text}}</div>
+
+<p><strong>What happens next?</strong></p>
+<ul>
+    <li>Our support team reviews your request</li>
+    <li>We'll respond within 24-48 hours</li>
+    <li>You'll receive updates via email</li>
+</ul>
+
+<p>If you have any additional information to provide, please feel free to reply to this email.</p>
+{{end}}

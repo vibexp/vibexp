@@ -1,0 +1,475 @@
+# memories path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-team_id-memories:
+  post:
+    summary: Create new memory
+    description: Creates a new memory for the authenticated user within the specified team
+    operationId: createMemory
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team ID
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateMemoryRequest'
+    responses:
+      '201':
+        description: Memory created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Memory'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Memories
+
+  get:
+    summary: List memories
+    description: Retrieves all memories for the authenticated user within the specified team with optional filtering
+    operationId: listMemories
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team ID
+        schema:
+          type: string
+          format: uuid
+      - name: search
+        in: query
+        description: Search in memory text
+        schema:
+          type: string
+      - name: metadata_key
+        in: query
+        description: Filter by metadata key
+        schema:
+          type: string
+      - name: metadata_value
+        in: query
+        description: Filter by metadata value (requires metadata_key)
+        schema:
+          type: string
+      - name: sort_by
+        in: query
+        description: "Field to sort results by. Allowed: text, updated_at, created_at. Returns 400 for unknown values."
+        schema:
+          type: string
+          enum: [text, updated_at, created_at]
+      - name: sort_order
+        in: query
+        description: Sort direction (asc or desc, default desc)
+        schema:
+          type: string
+          enum: [asc, desc]
+          default: desc
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+    responses:
+      '200':
+        description: Memories retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/MemoryListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Memories
+
+api-v1-team_id-memories-search:
+  get:
+    summary: Search memories by metadata
+    description: Searches memories by specific metadata key-value pairs within the specified team
+    operationId: searchMemoriesByMetadata
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team ID
+        schema:
+          type: string
+          format: uuid
+      - name: metadata_key
+        in: query
+        required: true
+        description: Metadata key to search for
+        schema:
+          type: string
+      - name: metadata_value
+        in: query
+        required: true
+        description: Metadata value to search for
+        schema:
+          type: string
+      - name: search
+        in: query
+        description: Additional text search in memory content
+        schema:
+          type: string
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+    responses:
+      '200':
+        description: Memories found successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/MemoryListResponse'
+      '400':
+        description: Missing required parameters
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Memories
+
+api-v1-team_id-memories-id:
+  get:
+    summary: Get memory by ID
+    description: Retrieves a specific memory by its ID within the specified team
+    operationId: getMemory
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team ID
+        schema:
+          type: string
+          format: uuid
+      - name: id
+        in: path
+        required: true
+        description: Memory ID
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Memory retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Memory'
+      '404':
+        description: Memory not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Memories
+
+  put:
+    summary: Update memory by ID
+    description: Updates a specific memory by its ID within the specified team
+    operationId: updateMemory
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team ID
+        schema:
+          type: string
+          format: uuid
+      - name: id
+        in: path
+        required: true
+        description: Memory ID
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateMemoryRequest'
+    responses:
+      '200':
+        description: Memory updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Memory'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Memory not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Memories
+
+  delete:
+    summary: Delete memory by ID
+    description: Deletes a specific memory by its ID within the specified team
+    operationId: deleteMemory
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team ID
+        schema:
+          type: string
+          format: uuid
+      - name: id
+        in: path
+        required: true
+        description: Memory ID
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Memory deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Memory not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Memories
+
+api-v1-team_id-memories-id-versions:
+  get:
+    summary: List memory content versions
+    description: Returns the content-version history (newest first) for a memory
+    operationId: listMemoryVersions
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        description: Memory ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Memory versions retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/MemoryVersionListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Memory not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Memories
+
+api-v1-team_id-memories-id-versions-version_number:
+  get:
+    summary: Get a specific memory content version
+    description: Returns a single content-version snapshot of a memory by version number
+    operationId: getMemoryVersion
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        description: Memory ID
+        schema:
+          type: string
+      - name: version_number
+        in: path
+        required: true
+        description: Version number
+        schema:
+          type: integer
+          minimum: 1
+    responses:
+      '200':
+        description: Memory version retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ContentVersion'
+      '400':
+        description: Invalid version_number
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Memory or version not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Memories
+
+api-v1-team_id-memories-id-versions-version_number-restore:
+  post:
+    summary: Restore a memory to a content version
+    description: >-
+      Restores the memory's text to the given version. The pre-restore text is
+      snapshotted as a new version. Returns the updated memory.
+    operationId: restoreMemoryVersion
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        description: Memory ID
+        schema:
+          type: string
+      - name: version_number
+        in: path
+        required: true
+        description: Version number to restore
+        schema:
+          type: integer
+          minimum: 1
+    responses:
+      '200':
+        description: Memory restored successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Memory'
+      '400':
+        description: Invalid version_number
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Memory or version not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Memories

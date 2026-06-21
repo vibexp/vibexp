@@ -1,0 +1,42 @@
+# Contact form schemas
+
+ContactFormRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 2
+      maxLength: 100
+      example: "John Doe"
+    email:
+      type: string
+      format: email
+      example: "john@example.com"
+    phone_number:
+      type: string
+      minLength: 10
+      maxLength: 20
+      nullable: true
+      example: "+1234567890"
+    message:
+      type: string
+      minLength: 10
+      maxLength: 1000
+      example: "I'm interested in your services."
+  required:
+    - name
+    - email
+    - message
+
+ContactFormResponse:
+  type: object
+  properties:
+    message:
+      type: string
+      example: "Message sent successfully"
+    success:
+      type: boolean
+      example: true
+  required:
+    - message
+    - success

@@ -1,0 +1,124 @@
+# Memory-related schemas for OpenAPI specification
+
+# Core Memory model
+Memory:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Unique identifier for the memory
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    user_id:
+      type: string
+      description: ID of the user who owns this memory
+      example: "user-123"
+    text:
+      type: string
+      description: The text content of the memory
+      example: "Remember to update the API documentation when adding new endpoints"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional metadata as key-value pairs
+      example:
+        category: "reminder"
+        priority: "high"
+        project: "api-project"
+    created_at:
+      type: string
+      format: date-time
+      description: Timestamp when the memory was created
+      example: "2024-01-15T10:30:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: Timestamp when the memory was last updated
+      example: "2024-01-15T14:30:00Z"
+  required:
+    - id
+    - user_id
+    - text
+    - created_at
+    - updated_at
+
+# Request model for creating memories
+CreateMemoryRequest:
+  type: object
+  properties:
+    text:
+      type: string
+      description: The text content of the memory
+      minLength: 1
+      example: "Remember to update the API documentation when adding new endpoints"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional metadata as key-value pairs
+      example:
+        category: "reminder"
+        priority: "high"
+        project: "api-project"
+  required:
+    - text
+
+# Request model for updating memories
+UpdateMemoryRequest:
+  type: object
+  properties:
+    text:
+      type: string
+      description: Updated text content of the memory
+      minLength: 1
+      example: "Updated reminder to include versioning in API documentation"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Updated metadata as key-value pairs
+      example:
+        category: "reminder"
+        priority: "medium"
+        project: "api-project"
+        updated: true
+
+# Response model for memory lists
+MemoryListResponse:
+  type: object
+  properties:
+    memories:
+      type: array
+      items:
+        $ref: '#/Memory'
+      description: List of memories
+    total_count:
+      type: integer
+      description: Total number of memories matching the filter criteria
+      example: 25
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 50
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 1
+  required:
+    - memories
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+MemoryVersionListResponse:
+  type: object
+  properties:
+    versions:
+      type: array
+      items:
+        $ref: './artifacts.yaml#/ContentVersion'
+      description: Content-version snapshots for the memory, newest first
+  required:
+    - versions

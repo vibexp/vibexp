@@ -1,0 +1,85 @@
+# Resource-type-agnostic, team-customizable type (category) schemas.
+
+Type:
+  type: object
+  description: >
+    A resource category. System defaults are global and read-only (is_system
+    true, no team_id); custom types belong to a team. Uniqueness is on
+    (team_id, resource_type, slug).
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique type identifier
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    team_id:
+      type: string
+      format: uuid
+      description: Owning team; omitted for global system defaults
+      example: "660e8400-e29b-41d4-a716-446655440001"
+    resource_type:
+      type: string
+      description: Resource the type applies to (e.g. "artifacts")
+      example: "artifacts"
+    slug:
+      type: string
+      description: URL-safe identifier, unique per (team, resource_type)
+      example: "bug-report"
+    name:
+      type: string
+      description: Human-readable display name
+      example: "Bug report"
+    is_system:
+      type: boolean
+      description: True for built-in defaults that cannot be edited or deleted
+      example: false
+    created_at:
+      type: string
+      format: date-time
+      description: Timestamp when the type was created
+      example: "2026-06-15T09:00:00Z"
+  required:
+    - id
+    - resource_type
+    - slug
+    - name
+    - is_system
+    - created_at
+
+CreateTypeRequest:
+  type: object
+  description: Request body for creating a team-owned custom type
+  properties:
+    resource_type:
+      type: string
+      description: Resource the type applies to (currently only "artifacts")
+      example: "artifacts"
+    slug:
+      type: string
+      description: URL-safe identifier (lowercase letters, numbers, hyphens)
+      example: "bug-report"
+    name:
+      type: string
+      description: Human-readable display name
+      example: "Bug report"
+  required:
+    - resource_type
+    - slug
+    - name
+
+TypeListResponse:
+  type: object
+  description: System defaults plus the team's custom types for a resource
+  properties:
+    types:
+      type: array
+      description: Types visible to the team, system defaults first
+      items:
+        $ref: '#/Type'
+    total_count:
+      type: integer
+      description: Number of types in the list
+      example: 4
+  required:
+    - types
+    - total_count

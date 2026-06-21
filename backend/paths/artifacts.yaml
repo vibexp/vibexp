@@ -1,0 +1,888 @@
+# artifacts path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-team_id-artifacts:
+  post:
+    summary: Create new artifact
+    description: Creates a new artifact for the authenticated user within the specified team
+    operationId: createArtifact
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateArtifactRequest'
+    responses:
+      '201':
+        description: Artifact created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Artifact'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member or subscription required)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Artifact with same slug already exists in project
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+  get:
+    summary: List artifacts
+    description: Retrieves all artifacts for the specified team with optional filtering
+    operationId: listArtifacts
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: query
+        description: Filter by project ID
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        description: Filter by status
+        schema:
+          type: string
+          enum: [active, draft, archived]
+      - name: type
+        in: query
+        description: Filter by type
+        schema:
+          type: string
+          enum: [work_reports, static_contexts, general]
+      - name: search
+        in: query
+        description: Search in title, description, and content
+        schema:
+          type: string
+      - name: sort_by
+        in: query
+        description: Sort field
+        schema:
+          type: string
+          enum: [created_at, updated_at, title]
+      - name: sort_order
+        in: query
+        description: Sort order
+        schema:
+          type: string
+          enum: [asc, desc]
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Artifacts retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ArtifactListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-stats:
+  get:
+    summary: Get artifact statistics
+    description: Returns statistics about artifacts for the specified team
+    operationId: getArtifactStats
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    responses:
+      '200':
+        description: Artifact statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ArtifactStatsResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-project_id:
+  get:
+    summary: List artifacts by project
+    description: Retrieves artifacts for a specific project within the specified team
+    operationId: listArtifactsByProject
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        description: Filter by status
+        schema:
+          type: string
+          enum: [active, draft, archived]
+      - name: type
+        in: query
+        description: Filter by type
+        schema:
+          type: string
+          enum: [work_reports, static_contexts, general]
+      - name: search
+        in: query
+        description: Search in title, description, and content
+        schema:
+          type: string
+      - name: sort_by
+        in: query
+        description: Sort field
+        schema:
+          type: string
+          enum: [created_at, updated_at, title]
+      - name: sort_order
+        in: query
+        description: Sort order
+        schema:
+          type: string
+          enum: [asc, desc]
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Artifacts retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ArtifactListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-project_id-slug:
+  get:
+    summary: Get artifact by project and slug
+    description: Retrieves a specific artifact by project ID and slug within the specified team
+    operationId: getArtifact
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Artifact retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Artifact'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+  put:
+    summary: Update artifact by project and slug
+    description: Updates a specific artifact by project ID and slug within the specified team
+    operationId: updateArtifact
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateArtifactRequest'
+    responses:
+      '200':
+        description: Artifact updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Artifact'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Artifact with same slug already exists in project
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+  delete:
+    summary: Delete artifact by project and slug
+    description: Deletes a specific artifact by project ID and slug within the specified team
+    operationId: deleteArtifact
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Artifact deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-project_id-slug-attachments:
+  post:
+    summary: Upload an attachment to an artifact
+    description: >
+      Uploads a single file (multipart field `file`) as an attachment on the
+      artifact. Enforces a 5 MB per-file limit, a 10 MB cumulative limit per
+      artifact, and a safe file-type allowlist.
+    operationId: uploadArtifactAttachment
+    deprecated: true
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+                description: The file to attach
+            required:
+              - file
+    responses:
+      '201':
+        description: Attachment uploaded successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Attachment'
+      '400':
+        description: Missing file, file too large, cumulative limit exceeded, or disallowed type
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '503':
+        description: Attachment storage is not available
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+  get:
+    summary: List attachments for an artifact
+    description: Returns all attachments on the artifact, newest first, plus their combined size.
+    operationId: listArtifactAttachments
+    deprecated: true
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Attachments retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AttachmentListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-project_id-slug-attachments-id:
+  get:
+    summary: Download an artifact attachment
+    description: Streams the attachment file as a download (Content-Disposition attachment).
+    operationId: downloadArtifactAttachment
+    deprecated: true
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Attachment identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Attachment file stream
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact or attachment not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '503':
+        description: Attachment storage is not available
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+  delete:
+    summary: Delete an artifact attachment
+    description: Deletes the attachment metadata row and the stored object.
+    operationId: deleteArtifactAttachment
+    deprecated: true
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        description: Attachment identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Attachment deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact or attachment not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-project_id-slug-versions:
+  get:
+    summary: List artifact content versions
+    description: Returns the content-version history (newest first) for an artifact
+    operationId: listArtifactVersions
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Artifact versions retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ArtifactVersionListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-project_id-slug-versions-version_number:
+  get:
+    summary: Get a specific artifact content version
+    description: Returns a single content-version snapshot of an artifact by version number
+    operationId: getArtifactVersion
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+      - name: version_number
+        in: path
+        required: true
+        description: Version number
+        schema:
+          type: integer
+          minimum: 1
+    responses:
+      '200':
+        description: Artifact version retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ContentVersion'
+      '400':
+        description: Invalid version_number
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact or version not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts
+
+api-v1-team_id-artifacts-project_id-slug-versions-version_number-restore:
+  post:
+    summary: Restore an artifact to a content version
+    description: >-
+      Restores the artifact's content to the given version. The pre-restore content is
+      snapshotted as a new version. Returns the updated artifact.
+    operationId: restoreArtifactVersion
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Artifact slug
+        schema:
+          type: string
+      - name: version_number
+        in: path
+        required: true
+        description: Version number to restore
+        schema:
+          type: integer
+          minimum: 1
+    responses:
+      '200':
+        description: Artifact restored successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Artifact'
+      '400':
+        description: Invalid version_number
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Artifact or version not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Artifacts

@@ -1,0 +1,710 @@
+# ai-tools path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-ai-tools-claude-code-sessions-session_id:
+  delete:
+    summary: Delete Claude Code session
+    description: Deletes a specific Claude Code session and all associated hook data
+    operationId: deleteClaudeCodeSession
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        description: Session ID
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Session deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Session not found or access denied
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Claude Code Hooks
+
+api-v1-ai-tools-cursor-ide-sessions-session_id:
+  delete:
+    summary: Delete Cursor IDE session
+    description: Deletes a specific Cursor IDE session and all associated hook data
+    operationId: deleteCursorIDESession
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        description: Session ID
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Session deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Session not found or access denied
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Cursor IDE Hooks
+
+api-v1-ai-tools-claude-code-hooks:
+  get:
+    summary: List Claude Code hook payloads
+    description: Returns the authenticated user's stored Claude Code hook payloads with pagination and optional filters
+    operationId: listClaudeCodeHooks
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        required: false
+        description: Page number (default 1; values < 1 fall back to 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        description: Items per page (default 10, capped at 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+      - name: session_id
+        in: query
+        required: false
+        description: Filter by session ID
+        schema:
+          type: string
+      - name: hook_event_name
+        in: query
+        required: false
+        description: Filter by hook event name
+        schema:
+          type: string
+          example: "PreToolUse"
+      - name: tool_name
+        in: query
+        required: false
+        description: Filter by tool name
+        schema:
+          type: string
+          example: "Bash"
+    responses:
+      '200':
+        description: Hook payloads retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Claude Code Hooks
+
+api-v1-ai-tools-claude-code-sessions:
+  get:
+    summary: List Claude Code sessions
+    description: Returns the authenticated user's Claude Code session summaries with pagination
+    operationId: listClaudeCodeSessions
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        required: false
+        description: Page number (default 1; values < 1 fall back to 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        description: Items per page (default 10, capped at 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+    responses:
+      '200':
+        description: Sessions retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SessionsListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Claude Code Hooks
+
+api-v1-ai-tools-claude-code-session-counts:
+  get:
+    summary: Get Claude Code session counts
+    description: Returns the authenticated user's Claude Code session counts per day for the requested range
+    operationId: getClaudeCodeSessionCounts
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: range
+        in: query
+        required: false
+        description: >-
+          Time range for the counts. Accepted values: `7d` (or `7`), `14d` (or `14`),
+          `30d` (or `30`), `90d` (or `90`, `3m`). Unknown values fall back to `7d`.
+        schema:
+          type: string
+          default: '7d'
+    responses:
+      '200':
+        description: Session counts retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SessionCountsApiResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Claude Code Hooks
+
+api-v1-ai-tools-claude-code-overview-stats:
+  get:
+    summary: Get Claude Code overview statistics
+    description: Returns aggregated Claude Code usage statistics for the authenticated user's overview dashboard
+    operationId: getClaudeCodeOverviewStats
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Overview stats retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/OverviewStatsApiResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (plain-text body, not JSON)
+        content:
+          text/plain:
+            schema:
+              type: string
+              example: "Failed to retrieve stats"
+    tags:
+      - Claude Code Hooks
+
+api-v1-ai-tools-claude-code-recent-activities:
+  get:
+    summary: List recent Claude Code activities
+    description: Returns the authenticated user's recent Claude Code activities with pagination and optional filters
+    operationId: listClaudeCodeRecentActivities
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        required: false
+        description: Page number (default 1; values < 1 fall back to 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        description: Items per page (default 20 for this endpoint, capped at 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: session_id
+        in: query
+        required: false
+        description: Filter by session ID
+        schema:
+          type: string
+      - name: tool_name
+        in: query
+        required: false
+        description: Filter by tool name
+        schema:
+          type: string
+          example: "Bash"
+      - name: hook_event_name
+        in: query
+        required: false
+        description: Filter by hook event name
+        schema:
+          type: string
+          example: "PreToolUse"
+      - name: date_from
+        in: query
+        required: false
+        description: Filter activities created on or after this date
+        schema:
+          type: string
+          example: "2026-01-01"
+      - name: date_to
+        in: query
+        required: false
+        description: Filter activities created on or before this date
+        schema:
+          type: string
+          example: "2026-01-31"
+    responses:
+      '200':
+        description: Recent activities retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/RecentActivitiesApiResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Claude Code Hooks
+
+api-v1-ai-tools-cursor-ide-hooks:
+  get:
+    summary: List Cursor IDE hook payloads
+    description: Returns the authenticated user's stored Cursor IDE hook payloads with pagination and optional filters
+    operationId: listCursorIDEHooks
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        required: false
+        description: Page number (default 1; values < 1 fall back to 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        description: Items per page (default 10, capped at 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+      - name: session_id
+        in: query
+        required: false
+        description: Filter by session ID
+        schema:
+          type: string
+      - name: hook_event_name
+        in: query
+        required: false
+        description: Filter by hook event name
+        schema:
+          type: string
+          example: "beforeShellExecution"
+      - name: tool_name
+        in: query
+        required: false
+        description: Filter by tool name
+        schema:
+          type: string
+          example: "shell"
+    responses:
+      '200':
+        description: Hook payloads retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/CursorIDEHookListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Cursor IDE Hooks
+
+api-v1-ai-tools-cursor-ide-sessions:
+  get:
+    summary: List Cursor IDE sessions
+    description: Returns the authenticated user's Cursor IDE session summaries with pagination
+    operationId: listCursorIDESessions
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        required: false
+        description: Page number (default 1; values < 1 fall back to 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        description: Items per page (default 10, capped at 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+    responses:
+      '200':
+        description: Sessions retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/CursorSessionsListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Cursor IDE Hooks
+
+api-v1-ai-tools-cursor-ide-session-counts:
+  get:
+    summary: Get Cursor IDE session counts
+    description: Returns the authenticated user's Cursor IDE session counts per day for the requested range
+    operationId: getCursorIDESessionCounts
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: range
+        in: query
+        required: false
+        description: >-
+          Time range for the counts. Accepted values: `7d` (or `7`), `14d` (or `14`),
+          `30d` (or `30`), `90d` (or `90`, `3m`). Unknown values fall back to `7d`.
+        schema:
+          type: string
+          default: '7d'
+    responses:
+      '200':
+        description: Session counts retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SessionCountsApiResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Cursor IDE Hooks
+
+api-v1-ai-tools-cursor-ide-overview-stats:
+  get:
+    summary: Get Cursor IDE overview statistics
+    description: Returns aggregated Cursor IDE usage statistics for the authenticated user's overview dashboard
+    operationId: getCursorIDEOverviewStats
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Overview stats retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/CursorOverviewStatsApiResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (plain-text body, not JSON)
+        content:
+          text/plain:
+            schema:
+              type: string
+              example: "Failed to retrieve stats"
+    tags:
+      - Cursor IDE Hooks
+
+api-v1-ai-tools-cursor-ide-recent-activities:
+  get:
+    summary: List recent Cursor IDE activities
+    description: Returns the authenticated user's recent Cursor IDE activities with pagination and optional filters
+    operationId: listCursorIDERecentActivities
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        required: false
+        description: Page number (default 1; values < 1 fall back to 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        description: Items per page (default 20 for this endpoint, capped at 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: session_id
+        in: query
+        required: false
+        description: Filter by session ID
+        schema:
+          type: string
+      - name: tool_name
+        in: query
+        required: false
+        description: Filter by tool name
+        schema:
+          type: string
+          example: "shell"
+      - name: hook_event_name
+        in: query
+        required: false
+        description: Filter by hook event name
+        schema:
+          type: string
+          example: "beforeShellExecution"
+      - name: date_from
+        in: query
+        required: false
+        description: Filter activities created on or after this date
+        schema:
+          type: string
+          example: "2026-01-01"
+      - name: date_to
+        in: query
+        required: false
+        description: Filter activities created on or before this date
+        schema:
+          type: string
+          example: "2026-01-31"
+    responses:
+      '200':
+        description: Recent activities retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/CursorRecentActivitiesApiResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Cursor IDE Hooks
+
+api-v1-claude-code-hooks:
+  post:
+    summary: Ingest Claude Code hook payload
+    description: >-
+      Stores a hook payload fired by the Claude Code CLI during an active coding session.
+      Authenticated via API key (bearer) or session cookie; not IP-rate-limited.
+      Responses use the legacy CLI-compatible `{status, message}` shape rather than the
+      standard envelope. New sessions are checked against the user's `ai_session`
+      resource limit (and `ai_tool` limit for the first-ever session), returning 403
+      when exceeded.
+    operationId: ingestClaudeCodeHook
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/IncomingHookPayload'
+    responses:
+      '201':
+        description: Hook payload stored successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookCreatedResponse'
+      '400':
+        description: Invalid JSON payload or missing required field (session_id, hook_event_name)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: AI session or AI tools resource limit reached for the subscription plan (includes `details`)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Claude Code Hooks
+
+api-v1-cursor-ide-hooks:
+  post:
+    summary: Ingest Cursor IDE hook payload
+    description: >-
+      Stores a hook payload fired by Cursor IDE hooks. Authenticated via API key
+      (bearer) or session cookie; not IP-rate-limited. When `session_id` is absent,
+      `conversation_id` is used as the session identifier (one of the two is required).
+      Responses use the legacy CLI-compatible `{status, message}` shape rather than the
+      standard envelope. New sessions are checked against the user's `ai_session`
+      resource limit (and `ai_tool` limit for the first-ever session), returning 403
+      when exceeded.
+    operationId: ingestCursorIDEHook
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/IncomingCursorHookPayload'
+    responses:
+      '201':
+        description: Hook payload stored successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookCreatedResponse'
+      '400':
+        description: Invalid JSON payload or missing required field (session_id/conversation_id, hook_event_name)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: AI session or AI tools resource limit reached for the subscription plan (includes `details`)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+      '500':
+        description: Internal server error (legacy hook error shape)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/HookErrorResponse'
+    tags:
+      - Cursor IDE Hooks

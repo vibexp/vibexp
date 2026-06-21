@@ -1,0 +1,922 @@
+# teams path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-teams:
+  post:
+    summary: Create a new team
+    description: |
+      Creates a new team owned by the current user and synchronously bootstraps a
+      default "Project 1" project inside it so resources created immediately
+      afterwards are correctly scoped.
+
+      Team creation is subject to the plan's team resource limit; exceeding it
+      returns `403` with code `RESOURCE_LIMIT_EXCEEDED`.
+    operationId: createTeam
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateTeamRequest'
+    responses:
+      '201':
+        description: Team created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Team'
+      '400':
+        description: Invalid request body or validation error (name required, name ≤ 100 chars, description ≤ 500 chars)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Team creation limit reached for the current plan (code `RESOURCE_LIMIT_EXCEEDED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+  get:
+    summary: List teams
+    description: |
+      Returns the paginated list of teams the current user belongs to. Invalid
+      `page`/`page_size` values silently fall back to the defaults.
+    operationId: listTeams
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        required: false
+        description: Page number (1-based; defaults to 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        required: false
+        description: Items per page (defaults to 20, maximum 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Teams retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+api-v1-teams-id:
+  get:
+    summary: Get a team
+    description: Returns the team with the requesting user's role populated (member_count is only populated on list responses and is 0 here).
+    operationId: getTeam
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Team retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Team'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Team not found (or the user has no access to it)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+  put:
+    summary: Update a team
+    description: |
+      Updates the team's name and/or description. Only team owners can update a
+      team. At least one of `name` or `description` must be provided.
+    operationId: updateTeam
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateTeamRequest'
+    responses:
+      '200':
+        description: Team updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Team'
+      '400':
+        description: Invalid request body or validation error (no fields provided, empty name, name ≤ 100 chars, description ≤ 500 chars)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — only team owners can update a team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Team not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+  delete:
+    summary: Delete a team
+    description: |
+      Deletes a team. Only team owners can delete a team; personal workspaces and
+      the default team cannot be deleted.
+
+      Deletion conflicts return `409` with RFC 9457 problem details carrying an
+      UPPERCASE `code` and string-valued `metadata`:
+      - `ACTIVE_SUBSCRIPTION_EXISTS` — the team still has an active subscription
+      - `SUBSCRIPTION_CANCELING` — the subscription is scheduled to cancel; retry after `metadata.cancel_at`
+      - `TEAM_HAS_MEMBERS` — remove all members first (`metadata.member_count`)
+    operationId: deleteTeam
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Team deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not the team owner, personal workspace (code `CANNOT_DELETE_PERSONAL_WORKSPACE`), or default team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Team not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Deletion blocked — active/canceling subscription or remaining members (codes `ACTIVE_SUBSCRIPTION_EXISTS`, `SUBSCRIPTION_CANCELING`, `TEAM_HAS_MEMBERS`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamDeleteConflictError'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+api-v1-teams-id-members:
+  get:
+    summary: List team members
+    description: |
+      Returns the paginated list of team members with user details and invitation
+      status. Invalid `page`/`page_size` values silently fall back to the defaults.
+    operationId: getTeamMembers
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        in: query
+        required: false
+        description: Page number (1-based; defaults to 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        required: false
+        description: Items per page (defaults to 100, maximum 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 100
+    responses:
+      '200':
+        description: Team members retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamMembersListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Team not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+api-v1-teams-id-members-userId:
+  delete:
+    summary: Remove a team member
+    description: |
+      Removes a member from the team. Only team owners can remove members, and the
+      team owner cannot be removed.
+    operationId: removeTeamMember
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: userId
+        in: path
+        required: true
+        description: User ID of the member to remove
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Member removed successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — only team owners can remove members, or attempted to remove the team owner
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Team or member not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+api-v1-teams-id-invitations:
+  post:
+    summary: Send team invitations
+    description: |
+      Sends invitations to join the team to up to 50 email addresses with the given
+      role. Requires an eligible team (not a personal workspace), an active team
+      subscription, and enough available seats.
+
+      Limit failures return `403` with code `RESOURCE_LIMIT_EXCEEDED` and a
+      `metadata` object: for missing subscriptions it carries `team_id`, `feature`
+      and `upgrade_url`; for seat limits it carries `team_id` plus seat accounting fields
+      (`total_seats`, `occupied_seats`, `current_members`, `pending_invitations`,
+      `requested_invitations`, `available_seats`, `additional_seats_needed`,
+      `upgrade_url`).
+
+      Inviting users who are already team members returns `409` with code
+      `DUPLICATE_MEMBERS` and a top-level `duplicate_emails` string array.
+    operationId: sendTeamInvitations
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/SendInvitationsRequest'
+    responses:
+      '201':
+        description: Invitations created successfully (the `token`, `team_name` and `invited_by` fields are not populated on this response)
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../openapi.yaml#/components/schemas/InvitationResponse'
+      '400':
+        description: Invalid request body, validation error, more than 50 emails, or invalid role
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — personal workspace (code `upgrade_required`), no permission to invite (code `FORBIDDEN`), no active team subscription, or seat limit exceeded (code `RESOURCE_LIMIT_EXCEEDED` with metadata)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Team not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Some invitees are already team members (code `DUPLICATE_MEMBERS`, includes `duplicate_emails` array)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/InvitationDuplicateMembersError'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Team Invitations
+
+  get:
+    summary: List team invitations
+    description: |
+      Returns all invitations for the team. The `token`, `team_name` and
+      `invited_by` fields are not populated on this listing.
+    operationId: listTeamInvitations
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Invitations retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../openapi.yaml#/components/schemas/InvitationResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — no permission to view this team's invitations
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Team Invitations
+
+api-v1-teams-id-invitations-invitationId:
+  delete:
+    summary: Revoke a team invitation
+    description: Revokes a pending team invitation so its token can no longer be accepted.
+    operationId: revokeTeamInvitation
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: invitationId
+        in: path
+        required: true
+        description: Invitation identifier
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Invitation revoked successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — no permission to revoke invitations
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Invitation not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Team Invitations
+
+api-v1-teams-id-stats:
+  get:
+    summary: Get team statistics
+    description: >-
+      Returns team-wide resource counts (projects, prompts, artifacts,
+      blueprints, memories, feed items) for the team analytics page. Authorized
+      via team membership.
+    operationId: getTeamStats
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Team statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamStatsResponse'
+      '400':
+        description: Invalid team id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+api-v1-teams-id-resource-creation-metrics:
+  get:
+    summary: Per-team daily resource-creation metrics
+    description: >-
+      Returns a zero-filled daily creation timeseries for a team, counting
+      prompts, artifacts, blueprints, memories, and projects created on each day,
+      for the team analytics-page chart. Every day in the requested range appears
+      even when its count is zero. Authorized via team membership.
+    operationId: getTeamResourceCreationMetrics
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: range
+        in: query
+        required: false
+        description: The reporting window. Defaults to 30d.
+        schema:
+          type: string
+          enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+          default: '30d'
+    responses:
+      '200':
+        description: Team resource creation metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamResourceCreationMetricsResponse'
+      '400':
+        description: Invalid request parameters
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+api-v1-teams-id-feed-creation-metrics:
+  get:
+    summary: Per-team daily feed-creation metrics
+    description: >-
+      Returns a zero-filled daily feed-creation timeseries for a team, counting
+      feeds (channels, by creation date) and feed_items (AI updates posted, by
+      posted date) on each day, for the team analytics-page "AI feeds created"
+      chart. Every day in the requested range appears even when its count is zero.
+      Authorized via team membership.
+    operationId: getTeamFeedCreationMetrics
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: range
+        in: query
+        required: false
+        description: The reporting window. Defaults to 30d.
+        schema:
+          type: string
+          enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+          default: '30d'
+    responses:
+      '200':
+        description: Team feed creation metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamFeedCreationMetricsResponse'
+      '400':
+        description: Invalid request parameters
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+api-v1-teams-id-top-accessed-resources:
+  get:
+    summary: Per-team most-accessed resources
+    description: >-
+      Returns the team's most-accessed resources over the requested window, ranked
+      by access count descending and capped by the limit parameter, with each row's
+      display name resolved so the frontend can render and deep-link it. Authorized
+      via team membership.
+    operationId: getTeamTopAccessedResources
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: range
+        in: query
+        required: false
+        description: The reporting window. Defaults to 30d.
+        schema:
+          type: string
+          enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+          default: '30d'
+      - name: limit
+        in: query
+        required: false
+        description: Maximum number of resources to return (1–50). Defaults to 5.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 5
+      - name: source
+        in: query
+        required: false
+        description: >-
+          Restrict the ranking to a single access channel. Omitted or 'all'
+          aggregates across all channels (the default behavior).
+        schema:
+          type: string
+          enum: ['all', 'web', 'cli', 'mcp', 'api']
+          default: 'all'
+    responses:
+      '200':
+        description: Team top accessed resources retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamTopAccessedResourcesResponse'
+      '400':
+        description: Invalid request parameters
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams
+
+api-v1-teams-id-resource-access-metrics:
+  get:
+    summary: Per-team daily access metrics
+    description: >-
+      Returns a zero-filled daily access timeseries for a team, grouped by source
+      (web, cli, mcp, api), aggregated across every resource in the team, for the
+      team analytics-page chart. Every day in the requested range appears even
+      when its count is zero. Authorized via team membership.
+    operationId: getTeamResourceAccessMetrics
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: range
+        in: query
+        required: false
+        description: The reporting window. Defaults to 30d.
+        schema:
+          type: string
+          enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+          default: '30d'
+    responses:
+      '200':
+        description: Team resource access metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ResourceAccessMetricsResponse'
+      '400':
+        description: Invalid request parameters
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Teams

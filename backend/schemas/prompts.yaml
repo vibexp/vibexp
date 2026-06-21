@@ -1,0 +1,399 @@
+# Prompt template management schemas
+
+Prompt:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "prompt_123"
+    name:
+      type: string
+      example: "Code Review Template"
+    slug:
+      type: string
+      example: "code-review-template"
+    description:
+      type: string
+      example: "Template for conducting code reviews"
+    body:
+      type: string
+      example: "Please review this code for: {{criteria}}"
+    user_id:
+      type: string
+      example: "user_123"
+    team_id:
+      type: string
+      format: uuid
+      example: "123e4567-e89b-12d3-a456-426614174000"
+      description: "Team identifier that owns this prompt"
+    project_id:
+      type: string
+      format: uuid
+      example: "123e4567-e89b-12d3-a456-426614174001"
+      description: "Project identifier that this prompt belongs to"
+    status:
+      type: string
+      enum: [draft, published]
+      example: "published"
+    mcp_expose:
+      type: boolean
+      description: "Whether this prompt is discoverable via MCP (Model Context Protocol) tools"
+      example: true
+    is_shared:
+      type: boolean
+      description: "Whether this prompt has an active, non-expired share"
+      example: false
+    labels:
+      type: array
+      nullable: true
+      items:
+        type: string
+      example: ["code-review", "documentation"]
+      description: "Labels for categorizing and filtering prompts. null on the wire when the prompt has none (nil slice serialization)."
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    version:
+      type: integer
+      format: int64
+      description: "Version number for optimistic concurrency control"
+      example: 1
+  required:
+    - id
+    - name
+    - slug
+    - description
+    - body
+    - user_id
+    - team_id
+    - project_id
+    - status
+    - mcp_expose
+    - is_shared
+    - created_at
+    - updated_at
+    - version
+
+CreatePromptRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 50
+      example: "Code Review Template"
+    slug:
+      type: string
+      minLength: 1
+      maxLength: 255
+      example: "code-review-template"
+    description:
+      type: string
+      maxLength: 200
+      example: "Template for conducting code reviews"
+    body:
+      type: string
+      example: "Please review this code for: {{criteria}}"
+    project_id:
+      type: string
+      format: uuid
+      example: "123e4567-e89b-12d3-a456-426614174000"
+      description: "Project identifier that this prompt belongs to"
+    status:
+      type: string
+      enum: [draft, published]
+      example: "draft"
+    mcp_expose:
+      type: boolean
+      description: "Whether this prompt should be discoverable via MCP tools. Defaults to true if not specified."
+      example: true
+    labels:
+      type: array
+      items:
+        type: string
+        maxLength: 50
+      maxItems: 10
+      example: ["code-review", "documentation"]
+      description: "Optional labels for categorizing and filtering prompts"
+  required:
+    - name
+    - slug
+    - body
+    - project_id
+
+UpdatePromptRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 50
+    slug:
+      type: string
+      minLength: 1
+      maxLength: 255
+    description:
+      type: string
+      maxLength: 200
+    body:
+      type: string
+    project_id:
+      type: string
+      format: uuid
+      description: "Project identifier to move this prompt to a different project"
+    status:
+      type: string
+      enum: [draft, published]
+    mcp_expose:
+      type: boolean
+      description: "Whether this prompt should be discoverable via MCP tools"
+    labels:
+      type: array
+      items:
+        type: string
+        maxLength: 50
+      maxItems: 10
+      description: "Labels for categorizing and filtering prompts"
+
+PromptListResponse:
+  type: object
+  properties:
+    prompts:
+      type: array
+      items:
+        $ref: '#/Prompt'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - prompts
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+RenderPromptRequest:
+  type: object
+  properties:
+    placeholders:
+      type: object
+      additionalProperties:
+        type: string
+      example:
+        criteria: "security vulnerabilities and code quality"
+  required:
+    - placeholders
+
+RenderPromptResponse:
+  type: object
+  properties:
+    rendered_body:
+      type: string
+      example: "Please review this code for: security vulnerabilities and code quality"
+    placeholders_missing:
+      type: array
+      items:
+        type: string
+    references_used:
+      type: array
+      items:
+        type: string
+    warnings:
+      type: array
+      items:
+        type: string
+      description: "Warnings about issues during rendering (e.g., missing references)"
+      example: ["Reference not found: @nonexistent"]
+  required:
+    - rendered_body
+
+PromptPlaceholdersResponse:
+  type: object
+  properties:
+    placeholders:
+      type: array
+      items:
+        type: string
+      example: ["criteria", "language", "framework"]
+  required:
+    - placeholders
+
+# Prompt Gallery schemas
+
+PromptGalleryTemplate:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "gallery_prompt_123"
+    title:
+      type: string
+      example: "Code Review Request"
+    description:
+      type: string
+      example: "Request a thorough code review with focus on best practices, security, and performance"
+    content:
+      type: string
+      example: "Please review the following code for:\n- Code quality and best practices\n- Security vulnerabilities\n- Performance optimizations"
+    category:
+      type: string
+      example: "Engineering"
+    tags:
+      type: array
+      items:
+        type: string
+      example: ["code-review", "quality", "security"]
+    metadata:
+      type: object
+      additionalProperties: true
+      example:
+        difficulty: "beginner"
+        use_case: "development"
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - id
+    - title
+    - content
+    - category
+    - created_at
+    - updated_at
+
+PromptGalleryCategory:
+  type: object
+  properties:
+    category:
+      type: string
+      example: "Engineering"
+    count:
+      type: integer
+      example: 15
+  required:
+    - category
+    - count
+
+PromptGalleryListResponse:
+  type: object
+  properties:
+    prompts:
+      type: array
+      items:
+        $ref: '#/PromptGalleryTemplate'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - prompts
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+PromptGalleryUsageRequest:
+  type: object
+  properties:
+    prompt_id:
+      type: string
+      example: "gallery_prompt_123"
+  required:
+    - prompt_id
+# Prompt Sharing schemas
+
+CreateShareRequest:
+  type: object
+  properties:
+    share_type:
+      type: string
+      enum: [public, restricted]
+      example: "public"
+      description: "Type of share: 'public' allows anyone with the link, 'restricted' requires specific email addresses"
+    emails:
+      type: array
+      items:
+        type: string
+        format: email
+      example: ["user@example.com", "colleague@example.com"]
+      description: "List of email addresses allowed to access the shared prompt (required for 'restricted' shares)"
+  required:
+    - share_type
+
+ShareResponse:
+  type: object
+  properties:
+    share_token:
+      type: string
+      example: "abc123xyz789..."
+      description: "Unique token for accessing the shared prompt"
+    share_url:
+      type: string
+      example: "/shared/prompts/abc123xyz789..."
+      description: "Relative URL path to access the shared prompt"
+    share_type:
+      type: string
+      enum: [public, restricted]
+      example: "public"
+    emails:
+      type: array
+      items:
+        type: string
+        format: email
+      example: ["user@example.com"]
+      description: "List of emails with access (only present for 'restricted' shares)"
+    created_at:
+      type: string
+      format: date-time
+  required:
+    - share_token
+    - share_url
+    - share_type
+    - created_at
+
+SharedPromptResponse:
+  type: object
+  properties:
+    prompt:
+      $ref: '#/Prompt'
+    share_type:
+      type: string
+      enum: [public, restricted]
+      example: "public"
+    rendered_body:
+      type: string
+      example: "Please review this code for: {{criteria}}"
+      description: "Prompt body with @references resolved but {{placeholders}} preserved for client substitution"
+  required:
+    - prompt
+    - share_type
+    - rendered_body
+
+# Response model for the prompt version-history listing endpoint: a single object
+# with a versions array (newest-first). Reuses the generic ContentVersion snapshot
+# (defined in artifacts.yaml) so the shared versioning core is left untouched. The
+# versioned content is the raw prompt Body template, not any rendered output.
+PromptVersionListResponse:
+  type: object
+  properties:
+    versions:
+      type: array
+      items:
+        $ref: './artifacts.yaml#/ContentVersion'
+      description: Content-version snapshots for the prompt, newest first
+  required:
+    - versions

@@ -1,0 +1,153 @@
+# Common schemas used across multiple API domains
+
+HealthResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "healthy"
+    sha:
+      type: string
+      description: Short release commit SHA (empty outside deployed environments)
+      example: "de7db3a2"
+  required:
+    - status
+
+SuccessResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Operation completed successfully"
+    data:
+      type: object
+      additionalProperties: true
+  required:
+    - status
+    - message
+
+ErrorResponse:
+  type: object
+  description: RFC 9457 Problem Details for HTTP APIs
+  properties:
+    type:
+      type: string
+      description: URI reference that identifies the problem type
+      example: "https://api.example.com/errors/VALIDATION_FAILED"
+    title:
+      type: string
+      description: Short, human-readable summary of the problem type
+      example: "Validation Failed"
+    status:
+      type: integer
+      description: HTTP status code
+      example: 400
+    detail:
+      type: string
+      description: Human-readable explanation specific to this occurrence
+      example: "Request validation failed"
+    code:
+      type: string
+      description: Application-specific error code
+      example: "VALIDATION_FAILED"
+    request_id:
+      type: string
+      description: Unique request identifier for tracking and debugging
+      example: "abc123-def456"
+    timestamp:
+      type: string
+      format: date-time
+      description: Timestamp when the error occurred (RFC3339)
+      example: "2025-11-08T10:15:30Z"
+    instance:
+      type: string
+      description: URI reference that identifies the specific occurrence
+      example: "/api/v1/agents"
+    validation_errors:
+      type: array
+      description: Field-level validation errors (present for validation failures)
+      items:
+        $ref: "#/ValidationError"
+  required:
+    - type
+    - title
+    - status
+    - detail
+    - code
+    - request_id
+    - timestamp
+
+ValidationError:
+  type: object
+  description: Field-level validation error details
+  properties:
+    field:
+      type: string
+      description: Name of the field that failed validation
+      example: "name"
+    message:
+      type: string
+      description: Human-readable error message
+      example: "Field 'name' is required"
+    code:
+      type: string
+      description: Validation error code
+      example: "REQUIRED"
+    constraint:
+      type: string
+      description: The constraint that was violated
+      example: "required"
+  required:
+    - field
+    - message
+    - code
+
+SortByParam:
+  name: sort_by
+  in: query
+  description: Field to sort results by. Returns HTTP 400 if the field is not in the allowed list for the endpoint.
+  required: false
+  schema:
+    type: string
+
+SortOrderParam:
+  name: sort_order
+  in: query
+  description: Sort direction
+  required: false
+  schema:
+    type: string
+    enum: [asc, desc]
+    default: desc
+
+PaginatedResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items: {}
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    limit:
+      type: integer
+      description: Number of items per page
+      example: 10
+    total:
+      type: integer
+      description: Total number of records
+      example: 150
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 15
+  required:
+    - data
+    - page
+    - limit
+    - total
+    - total_pages

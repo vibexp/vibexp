@@ -1,0 +1,644 @@
+# projects path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-team_id-projects-slug-stats:
+  get:
+    summary: Get project statistics
+    description: Returns resource counts for a specific project within the specified team.
+    operationId: getProjectStats
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        description: Project slug
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Project statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ProjectStatsResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Project not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Projects
+
+api-v1-team_id-projects-slug-resource-creation-metrics:
+  get:
+    summary: Per-project daily resource-creation metrics
+    description: >-
+      Returns a zero-filled daily creation timeseries for a single project,
+      counting prompts, artifacts, blueprints, and memories created on each day,
+      for the project detail-page chart. Every day in the requested range appears
+      even when its count is zero. Authorized via team ownership/membership (same
+      boundary as the project stats endpoint).
+    operationId: getProjectResourceCreationMetrics
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Project slug
+        schema:
+          type: string
+      - name: range
+        in: query
+        required: false
+        description: The reporting window. Defaults to 30d.
+        schema:
+          type: string
+          enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+          default: '30d'
+    responses:
+      '200':
+        description: Resource creation metrics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ProjectResourceCreationMetricsResponse'
+      '400':
+        description: Invalid request parameters
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Project not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Projects
+
+api-v1-team_id-projects:
+  post:
+    summary: Create new project
+    description: |
+      Creates a new project within the specified team. Project slugs must be
+      unique within the team. Requires team membership and an active subscription.
+    operationId: createProject
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateProjectRequest'
+    responses:
+      '201':
+        description: Project created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Project'
+      '400':
+        description: Invalid request body, validation failure, or team_id is not a valid UUID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Project with the same slug already exists
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Projects
+  get:
+    summary: List projects
+    description: |
+      Returns a paginated list of projects within the specified team. Each
+      project is enriched with a `github_connected` flag indicating whether
+      its git URL matches a repository accessible via the team's GitHub App
+      installation.
+    operationId: listProjects
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: search
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Search term to filter projects
+      - name: sort_by
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Field to sort by
+      - name: sort_order
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Sort direction (asc or desc)
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        description: Page number (1-based)
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page (values above 100 are clamped to 100)
+    responses:
+      '200':
+        description: Projects retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ProjectListResponse'
+      '400':
+        description: team_id is not a valid UUID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Projects
+
+api-v1-team_id-projects-slug:
+  get:
+    summary: Get project by slug
+    description: Returns a single project identified by its URL-encoded slug within the specified team.
+    operationId: getProject
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Project slug (URL-encoded)
+    responses:
+      '200':
+        description: Project retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Project'
+      '400':
+        description: Invalid slug encoding or team_id is not a valid UUID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Project not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Projects
+  put:
+    summary: Update project
+    description: |
+      Partially updates a project identified by its slug. Only fields present
+      in the request body are changed. Uses optimistic locking — a concurrent
+      modification returns 409. Projects cannot be moved between teams.
+    operationId: updateProject
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Project slug (URL-encoded)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateProjectRequest'
+    responses:
+      '200':
+        description: Project updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Project'
+      '400':
+        description: Invalid request body, validation failure, cross-team move attempted, or invalid slug encoding
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Project not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Slug already exists, or the project was modified by another request (version mismatch)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Projects
+  delete:
+    summary: Delete project
+    description: |
+      Deletes a project identified by its slug. The last remaining project in
+      a team cannot be deleted (returns 400).
+    operationId: deleteProject
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Project slug (URL-encoded)
+    responses:
+      '204':
+        description: Project deleted successfully
+      '400':
+        description: Cannot delete the last project in the team, or invalid slug encoding / team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Project not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Projects
+
+api-v1-team_id-projects-project_id-migration-inventory:
+  get:
+    summary: Get project migration inventory
+    description: |
+      Returns a count and item list of all migratable resources (prompts,
+      artifacts, spec libraries, feed items) in the given project, used to
+      drive the migration UI.
+    operationId: getProjectMigrationInventory
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Source project identifier
+    responses:
+      '200':
+        description: Migration inventory retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/MigrationInventory'
+      '400':
+        description: project_id or team_id is not a valid UUID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member, or project does not belong to the specified team)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Project not found or not accessible
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Projects
+
+api-v1-team_id-projects-project_id-migration:
+  post:
+    summary: Migrate project resources
+    description: |
+      Moves selected resources (prompts, artifacts, spec libraries, feed items)
+      from the source project to a destination project in the same team.
+      Slug collisions are handled per the requested conflict policy
+      (skip, rename, or overwrite; defaults to skip). Returns per-type
+      migrated counts plus skipped/failed outcomes with a 200 status.
+    operationId: migrateProject
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Source project identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/MigrationRequest'
+    responses:
+      '200':
+        description: Migration completed (individual resources may still be reported as skipped or failed)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/MigrationResult'
+      '400':
+        description: Invalid request body, invalid UUID, invalid conflict_policy, or cross-team migration attempted
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member, or project does not belong to the specified team)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Source or destination project not found or not accessible
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Projects

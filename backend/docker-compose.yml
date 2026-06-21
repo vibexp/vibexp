@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_DB: vibexp_io
+      POSTGRES_USER: vibexp_app
+      POSTGRES_PASSWORD: local_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d vibexp_io -U vibexp_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  vibexp:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: vibexp_app
+      DB_PASSWORD: local_password
+      DB_NAME: vibexp_io
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

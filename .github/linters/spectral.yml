@@ -1,0 +1,11 @@
+extends: ["spectral:oas"]
+
+# Consumed by vacuum (https://quobix.com/vacuum/) against the bundled spec
+# (backend-api/dist/openapi.bundled.yaml) — see `make backend-lint-openapi`
+# and .github/workflows/openapi-validation.yml. vacuum implements the
+# Spectral ruleset format without nimma, so the duplicated-entry-in-enum
+# rule that crashed spectral-cli 6.x on this spec (see PR #1315) is active
+# again (#1697).
+
+rules:
+  duplicated-entry-in-enum: error

@@ -1,0 +1,17 @@
+# oapi-codegen configuration for the strict-server PoC (#1713, epic #1693).
+#
+# Generates chi + strict-server bindings and models for the Notifications tag
+# only, from the Redocly bundle (multi-file $refs pre-resolved — kin-openapi,
+# oapi-codegen's parser, does not resolve our paths/*.yaml layout natively).
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: gen
+output: internal/server/gen/notifications.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - Notifications

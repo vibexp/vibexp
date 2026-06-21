@@ -1,0 +1,1288 @@
+# agents path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-team_id-agents:
+  post:
+    summary: Create new agent
+    description: |
+      Registers a new A2A agent for the specified team. The agent card is fetched
+      from `card_url` at creation time; name and description default to the card
+      values when omitted.
+    operationId: createAgent
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateAgentRequest'
+    responses:
+      '201':
+        description: Agent created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Agent'
+      '400':
+        description: Invalid request body, validation error, or invalid/unfetchable agent card (4xx from the card host)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member, or agent limit reached for the subscription plan
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: An agent with that name already exists for this user
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '502':
+        description: Agent card host unreachable or returned a server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+  get:
+    summary: List agents
+    description: Returns the agents of the specified team with optional filtering, sorting, and pagination
+    operationId: listAgents
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: status
+        in: query
+        description: Filter by agent status
+        schema:
+          type: string
+          enum: [active, paused, error]
+      - name: search
+        in: query
+        description: Search in agent name and description
+        schema:
+          type: string
+      - name: sort_by
+        in: query
+        description: Sort field
+        schema:
+          type: string
+          enum: [name, status, updated_at, created_at, last_run, success_rate]
+      - name: sort_order
+        in: query
+        description: Sort order
+        schema:
+          type: string
+          enum: [asc, desc]
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+    responses:
+      '200':
+        description: Agents retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentListResponse'
+      '400':
+        description: Invalid sort_by value or invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-preview-card:
+  post:
+    summary: Preview agent card
+    description: Fetches and returns an A2A agent card from the given URL without creating an agent
+    operationId: previewAgentCard
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/PreviewAgentCardRequest'
+    responses:
+      '200':
+        description: Agent card fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentCard'
+      '400':
+        description: Invalid request body, missing card_url, or invalid/unfetchable agent card (4xx from the card host)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '502':
+        description: Agent card host unreachable or returned a server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-stats:
+  get:
+    summary: Get agent statistics
+    description: Returns aggregate agent statistics and recent activity for the specified team
+    operationId: getAgentStats
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    responses:
+      '200':
+        description: Agent statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentStatsResponse'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-id:
+  get:
+    summary: Get agent
+    description: Retrieves a specific agent by ID
+    operationId: getAgent
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Agent identifier
+    responses:
+      '200':
+        description: Agent retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Agent'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Agent not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+  put:
+    summary: Update agent
+    description: |
+      Updates an existing agent. When `card_url` is provided the agent card is
+      re-fetched. Agents cannot be moved between teams once created.
+    operationId: updateAgent
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Agent identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateAgentRequest'
+    responses:
+      '200':
+        description: Agent updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Agent'
+      '400':
+        description: Invalid request body, validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Agent not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: An agent with that name already exists for this user
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+  delete:
+    summary: Delete agent
+    description: Permanently deletes an agent
+    operationId: deleteAgent
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Agent identifier
+    responses:
+      '204':
+        description: Agent deleted successfully
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Agent not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-id-credentials:
+  put:
+    summary: Update agent credentials
+    description: Replaces the stored credentials for an agent. Values are encrypted at rest and never returned.
+    operationId: updateAgentCredentials
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Agent identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateAgentCredentialsRequest'
+    responses:
+      '204':
+        description: Credentials updated successfully
+      '400':
+        description: Invalid request body or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Agent not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-id-execute:
+  post:
+    summary: Execute agent
+    description: |
+      Invokes an agent via the A2A protocol. For streaming-capable agents the call
+      returns immediately with status `pending` or `submitted`; poll
+      `GET /agents/executions/{id}/status` and fetch
+      `GET /agents/executions/{id}/events` for progress. For non-streaming agents
+      the call blocks until the execution finishes with status `success` or `error`.
+    operationId: executeAgent
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Agent identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/ExecuteAgentRequest'
+    responses:
+      '200':
+        description: Execution created (streaming agents) or completed (non-streaming agents)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentExecution'
+      '400':
+        description: Invalid request body or agent is not active
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Agent not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-id-executions:
+  post:
+    summary: Start agent execution
+    description: Creates a new execution record for an agent (manual execution tracking)
+    operationId: startAgentExecution
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Agent identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateAgentExecutionRequest'
+    responses:
+      '201':
+        description: Execution started successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentExecution'
+      '400':
+        description: Invalid request body
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Agent not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+  get:
+    summary: List agent executions
+    description: Returns executions for an agent with optional filtering and pagination
+    operationId: listAgentExecutions
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Agent identifier
+      - name: status
+        in: query
+        description: Filter by execution status
+        schema:
+          type: string
+      - name: date_from
+        in: query
+        description: Filter executions started on or after this date
+        schema:
+          type: string
+      - name: date_to
+        in: query
+        description: Filter executions started on or before this date
+        schema:
+          type: string
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+    responses:
+      '200':
+        description: Executions retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentExecutionListResponse'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-id-conversations:
+  get:
+    summary: List agent conversations
+    description: Returns paginated conversation summaries for an agent
+    operationId: listAgentConversations
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Agent identifier
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Conversations retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ConversationListResponse'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Agent not found in the specified team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-executions-execution_id:
+  put:
+    summary: Complete agent execution
+    description: Updates an execution with its final status, output, and optional error (manual execution tracking)
+    operationId: completeAgentExecution
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Execution identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateAgentExecutionRequest'
+    responses:
+      '200':
+        description: Execution updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentExecution'
+      '400':
+        description: Invalid request body or status not one of running, success, error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Execution not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+  get:
+    summary: Get agent execution
+    description: Retrieves a specific agent execution by ID
+    operationId: getAgentExecution
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Execution identifier
+    responses:
+      '200':
+        description: Execution retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentExecution'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Execution not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-executions-id-status:
+  get:
+    summary: Get execution status
+    description: |
+      Returns the current status and A2A state of an agent execution, including
+      artifacts. The execution's agent must belong to the specified team.
+    operationId: getAgentExecutionStatus
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Execution identifier
+    responses:
+      '200':
+        description: Execution status retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentExecution'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Execution not found, or its agent does not belong to the specified team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-executions-id-events:
+  get:
+    summary: Get execution events
+    description: |
+      Returns streaming events for an execution. Supports two modes: cursor-based
+      polling via `?since={sequence}` (returns execution status plus events after
+      that sequence number) and page-based pagination via `?page`/`?limit` for
+      historical viewing.
+    operationId: getAgentExecutionEvents
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Execution identifier
+      - name: since
+        in: query
+        description: Return events with a sequence number greater than this value (enables cursor-based polling)
+        schema:
+          type: integer
+          minimum: 0
+      - name: page
+        in: query
+        description: Page number (page-based mode only)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page (page-based mode only)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+    responses:
+      '200':
+        description: Events retrieved successfully (shape depends on whether `since` was provided)
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '../openapi.yaml#/components/schemas/AgentExecutionEventsPollResponse'
+                - $ref: '../openapi.yaml#/components/schemas/AgentExecutionEventsPageResponse'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Execution not found, or its agent does not belong to the specified team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
+api-v1-team_id-agents-conversations-conversation_id-executions:
+  get:
+    summary: List conversation executions
+    description: Returns the executions belonging to a conversation with cursor-based pagination (newest first, use `before` to page backwards)
+    operationId: listConversationExecutions
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Conversation identifier
+      - name: limit
+        in: query
+        description: Maximum number of executions to return
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      - name: before
+        in: query
+        description: Return executions started before this RFC 3339 timestamp
+        schema:
+          type: string
+          format: date-time
+    responses:
+      '200':
+        description: Conversation executions retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ConversationExecutionsResponse'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Conversation's agent does not belong to the specified team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents

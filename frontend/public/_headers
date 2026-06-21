@@ -1,0 +1,39 @@
+# Cache-Control headers for service worker files.
+# Service workers and their importScripts resources must not be cached by
+# the browser or CDN for long periods, or a Firebase key rotation will leave
+# users running a stale config until cache expiry.
+/firebase-messaging-sw.js
+  Cache-Control: no-cache, must-revalidate
+/firebase-messaging-sw-config.js
+  Cache-Control: no-cache, must-revalidate
+
+# Defense-in-depth security headers for every response.
+#
+# Content-Security-Policy notes (origins reconciled against actual app usage):
+# - script-src: 'self' for app bundles; the 'sha256-...' hash authorizes the
+#   single inline Google Consent Mode v2 script in index.html (no 'unsafe-inline');
+#   googletagmanager.com loads GTM (gtm.js);
+#   www.gstatic.com serves the Firebase compat SDK used by the messaging SW.
+# - connect-src: 'self' for same-origin XHR; SELF-HOSTERS: replace the
+#   `https://your-api-host.example.com` placeholder below with your backend API
+#   origin (the host VITE_API_BASE_URL points at), or delete it if the API is
+#   served same-origin;
+#   www.googletagmanager.com (GTM config/beacon requests back to its own host),
+#   *.firebaseio.com, *.googleapis.com (FCM/Firebase installations),
+#   *.google-analytics.com + *.analytics.google.com (GA4 collect / region
+#   endpoints), and the Sentry ingest hosts for error reporting.
+# - worker-src 'self' blob:: Sentry Session Replay spins up its compression
+#   worker from a Blob URL (new Worker(URL.createObjectURL(new Blob(...)))), so
+#   blob: is required or Replay is blocked at runtime.
+# - style-src allows 'unsafe-inline' (runtime-injected styles) and fonts.googleapis.com
+#   (Google Fonts CSS); font-src allows fonts.gstatic.com for the font files.
+# - frame-ancestors 'none': the app itself may not be framed.
+# NOTE for reviewer: verify this CSP in the browser DevTools console (no blocked
+# requests / violation reports) before and after deploy — it cannot be exercised
+# from the build environment.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-LTZAmGFV+ddlEpeA2/O8ofAqIIvS4h7/DbHcjOPYCkA=' https://www.googletagmanager.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://your-api-host.example.com https://www.googletagmanager.com https://*.firebaseio.com https://*.googleapis.com https://*.google-analytics.com https://*.analytics.google.com https://*.sentry.io https://*.ingest.sentry.io; worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains

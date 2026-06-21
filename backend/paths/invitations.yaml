@@ -1,0 +1,239 @@
+# invitations path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-invitations-token:
+  get:
+    summary: Get invitation details by token
+    description: |
+      Returns enriched invitation details (team name, inviter info, role, status, expiry)
+      for the email-link landing page so the user can review the invitation before
+      accepting or rejecting it.
+
+      Returns honest, distinct HTTP statuses for the lifecycle:
+      - `200` — valid pending invitation
+      - `404` — unknown / not found token
+      - `410 Gone` — invitation pending but past `expires_at`
+      - `409 Conflict` — invitation already accepted, rejected, or revoked
+    operationId: getInvitationByToken
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Opaque invitation token from the invitation email link
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Invitation details retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/InvitationDetailsResponse'
+      '401':
+        description: Authentication required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Invitation not found for the given token
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Invitation has already been accepted, rejected, or revoked
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '410':
+        description: Invitation has expired
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Team Invitations
+
+api-v1-invitations-pending:
+  get:
+    summary: Get pending invitations for the current user
+    description: |
+      Returns the current user's pending team invitations (matched by the user's
+      email), enriched with team name and inviter details where available. The
+      response is not actually paginated: all pending invitations are returned and
+      `page`/`page_size` are fixed at `1`/`20`.
+    operationId: getPendingInvitations
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Pending invitations retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/PendingInvitationsListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Team Invitations
+
+api-v1-invitations-token-accept:
+  post:
+    summary: Accept a team invitation
+    description: |
+      Accepts a pending team invitation by token and adds the current user to the
+      team. The invitation must have been sent to the authenticated user's email
+      address.
+    operationId: acceptInvitation
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Opaque invitation token from the invitation email link
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Invitation accepted successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AcceptInvitationResponse'
+      '400':
+        description: Invitation is not pending
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Invitation was sent to a different email address
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Invalid invitation token
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Already a member of this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '410':
+        description: Invitation has expired
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error (including invitation accepted but team details could not be fetched)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Team Invitations
+
+api-v1-invitations-token-reject:
+  post:
+    summary: Reject a team invitation
+    description: Rejects a pending team invitation by token. Only the invited user can reject it.
+    operationId: rejectInvitation
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: Opaque invitation token from the invitation email link
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Invitation rejected successfully
+      '400':
+        description: Invitation is not pending
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Not authorized to reject this invitation
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Invalid invitation token
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Team Invitations

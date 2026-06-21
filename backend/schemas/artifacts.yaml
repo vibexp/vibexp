@@ -1,0 +1,452 @@
+# Artifact-related schemas for OpenAPI specification
+
+# Core Artifact model
+Artifact:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Unique identifier for the artifact
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    project_id:
+      type: string
+      format: uuid
+      description: UUID of the project this artifact belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    slug:
+      type: string
+      description: Unique slug for the artifact within the project
+      maxLength: 255
+      example: "api-documentation"
+    user_id:
+      type: string
+      description: ID of the user who owns this artifact
+      example: "user-123"
+    content:
+      type: string
+      description: The actual content of the artifact
+      example: "This is the API documentation content..."
+    created_at:
+      type: string
+      format: date-time
+      description: Timestamp when the artifact was created
+      example: "2024-01-15T10:30:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: Timestamp when the artifact was last updated
+      example: "2024-01-15T14:30:00Z"
+    status:
+      type: string
+      enum: [active, draft, archived]
+      description: Current status of the artifact
+      example: "active"
+    title:
+      type: string
+      description: Human-readable title for the artifact
+      maxLength: 255
+      example: "API Documentation"
+    description:
+      type: string
+      description: Optional description of the artifact
+      maxLength: 500
+      example: "Comprehensive API documentation for the project"
+    type:
+      type: string
+      enum: [work_reports, static_contexts, general]
+      description: Type category of the artifact
+      example: "general"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional metadata as key-value pairs
+      example:
+        tags: ["documentation", "api"]
+        priority: "high"
+  required:
+    - id
+    - project_id
+    - slug
+    - user_id
+    - created_at
+    - updated_at
+    - status
+    - title
+    - type
+
+# Request model for creating artifacts
+CreateArtifactRequest:
+  type: object
+  properties:
+    project_id:
+      type: string
+      format: uuid
+      description: UUID of the project this artifact belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    slug:
+      type: string
+      description: Unique slug for the artifact within the project
+      maxLength: 255
+      minLength: 1
+      example: "api-documentation"
+    content:
+      type: string
+      description: The actual content of the artifact
+      minLength: 1
+      example: "This is the API documentation content..."
+    title:
+      type: string
+      description: Human-readable title for the artifact
+      maxLength: 255
+      minLength: 1
+      example: "API Documentation"
+    description:
+      type: string
+      description: Optional description of the artifact
+      maxLength: 500
+      example: "Comprehensive API documentation for the project"
+    type:
+      type: string
+      enum: [work_reports, static_contexts, general]
+      description: Type category of the artifact
+      example: "general"
+    status:
+      type: string
+      enum: [active, draft, archived]
+      description: Initial status of the artifact
+      example: "active"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional metadata as key-value pairs
+      example:
+        tags: ["documentation", "api"]
+        priority: "high"
+  required:
+    - project_id
+    - slug
+    - content
+    - title
+
+# Request model for updating artifacts
+UpdateArtifactRequest:
+  type: object
+  properties:
+    project_id:
+      type: string
+      description: New project UUID for the artifact
+      format: uuid
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    slug:
+      type: string
+      description: New slug for the artifact
+      maxLength: 255
+      minLength: 1
+      example: "updated-api-documentation"
+    content:
+      type: string
+      description: Updated content of the artifact
+      example: "This is the updated API documentation content..."
+    title:
+      type: string
+      description: Updated title for the artifact
+      maxLength: 255
+      minLength: 1
+      example: "Updated API Documentation"
+    description:
+      type: string
+      description: Updated description of the artifact
+      maxLength: 500
+      example: "Updated comprehensive API documentation for the project"
+    type:
+      type: string
+      enum: [work_reports, static_contexts, general]
+      description: Updated type category of the artifact
+      example: "general"
+    status:
+      type: string
+      enum: [active, draft, archived]
+      description: Updated status of the artifact
+      example: "active"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Updated metadata as key-value pairs
+      example:
+        tags: ["documentation", "api", "updated"]
+        priority: "medium"
+    change_summary:
+      type: string
+      maxLength: 500
+      description: >-
+        Optional human-readable summary of this edit, recorded on the content-version
+        snapshot it produces and shown in the version history.
+      example: "Tightened the restore-flow wording"
+
+# Response model for artifact lists
+ArtifactListResponse:
+  type: object
+  properties:
+    artifacts:
+      type: array
+      items:
+        $ref: '#/Artifact'
+      description: List of artifacts
+    total_count:
+      type: integer
+      description: Total number of artifacts matching the filter criteria
+      example: 42
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 20
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 3
+  required:
+    - artifacts
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+# A single content-version snapshot of an artifact
+ContentVersion:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the version snapshot
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    team_id:
+      type: string
+      format: uuid
+      description: Team that owns the versioned resource
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    resource_type:
+      type: string
+      description: Type of the versioned resource
+      example: "artifact"
+    resource_id:
+      type: string
+      format: uuid
+      description: ID of the resource this snapshot belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    version_number:
+      type: integer
+      description: Monotonic per-resource version number
+      example: 3
+    content:
+      type: string
+      description: Snapshot of the resource content at this version
+      example: "Previous artifact content..."
+    change_summary:
+      type: string
+      nullable: true
+      description: >-
+        Human-readable summary of the change captured at this version (the "commit
+        message"). Null when none was recorded; the first version defaults to a
+        resource-specific creation label (e.g. "Created the artifact").
+      example: "Tightened the restore-flow wording"
+    actor_type:
+      type: string
+      enum: [human, system]
+      description: >-
+        Who authored this version: 'human' for a user edit, 'system' for a
+        system-generated version such as a restore.
+      example: "human"
+    created_by:
+      type: string
+      format: uuid
+      nullable: true
+      description: User who triggered the snapshot; null when that user is later deleted
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    author:
+      $ref: '#/VersionAuthor'
+    created_at:
+      type: string
+      format: date-time
+      description: Timestamp when the snapshot was created
+      example: "2024-01-15T10:30:00Z"
+  required:
+    - id
+    - team_id
+    - resource_type
+    - resource_id
+    - version_number
+    - content
+    - change_summary
+    - actor_type
+    - created_by
+    - author
+    - created_at
+
+# Resolved author attribution for a content version, populated server-side so clients
+# do not have to issue a per-version user lookup.
+VersionAuthor:
+  type: object
+  nullable: true
+  description: >-
+    Resolved attribution for a version's author. Null when the version has no author
+    (created_by is null) or the user can no longer be resolved.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: User ID of the author
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    display_name:
+      type: string
+      description: Author's display name
+      example: "Ada Lovelace"
+    avatar_url:
+      type: string
+      nullable: true
+      description: Author's avatar URL, if any
+      example: "https://example.com/avatar.png"
+    initials:
+      type: string
+      description: Up to two uppercase initials derived from the display name
+      example: "AL"
+  required:
+    - id
+    - display_name
+    - avatar_url
+    - initials
+
+# Response model for artifact version listings
+ArtifactVersionListResponse:
+  type: object
+  properties:
+    versions:
+      type: array
+      items:
+        $ref: '#/ContentVersion'
+      description: Content-version snapshots for the artifact, newest first
+  required:
+    - versions
+
+# Response model for artifact statistics
+ArtifactStatsResponse:
+  type: object
+  properties:
+    total_projects:
+      type: integer
+      description: Total number of projects with artifacts
+      example: 5
+    total_artifacts:
+      type: integer
+      description: Total number of artifacts
+      example: 42
+    added_this_week:
+      type: integer
+      description: Number of artifacts added in the current week
+      example: 3
+    total_by_type:
+      type: object
+      additionalProperties:
+        type: integer
+      description: Count of artifacts by type
+      example:
+        work_reports: 15
+        static_contexts: 20
+        general: 7
+    total_by_status:
+      type: object
+      additionalProperties:
+        type: integer
+      description: Count of artifacts by status
+      example:
+        active: 35
+        draft: 5
+        archived: 7
+  required:
+    - total_projects
+    - total_artifacts
+    - added_this_week
+    - total_by_type
+    - total_by_status
+
+# Generic file attachment metadata (polymorphic owner_type/owner_id).
+Attachment:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the attachment
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    team_id:
+      type: string
+      format: uuid
+      description: Team that owns the attachment
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    user_id:
+      type: string
+      description: ID of the user who uploaded the attachment; omitted if that user was deleted
+      example: "user-123"
+    owner_type:
+      type: string
+      description: Polymorphic owner type (currently always "artifact")
+      example: "artifact"
+    owner_id:
+      type: string
+      format: uuid
+      description: ID of the owning resource (e.g. the artifact)
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    file_name:
+      type: string
+      description: Original file name
+      example: "design-spec.pdf"
+    content_type:
+      type: string
+      description: Canonical content type of the file
+      example: "application/pdf"
+    size_bytes:
+      type: integer
+      format: int64
+      description: Size of the file in bytes
+      example: 204800
+    created_at:
+      type: string
+      format: date-time
+      description: Timestamp when the attachment was uploaded
+      example: "2024-01-15T10:30:00Z"
+  required:
+    - id
+    - team_id
+    - owner_type
+    - owner_id
+    - file_name
+    - content_type
+    - size_bytes
+    - created_at
+
+# Response model for listing an owner's attachments.
+AttachmentListResponse:
+  type: object
+  properties:
+    attachments:
+      type: array
+      items:
+        $ref: '#/Attachment'
+      description: List of attachments for the owner, newest first
+    total_count:
+      type: integer
+      description: Number of attachments
+      example: 3
+    total_size_bytes:
+      type: integer
+      format: int64
+      description: Combined size of all attachments in bytes
+      example: 614400
+  required:
+    - attachments
+    - total_count
+    - total_size_bytes

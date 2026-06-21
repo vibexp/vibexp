@@ -1,0 +1,191 @@
+# Resource-type-agnostic, team-customizable type (category) path items —
+# referenced from ../openapi.yaml. One domain per file; team-scoped under
+# /api/v1/{team_id}/types so future resources (prompt, memory, blueprint) reuse
+# the same endpoint via the resource_type parameter.
+
+api-v1-team_id-types:
+  get:
+    summary: List types for a resource
+    description: >
+      Returns every type visible to the team for the given `resource_type`: the
+      global system defaults plus the team's own custom types, system defaults
+      first.
+    operationId: listTypes
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: resource_type
+        in: query
+        required: true
+        description: Resource whose types to list (currently only "artifacts")
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Types retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TypeListResponse'
+      '400':
+        description: Missing or unsupported resource_type
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to list types
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Types
+
+  post:
+    summary: Create a custom type
+    description: >
+      Creates a team-owned custom type for the given resource. The slug must be
+      URL-safe (lowercase letters, numbers, hyphens) and unique within the team
+      for the resource — a collision with a global default or an existing team
+      type returns 409.
+    operationId: createType
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateTypeRequest'
+    responses:
+      '201':
+        description: Type created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Type'
+      '400':
+        description: Invalid or unsupported resource_type, slug, or name
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: A type with the same slug already exists for this resource
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to create type
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Types
+
+api-v1-team_id-types-id:
+  delete:
+    summary: Delete a custom type
+    description: >
+      Deletes a team-owned custom type. System defaults cannot be deleted (a
+      delete targeting one — or another team's type — returns 404). Any
+      resources still referencing the deleted type are reassigned to the
+      resource's system default in the same transaction.
+    operationId: deleteType
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Type identifier
+    responses:
+      '204':
+        description: Type deleted (no content)
+      '400':
+        description: Type id is not a valid UUID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: No deletable custom type with this id exists in the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to delete type
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Types

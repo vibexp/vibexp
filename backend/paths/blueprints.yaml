@@ -1,0 +1,738 @@
+# blueprints path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-team_id-blueprints:
+  post:
+    summary: Create new spec library
+    description: Creates a new spec library for the authenticated user. Spec libraries are used to store API specifications (OpenAPI, AsyncAPI, etc.) and other technical documentation.
+    operationId: createBlueprint
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateBlueprintRequest'
+          examples:
+            openapi:
+              summary: OpenAPI Specification
+              value:
+                project_name: "my-api-project"
+                slug: "openapi-spec"
+                title: "My API OpenAPI Specification"
+                description: "Complete OpenAPI 3.0.3 specification for the REST API"
+                content: "openapi: 3.0.3\ninfo:\n  title: My API\n  version: 1.0.0\npaths:\n  /users:\n    get:\n      summary: List users"
+                type: "general"
+                status: "active"
+                metadata:
+                  spec_type: "openapi"
+                  version: "3.0.3"
+    responses:
+      '201':
+        description: Spec library created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Blueprint'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+            examples:
+              validation_error:
+                value:
+                  type: "about:blank"
+                  title: "Bad Request"
+                  status: 400
+                  detail: "Validation failed: Slug is required"
+                  code: "validation_error"
+                  request_id: "req_123abc"
+                  timestamp: "2025-11-08T10:15:30Z"
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Resource limit exceeded
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+            examples:
+              limit_exceeded:
+                value:
+                  type: "about:blank"
+                  title: "Forbidden"
+                  status: 403
+                  detail: "You have reached the maximum number of spec libraries allowed for your subscription plan"
+                  code: "resource_limit_exceeded"
+                  request_id: "req_123abc"
+                  timestamp: "2025-11-08T10:15:30Z"
+      '409':
+        description: Spec library with same slug already exists in project
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+            examples:
+              conflict:
+                value:
+                  type: "about:blank"
+                  title: "Conflict"
+                  status: 409
+                  detail: "spec library with slug 'openapi-spec' already exists in project 'my-api-project'"
+                  code: "conflict"
+                  request_id: "req_123abc"
+                  timestamp: "2025-11-08T10:15:30Z"
+    tags:
+      - Blueprints
+
+  get:
+    summary: List spec libraries
+    description: Retrieves all spec libraries for the authenticated user with optional filtering and pagination
+    operationId: listSpecLibraries
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_name
+        in: query
+        description: Filter by project name
+        schema:
+          type: string
+          example: "my-api-project"
+      - name: status
+        in: query
+        description: Filter by status
+        schema:
+          type: string
+          enum: [active, expired]
+          example: "active"
+      - name: type
+        in: query
+        description: Filter by type
+        schema:
+          type: string
+          enum: [general]
+          example: "general"
+      - name: search
+        in: query
+        description: Search in title, description, and content
+        schema:
+          type: string
+          example: "openapi"
+      - name: sort_by
+        in: query
+        description: Sort field
+        schema:
+          type: string
+          enum: [created_at, updated_at, title]
+          default: "created_at"
+      - name: sort_order
+        in: query
+        description: Sort order
+        schema:
+          type: string
+          enum: [asc, desc]
+          default: "desc"
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Spec libraries retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/BlueprintListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+api-v1-team_id-blueprints-stats:
+  get:
+    summary: Get spec library statistics
+    description: Returns statistics about user's spec libraries including counts by type, status, and recent additions
+    operationId: getBlueprintStats
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    responses:
+      '200':
+        description: Spec library statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/BlueprintStatsResponse'
+            example:
+              total_projects: 3
+              total_spec_libraries: 12
+              added_this_week: 2
+              total_by_type:
+                general: 12
+              total_by_status:
+                active: 10
+                expired: 2
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+api-v1-team_id-blueprints-project_id:
+  get:
+    summary: List spec libraries by project
+    description: Retrieves spec libraries for a specific project with optional filtering
+    operationId: listSpecLibrariesByProject
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: Project identifier (URL-encoded)
+        schema:
+          type: string
+          example: "my-api-project"
+      - name: status
+        in: query
+        description: Filter by status
+        schema:
+          type: string
+          enum: [active, expired]
+      - name: type
+        in: query
+        description: Filter by type
+        schema:
+          type: string
+          enum: [general]
+      - name: search
+        in: query
+        description: Search in title, description, and content
+        schema:
+          type: string
+      - name: sort_by
+        in: query
+        description: Sort field
+        schema:
+          type: string
+          enum: [created_at, updated_at, title]
+      - name: sort_order
+        in: query
+        description: Sort order
+        schema:
+          type: string
+          enum: [asc, desc]
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Spec libraries retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/BlueprintListResponse'
+      '400':
+        description: Invalid project name encoding
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+api-v1-team_id-blueprints-project_id-slug:
+  get:
+    summary: Get spec library by project and slug
+    description: Retrieves a specific spec library by project name and slug
+    operationId: getBlueprint
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: Project identifier (URL-encoded)
+        schema:
+          type: string
+          example: "my-api-project"
+      - name: slug
+        in: path
+        required: true
+        description: Spec library slug (URL-encoded)
+        schema:
+          type: string
+          example: "openapi-spec"
+    responses:
+      '200':
+        description: Spec library retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Blueprint'
+      '400':
+        description: Invalid parameter encoding
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Spec library not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+            examples:
+              not_found:
+                value:
+                  type: "about:blank"
+                  title: "Not Found"
+                  status: 404
+                  detail: "Spec library not found"
+                  code: "not_found"
+                  request_id: "req_123abc"
+                  timestamp: "2025-11-08T10:15:30Z"
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+  put:
+    summary: Update spec library by project and slug
+    description: Updates a specific spec library by project name and slug. All fields in the request body are optional - only provided fields will be updated.
+    operationId: updateBlueprint
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: Project identifier (URL-encoded)
+        schema:
+          type: string
+          example: "my-api-project"
+      - name: slug
+        in: path
+        required: true
+        description: Spec library slug (URL-encoded)
+        schema:
+          type: string
+          example: "openapi-spec"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateBlueprintRequest'
+          examples:
+            partial_update:
+              summary: Partial update (only title and content)
+              value:
+                title: "Updated API Specification"
+                content: "openapi: 3.0.3\ninfo:\n  title: My Updated API\n  version: 2.0.0"
+            full_update:
+              summary: Full update
+              value:
+                project_name: "renamed-project"
+                slug: "new-slug"
+                title: "Completely Updated Specification"
+                description: "New description"
+                content: "openapi: 3.0.3\ninfo:\n  title: New API\n  version: 2.0.0"
+                status: "active"
+                metadata:
+                  updated: true
+                  version: "2.0.0"
+    responses:
+      '200':
+        description: Spec library updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Blueprint'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Resource limit exceeded
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Spec library not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Spec library with same slug already exists in project
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+  delete:
+    summary: Delete spec library by project and slug
+    description: Deletes a specific spec library by project name and slug. This also deletes associated embeddings.
+    operationId: deleteBlueprint
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: Project identifier (URL-encoded)
+        schema:
+          type: string
+          example: "my-api-project"
+      - name: slug
+        in: path
+        required: true
+        description: Spec library slug (URL-encoded)
+        schema:
+          type: string
+          example: "openapi-spec"
+    responses:
+      '204':
+        description: Spec library deleted successfully
+      '400':
+        description: Invalid parameter encoding
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Spec library not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+api-v1-team_id-blueprints-project_id-slug-versions:
+  get:
+    summary: List blueprint content versions
+    description: Returns the content-version history (newest first) for a blueprint
+    operationId: listBlueprintVersions
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Blueprint slug
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Blueprint versions retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/BlueprintVersionListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Blueprint not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+api-v1-team_id-blueprints-project_id-slug-versions-version_number:
+  get:
+    summary: Get a specific blueprint content version
+    description: Returns a single content-version snapshot of a blueprint by version number
+    operationId: getBlueprintVersion
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Blueprint slug
+        schema:
+          type: string
+      - name: version_number
+        in: path
+        required: true
+        description: Version number
+        schema:
+          type: integer
+          minimum: 1
+    responses:
+      '200':
+        description: Blueprint version retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ContentVersion'
+      '400':
+        description: Invalid version_number
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Blueprint or version not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints
+
+api-v1-team_id-blueprints-project_id-slug-versions-version_number-restore:
+  post:
+    summary: Restore a blueprint to a content version
+    description: >-
+      Restores the blueprint's content to the given version. The pre-restore content is
+      snapshotted as a new version. Returns the updated blueprint.
+    operationId: restoreBlueprintVersion
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: project_id
+        in: path
+        required: true
+        description: UUID of the project
+        schema:
+          type: string
+          format: uuid
+      - name: slug
+        in: path
+        required: true
+        description: Blueprint slug
+        schema:
+          type: string
+      - name: version_number
+        in: path
+        required: true
+        description: Version number to restore
+        schema:
+          type: integer
+          minimum: 1
+    responses:
+      '200':
+        description: Blueprint restored successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Blueprint'
+      '400':
+        description: Invalid version_number
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden (not a team member)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Blueprint or version not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Blueprints

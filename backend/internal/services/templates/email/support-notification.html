@@ -1,0 +1,30 @@
+{{define "content"}}
+<h1>New Support Request</h1>
+<p>Hello Support Team,</p>
+<p>A new support request has been received. Please find the details below:</p>
+
+<table role="presentation" style="width: 100%; margin-bottom: 20px;">
+    <tr>
+        <td style="padding: 8px 0;"><strong>User Name:</strong></td>
+        <td style="padding: 8px 0;">{{.UserName}}</td>
+    </tr>
+    <tr>
+        <td style="padding: 8px 0;"><strong>User Email:</strong></td>
+        <td style="padding: 8px 0;">{{.UserEmail}}</td>
+    </tr>
+    <tr>
+        <td style="padding: 8px 0;"><strong>Acknowledgement Requested:</strong></td>
+        <td style="padding: 8px 0;">{{if .Acknowledgement}}Yes{{else}}No{{end}}</td>
+    </tr>
+</table>
+
+<p><strong>Message:</strong></p>
+<div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #000000; margin: 15px 0; white-space: pre-wrap;">{{.Text}}</div>
+
+{{if .AdditionalInfoHTML}}
+<p><strong>Additional Information:</strong></p>
+{{.AdditionalInfoHTML}}
+{{end}}
+
+<p>Please review and respond to this request at your earliest convenience.</p>
+{{end}}

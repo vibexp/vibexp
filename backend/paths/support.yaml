@@ -1,0 +1,70 @@
+# support path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-support-message:
+  post:
+    summary: Submit support request
+    description: |
+      Submit a support request from an authenticated user. The request is sent to the VibeXP support team
+      via email. Optionally, an acknowledgement email can be sent to the user.
+    operationId: submitSupportRequest
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/SupportRequest'
+          examples:
+            withAcknowledgement:
+              summary: Support request with acknowledgement
+              value:
+                text: "I need help with configuring my API keys for Claude Code integration."
+                acknowledgement: true
+                additional_info:
+                  source_url: "/settings/api-keys"
+                  subscription_tier: "pro"
+            withoutAcknowledgement:
+              summary: Support request without acknowledgement
+              value:
+                text: "The prompt gallery search is not returning relevant results."
+                acknowledgement: false
+                additional_info:
+                  source_url: "/prompt-gallery"
+                  query: "code generation"
+    responses:
+      '200':
+        description: Support request submitted successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SupportResponse'
+            example:
+              message: "Thank you for your message! We'll get back to you soon."
+              success: true
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SupportResponse'
+            example:
+              message: "Validation failed: Text is required"
+              success: false
+      '401':
+        description: Unauthorized - JWT token required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error - failed to send support request
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/SupportResponse'
+            example:
+              message: "Failed to send support request. Please try again later."
+              success: false
+    tags:
+      - Support

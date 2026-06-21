@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VibeXP - Platform to manage your AI experience</title>
+    <!-- Google Consent Mode v2 - MUST be before any other scripts -->
+    <script>
+      // Initialize dataLayer and gtag function BEFORE GTM loads
+      window.dataLayer = window.dataLayer || []
+      function gtag() {
+        dataLayer.push(arguments)
+      }
+
+      // Set default consent to 'denied' for GDPR compliance
+      // This MUST happen before GTM loads for Consent Mode v2 to work
+      gtag('consent', 'default', {
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        analytics_storage: 'denied',
+        wait_for_update: 500,
+      })
+
+      // Check if user has already granted consent (from previous session)
+      // For logged-in users, consent is auto-granted via AuthContext
+      try {
+        var consentStr = localStorage.getItem('cookieConsent')
+        if (consentStr) {
+          var consentData = JSON.parse(consentStr)
+          if (consentData.status === 'granted') {
+            gtag('consent', 'update', {
+              ad_storage: 'granted',
+              ad_user_data: 'granted',
+              ad_personalization: 'granted',
+              analytics_storage: 'granted',
+            })
+          }
+        }
+      } catch (e) {
+        // Ignore errors from localStorage or JSON parsing
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

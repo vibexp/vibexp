@@ -1,0 +1,281 @@
+# Blueprint-related schemas for OpenAPI specification
+
+# Core Blueprint model
+Blueprint:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Unique identifier for the spec library
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    project_id:
+      type: string
+      format: uuid
+      description: UUID of the project this spec library belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    slug:
+      type: string
+      description: Unique slug for the spec library within the project
+      maxLength: 255
+      example: "openapi-specification"
+    user_id:
+      type: string
+      description: ID of the user who owns this spec library
+      example: "user-123"
+    content:
+      type: string
+      description: The actual content/specification of the spec library
+      example: "openapi: 3.0.3\ninfo:\n  title: My API\n  version: 1.0.0..."
+    created_at:
+      type: string
+      format: date-time
+      description: Timestamp when the spec library was created
+      example: "2024-01-15T10:30:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: Timestamp when the spec library was last updated
+      example: "2024-01-15T14:30:00Z"
+    status:
+      type: string
+      enum: [active, expired]
+      description: Current status of the spec library
+      example: "active"
+    title:
+      type: string
+      description: Human-readable title for the spec library
+      maxLength: 255
+      example: "OpenAPI Specification"
+    description:
+      type: string
+      description: Optional description of the spec library
+      maxLength: 500
+      example: "Complete OpenAPI specification for the REST API"
+    type:
+      type: string
+      enum: [general, claude-code, claude, cursor, codex]
+      description: Type category of the spec library
+      example: "general"
+    subtype:
+      type: string
+      enum: [sub-agents, skills, slash-commands, others, claude-md, agents, commands, rules, cursor-md, agents-md]
+      description: Subtype category for specific type spec libraries
+      example: "sub-agents"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional metadata as key-value pairs
+      example:
+        spec_type: "openapi"
+        version: "3.0.3"
+        tags: ["api", "rest", "specification"]
+  required:
+    - id
+    - project_id
+    - slug
+    - user_id
+    - content
+    - created_at
+    - updated_at
+    - status
+    - title
+    - type
+
+# Request model for creating spec libraries
+CreateBlueprintRequest:
+  type: object
+  properties:
+    project_id:
+      type: string
+      format: uuid
+      description: UUID of the project this spec library belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    slug:
+      type: string
+      description: Unique slug for the spec library within the project
+      maxLength: 255
+      minLength: 1
+      example: "openapi-specification"
+    content:
+      type: string
+      description: The actual content/specification of the spec library
+      minLength: 1
+      example: "openapi: 3.0.3\ninfo:\n  title: My API\n  version: 1.0.0..."
+    title:
+      type: string
+      description: Human-readable title for the spec library
+      maxLength: 255
+      minLength: 1
+      example: "OpenAPI Specification"
+    description:
+      type: string
+      description: Optional description of the spec library
+      maxLength: 500
+      example: "Complete OpenAPI specification for the REST API"
+    type:
+      type: string
+      enum: [general, claude-code, claude, cursor, codex]
+      description: Type category of the spec library
+      default: "general"
+      example: "general"
+    subtype:
+      type: string
+      enum: [sub-agents, skills, slash-commands, others, claude-md, agents, commands, rules, cursor-md, agents-md]
+      description: Subtype category for specific type spec libraries
+      example: "sub-agents"
+    status:
+      type: string
+      enum: [active, expired]
+      description: Initial status of the spec library
+      default: "active"
+      example: "active"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional metadata as key-value pairs
+      example:
+        spec_type: "openapi"
+        version: "3.0.3"
+        tags: ["api", "rest", "specification"]
+  required:
+    - slug
+    - content
+    - title
+
+# Request model for updating spec libraries
+UpdateBlueprintRequest:
+  type: object
+  properties:
+    project_id:
+      type: string
+      format: uuid
+      description: New project UUID for the spec library
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    slug:
+      type: string
+      description: New slug for the spec library
+      maxLength: 255
+      minLength: 1
+      example: "updated-openapi-specification"
+    content:
+      type: string
+      description: Updated content/specification of the spec library
+      example: "openapi: 3.0.3\ninfo:\n  title: My Updated API\n  version: 2.0.0..."
+    title:
+      type: string
+      description: Updated title for the spec library
+      maxLength: 255
+      minLength: 1
+      example: "Updated OpenAPI Specification"
+    description:
+      type: string
+      description: Updated description of the spec library
+      maxLength: 500
+      example: "Updated complete OpenAPI specification for the REST API"
+    type:
+      type: string
+      enum: [general, claude-code, claude, cursor, codex]
+      description: Updated type category of the spec library
+      example: "general"
+    subtype:
+      type: string
+      enum: [sub-agents, skills, slash-commands, others, claude-md, agents, commands, rules, cursor-md, agents-md]
+      description: Updated subtype category for specific type spec libraries
+      example: "sub-agents"
+    status:
+      type: string
+      enum: [active, expired]
+      description: Updated status of the spec library
+      example: "active"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Updated metadata as key-value pairs
+      example:
+        spec_type: "openapi"
+        version: "3.1.0"
+        tags: ["api", "rest", "specification", "updated"]
+
+# Response model for spec library lists
+BlueprintListResponse:
+  type: object
+  properties:
+    spec_libraries:
+      type: array
+      items:
+        $ref: '#/Blueprint'
+      description: List of spec libraries
+    total_count:
+      type: integer
+      description: Total number of spec libraries matching the filter criteria
+      example: 42
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 20
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 3
+  required:
+    - spec_libraries
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+# Response model for spec library statistics
+BlueprintStatsResponse:
+  type: object
+  properties:
+    total_projects:
+      type: integer
+      description: Total number of projects with spec libraries
+      example: 5
+    total_spec_libraries:
+      type: integer
+      description: Total number of spec libraries
+      example: 42
+    added_this_week:
+      type: integer
+      description: Number of spec libraries added in the current week
+      example: 3
+    total_by_type:
+      type: object
+      additionalProperties:
+        type: integer
+      description: Count of spec libraries by type
+      example:
+        general: 42
+    total_by_status:
+      type: object
+      additionalProperties:
+        type: integer
+      description: Count of spec libraries by status
+      example:
+        active: 35
+        expired: 7
+  required:
+    - total_projects
+    - total_spec_libraries
+    - added_this_week
+    - total_by_type
+    - total_by_status
+
+# Response model for the blueprint version-history listing endpoint: a single object
+# with a versions array (newest-first). Reuses the generic ContentVersion snapshot
+# (defined in artifacts.yaml) so the shared versioning core is left untouched.
+BlueprintVersionListResponse:
+  type: object
+  properties:
+    versions:
+      type: array
+      items:
+        $ref: './artifacts.yaml#/ContentVersion'
+      description: Content-version snapshots for the blueprint, newest first
+  required:
+    - versions

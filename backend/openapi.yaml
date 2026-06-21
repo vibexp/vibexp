@@ -1,0 +1,1165 @@
+openapi: 3.0.3
+info:
+  title: Vibexp.io API
+  description: |
+    Comprehensive REST API for Vibexp.io - a platform for AI agents, prompt management,
+    artifacts, blueprints, memories, and Claude Code integration.
+
+    ## Authentication
+    The API supports multiple authentication mechanisms:
+    - **Session Cookie** (`vx_session`, httpOnly): how the web app authenticates after the WorkOS AuthKit OAuth flow (see `CookieAuth`)
+    - **Bearer JWT**: WorkOS AuthKit access token sent as `Authorization: Bearer <token>` (see `BearerAuth`)
+    - **API Key**: long-lived key sent as a bearer token, used by the CLI and Claude Code hooks (see `ApiKeyAuth`)
+    - **Back office API Key**: admin-only key for `/bo/v1` endpoints (see `BackofficeAuth`)
+    - **Public Endpoints**: no authentication required for health checks, contact forms, and auth flows
+
+    ## Documentation scope policy
+    This specification MUST document every operation under `/api/v1` and `/bo/v1`,
+    with the following intentional exclusions:
+    - `/internal/*` (scheduler-invoked internal jobs)
+    - `POST /api/v1/events/pubsub` (Pub/Sub push endpoint, not client-facing)
+    - `POST /api/v1/integrations/github/webhook` (308 permanent-redirect shim)
+    - `/favicon.ico` and `/.well-known/*` (browser/OAuth plumbing)
+    - the MCP mount (`/mcp/v1/*` — documented by the MCP protocol, not REST)
+    Anything else that exists in `internal/server/server.go` but not here is a bug.
+
+    ## Repository layout
+    This is a multi-file spec: this root document holds info/servers/components/tags
+    and an index of path-item `$ref`s; the operations live in `paths/<domain>.yaml`
+    (one tag = one paths file = one `schemas/<domain>.yaml` file). CI bundles it to
+    `dist/openapi.bundled.yaml` (Redocly) — consume the bundle, not the source tree.
+
+    ## Rate Limiting
+    API endpoints are rate-limited to ensure fair usage.
+
+    ## Subscriptions
+    Many endpoints require an active subscription. Basic tier users have limited access.
+  version: 2.0.0
+  x-last-updated-date: "2026-06-09"
+  contact:
+    name: Shaharia Lab
+    url: https://github.com/vibexp/vibexp
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.example.com
+    description: Production REST API
+  - url: http://localhost:8080
+    description: Local development server
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        WorkOS AuthKit access token (RS256 JWT) sent as `Authorization: Bearer <token>`.
+        Used by native clients (mobile) that authenticate via AuthKit OAuth + PKCE.
+        Access tokens expire after ~1 hour; clients refresh them directly against
+        AuthKit with the rotated refresh token (`offline_access` scope). Only
+        accepted when the server is configured with `API_OAUTH_ISSUER`.
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: Use your API key as the bearer token for specific endpoints
+    BackofficeAuth:
+      type: http
+      scheme: bearer
+      description: Use the back office admin API key for administrative endpoints (NOT accessible via JWT or regular API keys)
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: vx_session
+      description: Encrypted httpOnly session cookie set by the WorkOS AuthKit OAuth callback — how the web app authenticates
+
+  schemas:
+    # Import common schemas
+    HealthResponse:
+      $ref: "./schemas/common.yaml#/HealthResponse"
+    SuccessResponse:
+      $ref: "./schemas/common.yaml#/SuccessResponse"
+    ErrorResponse:
+      $ref: "./schemas/common.yaml#/ErrorResponse"
+    PaginatedResponse:
+      $ref: "./schemas/common.yaml#/PaginatedResponse"
+
+    ResourceAccessDailyCount:
+      type: object
+      description: Per-source access counts for a single calendar day (UTC), zero-filled.
+      required: [date, web, cli, mcp, api, total]
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-05-01'
+        web:
+          type: integer
+          example: 3
+        cli:
+          type: integer
+          example: 1
+        mcp:
+          type: integer
+          example: 0
+        api:
+          type: integer
+          example: 0
+        total:
+          type: integer
+          example: 4
+    ResourceAccessMetricsData:
+      type: object
+      required: [total_accesses, range, counts]
+      properties:
+        total_accesses:
+          type: integer
+          description: Sum of every access count across the whole window.
+          example: 142
+        range:
+          type: string
+          enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+          example: '30d'
+        counts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceAccessDailyCount'
+    ResourceAccessMetricsResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Resource access metrics retrieved successfully
+        data:
+          $ref: '#/components/schemas/ResourceAccessMetricsData'
+
+    # Import authentication schemas
+    User:
+      $ref: "./schemas/auth.yaml#/User"
+    LoginResponse:
+      $ref: "./schemas/auth.yaml#/LoginResponse"
+    LogoutResponse:
+      $ref: "./schemas/auth.yaml#/LogoutResponse"
+    DevLoginRequest:
+      $ref: "./schemas/auth.yaml#/DevLoginRequest"
+
+    # Import API key schemas
+    APIKey:
+      $ref: "./schemas/api-keys.yaml#/APIKey"
+    CreateAPIKeyRequest:
+      $ref: "./schemas/api-keys.yaml#/CreateAPIKeyRequest"
+    CreateAPIKeyResponse:
+      $ref: "./schemas/api-keys.yaml#/CreateAPIKeyResponse"
+    APIKeyListResponse:
+      $ref: "./schemas/api-keys.yaml#/APIKeyListResponse"
+
+    # Import prompt schemas
+    Prompt:
+      $ref: "./schemas/prompts.yaml#/Prompt"
+    CreatePromptRequest:
+      $ref: "./schemas/prompts.yaml#/CreatePromptRequest"
+    UpdatePromptRequest:
+      $ref: "./schemas/prompts.yaml#/UpdatePromptRequest"
+    PromptListResponse:
+      $ref: "./schemas/prompts.yaml#/PromptListResponse"
+    PromptVersionListResponse:
+      $ref: "./schemas/prompts.yaml#/PromptVersionListResponse"
+    RenderPromptRequest:
+      $ref: "./schemas/prompts.yaml#/RenderPromptRequest"
+    RenderPromptResponse:
+      $ref: "./schemas/prompts.yaml#/RenderPromptResponse"
+    PromptPlaceholdersResponse:
+      $ref: "./schemas/prompts.yaml#/PromptPlaceholdersResponse"
+
+    # Import prompt gallery schemas
+    PromptGalleryTemplate:
+      $ref: "./schemas/prompts.yaml#/PromptGalleryTemplate"
+    PromptGalleryCategory:
+      $ref: "./schemas/prompts.yaml#/PromptGalleryCategory"
+    PromptGalleryListResponse:
+      $ref: "./schemas/prompts.yaml#/PromptGalleryListResponse"
+    PromptGalleryUsageRequest:
+      $ref: "./schemas/prompts.yaml#/PromptGalleryUsageRequest"
+
+    # Import prompt sharing schemas
+    CreateShareRequest:
+      $ref: "./schemas/prompts.yaml#/CreateShareRequest"
+    ShareResponse:
+      $ref: "./schemas/prompts.yaml#/ShareResponse"
+    SharedPromptResponse:
+      $ref: "./schemas/prompts.yaml#/SharedPromptResponse"
+
+    # Import agent schemas
+    Agent:
+      $ref: "./schemas/agents.yaml#/Agent"
+    CreateAgentRequest:
+      $ref: "./schemas/agents.yaml#/CreateAgentRequest"
+    UpdateAgentRequest:
+      $ref: "./schemas/agents.yaml#/UpdateAgentRequest"
+    AgentListResponse:
+      $ref: "./schemas/agents.yaml#/AgentListResponse"
+    AgentStatsResponse:
+      $ref: "./schemas/agents.yaml#/AgentStatsResponse"
+    AgentExecution:
+      $ref: "./schemas/agents.yaml#/AgentExecution"
+    CreateAgentExecutionRequest:
+      $ref: "./schemas/agents.yaml#/CreateAgentExecutionRequest"
+    UpdateAgentExecutionRequest:
+      $ref: "./schemas/agents.yaml#/UpdateAgentExecutionRequest"
+
+    # Import activity schemas
+    Activity:
+      $ref: "./schemas/activities.yaml#/Activity"
+    CreateActivityRequest:
+      $ref: "./schemas/activities.yaml#/CreateActivityRequest"
+    ActivityListResponse:
+      $ref: "./schemas/activities.yaml#/ActivityListResponse"
+    ActivityStatsResponse:
+      $ref: "./schemas/activities.yaml#/ActivityStatsResponse"
+    ActivityTypesResponse:
+      $ref: "./schemas/activities.yaml#/ActivityTypesResponse"
+    EntityTypesResponse:
+      $ref: "./schemas/activities.yaml#/EntityTypesResponse"
+
+    # Import embedding provider schemas
+    EmbeddingProvider:
+      $ref: "./schemas/embedding-providers.yaml#/EmbeddingProvider"
+    EmbeddingProviderResponse:
+      $ref: "./schemas/embedding-providers.yaml#/EmbeddingProviderResponse"
+    CreateEmbeddingProviderRequest:
+      $ref: "./schemas/embedding-providers.yaml#/CreateEmbeddingProviderRequest"
+    UpdateEmbeddingProviderRequest:
+      $ref: "./schemas/embedding-providers.yaml#/UpdateEmbeddingProviderRequest"
+    EmbeddingProviderListResponse:
+      $ref: "./schemas/embedding-providers.yaml#/EmbeddingProviderListResponse"
+    ValidateEmbeddingProviderRequest:
+      $ref: "./schemas/embedding-providers.yaml#/ValidateEmbeddingProviderRequest"
+    ValidateEmbeddingProviderResponse:
+      $ref: "./schemas/embedding-providers.yaml#/ValidateEmbeddingProviderResponse"
+
+    # Import resource usage schemas
+    ResourceUsageItem:
+      $ref: "./schemas/resource-usage.yaml#/ResourceUsageItem"
+    ResourceUsageResponse:
+      $ref: "./schemas/resource-usage.yaml#/ResourceUsageResponse"
+
+    # Import contact schemas
+    ContactFormRequest:
+      $ref: "./schemas/contact.yaml#/ContactFormRequest"
+    ContactFormResponse:
+      $ref: "./schemas/contact.yaml#/ContactFormResponse"
+
+    # Import support schemas
+    SupportRequest:
+      $ref: "./schemas/support.yaml#/SupportRequest"
+    SupportResponse:
+      $ref: "./schemas/support.yaml#/SupportResponse"
+
+    # Import Claude Code hook schemas
+    IncomingHookPayload:
+      $ref: "./schemas/claude-code-hooks.yaml#/IncomingHookPayload"
+    ClaudeCodeHookPayload:
+      $ref: "./schemas/claude-code-hooks.yaml#/ClaudeCodeHookPayload"
+    ClaudeCodeHooksPaginatedResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/ClaudeCodeHooksPaginatedResponse"
+    HookCreatedResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/HookCreatedResponse"
+    HookListResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/HookListResponse"
+    SessionSummary:
+      $ref: "./schemas/claude-code-hooks.yaml#/SessionSummary"
+    SessionsResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/SessionsResponse"
+    SessionCountsResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/SessionCountsResponse"
+    OverviewStats:
+      $ref: "./schemas/claude-code-hooks.yaml#/OverviewStats"
+    RecentActivity:
+      $ref: "./schemas/claude-code-hooks.yaml#/RecentActivity"
+    RecentActivitiesResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/RecentActivitiesResponse"
+
+    # Import artifact schemas
+    Artifact:
+      $ref: "./schemas/artifacts.yaml#/Artifact"
+    CreateArtifactRequest:
+      $ref: "./schemas/artifacts.yaml#/CreateArtifactRequest"
+    UpdateArtifactRequest:
+      $ref: "./schemas/artifacts.yaml#/UpdateArtifactRequest"
+    ArtifactListResponse:
+      $ref: "./schemas/artifacts.yaml#/ArtifactListResponse"
+    ArtifactStatsResponse:
+      $ref: "./schemas/artifacts.yaml#/ArtifactStatsResponse"
+    Attachment:
+      $ref: "./schemas/artifacts.yaml#/Attachment"
+    AttachmentListResponse:
+      $ref: "./schemas/artifacts.yaml#/AttachmentListResponse"
+    ContentVersion:
+      $ref: "./schemas/artifacts.yaml#/ContentVersion"
+    ArtifactVersionListResponse:
+      $ref: "./schemas/artifacts.yaml#/ArtifactVersionListResponse"
+
+    # Import feed schemas
+    Feed:
+      $ref: "./schemas/feeds.yaml#/Feed"
+    FeedItem:
+      $ref: "./schemas/feeds.yaml#/FeedItem"
+    CreateFeedRequest:
+      $ref: "./schemas/feeds.yaml#/CreateFeedRequest"
+    UpdateFeedRequest:
+      $ref: "./schemas/feeds.yaml#/UpdateFeedRequest"
+    CreateFeedItemRequest:
+      $ref: "./schemas/feeds.yaml#/CreateFeedItemRequest"
+    FeedListResponse:
+      $ref: "./schemas/feeds.yaml#/FeedListResponse"
+    FeedItemListResponse:
+      $ref: "./schemas/feeds.yaml#/FeedItemListResponse"
+
+    # Import project schemas
+    Project:
+      $ref: "./schemas/projects.yaml#/Project"
+    CreateProjectRequest:
+      $ref: "./schemas/projects.yaml#/CreateProjectRequest"
+    UpdateProjectRequest:
+      $ref: "./schemas/projects.yaml#/UpdateProjectRequest"
+    ProjectListResponse:
+      $ref: "./schemas/projects.yaml#/ProjectListResponse"
+    ProjectStatsResponse:
+      $ref: "./schemas/projects.yaml#/ProjectStatsResponse"
+    ProjectResourceCreationMetricsResponse:
+      $ref: "./schemas/projects.yaml#/ProjectResourceCreationMetricsResponse"
+
+    # Import memory schemas
+    Memory:
+      $ref: "./schemas/memories.yaml#/Memory"
+    CreateMemoryRequest:
+      $ref: "./schemas/memories.yaml#/CreateMemoryRequest"
+    UpdateMemoryRequest:
+      $ref: "./schemas/memories.yaml#/UpdateMemoryRequest"
+    MemoryListResponse:
+      $ref: "./schemas/memories.yaml#/MemoryListResponse"
+    MemoryVersionListResponse:
+      $ref: "./schemas/memories.yaml#/MemoryVersionListResponse"
+
+    # Import semantic search schemas
+    SearchRequest:
+      $ref: "./schemas/search.yaml#/SearchRequest"
+    SearchResultItem:
+      $ref: "./schemas/search.yaml#/SearchResultItem"
+    SearchResultsResponse:
+      $ref: "./schemas/search.yaml#/SearchResultsResponse"
+
+    # Import spec library schemas
+    Blueprint:
+      $ref: "./schemas/blueprints.yaml#/Blueprint"
+    CreateBlueprintRequest:
+      $ref: "./schemas/blueprints.yaml#/CreateBlueprintRequest"
+    UpdateBlueprintRequest:
+      $ref: "./schemas/blueprints.yaml#/UpdateBlueprintRequest"
+    BlueprintListResponse:
+      $ref: "./schemas/blueprints.yaml#/BlueprintListResponse"
+    BlueprintStatsResponse:
+      $ref: "./schemas/blueprints.yaml#/BlueprintStatsResponse"
+    BlueprintVersionListResponse:
+      $ref: "./schemas/blueprints.yaml#/BlueprintVersionListResponse"
+
+    # Import GitHub integration schemas
+    GitHubInstallationStatus:
+      $ref: "./schemas/github.yaml#/GitHubInstallationStatus"
+    GitHubRepository:
+      $ref: "./schemas/github.yaml#/GitHubRepository"
+    GitHubRepositoriesResponse:
+      $ref: "./schemas/github.yaml#/GitHubRepositoriesResponse"
+    GitHubCallbackResponse:
+      $ref: "./schemas/github.yaml#/GitHubCallbackResponse"
+    GitHubInstallURL:
+      $ref: "./schemas/github.yaml#/GitHubInstallURL"
+    BlueprintImportFailed:
+      $ref: "./schemas/github.yaml#/BlueprintImportFailed"
+    BlueprintImportSuccess:
+      $ref: "./schemas/github.yaml#/BlueprintImportSuccess"
+    BlueprintImportSkipped:
+      $ref: "./schemas/github.yaml#/BlueprintImportSkipped"
+    BlueprintImportReport:
+      $ref: "./schemas/github.yaml#/BlueprintImportReport"
+
+    # Back office schemas
+    UsageMetricsRow:
+      type: object
+      description: Weekly usage metrics for a single week
+      properties:
+        week_start:
+          type: string
+          format: date
+          description: Week start date (Monday)
+        new_users:
+          type: integer
+          description: Number of new users registered this week
+        new_artifacts:
+          type: integer
+          description: Number of new artifacts created this week
+        new_memories:
+          type: integer
+          description: Number of new memories created this week
+        new_api_keys:
+          type: integer
+          description: Number of new API keys created this week
+        new_prompts:
+          type: integer
+          description: Number of new prompts created this week
+        new_agents:
+          type: integer
+          description: Number of new agents created this week
+        agent_executions:
+          type: integer
+          description: Number of agent executions this week
+        claude_sessions:
+          type: integer
+          description: Number of distinct Claude Code sessions this week
+        cursor_sessions:
+          type: integer
+          description: Number of distinct Cursor IDE sessions this week
+        total_ai_tool_sessions:
+          type: integer
+          description: Total AI tool sessions (Claude + Cursor)
+
+    UserActivityRow:
+      type: object
+      description: Per-user activity summary
+      properties:
+        user_id:
+          type: string
+          description: User ID
+        email:
+          type: string
+          format: email
+          description: User email
+        name:
+          type: string
+          description: User display name
+        user_created_at:
+          type: string
+          format: date-time
+          description: User registration timestamp
+        total_artifacts:
+          type: integer
+          description: Total number of artifacts created by user
+        first_artifact_created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of first artifact creation
+        total_memories:
+          type: integer
+          description: Total number of memories created by user
+        first_memory_created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of first memory creation
+        total_prompts:
+          type: integer
+          description: Total number of prompts created by user
+        first_prompt_created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of first prompt creation
+        total_agents_created:
+          type: integer
+          description: Total number of agents created by user
+        total_agent_executions_run:
+          type: integer
+          description: Total number of agent executions run by user
+
+    EmbeddingBackfillRequest:
+      type: object
+      description: >-
+        Configuration for an embedding backfill run. The scope is explicit: set
+        exactly one of `all` or a non-empty `entity_types`. Sending neither, or
+        both, is rejected with a 400.
+      properties:
+        all:
+          type: boolean
+          description: >-
+            Backfill every supported entity type. Mutually exclusive with
+            `entity_types`.
+          default: false
+        entity_types:
+          type: array
+          description: >-
+            Restrict the run to these entity types. Mutually exclusive with `all`.
+          items:
+            type: string
+            enum: [prompt, artifact, memory, blueprint, feed_item]
+          example: [prompt, artifact]
+        missing_only:
+          type: boolean
+          description: >-
+            When true, only publish for entities that do not already have an
+            embedding for the currently configured model. Honored by `dry_run`.
+          default: false
+        dry_run:
+          type: boolean
+          description: When true, count the entities that would be republished without publishing any event.
+          default: false
+    EmbeddingBackfillTypeResult:
+      type: object
+      description: Per-entity-type outcome of a backfill run.
+      required: [entity_type, total, published, failed]
+      properties:
+        entity_type:
+          type: string
+          example: prompt
+        total:
+          type: integer
+          description: Number of source entities seen for this type.
+          example: 42
+        published:
+          type: integer
+          description: Number of `.created` events successfully republished (0 on a dry run).
+          example: 42
+        failed:
+          type: integer
+          description: Number of entities whose event publish failed (log-and-continue).
+          example: 0
+    EmbeddingBackfillResult:
+      type: object
+      description: Aggregated result of an embedding backfill run.
+      required: [dry_run, results, total_seen, total_published, total_failed]
+      properties:
+        dry_run:
+          type: boolean
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmbeddingBackfillTypeResult'
+        total_seen:
+          type: integer
+          example: 42
+        total_published:
+          type: integer
+          example: 42
+        total_failed:
+          type: integer
+          example: 0
+    UsageAndGrowthResponse:
+      type: object
+      description: Usage and growth data response
+      properties:
+        usage:
+          type: array
+          description: Weekly usage metrics
+          items:
+            $ref: '#/components/schemas/UsageMetricsRow'
+        activities_per_user:
+          type: array
+          description: Per-user activity summary
+          items:
+            $ref: '#/components/schemas/UserActivityRow'
+
+    InviterInfo:
+      type: object
+      description: Information about the user who sent a team invitation
+      properties:
+        id:
+          type: string
+          example: "user_123"
+        name:
+          type: string
+          example: "Jane Doe"
+        email:
+          type: string
+          format: email
+          example: "jane@example.com"
+
+    InvitationResponse:
+      type: object
+      description: Team invitation enriched with team and inviter details
+      properties:
+        id:
+          type: string
+          example: "inv_123"
+        token:
+          type: string
+          description: Opaque invitation token used in invitation URLs
+          example: "abc123def456..."
+        team_id:
+          type: string
+          example: "team_123"
+        team_name:
+          type: string
+          example: "Acme Corp"
+        invitee_email:
+          type: string
+          format: email
+          example: "invitee@example.com"
+        role:
+          type: string
+          enum: [member, admin]
+          example: "member"
+        status:
+          type: string
+          enum: [pending, accepted, rejected, revoked]
+          example: "pending"
+        expires_at:
+          type: string
+          format: date-time
+          example: "2025-09-29T12:00:00Z"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-09-22T12:00:00Z"
+        invited_by:
+          $ref: '#/components/schemas/InviterInfo'
+
+    InvitationDetailsResponse:
+      type: object
+      description: Wrapper response for the get-invitation-by-token endpoint
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationResponse'
+      required:
+        - invitation
+
+    AgentCard:
+      $ref: "./schemas/agents.yaml#/AgentCard"
+    UpdateAgentCredentialsRequest:
+      $ref: "./schemas/agents.yaml#/UpdateAgentCredentialsRequest"
+    PreviewAgentCardRequest:
+      $ref: "./schemas/agents.yaml#/PreviewAgentCardRequest"
+    ExecuteAgentRequest:
+      $ref: "./schemas/agents.yaml#/ExecuteAgentRequest"
+    AgentExecutionListResponse:
+      $ref: "./schemas/agents.yaml#/AgentExecutionListResponse"
+    AgentExecutionEventsPollResponse:
+      $ref: "./schemas/agents.yaml#/AgentExecutionEventsPollResponse"
+    AgentExecutionEventsPageResponse:
+      $ref: "./schemas/agents.yaml#/AgentExecutionEventsPageResponse"
+    ConversationListResponse:
+      $ref: "./schemas/agents.yaml#/ConversationListResponse"
+    ConversationExecutionsResponse:
+      $ref: "./schemas/agents.yaml#/ConversationExecutionsResponse"
+    HookErrorResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/HookErrorResponse"
+    SessionsListResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/SessionsListResponse"
+    SessionCountsApiResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/SessionCountsApiResponse"
+    OverviewStatsApiResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/OverviewStatsApiResponse"
+    RecentActivitiesApiResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/RecentActivitiesApiResponse"
+
+    # Import Cursor IDE hook schemas
+    IncomingCursorHookPayload:
+      $ref: "./schemas/claude-code-hooks.yaml#/IncomingCursorHookPayload"
+    CursorIDEHookPayload:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorIDEHookPayload"
+    CursorIDEHooksPaginatedResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorIDEHooksPaginatedResponse"
+    CursorIDEHookListResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorIDEHookListResponse"
+    CursorSessionSummary:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorSessionSummary"
+    CursorSessionsResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorSessionsResponse"
+    CursorSessionsListResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorSessionsListResponse"
+    CursorOverviewStats:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorOverviewStats"
+    CursorOverviewStatsApiResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorOverviewStatsApiResponse"
+    CursorRecentActivity:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorRecentActivity"
+    CursorRecentActivitiesResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorRecentActivitiesResponse"
+    CursorRecentActivitiesApiResponse:
+      $ref: "./schemas/claude-code-hooks.yaml#/CursorRecentActivitiesApiResponse"
+
+    # Import team schemas
+    Team:
+      $ref: "./schemas/teams.yaml#/Team"
+    CreateTeamRequest:
+      $ref: "./schemas/teams.yaml#/CreateTeamRequest"
+    UpdateTeamRequest:
+      $ref: "./schemas/teams.yaml#/UpdateTeamRequest"
+    TeamListResponse:
+      $ref: "./schemas/teams.yaml#/TeamListResponse"
+    TeamMemberDetail:
+      $ref: "./schemas/teams.yaml#/TeamMemberDetail"
+    TeamMembersListResponse:
+      $ref: "./schemas/teams.yaml#/TeamMembersListResponse"
+    SendInvitationsRequest:
+      $ref: "./schemas/teams.yaml#/SendInvitationsRequest"
+    AcceptInvitationResponse:
+      $ref: "./schemas/teams.yaml#/AcceptInvitationResponse"
+    TeamQuotaTypeDetail:
+      $ref: "./schemas/teams.yaml#/TeamQuotaTypeDetail"
+    TeamDeleteConflictError:
+      $ref: "./schemas/teams.yaml#/TeamDeleteConflictError"
+    InvitationDuplicateMembersError:
+      $ref: "./schemas/teams.yaml#/InvitationDuplicateMembersError"
+    TeamStatsResponse:
+      $ref: "./schemas/teams.yaml#/TeamStatsResponse"
+    TeamResourceCreationMetricsResponse:
+      $ref: "./schemas/teams.yaml#/TeamResourceCreationMetricsResponse"
+    TeamFeedCreationMetricsResponse:
+      $ref: "./schemas/teams.yaml#/TeamFeedCreationMetricsResponse"
+    TeamTopAccessedResourcesResponse:
+      $ref: "./schemas/teams.yaml#/TeamTopAccessedResourcesResponse"
+
+    # Defined inline (not in schemas/teams.yaml) because it references
+    # InvitationResponse, which is itself defined inline in this file's components.
+    PendingInvitationsListResponse:
+      type: object
+      description: List of the current user's pending team invitations (page/page_size are fixed at 1/20; all pending invitations are returned)
+      properties:
+        invitations:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvitationResponse'
+        total_count:
+          type: integer
+          example: 2
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+      required:
+        - invitations
+        - total_count
+        - page
+        - page_size
+    # Import notification schemas
+    Notification:
+      $ref: "./schemas/notifications.yaml#/Notification"
+    NotificationListResponse:
+      $ref: "./schemas/notifications.yaml#/NotificationListResponse"
+    UnreadCountResponse:
+      $ref: "./schemas/notifications.yaml#/UnreadCountResponse"
+
+    # Import type (customizable category) schemas
+    Type:
+      $ref: "./schemas/types.yaml#/Type"
+    CreateTypeRequest:
+      $ref: "./schemas/types.yaml#/CreateTypeRequest"
+    TypeListResponse:
+      $ref: "./schemas/types.yaml#/TypeListResponse"
+
+# No new component aliases required.
+# openapi.yaml already imports all needed schemas (lines ~220-234):
+#   EmbeddingProvider, EmbeddingProviderResponse, CreateEmbeddingProviderRequest,
+#   UpdateEmbeddingProviderRequest, EmbeddingProviderListResponse,
+#   ValidateEmbeddingProviderRequest, ValidateEmbeddingProviderResponse
+    ProjectResponse:
+      $ref: "./schemas/projects.yaml#/ProjectResponse"
+    ResourceSelection:
+      $ref: "./schemas/projects.yaml#/ResourceSelection"
+    ResourceSelections:
+      $ref: "./schemas/projects.yaml#/ResourceSelections"
+    MigrationRequest:
+      $ref: "./schemas/projects.yaml#/MigrationRequest"
+    ResourceInventoryItem:
+      $ref: "./schemas/projects.yaml#/ResourceInventoryItem"
+    ResourceInventory:
+      $ref: "./schemas/projects.yaml#/ResourceInventory"
+    MigrationInventory:
+      $ref: "./schemas/projects.yaml#/MigrationInventory"
+    ResourceOutcome:
+      $ref: "./schemas/projects.yaml#/ResourceOutcome"
+    ResourceMigrationCounts:
+      $ref: "./schemas/projects.yaml#/ResourceMigrationCounts"
+    ResourceMigrationOutcomes:
+      $ref: "./schemas/projects.yaml#/ResourceMigrationOutcomes"
+    MigrationResult:
+      $ref: "./schemas/projects.yaml#/MigrationResult"
+    ActivityEnvelope:
+      $ref: "./schemas/activities.yaml#/ActivityEnvelope"
+    ActivityListEnvelope:
+      $ref: "./schemas/activities.yaml#/ActivityListEnvelope"
+    ActivityStatsEnvelope:
+      $ref: "./schemas/activities.yaml#/ActivityStatsEnvelope"
+    ActivityTypesEnvelope:
+      $ref: "./schemas/activities.yaml#/ActivityTypesEnvelope"
+    ActivityEntityTypesEnvelope:
+      $ref: "./schemas/activities.yaml#/ActivityEntityTypesEnvelope"
+
+    # Import user preferences schemas
+    PreferencesResponse:
+      $ref: "./schemas/preferences.yaml#/PreferencesResponse"
+    UpdatePreferencesRequest:
+      $ref: "./schemas/preferences.yaml#/UpdatePreferencesRequest"
+
+    # Import device token schemas
+    RegisterDeviceTokenRequest:
+      $ref: "./schemas/device-tokens.yaml#/RegisterDeviceTokenRequest"
+    DeleteDeviceTokenRequest:
+      $ref: "./schemas/device-tokens.yaml#/DeleteDeviceTokenRequest"
+
+    # Import feed item reply schemas
+    FeedItemReply:
+      $ref: "./schemas/feeds.yaml#/FeedItemReply"
+    CreateFeedItemReplyRequest:
+      $ref: "./schemas/feeds.yaml#/CreateFeedItemReplyRequest"
+    FeedItemReplyListResponse:
+      $ref: "./schemas/feeds.yaml#/FeedItemReplyListResponse"
+
+paths:
+  /ping:
+    $ref: "./paths/health.yaml#/ping"
+  /health:
+    $ref: "./paths/health.yaml#/health"
+  /api/v1/auth/login:
+    $ref: "./paths/auth.yaml#/api-v1-auth-login"
+  /api/v1/auth/callback:
+    $ref: "./paths/auth.yaml#/api-v1-auth-callback"
+  /api/v1/auth/logout:
+    $ref: "./paths/auth.yaml#/api-v1-auth-logout"
+  /api/v1/auth/dev/login:
+    $ref: "./paths/auth.yaml#/api-v1-auth-dev-login"
+  /api/v1/auth/me:
+    $ref: "./paths/auth.yaml#/api-v1-auth-me"
+  /api/v1/api-keys:
+    $ref: "./paths/api-keys.yaml#/api-v1-api-keys"
+  /api/v1/api-keys/{id}:
+    $ref: "./paths/api-keys.yaml#/api-v1-api-keys-id"
+  /api/v1/settings/api-keys:
+    $ref: "./paths/api-keys.yaml#/api-v1-settings-api-keys"
+  /api/v1/settings/api-keys/{id}:
+    $ref: "./paths/api-keys.yaml#/api-v1-settings-api-keys-id"
+  /api/v1/support/message:
+    $ref: "./paths/support.yaml#/api-v1-support-message"
+  /api/v1/{team_id}/artifacts:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts"
+  /api/v1/{team_id}/artifacts/stats:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-stats"
+  /api/v1/{team_id}/artifacts/{project_id}:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id"
+  /api/v1/{team_id}/artifacts/{project_id}/{slug}:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id-slug"
+  /api/v1/{team_id}/attachments:
+    $ref: "./paths/attachments.yaml#/api-v1-team_id-attachments"
+  /api/v1/{team_id}/attachments/{id}:
+    $ref: "./paths/attachments.yaml#/api-v1-team_id-attachments-id"
+  /api/v1/{team_id}/artifacts/{project_id}/{slug}/attachments:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id-slug-attachments"
+  /api/v1/{team_id}/artifacts/{project_id}/{slug}/attachments/{id}:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id-slug-attachments-id"
+  /api/v1/{team_id}/artifacts/{project_id}/{slug}/versions:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id-slug-versions"
+  /api/v1/{team_id}/artifacts/{project_id}/{slug}/versions/{version_number}:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id-slug-versions-version_number"
+  /api/v1/{team_id}/artifacts/{project_id}/{slug}/versions/{version_number}/restore:
+    $ref: "./paths/artifacts.yaml#/api-v1-team_id-artifacts-project_id-slug-versions-version_number-restore"
+  /api/v1/{team_id}/search:
+    $ref: "./paths/search.yaml#/api-v1-team_id-search"
+  /api/v1/{team_id}/resource-access-metrics:
+    $ref: "./paths/search.yaml#/api-v1-team_id-resource-access-metrics"
+  /api/v1/{team_id}/memories:
+    $ref: "./paths/memories.yaml#/api-v1-team_id-memories"
+  /api/v1/{team_id}/memories/search:
+    $ref: "./paths/memories.yaml#/api-v1-team_id-memories-search"
+  /api/v1/{team_id}/memories/{id}:
+    $ref: "./paths/memories.yaml#/api-v1-team_id-memories-id"
+  /api/v1/{team_id}/memories/{id}/versions:
+    $ref: "./paths/memories.yaml#/api-v1-team_id-memories-id-versions"
+  /api/v1/{team_id}/memories/{id}/versions/{version_number}:
+    $ref: "./paths/memories.yaml#/api-v1-team_id-memories-id-versions-version_number"
+  /api/v1/{team_id}/memories/{id}/versions/{version_number}/restore:
+    $ref: "./paths/memories.yaml#/api-v1-team_id-memories-id-versions-version_number-restore"
+  /api/v1/{team_id}/projects/{slug}/stats:
+    $ref: "./paths/projects.yaml#/api-v1-team_id-projects-slug-stats"
+  /api/v1/{team_id}/projects/{slug}/resource-creation-metrics:
+    $ref: "./paths/projects.yaml#/api-v1-team_id-projects-slug-resource-creation-metrics"
+  /api/v1/{team_id}/blueprints:
+    $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints"
+  /api/v1/{team_id}/blueprints/stats:
+    $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-stats"
+  /api/v1/{team_id}/blueprints/{project_id}:
+    $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id"
+  /api/v1/{team_id}/blueprints/{project_id}/{slug}:
+    $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug"
+  /api/v1/{team_id}/blueprints/{project_id}/{slug}/versions:
+    $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-versions"
+  /api/v1/{team_id}/blueprints/{project_id}/{slug}/versions/{version_number}:
+    $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-versions-version_number"
+  /api/v1/{team_id}/blueprints/{project_id}/{slug}/versions/{version_number}/restore:
+    $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-versions-version_number-restore"
+  /api/v1/ai-tools/claude-code/sessions/{session_id}:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-sessions-session_id"
+  /api/v1/ai-tools/cursor-ide/sessions/{session_id}:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-sessions-session_id"
+  /api/v1/resource-usage:
+    $ref: "./paths/subscriptions.yaml#/api-v1-resource-usage"
+  /api/v1/{team_id}/prompts:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts"
+  /api/v1/{team_id}/prompts/labels:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-labels"
+  /api/v1/{team_id}/prompts/{slug}:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug"
+  /api/v1/{team_id}/prompts/{slug}/placeholders:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-placeholders"
+  /api/v1/{team_id}/prompts/{slug}/dependencies:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-dependencies"
+  /api/v1/{team_id}/prompts/{slug}/render:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-render"
+  /api/v1/{team_id}/prompts/{slug}/share:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-share"
+  /api/v1/{team_id}/prompts/{slug}/versions:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-versions"
+  /api/v1/{team_id}/prompts/{slug}/versions/{version_number}:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-versions-version_number"
+  /api/v1/{team_id}/prompts/{slug}/versions/{version_number}/restore:
+    $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts-slug-versions-version_number-restore"
+  /api/v1/prompt-gallery/categories:
+    $ref: "./paths/prompts.yaml#/api-v1-prompt-gallery-categories"
+  /api/v1/prompt-gallery/prompts:
+    $ref: "./paths/prompts.yaml#/api-v1-prompt-gallery-prompts"
+  /api/v1/prompt-gallery/prompts/{id}:
+    $ref: "./paths/prompts.yaml#/api-v1-prompt-gallery-prompts-id"
+  /api/v1/prompt-gallery/prompts/{id}/use:
+    $ref: "./paths/prompts.yaml#/api-v1-prompt-gallery-prompts-id-use"
+  /api/v1/shared/prompts/{token}:
+    $ref: "./paths/prompts.yaml#/api-v1-shared-prompts-token"
+  /bo/v1/reports/usage-and-growth:
+    $ref: "./paths/backoffice.yaml#/bo-v1-reports-usage-and-growth"
+  /bo/v1/embeddings/backfill:
+    $ref: "./paths/backoffice.yaml#/bo-v1-embeddings-backfill"
+  /api/v1/{team_id}/integrations/github/status:
+    $ref: "./paths/github.yaml#/api-v1-team_id-integrations-github-status"
+  /api/v1/{team_id}/integrations/github/install-url:
+    $ref: "./paths/github.yaml#/api-v1-team_id-integrations-github-install-url"
+  /api/v1/{team_id}/integrations/github/callback:
+    $ref: "./paths/github.yaml#/api-v1-team_id-integrations-github-callback"
+  /api/v1/{team_id}/integrations/github/repositories:
+    $ref: "./paths/github.yaml#/api-v1-team_id-integrations-github-repositories"
+  /api/v1/{team_id}/integrations/github/repositories/{repo_id}/import-project:
+    $ref: "./paths/github.yaml#/api-v1-team_id-integrations-github-repositories-repo_id-import-project"
+  /api/v1/{team_id}/integrations/github/import-blueprints:
+    $ref: "./paths/github.yaml#/api-v1-team_id-integrations-github-import-blueprints"
+  /api/v1/{team_id}/integrations/github/disconnect:
+    $ref: "./paths/github.yaml#/api-v1-team_id-integrations-github-disconnect"
+  /api/v1/webhooks/github:
+    $ref: "./paths/webhooks.yaml#/api-v1-webhooks-github"
+  /api/v1/{team_id}/feeds:
+    $ref: "./paths/feeds.yaml#/api-v1-team_id-feeds"
+  /api/v1/{team_id}/feeds/{feed_id}:
+    $ref: "./paths/feeds.yaml#/api-v1-team_id-feeds-feed_id"
+  /api/v1/{team_id}/feeds/{feed_id}/items:
+    $ref: "./paths/feeds.yaml#/api-v1-team_id-feeds-feed_id-items"
+  /api/v1/{team_id}/feed-items:
+    $ref: "./paths/feeds.yaml#/api-v1-team_id-feed-items"
+  /api/v1/{team_id}/feed-items/{item_id}:
+    $ref: "./paths/feeds.yaml#/api-v1-team_id-feed-items-item_id"
+  /api/v1/{team_id}/feed-items/{item_id}/archive:
+    $ref: "./paths/feeds.yaml#/api-v1-team_id-feed-items-item_id-archive"
+  /api/v1/{team_id}/feed-items/{item_id}/unarchive:
+    $ref: "./paths/feeds.yaml#/api-v1-team_id-feed-items-item_id-unarchive"
+  /api/v1/invitations/{token}:
+    $ref: "./paths/invitations.yaml#/api-v1-invitations-token"
+  /api/v1/{team_id}/agents:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents"
+  /api/v1/{team_id}/agents/preview-card:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-preview-card"
+  /api/v1/{team_id}/agents/stats:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-stats"
+  /api/v1/{team_id}/agents/{id}:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-id"
+  /api/v1/{team_id}/agents/{id}/credentials:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-id-credentials"
+  /api/v1/{team_id}/agents/{id}/execute:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-id-execute"
+  /api/v1/{team_id}/agents/{id}/executions:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-id-executions"
+  /api/v1/{team_id}/agents/{id}/conversations:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-id-conversations"
+  /api/v1/{team_id}/agents/executions/{execution_id}:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-executions-execution_id"
+  /api/v1/{team_id}/agents/executions/{id}/status:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-executions-id-status"
+  /api/v1/{team_id}/agents/executions/{id}/events:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-executions-id-events"
+  /api/v1/{team_id}/agents/conversations/{conversation_id}/executions:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-conversations-conversation_id-executions"
+  /api/v1/ai-tools/claude-code/hooks:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-hooks"
+  /api/v1/ai-tools/claude-code/sessions:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-sessions"
+  /api/v1/ai-tools/claude-code/session-counts:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-session-counts"
+  /api/v1/ai-tools/claude-code/overview-stats:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-overview-stats"
+  /api/v1/ai-tools/claude-code/recent-activities:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-recent-activities"
+  /api/v1/ai-tools/cursor-ide/hooks:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-hooks"
+  /api/v1/ai-tools/cursor-ide/sessions:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-sessions"
+  /api/v1/ai-tools/cursor-ide/session-counts:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-session-counts"
+  /api/v1/ai-tools/cursor-ide/overview-stats:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-overview-stats"
+  /api/v1/ai-tools/cursor-ide/recent-activities:
+    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-recent-activities"
+  /api/v1/claude-code/hooks:
+    $ref: "./paths/ai-tools.yaml#/api-v1-claude-code-hooks"
+  /api/v1/cursor-ide/hooks:
+    $ref: "./paths/ai-tools.yaml#/api-v1-cursor-ide-hooks"
+  /api/v1/teams:
+    $ref: "./paths/teams.yaml#/api-v1-teams"
+  /api/v1/teams/{id}:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id"
+  /api/v1/teams/{id}/members:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-members"
+  /api/v1/teams/{id}/members/{userId}:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-members-userId"
+  /api/v1/teams/{id}/invitations:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-invitations"
+  /api/v1/teams/{id}/invitations/{invitationId}:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-invitations-invitationId"
+  /api/v1/teams/{id}/stats:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-stats"
+  /api/v1/teams/{id}/resource-creation-metrics:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-resource-creation-metrics"
+  /api/v1/teams/{id}/resource-access-metrics:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-resource-access-metrics"
+  /api/v1/teams/{id}/feed-creation-metrics:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-feed-creation-metrics"
+  /api/v1/teams/{id}/top-accessed-resources:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-top-accessed-resources"
+  /api/v1/invitations/pending:
+    $ref: "./paths/invitations.yaml#/api-v1-invitations-pending"
+  /api/v1/invitations/{token}/accept:
+    $ref: "./paths/invitations.yaml#/api-v1-invitations-token-accept"
+  /api/v1/invitations/{token}/reject:
+    $ref: "./paths/invitations.yaml#/api-v1-invitations-token-reject"
+  /api/v1/notifications:
+    $ref: "./paths/notifications.yaml#/api-v1-notifications"
+  /api/v1/notifications/unread-count:
+    $ref: "./paths/notifications.yaml#/api-v1-notifications-unread-count"
+  /api/v1/notifications/{id}/read:
+    $ref: "./paths/notifications.yaml#/api-v1-notifications-id-read"
+  /api/v1/notifications/read-all:
+    $ref: "./paths/notifications.yaml#/api-v1-notifications-read-all"
+  /api/v1/{team_id}/types:
+    $ref: "./paths/types.yaml#/api-v1-team_id-types"
+  /api/v1/{team_id}/types/{id}:
+    $ref: "./paths/types.yaml#/api-v1-team_id-types-id"
+  /api/v1/embedding-providers:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers"
+  /api/v1/embedding-providers/{id}:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-id"
+  /api/v1/embedding-providers/validate:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-validate"
+  /api/v1/settings/embedding-providers:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers"
+  /api/v1/settings/embedding-providers/{id}:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-id"
+  /api/v1/settings/embedding-providers/validate:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-validate"
+  /api/v1/{team_id}/projects:
+    $ref: "./paths/projects.yaml#/api-v1-team_id-projects"
+  /api/v1/{team_id}/projects/{slug}:
+    $ref: "./paths/projects.yaml#/api-v1-team_id-projects-slug"
+  /api/v1/{team_id}/projects/{project_id}/migration/inventory:
+    $ref: "./paths/projects.yaml#/api-v1-team_id-projects-project_id-migration-inventory"
+  /api/v1/{team_id}/projects/{project_id}/migration:
+    $ref: "./paths/projects.yaml#/api-v1-team_id-projects-project_id-migration"
+  /api/v1/activities:
+    $ref: "./paths/activities.yaml#/api-v1-activities"
+  /api/v1/activities/stats:
+    $ref: "./paths/activities.yaml#/api-v1-activities-stats"
+  /api/v1/activities/types:
+    $ref: "./paths/activities.yaml#/api-v1-activities-types"
+  /api/v1/activities/entity-types:
+    $ref: "./paths/activities.yaml#/api-v1-activities-entity-types"
+  /api/v1/activities/{id}:
+    $ref: "./paths/activities.yaml#/api-v1-activities-id"
+  /api/v1/preferences:
+    $ref: "./paths/user.yaml#/api-v1-preferences"
+  /api/v1/device-tokens:
+    $ref: "./paths/user.yaml#/api-v1-device-tokens"
+  /api/v1/user/onboarding/complete:
+    $ref: "./paths/user.yaml#/api-v1-user-onboarding-complete"
+  /api/v1/website/contact/send-message:
+    $ref: "./paths/contact.yaml#/api-v1-website-contact-send-message"
+  /api/v1/{team_id}/feed-items/{item_id}/replies:
+    $ref: "./paths/feeds.yaml#/api-v1-team_id-feed-items-item_id-replies"
+
+tags:
+  - name: Health
+    description: Health monitoring endpoints
+  - name: Authentication
+    description: User authentication and OAuth endpoints
+  - name: API Keys
+    description: API key management endpoints
+  - name: Settings
+    description: User settings and configuration endpoints
+  - name: Prompts
+    description: Prompt template management endpoints
+  - name: Prompt Sharing
+    description: Share prompts publicly or with specific users via email
+  - name: Prompt Gallery
+    description: Pre-defined reusable prompt templates
+  - name: Agents
+    description: AI agent management endpoints
+  - name: Activities
+    description: Activity tracking and analytics endpoints
+  - name: Embedding Providers
+    description: Embedding provider configuration endpoints
+  - name: Subscriptions
+    description: Subscription and billing endpoints
+  - name: Contact
+    description: Contact form endpoints
+  - name: Support
+    description: Support request endpoints for authenticated users
+  - name: Claude Code Hooks
+    description: Claude Code integration endpoints
+  - name: Cursor IDE Hooks
+    description: Cursor IDE integration endpoints
+  - name: Webhooks
+    description: Webhook endpoints
+  - name: MCP Server
+    description: Model Context Protocol server endpoints
+  - name: Artifacts
+    description: Artifact management endpoints for storing project-specific content
+  - name: Attachments
+    description: Universal file-attachment endpoints keyed by polymorphic owner_type + owner_id
+  - name: Projects
+    description: Project management endpoints for organizing resources
+  - name: Memories
+    description: Memory management endpoints for storing user memories and notes
+  - name: Search
+    description: Team-scoped semantic search across prompts, artifacts, blueprints and memories for RAG retrieval
+  - name: Resource Access Metrics
+    description: Team-scoped per-resource daily access analytics for resource detail-page charts (free-tier accessible)
+  - name: Blueprints
+    description: Blueprint management endpoints for storing API specifications and technical documentation (requires subscription)
+  - name: GitHub Integration
+    description: GitHub App integration endpoints for connecting repositories, importing projects and blueprints (requires subscription)
+  - name: Back Office
+    description: Administrative endpoints for platform-wide metrics and reporting (requires back office admin API key)
+  - name: AI Feeds
+    description: AI Feed endpoints for team-scoped feed channels and AI-generated items (free-tier accessible)
+  - name: Teams
+    description: Team (workspace) management — CRUD, members, and team subscription/billing endpoints
+  - name: Notifications
+    description: In-app notification endpoints for the authenticated user
+  - name: Types
+    description: Team-customizable resource categories (artifact types, etc.)
+  - name: User
+    description: User account, onboarding, and device registration endpoints
+  - name: Team Invitations
+    description: Endpoints for inspecting and acting on team invitations from invitation email links

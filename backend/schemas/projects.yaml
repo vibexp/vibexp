@@ -1,0 +1,453 @@
+# Project-related schemas for OpenAPI specification
+
+# CORRECTED: added team_id (always serialized, required); description, git_url
+# and homepage are always serialized by the Go struct (no omitempty) so they
+# are now required (may be empty strings).
+Project:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique identifier for the project
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    user_id:
+      type: string
+      format: uuid
+      description: ID of the user who created this project
+      example: "a1234567-89ab-cdef-0123-456789abcdef"
+    team_id:
+      type: string
+      format: uuid
+      description: ID of the team this project belongs to
+      example: "b1234567-89ab-cdef-0123-456789abcdef"
+    name:
+      type: string
+      description: Human-readable name of the project
+      maxLength: 255
+      example: "My Awesome Project"
+    slug:
+      type: string
+      description: Unique slug for the project (URL-friendly identifier)
+      maxLength: 100
+      example: "my-awesome-project"
+    description:
+      type: string
+      description: Optional description of the project (empty string when unset)
+      maxLength: 1000
+      example: "This is a comprehensive project for managing API documentation"
+    git_url:
+      type: string
+      description: Git repository URL for the project (empty string when unset)
+      maxLength: 500
+      example: "https://github.com/user/my-awesome-project"
+    homepage:
+      type: string
+      description: Homepage URL for the project (empty string when unset)
+      maxLength: 500
+      example: "https://myproject.com"
+    created_at:
+      type: string
+      format: date-time
+      description: Timestamp when the project was created
+      example: "2024-01-15T10:30:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: Timestamp when the project was last updated
+      example: "2024-01-15T14:30:00Z"
+    version:
+      type: integer
+      format: int64
+      description: Version number for optimistic locking
+      example: 1
+  required:
+    - id
+    - user_id
+    - team_id
+    - name
+    - slug
+    - description
+    - git_url
+    - homepage
+    - created_at
+    - updated_at
+    - version
+
+# CORRECTED: added optional team_id field (present in Go struct).
+CreateProjectRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Human-readable name of the project
+      minLength: 1
+      maxLength: 255
+      example: "My Awesome Project"
+    slug:
+      type: string
+      description: Unique slug for the project (URL-friendly identifier)
+      minLength: 1
+      maxLength: 100
+      pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      example: "my-awesome-project"
+    team_id:
+      type: string
+      format: uuid
+      description: Optional team ID; defaults to the team from the URL path
+      example: "b1234567-89ab-cdef-0123-456789abcdef"
+    description:
+      type: string
+      description: Optional description of the project
+      maxLength: 1000
+      example: "This is a comprehensive project for managing API documentation"
+    git_url:
+      type: string
+      format: uri
+      description: Git repository URL for the project
+      maxLength: 500
+      example: "https://github.com/user/my-awesome-project"
+    homepage:
+      type: string
+      format: uri
+      description: Homepage URL for the project
+      maxLength: 500
+      example: "https://myproject.com"
+  required:
+    - name
+    - slug
+
+# CORRECTED: added optional team_id field (present in Go struct; cross-team
+# reassignment is rejected with 400).
+UpdateProjectRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Updated name of the project
+      minLength: 1
+      maxLength: 255
+      example: "My Updated Project"
+    slug:
+      type: string
+      description: Updated slug for the project
+      minLength: 1
+      maxLength: 100
+      pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      example: "my-updated-project"
+    team_id:
+      type: string
+      format: uuid
+      description: Team ID; must match the project's current team (resources cannot be moved between teams)
+      example: "b1234567-89ab-cdef-0123-456789abcdef"
+    description:
+      type: string
+      description: Updated description of the project
+      maxLength: 1000
+      example: "This is the updated project description"
+    git_url:
+      type: string
+      format: uri
+      description: Updated git repository URL
+      maxLength: 500
+      example: "https://github.com/user/my-updated-project"
+    homepage:
+      type: string
+      format: uri
+      description: Updated homepage URL
+      maxLength: 500
+      example: "https://myupdatedproject.com"
+
+# CORRECTED: list items are ProjectResponse (Project + github_connected), not
+# bare Project.
+ProjectListResponse:
+  type: object
+  properties:
+    projects:
+      type: array
+      items:
+        $ref: '#/ProjectResponse'
+      description: List of projects with computed fields
+    total_count:
+      type: integer
+      description: Total number of projects matching the filter criteria
+      example: 10
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 20
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 1
+  required:
+    - projects
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+# Response model for project resource statistics
+ProjectStatsResponse:
+  type: object
+  properties:
+    total_prompts:
+      type: integer
+      description: Total number of prompts belonging to this project
+      example: 5
+    total_artifacts:
+      type: integer
+      description: Total number of artifacts belonging to this project
+      example: 3
+    total_blueprints:
+      type: integer
+      description: Total number of spec libraries belonging to this project
+      example: 2
+    total_memories:
+      type: integer
+      description: Total number of memories belonging to this project
+      example: 8
+    total_feed_items:
+      type: integer
+      description: Total number of feed items belonging to this project
+      example: 12
+
+ProjectResourceCreationDailyCount:
+  type: object
+  description: Per-resource-type creation counts for a single calendar day (UTC), zero-filled.
+  required: [date, prompts, artifacts, blueprints, memories, total]
+  properties:
+    date:
+      type: string
+      format: date
+      example: '2026-05-01'
+    prompts:
+      type: integer
+      example: 3
+    artifacts:
+      type: integer
+      example: 1
+    blueprints:
+      type: integer
+      example: 0
+    memories:
+      type: integer
+      example: 2
+    total:
+      type: integer
+      example: 6
+ProjectResourceCreationMetricsData:
+  type: object
+  required: [total_created, range, counts]
+  properties:
+    total_created:
+      type: integer
+      description: Sum of every creation count across the whole window.
+      example: 142
+    range:
+      type: string
+      enum: ['7d', '14d', '30d', '60d', '90d', '180d']
+      example: '30d'
+    counts:
+      type: array
+      items:
+        $ref: '#/ProjectResourceCreationDailyCount'
+ProjectResourceCreationMetricsResponse:
+  type: object
+  required: [status, message, data]
+  properties:
+    status:
+      type: string
+      example: success
+    message:
+      type: string
+      example: Resource creation metrics retrieved successfully
+    data:
+      $ref: '#/ProjectResourceCreationMetricsData'
+
+# ============================================================================
+# NEW DEFINITIONS — append to schemas/projects.yaml.
+# ============================================================================
+# Project enriched with computed fields, returned in list responses
+ProjectResponse:
+  allOf:
+    - $ref: '#/Project'
+    - type: object
+      properties:
+        github_connected:
+          type: boolean
+          description: Whether the project's git URL matches a repository accessible via the team's GitHub App installation
+          example: true
+      required:
+        - github_connected
+
+# Selection of resources of one type to migrate
+ResourceSelection:
+  type: object
+  properties:
+    all:
+      type: boolean
+      description: Migrate every resource of this type in the source project
+      example: false
+    ids:
+      type: array
+      items:
+        type: string
+        format: uuid
+      description: Explicit list of resource IDs to migrate (used when all is false)
+
+# Per-resource-type selections for a migration request
+ResourceSelections:
+  type: object
+  properties:
+    prompts:
+      $ref: '#/ResourceSelection'
+    artifacts:
+      $ref: '#/ResourceSelection'
+    blueprints:
+      $ref: '#/ResourceSelection'
+    feed_items:
+      $ref: '#/ResourceSelection'
+
+# Request body for migrating project resources
+MigrationRequest:
+  type: object
+  properties:
+    destination_project_id:
+      type: string
+      format: uuid
+      description: ID of the destination project (must belong to the same team)
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    resources:
+      $ref: '#/ResourceSelections'
+    conflict_policy:
+      type: string
+      enum: [skip, rename, overwrite]
+      default: skip
+      description: How slug collisions in the destination project are handled
+  required:
+    - destination_project_id
+
+# Lightweight representation of a single migratable resource
+ResourceInventoryItem:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Resource identifier
+    name:
+      type: string
+      description: Human-readable resource name
+  required:
+    - id
+    - name
+
+# Count and item list for a single resource type
+ResourceInventory:
+  type: object
+  properties:
+    count:
+      type: integer
+      description: Number of resources of this type in the source project
+      example: 3
+    items:
+      type: array
+      items:
+        $ref: '#/ResourceInventoryItem'
+      description: Resources of this type (omitted when empty)
+  required:
+    - count
+
+# Response model for the project migration inventory
+MigrationInventory:
+  type: object
+  properties:
+    prompts:
+      $ref: '#/ResourceInventory'
+    artifacts:
+      $ref: '#/ResourceInventory'
+    blueprints:
+      $ref: '#/ResourceInventory'
+    feed_items:
+      $ref: '#/ResourceInventory'
+
+# Why a specific resource was skipped or failed during migration
+ResourceOutcome:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Resource identifier
+    reason:
+      type: string
+      description: Why the resource was skipped or failed
+  required:
+    - id
+    - reason
+
+# Count of successfully migrated resources per type
+ResourceMigrationCounts:
+  type: object
+  properties:
+    prompts:
+      type: integer
+      example: 2
+    artifacts:
+      type: integer
+      example: 1
+    blueprints:
+      type: integer
+      example: 0
+    feed_items:
+      type: integer
+      example: 0
+
+# Skipped or failed resources per type (each list omitted when empty)
+ResourceMigrationOutcomes:
+  type: object
+  properties:
+    prompts:
+      type: array
+      items:
+        $ref: '#/ResourceOutcome'
+    artifacts:
+      type: array
+      items:
+        $ref: '#/ResourceOutcome'
+    blueprints:
+      type: array
+      items:
+        $ref: '#/ResourceOutcome'
+    feed_items:
+      type: array
+      items:
+        $ref: '#/ResourceOutcome'
+
+# Response model for a completed project migration
+MigrationResult:
+  type: object
+  properties:
+    migrated:
+      $ref: '#/ResourceMigrationCounts'
+    skipped:
+      $ref: '#/ResourceMigrationOutcomes'
+    failed:
+      $ref: '#/ResourceMigrationOutcomes'
+    source_project_name:
+      type: string
+      description: Name of the source project
+      example: "Project 1"
+    destination_project_name:
+      type: string
+      description: Name of the destination project
+      example: "Project 2"
+  required:
+    - migrated
+    - skipped
+    - failed
+    - source_project_name
+    - destination_project_name

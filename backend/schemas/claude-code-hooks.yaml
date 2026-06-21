@@ -1,0 +1,925 @@
+# Claude Code integration schemas
+
+IncomingHookPayload:
+  type: object
+  properties:
+    session_id:
+      type: string
+      description: Unique identifier for the Claude Code session
+      example: "session_123456"
+    transcript_path:
+      type: string
+      nullable: true
+      description: Path to the conversation transcript file
+      example: "/path/to/transcript.md"
+    cwd:
+      type: string
+      nullable: true
+      description: Current working directory
+      example: "/home/user/project"
+    hook_event_name:
+      type: string
+      description: Name of the hook event that triggered this payload
+      example: "PreToolUse"
+    tool_name:
+      type: string
+      nullable: true
+      description: Name of the tool being used
+      example: "Bash"
+    tool_input:
+      type: object
+      nullable: true
+      description: Input data for the tool
+      additionalProperties: true
+    tool_response:
+      type: object
+      nullable: true
+      description: Response data from the tool
+      additionalProperties: true
+    prompt:
+      type: string
+      nullable: true
+      description: User prompt or message
+      example: "Please run ls command"
+    message:
+      type: string
+      nullable: true
+      description: Additional message or context
+      example: "Executing bash command"
+  required:
+    - session_id
+    - hook_event_name
+
+ClaudeCodeHookPayload:
+  type: object
+  properties:
+    id:
+      type: integer
+      description: Unique identifier for the stored payload
+      example: 123
+    user_id:
+      type: string
+      description: ID of the user who submitted the hook (omitted when not set)
+      example: "user_01HXYZ123"
+    team_id:
+      type: string
+      description: ID of the user's default team at ingest time
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    session_id:
+      type: string
+      description: Unique identifier for the Claude Code session
+      example: "session_123456"
+    transcript_path:
+      type: string
+      nullable: true
+      description: Path to the conversation transcript file
+      example: "/path/to/transcript.md"
+    cwd:
+      type: string
+      nullable: true
+      description: Current working directory
+      example: "/home/user/project"
+    hook_event_name:
+      type: string
+      description: Name of the hook event that triggered this payload
+      example: "PreToolUse"
+    tool_name:
+      type: string
+      nullable: true
+      description: Name of the tool being used
+      example: "Bash"
+    tool_input:
+      type: object
+      nullable: true
+      description: Input data for the tool
+      additionalProperties: true
+    tool_response:
+      type: object
+      nullable: true
+      description: Response data from the tool
+      additionalProperties: true
+    prompt:
+      type: string
+      nullable: true
+      description: User prompt or message
+      example: "Please run ls command"
+    message:
+      type: string
+      nullable: true
+      description: Additional message or context
+      example: "Executing bash command"
+    payload:
+      type: object
+      description: Complete payload data as JSONB
+      additionalProperties: true
+    created_at:
+      type: string
+      format: date-time
+      description: When the record was created
+      example: "2025-09-07T01:23:45Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: When the record was last updated
+      example: "2025-09-07T01:23:45Z"
+  required:
+    - id
+    - team_id
+    - session_id
+    - hook_event_name
+    - payload
+    - created_at
+    - updated_at
+
+ClaudeCodeHooksPaginatedResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/ClaudeCodeHookPayload'
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    limit:
+      type: integer
+      description: Number of items per page
+      example: 10
+    total:
+      type: integer
+      description: Total number of records
+      example: 150
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 15
+  required:
+    - data
+    - page
+    - limit
+    - total
+    - total_pages
+
+HookCreatedResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Hook payload stored successfully"
+    data:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-09-07T01:23:45Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-09-07T01:23:45Z"
+      required:
+        - id
+        - created_at
+        - updated_at
+  required:
+    - status
+    - message
+    - data
+
+HookListResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Hook payloads retrieved successfully"
+    data:
+      $ref: '#/ClaudeCodeHooksPaginatedResponse'
+  required:
+    - status
+    - message
+    - data
+
+SessionSummary:
+  type: object
+  properties:
+    session_id:
+      type: string
+      example: "session_123"
+    first_seen:
+      type: string
+      format: date-time
+    last_seen:
+      type: string
+      format: date-time
+    hook_count:
+      type: integer
+      example: 42
+    latest_cwd:
+      type: string
+      nullable: true
+      example: "/home/user/project"
+    unique_tools:
+      type: integer
+      example: 5
+  required:
+    - session_id
+    - first_seen
+    - last_seen
+    - hook_count
+    - unique_tools
+
+SessionsResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/SessionSummary'
+    page:
+      type: integer
+    limit:
+      type: integer
+    total:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - data
+    - page
+    - limit
+    - total
+    - total_pages
+
+SessionCountsResponse:
+  type: object
+  properties:
+    total_sessions:
+      type: integer
+    counts:
+      type: array
+      items:
+        type: object
+        properties:
+          date:
+            type: string
+          count:
+            type: integer
+  required:
+    - total_sessions
+    - counts
+
+OverviewStats:
+  type: object
+  properties:
+    total_sessions:
+      type: integer
+    sessions_this_week:
+      type: integer
+    sessions_last_week:
+      type: integer
+    weekly_trend_percent:
+      type: number
+      format: float
+    avg_user_prompts_per_session:
+      type: number
+      format: float
+    total_unique_tools:
+      type: integer
+    top_tools:
+      type: array
+      items:
+        type: object
+        properties:
+          tool_name:
+            type: string
+          count:
+            type: integer
+    avg_session_duration_minutes:
+      type: number
+      format: float
+    total_memories:
+      type: integer
+      description: Total number of memories created by the user
+      example: 12
+  required:
+    - total_sessions
+    - sessions_this_week
+    - sessions_last_week
+    - weekly_trend_percent
+    - avg_user_prompts_per_session
+    - total_unique_tools
+    - top_tools
+    - avg_session_duration_minutes
+    - total_memories
+
+RecentActivity:
+  type: object
+  properties:
+    session_id:
+      type: string
+    cwd:
+      type: string
+      nullable: true
+    tool_name:
+      type: string
+      nullable: true
+    tool_input:
+      type: object
+      nullable: true
+      additionalProperties: true
+    hook_event_name:
+      type: string
+    created_at:
+      type: string
+      format: date-time
+  required:
+    - session_id
+    - hook_event_name
+    - created_at
+
+RecentActivitiesResponse:
+  type: object
+  properties:
+    activities:
+      type: array
+      items:
+        $ref: '#/RecentActivity'
+    page:
+      type: integer
+    limit:
+      type: integer
+    total:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - activities
+    - page
+    - limit
+    - total
+    - total_pages
+
+HookErrorResponse:
+  type: object
+  description: >-
+    Legacy CLI-compatible error shape `{"status":"error","message":...}` emitted by the
+    AI-tools hook handlers (NOT the RFC 9457 ErrorResponse used elsewhere).
+    Resource-limit 403 responses additionally include a `details` object.
+  properties:
+    status:
+      type: string
+      example: "error"
+    message:
+      type: string
+      example: "Invalid JSON payload"
+    details:
+      type: object
+      description: Present only on resource-limit (403) responses
+      properties:
+        resource_type:
+          type: string
+          example: "ai_session"
+        current_usage:
+          type: integer
+          example: 10
+        limit:
+          type: integer
+          example: 10
+  required:
+    - status
+    - message
+
+SessionsListResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Sessions retrieved successfully"
+    data:
+      $ref: '#/SessionsResponse'
+  required:
+    - status
+    - message
+    - data
+
+SessionCountsApiResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Session counts retrieved successfully"
+    data:
+      $ref: '#/SessionCountsResponse'
+  required:
+    - status
+    - message
+    - data
+
+OverviewStatsApiResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Overview stats retrieved successfully"
+    data:
+      $ref: '#/OverviewStats'
+  required:
+    - status
+    - message
+    - data
+
+RecentActivitiesApiResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Recent activities retrieved successfully"
+    data:
+      $ref: '#/RecentActivitiesResponse'
+  required:
+    - status
+    - message
+    - data
+
+# Cursor IDE integration schemas
+
+IncomingCursorHookPayload:
+  type: object
+  description: >-
+    Incoming payload from Cursor IDE hooks. Either `session_id` or `conversation_id`
+    must be provided (when `session_id` is absent, `conversation_id` is used as the
+    session identifier). `hook_event_name` is always required.
+  properties:
+    conversation_id:
+      type: string
+      description: Cursor conversation identifier (used as session_id when session_id is absent)
+      example: "conv_123456"
+    generation_id:
+      type: string
+      description: Cursor generation identifier
+      example: "gen_123456"
+    workspace_roots:
+      type: array
+      items:
+        type: string
+      description: Workspace root directories
+      example: ["/home/user/project"]
+    session_id:
+      type: string
+      description: Session identifier (legacy/optional; falls back to conversation_id)
+      example: "session_123456"
+    hook_event_name:
+      type: string
+      description: Name of the hook event that triggered this payload
+      example: "beforeShellExecution"
+    tool_name:
+      type: string
+      nullable: true
+      description: Name of the tool being used
+      example: "shell"
+    configuration:
+      type: object
+      nullable: true
+      description: Hook configuration data
+      additionalProperties: true
+    reference:
+      type: object
+      nullable: true
+      description: Reference data
+      additionalProperties: true
+    context:
+      type: object
+      nullable: true
+      description: Context data
+      additionalProperties: true
+    input:
+      type: object
+      nullable: true
+      description: Input data for the hook
+      additionalProperties: true
+    output:
+      type: object
+      nullable: true
+      description: Output data from the hook
+      additionalProperties: true
+    inducedFailure:
+      type: object
+      nullable: true
+      description: Induced failure data
+      additionalProperties: true
+    command:
+      type: string
+      nullable: true
+      description: Shell command (beforeShellExecution)
+      example: "ls -la"
+    cwd:
+      type: string
+      nullable: true
+      description: Current working directory (beforeShellExecution)
+      example: "/home/user/project"
+    tool_input:
+      type: object
+      nullable: true
+      description: Tool input data (beforeMCPExecution)
+      additionalProperties: true
+    url:
+      type: string
+      nullable: true
+      description: URL (beforeMCPExecution)
+    file_path:
+      type: string
+      nullable: true
+      description: File path (afterFileEdit, beforeReadFile)
+      example: "/home/user/project/main.go"
+    edits:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: File edits (afterFileEdit)
+    content:
+      type: string
+      nullable: true
+      description: File content (beforeReadFile)
+    attachments:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+      description: Attachments (beforeReadFile, beforeSubmitPrompt)
+    prompt:
+      type: string
+      nullable: true
+      description: User prompt (beforeSubmitPrompt)
+      example: "Refactor this function"
+    status:
+      type: string
+      nullable: true
+      description: Status (stop hook)
+    permission:
+      type: string
+      nullable: true
+      description: Permission response field
+    userMessage:
+      type: string
+      nullable: true
+      description: User message response field
+    agentMessage:
+      type: string
+      nullable: true
+      description: Agent message response field
+    continue:
+      type: boolean
+      nullable: true
+      description: Continue response field
+  required:
+    - hook_event_name
+  anyOf:
+    - required: [session_id]
+    - required: [conversation_id]
+
+CursorIDEHookPayload:
+  type: object
+  properties:
+    id:
+      type: integer
+      description: Unique identifier for the stored payload
+      example: 123
+    user_id:
+      type: string
+      description: ID of the user who submitted the hook (omitted when not set)
+      example: "user_01HXYZ123"
+    team_id:
+      type: string
+      description: ID of the user's default team at ingest time
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    session_id:
+      type: string
+      description: Session identifier (stores conversation_id from Cursor)
+      example: "conv_123456"
+    conversation_id:
+      type: string
+      nullable: true
+      description: Cursor conversation identifier
+      example: "conv_123456"
+    generation_id:
+      type: string
+      nullable: true
+      description: Cursor generation identifier
+      example: "gen_123456"
+    hook_event_name:
+      type: string
+      description: Name of the hook event that triggered this payload
+      example: "beforeShellExecution"
+    tool_name:
+      type: string
+      nullable: true
+      description: Name of the tool being used
+      example: "shell"
+    workspace_roots:
+      type: array
+      items:
+        type: string
+      description: Workspace root directories
+      example: ["/home/user/project"]
+    configuration:
+      type: object
+      nullable: true
+      description: Hook configuration data
+      additionalProperties: true
+    reference:
+      type: object
+      nullable: true
+      description: Reference data
+      additionalProperties: true
+    context:
+      type: object
+      nullable: true
+      description: Context data
+      additionalProperties: true
+    input:
+      type: object
+      nullable: true
+      description: Input data for the hook
+      additionalProperties: true
+    output:
+      type: object
+      nullable: true
+      description: Output data from the hook
+      additionalProperties: true
+    induced_failure:
+      type: object
+      nullable: true
+      description: Induced failure data
+      additionalProperties: true
+    payload:
+      type: object
+      description: Complete payload data as JSONB
+      additionalProperties: true
+    created_at:
+      type: string
+      format: date-time
+      description: When the record was created
+      example: "2025-09-07T01:23:45Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: When the record was last updated
+      example: "2025-09-07T01:23:45Z"
+  required:
+    - id
+    - team_id
+    - session_id
+    - hook_event_name
+    - payload
+    - created_at
+    - updated_at
+
+CursorIDEHooksPaginatedResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/CursorIDEHookPayload'
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    limit:
+      type: integer
+      description: Number of items per page
+      example: 10
+    total:
+      type: integer
+      description: Total number of records
+      example: 150
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 15
+  required:
+    - data
+    - page
+    - limit
+    - total
+    - total_pages
+
+CursorIDEHookListResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Hook payloads retrieved successfully"
+    data:
+      $ref: '#/CursorIDEHooksPaginatedResponse'
+  required:
+    - status
+    - message
+    - data
+
+CursorSessionSummary:
+  type: object
+  description: Summary of a Cursor IDE session (unlike Claude Code sessions, no latest_cwd)
+  properties:
+    session_id:
+      type: string
+      example: "conv_123"
+    first_seen:
+      type: string
+      format: date-time
+    last_seen:
+      type: string
+      format: date-time
+    hook_count:
+      type: integer
+      example: 42
+    unique_tools:
+      type: integer
+      example: 5
+  required:
+    - session_id
+    - first_seen
+    - last_seen
+    - hook_count
+    - unique_tools
+
+CursorSessionsResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        $ref: '#/CursorSessionSummary'
+    page:
+      type: integer
+    limit:
+      type: integer
+    total:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - data
+    - page
+    - limit
+    - total
+    - total_pages
+
+CursorSessionsListResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Sessions retrieved successfully"
+    data:
+      $ref: '#/CursorSessionsResponse'
+  required:
+    - status
+    - message
+    - data
+
+CursorOverviewStats:
+  type: object
+  description: Overview statistics for Cursor IDE (unlike Claude Code, no total_memories)
+  properties:
+    total_sessions:
+      type: integer
+    sessions_this_week:
+      type: integer
+    sessions_last_week:
+      type: integer
+    weekly_trend_percent:
+      type: number
+      format: float
+    avg_user_prompts_per_session:
+      type: number
+      format: float
+    total_unique_tools:
+      type: integer
+    top_tools:
+      type: array
+      items:
+        type: object
+        properties:
+          tool_name:
+            type: string
+          count:
+            type: integer
+    avg_session_duration_minutes:
+      type: number
+      format: float
+  required:
+    - total_sessions
+    - sessions_this_week
+    - sessions_last_week
+    - weekly_trend_percent
+    - avg_user_prompts_per_session
+    - total_unique_tools
+    - top_tools
+    - avg_session_duration_minutes
+
+CursorOverviewStatsApiResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Overview stats retrieved successfully"
+    data:
+      $ref: '#/CursorOverviewStats'
+  required:
+    - status
+    - message
+    - data
+
+CursorRecentActivity:
+  type: object
+  description: Recent Cursor IDE activity (carries `input` instead of Claude Code's cwd/tool_input)
+  properties:
+    session_id:
+      type: string
+    tool_name:
+      type: string
+      nullable: true
+    input:
+      type: object
+      nullable: true
+      additionalProperties: true
+    hook_event_name:
+      type: string
+    created_at:
+      type: string
+      format: date-time
+  required:
+    - session_id
+    - hook_event_name
+    - created_at
+
+CursorRecentActivitiesResponse:
+  type: object
+  properties:
+    activities:
+      type: array
+      items:
+        $ref: '#/CursorRecentActivity'
+    page:
+      type: integer
+    limit:
+      type: integer
+    total:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - activities
+    - page
+    - limit
+    - total
+    - total_pages
+
+CursorRecentActivitiesApiResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Recent activities retrieved successfully"
+    data:
+      $ref: '#/CursorRecentActivitiesResponse'
+  required:
+    - status
+    - message
+    - data

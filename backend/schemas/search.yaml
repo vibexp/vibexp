@@ -1,0 +1,135 @@
+SearchRequest:
+  type: object
+  properties:
+    query:
+      type: string
+      maxLength: 1000
+      description: Free-text query to embed and search semantically
+      example: how to configure retries
+    types:
+      type: array
+      description: >-
+        Resource types to search. Omit or leave empty to search all four
+        types. Unknown values are rejected with a 400.
+      items:
+        type: string
+        enum: [prompts, artifacts, blueprints, memories]
+      example: [prompts, artifacts]
+    project_id:
+      type: string
+      format: uuid
+      description: >-
+        Optional project UUID. When set, results are restricted to this project
+        across every type. Omit to search across all projects.
+      example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+    page:
+      type: integer
+      minimum: 1
+      default: 1
+      description: Page number
+      example: 1
+    per_page:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 10
+      description: Number of items per page
+      example: 10
+  required:
+    - query
+
+SearchResultItem:
+  type: object
+  properties:
+    type:
+      type: string
+      enum: [prompt, artifact, blueprint, memory]
+      description: Singular resource type of the matched source entity
+      example: prompt
+    id:
+      type: string
+      format: uuid
+      description: ID of the source resource the matched chunk belongs to
+    title:
+      type: string
+      description: Title of the source resource
+      example: Retry configuration guide
+    slug:
+      type: string
+      description: >-
+        Slug of the source resource, used to build slug-based detail-page
+        links. Empty for memories, which are routed by id.
+      example: retry-configuration-guide
+    project_id:
+      type: string
+      format: uuid
+      description: >-
+        UUID of the parent project. Used to build artifact and blueprint
+        detail-page links, which are keyed by project UUID. Always present —
+        every resource belongs to exactly one project.
+      example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+    project_name:
+      type: string
+      description: >-
+        Human-readable name of the parent project, shown alongside each result.
+      example: My Project
+    excerpt:
+      type: string
+      description: Matched chunk content, truncated to at most 500 characters
+    score:
+      type: number
+      format: double
+      minimum: 0
+      maximum: 1
+      description: Relevance score (1 - cosine distance), clamped to [0,1]
+      example: 0.87
+    chunk_id:
+      type: string
+      format: uuid
+      description: ID of the matched embedding row (chunk)
+    updated_at:
+      type: string
+      format: date-time
+      description: Last-updated timestamp of the source resource
+  required:
+    - type
+    - id
+    - title
+    - slug
+    - project_id
+    - project_name
+    - excerpt
+    - score
+    - chunk_id
+    - updated_at
+
+SearchResultsResponse:
+  type: object
+  properties:
+    results:
+      type: array
+      items:
+        $ref: '#/SearchResultItem'
+      description: Relevance-ranked search results, one per matching chunk
+    total_count:
+      type: integer
+      description: Total number of matching chunks across all pages
+      example: 42
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 10
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 5
+  required:
+    - results
+    - total_count
+    - page
+    - per_page
+    - total_pages

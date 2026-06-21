@@ -1,0 +1,95 @@
+name: CI / Backend
+
+# Go backend CI: build, test, gofmt, golangci-lint and OpenAPI validation.
+# Every step delegates to a Makefile target (the make targets cd into backend/
+# themselves), so CI and local runs stay identical. No auth token is required.
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'Makefile'
+      - '.github/workflows/ci-backend.yml'
+      - '.github/linters/golangci.yml'
+      - '.github/linters/spectral.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'Makefile'
+      - '.github/workflows/ci-backend.yml'
+      - '.github/linters/golangci.yml'
+      - '.github/linters/spectral.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6.4.0
+        with:
+          go-version: '1.25.11'
+          cache-dependency-path: backend/go.sum
+
+      - name: Download dependencies
+        run: make backend-download-deps
+
+      - name: gofmt check
+        run: make backend-format
+
+      - name: Build
+        run: make backend-build
+
+      - name: Test
+        run: make backend-test
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6.4.0
+        with:
+          go-version: '1.25.11'
+          cache-dependency-path: backend/go.sum
+
+      # make backend-lint invokes the golangci-lint binary directly, so install
+      # it (pinned to match the v2 config in .github/linters/golangci.yml).
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" v2.5.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run golangci-lint
+        run: make backend-lint
+
+  openapi:
+    name: OpenAPI validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: '22'
+
+      # make backend-validate-openapi shells out to `npx @apidevtools/swagger-cli`
+      # which resolves and runs the validator on demand — no project install needed.
+      - name: Validate OpenAPI specification
+        run: make backend-validate-openapi

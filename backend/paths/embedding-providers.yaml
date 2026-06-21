@@ -1,0 +1,569 @@
+# embedding-providers path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-embedding-providers:
+  post:
+    summary: Create embedding provider
+    description: |
+      Creates a new embedding provider configuration for the authenticated user.
+      The `api_key` supplied in the request is encrypted at rest and is never
+      returned by the API — responses expose only a `has_api_key` boolean.
+      Returns 200 (not 201) on success.
+    operationId: createEmbeddingProvider
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateEmbeddingProviderRequest'
+    responses:
+      '200':
+        description: Embedding provider created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+      '400':
+        description: Malformed JSON body (`BAD_REQUEST`) or missing required fields (`PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: A provider with the same name already exists (`PROVIDER_ALREADY_EXISTS`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Provider creation failed (`PROVIDER_CREATE_FAILED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Embedding Providers
+
+  get:
+    summary: List embedding providers
+    description: |
+      Retrieves all embedding providers belonging to the authenticated user.
+      Returns a bare JSON array (no pagination envelope). Encrypted API keys
+      are never included; each item carries a `has_api_key` boolean instead.
+    operationId: listEmbeddingProviders
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Embedding providers retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to retrieve embedding providers (`DATABASE_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Embedding Providers
+
+api-v1-embedding-providers-id:
+  get:
+    summary: Get embedding provider
+    description: |
+      Retrieves a single embedding provider owned by the authenticated user.
+      The encrypted API key is never returned; `has_api_key` indicates whether
+      one is stored.
+    operationId: getEmbeddingProvider
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Embedding provider ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Embedding provider retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to retrieve embedding provider (`DATABASE_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Embedding Providers
+
+  put:
+    summary: Update embedding provider
+    description: |
+      Updates an existing embedding provider. All fields are optional; only
+      provided fields are changed. A supplied `api_key` replaces the stored
+      (encrypted) key and is never echoed back in the response.
+    operationId: updateEmbeddingProvider
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Embedding provider ID
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateEmbeddingProviderRequest'
+    responses:
+      '200':
+        description: Embedding provider updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+      '400':
+        description: Malformed JSON body (`BAD_REQUEST`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Provider update failed (`PROVIDER_UPDATE_FAILED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Embedding Providers
+
+  delete:
+    summary: Delete embedding provider
+    description: |
+      Deletes an embedding provider owned by the authenticated user. Deleting
+      the user's last remaining provider is blocked with a 400
+      `PROVIDER_LAST_DELETE_BLOCKED` error.
+    operationId: deleteEmbeddingProvider
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Embedding provider ID
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Embedding provider deleted successfully (no body)
+      '400':
+        description: Cannot delete the last embedding provider (`PROVIDER_LAST_DELETE_BLOCKED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Provider deletion failed (`PROVIDER_DELETE_FAILED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Embedding Providers
+
+api-v1-embedding-providers-validate:
+  post:
+    summary: Validate embedding provider configuration
+    description: |
+      Validates an embedding provider configuration (connectivity/credentials)
+      without persisting anything. Validation outcome — including an invalid
+      configuration — is reported in the 200 response body (`is_valid`,
+      `message`, `details`); 500 is returned only for internal service errors.
+    operationId: validateEmbeddingProvider
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/ValidateEmbeddingProviderRequest'
+    responses:
+      '200':
+        description: Validation completed (check `is_valid` for the outcome)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ValidateEmbeddingProviderResponse'
+      '400':
+        description: Malformed JSON body (`BAD_REQUEST`) or missing required fields (`PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Validation failed due to an internal service error (`INTERNAL_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Embedding Providers
+
+api-v1-settings-embedding-providers:
+  post:
+    summary: Create embedding provider (Settings)
+    description: |
+      Creates a new embedding provider configuration for the authenticated user (settings route).
+      The `api_key` supplied in the request is encrypted at rest and is never
+      returned by the API — responses expose only a `has_api_key` boolean.
+      Returns 200 (not 201) on success.
+    operationId: createEmbeddingProviderSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateEmbeddingProviderRequest'
+    responses:
+      '200':
+        description: Embedding provider created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+      '400':
+        description: Malformed JSON body (`BAD_REQUEST`) or missing required fields (`PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: A provider with the same name already exists (`PROVIDER_ALREADY_EXISTS`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Provider creation failed (`PROVIDER_CREATE_FAILED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings
+
+  get:
+    summary: List embedding providers (Settings)
+    description: |
+      Retrieves all embedding providers belonging to the authenticated user (settings route).
+      Returns a bare JSON array (no pagination envelope). Encrypted API keys
+      are never included; each item carries a `has_api_key` boolean instead.
+    operationId: listEmbeddingProvidersSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Embedding providers retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to retrieve embedding providers (`DATABASE_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings
+
+api-v1-settings-embedding-providers-id:
+  get:
+    summary: Get embedding provider (Settings)
+    description: |
+      Retrieves a single embedding provider owned by the authenticated user (settings route).
+      The encrypted API key is never returned; `has_api_key` indicates whether
+      one is stored.
+    operationId: getEmbeddingProviderSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Embedding provider ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Embedding provider retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to retrieve embedding provider (`DATABASE_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings
+
+  put:
+    summary: Update embedding provider (Settings)
+    description: |
+      Updates an existing embedding provider (settings route). All fields are
+      optional; only provided fields are changed. A supplied `api_key`
+      replaces the stored (encrypted) key and is never echoed back in the
+      response.
+    operationId: updateEmbeddingProviderSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Embedding provider ID
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateEmbeddingProviderRequest'
+    responses:
+      '200':
+        description: Embedding provider updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+      '400':
+        description: Malformed JSON body (`BAD_REQUEST`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Provider update failed (`PROVIDER_UPDATE_FAILED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings
+
+  delete:
+    summary: Delete embedding provider (Settings)
+    description: |
+      Deletes an embedding provider owned by the authenticated user (settings route).
+      Deleting the user's last remaining provider is blocked with a 400
+      `PROVIDER_LAST_DELETE_BLOCKED` error.
+    operationId: deleteEmbeddingProviderSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Embedding provider ID
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Embedding provider deleted successfully (no body)
+      '400':
+        description: Cannot delete the last embedding provider (`PROVIDER_LAST_DELETE_BLOCKED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Provider deletion failed (`PROVIDER_DELETE_FAILED`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings
+
+api-v1-settings-embedding-providers-validate:
+  post:
+    summary: Validate embedding provider configuration (Settings)
+    description: |
+      Validates an embedding provider configuration (connectivity/credentials)
+      without persisting anything (settings route). Validation outcome —
+      including an invalid configuration — is reported in the 200 response
+      body (`is_valid`, `message`, `details`); 500 is returned only for
+      internal service errors.
+    operationId: validateEmbeddingProviderSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/ValidateEmbeddingProviderRequest'
+    responses:
+      '200':
+        description: Validation completed (check `is_valid` for the outcome)
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ValidateEmbeddingProviderResponse'
+      '400':
+        description: Malformed JSON body (`BAD_REQUEST`) or missing required fields (`PROVIDER_VALIDATION_FAILED` with `validation_errors`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Validation failed due to an internal service error (`INTERNAL_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings

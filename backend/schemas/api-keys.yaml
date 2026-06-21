@@ -1,0 +1,133 @@
+# API key management schemas
+
+APIKey:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "api_key_123"
+    user_id:
+      type: string
+      example: "user_123"
+    name:
+      type: string
+      example: "Development Setup"
+    key_prefix:
+      type: string
+      example: "vxk_abc123"
+    integrations:
+      type: array
+      items:
+        type: string
+        enum:
+          - ai_tools
+          - cli
+          - mcp_server
+      description: Array of integration codes this API key can access
+      example: ["ai_tools", "cli"]
+    is_legacy:
+      type: boolean
+      description: Whether this is a legacy API key (pre-multi-integration)
+      example: false
+    migration_notes:
+      type: string
+      nullable: true
+      description: Notes about the migration from legacy system
+      example: "Migrated from usage_type: ai_tools"
+    usage_type:
+      type: string
+      enum:
+        - ai_tools
+        - cli
+        - mcp
+        - everything
+      deprecated: true
+      description: "DEPRECATED: Legacy field for backward compatibility. Use 'integrations' instead."
+      example: "ai_tools"
+    last_used_at:
+      type: string
+      format: date-time
+      nullable: true
+    expires_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the key expires. Null means the key never expires.
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+  required:
+    - id
+    - user_id
+    - name
+    - key_prefix
+    - integrations
+    - is_legacy
+    - created_at
+    - updated_at
+
+CreateAPIKeyRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      example: "Development Setup"
+      description: A descriptive name for the API key
+    integration_codes:
+      type: array
+      items:
+        type: string
+        enum:
+          - ai_tools
+          - cli
+          - mcp_server
+      minItems: 1
+      uniqueItems: true
+      description: Array of integration codes to grant access to
+      example: ["ai_tools", "cli"]
+  required:
+    - name
+    - integration_codes
+
+CreateAPIKeyResponse:
+  type: object
+  properties:
+    api_key:
+      $ref: '#/APIKey'
+    full_key:
+      type: string
+      example: "vib_1234567890abcdef"
+    key_prefix:
+      type: string
+      example: "vib_"
+  required:
+    - api_key
+    - full_key
+    - key_prefix
+
+APIKeyListResponse:
+  type: object
+  properties:
+    api_keys:
+      type: array
+      items:
+        $ref: '#/APIKey'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - api_keys
+    - total_count
+    - page
+    - per_page
+    - total_pages

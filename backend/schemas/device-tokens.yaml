@@ -1,0 +1,36 @@
+# Device token (push notification registration) schemas
+
+# Request model for registering a device token
+RegisterDeviceTokenRequest:
+  type: object
+  properties:
+    token:
+      type: string
+      description: Push notification device token (leading/trailing whitespace is trimmed)
+      minLength: 1
+      maxLength: 4096
+      example: "fcm-web-push-token-abc123"
+    platform:
+      type: string
+      description: Push notification platform; currently only "web" (Web Push / FCM browser push) is supported
+      enum: [web]
+      example: "web"
+    user_agent:
+      type: string
+      description: Optional user agent string of the registering browser
+      example: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+  required:
+    - token
+    - platform
+
+# Request model for deleting a device token
+DeleteDeviceTokenRequest:
+  type: object
+  properties:
+    token:
+      type: string
+      description: Push notification device token to delete (leading/trailing whitespace is trimmed)
+      minLength: 1
+      example: "fcm-web-push-token-abc123"
+  required:
+    - token

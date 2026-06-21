@@ -1,0 +1,883 @@
+# feeds path items — referenced from ../openapi.yaml (component refs resolve
+# back through the root document). One domain per file; see the repo layout
+# note in openapi.yaml info.description.
+
+api-v1-team_id-feeds:
+  post:
+    summary: Create a new feed
+    description: Creates a new AI feed channel for the specified team (free-tier accessible)
+    operationId: createFeed
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateFeedRequest'
+    responses:
+      '201':
+        description: Feed created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Feed'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: A feed with that name already exists in this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+  get:
+    summary: List feeds
+    description: Returns all feeds for the specified team with optional pagination
+    operationId: listFeeds
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: search
+        in: query
+        description: Search in feed name and description
+        schema:
+          type: string
+      - name: page
+        in: query
+        description: Page number (default 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page (default 20, max 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Feeds retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FeedListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+api-v1-team_id-feeds-feed_id:
+  get:
+    summary: Get a feed
+    description: Retrieves a specific feed by ID
+    operationId: getFeed
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: feed_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed identifier
+    responses:
+      '200':
+        description: Feed retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Feed'
+      '400':
+        description: Invalid feed_id format
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Feed not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+  put:
+    summary: Update a feed
+    description: Updates the name and/or description of an existing feed
+    operationId: updateFeed
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: feed_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateFeedRequest'
+    responses:
+      '200':
+        description: Feed updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/Feed'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Feed not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: A feed with that name already exists in this team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+  delete:
+    summary: Delete a feed
+    description: Permanently deletes a feed and cascades deletion to all its items
+    operationId: deleteFeed
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: feed_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed identifier
+    responses:
+      '204':
+        description: Feed deleted successfully
+      '400':
+        description: Invalid feed_id format
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Feed not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+api-v1-team_id-feeds-feed_id-items:
+  post:
+    summary: Create a feed item
+    description: Posts a new AI-generated item to a specific feed
+    operationId: createFeedItem
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: feed_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateFeedItemRequest'
+    responses:
+      '201':
+        description: Feed item created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FeedItem'
+      '400':
+        description: Invalid request data or validation error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member or project belongs to a different team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+  get:
+    summary: List items in a feed
+    description: Returns paginated items for a specific feed
+    operationId: listFeedItemsByFeed
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: feed_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed identifier
+      - name: project_id
+        in: query
+        description: Filter by project ID
+        schema:
+          type: string
+          format: uuid
+      - name: ai_assistant_name
+        in: query
+        description: Filter by AI assistant name
+        schema:
+          type: string
+      - name: archived
+        in: query
+        description: "Filter by archived status: 'true' (archived only), 'false' (active only, default), 'all'"
+        schema:
+          type: string
+          enum: ["true", "false", "all"]
+          default: "false"
+      - name: page
+        in: query
+        description: Page number (default 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page (default 20, max 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Feed items retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FeedItemListResponse'
+      '400':
+        description: Invalid feed_id format
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+api-v1-team_id-feed-items:
+  get:
+    summary: List all feed items (cross-feed)
+    description: Returns paginated feed items across all feeds for the team, with optional filters
+    operationId: listFeedItems
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: feed_id
+        in: query
+        description: Filter by feed ID
+        schema:
+          type: string
+          format: uuid
+      - name: project_id
+        in: query
+        description: Filter by project ID
+        schema:
+          type: string
+          format: uuid
+      - name: ai_assistant_name
+        in: query
+        description: Filter by AI assistant name
+        schema:
+          type: string
+      - name: archived
+        in: query
+        description: "Filter by archived status: 'true' (archived only), 'false' (active only, default), 'all'"
+        schema:
+          type: string
+          enum: ["true", "false", "all"]
+          default: "false"
+      - name: page
+        in: query
+        description: Page number (default 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page (default 20, max 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Feed items retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FeedItemListResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+api-v1-team_id-feed-items-item_id:
+  get:
+    summary: Get a feed item
+    description: Retrieves a specific feed item by ID (detail page)
+    operationId: getFeedItem
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed item identifier
+    responses:
+      '200':
+        description: Feed item retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FeedItem'
+      '400':
+        description: Invalid item_id format, or team_id is not a valid UUID
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Feed item not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+  delete:
+    summary: Delete a feed item
+    description: Permanently deletes a feed item (hard delete)
+    operationId: deleteFeedItem
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed item identifier
+    responses:
+      '204':
+        description: Feed item deleted successfully
+      '400':
+        description: Invalid item_id format
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden — caller is not a team member, or is not the item's
+          poster, owner, or admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Feed item not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+api-v1-team_id-feed-items-item_id-archive:
+  post:
+    summary: Archive a feed item
+    description: Sets archived_at to the current server time for the specified feed item
+    operationId: archiveFeedItem
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed item identifier
+    responses:
+      '204':
+        description: Feed item archived successfully
+      '400':
+        description: Invalid item_id format
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Feed item not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+api-v1-team_id-feed-items-item_id-unarchive:
+  post:
+    summary: Unarchive a feed item
+    description: Clears archived_at (sets to NULL) for the specified feed item
+    operationId: unarchiveFeedItem
+    security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed item identifier
+    responses:
+      '204':
+        description: Feed item unarchived successfully
+      '400':
+        description: Invalid item_id format
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Feed item not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+
+api-v1-team_id-feed-items-item_id-replies:
+  get:
+    summary: List feed item replies
+    description: |
+      Returns paginated threaded replies for the specified feed item, team-scoped
+      (free-tier accessible).
+    operationId: listFeedItemReplies
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed item identifier
+      - name: page
+        in: query
+        description: Page number (default 1)
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page (default 20, max 100)
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: Feed item replies retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FeedItemReplyListResponse'
+      '400':
+        description: Invalid item_id format
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Feed item not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds
+  post:
+    summary: Create a feed item reply
+    description: |
+      Posts a threaded reply to the specified feed item, team-scoped (free-tier
+      accessible). Replies cannot be posted to archived feed items. Reply creation
+      counts against the user's feed item resource limit.
+    operationId: createFeedItemReply
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Feed item identifier
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/CreateFeedItemReplyRequest'
+    responses:
+      '201':
+        description: Feed item reply created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/FeedItemReply'
+      '400':
+        description: Invalid item_id format, team_id not a valid UUID, invalid request body, or validation failed (content required/too long)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member, or feed item resource limit reached for the subscription plan
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Feed item not found
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '422':
+        description: Cannot reply to an archived feed item
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - AI Feeds

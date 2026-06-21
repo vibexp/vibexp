@@ -1,0 +1,102 @@
+# In-app notification schemas
+
+Notification:
+  type: object
+  description: An in-app notification delivered to a user
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique notification identifier
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    team_id:
+      type: string
+      description: Team context the notification relates to (omitted when not team-scoped)
+      example: "660e8400-e29b-41d4-a716-446655440001"
+    type:
+      type: string
+      description: Semantic notification type
+      example: "feed.item.created"
+    category:
+      type: string
+      description: Urgency/priority classification
+      enum: [high, low]
+      example: "low"
+    title:
+      type: string
+      description: Short notification headline
+      example: "New feed item in Engineering Feed"
+    body:
+      type: string
+      description: Optional longer plain-text description (omitted when empty)
+      example: "A new AI-generated item was posted to your feed."
+    action_url:
+      type: string
+      description: Optional deep-link URL for the notification action (omitted when empty)
+      example: "https://app.example.com/teams/660e8400/feeds/abc123"
+    entity_ref:
+      type: object
+      additionalProperties: true
+      description: Optional structured metadata about the related entity (omitted when empty)
+      example:
+        entity_type: "feed_item"
+        entity_id: "770e8400-e29b-41d4-a716-446655440002"
+    read_at:
+      type: string
+      format: date-time
+      description: Timestamp when the notification was read (omitted while unread)
+      example: "2026-06-09T10:15:30Z"
+    dismissed_at:
+      type: string
+      format: date-time
+      description: Timestamp when the notification was dismissed (omitted when not dismissed)
+      example: "2026-06-09T10:20:00Z"
+    created_at:
+      type: string
+      format: date-time
+      description: Timestamp when the notification was created
+      example: "2026-06-09T09:00:00Z"
+  required:
+    - id
+    - type
+    - category
+    - title
+    - created_at
+
+NotificationListResponse:
+  type: object
+  description: Paginated list of notifications for the authenticated user
+  properties:
+    notifications:
+      type: array
+      description: Notifications in this page, newest first
+      items:
+        $ref: '#/Notification'
+    count:
+      type: integer
+      description: Number of items in this page (≤ limit), NOT the global total
+      example: 20
+    limit:
+      type: integer
+      description: Page size used for this request
+      example: 20
+    offset:
+      type: integer
+      description: Offset used for this request
+      example: 0
+  required:
+    - notifications
+    - count
+    - limit
+    - offset
+
+UnreadCountResponse:
+  type: object
+  description: Unread notification count for the authenticated user
+  properties:
+    unread_count:
+      type: integer
+      description: Total number of unread notifications
+      example: 3
+  required:
+    - unread_count

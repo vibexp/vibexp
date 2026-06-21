@@ -1,0 +1,178 @@
+# Embedding provider management schemas
+
+EmbeddingProvider:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "provider_123"
+    user_id:
+      type: string
+      example: "user_123"
+    name:
+      type: string
+      example: "OpenAI Embeddings"
+    provider_type:
+      type: string
+      example: "openai"
+    is_default:
+      type: boolean
+      example: false
+    base_url:
+      type: string
+      format: uri
+      nullable: true
+      example: "https://api.openai.com/v1"
+    configuration:
+      type: string
+      example: "{\"model\": \"text-embedding-ada-002\"}"
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    version:
+      type: integer
+      format: int64
+      description: >-
+        Optimistic-concurrency version counter, incremented on each update.
+        Note: create responses currently return 0 (the persisted row starts
+        at 1) — read it from get/list/update responses instead.
+      example: 1
+  required:
+    - id
+    - user_id
+    - name
+    - provider_type
+    - is_default
+    - configuration
+    - created_at
+    - updated_at
+    - version
+
+EmbeddingProviderResponse:
+  allOf:
+    - $ref: '#/EmbeddingProvider'
+    - type: object
+      properties:
+        has_api_key:
+          type: boolean
+          example: true
+      required:
+        - has_api_key
+
+CreateEmbeddingProviderRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      example: "OpenAI Embeddings"
+    provider_type:
+      type: string
+      example: "openai"
+    is_default:
+      type: boolean
+      example: false
+    base_url:
+      type: string
+      format: uri
+      example: "https://api.openai.com/v1"
+    api_key:
+      type: string
+      nullable: true
+    configuration:
+      type: object
+      additionalProperties: true
+  required:
+    - name
+    - provider_type
+
+UpdateEmbeddingProviderRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    provider_type:
+      type: string
+    is_default:
+      type: boolean
+    base_url:
+      type: string
+      format: uri
+    api_key:
+      type: string
+    configuration:
+      type: object
+      additionalProperties: true
+
+EmbeddingProviderListResponse:
+  type: object
+  properties:
+    embedding_providers:
+      type: array
+      items:
+        $ref: '#/EmbeddingProviderResponse'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - embedding_providers
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+ValidateEmbeddingProviderRequest:
+  type: object
+  properties:
+    provider_type:
+      type: string
+      example: "openai_compatible"
+    base_url:
+      type: string
+      format: uri
+      example: "https://api.openai.com/v1"
+    api_key:
+      type: string
+      nullable: true
+    configuration:
+      type: object
+      additionalProperties: true
+  required:
+    - provider_type
+    - base_url
+
+ValidateEmbeddingProviderResponse:
+  type: object
+  properties:
+    is_valid:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "Provider configuration is valid"
+    details:
+      type: object
+      properties:
+        response_time_ms:
+          type: integer
+          example: 150
+        status_code:
+          type: integer
+          example: 200
+        error_details:
+          type: string
+          example: "Connection timeout"
+  required:
+    - is_valid
+    - message

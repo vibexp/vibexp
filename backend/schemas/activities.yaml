@@ -1,0 +1,298 @@
+# Activity tracking schemas
+
+# CORRECTED: added entity_name and actor_name (resolved at the service layer,
+# omitted when nil); activity/entity type examples aligned with code constants.
+Activity:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    user_id:
+      type: string
+      example: "a1234567-89ab-cdef-0123-456789abcdef"
+    activity_type:
+      type: string
+      example: "prompt_created"
+    entity_type:
+      type: string
+      example: "prompt"
+    entity_id:
+      type: string
+      nullable: true
+      example: "01234567-89ab-cdef-0123-456789abcdef"
+    session_id:
+      type: string
+      nullable: true
+      example: "session_123"
+    description:
+      type: string
+      example: "Created new prompt template"
+    metadata:
+      type: object
+      additionalProperties: true
+    source_ip:
+      type: string
+      nullable: true
+      example: "192.168.1.1"
+    user_agent:
+      type: string
+      nullable: true
+    created_at:
+      type: string
+      format: date-time
+    entity_name:
+      type: string
+      nullable: true
+      description: Human-readable name of the referenced entity (omitted when the entity type has no resolvable name or the entity was deleted)
+      example: "My Prompt"
+    actor_name:
+      type: string
+      nullable: true
+      description: Display name of the user who performed the activity (omitted when the user record cannot be found)
+      example: "Jane Doe"
+  required:
+    - id
+    - user_id
+    - activity_type
+    - entity_type
+    - description
+    - metadata
+    - created_at
+
+# CORRECTED: description minLength is 1, not 10, and there is no enforced
+# description maxLength (handler only requires non-empty); source_ip and
+# user_agent are overwritten server-side from the request.
+CreateActivityRequest:
+  type: object
+  properties:
+    activity_type:
+      type: string
+      minLength: 1
+      maxLength: 50
+      example: "prompt_created"
+    entity_type:
+      type: string
+      minLength: 1
+      maxLength: 50
+      example: "prompt"
+    entity_id:
+      type: string
+      maxLength: 255
+    session_id:
+      type: string
+      maxLength: 255
+    description:
+      type: string
+      minLength: 1
+      example: "Created new prompt template"
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Arbitrary metadata; the server adds manual_creation and created_via keys
+    source_ip:
+      type: string
+      description: Ignored — overwritten with the client IP derived from the request
+    user_agent:
+      type: string
+      description: Ignored — overwritten with the User-Agent header from the request
+  required:
+    - activity_type
+    - entity_type
+    - description
+
+ActivityListResponse:
+  type: object
+  properties:
+    activities:
+      type: array
+      items:
+        $ref: '#/Activity'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - activities
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+ActivityStatsResponse:
+  type: object
+  properties:
+    total_activities:
+      type: integer
+    activities_today:
+      type: integer
+    activities_this_week:
+      type: integer
+    top_activity_types:
+      type: array
+      items:
+        type: object
+        properties:
+          activity_type:
+            type: string
+          count:
+            type: integer
+    top_entity_types:
+      type: array
+      items:
+        type: object
+        properties:
+          entity_type:
+            type: string
+          count:
+            type: integer
+    recent_activities:
+      type: array
+      items:
+        $ref: '#/Activity'
+    activities_by_date_week:
+      type: array
+      items:
+        type: object
+        properties:
+          date:
+            type: string
+          count:
+            type: integer
+  required:
+    - total_activities
+    - activities_today
+    - activities_this_week
+    - top_activity_types
+    - top_entity_types
+    - recent_activities
+    - activities_by_date_week
+
+# CORRECTED: added entity_types — GetAllTypes returns both activity types and
+# entity types in a single response (used by GET /api/v1/activities/types).
+ActivityTypesResponse:
+  type: object
+  properties:
+    activity_types:
+      type: array
+      items:
+        type: string
+      example: ["auth_login", "prompt_created", "claude_code_session"]
+    entity_types:
+      type: array
+      items:
+        type: string
+      example: ["user", "api_key", "prompt", "session", "system"]
+  required:
+    - activity_types
+    - entity_types
+
+EntityTypesResponse:
+  type: object
+  properties:
+    entity_types:
+      type: array
+      items:
+        type: string
+      example: ["prompt", "agent", "context", "report"]
+  required:
+    - entity_types
+
+# ============================================================================
+# NEW DEFINITIONS — append to schemas/activities.yaml.
+# All activity endpoints wrap their payload in a {status, message, data}
+# success envelope (written via writeOK/writeJSON in the handlers).
+# ============================================================================
+# Envelope for a single activity (GET /activities/{id}, POST /activities)
+ActivityEnvelope:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Activity retrieved successfully"
+    data:
+      $ref: '#/Activity'
+  required:
+    - status
+    - message
+    - data
+
+# Envelope for the paginated activity list (GET /activities)
+ActivityListEnvelope:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Activities retrieved successfully"
+    data:
+      $ref: '#/ActivityListResponse'
+  required:
+    - status
+    - message
+    - data
+
+# Envelope for activity statistics (GET /activities/stats)
+ActivityStatsEnvelope:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Activity statistics retrieved successfully"
+    data:
+      $ref: '#/ActivityStatsResponse'
+  required:
+    - status
+    - message
+    - data
+
+# Envelope for the combined activity/entity type catalog (GET /activities/types)
+ActivityTypesEnvelope:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Activity and entity types retrieved successfully"
+    data:
+      $ref: '#/ActivityTypesResponse'
+  required:
+    - status
+    - message
+    - data
+
+# Envelope for the entity type catalog (GET /activities/entity-types).
+# NOTE: data is a plain string array, NOT the EntityTypesResponse object —
+# the handler writes the []string returned by GetEntityTypes() directly.
+ActivityEntityTypesEnvelope:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "success"
+    message:
+      type: string
+      example: "Activity entity types retrieved successfully"
+    data:
+      type: array
+      items:
+        type: string
+      example: ["user", "api_key", "prompt", "session", "system"]
+  required:
+    - status
+    - message
+    - data

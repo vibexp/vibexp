@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Email Template</title>
+    <style>
+        /* Base Resets */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f7;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #51545E;
+            line-height: 1.6;
+        }
+
+        table {
+            border-spacing: 0;
+            border-collapse: collapse;
+        }
+
+        /* Container */
+        .email-wrapper {
+            width: 100%;
+            background-color: #f4f4f7;
+            padding: 20px 0;
+        }
+
+        .email-content {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Header */
+        .email-header {
+            background-color: #000000;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .logo-container {
+            display: inline-block;
+            width: 80px;
+            height: auto;
+        }
+
+        /* Body */
+        .email-body {
+            padding: 40px 30px;
+        }
+
+        h1 {
+            color: #333333;
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        p {
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+
+        /* Button */
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .button {
+            display: inline-block;
+            background-color: #000000;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        /* Footer */
+        .email-footer {
+            background-color: #f9f9f9;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6b6e76;
+            border-top: 1px solid #eeeeee;
+        }
+
+        .email-footer a {
+            color: #6b6e76;
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media only screen and (max-width: 600px) {
+            .email-content {
+                width: 100% !important;
+                border-radius: 0 !important;
+            }
+            .email-body {
+                padding: 20px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="email-wrapper">
+    <!-- Main Content Container -->
+    <table class="email-content" role="presentation">
+
+        <!-- Header with Logo -->
+        <tr>
+            <td class="email-header">
+                <div class="logo-container">
+                    <!-- Replace the src below with your actual logo URL -->
+                    <!-- For best results, use a PNG/JPG image hosted on your server or a CDN -->
+                    <img src="https://vibexp.io/logo.png"
+                         alt="Company Logo"
+                         width="80"
+                         style="display: block; width: 80px; height: auto; margin: 0 auto;">
+                </div>
+            </td>
+        </tr>
+
+        <!-- Body Content -->
+        <tr>
+            <td class="email-body">
+                {{template "content" .}}
+            </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+            <td class="email-footer">
+                <p>&copy; {{.Year}} VibeXP. All rights reserved.</p>
+                <p>
+                    <a href="{{.AppBaseURL}}/settings/notifications?utm_source=email&utm_medium=footer&utm_campaign=email-preferences">Manage Email Preferences</a> |
+                    <a href="{{.PrivacyPolicyURL}}?utm_source=email&utm_medium=footer&utm_campaign=privacy">Privacy Policy</a>
+                </p>
+                <p>You're receiving this email because you have a VibeXP account. To manage your email preferences or unsubscribe from specific notifications, visit your <a href="{{.AppBaseURL}}/settings/notifications?utm_source=email&utm_medium=footer&utm_campaign=email-settings" style="color: #6b6e76; text-decoration: underline;">notification settings</a>.</p>
+            </td>
+        </tr>
+    </table>
+</div>
+
+</body>
+</html>
