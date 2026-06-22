@@ -3,9 +3,8 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/pkg/events"
 )
@@ -34,7 +33,7 @@ type EmbeddingGenerationProcessor struct {
 	embeddingService EmbeddingServiceInterface
 	model            string
 	dimensions       int
-	logger           *logrus.Logger
+	logger           *slog.Logger
 }
 
 // Ensure EmbeddingGenerationProcessor implements events.EmbeddingProcessor.
@@ -47,7 +46,7 @@ func NewEmbeddingGenerationProcessor(
 	embeddingService EmbeddingServiceInterface,
 	model string,
 	dimensions int,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *EmbeddingGenerationProcessor {
 	return &EmbeddingGenerationProcessor{
 		resolver:         resolver,
@@ -76,12 +75,12 @@ func (p *EmbeddingGenerationProcessor) ProcessEvent(ctx context.Context, event e
 		return fmt.Errorf("failed to resolve embedding provider: %w", err)
 	}
 	if provider == nil {
-		p.logger.WithFields(logrus.Fields{
-			"service":     "embedding",
-			"component":   "embedding-processor",
-			"entity_type": input.entityType,
-			"entity_id":   input.entityID,
-		}).Debug("No active embedding provider configured; skipping embedding generation")
+		p.logger.With(
+			"service", "embedding",
+			"component", "embedding-processor",
+			"entity_type", input.entityType,
+			"entity_id", input.entityID,
+		).Debug("No active embedding provider configured; skipping embedding generation")
 		return nil
 	}
 
@@ -112,14 +111,14 @@ func (p *EmbeddingGenerationProcessor) ProcessEvent(ctx context.Context, event e
 		return fmt.Errorf("failed to save embeddings for %s %s: %w", input.entityType, input.entityID, err)
 	}
 
-	p.logger.WithFields(logrus.Fields{
-		"service":     "embedding",
-		"component":   "embedding-processor",
-		"entity_type": input.entityType,
-		"entity_id":   input.entityID,
-		"model":       p.model,
-		"chunk_count": len(chunks),
-	}).Info("Embeddings generated and saved")
+	p.logger.With(
+		"service", "embedding",
+		"component", "embedding-processor",
+		"entity_type", input.entityType,
+		"entity_id", input.entityID,
+		"model", p.model,
+		"chunk_count", len(chunks),
+	).Info("Embeddings generated and saved")
 
 	return nil
 }

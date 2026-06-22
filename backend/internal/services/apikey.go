@@ -6,9 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -16,13 +15,13 @@ import (
 
 type APIKeyService struct {
 	apiKeyRepo repositories.APIKeyRepository
-	logger     *logrus.Logger
+	logger     *slog.Logger
 }
 
 // Ensure APIKeyService implements APIKeyServiceInterface
 var _ APIKeyServiceInterface = (*APIKeyService)(nil)
 
-func NewAPIKeyService(apiKeyRepo repositories.APIKeyRepository, logger *logrus.Logger) *APIKeyService {
+func NewAPIKeyService(apiKeyRepo repositories.APIKeyRepository, logger *slog.Logger) *APIKeyService {
 	return &APIKeyService{
 		apiKeyRepo: apiKeyRepo,
 		logger:     logger,
@@ -158,12 +157,12 @@ func (aks *APIKeyService) ValidateAPIKey(ctx context.Context, key string) (*mode
 	err = aks.apiKeyRepo.UpdateLastUsed(ctx, apiKey.ID, time.Now())
 	if err != nil {
 		// Log but don't fail the validation for this
-		aks.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"method":     "ValidateAPIKey",
-			"api_key_id": apiKey.ID,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Warn("Failed to update last_used_at for API key")
+		aks.logger.With(
+			"service", "vibexp-api",
+			"method", "ValidateAPIKey",
+			"api_key_id", apiKey.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to update last_used_at for API key")
 	}
 
 	return apiKey, nil

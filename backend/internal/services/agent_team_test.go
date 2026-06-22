@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	repoMocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 )
@@ -203,7 +203,7 @@ func TestAgentService_ValidateAndResolveTeamID(t *testing.T) {
 			mockExecutionRepo := repoMocks.NewMockAgentExecutionRepository(t)
 			encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
 			require.NoError(t, err)
-			logger, _ := test.NewNullLogger()
+			logger, _ := logtest.New()
 
 			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, mockTeamService, logger)
 
@@ -257,7 +257,7 @@ func TestAgentService_ValidateTeamReassignment(t *testing.T) {
 			mockExecutionRepo := repoMocks.NewMockAgentExecutionRepository(t)
 			encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
 			require.NoError(t, err)
-			logger, _ := test.NewNullLogger()
+			logger, _ := logtest.New()
 
 			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, logger)
 
@@ -334,7 +334,7 @@ func TestAgentService_CreateAgent_WithTeamID(t *testing.T) {
 			mockCardFetcher := &MockAgentCardFetcher{}
 			encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
 			require.NoError(t, err)
-			logger, _ := test.NewNullLogger()
+			logger, _ := logtest.New()
 
 			tt.setupMocks(mockTeamService, mockAgentRepo, mockCardFetcher)
 
@@ -417,7 +417,7 @@ func TestAgentService_UpdateAgent_TeamReassignment(t *testing.T) {
 			mockExecutionRepo := repoMocks.NewMockAgentExecutionRepository(t)
 			encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
 			require.NoError(t, err)
-			logger, _ := test.NewNullLogger()
+			logger, _ := logtest.New()
 
 			tt.setupMocks(mockAgentRepo)
 

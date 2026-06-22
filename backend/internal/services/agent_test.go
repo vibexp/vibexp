@@ -6,12 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus/hooks/test"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	repoMocks "github.com/vibexp/vibexp/internal/repositories/mocks"
@@ -39,7 +38,7 @@ func createTestAgentService(
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create encryption service for tests: %v", err))
 	}
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	return NewAgentServiceWithCardFetcher(agentRepo, executionRepo, cardFetcher, encryptionSvc, nil, logger)
 }
 
@@ -130,7 +129,7 @@ func TestNewAgentService(t *testing.T) {
 	mockExecutionRepo := repoMocks.NewMockAgentExecutionRepository(t)
 	encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
 	require.NoError(t, err)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, logger)
 
 	assert.NotNil(t, service)

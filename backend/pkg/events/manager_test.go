@@ -2,16 +2,15 @@ package events
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEventManager(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	t.Run("NewEventManager creates manager", func(t *testing.T) {
 		testManagerCreation(t, logger)
@@ -46,7 +45,7 @@ func TestEventManager(t *testing.T) {
 	})
 }
 
-func testManagerCreation(t *testing.T, logger *logrus.Logger) {
+func testManagerCreation(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 5, BufferSize: 50}, Logger: logger}
 	manager := NewEventManager(config)
 
@@ -56,7 +55,7 @@ func testManagerCreation(t *testing.T, logger *logrus.Logger) {
 	assert.False(t, manager.started)
 }
 
-func testManagerStartStop(t *testing.T, logger *logrus.Logger) {
+func testManagerStartStop(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Logger: logger}
 	manager := NewEventManager(config)
 
@@ -69,7 +68,7 @@ func testManagerStartStop(t *testing.T, logger *logrus.Logger) {
 	assert.False(t, manager.started)
 }
 
-func testManagerCannotStartTwice(t *testing.T, logger *logrus.Logger) {
+func testManagerCannotStartTwice(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Logger: logger}
 	manager := NewEventManager(config)
 
@@ -85,7 +84,7 @@ func testManagerCannotStartTwice(t *testing.T, logger *logrus.Logger) {
 	}
 }
 
-func testManagerCannotStopIfNotStarted(t *testing.T, logger *logrus.Logger) {
+func testManagerCannotStopIfNotStarted(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Logger: logger}
 	manager := NewEventManager(config)
 
@@ -94,7 +93,7 @@ func testManagerCannotStopIfNotStarted(t *testing.T, logger *logrus.Logger) {
 	assert.Contains(t, err.Error(), "not started")
 }
 
-func testManagerPublishEvents(t *testing.T, logger *logrus.Logger) {
+func testManagerPublishEvents(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 2, BufferSize: 10}, Logger: logger}
 	manager := NewEventManager(config)
 	if err := manager.Start(); err != nil {
@@ -114,7 +113,7 @@ func testManagerPublishEvents(t *testing.T, logger *logrus.Logger) {
 	assert.Equal(t, 1, len(handledEvents))
 }
 
-func testManagerNotStarted(t *testing.T, logger *logrus.Logger) {
+func testManagerNotStarted(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Logger: logger}
 	manager := NewEventManager(config)
 
@@ -124,7 +123,7 @@ func testManagerNotStarted(t *testing.T, logger *logrus.Logger) {
 	assert.Contains(t, err.Error(), "not started")
 }
 
-func testManagerSubscribeUnsubscribe(t *testing.T, logger *logrus.Logger) {
+func testManagerSubscribeUnsubscribe(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 2, BufferSize: 10}, Logger: logger}
 	manager := NewEventManager(config)
 	if err := manager.Start(); err != nil {
@@ -155,7 +154,7 @@ func testManagerSubscribeUnsubscribe(t *testing.T, logger *logrus.Logger) {
 	assert.Equal(t, 2, len(listener2.GetHandledEvents()))
 }
 
-func testManagerMultipleEventTypes(t *testing.T, logger *logrus.Logger) {
+func testManagerMultipleEventTypes(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 3, BufferSize: 20}, Logger: logger}
 	manager := NewEventManager(config)
 	if err := manager.Start(); err != nil {

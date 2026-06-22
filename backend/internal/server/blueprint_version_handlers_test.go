@@ -2,13 +2,12 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,8 +22,7 @@ import (
 // BlueprintService, so version handlers can be exercised directly (middleware/routing bypassed).
 func newBlueprintVersionTestServer(mockBlueprintService *servicesmocks.MockBlueprintServiceInterface) *Server {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = &MockBlueprintContainer{BlueprintServiceMock: mockBlueprintService}
 	return srv

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -52,8 +52,7 @@ func newProjectGitHubTestContainer(t *testing.T) *projectGitHubTestContainer {
 // Routes are NOT set up; tests call handlers directly to avoid middleware.
 func createProjectGitHubServer(container *projectGitHubTestContainer) *Server {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 	return &Server{

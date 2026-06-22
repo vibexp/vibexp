@@ -5,7 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -23,8 +24,7 @@ func newCallbackTestService(
 	projectRepo := new(MockProjectRepository)
 	blueprintRepo := new(MockBlueprintRepository)
 	encryptionSvc := new(MockEncryptionService)
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	return NewGitHubAppService(
 		installationRepo,

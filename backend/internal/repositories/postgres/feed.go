@@ -3,9 +3,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -186,7 +186,7 @@ func (r *FeedRepository) queryList(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close feed rows")
+			slog.Error("Failed to close feed rows", "error", closeErr)
 		}
 	}()
 
@@ -258,7 +258,7 @@ func (r *FeedRepository) queryListWithLastPost(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close feed rows")
+			slog.Error("Failed to close feed rows", "error", closeErr)
 		}
 	}()
 
@@ -554,7 +554,7 @@ func (r *FeedItemRepository) queryList(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close feed item rows")
+			slog.Error("Failed to close feed item rows", "error", closeErr)
 		}
 	}()
 

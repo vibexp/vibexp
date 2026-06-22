@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
@@ -31,7 +31,7 @@ type GitHubAppService struct {
 	githubClient     external.GitHubAppClient
 	encryptionSvc    EncryptionServiceInterface
 	eventManager     events.EventPublisher
-	logger           *logrus.Logger
+	logger           *slog.Logger
 }
 
 // NewGitHubAppService creates a new GitHub App service
@@ -42,7 +42,7 @@ func NewGitHubAppService(
 	githubClient external.GitHubAppClient,
 	encryptionSvc EncryptionServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) GitHubAppServiceInterface {
 	return &GitHubAppService{
 		installationRepo: installationRepo,
@@ -99,7 +99,7 @@ func (s *GitHubAppService) DisconnectInstallation(ctx context.Context, userID, t
 	}
 	event := events.NewBaseEvent("github.installation.deleted", payload, userID)
 	if err := s.eventManager.Publish(ctx, event); err != nil {
-		s.logger.WithError(err).Warn("Failed to publish installation deleted event")
+		s.logger.With("error", err).Warn("Failed to publish installation deleted event")
 	}
 
 	return nil
@@ -111,16 +111,16 @@ func (s *GitHubAppService) DisconnectInstallation(ctx context.Context, userID, t
 // processed, so the integration stops polling a dead installation. Failures are
 // logged, not returned: the caller's GitHub API error is the primary outcome.
 func (s *GitHubAppService) removeGoneInstallation(ctx context.Context, teamID string, installationID int64) {
-	logger := s.logger.WithFields(logrus.Fields{
-		"team_id":         teamID,
-		"installation_id": installationID,
-	})
+	logger := s.logger.With(
+		"team_id", teamID,
+		"installation_id", installationID,
+	)
 
 	// A concurrent caller may have removed the record already — that is
 	// success for our purposes, and the cache eviction below must still run.
 	err := s.installationRepo.Delete(ctx, teamID)
 	if err != nil && !errors.Is(err, repositories.ErrGitHubInstallationNotFound) {
-		logger.WithError(err).Error("Failed to remove gone GitHub installation")
+		logger.With("error", err).Error("Failed to remove gone GitHub installation")
 		return
 	}
 	s.githubClient.EvictCachedClient(installationID)
@@ -151,7 +151,7 @@ func (s *GitHubAppService) RefreshInstallationToken(ctx context.Context, teamID 
 		return fmt.Errorf("failed to update installation: %w", err)
 	}
 
-	s.logger.WithField("team_id", teamID).Debug("Token refresh requested but tokens are managed by ghinstallation library")
+	s.logger.With("team_id", teamID).Debug("Token refresh requested but tokens are managed by ghinstallation library")
 
 	return nil
 }
@@ -166,7 +166,7 @@ func (s *GitHubAppService) HandleWebhookEvent(
 	installation, err := s.installationRepo.GetByInstallationID(ctx, installationID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrGitHubInstallationNotFound) {
-			s.logger.WithField("installation_id", installationID).Warn("Installation not found for webhook event")
+			s.logger.With("installation_id", installationID).Warn("Installation not found for webhook event")
 			return nil
 		}
 		return fmt.Errorf("failed to get installation: %w", err)
@@ -176,13 +176,13 @@ func (s *GitHubAppService) HandleWebhookEvent(
 	case "installation":
 		return s.handleInstallationEvent(ctx, installation, action)
 	case "installation_repositories":
-		s.logger.WithFields(logrus.Fields{
-			"installation_id": installationID,
-			"action":          action,
-		}).Info("Installation repositories event received")
+		s.logger.With(
+			"installation_id", installationID,
+			"action", action,
+		).Info("Installation repositories event received")
 		return nil
 	default:
-		s.logger.WithField("event_type", eventType).Info("Unhandled webhook event type")
+		s.logger.With("event_type", eventType).Info("Unhandled webhook event type")
 		return nil
 	}
 }

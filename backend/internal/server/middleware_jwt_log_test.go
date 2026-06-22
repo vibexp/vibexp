@@ -2,14 +2,13 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
-	logrustest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,11 +22,10 @@ import (
 func newServerWithMockAuthSvc(
 	t *testing.T,
 	authSvc *svcmocks.MockAuthServiceInterface,
-) (*Server, *logrus.Logger) {
+) (*Server, *slog.Logger) {
 	t.Helper()
 
-	logger, _ := logrustest.NewNullLogger()
-	logger.SetLevel(logrus.DebugLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// MockAuthContainer is defined in auth_handlers_integration_test.go
 	// and already embeds BaseMockContainer + exposes AuthService().
@@ -52,12 +50,11 @@ func newServerWithMockAuthSvc(
 	return srv, logger
 }
 
-// requestWithLogEntry returns a request that carries a logrus Entry in its context
+// requestWithLogEntry returns a request that carries a logger in its context
 // so that contextkeys.GetLoggerFromContext picks it up.
-func requestWithLogEntry(logger *logrus.Logger) *http.Request {
+func requestWithLogEntry(logger *slog.Logger) *http.Request {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	entry := logrus.NewEntry(logger)
-	ctx := context.WithValue(req.Context(), contextkeys.Logger, entry)
+	ctx := context.WithValue(req.Context(), contextkeys.Logger, logger)
 	return req.WithContext(ctx)
 }
 

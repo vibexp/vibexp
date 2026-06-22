@@ -3,11 +3,11 @@ package services_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -22,9 +22,8 @@ import (
 )
 
 // helpers
-func newTestLogger() *logrus.Logger {
-	l := logrus.New()
-	l.SetLevel(logrus.FatalLevel)
+func newTestLogger() *slog.Logger {
+	l := slog.New(slog.DiscardHandler)
 	return l
 }
 

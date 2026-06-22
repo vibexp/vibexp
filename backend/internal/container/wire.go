@@ -3,8 +3,9 @@
 package container
 
 import (
+	"log/slog"
+
 	"github.com/google/wire"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container/providers"
@@ -125,7 +126,7 @@ var ProviderSet = wire.NewSet(
 )
 
 // InitializeContainer creates a new container with Wire-based dependency injection
-func InitializeContainer(db *database.DB, cfg *config.Config, logger *logrus.Logger) (Container, error) {
+func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logger) (Container, error) {
 	wire.Build(
 		ProviderSet,
 		NewWireContainer,

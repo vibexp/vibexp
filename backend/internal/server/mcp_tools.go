@@ -2,10 +2,10 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 )
@@ -39,9 +39,9 @@ func (m *MCPToolsManager) AddAllTools(mcpServer *mcp.Server, userID string) {
 	m.addSearchTools(mcpServer, userID)
 	m.addAttachmentTools(mcpServer, userID)
 
-	logrus.WithFields(logrus.Fields{
-		"user_id": userID,
-	}).Info("Added all MCP tools to server")
+	slog.With(
+		"user_id", userID,
+	).Info("Added all MCP tools to server")
 }
 
 // addUserTools adds the user info tool (user-scoped; no team_id).
@@ -227,13 +227,13 @@ func (m *MCPToolsManager) addProjectTools(mcpServer *mcp.Server, userID string) 
 func getUserFromContext(req *http.Request) (userID string, ok bool) {
 	userIDValue := req.Context().Value(contextkeys.UserID)
 	if userIDValue == nil {
-		logrus.Warn("No user ID found in context for MCP handler")
+		slog.Warn("No user ID found in context for MCP handler")
 		return "", false
 	}
 
 	userID, ok = userIDValue.(string)
 	if !ok {
-		logrus.Warn("User ID in context is not a string")
+		slog.Warn("User ID in context is not a string")
 		return "", false
 	}
 
@@ -247,7 +247,7 @@ func (s *Server) setupMCPServerCommon(mcpServer *mcp.Server, toolsManager *MCPTo
 	userID, ok := getUserFromContext(req)
 	if !ok {
 		// This should never happen since flexibleAuthMiddleware validates identity.
-		logrus.Warn("Missing user ID in MCP handler despite auth middleware")
+		slog.Warn("Missing user ID in MCP handler despite auth middleware")
 		return
 	}
 

@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -258,8 +258,7 @@ func newGitHubTestContainer(t *testing.T) (*GitHubTestContainer, *trackingActivi
 
 func createGitHubTestServer(container *GitHubTestContainer) *Server {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 

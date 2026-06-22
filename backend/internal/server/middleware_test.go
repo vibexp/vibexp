@@ -3,14 +3,13 @@ package server
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/vibexp/vibexp/internal/config"
@@ -132,8 +131,7 @@ func TestIsAPIKey_AllDefinedPrefixes(t *testing.T) {
 func newQueryParamTestServer(t *testing.T) *Server {
 	t.Helper()
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)
 }
 

@@ -3,10 +3,10 @@ package services_test
 import (
 	"testing"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
@@ -41,7 +41,7 @@ func TestMemoryService_UpdateSnapshotsOldContent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := repomocks.NewMockMemoryRepository(t)
 			cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-			logger, _ := test.NewNullLogger()
+			logger, _ := logtest.New()
 
 			existing := &models.Memory{
 				ID: memoryID, TeamID: teamID, UserID: userID, Text: tt.oldContent,
@@ -92,7 +92,7 @@ func TestMemoryService_RestoreSnapshotsAsSystem(t *testing.T) {
 
 	repo := repomocks.NewMockMemoryRepository(t)
 	cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	existing := &models.Memory{
 		ID: memoryID, TeamID: teamID, UserID: userID, Text: "live-content",
@@ -138,7 +138,7 @@ func TestMemoryService_ListAndGetVersionsScopeByTeam(t *testing.T) {
 	t.Run("list", func(t *testing.T) {
 		repo := repomocks.NewMockMemoryRepository(t)
 		cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 
 		existing := &models.Memory{ID: memoryID, TeamID: teamID, UserID: userID, Text: "x"}
 		repo.EXPECT().GetByID(mock.Anything, userID, teamID, memoryID).Return(existing, nil).Once()
@@ -154,7 +154,7 @@ func TestMemoryService_ListAndGetVersionsScopeByTeam(t *testing.T) {
 	t.Run("get", func(t *testing.T) {
 		repo := repomocks.NewMockMemoryRepository(t)
 		cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 
 		existing := &models.Memory{ID: memoryID, TeamID: teamID, UserID: userID, Text: "x"}
 		repo.EXPECT().GetByID(mock.Anything, userID, teamID, memoryID).Return(existing, nil).Once()

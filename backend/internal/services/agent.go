@@ -3,10 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -18,7 +17,7 @@ type AgentService struct {
 	cardFetcher       AgentCardFetcherInterface
 	encryptionService EncryptionServiceInterface
 	teamService       TeamServiceInterface
-	logger            *logrus.Logger
+	logger            *slog.Logger
 }
 
 // Ensure AgentService implements AgentServiceInterface
@@ -29,7 +28,7 @@ func NewAgentService(
 	executionRepo repositories.AgentExecutionRepository,
 	encryptionService EncryptionServiceInterface,
 	teamService TeamServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *AgentService {
 	return &AgentService{
 		agentRepo:         agentRepo,
@@ -48,7 +47,7 @@ func NewAgentServiceWithCardFetcher(
 	cardFetcher AgentCardFetcherInterface,
 	encryptionService EncryptionServiceInterface,
 	teamService TeamServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *AgentService {
 	return &AgentService{
 		agentRepo:         agentRepo,
@@ -93,19 +92,21 @@ func (s *AgentService) validateAndResolveTeamID(
 
 	isMember, err := s.teamService.IsUserMemberOfTeam(ctx, userID, *requestedTeamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": *requestedTeamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to validate team membership for agent")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", *requestedTeamID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to validate team membership for agent")
 		return "", fmt.Errorf("failed to validate team membership")
 	}
 
 	if !isMember {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": *requestedTeamID,
-		}).Warn("User attempted to create agent in team they are not a member of")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", *requestedTeamID,
+		).
+			Warn("User attempted to create agent in team they are not a member of")
 		return "", fmt.Errorf("user is not a member of the specified team")
 	}
 
@@ -117,11 +118,12 @@ func (s *AgentService) validateTeamReassignment(
 	requestedTeamID *string, currentTeamID, agentID string,
 ) error {
 	if requestedTeamID != nil && *requestedTeamID != currentTeamID {
-		s.logger.WithFields(logrus.Fields{
-			"agent_id":       agentID,
-			"existing_team":  currentTeamID,
-			"requested_team": *requestedTeamID,
-		}).Warn("User attempted to reassign agent to different team")
+		s.logger.With(
+			"agent_id", agentID,
+			"existing_team", currentTeamID,
+			"requested_team", *requestedTeamID,
+		).
+			Warn("User attempted to reassign agent to different team")
 		return fmt.Errorf("agents cannot be moved between teams once created")
 	}
 	return nil
@@ -138,10 +140,13 @@ func (s *AgentService) CreateAgent(
 
 	agentCard, err := s.cardFetcher.FetchAgentCard(ctx, req.CardURL)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "agent-service", "method": "CreateAgent",
-			"user_id": userID, "card_url": req.CardURL, "error": fmt.Sprintf("%+v", err),
-		}).Error("Failed to fetch agent card")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "CreateAgent",
+			"user_id", userID,
+			"card_url", req.CardURL,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to fetch agent card")
 		return nil, err
 	}
 
@@ -152,24 +157,34 @@ func (s *AgentService) CreateAgent(
 
 	if len(req.Credentials) > 0 {
 		if err := s.encryptCredentials(agent, req.Credentials); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service": "agent-service", "method": "CreateAgent", "user_id": userID, "error": fmt.Sprintf("%+v", err),
-			}).Error("Failed to encrypt credentials")
+			s.logger.With(
+				"service", "agent-service",
+				"method", "CreateAgent",
+				"user_id", userID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to encrypt credentials")
 			return nil, fmt.Errorf("failed to encrypt credentials: %w", err)
 		}
 	}
 
 	if err := s.agentRepo.Create(ctx, agent); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "agent-service", "method": "CreateAgent", "user_id": userID, "error": fmt.Sprintf("%+v", err),
-		}).Error("Failed to create agent")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "CreateAgent",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create agent")
 		return nil, fmt.Errorf("failed to create agent: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "agent-service", "method": "CreateAgent", "user_id": userID,
-		"agent_id": agent.ID, "card_url": req.CardURL, "has_card": agentCard != nil,
-	}).Info("Agent created successfully")
+	s.logger.With(
+		"service", "agent-service",
+		"method", "CreateAgent",
+		"user_id", userID,
+		"agent_id", agent.ID,
+		"card_url", req.CardURL,
+		"has_card", agentCard != nil,
+	).Info("Agent created successfully")
 
 	return agent, nil
 }
@@ -177,14 +192,14 @@ func (s *AgentService) CreateAgent(
 func (s *AgentService) GetAgentByID(ctx context.Context, userID, teamID, agentID string) (*models.Agent, error) {
 	agent, err := s.agentRepo.GetByID(ctx, userID, teamID, agentID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "agent-service",
-			"method":   "GetAgentByID",
-			"user_id":  userID,
-			"team_id":  teamID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to get agent by ID")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "GetAgentByID",
+			"user_id", userID,
+			"team_id", teamID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get agent by ID")
 		return nil, fmt.Errorf("failed to get agent: %w", err)
 	}
 
@@ -192,14 +207,14 @@ func (s *AgentService) GetAgentByID(ctx context.Context, userID, teamID, agentID
 	if agent.CardURL != nil && *agent.CardURL != "" {
 		agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *agent.CardURL)
 		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":  "agent-service",
-				"method":   "GetAgentByID",
-				"user_id":  userID,
-				"agent_id": agentID,
-				"card_url": *agent.CardURL,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Warn("Failed to re-fetch agent card, returning existing data")
+			s.logger.With(
+				"service", "agent-service",
+				"method", "GetAgentByID",
+				"user_id", userID,
+				"agent_id", agentID,
+				"card_url", *agent.CardURL,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Failed to re-fetch agent card, returning existing data")
 			// Return agent without updating card - don't fail the request
 			return agent, nil
 		}
@@ -211,23 +226,24 @@ func (s *AgentService) GetAgentByID(ctx context.Context, userID, teamID, agentID
 
 		// Update in database
 		if err := s.agentRepo.Update(ctx, agent); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":  "agent-service",
-				"method":   "GetAgentByID",
-				"user_id":  userID,
-				"agent_id": agentID,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Warn("Failed to update agent with re-fetched card")
+			s.logger.With(
+				"service", "agent-service",
+				"method", "GetAgentByID",
+				"user_id", userID,
+				"agent_id", agentID,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Failed to update agent with re-fetched card")
+
 			// Return agent anyway - we have the updated card in memory
 		}
 
-		s.logger.WithFields(logrus.Fields{
-			"service":  "agent-service",
-			"method":   "GetAgentByID",
-			"user_id":  userID,
-			"agent_id": agentID,
-			"card_url": *agent.CardURL,
-		}).Info("Agent card re-fetched and updated successfully")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "GetAgentByID",
+			"user_id", userID,
+			"agent_id", agentID,
+			"card_url", *agent.CardURL,
+		).Info("Agent card re-fetched and updated successfully")
 	}
 
 	return agent, nil
@@ -255,12 +271,12 @@ func (s *AgentService) ListAgents(
 
 	agents, totalCount, err := s.agentRepo.List(ctx, userID, repoFilters)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "agent-service",
-			"method":  "ListAgents",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list agents")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "ListAgents",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list agents")
 		return nil, fmt.Errorf("failed to list agents: %w", err)
 	}
 
@@ -294,14 +310,14 @@ func (s *AgentService) UpdateAgent(
 		// Fetch new agent card
 		agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *req.CardURL)
 		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":  "agent-service",
-				"method":   "UpdateAgent",
-				"user_id":  userID,
-				"agent_id": agentID,
-				"card_url": *req.CardURL,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Error("Failed to fetch agent card during update")
+			s.logger.With(
+				"service", "agent-service",
+				"method", "UpdateAgent",
+				"user_id", userID,
+				"agent_id", agentID,
+				"card_url", *req.CardURL,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to fetch agent card during update")
 			// Return the detailed error message from the card fetcher directly
 			return nil, err
 		}
@@ -332,59 +348,59 @@ func (s *AgentService) UpdateAgent(
 	// Handle credentials update if provided
 	if len(req.Credentials) > 0 {
 		if err := s.encryptCredentials(agent, req.Credentials); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":  "agent-service",
-				"method":   "UpdateAgent",
-				"user_id":  userID,
-				"agent_id": agentID,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Error("Failed to encrypt credentials")
+			s.logger.With(
+				"service", "agent-service",
+				"method", "UpdateAgent",
+				"user_id", userID,
+				"agent_id", agentID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to encrypt credentials")
 			return nil, fmt.Errorf("failed to encrypt credentials: %w", err)
 		}
 	}
 
 	if err := s.agentRepo.Update(ctx, agent); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "agent-service",
-			"method":   "UpdateAgent",
-			"user_id":  userID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to update agent")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "UpdateAgent",
+			"user_id", userID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update agent")
 		return nil, fmt.Errorf("failed to update agent: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "agent-service",
-		"method":       "UpdateAgent",
-		"user_id":      userID,
-		"agent_id":     agentID,
-		"updated_card": req.CardURL != nil,
-	}).Info("Agent updated successfully")
+	s.logger.With(
+		"service", "agent-service",
+		"method", "UpdateAgent",
+		"user_id", userID,
+		"agent_id", agentID,
+		"updated_card", req.CardURL != nil,
+	).Info("Agent updated successfully")
 
 	return agent, nil
 }
 
 func (s *AgentService) DeleteAgent(ctx context.Context, userID, teamID, agentID string) error {
 	if err := s.agentRepo.Delete(ctx, userID, teamID, agentID); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "agent-service",
-			"method":   "DeleteAgent",
-			"user_id":  userID,
-			"team_id":  teamID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete agent")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "DeleteAgent",
+			"user_id", userID,
+			"team_id", teamID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to delete agent")
 		return fmt.Errorf("failed to delete agent: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":  "agent-service",
-		"method":   "DeleteAgent",
-		"user_id":  userID,
-		"team_id":  teamID,
-		"agent_id": agentID,
-	}).Info("Agent deleted successfully")
+	s.logger.With(
+		"service", "agent-service",
+		"method", "DeleteAgent",
+		"user_id", userID,
+		"team_id", teamID,
+		"agent_id", agentID,
+	).Info("Agent deleted successfully")
 
 	return nil
 }
@@ -392,13 +408,13 @@ func (s *AgentService) DeleteAgent(ctx context.Context, userID, teamID, agentID 
 func (s *AgentService) GetAgentStats(ctx context.Context, userID, teamID string) (*models.AgentStatsResponse, error) {
 	stats, err := s.agentRepo.GetStats(ctx, userID, teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "agent-service",
-			"method":  "GetAgentStats",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get agent stats")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "GetAgentStats",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get agent stats")
 		return nil, fmt.Errorf("failed to get agent stats: %w", err)
 	}
 
@@ -426,23 +442,23 @@ func (s *AgentService) StartExecution(
 	}
 
 	if err := s.executionRepo.Create(ctx, execution); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "agent-service",
-			"method":   "StartExecution",
-			"user_id":  userID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to create agent execution")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "StartExecution",
+			"user_id", userID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create agent execution")
 		return nil, fmt.Errorf("failed to start execution: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "agent-service",
-		"method":       "StartExecution",
-		"user_id":      userID,
-		"agent_id":     agentID,
-		"execution_id": execution.ID,
-	}).Info("Agent execution started successfully")
+	s.logger.With(
+		"service", "agent-service",
+		"method", "StartExecution",
+		"user_id", userID,
+		"agent_id", agentID,
+		"execution_id", execution.ID,
+	).Info("Agent execution started successfully")
 
 	return execution, nil
 }
@@ -470,13 +486,13 @@ func (s *AgentService) CompleteExecution(
 	}
 
 	if err := s.executionRepo.Update(ctx, execution); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "agent-service",
-			"method":       "CompleteExecution",
-			"user_id":      userID,
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to update agent execution")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "CompleteExecution",
+			"user_id", userID,
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update agent execution")
 		return nil, fmt.Errorf("failed to complete execution: %w", err)
 	}
 
@@ -489,24 +505,24 @@ func (s *AgentService) CompleteExecution(
 		}
 
 		if err := s.agentRepo.UpdateExecutionStats(ctx, execution.AgentID, success, duration); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":      "agent-service",
-				"method":       "CompleteExecution",
-				"user_id":      userID,
-				"agent_id":     execution.AgentID,
-				"execution_id": executionID,
-				"error":        fmt.Sprintf("%+v", err),
-			}).Warn("Failed to update agent execution stats")
+			s.logger.With(
+				"service", "agent-service",
+				"method", "CompleteExecution",
+				"user_id", userID,
+				"agent_id", execution.AgentID,
+				"execution_id", executionID,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Failed to update agent execution stats")
 		}
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "agent-service",
-		"method":       "CompleteExecution",
-		"user_id":      userID,
-		"execution_id": executionID,
-		"status":       req.Status,
-	}).Info("Agent execution completed successfully")
+	s.logger.With(
+		"service", "agent-service",
+		"method", "CompleteExecution",
+		"user_id", userID,
+		"execution_id", executionID,
+		"status", req.Status,
+	).Info("Agent execution completed successfully")
 
 	return execution, nil
 }
@@ -514,13 +530,13 @@ func (s *AgentService) CompleteExecution(
 func (s *AgentService) GetExecution(ctx context.Context, userID, executionID string) (*models.AgentExecution, error) {
 	execution, err := s.executionRepo.GetByID(ctx, userID, executionID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "agent-service",
-			"method":       "GetExecution",
-			"user_id":      userID,
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to get agent execution")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "GetExecution",
+			"user_id", userID,
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get agent execution")
 		return nil, fmt.Errorf("failed to get execution: %w", err)
 	}
 
@@ -548,12 +564,12 @@ func (s *AgentService) ListExecutions(
 
 	executions, totalCount, err := s.executionRepo.List(ctx, userID, repoFilters)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "agent-service",
-			"method":  "ListExecutions",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list agent executions")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "ListExecutions",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list agent executions")
 		return nil, 0, fmt.Errorf("failed to list executions: %w", err)
 	}
 
@@ -589,49 +605,49 @@ func (s *AgentService) UpdateAgentCredentials(
 ) error {
 	agent, err := s.agentRepo.GetByID(ctx, userID, teamID, agentID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "agent-service",
-			"method":   "UpdateAgentCredentials",
-			"user_id":  userID,
-			"team_id":  teamID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to get agent")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "UpdateAgentCredentials",
+			"user_id", userID,
+			"team_id", teamID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get agent")
 		return fmt.Errorf("failed to get agent: %w", err)
 	}
 
 	// Encrypt and update credentials
 	if err := s.encryptCredentials(agent, req.Credentials); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "agent-service",
-			"method":   "UpdateAgentCredentials",
-			"user_id":  userID,
-			"team_id":  teamID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to encrypt credentials")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "UpdateAgentCredentials",
+			"user_id", userID,
+			"team_id", teamID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to encrypt credentials")
 		return fmt.Errorf("failed to encrypt credentials: %w", err)
 	}
 
 	// Update agent in database
 	if err := s.agentRepo.Update(ctx, agent); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "agent-service",
-			"method":   "UpdateAgentCredentials",
-			"user_id":  userID,
-			"team_id":  teamID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to update agent credentials")
+		s.logger.With(
+			"service", "agent-service",
+			"method", "UpdateAgentCredentials",
+			"user_id", userID,
+			"team_id", teamID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update agent credentials")
 		return fmt.Errorf("failed to update agent credentials: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":  "agent-service",
-		"method":   "UpdateAgentCredentials",
-		"user_id":  userID,
-		"agent_id": agentID,
-	}).Info("Agent credentials updated successfully")
+	s.logger.With(
+		"service", "agent-service",
+		"method", "UpdateAgentCredentials",
+		"user_id", userID,
+		"agent_id", agentID,
+	).Info("Agent credentials updated successfully")
 
 	return nil
 }

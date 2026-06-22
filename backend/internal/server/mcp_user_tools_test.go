@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,8 +50,7 @@ func buildFixtureUser() *models.User {
 
 func TestGetUserWithUser_Success(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	mockAuthService := mocks.NewMockAuthServiceInterface(t)
@@ -113,8 +111,7 @@ func TestGetUserWithUser_Success(t *testing.T) {
 
 func TestGetUserWithUser_ServiceError(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	mockAuthService := mocks.NewMockAuthServiceInterface(t)
@@ -142,8 +139,7 @@ func TestGetUserWithUser_ServiceError(t *testing.T) {
 
 func TestGetUserWithUser_FieldExclusion(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	mockAuthService := mocks.NewMockAuthServiceInterface(t)
@@ -186,8 +182,7 @@ func TestGetUserWithUser_FieldExclusion(t *testing.T) {
 
 func TestAddAllTools_RegistersGetUser(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{

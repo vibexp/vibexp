@@ -3,10 +3,10 @@ package events
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -45,7 +45,7 @@ func (m *MockHubSpotCRMService) GetContactByEmail(ctx context.Context, email str
 
 func TestNewHubSpotCRMListener(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
@@ -65,8 +65,7 @@ func TestNewHubSpotCRMListener_WithNilLogger(t *testing.T) {
 
 func TestHubSpotCRMListener_HandleUserCreated(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel) // Suppress logs during tests
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	createdAt := time.Now()
@@ -86,8 +85,7 @@ func TestHubSpotCRMListener_HandleUserCreated_WithCRMError(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{
 		createContactError: errors.New("HubSpot API error"),
 	}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	event := NewUserCreatedEvent("user-123", "test@example.com", "John Doe", time.Now())
@@ -101,8 +99,7 @@ func TestHubSpotCRMListener_HandleUserCreated_WithCRMError(t *testing.T) {
 
 func TestHubSpotCRMListener_HandleUserUpdated(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	updatedAt := time.Now()
@@ -121,8 +118,7 @@ func TestHubSpotCRMListener_HandleUserUpdated(t *testing.T) {
 
 func TestHubSpotCRMListener_HandlePromptCreated(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	createdAt := time.Now()
@@ -150,8 +146,7 @@ func TestHubSpotCRMListener_HandlePromptCreated_WithCRMError(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{
 		updateContactError: errors.New("HubSpot API error"),
 	}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	event := NewPromptCreatedEvent(
@@ -174,8 +169,7 @@ func TestHubSpotCRMListener_HandlePromptCreated_WithCRMError(t *testing.T) {
 
 func TestHubSpotCRMListener_HandleAIToolSessionCreated(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	event := NewAIToolSessionCreatedEvent(
@@ -197,8 +191,7 @@ func TestHubSpotCRMListener_HandleAIToolSessionCreated(t *testing.T) {
 
 func TestHubSpotCRMListener_HandleAIToolSessionCreated_CursorIDE(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	event := NewAIToolSessionCreatedEvent(
@@ -220,8 +213,7 @@ func TestHubSpotCRMListener_HandleAIToolSessionCreated_WithCRMError(t *testing.T
 	mockCRM := &MockHubSpotCRMService{
 		updateContactError: errors.New("HubSpot API error"),
 	}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	event := NewAIToolSessionCreatedEvent(
@@ -241,8 +233,7 @@ func TestHubSpotCRMListener_HandleAIToolSessionCreated_WithCRMError(t *testing.T
 
 func TestHubSpotCRMListener_HandleInvalidPayload(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	// Create an event with wrong payload type
@@ -257,8 +248,7 @@ func TestHubSpotCRMListener_HandleInvalidPayload(t *testing.T) {
 
 func TestHubSpotCRMListener_HandleUnexpectedEvent(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	// Create an event type that listener doesn't handle
@@ -273,7 +263,7 @@ func TestHubSpotCRMListener_HandleUnexpectedEvent(t *testing.T) {
 
 func TestHubSpotCRMListener_EventTypes(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	eventTypes := listener.EventTypes()
@@ -287,7 +277,7 @@ func TestHubSpotCRMListener_EventTypes(t *testing.T) {
 
 func TestHubSpotCRMListener_ParseName(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	tests := []struct {
@@ -345,8 +335,7 @@ func TestHubSpotCRMListener_ParseName(t *testing.T) {
 
 func TestHubSpotCRMListener_SkipsBackfillOriginPromptCreated(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	event := NewPromptCreatedEvent(
@@ -363,8 +352,7 @@ func TestHubSpotCRMListener_SkipsBackfillOriginPromptCreated(t *testing.T) {
 
 func TestHubSpotCRMListener_HandlesNormalPromptCreated(t *testing.T) {
 	mockCRM := &MockHubSpotCRMService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewHubSpotCRMListener(mockCRM, logger)
 
 	createdAt := time.Now()

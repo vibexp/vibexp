@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
@@ -43,13 +42,13 @@ func (s *Server) handleCreatePromptShare(w http.ResponseWriter, r *http.Request)
 	// Create share
 	shareResp, err := s.container.PromptShareService().CreateShare(userID, promptSlug, &req)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleCreatePromptShare",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to create prompt share")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleCreatePromptShare",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create prompt share")
 
 		if err.Error() == "prompt not found" {
 			writeErrorResponse(w, r, "not_found", "Prompt not found", http.StatusNotFound)
@@ -71,13 +70,13 @@ func (s *Server) handleGetPromptShare(w http.ResponseWriter, r *http.Request) {
 
 	shareResp, err := s.container.PromptShareService().GetShare(userID, promptSlug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleGetPromptShare",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to get prompt share")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetPromptShare",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get prompt share")
 
 		if err.Error() == "prompt not found" {
 			writeErrorResponse(w, r, "not_found", "Prompt not found", http.StatusNotFound)
@@ -104,13 +103,13 @@ func (s *Server) handleDeletePromptShare(w http.ResponseWriter, r *http.Request)
 
 	err := s.container.PromptShareService().DeleteShare(userID, promptSlug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleDeletePromptShare",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete prompt share")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeletePromptShare",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to delete prompt share")
 
 		if err.Error() == "prompt not found" {
 			writeErrorResponse(w, r, "not_found", "Prompt not found", http.StatusNotFound)
@@ -131,12 +130,12 @@ func (s *Server) handleDeletePromptShare(w http.ResponseWriter, r *http.Request)
 
 // handleSharedPromptError handles error responses for shared prompt retrieval
 func (s *Server) handleSharedPromptError(w http.ResponseWriter, r *http.Request, err error, shareToken string) {
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleGetSharedPrompt",
-		"share_token": shareToken,
-		"error":       fmt.Sprintf("%+v", err),
-	}).Warn("Failed to get shared prompt")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetSharedPrompt",
+		"share_token", shareToken,
+		"error", fmt.Sprintf("%+v", err),
+	).Warn("Failed to get shared prompt")
 
 	errMsg := err.Error()
 	switch errMsg {
@@ -207,7 +206,7 @@ func (s *Server) handleGetSharedPrompt(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		// #nosec G705 - HTML content is properly sanitized via html.EscapeString in generateSharedPromptHTML
 		if _, err := w.Write([]byte(html)); err != nil {
-			s.logger.WithError(err).Error("Failed to write HTML response")
+			s.logger.With("error", err).Error("Failed to write HTML response")
 		}
 		return
 	}

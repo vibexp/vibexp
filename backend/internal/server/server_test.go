@@ -2,20 +2,17 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/vibexp/vibexp/internal/config"
 )
 
 func TestHandlePing(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/ping", nil)
@@ -46,8 +43,7 @@ type healthResponse struct {
 func callHealthEndpoint(t *testing.T, releaseSHA string) (int, healthResponse) {
 	t.Helper()
 	cfg := &config.Config{ReleaseSHA: releaseSHA}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/health", nil)
@@ -98,8 +94,7 @@ func TestHandleHealth(t *testing.T) {
 
 func TestProtectedEndpointUnauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/ai-tools/claude-code/hooks", nil)
@@ -118,8 +113,7 @@ func TestProtectedEndpointUnauthorized(t *testing.T) {
 
 func TestLegacyGitHubWebhookPathRedirect(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("POST", "/api/v1/integrations/github/webhook", nil)

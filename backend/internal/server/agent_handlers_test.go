@@ -1,21 +1,18 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/vibexp/vibexp/internal/config"
 )
 
 func TestAgentHandlers_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -57,8 +54,7 @@ func TestAgentHandlers_Unauthorized(t *testing.T) {
 
 func TestCreateAgent_BadRequest(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -109,8 +105,7 @@ func TestCreateAgent_BadRequest(t *testing.T) {
 
 func TestUpdateAgent_BadRequest(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -152,8 +147,7 @@ func TestUpdateAgent_BadRequest(t *testing.T) {
 
 func TestStartAgentExecution_BadRequest(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -189,8 +183,7 @@ func TestStartAgentExecution_BadRequest(t *testing.T) {
 
 func TestCompleteAgentExecution_BadRequest(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -231,8 +224,7 @@ func TestCompleteAgentExecution_BadRequest(t *testing.T) {
 
 func TestAgentHandlers_QueryParameters(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -276,8 +268,7 @@ func TestAgentHandlers_QueryParameters(t *testing.T) {
 
 func TestAgentHandlers_InvalidPaths(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -312,8 +303,7 @@ func TestAgentHandlers_InvalidPaths(t *testing.T) {
 
 func TestAgentHandlers_ContentTypeValidation(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -355,8 +345,7 @@ func TestAgentHandlers_ContentTypeValidation(t *testing.T) {
 
 func TestAgentHandlers_AuthorizationHeaders(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {

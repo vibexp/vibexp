@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
@@ -86,6 +86,8 @@ type UpdateMemoryParams struct {
 // Memory Tool Implementations
 
 // storeMemory implements the tool that stores a new memory in the resolved team.
+//
+//nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
 func (s *Server) storeMemory(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
@@ -98,12 +100,13 @@ func (s *Server) storeMemory(
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_create_memory",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-		}).Warn("MCP tool rejected: invalid project_id")
+		slog.Warn(
+			"MCP tool rejected: invalid project_id",
+			"tool", "vibexp_io_create_memory",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+		)
 		return r, nil, nil
 	}
 
@@ -115,12 +118,13 @@ func (s *Server) storeMemory(
 
 	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, createReq)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_create_memory",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to create memory via MCP")
+		slog.Error(
+			"Failed to create memory via MCP",
+			"tool", "vibexp_io_create_memory",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -182,12 +186,13 @@ func (s *Server) listMemoriesByProject(
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_search_memories",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-		}).Warn("MCP tool rejected: invalid project_id")
+		slog.Warn(
+			"MCP tool rejected: invalid project_id",
+			"tool", "vibexp_io_search_memories",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+		)
 		return r, nil, nil
 	}
 
@@ -211,13 +216,14 @@ func (s *Server) listMemoriesByProject(
 
 	response, err := s.container.MemoryService().ListMemories(userID, filters)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_search_memories",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to list memories via MCP")
+		slog.Error(
+			"Failed to list memories via MCP",
+			"tool", "vibexp_io_search_memories",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -286,13 +292,14 @@ func (s *Server) getMemory(
 
 	memory, err := s.container.MemoryService().GetMemory(userID, teamID, params.MemoryID)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":      "vibexp_io_get_memory",
-			"user_id":   userID,
-			"team_id":   teamID,
-			"memory_id": params.MemoryID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to get memory via MCP")
+		slog.Error(
+			"Failed to get memory via MCP",
+			"tool", "vibexp_io_get_memory",
+			"user_id", userID,
+			"team_id", teamID,
+			"memory_id", params.MemoryID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -345,13 +352,14 @@ func (s *Server) updateMemory(
 
 	memory, err := s.container.MemoryService().UpdateMemory(userID, teamID, params.MemoryID, updateReq)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":      "vibexp_io_update_memory",
-			"user_id":   userID,
-			"team_id":   teamID,
-			"memory_id": params.MemoryID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to update memory via MCP")
+		slog.Error(
+			"Failed to update memory via MCP",
+			"tool", "vibexp_io_update_memory",
+			"user_id", userID,
+			"team_id", teamID,
+			"memory_id", params.MemoryID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{

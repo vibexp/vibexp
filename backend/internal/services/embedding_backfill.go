@@ -4,8 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -103,7 +102,7 @@ type EmbeddingBackfillService struct {
 	// NOT EXISTS filter so a backfill targets entities lacking an embedding for the
 	// model the live pipeline now writes.
 	modelID string
-	logger  *logrus.Logger
+	logger  *slog.Logger
 }
 
 var _ EmbeddingBackfillServiceInterface = (*EmbeddingBackfillService)(nil)
@@ -116,7 +115,7 @@ func NewEmbeddingBackfillService(
 	publisher events.EventPublisher,
 	promptRenderer PromptBodyRenderer,
 	modelID string,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *EmbeddingBackfillService {
 	return &EmbeddingBackfillService{
 		repo:           repo,
@@ -155,12 +154,12 @@ func (s *EmbeddingBackfillService) Backfill(
 		result.TotalFailed += typeResult.Failed
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"dry_run":         result.DryRun,
-		"total_seen":      result.TotalSeen,
-		"total_published": result.TotalPublished,
-		"total_failed":    result.TotalFailed,
-	}).Info("Embedding backfill completed")
+	s.logger.With(
+		"dry_run", result.DryRun,
+		"total_seen", result.TotalSeen,
+		"total_published", result.TotalPublished,
+		"total_failed", result.TotalFailed,
+	).Info("Embedding backfill completed")
 
 	return result, nil
 }
@@ -210,10 +209,12 @@ func (s *EmbeddingBackfillService) processPage(
 func (s *EmbeddingBackfillService) publishEntity(ctx context.Context, e *models.BackfillEntity) bool {
 	event, err := s.buildCreatedEvent(e)
 	if err != nil {
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"entity_type": e.EntityType,
-			"entity_id":   e.EntityID,
-		}).Warn("Failed to build created event during embedding backfill")
+		s.logger.With("error", err).
+			With(
+				"entity_type", e.EntityType,
+				"entity_id", e.EntityID,
+			).
+			Warn("Failed to build created event during embedding backfill")
 		return false
 	}
 	// Tag the event as backfill-origin so user-facing side-effect listeners (CRM,
@@ -221,10 +222,12 @@ func (s *EmbeddingBackfillService) publishEntity(ctx context.Context, e *models.
 	// unaffected, so regeneration still happens for every entity.
 	event = events.MarkBackfillOrigin(event)
 	if err := s.publisher.Publish(ctx, event); err != nil {
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"entity_type": e.EntityType,
-			"entity_id":   e.EntityID,
-		}).Warn("Failed to republish created event during embedding backfill")
+		s.logger.With("error", err).
+			With(
+				"entity_type", e.EntityType,
+				"entity_id", e.EntityID,
+			).
+			Warn("Failed to republish created event during embedding backfill")
 		return false
 	}
 	return true
@@ -306,10 +309,12 @@ func (s *EmbeddingBackfillService) buildCreatedEvent(e *models.BackfillEntity) (
 func (s *EmbeddingBackfillService) renderPromptBody(e *models.BackfillEntity) string {
 	rendered, err := s.promptRenderer.RenderPromptBody(e.UserID, e.Body)
 	if err != nil {
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"entity_type": e.EntityType,
-			"entity_id":   e.EntityID,
-		}).Warn("Failed to render prompt body during backfill, using raw body instead")
+		s.logger.With("error", err).
+			With(
+				"entity_type", e.EntityType,
+				"entity_id", e.EntityID,
+			).
+			Warn("Failed to render prompt body during backfill, using raw body instead")
 		return e.Body
 	}
 	return rendered

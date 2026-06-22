@@ -3,10 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -18,7 +17,7 @@ type MemoryService struct {
 	teamService       TeamServiceInterface
 	eventManager      events.EventPublisher
 	contentVersionSvc ContentVersionServiceInterface
-	logger            *logrus.Logger
+	logger            *slog.Logger
 }
 
 // Ensure MemoryService implements MemoryServiceInterface
@@ -28,7 +27,7 @@ func NewMemoryService(
 	repo repositories.MemoryRepository,
 	teamService TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
 ) *MemoryService {
 	return &MemoryService{
@@ -80,7 +79,7 @@ func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMe
 	if s.eventManager != nil {
 		event := events.NewMemoryCreatedEvent(memory.ID, memory.UserID, memory.ProjectID, memory.Text, memory.CreatedAt)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish memory created event")
+			s.logger.With("error", err).Warn("Failed to publish memory created event")
 		}
 	}
 
@@ -189,7 +188,7 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 			ChangeSummary: changeSummary,
 			ActorType:     actorType,
 		}); err != nil {
-			s.logger.WithError(err).Warn("Failed to snapshot memory content version")
+			s.logger.With("error", err).Warn("Failed to snapshot memory content version")
 		}
 	}
 
@@ -201,7 +200,7 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	if s.eventManager != nil {
 		event := events.NewMemoryUpdatedEvent(memory.ID, memory.UserID, memory.ProjectID, memory.Text, memory.UpdatedAt)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish memory updated event")
+			s.logger.With("error", err).Warn("Failed to publish memory updated event")
 		}
 	}
 

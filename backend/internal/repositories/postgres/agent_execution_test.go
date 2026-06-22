@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,10 +30,8 @@ func setupAgentExecutionTest(t *testing.T) (*agentExecutionRepository, sqlmock.S
 
 // contextWithLogger creates a context with a logger for testing
 func contextWithLogger() context.Context {
-	logger := logrus.New()
-	logger.SetLevel(logrus.PanicLevel) // Suppress logs during tests
-	entry := logrus.NewEntry(logger)
-	return context.WithValue(context.Background(), contextkeys.Logger, entry)
+	logger := slog.New(slog.DiscardHandler) // Suppress logs during tests
+	return context.WithValue(context.Background(), contextkeys.Logger, logger)
 }
 
 //nolint:funlen // table-driven test with multiple test cases

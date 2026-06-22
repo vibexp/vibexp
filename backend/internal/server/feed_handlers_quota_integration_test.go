@@ -2,13 +2,12 @@ package server
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -94,8 +93,7 @@ func setupFeedQuotaTestServer(
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 	return srv

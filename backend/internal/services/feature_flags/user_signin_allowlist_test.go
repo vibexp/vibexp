@@ -2,9 +2,9 @@ package feature_flags
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +19,7 @@ func contextWithWrongType(value interface{}) context.Context {
 }
 
 func TestNewUserSignInAllowlistFlag(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	allowedEmails := []string{"test@example.com", "admin@example.com"}
 
 	flag := NewUserSignInAllowlistFlag(logger, allowedEmails)
@@ -31,7 +31,7 @@ func TestNewUserSignInAllowlistFlag(t *testing.T) {
 }
 
 func TestNewUserSignInAllowlistFlag_DropsBlankEntries(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	// A trailing comma in SIGNIN_ALLOWED_EMAILS produces an empty element.
 	flag := NewUserSignInAllowlistFlag(logger, []string{"test@example.com", "", "  "})
 
@@ -39,14 +39,14 @@ func TestNewUserSignInAllowlistFlag_DropsBlankEntries(t *testing.T) {
 }
 
 func TestUserSignInAllowlistFlag_Name(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	flag := NewUserSignInAllowlistFlag(logger, []string{"test@example.com"})
 
 	assert.Equal(t, "user_signin_allowlist", flag.Name())
 }
 
 func TestUserSignInAllowlistFlag_Evaluate_WithEmailInContext(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	allowedEmails := []string{"test@example.com", "admin@example.com"}
 
 	flag := NewUserSignInAllowlistFlag(logger, allowedEmails)
@@ -93,7 +93,7 @@ func TestUserSignInAllowlistFlag_Evaluate_WithEmailInContext(t *testing.T) {
 }
 
 func TestUserSignInAllowlistFlag_Evaluate_NoEmailInContext(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	flag := NewUserSignInAllowlistFlag(logger, []string{"test@example.com"})
 
 	tests := []struct {
@@ -119,7 +119,7 @@ func TestUserSignInAllowlistFlag_Evaluate_NoEmailInContext(t *testing.T) {
 }
 
 func TestUserSignInAllowlistFlag_IsEmailAllowed(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	allowedEmails := []string{"test@example.com", "admin@example.com"}
 
 	flag := NewUserSignInAllowlistFlag(logger, allowedEmails)
@@ -173,7 +173,7 @@ func TestUserSignInAllowlistFlag_IsEmailAllowed(t *testing.T) {
 // semantics: when the allowlist is empty (unconfigured), every email is
 // allowed to sign in. This is the default for self-hosted instances.
 func TestUserSignInAllowlistFlag_EmptyAllowlist(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	flag := NewUserSignInAllowlistFlag(logger, []string{})
 
 	ctx := contextWithEmail("test@example.com")
@@ -189,7 +189,7 @@ func TestUserSignInAllowlistFlag_EmptyAllowlist(t *testing.T) {
 // zero value of config.SignInAllowedEmails when the env var is unset) also
 // yields open registration.
 func TestUserSignInAllowlistFlag_NilAllowlist(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	flag := NewUserSignInAllowlistFlag(logger, nil)
 
 	assert.True(t, flag.Evaluate(contextWithEmail("anyone@example.com")))
@@ -197,7 +197,7 @@ func TestUserSignInAllowlistFlag_NilAllowlist(t *testing.T) {
 }
 
 func TestUserSignInAllowlistFlag_MultipleEmailsInAllowlist(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	allowedEmails := []string{
 		"user1@example.com",
 		"user2@example.com",
@@ -228,7 +228,7 @@ func TestUserSignInAllowlistFlag_MultipleEmailsInAllowlist(t *testing.T) {
 }
 
 func TestUserSignInAllowlistFlag_CaseSensitivity(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	allowedEmails := []string{"Test@Example.Com"}
 
 	flag := NewUserSignInAllowlistFlag(logger, allowedEmails)

@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/services"
 )
@@ -62,12 +62,12 @@ func (s *Server) listProjects(
 
 	response, err := s.container.ProjectService().ListProjects(userID, filters)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_list_projects",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list projects via MCP")
+		slog.With(
+			"tool", "vibexp_io_list_projects",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list projects via MCP")
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{

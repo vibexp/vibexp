@@ -3,8 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 )
 
 // QueryEmbedder converts a free-text query into an embedding vector.
@@ -21,7 +20,7 @@ type ProviderQueryEmbedder struct {
 	resolver   ActiveEmbeddingProviderResolver
 	model      string
 	dimensions int
-	logger     *logrus.Logger
+	logger     *slog.Logger
 }
 
 // Ensure ProviderQueryEmbedder implements QueryEmbedder.
@@ -30,7 +29,7 @@ var _ QueryEmbedder = (*ProviderQueryEmbedder)(nil)
 // NewProviderQueryEmbedder creates a ProviderQueryEmbedder. model is
 // EMBEDDING_MODEL and dimensions is the fixed EmbeddingVectorDimensions constant.
 func NewProviderQueryEmbedder(
-	resolver ActiveEmbeddingProviderResolver, model string, dimensions int, logger *logrus.Logger,
+	resolver ActiveEmbeddingProviderResolver, model string, dimensions int, logger *slog.Logger,
 ) *ProviderQueryEmbedder {
 	return &ProviderQueryEmbedder{
 		resolver:   resolver,

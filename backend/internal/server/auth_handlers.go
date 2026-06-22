@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/errors"
@@ -55,20 +53,21 @@ type LogoutResponse struct {
 //
 // GET /api/v1/auth/login
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleLogin",
-		"user_agent": r.Header.Get("User-Agent"),
-		"remote_ip":  r.RemoteAddr,
-	}).Info("Login request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleLogin",
+		"user_agent", r.Header.Get("User-Agent"),
+		"remote_ip", r.RemoteAddr,
+	).Info("Login request received")
 
 	state, err := generateRandomState()
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleLogin",
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to generate state")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleLogin",
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to generate state")
 		apiErr := errors.NewInternalError("Failed to generate authentication state")
 		errors.WriteJSONError(w, r, apiErr)
 		return
@@ -94,10 +93,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	authURL := s.container.AuthService().GetLoginURL(state, provider)
 	if authURL == "" {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleLogin",
-		}).Warn("Identity provider not configured; login unavailable")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleLogin",
+		).
+			Warn("Identity provider not configured; login unavailable")
 		apiErr := errors.NewServiceUnavailableError(
 			"Authentication provider not configured. Use /auth/dev/login in local development.",
 		)
@@ -105,11 +105,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleLogin",
-		"state":   state,
-	}).Info("Generated WorkOS login URL")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleLogin",
+		"state", state,
+	).Info("Generated WorkOS login URL")
 
 	writeOK(w, LoginResponse{URL: authURL}, s.logger)
 }
@@ -162,12 +162,12 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, state string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCallback",
-		"error":   fmt.Sprintf("%+v", err),
-		"state":   state,
-	}).Error("Failed to handle WorkOS callback")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCallback",
+		"error", fmt.Sprintf("%+v", err),
+		"state", state,
+	).Error("Failed to handle WorkOS callback")
 
 	if s.metrics != nil {
 		s.metrics.RecordUserLoginFailed(r.Context(), "workos_auth_failed")
@@ -185,13 +185,13 @@ func (s *Server) handleCallbackSuccess(
 	state string,
 	isNewUser bool,
 ) {
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleCallback",
-		"user_id":     user.ID,
-		"email":       user.Email,
-		"is_new_user": isNewUser,
-	}).Info("WorkOS authentication successful")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCallback",
+		"user_id", user.ID,
+		"email", user.Email,
+		"is_new_user", isNewUser,
+	).Info("WorkOS authentication successful")
 
 	if s.metrics != nil {
 		if isNewUser {
@@ -214,7 +214,7 @@ func (s *Server) handleCallbackSuccess(
 			UserID:       user.ID,
 		}
 		if err := s.sessionManager.Write(w, sess); err != nil {
-			s.logger.WithError(err).Error("Failed to write session cookie")
+			s.logger.With("error", err).Error("Failed to write session cookie")
 			apiErr := errors.NewInternalError("Failed to create session")
 			errors.WriteJSONError(w, r, apiErr)
 			return
@@ -237,10 +237,10 @@ func (s *Server) handleCallbackSuccess(
 //
 // POST /api/v1/auth/logout
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleLogout",
-	}).Info("Logout request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleLogout",
+	).Info("Logout request received")
 
 	if s.sessionManager != nil {
 		s.sessionManager.Clear(w)
@@ -255,20 +255,20 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetMe",
-		"user_id": userID,
-	}).Info("Get user profile request")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetMe",
+		"user_id", userID,
+	).Info("Get user profile request")
 
 	user, err := s.container.AuthService().GetUserByID(r.Context(), userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetMe",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get user")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetMe",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get user")
 		apiErr := errors.NewResourceNotFoundError("user", "User not found")
 		errors.WriteJSONError(w, r, apiErr)
 		return
@@ -285,10 +285,11 @@ type DevLoginRequest struct {
 
 func (s *Server) handleDevLogin(w http.ResponseWriter, r *http.Request) {
 	if !s.container.EnvironmentService().IsDevLoginEnabled() {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleDevLogin",
-		}).Warn("Dev login attempted in non-development environment")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDevLogin",
+		).
+			Warn("Dev login attempted in non-development environment")
 		apiErr := errors.NewResourceNotFoundError("endpoint", "Endpoint not found")
 		errors.WriteJSONError(w, r, apiErr)
 		return
@@ -328,24 +329,25 @@ func (s *Server) handleDevLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDevLoginFailure(w http.ResponseWriter, r *http.Request, email string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleDevLogin",
-		"email":   email,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to handle dev login")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDevLogin",
+		"email", email,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to handle dev login")
 
 	apiErr := errors.NewInternalError("Authentication failed")
 	errors.WriteJSONError(w, r, apiErr)
 }
 
 func (s *Server) handleDevLoginSuccess(w http.ResponseWriter, r *http.Request, user *models.User) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleDevLogin",
-		"user_id": user.ID,
-		"email":   user.Email,
-	}).Info("Dev authentication successful")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDevLogin",
+		"user_id", user.ID,
+		"email", user.Email,
+	).
+		Info("Dev authentication successful")
 
 	ar := NewActivityRecorder(s.container.ActivityService())
 	metadata := map[string]interface{}{
@@ -368,7 +370,7 @@ func (s *Server) handleDevLoginSuccess(w http.ResponseWriter, r *http.Request, u
 			UserID:       user.ID,
 		}
 		if err := s.sessionManager.Write(w, sess); err != nil {
-			s.logger.WithError(err).Error("Failed to write dev session cookie")
+			s.logger.With("error", err).Error("Failed to write dev session cookie")
 			apiErr := errors.NewInternalError("Failed to create session")
 			errors.WriteJSONError(w, r, apiErr)
 			return
@@ -426,42 +428,40 @@ func (s *Server) validateStateCookie(r *http.Request, state string) error {
 }
 
 func (s *Server) logAuthRequest(handler, description string, r *http.Request) {
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    handler,
-		"user_agent": r.Header.Get("User-Agent"),
-		"remote_ip":  r.RemoteAddr,
-	}).Info(description + " request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", handler,
+		"user_agent", r.Header.Get("User-Agent"),
+		"remote_ip", r.RemoteAddr,
+	).Info(description + " request received")
 }
 
 func (s *Server) logAuthError(handler, message string, err error) {
-	fields := logrus.Fields{
-		"service": "vibexp-api",
-		"handler": handler,
-	}
+	fields := []any{"service", "vibexp-api", "handler", handler}
 	if err != nil {
-		fields["error"] = err
+		fields = append(fields, "error", err)
 	}
-	s.logger.WithFields(fields).Error(message)
+	s.logger.With(fields...).Error(message)
 }
 
 func (s *Server) handleMarkOnboardingCompleted(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleMarkOnboardingCompleted",
-		"user_id": userID,
-	}).Info("Mark onboarding completed request")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleMarkOnboardingCompleted",
+		"user_id", userID,
+	).
+		Info("Mark onboarding completed request")
 
 	err := s.container.UserRepository().MarkOnboardingCompleted(r.Context(), userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleMarkOnboardingCompleted",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to mark onboarding completed")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleMarkOnboardingCompleted",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to mark onboarding completed")
 		apiErr := errors.NewInternalError("Failed to mark onboarding completed")
 		errors.WriteJSONError(w, r, apiErr)
 		return
@@ -470,22 +470,23 @@ func (s *Server) handleMarkOnboardingCompleted(w http.ResponseWriter, r *http.Re
 	// Fetch updated user to return
 	user, err := s.container.UserRepository().GetByID(r.Context(), userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleMarkOnboardingCompleted",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to fetch user after marking onboarding completed")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleMarkOnboardingCompleted",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to fetch user after marking onboarding completed")
 		apiErr := errors.NewInternalError("Failed to fetch user")
 		errors.WriteJSONError(w, r, apiErr)
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleMarkOnboardingCompleted",
-		"user_id": userID,
-	}).Info("Onboarding marked as completed successfully")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleMarkOnboardingCompleted",
+		"user_id", userID,
+	).
+		Info("Onboarding marked as completed successfully")
 
 	writeOK(w, user, s.logger)
 }

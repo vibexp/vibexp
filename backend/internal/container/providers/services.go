@@ -1,10 +1,10 @@
 package providers
 
 import (
+	"log/slog"
 	"time"
 
 	fcmmessaging "firebase.google.com/go/v4/messaging"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
@@ -29,7 +29,7 @@ func ProvideAuthService(
 	cfg *config.Config,
 	identityProvider idp.IdentityProvider,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	featureFlagSvc *feature_flags.FeatureFlagService,
 ) services.AuthServiceInterface {
 	return services.NewAuthService(userRepo, cfg, identityProvider, eventManager, logger, featureFlagSvc)
@@ -38,7 +38,7 @@ func ProvideAuthService(
 // ProvideAPIKeyService creates a new APIKeyService
 func ProvideAPIKeyService(
 	apiKeyRepo repositories.APIKeyRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.APIKeyServiceInterface {
 	return services.NewAPIKeyService(apiKeyRepo, logger)
 }
@@ -51,7 +51,7 @@ func ProvidePromptService(
 	projectRepo repositories.ProjectRepository,
 	teamService services.TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
 ) services.PromptServiceInterface {
 	return services.NewPromptService(
@@ -63,7 +63,7 @@ func ProvidePromptService(
 func ProvidePromptGalleryService(
 	repo repositories.PromptGalleryRepository,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.PromptGalleryServiceInterface {
 	return services.NewPromptGalleryService(repo, eventManager, logger)
 }
@@ -73,7 +73,7 @@ func ProvidePromptShareService(
 	shareRepo repositories.PromptShareRepository,
 	promptRepo repositories.PromptRepository,
 	promptService services.PromptServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *services.PromptShareService {
 	// Cast the interface to concrete type since we know the implementation
 	concretePromptService, ok := promptService.(*services.PromptService)
@@ -102,7 +102,7 @@ const promptRetentionCap = 5
 func ProvideContentVersionService(
 	repo repositories.ContentVersionRepository,
 	users repositories.UserRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.ContentVersionServiceInterface {
 	return services.NewContentVersionService(
 		repo,
@@ -137,7 +137,7 @@ func ProvideArtifactService(
 	teamService services.TeamServiceInterface,
 	eventManager events.EventPublisher,
 	resourceUsageSvc services.ResourceUsageServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
 ) services.ArtifactServiceInterface {
 	return services.NewArtifactService(repo, teamService, eventManager, resourceUsageSvc, logger, contentVersionSvc)
@@ -148,7 +148,7 @@ func ProvideArtifactService(
 func ProvideAttachmentService(
 	repo repositories.AttachmentRepository,
 	store storage.ObjectStore,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.AttachmentServiceInterface {
 	return services.NewAttachmentService(repo, store, logger)
 }
@@ -156,7 +156,7 @@ func ProvideAttachmentService(
 // ProvideTypeService creates a new TypeService
 func ProvideTypeService(
 	repo repositories.TypeRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.TypeServiceInterface {
 	return services.NewTypeService(repo, logger)
 }
@@ -167,7 +167,7 @@ func ProvideBlueprintService(
 	teamService services.TeamServiceInterface,
 	eventManager events.EventPublisher,
 	resourceUsageSvc services.ResourceUsageServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
 ) services.BlueprintServiceInterface {
 	return services.NewBlueprintService(repo, teamService, eventManager, resourceUsageSvc, logger, contentVersionSvc)
@@ -232,7 +232,7 @@ func ProvideResourceAccessWorkerPool() *events.WorkerPool {
 func ProvideResourceAccessService(
 	repo repositories.ResourceAccessRepository,
 	pool *events.WorkerPool,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	cfg *config.Config,
 ) resourceaccess.ResourceAccessService {
 	return resourceaccess.NewService(repo, pool, logger, cfg.AccessEventRetentionDays)
@@ -253,7 +253,7 @@ func ProvideAgentService(
 	executionRepo repositories.AgentExecutionRepository,
 	encryptionService services.EncryptionServiceInterface,
 	teamService services.TeamServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.AgentServiceInterface {
 	return services.NewAgentService(agentRepo, executionRepo, encryptionService, teamService, logger)
 }
@@ -282,7 +282,7 @@ func ProvideA2AHTTPClient(
 func ProvideA2AStreamProcessor(
 	eventRepo repositories.AgentExecutionEventRepository,
 	executionRepo repositories.AgentExecutionRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.A2AStreamProcessorInterface {
 	return services.NewA2AStreamProcessor(eventRepo, executionRepo, logger)
 }
@@ -293,7 +293,7 @@ func ProvideAgentInvocationService(
 	executionRepo repositories.AgentExecutionRepository,
 	a2aClient services.A2AHTTPClientInterface,
 	streamProcessor services.A2AStreamProcessorInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.AgentInvocationServiceInterface {
 	return services.NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 }
@@ -303,7 +303,7 @@ func ProvideMemoryService(
 	repo repositories.MemoryRepository,
 	teamService services.TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
 ) services.MemoryServiceInterface {
 	return services.NewMemoryService(repo, teamService, eventManager, logger, contentVersionSvc)
@@ -318,7 +318,7 @@ func ProvideEmbeddingService(
 	blueprintRepo repositories.BlueprintRepository,
 	feedItemRepo repositories.FeedItemRepository,
 	feedItemReplyRepo repositories.FeedItemReplyRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.EmbeddingServiceInterface {
 	return services.NewEmbeddingService(
 		repo, promptRepo, artifactRepo, memoryRepo, blueprintRepo, feedItemRepo, feedItemReplyRepo,
@@ -332,7 +332,7 @@ func ProvideEmbeddingService(
 func ProvideQueryEmbedder(
 	providerSvc services.EmbeddingProviderServiceInterface,
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.QueryEmbedder {
 	return services.NewProviderQueryEmbedder(
 		providerSvc, cfg.EmbeddingModel, services.EmbeddingVectorDimensions, logger,
@@ -346,7 +346,7 @@ func ProvideEmbeddingProcessor(
 	providerSvc services.EmbeddingProviderServiceInterface,
 	embeddingService services.EmbeddingServiceInterface,
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) events.EmbeddingProcessor {
 	chunker := services.NewTextChunker(cfg.EmbeddingChunkSize, cfg.EmbeddingChunkOverlap)
 	return services.NewEmbeddingGenerationProcessor(
@@ -359,7 +359,7 @@ func ProvideEmbeddingProcessor(
 func ProvideSearchService(
 	repo repositories.SearchRepository,
 	embedder services.QueryEmbedder,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	cfg *config.Config,
 ) services.SearchServiceInterface {
 	ranking := services.SearchRankingConfig{
@@ -395,7 +395,7 @@ func ProvideResourceUsageService(
 	feedRepo repositories.FeedRepository,
 	feedItemRepo repositories.FeedItemRepository,
 	feedItemReplyRepo repositories.FeedItemReplyRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.ResourceUsageServiceInterface {
 	return services.NewResourceUsageService(
 		userRepo,
@@ -421,7 +421,7 @@ func ProvideResourceUsageService(
 //
 // The sign-in allowlist is configured from cfg.SignInAllowedEmails
 // (SIGNIN_ALLOWED_EMAILS). An empty list means open registration.
-func ProvideFeatureFlagService(cfg *config.Config, logger *logrus.Logger) *feature_flags.FeatureFlagService {
+func ProvideFeatureFlagService(cfg *config.Config, logger *slog.Logger) *feature_flags.FeatureFlagService {
 	service := feature_flags.NewFeatureFlagService(logger)
 
 	service.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(logger, cfg.SignInAllowedEmails))
@@ -443,7 +443,7 @@ func ProvideEmbeddingBackfillService(
 	publisher events.EventPublisher,
 	promptService services.PromptServiceInterface,
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.EmbeddingBackfillServiceInterface {
 	return services.NewEmbeddingBackfillService(repo, publisher, promptService, cfg.EmbeddingModel, logger)
 }
@@ -460,7 +460,7 @@ func ProvideTeamService(
 	teamRepo repositories.TeamRepository,
 	teamMemberRepo repositories.TeamMemberRepository,
 	userRepo repositories.UserRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.TeamServiceInterface {
 	return services.NewTeamService(teamRepo, teamMemberRepo, userRepo, logger)
 }
@@ -473,7 +473,7 @@ func ProvideTeamInvitationService(
 	userRepo repositories.UserRepository,
 	emailService services.EmailServiceInterface,
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *services.TeamInvitationService {
 	return services.NewTeamInvitationService(
 		invitationRepo,
@@ -491,7 +491,7 @@ func ProvideProjectService(
 	repo repositories.ProjectRepository,
 	teamService services.TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.ProjectServiceInterface {
 	return services.NewProjectService(repo, teamService, eventManager, logger)
 }
@@ -501,7 +501,7 @@ func ProvideFeedService(
 	feedRepo repositories.FeedRepository,
 	teamService services.TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.FeedServiceInterface {
 	return services.NewFeedService(feedRepo, teamService, eventManager, logger)
 }
@@ -513,7 +513,7 @@ func ProvideFeedItemService(
 	projectRepo repositories.ProjectRepository,
 	teamService services.TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.FeedItemServiceInterface {
 	return services.NewFeedItemService(feedItemRepo, replyRepo, projectRepo, teamService, eventManager, logger)
 }
@@ -524,7 +524,7 @@ func ProvideFeedItemReplyService(
 	feedItemRepo repositories.FeedItemRepository,
 	teamService services.TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.FeedItemReplyServiceInterface {
 	return services.NewFeedItemReplyService(replyRepo, feedItemRepo, teamService, eventManager, logger)
 }
@@ -538,7 +538,7 @@ func ProvideFeedItemReplyService(
 func ProvideWebPushChannel(
 	fcmClient *fcmmessaging.Client,
 	tokenRepo repositories.DeviceTokenRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *notifchannels.WebPushChannel {
 	if fcmClient == nil {
 		return nil
@@ -559,7 +559,7 @@ func ProvideNotificationService(
 	emailSvc services.EmailServiceInterface,
 	webPushCh *notifchannels.WebPushChannel,
 	appMetrics *metrics.Metrics,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *notificationsvc.NotificationService {
 	inAppCh := notifchannels.NewInAppChannel()
 	emailCh := notifchannels.NewEmailChannel(emailSvc, digestRepo, logger)
@@ -596,7 +596,7 @@ func ProvideDigestRunner(
 	prefRepo repositories.UserPreferencesRepository,
 	emailSvc services.EmailServiceInterface,
 	appMetrics *metrics.Metrics,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *notificationsvc.DigestRunner {
 	renderer := notificationsvc.NewTemplateRenderer(cfg.FrontendBaseURL)
 	return notificationsvc.NewDigestRunner(
@@ -616,7 +616,7 @@ func ProvideDigestRunner(
 func ProvideProjectMigrationService(
 	db *database.DB,
 	projectRepo repositories.ProjectRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.ProjectMigrationServiceInterface {
 	return projectmigration.NewService(db, projectRepo, logger)
 }
@@ -629,7 +629,7 @@ func ProvideGitHubAppService(
 	githubClient external.GitHubAppClient,
 	encryptionSvc services.EncryptionServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) services.GitHubAppServiceInterface {
 	return services.NewGitHubAppService(
 		installationRepo,

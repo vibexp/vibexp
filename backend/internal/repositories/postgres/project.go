@@ -3,12 +3,12 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -290,7 +290,7 @@ func (r *ProjectRepository) queryList(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -564,7 +564,7 @@ func (r *ProjectRepository) GetProjectResourceCreationMetrics(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -611,7 +611,7 @@ func (r *ProjectRepository) ListGitURLToSlugByTeam(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 

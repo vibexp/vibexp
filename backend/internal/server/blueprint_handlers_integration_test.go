@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -96,8 +95,7 @@ func createListSpecTestServer(t *testing.T, mockSvc *servicesmocks.MockBlueprint
 		APIKeyServiceMock:    mockAPIKeyService,
 	}
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 	return srv
@@ -161,8 +159,7 @@ func TestHandleCreateBlueprint_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -387,8 +384,7 @@ func setupTestServerForBlueprint(
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -554,8 +550,7 @@ func TestHandleGetBlueprint_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -617,8 +612,7 @@ func TestHandleGetBlueprint_NotFound(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -683,8 +677,7 @@ func TestHandleListBlueprints_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -753,8 +746,7 @@ func TestHandleListBlueprints_WithFilters(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -800,8 +792,7 @@ func TestHandleListBlueprints_ServiceError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -867,8 +858,7 @@ func TestHandleUpdateBlueprint_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -931,8 +921,7 @@ func TestHandleUpdateBlueprint_NotFound(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -981,8 +970,7 @@ func TestHandleUpdateBlueprint_ValidationError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -1082,8 +1070,7 @@ func TestHandleDeleteBlueprint_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -1133,8 +1120,7 @@ func TestHandleDeleteBlueprint_NotFound(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -1200,8 +1186,7 @@ func TestHandleDeleteBlueprint_ServiceError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -1262,8 +1247,7 @@ func TestHandleGetBlueprintStats_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -1321,8 +1305,7 @@ func TestHandleGetBlueprintStats_ServiceError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -1520,8 +1503,7 @@ func TestHandleListBlueprintsByProject_InvalidProjectID(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -1568,8 +1550,7 @@ func TestHandleListBlueprintsByProject_ServiceError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -1636,8 +1617,7 @@ func TestHandleListBlueprintsByProject_EmptyResult(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 

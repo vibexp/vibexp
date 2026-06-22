@@ -1,9 +1,8 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/services"
@@ -12,13 +11,13 @@ import (
 // ResourceUsageHandler handles resource usage endpoints
 type ResourceUsageHandler struct {
 	resourceUsageService services.ResourceUsageServiceInterface
-	logger               *logrus.Logger
+	logger               *slog.Logger
 }
 
 // NewResourceUsageHandler creates a new resource usage handler
 func NewResourceUsageHandler(
 	resourceUsageService services.ResourceUsageServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *ResourceUsageHandler {
 	return &ResourceUsageHandler{
 		resourceUsageService: resourceUsageService,
@@ -40,7 +39,7 @@ func (h *ResourceUsageHandler) GetResourceUsage(w http.ResponseWriter, r *http.R
 	// Get resource usage
 	usage, err := h.resourceUsageService.GetResourceUsage(r.Context(), userID)
 	if err != nil {
-		h.logger.WithError(err).Error("Failed to get resource usage")
+		h.logger.With("error", err).Error("Failed to get resource usage")
 		apiErr := errors.NewInternalError("Failed to get resource usage")
 		errors.WriteJSONError(w, r, apiErr)
 		return

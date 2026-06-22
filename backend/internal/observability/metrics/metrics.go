@@ -3,10 +3,10 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
@@ -110,7 +110,7 @@ type Metrics struct {
 	// logger emits a durable structured log line for every business event,
 	// alongside the OTel counter, so business metrics survive Cloud Run
 	// scale-to-zero (OTel cumulative counters are lost on cold start).
-	logger *logrus.Logger
+	logger *slog.Logger
 }
 
 // Option is a functional option for configuring Metrics creation
@@ -121,7 +121,7 @@ type metricsConfig struct {
 	otlpEndpoint   string
 	exportInterval time.Duration
 	appConfig      *config.Config
-	appLogger      *logrus.Logger
+	appLogger      *slog.Logger
 }
 
 // WithReaderProvider allows customizing the reader provider (used in tests)
@@ -155,7 +155,7 @@ func WithConfig(cfg *config.Config) Option {
 
 // WithLogger sets the application logger used to emit a durable structured
 // log line for every business event alongside the OTel counter.
-func WithLogger(logger *logrus.Logger) Option {
+func WithLogger(logger *slog.Logger) Option {
 	return func(c *metricsConfig) {
 		c.appLogger = logger
 	}
@@ -598,18 +598,18 @@ const (
 // (e.g. tests) never panic. The CloudFormatter flattens every field to the
 // top level of the JSON payload (event -> jsonPayload.event), so no extra
 // mapping is required for Cloud Logging log-based metrics.
-func (m *Metrics) emitEvent(ctx context.Context, event, category string, fields logrus.Fields) {
+func (m *Metrics) emitEvent(ctx context.Context, event, category string, fields []any) {
 	if m == nil || m.logger == nil {
 		return
 	}
-	entry := m.logger.WithContext(ctx).WithFields(logrus.Fields{
-		"event":          event,
-		"event_category": category,
-	})
+	logger := m.logger.With(
+		"event", event,
+		"event_category", category,
+	)
 	if len(fields) > 0 {
-		entry = entry.WithFields(fields)
+		logger = logger.With(fields...)
 	}
-	entry.Info("business event")
+	logger.InfoContext(ctx, "business event")
 }
 
 // RecordUserCreated increments the user created counter
@@ -636,10 +636,10 @@ func (m *Metrics) RecordUserLoginFailed(ctx context.Context, reason string) {
 		return
 	}
 	attrs := metric.WithAttributes()
-	fields := logrus.Fields{}
+	var fields []any
 	if reason != "" {
 		attrs = metric.WithAttributes(attribute.String("reason", reason))
-		fields["reason"] = reason
+		fields = []any{"reason", reason}
 	}
 	m.UserLoginFailed.Add(ctx, 1, attrs)
 	m.emitEvent(ctx, "user.login.failed", eventCategoryUser, fields)
@@ -651,7 +651,7 @@ func (m *Metrics) RecordStripeWebhook(ctx context.Context, eventType string) {
 		return
 	}
 
-	stripeFields := logrus.Fields{"stripe_event_type": eventType}
+	stripeFields := []any{"stripe_event_type", eventType}
 	switch eventType {
 	case "customer.subscription.created":
 		if m.StripeSubscriptionCreated != nil {
@@ -696,10 +696,10 @@ func (m *Metrics) RecordAIToolsHooksCall(ctx context.Context, toolName string) {
 		return
 	}
 	attrs := metric.WithAttributes()
-	fields := logrus.Fields{}
+	var fields []any
 	if toolName != "" {
 		attrs = metric.WithAttributes(attribute.String("tool_name", toolName))
-		fields["tool_name"] = toolName
+		fields = []any{"tool_name", toolName}
 	}
 	m.AIToolsHooksCall.Add(ctx, 1, attrs)
 	m.emitEvent(ctx, "ai_tools.hooks.call", eventCategoryAITools, fields)

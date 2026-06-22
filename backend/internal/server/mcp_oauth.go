@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
@@ -78,7 +78,8 @@ func (a userResolverAdapter) ResolveUserID(ctx context.Context, provider, subjec
 func (s *Server) setupMCPRoutes() {
 	verifier, err := s.newMCPTokenVerifier()
 	if err != nil {
-		s.logger.WithError(err).Fatal("Failed to initialize MCP OAuth token verifier")
+		s.logger.Error("Failed to initialize MCP OAuth token verifier", "error", err)
+		os.Exit(1)
 	}
 
 	verify := unconfiguredMCPVerifier
@@ -168,10 +169,10 @@ func (s *Server) mcpTokenContextMiddleware(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), contextkeys.UserID, tokenInfo.UserID)
 		ctx = context.WithValue(ctx, contextkeys.AuthType, "oauth")
 
-		updatedLogger := contextkeys.GetLoggerFromContext(ctx).WithFields(logrus.Fields{
-			"auth_type": "oauth",
-			"user_id":   tokenInfo.UserID,
-		})
+		updatedLogger := contextkeys.GetLoggerFromContext(ctx).With(
+			"auth_type", "oauth",
+			"user_id", tokenInfo.UserID,
+		)
 		ctx = context.WithValue(ctx, contextkeys.Logger, updatedLogger)
 
 		next.ServeHTTP(w, r.WithContext(ctx))

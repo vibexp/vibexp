@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -296,8 +296,7 @@ func newMockAgentExecutionContainer() *MockAgentExecutionContainer {
 
 func createTestExecutionServer(container *MockAgentExecutionContainer) *Server {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel) // Suppress logs during test
+	logger := slog.New(slog.DiscardHandler)
 
 	// Initialize router manually for testing
 	r := chi.NewRouter()

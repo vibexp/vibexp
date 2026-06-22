@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -116,12 +116,12 @@ func (s *Server) search(
 
 	response, err := s.container.SearchService().Search(ctx, teamID, searchReq)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_search",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to perform semantic search via MCP")
+		slog.With(
+			"tool", "vibexp_io_search",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to perform semantic search via MCP")
 
 		return searchToolTextError("Failed to perform search. Please try again later."), nil, nil
 	}

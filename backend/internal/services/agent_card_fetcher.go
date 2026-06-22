@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -171,10 +170,10 @@ func (f *AgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (
 		return nil, err
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"service": "agent-card-fetcher",
-		"url":     cardURL,
-	}).Info("Fetching agent card")
+	slog.With(
+		"service", "agent-card-fetcher",
+		"url", cardURL,
+	).Info("Fetching agent card")
 
 	// Create and execute HTTP request
 	req, err := http.NewRequestWithContext(ctx, "GET", cardURL, nil)
@@ -192,7 +191,7 @@ func (f *AgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close response body")
+			slog.With("error", closeErr).Error("Failed to close response body")
 		}
 	}()
 
@@ -204,11 +203,12 @@ func (f *AgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (
 	// Validate content type
 	contentType := resp.Header.Get("Content-Type")
 	if contentType != "application/json" && contentType != "application/json; charset=utf-8" {
-		logrus.WithFields(logrus.Fields{
-			"service":      "agent-card-fetcher",
-			"url":          cardURL,
-			"content_type": contentType,
-		}).Warn("Unexpected content type for agent card")
+		slog.With(
+			"service", "agent-card-fetcher",
+			"url", cardURL,
+			"content_type", contentType,
+		).
+			Warn("Unexpected content type for agent card")
 	}
 
 	// Read and validate response body
@@ -217,12 +217,13 @@ func (f *AgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (
 		return nil, err
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"service": "agent-card-fetcher",
-		"url":     cardURL,
-		"name":    agentCard.Name,
-		"version": agentCard.Version,
-	}).Info("Successfully fetched agent card")
+	slog.With(
+		"service", "agent-card-fetcher",
+		"url", cardURL,
+		"name", agentCard.Name,
+		"version", agentCard.Version,
+	).
+		Info("Successfully fetched agent card")
 
 	return agentCard, nil
 }

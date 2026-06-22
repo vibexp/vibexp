@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
+	"log/slog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
@@ -19,7 +19,7 @@ import (
 )
 
 func createTestMemoryService(repo repositories.MemoryRepository) *MemoryService {
-	return NewMemoryService(repo, nil, nil, func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(), nil)
+	return NewMemoryService(repo, nil, nil, func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 }
 
 const testServiceProjectID = "550e8400-e29b-41d4-a716-446655440002"
@@ -612,7 +612,7 @@ func TestMemoryService_PublishesMemoryEvents(t *testing.T) {
 
 			service := NewMemoryService(
 				mockRepo, nil, mockEventManager,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(), nil)
+				func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 
 			tt.setupMocks(mockRepo, mockEventManager)
 

@@ -3,17 +3,17 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	idpmocks "github.com/vibexp/vibexp/internal/auth/idp/mocks"
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	repo_mocks "github.com/vibexp/vibexp/internal/repositories/mocks"
@@ -39,7 +39,7 @@ func createTestAuthServiceNew(
 		WorkOSAPIKey:      testOAuthSecret,
 		WorkOSRedirectURI: testOAuthRedirectURL,
 	}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
+	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 
 	featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
 
@@ -661,7 +661,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 				WorkOSAPIKey:      testOAuthSecret,
 				WorkOSRedirectURI: testOAuthRedirectURL,
 			}
-			logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
+			logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 
 			featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
 			userSignInAllowlist := feature_flags.NewUserSignInAllowlistFlag(
@@ -724,7 +724,7 @@ func TestAuthService_GoogleLegacyFallback(t *testing.T) {
 	})).Return(nil)
 
 	cfg := &config.Config{WorkOSRedirectURI: testOAuthRedirectURL}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
+	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 	featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
 
 	service := NewAuthService(mockRepo, cfg, mockIDP, nil, logger, featureFlagSvc)

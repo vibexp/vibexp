@@ -3,8 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -129,7 +128,7 @@ func (r *EmbeddingBackfillRepository) ListEntities(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close backfill rows")
+			slog.Error("Failed to close backfill rows", "error", closeErr)
 		}
 	}()
 

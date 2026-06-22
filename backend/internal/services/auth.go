@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
@@ -25,7 +24,7 @@ type AuthService struct {
 	redirectURL    string
 	featureFlagSvc feature_flags.FeatureFlagServiceInterface
 	eventManager   events.EventPublisher
-	logger         *logrus.Logger
+	logger         *slog.Logger
 }
 
 // Ensure AuthService implements AuthServiceInterface
@@ -33,7 +32,7 @@ var _ AuthServiceInterface = (*AuthService)(nil)
 
 func NewAuthService(
 	userRepo repositories.UserRepository, cfg *config.Config, identityProvider idp.IdentityProvider,
-	eventManager events.EventPublisher, logger *logrus.Logger,
+	eventManager events.EventPublisher, logger *slog.Logger,
 	featureFlagSvc feature_flags.FeatureFlagServiceInterface,
 ) *AuthService {
 	return &AuthService{
@@ -62,18 +61,19 @@ func (as *AuthService) HandleCallback(
 
 	tokens, claims, err := as.idp.ExchangeCode(ctx, code, as.redirectURL)
 	if err != nil {
-		as.logger.WithError(err).Error("Failed to exchange OAuth token")
+		as.logger.With("error", err).Error("Failed to exchange OAuth token")
 		return nil, nil, false, fmt.Errorf("failed to exchange token: %w", err)
 	}
 
 	// Email and name are PII; INFO-level logging is consistent with the
 	// rest of the auth service. See L10 in the GDPR audit if logging tier
 	// changes are required (e.g., move to DEBUG or scrub).
-	as.logger.WithFields(logrus.Fields{
-		"email":          claims.Email,
-		"name":           claims.Name,
-		"email_verified": claims.EmailVerified,
-	}).Info("Retrieved user info from identity provider")
+	as.logger.With(
+		"email", claims.Email,
+		"name", claims.Name,
+		"email_verified", claims.EmailVerified,
+	).
+		Info("Retrieved user info from identity provider")
 
 	// L2: We do not currently reject !EmailVerified. WorkOS's Google
 	// connection enforces email verification at the provider level, so
@@ -84,19 +84,19 @@ func (as *AuthService) HandleCallback(
 
 	user, isNewUser, err := as.createOrUpdateUserFromClaims(ctx, claims)
 	if err != nil {
-		as.logger.WithFields(logrus.Fields{
-			"email":       claims.Email,
-			"error":       fmt.Sprintf("%+v", err),
-			"idp":         as.idp.Name(),
-			"idp_subject": claims.Subject,
-		}).Error("Failed to create or update user")
+		as.logger.With(
+			"email", claims.Email,
+			"error", fmt.Sprintf("%+v", err),
+			"idp", as.idp.Name(),
+			"idp_subject", claims.Subject,
+		).Error("Failed to create or update user")
 		return nil, nil, false, fmt.Errorf("failed to create or update user: %w", err)
 	}
 
-	as.logger.WithFields(logrus.Fields{
-		"user_id": user.ID,
-		"email":   user.Email,
-	}).Info("Authentication completed successfully")
+	as.logger.With(
+		"user_id", user.ID,
+		"email", user.Email,
+	).Info("Authentication completed successfully")
 
 	return user, tokens, isNewUser, nil
 }
@@ -130,10 +130,11 @@ func (as *AuthService) createOrUpdateUserFromClaims(
 			return nil, false, fmt.Errorf("failed to query user by email: %w", lerr)
 		}
 		if legacyByEmail != nil {
-			as.logger.WithFields(logrus.Fields{
-				"email":   claims.Email,
-				"user_id": legacyByEmail.ID,
-			}).Info("Adopting legacy user row for WorkOS sign-in via email match")
+			as.logger.With(
+				"email", claims.Email,
+				"user_id", legacyByEmail.ID,
+			).
+				Info("Adopting legacy user row for WorkOS sign-in via email match")
 			user = legacyByEmail
 		}
 	}
@@ -238,12 +239,12 @@ func (as *AuthService) publishUserCreated(ctx context.Context, user *models.User
 	}
 	event := events.NewUserCreatedEvent(user.ID, user.Email, user.Name, user.CreatedAt)
 	if err := as.eventManager.Publish(ctx, event); err != nil {
-		as.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"method":  "publishUserCreated",
-			"user_id": user.ID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to publish user.created event")
+		as.logger.With(
+			"service", "vibexp-api",
+			"method", "publishUserCreated",
+			"user_id", user.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to publish user.created event")
 	}
 }
 
@@ -266,16 +267,21 @@ func (as *AuthService) createDevUser(ctx context.Context, email, name string) (*
 	}
 
 	if err := as.userRepo.Create(ctx, newUser); err != nil {
-		as.logger.WithError(err).WithField("email", email).Error("Failed to create dev user")
+		as.logger.With("error", err).With("email", email).Error("Failed to create dev user")
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	as.logger.WithFields(logrus.Fields{"user_id": newUser.ID, "email": newUser.Email}).Info("Created new dev user")
+	as.logger.With(
+		"user_id", newUser.ID,
+		"email", newUser.Email,
+	).Info("Created new dev user")
 
 	if as.eventManager != nil {
 		event := events.NewUserCreatedEvent(newUser.ID, newUser.Email, newUser.Name, newUser.CreatedAt)
 		if publishErr := as.eventManager.Publish(ctx, event); publishErr != nil {
-			as.logger.WithError(publishErr).WithField("user_id", newUser.ID).Error("Failed to publish user.created event")
+			as.logger.With("error", publishErr).
+				With("user_id", newUser.ID).
+				Error("Failed to publish user.created event")
 		}
 	}
 
@@ -286,12 +292,12 @@ func (as *AuthService) createDevUser(ctx context.Context, email, name string) (*
 // It creates or retrieves a user by email. The caller is responsible for
 // creating the session cookie.
 func (as *AuthService) HandleDevLogin(ctx context.Context, email, name string) (*models.User, error) {
-	as.logger.WithField("email", email).Info("Processing dev login request")
+	as.logger.With("email", email).Info("Processing dev login request")
 
 	user, err := as.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if !isUserNotFoundErr(err) {
-			as.logger.WithError(err).WithField("email", email).Error("Failed to query user by email")
+			as.logger.With("error", err).With("email", email).Error("Failed to query user by email")
 			return nil, fmt.Errorf("failed to query user: %w", err)
 		}
 		user = nil
@@ -303,13 +309,16 @@ func (as *AuthService) HandleDevLogin(ctx context.Context, email, name string) (
 			return nil, err
 		}
 	} else {
-		as.logger.WithFields(logrus.Fields{
-			"user_id": user.ID,
-			"email":   user.Email,
-		}).Info("Retrieved existing user for dev login")
+		as.logger.With(
+			"user_id", user.ID,
+			"email", user.Email,
+		).Info("Retrieved existing user for dev login")
 	}
 
-	as.logger.WithFields(logrus.Fields{"user_id": user.ID, "email": user.Email}).Info("Dev login completed successfully")
+	as.logger.With(
+		"user_id", user.ID,
+		"email", user.Email,
+	).Info("Dev login completed successfully")
 
 	return user, nil
 }

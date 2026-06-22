@@ -88,7 +88,7 @@ func (s *GitHubAppService) HandleInstallationCallback(
 	}
 	event := events.NewBaseEvent("github.installation.created", payload, userID)
 	if err := s.eventManager.Publish(ctx, event); err != nil {
-		s.logger.WithError(err).Warn("Failed to publish installation created event")
+		s.logger.Warn("Failed to publish installation created event", "error", err)
 	}
 
 	return reconnected, nil

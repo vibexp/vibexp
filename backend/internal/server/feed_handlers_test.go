@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,8 +13,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -69,8 +68,7 @@ var _ container.Container = (*MockFeedContainer)(nil)
 func newFeedTestServer(t *testing.T, fc *MockFeedContainer) *Server {
 	t.Helper()
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = fc
 	return srv
@@ -1436,8 +1434,7 @@ func TestFeedCrossTeamIsolation_FullRouter(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = ctr
 
@@ -1547,8 +1544,7 @@ func TestFeedCrossTeamIsolation(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	for _, tt := range tests {

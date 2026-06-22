@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
@@ -18,7 +18,7 @@ func createTestPromptShareService(
 	shareRepo *mocks.MockPromptShareRepository,
 	promptRepo *mocks.MockPromptRepository,
 ) *PromptShareService {
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	return NewPromptShareService(shareRepo, promptRepo, nil, logger)
 }
 
@@ -54,7 +54,7 @@ func createTestPromptShare() *models.PromptShare {
 func TestNewPromptShareService(t *testing.T) {
 	shareRepo := mocks.NewMockPromptShareRepository(t)
 	promptRepo := mocks.NewMockPromptRepository(t)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	service := NewPromptShareService(shareRepo, promptRepo, nil, logger)
 

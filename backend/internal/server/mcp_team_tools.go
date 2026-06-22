@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 )
 
 // listTeamsPageSize is the page size used when listing the user's teams for the
@@ -48,11 +48,11 @@ func (s *Server) listTeamsForUser(
 	for {
 		listResp, err := s.container.TeamService().ListTeams(ctx, userID, page, listTeamsPageSize)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"tool":    "vibexp_io_list_teams",
-				"user_id": userID,
-				"error":   fmt.Sprintf("%+v", err),
-			}).Error("Failed to list teams via MCP")
+			slog.With(
+				"tool", "vibexp_io_list_teams",
+				"user_id", userID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to list teams via MCP")
 			return mcpTextError("Failed to list teams. Please try again later."), nil, nil
 		}
 

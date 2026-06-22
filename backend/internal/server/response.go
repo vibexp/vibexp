@@ -2,9 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
-
-	"github.com/sirupsen/logrus"
 )
 
 // writeJSON serializes v as a JSON success response with the given status code.
@@ -13,21 +12,21 @@ import (
 // fallback http.Error would be a no-op).
 //
 // logger must be non-nil; handlers pass s.logger.
-func writeJSON(w http.ResponseWriter, status int, v any, logger *logrus.Logger) {
+func writeJSON(w http.ResponseWriter, status int, v any, logger *slog.Logger) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		logger.WithError(err).Error("Failed to encode response")
+		logger.With("error", err).Error("Failed to encode response")
 	}
 }
 
 // writeOK writes v as a 200 OK JSON response.
-func writeOK(w http.ResponseWriter, v any, logger *logrus.Logger) {
+func writeOK(w http.ResponseWriter, v any, logger *slog.Logger) {
 	writeJSON(w, http.StatusOK, v, logger)
 }
 
 // writeCreated writes v as a 201 Created JSON response.
-func writeCreated(w http.ResponseWriter, v any, logger *logrus.Logger) {
+func writeCreated(w http.ResponseWriter, v any, logger *slog.Logger) {
 	writeJSON(w, http.StatusCreated, v, logger)
 }
 

@@ -3,9 +3,8 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -25,7 +24,7 @@ type AgentInvocationService struct {
 	executionRepo   repositories.AgentExecutionRepository
 	a2aClient       A2AHTTPClientInterface
 	streamProcessor A2AStreamProcessorInterface
-	logger          *logrus.Logger
+	logger          *slog.Logger
 }
 
 // NewAgentInvocationService creates a new agent invocation service
@@ -34,7 +33,7 @@ func NewAgentInvocationService(
 	executionRepo repositories.AgentExecutionRepository,
 	a2aClient A2AHTTPClientInterface,
 	streamProcessor A2AStreamProcessorInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *AgentInvocationService {
 	return &AgentInvocationService{
 		agentRepo:       agentRepo,
@@ -79,24 +78,24 @@ func (s *AgentInvocationService) InvokeAgent(
 	// 5. Set conversation ID for new conversations
 	if err := s.setupConversationID(ctx, execution, conversationID); err != nil {
 		// Log warning but continue
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "InvokeAgent",
-			"execution_id": execution.ID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Warn("Failed to set conversation_id (non-fatal)")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "InvokeAgent",
+			"execution_id", execution.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to set conversation_id (non-fatal)")
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":            "vibexp-api",
-		"method":             "InvokeAgent",
-		"user_id":            userID,
-		"agent_id":           agentID,
-		"execution_id":       execution.ID,
-		"conversation_id":    execution.ConversationID,
-		"context_id":         contextID,
-		"supports_streaming": supportsStreaming,
-	}).Info("Created execution record, invoking agent")
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "InvokeAgent",
+		"user_id", userID,
+		"agent_id", agentID,
+		"execution_id", execution.ID,
+		"conversation_id", execution.ConversationID,
+		"context_id", contextID,
+		"supports_streaming", supportsStreaming,
+	).Info("Created execution record, invoking agent")
 
 	// 6. Route to appropriate method based on streaming support
 	if supportsStreaming {
@@ -117,24 +116,24 @@ func (s *AgentInvocationService) getAndValidateAgent(
 	// Search across all user's teams
 	agent, err := s.agentRepo.GetByIDCrossTeam(ctx, userID, agentID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "vibexp-api",
-			"method":   "InvokeAgent",
-			"user_id":  userID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to get agent")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "InvokeAgent",
+			"user_id", userID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get agent")
 		return nil, fmt.Errorf("failed to get agent: %w", err)
 	}
 
 	if agent.Status != "active" {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "vibexp-api",
-			"method":   "InvokeAgent",
-			"user_id":  userID,
-			"agent_id": agentID,
-			"status":   agent.Status,
-		}).Warn("Agent is not active")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "InvokeAgent",
+			"user_id", userID,
+			"agent_id", agentID,
+			"status", agent.Status,
+		).Warn("Agent is not active")
 		return nil, fmt.Errorf("agent is not active: %s", agent.Status)
 	}
 
@@ -153,25 +152,25 @@ func (s *AgentInvocationService) getContextIDForConversation(
 
 	firstExecution, err := s.executionRepo.GetFirstExecutionInConversation(ctx, userID, *conversationID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":         "vibexp-api",
-			"method":          "InvokeAgent",
-			"user_id":         userID,
-			"agent_id":        agentID,
-			"conversation_id": *conversationID,
-			"error":           fmt.Sprintf("%+v", err),
-		}).Error("Failed to get first execution in conversation")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "InvokeAgent",
+			"user_id", userID,
+			"agent_id", agentID,
+			"conversation_id", *conversationID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get first execution in conversation")
 		return nil, fmt.Errorf("failed to get conversation: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":         "vibexp-api",
-		"method":          "InvokeAgent",
-		"user_id":         userID,
-		"agent_id":        agentID,
-		"conversation_id": *conversationID,
-		"context_id":      firstExecution.ContextID,
-	}).Info("Continuing existing conversation")
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "InvokeAgent",
+		"user_id", userID,
+		"agent_id", agentID,
+		"conversation_id", *conversationID,
+		"context_id", firstExecution.ContextID,
+	).Info("Continuing existing conversation")
 
 	return firstExecution.ContextID, nil
 }
@@ -200,13 +199,13 @@ func (s *AgentInvocationService) createExecutionRecord(
 
 	err := s.executionRepo.Create(ctx, execution)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "vibexp-api",
-			"method":   "InvokeAgent",
-			"user_id":  userID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to create execution record")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "InvokeAgent",
+			"user_id", userID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create execution record")
 		return nil, fmt.Errorf("failed to create execution: %w", err)
 	}
 
@@ -259,31 +258,31 @@ func (s *AgentInvocationService) handleSyncInvocationError(
 	execution.Duration = &durationMs
 
 	if updateErr := s.executionRepo.Update(ctx, execution); updateErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "invokeAgentSync",
-			"execution_id": execution.ID,
-			"error":        fmt.Sprintf("%+v", updateErr),
-		}).Error("Failed to update execution with error")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "invokeAgentSync",
+			"execution_id", execution.ID,
+			"error", fmt.Sprintf("%+v", updateErr),
+		).Error("Failed to update execution with error")
 		return nil, fmt.Errorf("invocation failed: %w, update failed: %v", invocationErr, updateErr)
 	}
 
 	// Update agent statistics
 	if statsErr := s.agentRepo.UpdateExecutionStats(ctx, agent.ID, false, durationMs); statsErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "vibexp-api",
-			"method":   "invokeAgentSync",
-			"agent_id": agent.ID,
-			"error":    fmt.Sprintf("%+v", statsErr),
-		}).Warn("Failed to update agent statistics after error")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "invokeAgentSync",
+			"agent_id", agent.ID,
+			"error", fmt.Sprintf("%+v", statsErr),
+		).Warn("Failed to update agent statistics after error")
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"method":       "invokeAgentSync",
-		"execution_id": execution.ID,
-		"error":        fmt.Sprintf("%+v", invocationErr),
-	}).Error("Agent invocation failed")
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "invokeAgentSync",
+		"execution_id", execution.ID,
+		"error", fmt.Sprintf("%+v", invocationErr),
+	).Error("Agent invocation failed")
 
 	return execution, nil
 }
@@ -311,33 +310,33 @@ func (s *AgentInvocationService) handleSyncInvocationSuccess(
 
 	err := s.executionRepo.Update(ctx, execution)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "invokeAgentSync",
-			"execution_id": execution.ID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to update execution with result")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "invokeAgentSync",
+			"execution_id", execution.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update execution with result")
 		return nil, fmt.Errorf("failed to update execution: %w", err)
 	}
 
 	// Update agent statistics
 	success := result.Status == "completed"
 	if err := s.agentRepo.UpdateExecutionStats(ctx, agent.ID, success, *execution.Duration); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "vibexp-api",
-			"method":   "invokeAgentSync",
-			"agent_id": agent.ID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Warn("Failed to update agent statistics")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "invokeAgentSync",
+			"agent_id", agent.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to update agent statistics")
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"method":       "invokeAgentSync",
-		"execution_id": execution.ID,
-		"status":       result.Status,
-		"duration_ms":  *execution.Duration,
-	}).Info("Agent invocation completed successfully")
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "invokeAgentSync",
+		"execution_id", execution.ID,
+		"status", result.Status,
+		"duration_ms", *execution.Duration,
+	).Info("Agent invocation completed successfully")
 
 	return execution, nil
 }
@@ -371,14 +370,21 @@ func (s *AgentInvocationService) invokeAgentStreaming(
 	go s.startStreamProcessor(execution.ID, eventChan) // #nosec G118 -- intentional: outlives request
 
 	// Start HTTP streaming in another goroutine
-	go s.startHTTPStreaming(agent, execution, input, contextID, eventChan) // #nosec G118 -- intentional: outlives request
+	go s.startHTTPStreaming(
+		agent,
+		execution,
+		input,
+		contextID,
+		eventChan,
+	) // #nosec G118 -- intentional: outlives request
 
 	// Return execution immediately (don't wait for goroutine)
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"method":       "invokeAgentStreaming",
-		"execution_id": execution.ID,
-	}).Info("Returning execution, processing will continue in background")
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "invokeAgentStreaming",
+		"execution_id", execution.ID,
+	).
+		Info("Returning execution, processing will continue in background")
 
 	return execution, nil
 }
@@ -387,26 +393,27 @@ func (s *AgentInvocationService) invokeAgentStreaming(
 func (s *AgentInvocationService) startStreamProcessor(executionID string, eventChan <-chan *A2AStreamEvent) {
 	bgCtx := context.Background()
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"method":       "invokeAgentStreaming",
-		"execution_id": executionID,
-	}).Info("Starting stream processor")
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "invokeAgentStreaming",
+		"execution_id", executionID,
+	).
+		Info("Starting stream processor")
 
 	// Process stream events as they arrive
 	if err := s.streamProcessor.ProcessStream(bgCtx, executionID, eventChan); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "invokeAgentStreaming",
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Stream processing failed")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "invokeAgentStreaming",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Stream processing failed")
 	} else {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "invokeAgentStreaming",
-			"execution_id": executionID,
-		}).Info("Stream processing completed")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "invokeAgentStreaming",
+			"execution_id", executionID,
+		).Info("Stream processing completed")
 	}
 }
 
@@ -424,12 +431,12 @@ func (s *AgentInvocationService) startHTTPStreaming(
 	// Ensure channel is closed when this goroutine exits (with panic recovery)
 	defer s.closeEventChannelSafely(execution.ID, eventChan)
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"method":       "invokeAgentStreaming",
-		"execution_id": execution.ID,
-		"context_id":   contextID,
-	}).Info("Starting HTTP streaming invocation")
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "invokeAgentStreaming",
+		"execution_id", execution.ID,
+		"context_id", contextID,
+	).Info("Starting HTTP streaming invocation")
 
 	// Invoke agent with streaming (contextID will be used by A2A client)
 	err := s.a2aClient.InvokeAgentStreaming(bgCtx, agent, input, contextID, eventChan)
@@ -439,33 +446,35 @@ func (s *AgentInvocationService) startHTTPStreaming(
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"method":       "invokeAgentStreaming",
-		"execution_id": execution.ID,
-	}).Info("HTTP streaming completed")
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "invokeAgentStreaming",
+		"execution_id", execution.ID,
+	).
+		Info("HTTP streaming completed")
 }
 
 // closeEventChannelSafely closes the event channel with panic recovery
 func (s *AgentInvocationService) closeEventChannelSafely(executionID string, eventChan chan<- *A2AStreamEvent) {
 	if r := recover(); r != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "invokeAgentStreaming",
-			"execution_id": executionID,
-			"panic":        r,
-		}).Error("Panic in streaming goroutine")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "invokeAgentStreaming",
+			"execution_id", executionID,
+			"panic", r,
+		).Error("Panic in streaming goroutine")
 	}
 
 	// Safe channel close - only panic is if channel is already closed
 	defer func() {
 		if r := recover(); r != nil {
 			// Channel was already closed, which is expected in some cases
-			s.logger.WithFields(logrus.Fields{
-				"service":      "vibexp-api",
-				"method":       "invokeAgentStreaming",
-				"execution_id": executionID,
-			}).Debug("Channel close panic recovered (expected)")
+			s.logger.With(
+				"service", "vibexp-api",
+				"method", "invokeAgentStreaming",
+				"execution_id", executionID,
+			).
+				Debug("Channel close panic recovered (expected)")
 		}
 	}()
 	close(eventChan)
@@ -477,12 +486,12 @@ func (s *AgentInvocationService) handleStreamingError(
 	execution *models.AgentExecution,
 	err error,
 ) {
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"method":       "invokeAgentStreaming",
-		"execution_id": execution.ID,
-		"error":        fmt.Sprintf("%+v", err),
-	}).Error("Streaming invocation failed")
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "invokeAgentStreaming",
+		"execution_id", execution.ID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Streaming invocation failed")
 
 	// Update execution status to failed
 	endedAt := time.Now()
@@ -494,11 +503,11 @@ func (s *AgentInvocationService) handleStreamingError(
 	execution.Duration = &durationMs
 
 	if updateErr := s.executionRepo.Update(ctx, execution); updateErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "invokeAgentStreaming",
-			"execution_id": execution.ID,
-			"error":        fmt.Sprintf("%+v", updateErr),
-		}).Error("Failed to update execution with error")
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "invokeAgentStreaming",
+			"execution_id", execution.ID,
+			"error", fmt.Sprintf("%+v", updateErr),
+		).Error("Failed to update execution with error")
 	}
 }

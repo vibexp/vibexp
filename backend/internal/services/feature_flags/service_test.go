@@ -2,11 +2,10 @@ package feature_flags
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +24,7 @@ func (m *mockFeatureFlag) Evaluate(ctx context.Context) bool {
 }
 
 func TestNewFeatureFlagService(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewFeatureFlagService(logger)
 
 	assert.NotNil(t, service)
@@ -34,7 +33,7 @@ func TestNewFeatureFlagService(t *testing.T) {
 }
 
 func TestFeatureFlagService_RegisterFlag(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewFeatureFlagService(logger)
 
 	flag := &mockFeatureFlag{name: "test_flag", enabled: true}
@@ -46,7 +45,7 @@ func TestFeatureFlagService_RegisterFlag(t *testing.T) {
 }
 
 func TestFeatureFlagService_RegisterMultipleFlags(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewFeatureFlagService(logger)
 
 	flag1 := &mockFeatureFlag{name: "flag_1", enabled: true}
@@ -64,7 +63,7 @@ func TestFeatureFlagService_RegisterMultipleFlags(t *testing.T) {
 }
 
 func TestFeatureFlagService_IsEnabled_FlagExists(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewFeatureFlagService(logger)
 
 	tests := []struct {
@@ -95,7 +94,7 @@ func TestFeatureFlagService_IsEnabled_FlagExists(t *testing.T) {
 }
 
 func TestFeatureFlagService_IsEnabled_FlagNotRegistered(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewFeatureFlagService(logger)
 
 	ctx := context.Background()
@@ -104,7 +103,7 @@ func TestFeatureFlagService_IsEnabled_FlagNotRegistered(t *testing.T) {
 }
 
 func TestFeatureFlagService_IsEnabled_OverwriteFlag(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewFeatureFlagService(logger)
 
 	// Register initial flag
@@ -135,7 +134,7 @@ func (p *panicFlag) Evaluate(ctx context.Context) bool {
 }
 
 func TestFeatureFlagService_IsEnabled_PanicRecovery(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewFeatureFlagService(logger)
 
 	flag := &panicFlag{name: "panic_flag"}
@@ -149,7 +148,7 @@ func TestFeatureFlagService_IsEnabled_PanicRecovery(t *testing.T) {
 }
 
 func TestFeatureFlagService_ConcurrentAccess(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewFeatureFlagService(logger)
 
 	flag := &mockFeatureFlag{name: "concurrent_flag", enabled: true}
@@ -174,7 +173,7 @@ func TestFeatureFlagService_ConcurrentAccess(t *testing.T) {
 }
 
 func TestFeatureFlagService_ConcurrentRegistration(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewFeatureFlagService(logger)
 
 	done := make(chan bool, 10)

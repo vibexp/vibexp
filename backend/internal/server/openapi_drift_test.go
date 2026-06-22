@@ -15,6 +15,7 @@ package server
 // (only scope-policy exclusions belong here).
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,8 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"gopkg.in/yaml.v3"
 
 	"github.com/vibexp/vibexp/internal/config"
@@ -84,8 +83,7 @@ func newDriftTestServer(t *testing.T) *Server {
 	cfg := &config.Config{
 		MCPResourceURI: "https://connect.vibexp.io/mcp/v1/common",
 	}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)
 }
 

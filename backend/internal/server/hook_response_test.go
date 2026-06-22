@@ -2,23 +2,20 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-func newTestLogger() *logrus.Logger {
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
-	return logger
+func newTestLogger() *slog.Logger {
+	return slog.New(slog.DiscardHandler)
 }
 
 // TestRespondWithHookError locks the {"status":"error","message":...} wire

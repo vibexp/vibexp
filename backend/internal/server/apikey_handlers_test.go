@@ -1,21 +1,18 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/vibexp/vibexp/internal/config"
 )
 
 func TestAPIKeyHandlers_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -51,8 +48,7 @@ func TestAPIKeyHandlers_Unauthorized(t *testing.T) {
 
 func TestAPIKeyHandlers_BadRequest(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -123,8 +119,7 @@ func TestAPIKeyHandlers_WithValidAuth(t *testing.T) {
 
 func TestAPIKeyHandlers_InvalidPaths(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -157,8 +152,7 @@ func TestAPIKeyHandlers_InvalidPaths(t *testing.T) {
 
 func TestAPIKeyHandlers_LongName(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	// Create a name that's longer than 255 characters
@@ -210,8 +204,7 @@ func TestAPIKeyHandlers_LongName(t *testing.T) {
 
 func TestAPIKeyHandlers_DeleteNonExistentKey(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {

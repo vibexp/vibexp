@@ -3,10 +3,10 @@ package server
 import (
 	"encoding/json"
 	stderrors "errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -28,7 +28,7 @@ func (s *Server) decodeContactRequest(
 	r.Body = http.MaxBytesReader(w, r.Body, contactMaxBodyBytes)
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logger.WithError(err).Error("Failed to decode contact form request")
+		s.logger.With("error", err).Error("Failed to decode contact form request")
 		var maxBytesErr *http.MaxBytesError
 		if stderrors.As(err, &maxBytesErr) {
 			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
@@ -48,7 +48,7 @@ func (s *Server) handleContactSendMessage(w http.ResponseWriter, r *http.Request
 
 	// Validate the request
 	if err := validate.Struct(&req); err != nil {
-		s.logger.WithError(err).Error("Contact form validation failed")
+		s.logger.With("error", err).Error("Contact form validation failed")
 
 		// Return validation errors
 		w.Header().Set("Content-Type", "application/json")
@@ -59,7 +59,7 @@ func (s *Server) handleContactSendMessage(w http.ResponseWriter, r *http.Request
 			Success: false,
 		}
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			logrus.WithError(err).Error("Failed to encode response")
+			slog.Error("Failed to encode response", "error", err)
 		}
 		return
 	}
@@ -67,7 +67,7 @@ func (s *Server) handleContactSendMessage(w http.ResponseWriter, r *http.Request
 	// Get email service and send emails
 	emailService := s.container.EmailService()
 	if err := emailService.SendContactMessage(&req); err != nil {
-		s.logger.WithError(err).Error("Failed to send contact form emails")
+		s.logger.With("error", err).Error("Failed to send contact form emails")
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -77,16 +77,16 @@ func (s *Server) handleContactSendMessage(w http.ResponseWriter, r *http.Request
 			Success: false,
 		}
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			logrus.WithError(err).Error("Failed to encode response")
+			slog.Error("Failed to encode response", "error", err)
 		}
 		return
 	}
 
 	// Log successful submission
-	s.logger.WithFields(logrus.Fields{
-		"name":  req.Name,
-		"email": req.Email,
-	}).Info("Contact form submitted successfully")
+	s.logger.With(
+		"name", req.Name,
+		"email", req.Email,
+	).Info("Contact form submitted successfully")
 
 	// Return success response
 	response := models.ContactFormResponse{

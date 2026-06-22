@@ -3,10 +3,10 @@ package events
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
+	"github.com/vibexp/vibexp/internal/logging"
 	"github.com/vibexp/vibexp/internal/services/crm"
 )
 
@@ -20,13 +20,13 @@ type HubSpotCRMServiceInterface interface {
 // HubSpotCRMListener handles user events and syncs them to HubSpot CRM
 type HubSpotCRMListener struct {
 	crmService HubSpotCRMServiceInterface
-	logger     *logrus.Logger
+	logger     *slog.Logger
 }
 
 // NewHubSpotCRMListener creates a new HubSpot CRM listener
-func NewHubSpotCRMListener(crmService HubSpotCRMServiceInterface, logger *logrus.Logger) *HubSpotCRMListener {
+func NewHubSpotCRMListener(crmService HubSpotCRMServiceInterface, logger *slog.Logger) *HubSpotCRMListener {
 	if logger == nil {
-		logger = logrus.New()
+		logger = logging.New(logging.Config{})
 	}
 	return &HubSpotCRMListener{
 		crmService: crmService,
@@ -36,22 +36,22 @@ func NewHubSpotCRMListener(crmService HubSpotCRMServiceInterface, logger *logrus
 
 // Handle processes user.created and user.updated events
 func (l *HubSpotCRMListener) Handle(ctx context.Context, event Event) error {
-	l.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"component":  "hubspot-crm-listener",
-		"event_type": event.Type(),
-	}).Debug("Received event for HubSpot CRM sync")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "hubspot-crm-listener",
+		"event_type", event.Type(),
+	).Debug("Received event for HubSpot CRM sync")
 
 	// Backfill-origin events are replays of historical entities, not genuine user
 	// actions. Syncing them would call the HubSpot API once per entity and
 	// overwrite contacts' engagement timestamps (e.g. LastPromptCreatedAt) with
 	// stale historical values, so skip them entirely.
 	if IsBackfillOrigin(event) {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-		}).Debug("Skipping backfill-origin event for HubSpot CRM sync")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+		).Debug("Skipping backfill-origin event for HubSpot CRM sync")
 		return nil
 	}
 
@@ -65,11 +65,11 @@ func (l *HubSpotCRMListener) Handle(ctx context.Context, event Event) error {
 	case EventTypeAIToolSessionCreated:
 		return l.handleAIToolSessionCreated(ctx, event)
 	default:
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-		}).Warn("Unexpected event type received")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+		).Warn("Unexpected event type received")
 		return nil
 	}
 }
@@ -78,11 +78,11 @@ func (l *HubSpotCRMListener) Handle(ctx context.Context, event Event) error {
 func (l *HubSpotCRMListener) handleUserCreated(ctx context.Context, event Event) error {
 	payload, ok := event.Payload().(*UserCreatedPayload)
 	if !ok {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-		}).Error("Failed to cast payload to UserCreatedPayload")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+		).Error("Failed to cast payload to UserCreatedPayload")
 		// Don't return error to avoid retry storms
 		return nil
 	}
@@ -90,25 +90,25 @@ func (l *HubSpotCRMListener) handleUserCreated(ctx context.Context, event Event)
 	contactData := l.buildContactDataFromUserCreated(payload)
 
 	if err := l.crmService.CreateContact(ctx, contactData); err != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-			"user_id":    payload.UserID,
-			"email":      payload.Email,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to create contact in HubSpot CRM")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+			"user_id", payload.UserID,
+			"email", payload.Email,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create contact in HubSpot CRM")
 		// Don't return error to avoid blocking user operations
 		return nil
 	}
 
-	l.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"component":  "hubspot-crm-listener",
-		"event_type": event.Type(),
-		"user_id":    payload.UserID,
-		"email":      payload.Email,
-	}).Info("Successfully synced user.created event to HubSpot CRM")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "hubspot-crm-listener",
+		"event_type", event.Type(),
+		"user_id", payload.UserID,
+		"email", payload.Email,
+	).Info("Successfully synced user.created event to HubSpot CRM")
 
 	return nil
 }
@@ -117,11 +117,11 @@ func (l *HubSpotCRMListener) handleUserCreated(ctx context.Context, event Event)
 func (l *HubSpotCRMListener) handleUserUpdated(ctx context.Context, event Event) error {
 	payload, ok := event.Payload().(*UserUpdatedPayload)
 	if !ok {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-		}).Error("Failed to cast payload to UserUpdatedPayload")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+		).Error("Failed to cast payload to UserUpdatedPayload")
 		// Don't return error to avoid retry storms
 		return nil
 	}
@@ -131,25 +131,25 @@ func (l *HubSpotCRMListener) handleUserUpdated(ctx context.Context, event Event)
 	// For user updates, we update the existing contact
 	// The service will handle contact creation if it doesn't exist
 	if err := l.crmService.UpdateContact(ctx, payload.Email, contactData); err != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-			"user_id":    payload.UserID,
-			"email":      payload.Email,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to update contact in HubSpot CRM")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+			"user_id", payload.UserID,
+			"email", payload.Email,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update contact in HubSpot CRM")
 		// Don't return error to avoid blocking user operations
 		return nil
 	}
 
-	l.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"component":  "hubspot-crm-listener",
-		"event_type": event.Type(),
-		"user_id":    payload.UserID,
-		"email":      payload.Email,
-	}).Info("Successfully synced user.updated event to HubSpot CRM")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "hubspot-crm-listener",
+		"event_type", event.Type(),
+		"user_id", payload.UserID,
+		"email", payload.Email,
+	).Info("Successfully synced user.updated event to HubSpot CRM")
 
 	return nil
 }
@@ -182,11 +182,11 @@ func (l *HubSpotCRMListener) buildContactDataFromUserUpdated(payload *UserUpdate
 func (l *HubSpotCRMListener) handlePromptCreated(ctx context.Context, event Event) error {
 	payload, ok := event.Payload().(*PromptCreatedPayload)
 	if !ok {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-		}).Error("Failed to cast payload to PromptCreatedPayload")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+		).Error("Failed to cast payload to PromptCreatedPayload")
 		return nil
 	}
 
@@ -196,24 +196,24 @@ func (l *HubSpotCRMListener) handlePromptCreated(ctx context.Context, event Even
 	}
 
 	if err := l.crmService.UpdateContact(ctx, payload.Email, contactData); err != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-			"user_id":    payload.UserID,
-			"email":      payload.Email,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to update contact with prompt data in HubSpot CRM")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+			"user_id", payload.UserID,
+			"email", payload.Email,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update contact with prompt data in HubSpot CRM")
 		return nil
 	}
 
-	l.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"component":  "hubspot-crm-listener",
-		"event_type": event.Type(),
-		"user_id":    payload.UserID,
-		"email":      payload.Email,
-	}).Info("Successfully synced prompt.created event to HubSpot CRM")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "hubspot-crm-listener",
+		"event_type", event.Type(),
+		"user_id", payload.UserID,
+		"email", payload.Email,
+	).Info("Successfully synced prompt.created event to HubSpot CRM")
 
 	return nil
 }
@@ -222,11 +222,11 @@ func (l *HubSpotCRMListener) handlePromptCreated(ctx context.Context, event Even
 func (l *HubSpotCRMListener) handleAIToolSessionCreated(ctx context.Context, event Event) error {
 	payload, ok := event.Payload().(*AIToolSessionCreatedPayload)
 	if !ok {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-		}).Error("Failed to cast payload to AIToolSessionCreatedPayload")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+		).Error("Failed to cast payload to AIToolSessionCreatedPayload")
 		return nil
 	}
 
@@ -236,26 +236,26 @@ func (l *HubSpotCRMListener) handleAIToolSessionCreated(ctx context.Context, eve
 	}
 
 	if err := l.crmService.UpdateContact(ctx, payload.Email, contactData); err != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "hubspot-crm-listener",
-			"event_type": event.Type(),
-			"user_id":    payload.UserID,
-			"email":      payload.Email,
-			"tool_type":  payload.ToolType,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to update contact with AI tool data in HubSpot CRM")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_type", event.Type(),
+			"user_id", payload.UserID,
+			"email", payload.Email,
+			"tool_type", payload.ToolType,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update contact with AI tool data in HubSpot CRM")
 		return nil
 	}
 
-	l.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"component":  "hubspot-crm-listener",
-		"event_type": event.Type(),
-		"user_id":    payload.UserID,
-		"email":      payload.Email,
-		"tool_type":  payload.ToolType,
-	}).Info("Successfully synced ai_tool_session.created event to HubSpot CRM")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "hubspot-crm-listener",
+		"event_type", event.Type(),
+		"user_id", payload.UserID,
+		"email", payload.Email,
+		"tool_type", payload.ToolType,
+	).Info("Successfully synced ai_tool_session.created event to HubSpot CRM")
 
 	return nil
 }

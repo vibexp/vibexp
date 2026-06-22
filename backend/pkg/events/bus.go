@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/logging"
 )
@@ -54,7 +54,7 @@ type InMemoryEventBus struct {
 	running        bool
 	stopChan       chan struct{}
 	wg             sync.WaitGroup
-	logger         *logrus.Logger
+	logger         *slog.Logger
 	maxRetries     int
 	retryBackoff   time.Duration
 	retryJitter    bool
@@ -65,8 +65,8 @@ type InMemoryEventBus struct {
 // EventBusConfig holds configuration for the event bus including runtime dependencies
 // It embeds Config which contains environment-scanned configuration values
 type EventBusConfig struct {
-	Config                        // Embedded environment configuration
-	Logger         *logrus.Logger // Runtime dependency
+	Config                      // Embedded environment configuration
+	Logger         *slog.Logger // Runtime dependency
 	CircuitBreaker *CircuitBreaker
 	Metrics        MetricsRecorder // Optional metrics recorder for observability
 }
@@ -111,7 +111,7 @@ func NewInMemoryEventBus(config EventBusConfig) *InMemoryEventBus {
 
 	// RetryJitter defaults to false
 	if config.Logger == nil {
-		config.Logger = logging.NewCloudLogger(logging.CloudLoggerConfig{})
+		config.Logger = logging.New(logging.Config{})
 	}
 	if config.CircuitBreaker == nil {
 		config.CircuitBreaker = NewCircuitBreaker(5, 10) // default: 5 failures, 10 second timeout
@@ -191,11 +191,11 @@ func (b *InMemoryEventBus) Publish(ctx context.Context, event Event) error {
 	// Non-blocking send with timeout handling
 	select {
 	case b.eventChannel <- event:
-		b.logger.WithFields(logrus.Fields{
-			"event_type": event.Type(),
-			"user_id":    event.UserID(),
-			"timestamp":  event.Timestamp(),
-		}).Debug("Event published")
+		b.logger.With(
+			"event_type", event.Type(),
+			"user_id", event.UserID(),
+			"timestamp", event.Timestamp(),
+		).Debug("Event published")
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -211,10 +211,10 @@ func (b *InMemoryEventBus) Subscribe(listener EventListener) error {
 
 	for _, eventType := range listener.EventTypes() {
 		b.listeners[eventType] = append(b.listeners[eventType], listener)
-		b.logger.WithFields(logrus.Fields{
-			"event_type":    eventType,
-			"listener_type": fmt.Sprintf("%T", listener),
-		}).Debug("Listener subscribed")
+		b.logger.With(
+			"event_type", eventType,
+			"listener_type", fmt.Sprintf("%T", listener),
+		).Debug("Listener subscribed")
 	}
 
 	return nil
@@ -231,10 +231,10 @@ func (b *InMemoryEventBus) Unsubscribe(listener EventListener) error {
 			if l == listener {
 				// Remove listener from slice
 				b.listeners[eventType] = append(listeners[:i], listeners[i+1:]...)
-				b.logger.WithFields(logrus.Fields{
-					"event_type":    eventType,
-					"listener_type": fmt.Sprintf("%T", listener),
-				}).Debug("Listener unsubscribed")
+				b.logger.With(
+					"event_type", eventType,
+					"listener_type", fmt.Sprintf("%T", listener),
+				).Debug("Listener unsubscribed")
 				break
 			}
 		}
@@ -281,9 +281,9 @@ func (b *InMemoryEventBus) processEvent(event Event) {
 	b.mu.RUnlock()
 
 	if len(listeners) == 0 {
-		b.logger.WithFields(logrus.Fields{
-			"event_type": event.Type(),
-		}).Debug("No listeners registered for event type")
+		b.logger.With(
+			"event_type", event.Type(),
+		).Debug("No listeners registered for event type")
 		return
 	}
 
@@ -427,29 +427,29 @@ func (b *InMemoryEventBus) applyRetryBackoffWithDuration(
 	attempt int,
 	backoffDuration time.Duration,
 ) {
-	b.logger.WithFields(logrus.Fields{
-		"listener_type": listenerType,
-		"event_type":    eventType,
-		"attempt":       attempt + 1,
-		"backoff_ms":    backoffDuration.Milliseconds(),
-	}).Debug("Applying exponential backoff before retry")
+	b.logger.With(
+		"listener_type", listenerType,
+		"event_type", eventType,
+		"attempt", attempt+1,
+		"backoff_ms", backoffDuration.Milliseconds(),
+	).Debug("Applying exponential backoff before retry")
 	time.Sleep(backoffDuration)
 }
 
 // logSuccessfulAttempt logs a successful event handling attempt
 func (b *InMemoryEventBus) logSuccessfulAttempt(listenerType, eventType string, attempt int) {
 	if attempt > 0 {
-		b.logger.WithFields(logrus.Fields{
-			"listener_type": listenerType,
-			"event_type":    eventType,
-			"attempt":       attempt + 1,
-			"retry_count":   attempt,
-		}).Info("Event handled successfully after retry")
+		b.logger.With(
+			"listener_type", listenerType,
+			"event_type", eventType,
+			"attempt", attempt+1,
+			"retry_count", attempt,
+		).Info("Event handled successfully after retry")
 	} else {
-		b.logger.WithFields(logrus.Fields{
-			"listener_type": listenerType,
-			"event_type":    eventType,
-		}).Debug("Event handled successfully")
+		b.logger.With(
+			"listener_type", listenerType,
+			"event_type", eventType,
+		).Debug("Event handled successfully")
 	}
 }
 
@@ -457,20 +457,20 @@ func (b *InMemoryEventBus) logSuccessfulAttempt(listenerType, eventType string, 
 func (b *InMemoryEventBus) logRetryAttempt(listenerType, eventType string, attempt int, err error) {
 	isLastAttempt := attempt == b.maxRetries-1
 	if isLastAttempt {
-		b.logger.WithFields(logrus.Fields{
-			"listener_type": listenerType,
-			"event_type":    eventType,
-			"attempt":       attempt + 1,
-			"error":         fmt.Sprintf("%+v", err),
-		}).Warn("Failed to handle event on final attempt")
+		b.logger.With(
+			"listener_type", listenerType,
+			"event_type", eventType,
+			"attempt", attempt+1,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to handle event on final attempt")
 	} else {
-		b.logger.WithFields(logrus.Fields{
-			"listener_type": listenerType,
-			"event_type":    eventType,
-			"attempt":       attempt + 1,
-			"error":         fmt.Sprintf("%+v", err),
-			"is_transient":  isTransientError(err),
-		}).Warn("Failed to handle event, will retry")
+		b.logger.With(
+			"listener_type", listenerType,
+			"event_type", eventType,
+			"attempt", attempt+1,
+			"error", fmt.Sprintf("%+v", err),
+			"is_transient", isTransientError(err),
+		).Warn("Failed to handle event, will retry")
 	}
 }
 
@@ -499,10 +499,10 @@ func (b *InMemoryEventBus) handleEventWithRetry(listener EventListener, event Ev
 // shouldSkipDueToCircuitBreaker checks if event should be skipped due to circuit breaker
 func (b *InMemoryEventBus) shouldSkipDueToCircuitBreaker(listenerType, eventType string) bool {
 	if !b.circuitBreaker.CanExecute(listenerType) {
-		b.logger.WithFields(logrus.Fields{
-			"listener_type": listenerType,
-			"event_type":    eventType,
-		}).Warn("Circuit breaker open, skipping event")
+		b.logger.With(
+			"listener_type", listenerType,
+			"event_type", eventType,
+		).Warn("Circuit breaker open, skipping event")
 		if b.metrics != nil {
 			b.metrics.RecordEventBusCircuitBreakerOpen(context.Background(), listenerType)
 		}
@@ -565,12 +565,12 @@ func (b *InMemoryEventBus) isContextDone(
 ) bool {
 	select {
 	case <-ctx.Done():
-		b.logger.WithFields(logrus.Fields{
-			"listener_type": listenerType,
-			"event_type":    eventType,
-			"error":         ctx.Err(),
-			"attempt":       attempt,
-		}).Warn("Context canceled or timed out, stopping retries")
+		b.logger.With(
+			"listener_type", listenerType,
+			"event_type", eventType,
+			"error", ctx.Err(),
+			"attempt", attempt,
+		).Warn("Context canceled or timed out, stopping retries")
 		return true
 	default:
 		return false
@@ -639,12 +639,12 @@ func (b *InMemoryEventBus) shouldContinueRetrying(
 	attempt int,
 ) bool {
 	if !b.shouldRetry(event, err) {
-		b.logger.WithFields(logrus.Fields{
-			"listener_type": listenerType,
-			"event_type":    eventType,
-			"retry_policy":  event.RetryPolicy(),
-			"error":         fmt.Sprintf("%+v", err),
-		}).Warn("Non-retryable error encountered, stopping retries")
+		b.logger.With(
+			"listener_type", listenerType,
+			"event_type", eventType,
+			"retry_policy", event.RetryPolicy(),
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Non-retryable error encountered, stopping retries")
 		return false
 	}
 
@@ -665,11 +665,11 @@ func (b *InMemoryEventBus) handleFinalFailure(
 		b.metrics.RecordEventBusRetryFailure(ctx, listenerType, eventType)
 	}
 
-	b.logger.WithFields(logrus.Fields{
-		"listener_type": listenerType,
-		"event_type":    eventType,
-		"error":         fmt.Sprintf("%+v", err),
-		"max_retries":   b.maxRetries,
-		"retry_policy":  retryPolicy,
-	}).Error("Failed to handle event after all retries")
+	b.logger.With(
+		"listener_type", listenerType,
+		"event_type", eventType,
+		"error", fmt.Sprintf("%+v", err),
+		"max_retries", b.maxRetries,
+		"retry_policy", retryPolicy,
+	).Error("Failed to handle event after all retries")
 }

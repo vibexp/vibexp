@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -58,14 +57,14 @@ func (s *Server) handleGetProjectResourceCreationMetrics(w http.ResponseWriter, 
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetProjectResourceCreationMetrics",
-		"user_id": userID,
-		"team_id": teamID,
-		"slug":    decodedSlug,
-		"range":   rangeStr,
-	}).Info("Get project resource creation metrics request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetProjectResourceCreationMetrics",
+		"user_id", userID,
+		"team_id", teamID,
+		"slug", decodedSlug,
+		"range", rangeStr,
+	).Info("Get project resource creation metrics request received")
 
 	// Align the SQL window start with the zero-filled series start by truncating
 	// to UTC midnight. AddDate carries the current time-of-day; without this the
@@ -92,13 +91,13 @@ func (s *Server) handleGetProjectResourceCreationMetrics(w http.ResponseWriter, 
 // handleGetProjectResourceCreationMetricsError maps repository errors to HTTP
 // responses, mirroring handleGetProjectStatsError.
 func (s *Server) handleGetProjectResourceCreationMetricsError(w http.ResponseWriter, userID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetProjectResourceCreationMetrics",
-		"user_id": userID,
-		"slug":    slug,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to get project resource creation metrics")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetProjectResourceCreationMetrics",
+		"user_id", userID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to get project resource creation metrics")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Project not found", http.StatusNotFound)

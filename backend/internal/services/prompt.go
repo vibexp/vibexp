@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"regexp"
 	"slices"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -26,7 +26,7 @@ type PromptService struct {
 	teamService       TeamServiceInterface
 	eventManager      events.EventPublisher
 	contentVersionSvc ContentVersionServiceInterface
-	logger            *logrus.Logger
+	logger            *slog.Logger
 }
 
 // Ensure PromptService implements PromptServiceInterface
@@ -39,7 +39,7 @@ func NewPromptService(
 	projectRepo repositories.ProjectRepository,
 	teamService TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
 ) *PromptService {
 	return &PromptService{
@@ -80,7 +80,7 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 	if s.userRepo != nil {
 		user, err := s.userRepo.GetByID(ctx, prompt.UserID)
 		if err != nil {
-			s.logger.WithError(err).Warn("Failed to fetch user email for prompt created event")
+			s.logger.With("error", err).Warn("Failed to fetch user email for prompt created event")
 		} else {
 			userEmail = user.Email
 		}
@@ -89,10 +89,11 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 	// Render the prompt body to resolve all @references and {{placeholders}}
 	renderedBody, err := s.RenderPromptBody(prompt.UserID, prompt.Body)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"prompt_id": prompt.ID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Warn("Failed to render prompt for event, sending raw body instead")
+		s.logger.With(
+			"prompt_id", prompt.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Warn("Failed to render prompt for event, sending raw body instead")
 		renderedBody = prompt.Body
 	}
 
@@ -100,7 +101,7 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 		prompt.ID, prompt.UserID, userEmail, "default", prompt.Slug, prompt.Name, renderedBody, prompt.CreatedAt,
 	)
 	if err := s.eventManager.Publish(ctx, event); err != nil {
-		s.logger.WithError(err).Warn("Failed to publish prompt created event")
+		s.logger.With("error", err).Warn("Failed to publish prompt created event")
 	}
 }
 
@@ -147,24 +148,24 @@ func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePr
 	}
 
 	if err := s.repo.Create(ctx, prompt); err != nil {
-		s.logger.WithError(err).Error("Failed to create prompt")
+		s.logger.With("error", err).Error("Failed to create prompt")
 		return nil, err
 	}
 
 	// Extract and store references from the prompt body
 	if err := s.updatePromptReferences(ctx, userID, prompt.ID, prompt.Body); err != nil {
-		s.logger.WithError(err).Warn("Failed to update prompt references")
+		s.logger.With("error", err).Warn("Failed to update prompt references")
 		// Don't fail the creation, just log the warning
 	}
 
 	// Publish prompt created event with rendered body
 	s.publishPromptCreatedEvent(ctx, prompt)
 
-	s.logger.WithFields(logrus.Fields{
-		"prompt_id": prompt.ID,
-		"user_id":   userID,
-		"slug":      prompt.Slug,
-	}).Info("Prompt created successfully")
+	s.logger.With(
+		"prompt_id", prompt.ID,
+		"user_id", userID,
+		"slug", prompt.Slug,
+	).Info("Prompt created successfully")
 
 	return prompt, nil
 }
@@ -174,7 +175,7 @@ func (s *PromptService) GetPrompt(userID, teamID, promptID string) (*models.Prom
 
 	prompt, err := s.repo.GetByID(ctx, userID, teamID, promptID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to get prompt")
+		s.logger.With("error", err).Error("Failed to get prompt")
 		return nil, err
 	}
 
@@ -188,22 +189,23 @@ func (s *PromptService) GetPromptBySlug(userID, teamID, slug string) (*models.Pr
 	if err != nil {
 		// Check if this is a "not found" error
 		if errors.Is(err, repositories.ErrPromptNotFound) {
-			s.logger.WithFields(logrus.Fields{
-				"user_id": userID,
-				"team_id": teamID,
-				"slug":    slug,
-			}).Warn("Prompt not found by slug")
+			s.logger.With(
+				"user_id", userID,
+				"team_id", teamID,
+				"slug", slug,
+			).Warn("Prompt not found by slug")
 			// Propagate the sentinel so handlers can errors.Is it to a 404.
 			return nil, repositories.ErrPromptNotFound
 		}
 
 		// For other errors (database errors, etc.), log as ERROR
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": teamID,
-			"slug":    slug,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get prompt by slug")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to get prompt by slug")
 		return nil, err
 	}
 
@@ -237,7 +239,7 @@ func (s *PromptService) ListPrompts(userID string, filters PromptFilters) (*mode
 
 	prompts, totalCount, err := s.repo.List(ctx, userID, repoFilters)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to list prompts")
+		s.logger.With("error", err).Error("Failed to list prompts")
 		return nil, fmt.Errorf("failed to list prompts: %w", err)
 	}
 
@@ -365,20 +367,20 @@ func (s *PromptService) updatePromptInternal(
 			ChangeSummary: changeSummary,
 			ActorType:     actorType,
 		}); snapErr != nil {
-			s.logger.WithError(snapErr).Warn("Failed to snapshot prompt content version")
+			s.logger.With("error", snapErr).Warn("Failed to snapshot prompt content version")
 		}
 	}
 
 	err = s.repo.Update(ctx, updatedPrompt)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to update prompt")
+		s.logger.With("error", err).Error("Failed to update prompt")
 		return nil, err
 	}
 
 	// Update references if body changed
 	if req.Body != nil {
 		if err := s.updatePromptReferences(ctx, userID, updatedPrompt.ID, updatedPrompt.Body); err != nil {
-			s.logger.WithError(err).Warn("Failed to update prompt references")
+			s.logger.With("error", err).Warn("Failed to update prompt references")
 			// Don't fail the update, just log the warning
 		}
 	}
@@ -394,10 +396,11 @@ func (s *PromptService) updatePromptInternal(
 		if err != nil {
 			// If rendering fails (e.g., missing placeholders or circular refs), log warning but continue
 			// We'll send the raw body instead
-			s.logger.WithFields(logrus.Fields{
-				"prompt_id": updatedPrompt.ID,
-				"error":     fmt.Sprintf("%+v", err),
-			}).Warn("Failed to render prompt for event, sending raw body instead")
+			s.logger.With(
+				"prompt_id", updatedPrompt.ID,
+				"error", fmt.Sprintf("%+v", err),
+			).
+				Warn("Failed to render prompt for event, sending raw body instead")
 		} else {
 			renderedBody = renderResponse.RenderedBody
 		}
@@ -407,14 +410,14 @@ func (s *PromptService) updatePromptInternal(
 			updatedPrompt.Name, renderedBody, updatedPrompt.UpdatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish prompt updated event")
+			s.logger.With("error", err).Warn("Failed to publish prompt updated event")
 		}
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"prompt_id": updatedPrompt.ID,
-		"user_id":   userID,
-	}).Info("Prompt updated successfully")
+	s.logger.With(
+		"prompt_id", updatedPrompt.ID,
+		"user_id", userID,
+	).Info("Prompt updated successfully")
 
 	return updatedPrompt, nil
 }
@@ -484,7 +487,7 @@ func (s *PromptService) DeletePrompt(userID, teamID, promptID string) error {
 	// Check if the prompt has dependents (is being used by other prompts)
 	hasDependents, err := s.refRepo.HasDependents(ctx, promptID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to check prompt dependencies")
+		s.logger.With("error", err).Error("Failed to check prompt dependencies")
 		return fmt.Errorf("failed to check prompt dependencies: %w", err)
 	}
 
@@ -492,7 +495,7 @@ func (s *PromptService) DeletePrompt(userID, teamID, promptID string) error {
 		// Get the list of dependent prompts for the error message
 		dependents, depErr := s.refRepo.GetPromptsUsingPrompt(ctx, userID, promptID)
 		if depErr != nil {
-			s.logger.WithError(depErr).Error("Failed to get dependent prompts")
+			s.logger.With("error", depErr).Error("Failed to get dependent prompts")
 			return fmt.Errorf("cannot delete prompt: it is being used by other prompts")
 		}
 
@@ -510,15 +513,15 @@ func (s *PromptService) DeletePrompt(userID, teamID, promptID string) error {
 
 	err = s.repo.Delete(ctx, userID, teamID, promptID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to delete prompt")
+		s.logger.With("error", err).Error("Failed to delete prompt")
 		return err
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"prompt_id": promptID,
-		"user_id":   userID,
-		"team_id":   teamID,
-	}).Info("Prompt deleted successfully")
+	s.logger.With(
+		"prompt_id", promptID,
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("Prompt deleted successfully")
 
 	return nil
 }
@@ -599,9 +602,7 @@ func (s *PromptService) renderPromptRecursive(
 		if err != nil {
 			if errors.Is(err, repositories.ErrPromptNotFound) {
 				// Log warning but don't fail - keep the reference as-is
-				s.logger.WithFields(logrus.Fields{
-					"referenced_slug": refSlug,
-				}).Warn("Referenced prompt not found, keeping reference as-is")
+				s.logger.With("referenced_slug", refSlug).Warn("Referenced prompt not found, keeping reference as-is")
 
 				// Add to warnings list
 				warnings = append(warnings, fmt.Sprintf("Reference not found: @%s", refSlug))
@@ -761,11 +762,12 @@ func (s *PromptService) updatePromptReferences(ctx context.Context, userID, prom
 		refPrompt, err := s.repo.GetBySlugCrossTeam(ctx, userID, slug)
 		if err != nil {
 			// If referenced prompt doesn't exist, log warning but continue
-			s.logger.WithFields(logrus.Fields{
-				"prompt_id":       promptID,
-				"referenced_slug": slug,
-				"error":           fmt.Sprintf("%+v", err),
-			}).Warn("Referenced prompt not found, skipping reference")
+			s.logger.With(
+				"prompt_id", promptID,
+				"referenced_slug", slug,
+				"error", fmt.Sprintf("%+v", err),
+			).
+				Warn("Referenced prompt not found, skipping reference")
 			continue
 		}
 
@@ -795,14 +797,14 @@ func (s *PromptService) GetPromptDependencies(
 	// Get prompts that use this prompt (used by)
 	usedBy, err := s.refRepo.GetPromptsUsingPrompt(ctx, userID, promptID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to get prompts using this prompt")
+		s.logger.With("error", err).Error("Failed to get prompts using this prompt")
 		return nil, fmt.Errorf("failed to get prompt dependencies: %w", err)
 	}
 
 	// Get prompts that this prompt uses (uses)
 	uses, err := s.refRepo.GetPromptsUsedByPrompt(ctx, userID, promptID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to get prompts used by this prompt")
+		s.logger.With("error", err).Error("Failed to get prompts used by this prompt")
 		return nil, fmt.Errorf("failed to get prompt dependencies: %w", err)
 	}
 
@@ -830,7 +832,7 @@ func (s *PromptService) GetUserLabels(userID string) ([]string, error) {
 
 	labels, err := s.repo.GetUserLabels(ctx, userID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to get user labels")
+		s.logger.With("error", err).Error("Failed to get user labels")
 		return nil, fmt.Errorf("failed to get user labels: %w", err)
 	}
 
@@ -845,20 +847,22 @@ func (s *PromptService) validateProjectOwnership(ctx context.Context, userID, pr
 
 	project, err := s.projectRepo.GetByID(ctx, userID, projectID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id":    userID,
-			"project_id": projectID,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to get project for validation")
+		s.logger.With(
+			"user_id", userID,
+			"project_id", projectID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to get project for validation")
 		return fmt.Errorf("project not found or does not belong to user")
 	}
 
 	if project.UserID != userID {
-		s.logger.WithFields(logrus.Fields{
-			"user_id":          userID,
-			"project_id":       projectID,
-			"project_owner_id": project.UserID,
-		}).Warn("User attempted to use project owned by another user")
+		s.logger.With(
+			"user_id", userID,
+			"project_id", projectID,
+			"project_owner_id", project.UserID,
+		).
+			Warn("User attempted to use project owned by another user")
 		return fmt.Errorf("project does not belong to user")
 	}
 

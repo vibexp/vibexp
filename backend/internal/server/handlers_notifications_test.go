@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -75,8 +75,7 @@ func (c *MockNotificationsContainer) NotificationService() notifications.Notific
 // generated strict-server mounting under test) on a bare router; auth
 // middleware is replaced by injecting contextKeyUserID into the request.
 func createTestNotificationsServer(svc *MockNotificationService) *Server {
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel) // Suppress logs during test
+	logger := slog.New(slog.DiscardHandler) // Suppress logs during test
 
 	r := chi.NewRouter()
 	srv := &Server{

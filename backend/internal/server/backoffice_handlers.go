@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/services"
 )
@@ -27,20 +25,20 @@ func (s *Server) handleBackofficeUsageAndGrowth(w http.ResponseWriter, r *http.R
 	if fromStr != "" && toStr != "" {
 		parsedFrom, err := time.Parse("2006-01-02", fromStr)
 		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"error": fmt.Sprintf("%+v", err),
-				"from":  fromStr,
-			}).Error("Invalid 'from' date format")
+			s.logger.With(
+				"error", fmt.Sprintf("%+v", err),
+				"from", fromStr,
+			).Error("Invalid 'from' date format")
 			apierrors.WriteJSONError(w, r, apierrors.NewDateValidationError("from", fromStr))
 			return
 		}
 
 		parsedTo, err := time.Parse("2006-01-02", toStr)
 		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"error": fmt.Sprintf("%+v", err),
-				"to":    toStr,
-			}).Error("Invalid 'to' date format")
+			s.logger.With(
+				"error", fmt.Sprintf("%+v", err),
+				"to", toStr,
+			).Error("Invalid 'to' date format")
 			apierrors.WriteJSONError(w, r, apierrors.NewDateValidationError("to", toStr))
 			return
 		}
@@ -57,9 +55,7 @@ func (s *Server) handleBackofficeUsageAndGrowth(w http.ResponseWriter, r *http.R
 	// Call service layer
 	response, err := s.container.BackofficeService().GetUsageAndGrowth(ctx, fromDate, toDate)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"error": fmt.Sprintf("%+v", err),
-		}).Error("Failed to get usage and growth data")
+		s.logger.With("error", fmt.Sprintf("%+v", err)).Error("Failed to get usage and growth data")
 		apierrors.WriteJSONError(w, r, apierrors.NewDatabaseError(
 			"Failed to retrieve usage and growth data. Please try again later.",
 		))
@@ -107,9 +103,7 @@ func (s *Server) handleEmbeddingsBackfill(w http.ResponseWriter, r *http.Request
 			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(err.Error()))
 			return
 		}
-		s.logger.WithFields(logrus.Fields{
-			"error": fmt.Sprintf("%+v", err),
-		}).Error("Embedding backfill failed")
+		s.logger.With("error", fmt.Sprintf("%+v", err)).Error("Embedding backfill failed")
 		apierrors.WriteJSONError(w, r, apierrors.NewInternalError(
 			"Failed to run embedding backfill. Please try again later.",
 		))

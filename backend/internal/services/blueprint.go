@@ -3,10 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -19,7 +18,7 @@ type BlueprintService struct {
 	eventManager      events.EventPublisher
 	resourceUsageSvc  ResourceUsageServiceInterface
 	contentVersionSvc ContentVersionServiceInterface
-	logger            *logrus.Logger
+	logger            *slog.Logger
 }
 
 // Ensure BlueprintService implements BlueprintServiceInterface
@@ -30,7 +29,7 @@ func NewBlueprintService(
 	teamService TeamServiceInterface,
 	eventManager events.EventPublisher,
 	resourceUsageSvc ResourceUsageServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
 ) *BlueprintService {
 	return &BlueprintService{
@@ -109,10 +108,10 @@ func (s *BlueprintService) CreateBlueprint(
 
 	err = s.repo.Create(ctx, blueprint)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "blueprint",
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to create blueprint")
+		s.logger.With(
+			"service", "blueprint",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create blueprint")
 		return nil, err
 	}
 
@@ -123,7 +122,7 @@ func (s *BlueprintService) CreateBlueprint(
 			blueprint.Title, blueprint.Type, blueprint.Content, blueprint.CreatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish blueprint created event")
+			s.logger.With("error", err).Warn("Failed to publish blueprint created event")
 		}
 	}
 
@@ -139,13 +138,13 @@ func (s *BlueprintService) GetBlueprintByIDInTeam(
 ) (*models.Blueprint, error) {
 	blueprint, err := s.repo.GetByID(context.Background(), userID, teamID, blueprintID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "blueprint",
-			"user_id":      userID,
-			"team_id":      teamID,
-			"blueprint_id": blueprintID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to get blueprint by id (team-scoped)")
+		s.logger.With(
+			"service", "blueprint",
+			"user_id", userID,
+			"team_id", teamID,
+			"blueprint_id", blueprintID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get blueprint by id (team-scoped)")
 		return nil, err
 	}
 
@@ -158,13 +157,13 @@ func (s *BlueprintService) GetBlueprintByProjectIDAndSlug(
 	// Search across all user's teams
 	blueprint, err := s.repo.GetByProjectIDAndSlugCrossTeam(context.Background(), userID, projectID, slug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "blueprint",
-			"user_id":    userID,
-			"project_id": projectID,
-			"slug":       slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to get blueprint")
+		s.logger.With(
+			"service", "blueprint",
+			"user_id", userID,
+			"project_id", projectID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get blueprint")
 		return nil, err
 	}
 
@@ -211,11 +210,12 @@ func (s *BlueprintService) ListBlueprints(
 
 	blueprints, totalCount, err := s.repo.List(context.Background(), userID, repoFilters)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "blueprint",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list blueprints")
+		s.logger.With(
+			"service", "blueprint",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to list blueprints")
 		return nil, err
 	}
 
@@ -338,18 +338,18 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 			ChangeSummary: changeSummary,
 			ActorType:     actorType,
 		}); err != nil {
-			s.logger.WithError(err).Warn("Failed to snapshot blueprint content version")
+			s.logger.With("error", err).Warn("Failed to snapshot blueprint content version")
 		}
 	}
 
 	if err := s.repo.Update(ctx, blueprint); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "blueprint",
-			"user_id":    userID,
-			"project_id": blueprint.ProjectID,
-			"slug":       blueprint.Slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to update blueprint")
+		s.logger.With(
+			"service", "blueprint",
+			"user_id", userID,
+			"project_id", blueprint.ProjectID,
+			"slug", blueprint.Slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update blueprint")
 		return nil, err
 	}
 
@@ -360,7 +360,7 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 			blueprint.Title, blueprint.Type, blueprint.Content, blueprint.UpdatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish blueprint updated event")
+			s.logger.With("error", err).Warn("Failed to publish blueprint updated event")
 		}
 	}
 
@@ -429,13 +429,13 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, projectID, 
 	ctx := context.Background()
 	err = s.repo.Delete(ctx, userID, blueprint.TeamID, blueprint.ID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "blueprint",
-			"user_id":    userID,
-			"project_id": projectID,
-			"slug":       slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete blueprint")
+		s.logger.With(
+			"service", "blueprint",
+			"user_id", userID,
+			"project_id", projectID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to delete blueprint")
 		return err
 	}
 
@@ -445,11 +445,12 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, projectID, 
 func (s *BlueprintService) GetBlueprintStats(userID string) (*models.BlueprintStatsResponse, error) {
 	stats, err := s.repo.GetStats(context.Background(), userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "blueprint",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get blueprint stats")
+		s.logger.With(
+			"service", "blueprint",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to get blueprint stats")
 		return nil, err
 	}
 

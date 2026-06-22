@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/vibexp/vibexp/internal/contextkeys"
 )
 
@@ -95,12 +93,12 @@ func WriteJSONError(w http.ResponseWriter, r *http.Request, apiErr *APIError) {
 	// 5xx → ERROR (server faults), 401/403/404 → INFO (expected client conditions),
 	// other 4xx → WARN (client errors worth noting), others → INFO (defensive default).
 	logger := contextkeys.GetLoggerFromContext(r.Context())
-	logEvent := logger.WithFields(logrus.Fields{
-		"error_code":   apiErr.Code,
-		"error_detail": apiErr.Detail,
-		"status":       apiErr.Status,
-		"instance":     apiErr.Instance,
-	})
+	logEvent := logger.With(
+		"error_code", apiErr.Code,
+		"error_detail", apiErr.Detail,
+		"status", apiErr.Status,
+		"instance", apiErr.Instance,
+	)
 
 	switch {
 	case apiErr.Status >= 500:
@@ -122,7 +120,7 @@ func WriteJSONError(w http.ResponseWriter, r *http.Request, apiErr *APIError) {
 	// Write JSON response
 	if err := json.NewEncoder(w).Encode(apiErr); err != nil {
 		// If encoding fails, write a fallback error
-		logger.WithError(err).Error("Failed to encode error response")
+		logger.Error("Failed to encode error response", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }

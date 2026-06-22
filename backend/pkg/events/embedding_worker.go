@@ -2,8 +2,7 @@ package events
 
 import (
 	"context"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 )
 
 // EmbeddingProcessor generates and persists embeddings for a domain event. It is
@@ -27,7 +26,7 @@ type EmbeddingProcessor interface {
 type EmbeddingWorker struct {
 	processor  EmbeddingProcessor
 	eventTypes []string
-	logger     *logrus.Logger
+	logger     *slog.Logger
 }
 
 // Ensure EmbeddingWorker implements EventListener.
@@ -35,7 +34,7 @@ var _ EventListener = (*EmbeddingWorker)(nil)
 
 // NewEmbeddingWorker creates an EmbeddingWorker subscribed to the entity
 // created/updated events that drive embedding generation.
-func NewEmbeddingWorker(processor EmbeddingProcessor, logger *logrus.Logger) *EmbeddingWorker {
+func NewEmbeddingWorker(processor EmbeddingProcessor, logger *slog.Logger) *EmbeddingWorker {
 	return &EmbeddingWorker{
 		processor:  processor,
 		eventTypes: EmbeddingEventTypes(),

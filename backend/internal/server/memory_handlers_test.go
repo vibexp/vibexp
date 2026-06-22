@@ -2,21 +2,18 @@ package server
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/vibexp/vibexp/internal/config"
 )
 
 func TestMemoryHandlers_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	testPath := "/api/v1/" + testTeamID + "/memories"
@@ -61,8 +58,7 @@ func TestMemoryHandlers_Unauthorized(t *testing.T) {
 
 func TestCreateMemory_BadRequest(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	testPath := "/api/v1/" + testTeamID + "/memories"
@@ -115,8 +111,7 @@ func TestCreateMemory_BadRequest(t *testing.T) {
 
 func TestUpdateMemory_BadRequest(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	testPath := "/api/v1/" + testTeamID + "/memories"
@@ -193,8 +188,7 @@ func runUpdateMemoryTests(t *testing.T, srv *Server, tests []struct {
 
 func TestMemoryHandlers_QueryParameters(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	testPath := "/api/v1/" + testTeamID + "/memories"
@@ -278,8 +272,7 @@ func runQueryParameterTests(t *testing.T, srv *Server, tests []struct {
 
 func TestMemoryHandlers_InvalidPaths(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	testPath := "/api/v1/" + testTeamID + "/memories"
@@ -317,8 +310,7 @@ func TestMemoryHandlers_InvalidPaths(t *testing.T) {
 
 func TestMemoryHandlers_ContentType(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	testPath := "/api/v1/" + testTeamID + "/memories"
@@ -373,8 +365,7 @@ func TestMemoryHandlers_ContentType(t *testing.T) {
 
 func TestMemoryHandlers_EdgeCases(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	testPath := "/api/v1/" + testTeamID + "/memories"
@@ -437,8 +428,7 @@ func TestMemoryHandlers_EdgeCases(t *testing.T) {
 
 func TestMemoryHandlers_HTTPMethods(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	testPath := "/api/v1/" + testTeamID + "/memories"

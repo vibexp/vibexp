@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -20,7 +20,7 @@ func buildGitHubAppServiceForURLTest(
 	installationRepo *MockGitHubInstallationRepository,
 	githubClient *MockGitHubAppClient,
 ) GitHubAppServiceInterface {
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	return NewGitHubAppService(
 		installationRepo,
 		nil, // projectRepo not needed

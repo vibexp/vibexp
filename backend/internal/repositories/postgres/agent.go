@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/database"
@@ -72,10 +72,10 @@ func (r *agentRepository) Create(ctx context.Context, agent *models.Agent) error
 		if uniqueViolation(err) != nil {
 			return fmt.Errorf("%w (name %q)", repositories.ErrAgentNameConflict, agent.Name)
 		}
-		logger.WithFields(logrus.Fields{
-			"method": "Create",
-			"error":  fmt.Sprintf("%+v", err),
-		}).Error("Failed to create agent")
+		logger.With(
+			"method", "Create",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create agent")
 		return fmt.Errorf("failed to create agent: %w", err)
 	}
 
@@ -118,12 +118,12 @@ func (r *agentRepository) GetByID(ctx context.Context, userID, teamID, agentID s
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, repositories.ErrAgentNotFound
 		}
-		logger.WithFields(logrus.Fields{
-			"method":   "GetByID",
-			"agent_id": agentID,
-			"user_id":  userID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to get agent by ID")
+		logger.With(
+			"method", "GetByID",
+			"agent_id", agentID,
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get agent by ID")
 		return nil, fmt.Errorf("failed to get agent: %w", err)
 	}
 
@@ -142,12 +142,12 @@ func (r *agentRepository) GetByID(ctx context.Context, userID, teamID, agentID s
 	if len(agentCardJSON) > 0 {
 		// Check size limit before unmarshaling to prevent memory exhaustion
 		if len(agentCardJSON) > MaxAgentCardJSONSize {
-			logger.WithFields(logrus.Fields{
-				"method":   "GetByID",
-				"agent_id": agentID,
-				"size":     len(agentCardJSON),
-				"max_size": MaxAgentCardJSONSize,
-			}).Error("Agent card JSON exceeds maximum allowed size")
+			logger.With(
+				"method", "GetByID",
+				"agent_id", agentID,
+				"size", len(agentCardJSON),
+				"max_size", MaxAgentCardJSONSize,
+			).Error("Agent card JSON exceeds maximum allowed size")
 			return nil, fmt.Errorf(
 				"agent card JSON too large: %d bytes (maximum: %d bytes)",
 				len(agentCardJSON), MaxAgentCardJSONSize,
@@ -156,11 +156,11 @@ func (r *agentRepository) GetByID(ctx context.Context, userID, teamID, agentID s
 
 		var agentCard models.AgentCard
 		if err := json.Unmarshal(agentCardJSON, &agentCard); err != nil {
-			logger.WithFields(logrus.Fields{
-				"method":   "GetByID",
-				"agent_id": agentID,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Error("Failed to unmarshal agent card")
+			logger.With(
+				"method", "GetByID",
+				"agent_id", agentID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to unmarshal agent card")
 			return nil, fmt.Errorf("failed to unmarshal agent card: %w", err)
 		}
 		agent.AgentCard = &agentCard
@@ -169,25 +169,25 @@ func (r *agentRepository) GetByID(ctx context.Context, userID, teamID, agentID s
 	if len(credentialsJSON) > 0 {
 		var credentials models.AgentCredentials
 		if err := json.Unmarshal(credentialsJSON, &credentials); err != nil {
-			logger.WithFields(logrus.Fields{
-				"method":   "GetByID",
-				"agent_id": agentID,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Error("Failed to unmarshal credentials")
+			logger.With(
+				"method", "GetByID",
+				"agent_id", agentID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to unmarshal credentials")
 			return nil, fmt.Errorf("failed to unmarshal credentials: %w", err)
 		}
 		agent.Credentials = &credentials
-		logger.WithFields(logrus.Fields{
-			"method":      "GetByID",
-			"agent_id":    agentID,
-			"has_creds":   len(credentials) > 0,
-			"creds_count": len(credentials),
-		}).Debug("Loaded agent credentials")
+		logger.With(
+			"method", "GetByID",
+			"agent_id", agentID,
+			"has_creds", len(credentials) > 0,
+			"creds_count", len(credentials),
+		).Debug("Loaded agent credentials")
 	} else {
-		logger.WithFields(logrus.Fields{
-			"method":   "GetByID",
-			"agent_id": agentID,
-		}).Debug("No credentials found for agent")
+		logger.With(
+			"method", "GetByID",
+			"agent_id", agentID,
+		).Debug("No credentials found for agent")
 	}
 
 	return &agent, nil
@@ -222,12 +222,12 @@ func (r *agentRepository) GetByIDCrossTeam(ctx context.Context, userID, agentID 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, repositories.ErrAgentNotFound
 		}
-		logger.WithFields(logrus.Fields{
-			"method":   "GetByIDCrossTeam",
-			"agent_id": agentID,
-			"user_id":  userID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to get agent by ID (cross-team)")
+		logger.With(
+			"method", "GetByIDCrossTeam",
+			"agent_id", agentID,
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get agent by ID (cross-team)")
 		return nil, fmt.Errorf("failed to get agent (cross-team): %w", err)
 	}
 
@@ -246,12 +246,12 @@ func (r *agentRepository) GetByIDCrossTeam(ctx context.Context, userID, agentID 
 	if len(agentCardJSON) > 0 {
 		// Check size limit before unmarshaling to prevent memory exhaustion
 		if len(agentCardJSON) > MaxAgentCardJSONSize {
-			logger.WithFields(logrus.Fields{
-				"method":   "GetByIDCrossTeam",
-				"agent_id": agentID,
-				"size":     len(agentCardJSON),
-				"max_size": MaxAgentCardJSONSize,
-			}).Error("Agent card JSON exceeds maximum allowed size")
+			logger.With(
+				"method", "GetByIDCrossTeam",
+				"agent_id", agentID,
+				"size", len(agentCardJSON),
+				"max_size", MaxAgentCardJSONSize,
+			).Error("Agent card JSON exceeds maximum allowed size")
 			return nil, fmt.Errorf(
 				"agent card JSON too large: %d bytes (maximum: %d bytes)",
 				len(agentCardJSON), MaxAgentCardJSONSize,
@@ -260,11 +260,11 @@ func (r *agentRepository) GetByIDCrossTeam(ctx context.Context, userID, agentID 
 
 		var agentCard models.AgentCard
 		if err := json.Unmarshal(agentCardJSON, &agentCard); err != nil {
-			logger.WithFields(logrus.Fields{
-				"method":   "GetByIDCrossTeam",
-				"agent_id": agentID,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Error("Failed to unmarshal agent card")
+			logger.With(
+				"method", "GetByIDCrossTeam",
+				"agent_id", agentID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to unmarshal agent card")
 			return nil, fmt.Errorf("failed to unmarshal agent card: %w", err)
 		}
 		agent.AgentCard = &agentCard
@@ -273,25 +273,25 @@ func (r *agentRepository) GetByIDCrossTeam(ctx context.Context, userID, agentID 
 	if len(credentialsJSON) > 0 {
 		var credentials models.AgentCredentials
 		if err := json.Unmarshal(credentialsJSON, &credentials); err != nil {
-			logger.WithFields(logrus.Fields{
-				"method":   "GetByIDCrossTeam",
-				"agent_id": agentID,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Error("Failed to unmarshal credentials")
+			logger.With(
+				"method", "GetByIDCrossTeam",
+				"agent_id", agentID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to unmarshal credentials")
 			return nil, fmt.Errorf("failed to unmarshal credentials: %w", err)
 		}
 		agent.Credentials = &credentials
-		logger.WithFields(logrus.Fields{
-			"method":      "GetByIDCrossTeam",
-			"agent_id":    agentID,
-			"has_creds":   len(credentials) > 0,
-			"creds_count": len(credentials),
-		}).Debug("Loaded agent credentials")
+		logger.With(
+			"method", "GetByIDCrossTeam",
+			"agent_id", agentID,
+			"has_creds", len(credentials) > 0,
+			"creds_count", len(credentials),
+		).Debug("Loaded agent credentials")
 	} else {
-		logger.WithFields(logrus.Fields{
-			"method":   "GetByIDCrossTeam",
-			"agent_id": agentID,
-		}).Debug("No credentials found for agent")
+		logger.With(
+			"method", "GetByIDCrossTeam",
+			"agent_id", agentID,
+		).Debug("No credentials found for agent")
 	}
 
 	return &agent, nil
@@ -388,10 +388,10 @@ func (r *agentRepository) countList(ctx context.Context, where squirrel.Sqlizer)
 
 	var totalCount int
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&totalCount); err != nil {
-		logger.WithFields(logrus.Fields{
-			"method": "List",
-			"error":  fmt.Sprintf("%+v", err),
-		}).Error("Failed to count agents")
+		logger.With(
+			"method", "List",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to count agents")
 		return 0, fmt.Errorf("failed to count agents: %w", err)
 	}
 
@@ -453,15 +453,15 @@ func (r *agentRepository) queryList(
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"method": "List",
-			"error":  fmt.Sprintf("%+v", err),
-		}).Error("Failed to list agents")
+		logger.With(
+			"method", "List",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list agents")
 		return nil, fmt.Errorf("failed to list agents: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logger.WithError(closeErr).Error("Failed to close rows")
+			logger.With("error", closeErr).Error("Failed to close rows")
 		}
 	}()
 
@@ -471,10 +471,10 @@ func (r *agentRepository) queryList(
 	}
 
 	if err := rows.Err(); err != nil {
-		logger.WithFields(logrus.Fields{
-			"method": "List",
-			"error":  fmt.Sprintf("%+v", err),
-		}).Error("Error iterating agent rows")
+		logger.With(
+			"method", "List",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Error iterating agent rows")
 		return nil, fmt.Errorf("failed to iterate agents: %w", err)
 	}
 
@@ -500,10 +500,10 @@ func scanAgentListRows(ctx context.Context, rows *sql.Rows) ([]models.Agent, err
 		if scanErr := rows.Scan(&agent.ID, &agent.UserID, &agent.TeamID, &agent.Name, &agent.Description,
 			&agent.Status, &cardURL, &agentCardJSON, &lastRun, &lastSyncedAt, &agent.TotalRuns, &agent.SuccessRate,
 			&agent.CreatedAt, &agent.UpdatedAt); scanErr != nil {
-			logger.WithFields(logrus.Fields{
-				"method": "List",
-				"error":  fmt.Sprintf("%+v", scanErr),
-			}).Error("Failed to scan agent row")
+			logger.With(
+				"method", "List",
+				"error", fmt.Sprintf("%+v", scanErr),
+			).Error("Failed to scan agent row")
 			return nil, fmt.Errorf("failed to scan agent: %w", scanErr)
 		}
 
@@ -529,28 +529,28 @@ func scanAgentListRows(ctx context.Context, rows *sql.Rows) ([]models.Agent, err
 // the WARN-and-continue contract: an oversized payload (guarding against memory
 // exhaustion) or a malformed payload leaves the card unset and never surfaces an
 // error.
-func applyAgentCard(logger *logrus.Entry, agent *models.Agent, agentCardJSON []byte) {
+func applyAgentCard(logger *slog.Logger, agent *models.Agent, agentCardJSON []byte) {
 	if len(agentCardJSON) == 0 {
 		return
 	}
 
 	if len(agentCardJSON) > MaxAgentCardJSONSize {
-		logger.WithFields(logrus.Fields{
-			"method":   "List",
-			"agent_id": agent.ID,
-			"size":     len(agentCardJSON),
-			"max_size": MaxAgentCardJSONSize,
-		}).Warn("Agent card JSON exceeds maximum allowed size, continuing without card")
+		logger.With(
+			"method", "List",
+			"agent_id", agent.ID,
+			"size", len(agentCardJSON),
+			"max_size", MaxAgentCardJSONSize,
+		).Warn("Agent card JSON exceeds maximum allowed size, continuing without card")
 		return
 	}
 
 	var agentCard models.AgentCard
 	if err := json.Unmarshal(agentCardJSON, &agentCard); err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":   "List",
-			"agent_id": agent.ID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Warn("Failed to unmarshal agent card, continuing without card")
+		logger.With(
+			"method", "List",
+			"agent_id", agent.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to unmarshal agent card, continuing without card")
 		return
 	}
 
@@ -584,11 +584,11 @@ func (r *agentRepository) Update(ctx context.Context, agent *models.Agent) error
 	`
 	err := r.db.QueryRowContext(ctx, ownershipQuery, agent.ID, agent.TeamID, agent.UserID).Scan(&exists)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":   "Update",
-			"agent_id": agent.ID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to validate agent ownership")
+		logger.With(
+			"method", "Update",
+			"agent_id", agent.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to validate agent ownership")
 		return fmt.Errorf("failed to validate agent ownership: %w", err)
 	}
 	if !exists {
@@ -641,11 +641,11 @@ func (r *agentRepository) Update(ctx context.Context, agent *models.Agent) error
 		if uniqueViolation(err) != nil {
 			return fmt.Errorf("%w (name %q)", repositories.ErrAgentNameConflict, agent.Name)
 		}
-		logger.WithFields(logrus.Fields{
-			"method":   "Update",
-			"agent_id": agent.ID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to update agent")
+		logger.With(
+			"method", "Update",
+			"agent_id", agent.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update agent")
 		return fmt.Errorf("failed to update agent: %w", err)
 	}
 
@@ -671,12 +671,12 @@ func (r *agentRepository) Delete(ctx context.Context, userID, teamID, agentID st
 
 	result, err := r.db.ExecContext(ctx, query, agentID, teamID, userID)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":   "Delete",
-			"agent_id": agentID,
-			"user_id":  userID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete agent")
+		logger.With(
+			"method", "Delete",
+			"agent_id", agentID,
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to delete agent")
 		return fmt.Errorf("failed to delete agent: %w", err)
 	}
 
@@ -737,12 +737,12 @@ func (r *agentRepository) GetStats(ctx context.Context, userID, teamID string) (
 		&stats.ErrorAgents, &stats.TotalRuns, &stats.AvgSuccessRate)
 
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":  "GetStats",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get basic agent stats")
+		logger.With(
+			"method", "GetStats",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get basic agent stats")
 		return nil, fmt.Errorf("failed to get agent stats: %w", err)
 	}
 

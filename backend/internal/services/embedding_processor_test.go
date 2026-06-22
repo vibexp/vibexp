@@ -3,10 +3,10 @@ package services
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -76,7 +76,7 @@ func (f *fakeEmbeddingService) DeleteEmbeddingsByEntity(_, _ string) error { ret
 
 func newProcessor(resolver ActiveEmbeddingProviderResolver, svc EmbeddingServiceInterface) *EmbeddingGenerationProcessor {
 	return NewEmbeddingGenerationProcessor(
-		resolver, NewTextChunker(1000, 200), svc, "fake-model", 3, logrus.New(),
+		resolver, NewTextChunker(1000, 200), svc, "fake-model", 3, slog.New(slog.DiscardHandler),
 	)
 }
 

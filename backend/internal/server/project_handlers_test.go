@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -25,8 +24,7 @@ import (
 
 func TestProjectHandlers_ListProjectsRequiresTeamID(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -72,8 +70,7 @@ func TestProjectHandlers_ListProjectsRequiresTeamID(t *testing.T) {
 // TestCreateProject_Unauthorized tests project creation without auth
 func TestCreateProject_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"name": "Test Project", "slug": "test-project"}`
@@ -90,8 +87,7 @@ func TestCreateProject_Unauthorized(t *testing.T) {
 // TestCreateProject_InvalidJSON tests project creation with invalid JSON
 func TestCreateProject_InvalidJSON(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{invalid json}`
@@ -111,8 +107,7 @@ func TestCreateProject_InvalidJSON(t *testing.T) {
 // TestCreateProject_MissingName tests project creation without name
 func TestCreateProject_MissingName(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"slug": "test-project"}`
@@ -132,8 +127,7 @@ func TestCreateProject_MissingName(t *testing.T) {
 // TestCreateProject_MissingSlug tests project creation without slug
 func TestCreateProject_MissingSlug(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"name": "Test Project"}`
@@ -153,8 +147,7 @@ func TestCreateProject_MissingSlug(t *testing.T) {
 // TestCreateProject_RouteRegistered verifies the route is registered
 func TestCreateProject_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"name": "Test Project", "slug": "test-project"}`
@@ -172,8 +165,7 @@ func TestCreateProject_RouteRegistered(t *testing.T) {
 // TestGetProject_Unauthorized tests get project without auth
 func TestGetProject_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/projects/test-project", nil)
@@ -188,8 +180,7 @@ func TestGetProject_Unauthorized(t *testing.T) {
 // TestGetProject_RouteRegistered verifies the route is registered
 func TestGetProject_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/projects/test-project", nil)
@@ -205,8 +196,7 @@ func TestGetProject_RouteRegistered(t *testing.T) {
 // TestUpdateProject_Unauthorized tests update project without auth
 func TestUpdateProject_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"name": "Updated Project"}`
@@ -224,8 +214,7 @@ func TestUpdateProject_Unauthorized(t *testing.T) {
 // TestUpdateProject_RouteRegistered verifies the route is registered
 func TestUpdateProject_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"name": "Updated Project"}`
@@ -244,8 +233,7 @@ func TestUpdateProject_RouteRegistered(t *testing.T) {
 // TestDeleteProject_Unauthorized tests delete project without auth
 func TestDeleteProject_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("DELETE", "/api/v1/550e8400-e29b-41d4-a716-446655440000/projects/test-project", nil)
@@ -260,8 +248,7 @@ func TestDeleteProject_Unauthorized(t *testing.T) {
 // TestDeleteProject_RouteRegistered verifies the route is registered
 func TestDeleteProject_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("DELETE", "/api/v1/550e8400-e29b-41d4-a716-446655440000/projects/test-project", nil)
@@ -278,8 +265,7 @@ func TestDeleteProject_RouteRegistered(t *testing.T) {
 // Note: Auth middleware runs first, so unauthorized requests return 401
 func TestProjectEndpoints_MethodNotAllowed(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -318,7 +304,7 @@ func TestProjectEndpoints_MethodNotAllowed(t *testing.T) {
 // TestBuildProjectFilters_Defaults tests filter building with defaults
 func TestBuildProjectFilters_Defaults(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/projects", nil)
@@ -337,7 +323,7 @@ func TestBuildProjectFilters_Defaults(t *testing.T) {
 // TestBuildProjectFilters_WithParams tests filter building with query params
 func TestBuildProjectFilters_WithParams(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET",
@@ -357,7 +343,7 @@ func TestBuildProjectFilters_WithParams(t *testing.T) {
 // TestBuildProjectFilters_InvalidPage tests filter building with invalid page
 func TestBuildProjectFilters_InvalidPage(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -386,7 +372,7 @@ func TestBuildProjectFilters_InvalidPage(t *testing.T) {
 // TestBuildProjectFilters_InvalidLimit tests filter building with invalid limit
 func TestBuildProjectFilters_InvalidLimit(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -419,7 +405,7 @@ func TestBuildProjectFilters_InvalidLimit(t *testing.T) {
 // TestValidateCreateProjectRequest_Success tests successful validation
 func TestValidateCreateProjectRequest_Success(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	rr := httptest.NewRecorder()
@@ -436,7 +422,7 @@ func TestValidateCreateProjectRequest_Success(t *testing.T) {
 // TestValidateCreateProjectRequest_EmptyName tests validation with empty name
 func TestValidateCreateProjectRequest_EmptyName(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	rr := httptest.NewRecorder()
@@ -454,7 +440,7 @@ func TestValidateCreateProjectRequest_EmptyName(t *testing.T) {
 // TestValidateCreateProjectRequest_EmptySlug tests validation with empty slug
 func TestValidateCreateProjectRequest_EmptySlug(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	rr := httptest.NewRecorder()
@@ -472,7 +458,7 @@ func TestValidateCreateProjectRequest_EmptySlug(t *testing.T) {
 // TestValidateProjectFieldLengths_TooLong tests validation with too long fields
 func TestValidateProjectFieldLengths_TooLong(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -503,7 +489,7 @@ func TestValidateProjectFieldLengths_TooLong(t *testing.T) {
 // TestDecodeProjectSlug_ValidSlug tests successful slug decoding
 func TestDecodeProjectSlug_ValidSlug(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	rr := httptest.NewRecorder()
@@ -516,7 +502,7 @@ func TestDecodeProjectSlug_ValidSlug(t *testing.T) {
 // TestDecodeProjectSlug_EncodedSlug tests URL-encoded slug decoding
 func TestDecodeProjectSlug_EncodedSlug(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	rr := httptest.NewRecorder()
@@ -560,8 +546,7 @@ func (m *MockProjectStatsContainer) ProjectService() services.ProjectServiceInte
 // createTestProjectStatsServer builds a minimal chi router with only the stats route wired up.
 func createTestProjectStatsServer(c *MockProjectStatsContainer) *Server {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 	srv := &Server{
@@ -583,8 +568,7 @@ func createTestProjectStatsServer(c *MockProjectStatsContainer) *Server {
 // via the full server routing (auth middleware runs before the handler).
 func TestHandleGetProjectStats_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET",
@@ -600,8 +584,7 @@ func TestHandleGetProjectStats_Unauthorized(t *testing.T) {
 // TestHandleGetProjectStats_RouteRegistered ensures the route is not 404.
 func TestHandleGetProjectStats_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET",

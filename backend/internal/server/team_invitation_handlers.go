@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
-	"github.com/sirupsen/logrus"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
@@ -37,25 +36,25 @@ func (s *Server) validateInvitationRequest(
 ) (*models.SendInvitationsRequest, models.TeamMemberRole, bool) {
 	var req models.SendInvitationsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleSendTeamInvitations",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to decode request body")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleSendTeamInvitations",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to decode request body")
 		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
 		return nil, "", false
 	}
 
 	if err := validator.New().Struct(req); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleSendTeamInvitations",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Request validation failed")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleSendTeamInvitations",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Request validation failed")
 		writeErrorResponse(w, nil, "validation_error", "Invalid request data", http.StatusBadRequest)
 		return nil, "", false
 	}
@@ -97,12 +96,12 @@ func (s *Server) handleSendTeamInvitations(w http.ResponseWriter, r *http.Reques
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleSendTeamInvitations",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("Send team invitations request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleSendTeamInvitations",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("Send team invitations request received")
 
 	req, role, valid := s.validateInvitationRequest(w, r, userID, teamID)
 	if !valid {
@@ -111,13 +110,13 @@ func (s *Server) handleSendTeamInvitations(w http.ResponseWriter, r *http.Reques
 
 	invitations, err := s.container.TeamInvitationService().InviteMembers(r.Context(), userID, teamID, req.Emails, role)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleSendTeamInvitations",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to send invitations")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleSendTeamInvitations",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to send invitations")
 
 		s.handleInvitationError(w, r, err, teamID)
 		return
@@ -134,22 +133,22 @@ func (s *Server) handleListTeamInvitations(w http.ResponseWriter, r *http.Reques
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleListTeamInvitations",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("List team invitations request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListTeamInvitations",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("List team invitations request received")
 
 	invitations, err := s.container.TeamInvitationService().GetTeamInvitations(r.Context(), userID, teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleListTeamInvitations",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list invitations")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListTeamInvitations",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list invitations")
 
 		if strings.Contains(err.Error(), "permission") {
 			writeErrorResponse(w, nil, "forbidden", "You don't have permission to view invitations", http.StatusForbidden)
@@ -286,24 +285,24 @@ func (s *Server) handleRevokeInvitation(w http.ResponseWriter, r *http.Request) 
 	teamID := chi.URLParam(r, "id")
 	invitationID := chi.URLParam(r, "invitationId")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"handler":       "handleRevokeInvitation",
-		"user_id":       userID,
-		"team_id":       teamID,
-		"invitation_id": invitationID,
-	}).Info("Revoke invitation request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleRevokeInvitation",
+		"user_id", userID,
+		"team_id", teamID,
+		"invitation_id", invitationID,
+	).Info("Revoke invitation request received")
 
 	err := s.container.TeamInvitationService().RevokeInvitation(r.Context(), userID, invitationID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"handler":       "handleRevokeInvitation",
-			"user_id":       userID,
-			"team_id":       teamID,
-			"invitation_id": invitationID,
-			"error":         fmt.Sprintf("%+v", err),
-		}).Error("Failed to revoke invitation")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleRevokeInvitation",
+			"user_id", userID,
+			"team_id", teamID,
+			"invitation_id", invitationID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to revoke invitation")
 
 		if strings.Contains(err.Error(), "permission") {
 			writeErrorResponse(w, nil, "forbidden", "You don't have permission to revoke invitations", http.StatusForbidden)
@@ -395,24 +394,24 @@ func (s *Server) handleGetPendingInvitations(w http.ResponseWriter, r *http.Requ
 
 	user, err := s.container.UserRepository().GetByID(r.Context(), userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetPendingInvitations",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get user")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetPendingInvitations",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get user")
 		writeErrorResponse(w, nil, "internal_error", "Failed to get user information", http.StatusInternalServerError)
 		return
 	}
 
 	invitations, err := s.container.TeamInvitationService().GetPendingInvitations(r.Context(), user.Email)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetPendingInvitations",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get pending invitations")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetPendingInvitations",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get pending invitations")
 		writeErrorResponse(w, nil, "internal_error", "Failed to get pending invitations", http.StatusInternalServerError)
 		return
 	}
@@ -492,11 +491,11 @@ func (s *Server) handleGetInvitationByTokenError(w http.ResponseWriter, r *http.
 
 	// Unmapped error → genuine 500. Log the underlying error here (not in the
 	// caller) so 4xx-class typed errors don't add log noise. Token is redacted.
-	s.logger.WithError(err).WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"handler":      "handleGetInvitationByToken",
-		"token_digest": redactToken(chi.URLParam(r, "token")),
-	}).Error("Failed to load invitation by token")
+	s.logger.With("error", err).With(
+		"service", "vibexp-api",
+		"handler", "handleGetInvitationByToken",
+		"token_digest", redactToken(chi.URLParam(r, "token")),
+	).Error("Failed to load invitation by token")
 	apiErr := apierrors.NewInternalError("Failed to load invitation")
 	apierrors.WriteJSONError(w, r, apiErr)
 }
@@ -523,11 +522,11 @@ func (s *Server) handleGetInvitationByToken(w http.ResponseWriter, r *http.Reque
 
 	// Token is the access credential for the invitation — never log it raw.
 	// A short, irreversible fingerprint is enough for correlation in logs.
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"handler":      "handleGetInvitationByToken",
-		"token_digest": redactToken(token),
-	}).Info("Get invitation by token request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetInvitationByToken",
+		"token_digest", redactToken(token),
+	).Info("Get invitation by token request received")
 
 	details, err := s.container.TeamInvitationService().GetInvitationByToken(r.Context(), token)
 	if err != nil {
@@ -594,22 +593,22 @@ func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) 
 	userID := r.Context().Value(contextKeyUserID).(string)
 	token := chi.URLParam(r, "token")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleAcceptInvitation",
-		"user_id": userID,
-		"token":   token,
-	}).Info("Accept invitation request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleAcceptInvitation",
+		"user_id", userID,
+		"token", token,
+	).Info("Accept invitation request received")
 
 	teamID, err := s.container.TeamInvitationService().AcceptInvitation(r.Context(), token, userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleAcceptInvitation",
-			"user_id": userID,
-			"token":   token,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to accept invitation")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleAcceptInvitation",
+			"user_id", userID,
+			"token", token,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to accept invitation")
 
 		s.handleAcceptInvitationError(w, err)
 		return
@@ -617,13 +616,13 @@ func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) 
 
 	team, err := s.container.TeamService().GetTeam(r.Context(), userID, teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleAcceptInvitation",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to fetch team details after accepting invitation")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleAcceptInvitation",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to fetch team details after accepting invitation")
 		writeErrorResponse(
 			w, nil, "internal_error",
 			"Invitation accepted but failed to fetch team details",
@@ -647,22 +646,22 @@ func (s *Server) handleRejectInvitation(w http.ResponseWriter, r *http.Request) 
 	userID := r.Context().Value(contextKeyUserID).(string)
 	token := chi.URLParam(r, "token")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleRejectInvitation",
-		"user_id": userID,
-		"token":   token,
-	}).Info("Reject invitation request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleRejectInvitation",
+		"user_id", userID,
+		"token", token,
+	).Info("Reject invitation request received")
 
 	err := s.container.TeamInvitationService().RejectInvitation(r.Context(), token, userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleRejectInvitation",
-			"user_id": userID,
-			"token":   token,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to reject invitation")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleRejectInvitation",
+			"user_id", userID,
+			"token", token,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to reject invitation")
 
 		if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "not found") {
 			writeErrorResponse(w, nil, "not_found", "Invalid invitation token", http.StatusNotFound)

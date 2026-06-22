@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -76,7 +75,7 @@ func (s *Server) handleUploadArtifactAttachment(w http.ResponseWriter, r *http.R
 	}
 	defer func() {
 		if cerr := file.Close(); cerr != nil {
-			s.logger.WithError(cerr).Warn("Failed to close uploaded file")
+			s.logger.With("error", cerr).Warn("Failed to close uploaded file")
 		}
 	}()
 
@@ -105,12 +104,12 @@ func (s *Server) handleListArtifactAttachments(w http.ResponseWriter, r *http.Re
 
 	resp, err := s.container.AttachmentService().List(r.Context(), ownerTypeArtifact, artifact.ID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleListArtifactAttachments",
-			"artifact_id": artifact.ID,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to list attachments")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListArtifactAttachments",
+			"artifact_id", artifact.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list attachments")
 		writeErrorResponse(w, nil, "internal_error", "Failed to list attachments", http.StatusInternalServerError)
 		return
 	}
@@ -141,7 +140,7 @@ func (s *Server) handleDownloadArtifactAttachment(w http.ResponseWriter, r *http
 	}
 	defer func() {
 		if cerr := rc.Close(); cerr != nil {
-			s.logger.WithError(cerr).Warn("Failed to close attachment reader")
+			s.logger.With("error", cerr).Warn("Failed to close attachment reader")
 		}
 	}()
 	s.streamAttachment(w, att, rc, "handleDownloadArtifactAttachment")
@@ -175,26 +174,26 @@ func (s *Server) deleteArtifactAttachments(userID, artifactID string) {
 		return
 	}
 	if err := svc.DeleteAllForOwner(context.Background(), ownerTypeArtifact, artifactID); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleDeleteArtifact",
-			"user_id":     userID,
-			"artifact_id": artifactID,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Warn("Failed to delete artifact attachments (non-fatal)")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeleteArtifact",
+			"user_id", userID,
+			"artifact_id", artifactID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete artifact attachments (non-fatal)")
 	}
 }
 
 // handleAttachmentUploadError maps attachment upload errors to HTTP responses.
 func (s *Server) handleAttachmentUploadError(w http.ResponseWriter, userID, artifactID, fileName string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleUploadArtifactAttachment",
-		"user_id":     userID,
-		"artifact_id": artifactID,
-		"file_name":   fileName,
-		"error":       fmt.Sprintf("%+v", err),
-	}).Error("Failed to upload attachment")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUploadArtifactAttachment",
+		"user_id", userID,
+		"artifact_id", artifactID,
+		"file_name", fileName,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to upload attachment")
 
 	switch {
 	case errors.Is(err, services.ErrAttachmentStorageNotConfigured):
@@ -220,12 +219,12 @@ func (s *Server) handleAttachmentGetError(w http.ResponseWriter, attachmentID st
 		writeErrorResponse(w, nil, "not_found", "Attachment not found", http.StatusNotFound)
 		return
 	}
-	s.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"handler":       "attachment",
-		"attachment_id": attachmentID,
-		"error":         fmt.Sprintf("%+v", err),
-	}).Error("Failed to access attachment")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "attachment",
+		"attachment_id", attachmentID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to access attachment")
 	writeErrorResponse(w, nil, "internal_error", "Failed to access attachment", http.StatusInternalServerError)
 }
 
@@ -236,12 +235,12 @@ func (s *Server) handleAttachmentDownloadError(w http.ResponseWriter, attachment
 			"Attachment storage is not available", http.StatusServiceUnavailable)
 		return
 	}
-	s.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"handler":       "handleDownloadArtifactAttachment",
-		"attachment_id": attachmentID,
-		"error":         fmt.Sprintf("%+v", err),
-	}).Error("Failed to open attachment for download")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDownloadArtifactAttachment",
+		"attachment_id", attachmentID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to open attachment for download")
 	writeErrorResponse(w, nil, "internal_error", "Failed to download attachment", http.StatusInternalServerError)
 }
 

@@ -3,12 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -50,8 +50,7 @@ func newMockResourceAccessContainer(t *testing.T) *MockResourceAccessContainer {
 }
 
 func createTestResourceAccessServer(container *MockResourceAccessContainer) *Server {
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 	srv := &Server{

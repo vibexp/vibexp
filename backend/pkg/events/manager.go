@@ -3,9 +3,8 @@ package events
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 // EventPublisher defines the interface for publishing events
@@ -16,7 +15,7 @@ type EventPublisher interface {
 // EventManager manages the event bus lifecycle and provides a central interface
 type EventManager struct {
 	bus     EventBus
-	logger  *logrus.Logger
+	logger  *slog.Logger
 	mu      sync.RWMutex
 	started bool
 }

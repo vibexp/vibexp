@@ -2,14 +2,15 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 )
 
 func TestWriteJSON(t *testing.T) {
@@ -26,7 +27,7 @@ func TestWriteJSON(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			logger, _ := test.NewNullLogger()
+			logger := slog.New(slog.DiscardHandler)
 			rr := httptest.NewRecorder()
 
 			writeJSON(rr, tc.status, tc.body, logger)
@@ -42,7 +43,7 @@ func TestWriteJSON(t *testing.T) {
 }
 
 func TestWriteOK(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	rr := httptest.NewRecorder()
 
 	writeOK(rr, map[string]string{"message": "ok"}, logger)
@@ -56,7 +57,7 @@ func TestWriteOK(t *testing.T) {
 }
 
 func TestWriteCreated(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	rr := httptest.NewRecorder()
 
 	writeCreated(rr, map[string]string{"id": "abc"}, logger)
@@ -80,7 +81,7 @@ func TestWriteNoContent(t *testing.T) {
 }
 
 func TestWriteJSON_EncodeFailureLogsError(t *testing.T) {
-	logger, hook := test.NewNullLogger()
+	logger, hook := logtest.New()
 	rr := httptest.NewRecorder()
 
 	// A channel cannot be JSON-encoded, forcing json.Encoder.Encode to fail.
@@ -88,7 +89,7 @@ func TestWriteJSON_EncodeFailureLogsError(t *testing.T) {
 
 	entry := hook.LastEntry()
 	require.NotNil(t, entry)
-	assert.Equal(t, logrus.ErrorLevel, entry.Level)
+	assert.Equal(t, slog.LevelError, entry.Level)
 	assert.Equal(t, "Failed to encode response", entry.Message)
-	assert.Error(t, entry.Data[logrus.ErrorKey].(error))
+	assert.Error(t, entry.Data["error"].(error))
 }

@@ -5,14 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -55,8 +54,7 @@ func newMockSearchContainer(t *testing.T) *MockSearchContainer {
 
 func createSearchTestServer(c *MockSearchContainer) *Server {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 	srv := &Server{
@@ -203,8 +201,7 @@ func TestHandleSearch_ServiceError(t *testing.T) {
 
 func TestSearchHandler_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := bytes.NewReader([]byte(`{"query":"q"}`))

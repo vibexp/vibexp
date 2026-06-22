@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -81,8 +81,7 @@ func newMockAccessEventsContainer() *MockAccessEventsContainer {
 
 func createTestAccessEventsServer(container *MockAccessEventsContainer) *Server {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel) // Suppress logs during test
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 

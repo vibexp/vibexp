@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
+	"log/slog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
@@ -29,7 +29,7 @@ func createTestPromptService(
 	mockRefRepo.On("HasDependents", mock.Anything, mock.Anything).Return(false, nil).Maybe()
 	mockRefRepo.On("GetPromptsUsingPrompt", mock.Anything, mock.Anything, mock.Anything).
 		Return([]models.PromptDependencyInfo{}, nil).Maybe()
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
+	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 	return NewPromptService(repo, mockRefRepo, nil, projectRepo, nil, nil, logger, nil)
 }
 
@@ -89,7 +89,7 @@ func TestNewPromptService(t *testing.T) {
 	mockRepo := mocks.NewMockPromptRepository(t)
 	mockRefRepo := mocks.NewMockPromptReferenceRepository(t)
 	mockProjectRepo := mocks.NewMockProjectRepository(t)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, nil, logger, nil)
 
 	assert.NotNil(t, service)
@@ -972,7 +972,7 @@ func TestPromptService_PublishesPromptEvents(t *testing.T) {
 
 			service := NewPromptService(
 				mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(), nil,
+				func() *slog.Logger { l, _ := logtest.New(); return l }(), nil,
 			)
 
 			tt.setupMocks(mockRepo, mockEventManager)
@@ -1049,7 +1049,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 
 		service := NewPromptService(
 			mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager,
-			func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(), nil)
+			func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 
 		// Create a prompt with @reference
 		req := &models.CreatePromptRequest{
@@ -1131,7 +1131,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 
 		service := NewPromptService(
 			mockRepo, mockRefRepo, nil, nil, nil, mockEventManager,
-			func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(), nil)
+			func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 
 		// Update the prompt with a body containing @reference
 		newBody := "Main content here. @footer-prompt"
@@ -1196,7 +1196,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 
 		service := NewPromptService(
 			mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager,
-			func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(), nil)
+			func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 
 		// Create a simple prompt without @references
 		req := &models.CreatePromptRequest{
@@ -1230,7 +1230,7 @@ func TestPromptService_GetPromptDependencies(t *testing.T) {
 		mockRepo := &mocks.MockPromptRepository{}
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
 
 		userID := "user-123"
@@ -1263,7 +1263,7 @@ func TestPromptService_GetPromptDependencies(t *testing.T) {
 		mockRepo := &mocks.MockPromptRepository{}
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
 
 		userID := "user-123"
@@ -1289,7 +1289,7 @@ func TestPromptService_GetPromptDependenciesBySlug(t *testing.T) {
 		mockRepo := &mocks.MockPromptRepository{}
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
 
 		userID := "user-123"
@@ -1320,7 +1320,7 @@ func TestPromptService_GetPromptDependenciesBySlug(t *testing.T) {
 		mockRepo := &mocks.MockPromptRepository{}
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
 
 		userID := "user-123"
@@ -1342,7 +1342,7 @@ func TestPromptService_DeletePrompt_WithDependencies(t *testing.T) {
 		mockRepo := &mocks.MockPromptRepository{}
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
 
 		userID := "user-123"
@@ -1371,7 +1371,7 @@ func TestPromptService_DeletePrompt_WithDependencies(t *testing.T) {
 		mockRepo := &mocks.MockPromptRepository{}
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
 
 		userID := "user-123"
@@ -1395,7 +1395,7 @@ func TestPromptService_CreatePrompt_MCPExposeTrue(t *testing.T) {
 	mockRefRepo := new(mocks.MockPromptReferenceRepository)
 	mockProjectRepo := new(mocks.MockProjectRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager, logger, nil)
 
 	userID := "user-123"
@@ -1434,7 +1434,7 @@ func TestPromptService_CreatePrompt_MCPExposeFalse(t *testing.T) {
 	mockRefRepo := new(mocks.MockPromptReferenceRepository)
 	mockProjectRepo := new(mocks.MockProjectRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager, logger, nil)
 
 	userID := "user-123"
@@ -1473,7 +1473,7 @@ func TestPromptService_CreatePrompt_MCPExposeDefaultsToTrue(t *testing.T) {
 	mockRefRepo := new(mocks.MockPromptReferenceRepository)
 	mockProjectRepo := new(mocks.MockProjectRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager, logger, nil)
 
 	userID := "user-123"
@@ -1510,7 +1510,7 @@ func TestPromptService_UpdatePrompt_MCPExposeToFalse(t *testing.T) {
 	mockRepo := new(mocks.MockPromptRepository)
 	mockRefRepo := new(mocks.MockPromptReferenceRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, mockEventManager, logger, nil)
 
 	userID := "user-123"
@@ -1542,7 +1542,7 @@ func TestPromptService_UpdatePrompt_MCPExposeToTrue(t *testing.T) {
 	mockRepo := new(mocks.MockPromptRepository)
 	mockRefRepo := new(mocks.MockPromptReferenceRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, mockEventManager, logger, nil)
 
 	userID := "user-123"
@@ -1574,7 +1574,7 @@ func TestPromptService_UpdatePrompt_PreservesMCPExpose(t *testing.T) {
 	mockRepo := new(mocks.MockPromptRepository)
 	mockRefRepo := new(mocks.MockPromptReferenceRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, mockEventManager, logger, nil)
 
 	userID := "user-123"
@@ -1709,7 +1709,7 @@ func TestPromptService_GetPromptBySlug_NotFoundError(t *testing.T) {
 	mockRefRepo.On("CreateBatch", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Create logger with hook to capture log entries
-	logger, hook := test.NewNullLogger()
+	logger, hook := logtest.New()
 	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
 
 	// Mock repository to return "prompt not found" error
@@ -1726,9 +1726,9 @@ func TestPromptService_GetPromptBySlug_NotFoundError(t *testing.T) {
 	assert.Equal(t, "prompt not found", err.Error())
 
 	// Verify logging occurred at WARN level (not ERROR) with slug context
-	assert.NotEmpty(t, hook.Entries)
+	assert.NotEmpty(t, hook.Entries())
 	logEntry := hook.LastEntry()
-	assert.Equal(t, logrus.WarnLevel, logEntry.Level, "Expected WARN level for not found error")
+	assert.Equal(t, slog.LevelWarn, logEntry.Level, "Expected WARN level for not found error")
 	assert.Equal(t, "Prompt not found by slug", logEntry.Message)
 	assert.Equal(t, "user-123", logEntry.Data["user_id"])
 	assert.Equal(t, "non-existent-slug", logEntry.Data["slug"])
@@ -1745,7 +1745,7 @@ func TestPromptService_GetPromptBySlug_DatabaseError(t *testing.T) {
 	mockRefRepo.On("CreateBatch", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Create logger with hook to capture log entries
-	logger, hook := test.NewNullLogger()
+	logger, hook := logtest.New()
 	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
 
 	// Mock repository to return a database error (not "prompt not found")
@@ -1759,9 +1759,9 @@ func TestPromptService_GetPromptBySlug_DatabaseError(t *testing.T) {
 	assert.Nil(t, prompt)
 
 	// Verify logging occurred at ERROR level (not WARN)
-	assert.NotEmpty(t, hook.Entries)
+	assert.NotEmpty(t, hook.Entries())
 	logEntry := hook.LastEntry()
-	assert.Equal(t, logrus.ErrorLevel, logEntry.Level, "Expected ERROR level for database errors")
+	assert.Equal(t, slog.LevelError, logEntry.Level, "Expected ERROR level for database errors")
 	assert.Equal(t, "Failed to get prompt by slug", logEntry.Message)
 	assert.Equal(t, "user-123", logEntry.Data["user_id"])
 	assert.Equal(t, "test-slug", logEntry.Data["slug"])

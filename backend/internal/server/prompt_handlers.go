@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/errors"
@@ -99,23 +98,23 @@ func validateCreatePromptRequest(req *models.CreatePromptRequest, w http.Respons
 func (s *Server) checkPromptResourceLimit(w http.ResponseWriter, r *http.Request, userID string) bool {
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(r.Context(), userID, "prompt")
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleCreatePrompt",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to check resource limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleCreatePrompt",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to check resource limit")
 		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
 		return false
 	}
 
 	if !allowed {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"handler":       "handleCreatePrompt",
-			"user_id":       userID,
-			"resource_type": "prompt",
-		}).Warn("User has reached their prompt limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleCreatePrompt",
+			"user_id", userID,
+			"resource_type", "prompt",
+		).Warn("User has reached their prompt limit")
 		writeErrorResponse(
 			w, nil, "resource_limit_exceeded",
 			"You have reached the maximum number of prompts allowed for your subscription plan",
@@ -133,12 +132,12 @@ func (s *Server) createPromptWithErrorHandling(
 ) (*models.Prompt, bool) {
 	prompt, err := s.container.PromptService().CreatePrompt(userID, teamID, req)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleCreatePrompt",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to create prompt")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleCreatePrompt",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create prompt")
 
 		if err.Error() == "prompt with slug '"+req.Slug+"' already exists for this user" {
 			writeErrorResponse(w, nil, "conflict", "A prompt with this slug already exists", http.StatusConflict)
@@ -173,15 +172,21 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api", "handler": "handleCreatePrompt", "user_id": userID, "team_id": teamID,
-	}).Info("Create prompt request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreatePrompt",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("Create prompt request received")
 
 	var req models.CreatePromptRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api", "handler": "handleCreatePrompt", "user_id": userID, "error": fmt.Sprintf("%+v", err),
-		}).Error("Failed to decode request body")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleCreatePrompt",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to decode request body")
 		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -210,23 +215,23 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleGetPrompt",
-		"user_id":     userID,
-		"team_id":     teamID,
-		"prompt_slug": promptSlug,
-	}).Info("Get prompt request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetPrompt",
+		"user_id", userID,
+		"team_id", teamID,
+		"prompt_slug", promptSlug,
+	).Info("Get prompt request received")
 
 	prompt, err := s.container.PromptService().GetPromptBySlug(userID, teamID, promptSlug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleGetPrompt",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to get prompt")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetPrompt",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get prompt")
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
 			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
@@ -318,12 +323,12 @@ func (s *Server) handleListPrompts(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleListPrompts",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("List prompts request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListPrompts",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("List prompts request received")
 
 	filters, ok := parsePromptFilters(w, r, userID, teamID)
 	if !ok {
@@ -332,12 +337,12 @@ func (s *Server) handleListPrompts(w http.ResponseWriter, r *http.Request) {
 
 	response, err := s.container.PromptService().ListPrompts(userID, filters)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleListPrompts",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list prompts")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListPrompts",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list prompts")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to list prompts", http.StatusInternalServerError)
 		return
@@ -354,22 +359,22 @@ func (s *Server) handleGetPromptLabels(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetPromptLabels",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("Get prompt labels request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetPromptLabels",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("Get prompt labels request received")
 
 	// Note: GetUserLabels doesn't require teamID - it queries across user's prompts
 	labels, err := s.container.PromptService().GetUserLabels(userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetPromptLabels",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get prompt labels")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetPromptLabels",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get prompt labels")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to get prompt labels", http.StatusInternalServerError)
 		return
@@ -458,13 +463,13 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleUpdatePrompt",
-		"user_id":     userID,
-		"team_id":     teamID,
-		"prompt_slug": promptSlug,
-	}).Info("Update prompt request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUpdatePrompt",
+		"user_id", userID,
+		"team_id", teamID,
+		"prompt_slug", promptSlug,
+	).Info("Update prompt request received")
 
 	// Check resource limit before allowing update
 	if !s.checkPromptResourceLimit(w, r, userID) {
@@ -473,13 +478,13 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 
 	var req models.UpdatePromptRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleUpdatePrompt",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", decodeErr),
-		}).Error("Failed to decode request body")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleUpdatePrompt",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", decodeErr),
+		).Error("Failed to decode request body")
 		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -490,13 +495,13 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 
 	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, promptSlug, &req)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleUpdatePrompt",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to update prompt")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleUpdatePrompt",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update prompt")
 
 		s.handleUpdatePromptError(err, &req, w)
 		return
@@ -517,13 +522,13 @@ func (s *Server) handleListPromptVersions(w http.ResponseWriter, r *http.Request
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleListPromptVersions",
-		"user_id":     userID,
-		"team_id":     teamID,
-		"prompt_slug": promptSlug,
-	}).Info("List prompt versions request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListPromptVersions",
+		"user_id", userID,
+		"team_id", teamID,
+		"prompt_slug", promptSlug,
+	).Info("List prompt versions request received")
 
 	versions, err := s.container.PromptService().ListPromptVersions(userID, teamID, promptSlug)
 	if err != nil {
@@ -545,14 +550,14 @@ func (s *Server) handleGetPromptVersion(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":        "vibexp-api",
-		"handler":        "handleGetPromptVersion",
-		"user_id":        userID,
-		"team_id":        teamID,
-		"prompt_slug":    promptSlug,
-		"version_number": versionNumber,
-	}).Info("Get prompt version request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetPromptVersion",
+		"user_id", userID,
+		"team_id", teamID,
+		"prompt_slug", promptSlug,
+		"version_number", versionNumber,
+	).Info("Get prompt version request received")
 
 	version, err := s.container.PromptService().GetPromptVersion(userID, teamID, promptSlug, versionNumber)
 	if err != nil {
@@ -575,14 +580,14 @@ func (s *Server) handleRestorePromptVersion(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":        "vibexp-api",
-		"handler":        "handleRestorePromptVersion",
-		"user_id":        userID,
-		"team_id":        teamID,
-		"prompt_slug":    promptSlug,
-		"version_number": versionNumber,
-	}).Info("Restore prompt version request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleRestorePromptVersion",
+		"user_id", userID,
+		"team_id", teamID,
+		"prompt_slug", promptSlug,
+		"version_number", versionNumber,
+	).Info("Restore prompt version request received")
 
 	prompt, err := s.container.PromptService().RestorePromptVersion(userID, teamID, promptSlug, versionNumber)
 	if err != nil {
@@ -601,13 +606,13 @@ func (s *Server) handleRestorePromptVersion(w http.ResponseWriter, r *http.Reque
 // handlePromptVersionError maps content-version lookup errors to HTTP responses,
 // distinguishing a missing prompt/version (404) from other failures (500).
 func (s *Server) handlePromptVersionError(w http.ResponseWriter, userID, promptSlug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "promptVersion",
-		"user_id":     userID,
-		"prompt_slug": promptSlug,
-		"error":       fmt.Sprintf("%+v", err),
-	}).Error("Failed to process prompt version request")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "promptVersion",
+		"user_id", userID,
+		"prompt_slug", promptSlug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to process prompt version request")
 
 	if stderrors.Is(err, repositories.ErrPromptNotFound) || strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Not found", http.StatusNotFound)
@@ -623,13 +628,13 @@ func (s *Server) handleDeletePrompt(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleDeletePrompt",
-		"user_id":     userID,
-		"team_id":     teamID,
-		"prompt_slug": promptSlug,
-	}).Info("Delete prompt request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDeletePrompt",
+		"user_id", userID,
+		"team_id", teamID,
+		"prompt_slug", promptSlug,
+	).Info("Delete prompt request received")
 
 	prompt, err := s.getPromptForDeletion(w, userID, teamID, promptSlug)
 	if err != nil {
@@ -658,36 +663,36 @@ func (s *Server) handleRenderPrompt(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleRenderPrompt",
-		"user_id":     userID,
-		"team_id":     teamID,
-		"prompt_slug": promptSlug,
-	}).Info("Render prompt request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleRenderPrompt",
+		"user_id", userID,
+		"team_id", teamID,
+		"prompt_slug", promptSlug,
+	).Info("Render prompt request received")
 
 	var req models.RenderPromptRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleRenderPrompt",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", decodeErr),
-		}).Error("Failed to decode request body")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleRenderPrompt",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", decodeErr),
+		).Error("Failed to decode request body")
 		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	renderedPrompt, err := s.container.PromptService().RenderPrompt(userID, teamID, promptSlug, req.Placeholders)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleRenderPrompt",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to render prompt")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleRenderPrompt",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to render prompt")
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
 			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
@@ -710,23 +715,23 @@ func (s *Server) handleGetPromptPlaceholders(w http.ResponseWriter, r *http.Requ
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleGetPromptPlaceholders",
-		"user_id":     userID,
-		"team_id":     teamID,
-		"prompt_slug": promptSlug,
-	}).Info("Get prompt placeholders request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetPromptPlaceholders",
+		"user_id", userID,
+		"team_id", teamID,
+		"prompt_slug", promptSlug,
+	).Info("Get prompt placeholders request received")
 
 	placeholders, err := s.container.PromptService().GetPromptPlaceholders(userID, teamID, promptSlug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleGetPromptPlaceholders",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to get prompt placeholders")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetPromptPlaceholders",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get prompt placeholders")
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
 			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
@@ -749,13 +754,13 @@ func (s *Server) getPromptForDeletion(
 ) (*models.Prompt, error) {
 	prompt, err := s.container.PromptService().GetPromptBySlug(userID, teamID, promptSlug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleDeletePrompt",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to get prompt")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeletePrompt",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get prompt")
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
 			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
@@ -776,13 +781,13 @@ func (s *Server) deletePromptAndEmbeddings(
 ) error {
 	err := s.container.PromptService().DeletePromptBySlug(userID, teamID, promptSlug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleDeletePrompt",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete prompt")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeletePrompt",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to delete prompt")
 
 		// Check if it's a dependency error
 		if strings.Contains(err.Error(), "cannot delete prompt: it is being used by") {
@@ -801,14 +806,14 @@ func (s *Server) deletePromptAndEmbeddings(
 	// DeleteEmbeddingsByEntity is keyed solely on the entity, so it removes the
 	// embedding regardless of which team member triggers the delete.
 	if err := s.container.EmbeddingService().DeleteEmbeddingsByEntity("prompt", prompt.ID); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleDeletePrompt",
-			"user_id":     userID,
-			"prompt_id":   prompt.ID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Warn("Failed to delete prompt embeddings (non-fatal)")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeletePrompt",
+			"user_id", userID,
+			"prompt_id", prompt.ID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete prompt embeddings (non-fatal)")
 	}
 
 	return nil
@@ -819,23 +824,23 @@ func (s *Server) handleGetPromptDependencies(w http.ResponseWriter, r *http.Requ
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	promptSlug := chi.URLParam(r, "slug")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "handleGetPromptDependencies",
-		"user_id":     userID,
-		"team_id":     teamID,
-		"prompt_slug": promptSlug,
-	}).Info("Get prompt dependencies request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetPromptDependencies",
+		"user_id", userID,
+		"team_id", teamID,
+		"prompt_slug", promptSlug,
+	).Info("Get prompt dependencies request received")
 
 	dependencies, err := s.container.PromptService().GetPromptDependenciesBySlug(userID, teamID, promptSlug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleGetPromptDependencies",
-			"user_id":     userID,
-			"prompt_slug": promptSlug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to get prompt dependencies")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetPromptDependencies",
+			"user_id", userID,
+			"prompt_slug", promptSlug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get prompt dependencies")
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
 			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)

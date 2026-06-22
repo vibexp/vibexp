@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	"github.com/pgvector/pgvector-go"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -78,7 +78,7 @@ func (r *EmbeddingRepository) GetByEntity(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -135,7 +135,7 @@ func (r *EmbeddingRepository) FindSimilar(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 

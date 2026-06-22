@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v57/github"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -55,8 +55,7 @@ func newTestGitHubAppClient(t *testing.T) *GitHubAppClient {
 		AppID:         "12345",
 		PrivateKeyPEM: []byte(testRSAPEM),
 	}
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return &GitHubAppClient{
 		cfg:         cfg,
 		logger:      logger,
@@ -72,7 +71,7 @@ func TestGitHubAppClientConstants(t *testing.T) {
 
 // TestNewGitHubAppClient_NilConfig returns stub.
 func TestNewGitHubAppClient_NilConfig(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	client := NewGitHubAppClient(nil, logger)
 	assert.NotNil(t, client)
 	_, ok := client.(*stubGitHubAppClient)
@@ -85,7 +84,7 @@ func TestNewGitHubAppClient_MissingAppID(t *testing.T) {
 		AppID:         "",
 		PrivateKeyPEM: []byte(testRSAPEM),
 	}
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	client := NewGitHubAppClient(cfg, logger)
 	_, ok := client.(*stubGitHubAppClient)
 	assert.True(t, ok, "expected stub when AppID is empty")
@@ -98,7 +97,7 @@ func TestNewGitHubAppClient_NilPrivateKey(t *testing.T) {
 		PrivateKeyPEM: []byte(testRSAPEM),
 		PrivateKey:    nil, // nil PrivateKey → stub
 	}
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	client := NewGitHubAppClient(cfg, logger)
 	_, ok := client.(*stubGitHubAppClient)
 	assert.True(t, ok, "expected stub when PrivateKey is nil")
@@ -183,7 +182,7 @@ func TestCreateInstallationTransport_InvalidAppID(t *testing.T) {
 	}
 	c := &GitHubAppClient{
 		cfg:         cfg,
-		logger:      logrus.New(),
+		logger:      slog.New(slog.DiscardHandler),
 		clientCache: make(map[int64]*github.Client),
 	}
 

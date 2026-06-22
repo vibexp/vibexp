@@ -5,19 +5,18 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 // ResourceUsageRepository handles database operations for resource usage tracking
 type ResourceUsageRepository struct {
 	db     *sql.DB
-	logger *logrus.Logger
+	logger *slog.Logger
 }
 
 // NewResourceUsageRepository creates a new resource usage repository
-func NewResourceUsageRepository(db *sql.DB, logger *logrus.Logger) *ResourceUsageRepository {
+func NewResourceUsageRepository(db *sql.DB, logger *slog.Logger) *ResourceUsageRepository {
 	return &ResourceUsageRepository{
 		db:     db,
 		logger: logger,
@@ -37,10 +36,10 @@ func (r *ResourceUsageRepository) IncrementUsage(
 
 	_, err := r.db.ExecContext(ctx, query, userID, resourceType, periodStart, periodEnd)
 	if err != nil {
-		r.logger.WithError(err).WithFields(logrus.Fields{
-			"user_id":       userID,
-			"resource_type": resourceType,
-		}).Error("Failed to increment resource usage")
+		r.logger.With("error", err).With(
+			"user_id", userID,
+			"resource_type", resourceType,
+		).Error("Failed to increment resource usage")
 		return fmt.Errorf("failed to increment resource usage: %w", err)
 	}
 
@@ -62,10 +61,10 @@ func (r *ResourceUsageRepository) DecrementUsage(
 
 	_, err := r.db.ExecContext(ctx, query, userID, resourceType, periodStart, periodEnd)
 	if err != nil {
-		r.logger.WithError(err).WithFields(logrus.Fields{
-			"user_id":       userID,
-			"resource_type": resourceType,
-		}).Error("Failed to decrement resource usage")
+		r.logger.With("error", err).With(
+			"user_id", userID,
+			"resource_type", resourceType,
+		).Error("Failed to decrement resource usage")
 		return fmt.Errorf("failed to decrement resource usage: %w", err)
 	}
 
@@ -94,10 +93,10 @@ func (r *ResourceUsageRepository) GetUsageCount(
 			// If no record exists, usage is 0
 			return 0, nil
 		}
-		r.logger.WithError(err).WithFields(logrus.Fields{
-			"user_id":       userID,
-			"resource_type": resourceType,
-		}).Error("Failed to get resource usage count")
+		r.logger.With("error", err).With(
+			"user_id", userID,
+			"resource_type", resourceType,
+		).Error("Failed to get resource usage count")
 		return 0, fmt.Errorf("failed to get resource usage count: %w", err)
 	}
 
@@ -117,14 +116,14 @@ func (r *ResourceUsageRepository) GetResourceCounts(
 
 	rows, err := r.db.QueryContext(ctx, query, userID, periodStart, periodEnd)
 	if err != nil {
-		r.logger.WithError(err).WithFields(logrus.Fields{
-			"user_id": userID,
-		}).Error("Failed to get resource counts")
+		r.logger.With("error", err).With(
+			"user_id", userID,
+		).Error("Failed to get resource counts")
 		return nil, fmt.Errorf("failed to get resource counts: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			r.logger.WithError(closeErr).Error("Failed to close rows")
+			r.logger.With("error", closeErr).Error("Failed to close rows")
 		}
 	}()
 
@@ -133,14 +132,14 @@ func (r *ResourceUsageRepository) GetResourceCounts(
 		var resourceType string
 		var count int
 		if err := rows.Scan(&resourceType, &count); err != nil {
-			r.logger.WithError(err).Error("Failed to scan resource usage row")
+			r.logger.With("error", err).Error("Failed to scan resource usage row")
 			return nil, fmt.Errorf("failed to scan resource usage row: %w", err)
 		}
 		counts[resourceType] = count
 	}
 
 	if err := rows.Err(); err != nil {
-		r.logger.WithError(err).Error("Error iterating resource usage rows")
+		r.logger.With("error", err).Error("Error iterating resource usage rows")
 		return nil, fmt.Errorf("error iterating resource usage rows: %w", err)
 	}
 

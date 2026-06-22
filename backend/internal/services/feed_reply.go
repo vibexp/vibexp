@@ -3,11 +3,10 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -25,7 +24,7 @@ type FeedItemReplyService struct {
 	feedItemRepo repositories.FeedItemRepository
 	teamService  TeamServiceInterface
 	eventManager events.EventPublisher
-	logger       *logrus.Logger
+	logger       *slog.Logger
 }
 
 // Ensure FeedItemReplyService implements FeedItemReplyServiceInterface
@@ -37,7 +36,7 @@ func NewFeedItemReplyService(
 	feedItemRepo repositories.FeedItemRepository,
 	teamService TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *FeedItemReplyService {
 	return &FeedItemReplyService{
 		replyRepo:    replyRepo,
@@ -71,18 +70,20 @@ func (s *FeedItemReplyService) checkReplyTeamMembership(ctx context.Context, use
 	}
 	isMember, err := s.teamService.IsUserMemberOfTeam(ctx, userID, teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to validate team membership for CreateReply")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to validate team membership for CreateReply")
 		return fmt.Errorf("failed to validate team membership")
 	}
 	if !isMember {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": teamID,
-		}).Warn("User attempted to reply to feed item in team they are not a member of")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+		).
+			Warn("User attempted to reply to feed item in team they are not a member of")
 		return fmt.Errorf("user is not a member of the specified team")
 	}
 	return nil
@@ -101,12 +102,12 @@ func (s *FeedItemReplyService) CreateReply(
 
 	item, err := s.feedItemRepo.GetByID(ctx, userID, teamID, feedItemID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id":      userID,
-			"team_id":      teamID,
-			"feed_item_id": feedItemID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to get feed item for CreateReply")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"feed_item_id", feedItemID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get feed item for CreateReply")
 		return nil, err
 	}
 	if item.ArchivedAt != nil {
@@ -123,12 +124,12 @@ func (s *FeedItemReplyService) CreateReply(
 	}
 	created, err := s.replyRepo.CreateReply(ctx, reply)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id":      userID,
-			"team_id":      teamID,
-			"feed_item_id": feedItemID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to create feed item reply")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"feed_item_id", feedItemID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create feed item reply")
 		return nil, err
 	}
 
@@ -139,7 +140,7 @@ func (s *FeedItemReplyService) CreateReply(
 			created.ID, userID, teamID, feedItemID, created.Content, created.PostedAt,
 		)
 		if pubErr := s.eventManager.Publish(ctx, event); pubErr != nil {
-			s.logger.WithError(pubErr).Warn("Failed to publish feed item reply created event")
+			s.logger.With("error", pubErr).Warn("Failed to publish feed item reply created event")
 		}
 	}
 
@@ -157,12 +158,12 @@ func (s *FeedItemReplyService) ListReplyPosters(
 	}
 	posters, err := s.replyRepo.ListReplyPostersByItemID(ctx, teamID, feedItemID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id":      userID,
-			"team_id":      teamID,
-			"feed_item_id": feedItemID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to list reply posters for feed item")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"feed_item_id", feedItemID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list reply posters for feed item")
 		return nil, err
 	}
 	return posters, nil
@@ -177,12 +178,13 @@ func (s *FeedItemReplyService) GetReply(
 	}
 	reply, err := s.replyRepo.GetReply(ctx, userID, teamID, replyID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id":  userID,
-			"team_id":  teamID,
-			"reply_id": replyID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to get feed item reply")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"reply_id", replyID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to get feed item reply")
 		return nil, err
 	}
 	return reply, nil
@@ -206,11 +208,12 @@ func (s *FeedItemReplyService) ListReplies(
 	if s.teamService != nil {
 		isMember, err := s.teamService.IsUserMemberOfTeam(ctx, userID, teamID)
 		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"user_id": userID,
-				"team_id": teamID,
-				"error":   fmt.Sprintf("%+v", err),
-			}).Error("Failed to validate team membership for ListReplies")
+			s.logger.With(
+				"user_id", userID,
+				"team_id", teamID,
+				"error", fmt.Sprintf("%+v", err),
+			).
+				Error("Failed to validate team membership for ListReplies")
 			return nil, fmt.Errorf("failed to validate team membership")
 		}
 		if !isMember {
@@ -220,12 +223,12 @@ func (s *FeedItemReplyService) ListReplies(
 
 	replies, totalCount, err := s.replyRepo.ListReplies(ctx, teamID, feedItemID, page, limit)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id":      userID,
-			"team_id":      teamID,
-			"feed_item_id": feedItemID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to list feed item replies")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"feed_item_id", feedItemID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list feed item replies")
 		return nil, err
 	}
 

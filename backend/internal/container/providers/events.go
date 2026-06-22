@@ -2,8 +2,8 @@ package providers
 
 import (
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
+	"os"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/observability/metrics"
@@ -22,18 +22,18 @@ type EventSystemDeps struct {
 // ProvideEventManager creates and starts the event manager
 func ProvideEventManager(
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	metricsRecorder *metrics.Metrics,
 ) *events.EventManager {
-	logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"component":     "event-manager",
-		"worker_count":  cfg.EventBus.WorkerCount,
-		"buffer_size":   cfg.EventBus.BufferSize,
-		"max_retries":   cfg.EventBus.MaxRetries,
-		"retry_backoff": cfg.EventBus.RetryBackoff,
-		"retry_jitter":  cfg.EventBus.RetryJitter,
-	}).Info("Initializing event manager")
+	logger.With(
+		"service", "vibexp-api",
+		"component", "event-manager",
+		"worker_count", cfg.EventBus.WorkerCount,
+		"buffer_size", cfg.EventBus.BufferSize,
+		"max_retries", cfg.EventBus.MaxRetries,
+		"retry_backoff", cfg.EventBus.RetryBackoff,
+		"retry_jitter", cfg.EventBus.RetryJitter,
+	).Info("Initializing event manager")
 
 	eventBusConfig := events.EventBusConfig{
 		Config:  cfg.EventBus, // Embedded config - no manual field copying needed
@@ -43,11 +43,13 @@ func ProvideEventManager(
 	eventManager := events.NewEventManager(eventBusConfig)
 
 	if err := eventManager.Start(); err != nil {
-		logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "event-manager",
-			"error":     fmt.Sprintf("%+v", err),
-		}).Fatal("Failed to start event manager")
+		logger.Error(
+			"Failed to start event manager",
+			"service", "vibexp-api",
+			"component", "event-manager",
+			"error", fmt.Sprintf("%+v", err),
+		)
+		os.Exit(1)
 	}
 
 	return eventManager
@@ -61,7 +63,7 @@ func ProvideEventManager(
 func ProvideEventSystemDeps(
 	eventManager *events.EventManager,
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	embeddingProcessor events.EmbeddingProcessor,
 	teamService services.TeamServiceInterface,
 	projectService services.ProjectServiceInterface,
@@ -85,7 +87,7 @@ func ProvideEventSystemDeps(
 func registerEventListeners(
 	eventManager *events.EventManager,
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	embeddingProcessor events.EmbeddingProcessor,
 	teamService services.TeamServiceInterface,
 	projectService services.ProjectServiceInterface,
@@ -110,45 +112,47 @@ func registerTeamCreationListener(
 	eventManager *events.EventManager,
 	teamService services.TeamServiceInterface,
 	projectService services.ProjectServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) {
 	listener := events.NewTeamCreationListener(teamService, projectService, logger)
 
 	if err := eventManager.Subscribe(listener); err != nil {
-		logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "event-manager",
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to subscribe team creation listener")
+		logger.Error(
+			"Failed to subscribe team creation listener",
+			"service", "vibexp-api",
+			"component", "event-manager",
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"component":   "team-creation-listener",
-		"event_types": listener.EventTypes(),
-	}).Info("Team creation listener registered successfully")
+	logger.With(
+		"service", "vibexp-api",
+		"component", "team-creation-listener",
+		"event_types", listener.EventTypes(),
+	).Info("Team creation listener registered successfully")
 }
 
 // registerUserCreatedListener registers the user created event listener
-func registerUserCreatedListener(eventManager *events.EventManager, logger *logrus.Logger) {
+func registerUserCreatedListener(eventManager *events.EventManager, logger *slog.Logger) {
 	userCreatedListener := events.NewUserCreatedListener(logger)
 	if err := eventManager.Subscribe(userCreatedListener); err != nil {
-		logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "event-manager",
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to subscribe user.created listener")
+		logger.Error(
+			"Failed to subscribe user.created listener",
+			"service", "vibexp-api",
+			"component", "event-manager",
+			"error", fmt.Sprintf("%+v", err),
+		)
 	}
 }
 
 // registerHubSpotCRMListener registers the HubSpot CRM listener if configured
-func registerHubSpotCRMListener(eventManager *events.EventManager, cfg *config.Config, logger *logrus.Logger) {
+func registerHubSpotCRMListener(eventManager *events.EventManager, cfg *config.Config, logger *slog.Logger) {
 	if cfg.HubSpotCRMAccessKey == "" {
-		logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "hubspot-crm-listener",
-		}).Info("HubSpot CRM access key not configured, skipping listener registration")
+		logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+		).Info("HubSpot CRM access key not configured, skipping listener registration")
 		return
 	}
 
@@ -156,17 +160,18 @@ func registerHubSpotCRMListener(eventManager *events.EventManager, cfg *config.C
 	hubspotListener := events.NewHubSpotCRMListener(hubspotService, logger)
 
 	if err := eventManager.Subscribe(hubspotListener); err != nil {
-		logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "event-manager",
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to subscribe HubSpot CRM listener")
+		logger.Error(
+			"Failed to subscribe HubSpot CRM listener",
+			"service", "vibexp-api",
+			"component", "event-manager",
+			"error", fmt.Sprintf("%+v", err),
+		)
 	} else {
-		logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"component":   "hubspot-crm-listener",
-			"event_types": hubspotListener.EventTypes(),
-		}).Info("HubSpot CRM listener registered successfully")
+		logger.With(
+			"service", "vibexp-api",
+			"component", "hubspot-crm-listener",
+			"event_types", hubspotListener.EventTypes(),
+		).Info("HubSpot CRM listener registered successfully")
 	}
 }
 
@@ -179,7 +184,7 @@ func registerNotificationEventListener(
 	feedItemRepo repositories.FeedItemRepository,
 	frontendBaseURL string,
 	appMetrics *metrics.Metrics,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) {
 	resolver := notificationsvc.NewRecipientResolver(teamMemberRepo)
 	renderer := notificationsvc.NewTemplateRenderer(frontendBaseURL)
@@ -188,19 +193,20 @@ func registerNotificationEventListener(
 	)
 
 	if err := eventManager.Subscribe(listener); err != nil {
-		logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "notification-event-listener",
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to subscribe notification event listener")
+		logger.Error(
+			"Failed to subscribe notification event listener",
+			"service", "vibexp-api",
+			"component", "notification-event-listener",
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"component":   "notification-event-listener",
-		"event_types": listener.EventTypes(),
-	}).Info("Notification event listener registered successfully")
+	logger.With(
+		"service", "vibexp-api",
+		"component", "notification-event-listener",
+		"event_types", listener.EventTypes(),
+	).Info("Notification event listener registered successfully")
 }
 
 // registerEmbeddingWorker registers the in-process async embedding worker. It
@@ -208,22 +214,23 @@ func registerNotificationEventListener(
 // active system-wide provider. When no provider is configured the worker no-ops,
 // so entity writes still succeed without embeddings.
 func registerEmbeddingWorker(
-	eventManager *events.EventManager, processor events.EmbeddingProcessor, logger *logrus.Logger,
+	eventManager *events.EventManager, processor events.EmbeddingProcessor, logger *slog.Logger,
 ) {
 	worker := events.NewEmbeddingWorker(processor, logger)
 
 	if err := eventManager.Subscribe(worker); err != nil {
-		logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "embedding-worker",
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to subscribe embedding worker")
+		logger.Error(
+			"Failed to subscribe embedding worker",
+			"service", "vibexp-api",
+			"component", "embedding-worker",
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"component":   "embedding-worker",
-		"event_types": worker.EventTypes(),
-	}).Info("Embedding worker registered successfully")
+	logger.With(
+		"service", "vibexp-api",
+		"component", "embedding-worker",
+		"event_types", worker.EventTypes(),
+	).Info("Embedding worker registered successfully")
 }

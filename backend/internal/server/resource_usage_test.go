@@ -3,12 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -88,7 +88,7 @@ func TestGetResourceUsage(t *testing.T) {
 	mockService.On("GetResourceUsage", mock.Anything, userID).Return(responseData, nil)
 
 	// Create handler
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	handler := NewResourceUsageHandler(mockService, logger)
 
 	// Create request

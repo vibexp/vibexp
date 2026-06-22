@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/observability/metrics"
@@ -36,7 +35,7 @@ type DigestRunner struct {
 	emailSvc   DigestEmailSender
 	renderer   *TemplateRenderer
 	appMetrics *metrics.Metrics
-	logger     *logrus.Logger
+	logger     *slog.Logger
 }
 
 // NewDigestRunner creates a new DigestRunner.
@@ -49,7 +48,7 @@ func NewDigestRunner(
 	emailSvc DigestEmailSender,
 	renderer *TemplateRenderer,
 	appMetrics *metrics.Metrics,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *DigestRunner {
 	return &DigestRunner{
 		digestRepo: digestRepo,
@@ -88,7 +87,7 @@ func (d *DigestRunner) Run(ctx context.Context, now time.Time) error {
 	}
 	defer func() {
 		if releaseErr := d.digestRepo.ReleaseAdvisoryLock(ctx, digestAdvisoryLockKey); releaseErr != nil {
-			d.logger.WithField("error", releaseErr.Error()).Warn("digest: failed to release advisory lock")
+			d.logger.With("error", releaseErr.Error()).Warn("digest: failed to release advisory lock")
 		}
 	}()
 
@@ -138,14 +137,14 @@ func (d *DigestRunner) processUserDigest(
 	if err != nil {
 		if errors.Is(err, repositories.ErrUserNotFound) {
 			// User was deleted — drain the queue so rows don't accumulate forever.
-			d.logger.WithField("user_id", userID).Info("digest: user not found, marking rows sent to drain queue")
+			d.logger.With("user_id", userID).Info("digest: user not found, marking rows sent to drain queue")
 			d.markSent(ctx, rowIDs(items), now)
 		} else {
 			// Transient DB error — skip without marking sent so next run retries.
-			d.logger.WithFields(logrus.Fields{
-				"user_id": userID,
-				"error":   err.Error(),
-			}).Warn("digest: transient error loading user, will retry next run")
+			d.logger.With(
+				"user_id", userID,
+				"error", err.Error(),
+			).Warn("digest: transient error loading user, will retry next run")
 		}
 		return
 	}
@@ -153,7 +152,7 @@ func (d *DigestRunner) processUserDigest(
 	// Guard against legacy or OAuth-only users with no email address.
 	// Mark rows sent to drain the queue; they will never be deliverable.
 	if user.Email == "" {
-		d.logger.WithField("user_id", userID).Info("digest: user has no email address, skipping and draining queue")
+		d.logger.With("user_id", userID).Info("digest: user has no email address, skipping and draining queue")
 		d.markSent(ctx, rowIDs(items), now)
 		d.appMetrics.RecordDigestEmailSent(ctx, "skipped")
 		return
@@ -189,10 +188,10 @@ func (d *DigestRunner) loadNotifications(
 ) ([]*models.Notification, bool) {
 	notifs, err := d.notifRepo.GetByIDsForUser(ctx, userID, notificationIDs(items))
 	if err != nil {
-		d.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"error":   err.Error(),
-		}).Error("digest: failed to load notifications for user")
+		d.logger.With(
+			"user_id", userID,
+			"error", err.Error(),
+		).Error("digest: failed to load notifications for user")
 		return nil, false
 	}
 	return notifs, true
@@ -209,10 +208,10 @@ func (d *DigestRunner) resolveTeamNames(ctx context.Context, notifs []*models.No
 		team, err := d.teamRepo.GetByID(ctx, n.TeamID)
 		if err != nil {
 			// Fall back to the raw ID so the email is still rendered.
-			d.logger.WithFields(logrus.Fields{
-				"team_id": n.TeamID,
-				"error":   err.Error(),
-			}).Warn("digest: could not resolve team name, using team ID as fallback")
+			d.logger.With(
+				"team_id", n.TeamID,
+				"error", err.Error(),
+			).Warn("digest: could not resolve team name, using team ID as fallback")
 			names[n.TeamID] = n.TeamID
 			continue
 		}
@@ -235,19 +234,19 @@ func (d *DigestRunner) sendDigestEmail(
 	teamNames := d.resolveTeamNames(ctx, notifs)
 	htmlBody, err := d.renderer.RenderDigestEmailWithTeamNames(user, notifs, teamNames)
 	if err != nil {
-		d.logger.WithFields(logrus.Fields{
-			"user_id": user.ID,
-			"error":   err.Error(),
-		}).Error("digest: failed to render digest email")
+		d.logger.With(
+			"user_id", user.ID,
+			"error", err.Error(),
+		).Error("digest: failed to render digest email")
 		d.appMetrics.RecordDigestEmailSent(ctx, "failed")
 		return
 	}
 
 	if sendErr := d.emailSvc.SendNotificationEmail(user.Email, digestEmailSubject, htmlBody); sendErr != nil {
-		d.logger.WithFields(logrus.Fields{
-			"user_id": user.ID,
-			"error":   sendErr.Error(),
-		}).Warn("digest: send failed")
+		d.logger.With(
+			"user_id", user.ID,
+			"error", sendErr.Error(),
+		).Warn("digest: send failed")
 		d.appMetrics.RecordDigestEmailSent(ctx, "failed")
 		return
 	}
@@ -256,11 +255,11 @@ func (d *DigestRunner) sendDigestEmail(
 	// If MarkSent fails here, the same rows will be re-fetched on the next run,
 	// producing a duplicate email. Log at Warn so this is visible in ops dashboards.
 	if markErr := d.digestRepo.MarkSent(ctx, rowIDs(items), now); markErr != nil {
-		d.logger.WithFields(logrus.Fields{
-			"user_id":   user.ID,
-			"row_count": len(items),
-			"error":     markErr.Error(),
-		}).Warn("digest: email sent but failed to mark rows sent — duplicate email risk on next run")
+		d.logger.With(
+			"user_id", user.ID,
+			"row_count", len(items),
+			"error", markErr.Error(),
+		).Warn("digest: email sent but failed to mark rows sent — duplicate email risk on next run")
 		d.appMetrics.RecordDigestEmailSent(ctx, "sent")
 		return
 	}
@@ -281,10 +280,10 @@ func (d *DigestRunner) emailChannelEnabled(ctx context.Context, userID string) b
 // markSent updates sent_at for the given row IDs, logging on error.
 func (d *DigestRunner) markSent(ctx context.Context, ids []string, now time.Time) {
 	if err := d.digestRepo.MarkSent(ctx, ids, now); err != nil {
-		d.logger.WithFields(logrus.Fields{
-			"row_count": len(ids),
-			"error":     err.Error(),
-		}).Error("digest: failed to mark rows sent")
+		d.logger.With(
+			"row_count", len(ids),
+			"error", err.Error(),
+		).Error("digest: failed to mark rows sent")
 	}
 }
 

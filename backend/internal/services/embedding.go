@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/pgvector/pgvector-go"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -136,7 +136,7 @@ type EmbeddingService struct {
 	// dimensions is the expected length of every stored embedding vector; it must
 	// match the vector(N) column width set by the active migration.
 	dimensions int
-	logger     *logrus.Logger
+	logger     *slog.Logger
 }
 
 // Ensure EmbeddingService implements EmbeddingServiceInterface
@@ -189,7 +189,7 @@ func NewEmbeddingService(
 	feedItemRepo repositories.FeedItemRepository,
 	feedItemReplyRepo repositories.FeedItemReplyRepository,
 	dimensions int,
-	logger *logrus.Logger) *EmbeddingService {
+	logger *slog.Logger) *EmbeddingService {
 	svc := &EmbeddingService{
 		repo:              repo,
 		promptRepo:        promptRepo,
@@ -334,13 +334,13 @@ func (s *EmbeddingService) SaveEmbedding(userID, entityType, entityID, modelID s
 			return fmt.Errorf("failed to save embedding: %w", err)
 		}
 
-		s.logger.WithFields(logrus.Fields{
-			"user_id":      userID,
-			"entity_type":  entityType,
-			"entity_id":    entityID,
-			"model_id":     modelID,
-			"embedding_id": embedding.ID,
-		}).Info("Embedding saved successfully")
+		s.logger.With(
+			"user_id", userID,
+			"entity_type", entityType,
+			"entity_id", entityID,
+			"model_id", modelID,
+			"embedding_id", embedding.ID,
+		).Info("Embedding saved successfully")
 	}
 
 	return nil
@@ -408,14 +408,14 @@ func (s *EmbeddingService) SaveEmbeddingChunks(
 		}
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":     "embedding",
-		"user_id":     userID,
-		"entity_type": entityType,
-		"entity_id":   entityID,
-		"model_id":    modelID,
-		"chunk_count": len(chunks),
-	}).Info("Embedding chunks saved successfully (delete-then-insert)")
+	s.logger.With(
+		"service", "embedding",
+		"user_id", userID,
+		"entity_type", entityType,
+		"entity_id", entityID,
+		"model_id", modelID,
+		"chunk_count", len(chunks),
+	).Info("Embedding chunks saved successfully (delete-then-insert)")
 
 	return nil
 }
@@ -449,18 +449,19 @@ func (s *EmbeddingService) DeleteEmbeddingsByEntity(entityType, entityID string)
 
 	err := s.repo.DeleteByEntity(ctx, entityType, entityID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"entity_type": entityType,
-			"entity_id":   entityID,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete embeddings for entity")
+		s.logger.With(
+			"entity_type", entityType,
+			"entity_id", entityID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to delete embeddings for entity")
 		return fmt.Errorf("failed to delete embeddings: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"entity_type": entityType,
-		"entity_id":   entityID,
-	}).Info("Successfully deleted embeddings for entity")
+	s.logger.With(
+		"entity_type", entityType,
+		"entity_id", entityID,
+	).Info("Successfully deleted embeddings for entity")
 
 	return nil
 }

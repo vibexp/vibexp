@@ -1,14 +1,13 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/vibexp/vibexp/internal/config"
 )
@@ -31,8 +30,7 @@ var restVerbs = map[string]struct{}{
 func newCORSTestServer(t *testing.T) *Server {
 	t.Helper()
 	cfg := &config.Config{CORSAllowedOrigins: []string{corsTestOrigin}}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)
 }
 

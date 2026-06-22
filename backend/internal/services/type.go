@@ -3,9 +3,8 @@ package services
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"regexp"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -46,11 +45,11 @@ var resourceTypeDefaultSlug = map[string]string{
 // TypeService is the concrete TypeServiceInterface implementation.
 type TypeService struct {
 	repo   repositories.TypeRepository
-	logger *logrus.Logger
+	logger *slog.Logger
 }
 
 // NewTypeService creates a new TypeService.
-func NewTypeService(repo repositories.TypeRepository, logger *logrus.Logger) *TypeService {
+func NewTypeService(repo repositories.TypeRepository, logger *slog.Logger) *TypeService {
 	return &TypeService{repo: repo, logger: logger}
 }
 

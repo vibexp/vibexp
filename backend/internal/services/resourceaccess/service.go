@@ -3,10 +3,9 @@ package resourceaccess
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -29,7 +28,7 @@ type taskSubmitter interface {
 type Service struct {
 	repo          repositories.ResourceAccessRepository
 	submitter     taskSubmitter
-	logger        *logrus.Logger
+	logger        *slog.Logger
 	retentionDays int
 }
 
@@ -37,7 +36,7 @@ type Service struct {
 func NewService(
 	repo repositories.ResourceAccessRepository,
 	pool *events.WorkerPool,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	retentionDays int,
 ) *Service {
 	return &Service{
@@ -71,7 +70,7 @@ func (s *Service) RecordAccess(event *models.ResourceAccessEvent) {
 func (s *Service) persistAccess(event *models.ResourceAccessEvent) {
 	defer func() {
 		if r := recover(); r != nil {
-			s.logger.WithField("panic", r).Warn("recovered from panic while recording resource access event")
+			s.logger.With("panic", r).Warn("recovered from panic while recording resource access event")
 		}
 	}()
 
@@ -79,12 +78,12 @@ func (s *Service) persistAccess(event *models.ResourceAccessEvent) {
 	defer cancel()
 
 	if err := s.repo.Create(ctx, event); err != nil {
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"team_id":       event.TeamID,
-			"resource_type": event.ResourceType,
-			"resource_id":   event.ResourceID,
-			"source":        event.Source,
-		}).Warn("failed to record resource access event")
+		s.logger.With("error", err).With(
+			"team_id", event.TeamID,
+			"resource_type", event.ResourceType,
+			"resource_id", event.ResourceID,
+			"source", event.Source,
+		).Warn("failed to record resource access event")
 	}
 }
 
@@ -199,11 +198,11 @@ func (s *Service) RunRetentionJob(ctx context.Context) error {
 		return fmt.Errorf("run resource access retention job: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"deleted_count":  count,
-		"older_than":     cutoff.Format(time.RFC3339),
-		"retention_days": s.retentionDays,
-	}).Info("Resource access retention job completed")
+	s.logger.With(
+		"deleted_count", count,
+		"older_than", cutoff.Format(time.RFC3339),
+		"retention_days", s.retentionDays,
+	).Info("Resource access retention job completed")
 
 	return nil
 }

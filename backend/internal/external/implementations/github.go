@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-github/v57/github"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -38,14 +38,14 @@ var githubTracer = otel.Tracer("vibexp-api/github")
 // GitHubAppClient implements external.GitHubAppClient using go-github
 type GitHubAppClient struct {
 	cfg           *config.GitHubAppConfig
-	logger        *logrus.Logger
+	logger        *slog.Logger
 	httpClient    *http.Client
 	clientCache   map[int64]*github.Client
 	clientCacheMu sync.RWMutex
 }
 
 // NewGitHubAppClient creates a new GitHub App client
-func NewGitHubAppClient(cfg *config.GitHubAppConfig, logger *logrus.Logger) external.GitHubAppClient {
+func NewGitHubAppClient(cfg *config.GitHubAppConfig, logger *slog.Logger) external.GitHubAppClient {
 	// Return stub client for test/dev environments without GitHub App config
 	if cfg == nil || cfg.AppID == "" || cfg.PrivateKey == nil {
 		logger.Warn("GitHub App config missing, returning stub client")
@@ -112,11 +112,12 @@ func (c *GitHubAppClient) createInstallationTransport(installationID int64) (*gi
 		return nil, fmt.Errorf("invalid GitHub App ID: %w", err)
 	}
 
-	c.logger.WithFields(logrus.Fields{
-		"app_id":          appID,
-		"installation_id": installationID,
-		"pem_length":      len(c.cfg.PrivateKeyPEM),
-	}).Debug("Creating GitHub installation transport")
+	c.logger.Debug(
+		"Creating GitHub installation transport",
+		"app_id", appID,
+		"installation_id", installationID,
+		"pem_length", len(c.cfg.PrivateKeyPEM),
+	)
 
 	// Use http.DefaultTransport directly as the shared base for TCP connection reuse.
 	// Do NOT use c.httpClient.Transport — it may have been mutated by a previous
@@ -152,7 +153,7 @@ func (c *GitHubAppClient) createInstallationTransport(installationID int64) (*gi
 func (c *GitHubAppClient) convertToModelRepository(repo *github.Repository) *models.GitHubRepository {
 	owner := repo.GetOwner()
 	if owner == nil {
-		c.logger.WithField("repo_id", repo.GetID()).Warn("Skipping repository with nil owner")
+		c.logger.Warn("Skipping repository with nil owner", "repo_id", repo.GetID())
 		return nil
 	}
 
@@ -214,23 +215,30 @@ func (c *GitHubAppClient) GetInstallationRepositories(
 		return nil, 0, err
 	}
 
-	c.logger.WithFields(logrus.Fields{"installation_id": installationID, "page": page}).
-		Debug("Calling GitHub API to list repositories")
+	c.logger.Debug(
+		"Calling GitHub API to list repositories",
+		"installation_id", installationID,
+		"page", page,
+	)
 
 	repos, resp, err := client.Apps.ListRepos(ctx, &github.ListOptions{Page: page, PerPage: 100})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		if isInstallationGone(err) {
-			c.logger.WithFields(logrus.Fields{
-				"error": err.Error(), "installation_id": installationID,
-			}).Warn("GitHub App installation no longer exists")
+			c.logger.Warn(
+				"GitHub App installation no longer exists",
+				"error", err.Error(),
+				"installation_id", installationID,
+			)
 			return nil, 0, fmt.Errorf("failed to list repositories: %w: %w", external.ErrGitHubInstallationGone, err)
 		}
-		c.logger.WithFields(logrus.Fields{
-			"error": err.Error(), "installation_id": installationID,
-			"status_code": respStatusCode(resp),
-		}).Error("GitHub API error when listing repositories")
+		c.logger.Error(
+			"GitHub API error when listing repositories",
+			"error", err.Error(),
+			"installation_id", installationID,
+			"status_code", respStatusCode(resp),
+		)
 		return nil, 0, fmt.Errorf("failed to list repositories: %w", err)
 	}
 
@@ -269,23 +277,29 @@ func (c *GitHubAppClient) GetRepository(
 		return nil, err
 	}
 
-	c.logger.WithFields(logrus.Fields{"installation_id": installationID, "repo_id": repoID}).
-		Debug("Calling GitHub API to get repository")
+	c.logger.Debug(
+		"Calling GitHub API to get repository",
+		"installation_id", installationID,
+		"repo_id", repoID,
+	)
 
 	repo, resp, err := client.Repositories.GetByID(ctx, repoID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		c.logger.WithFields(logrus.Fields{
-			"error": err.Error(), "installation_id": installationID,
-			"repo_id": repoID, "status_code": respStatusCode(resp),
-		}).Error("GitHub API error when getting repository")
+		c.logger.Error(
+			"GitHub API error when getting repository",
+			"error", err.Error(),
+			"installation_id", installationID,
+			"repo_id", repoID,
+			"status_code", respStatusCode(resp),
+		)
 		return nil, fmt.Errorf("failed to get repository: %w", err)
 	}
 
 	result := c.convertToModelRepository(repo)
 	if result == nil {
-		c.logger.WithField("repo_id", repo.GetID()).Error("Repository has nil owner")
+		c.logger.Error("Repository has nil owner", "repo_id", repo.GetID())
 		return nil, fmt.Errorf("repository has no owner")
 	}
 
@@ -370,12 +384,13 @@ func (c *GitHubAppClient) GetFileContent(
 		return nil, err
 	}
 
-	c.logger.WithFields(logrus.Fields{
-		"installation_id": installationID,
-		"owner":           owner,
-		"repo":            repoName,
-		"path":            path,
-	}).Debug("Fetching file content from GitHub")
+	c.logger.Debug(
+		"Fetching file content from GitHub",
+		"installation_id", installationID,
+		"owner", owner,
+		"repo", repoName,
+		"path", path,
+	)
 
 	// Get file content
 	fileContent, _, _, err := client.Repositories.GetContents(ctx, owner, repoName, path, nil)
@@ -413,12 +428,13 @@ func (c *GitHubAppClient) GetDirectoryContentsRecursive(
 		return nil, err
 	}
 
-	c.logger.WithFields(logrus.Fields{
-		"installation_id": installationID,
-		"owner":           owner,
-		"repo":            repoName,
-		"dir_path":        dirPath,
-	}).Debug("Recursively fetching directory contents from GitHub")
+	c.logger.Debug(
+		"Recursively fetching directory contents from GitHub",
+		"installation_id", installationID,
+		"owner", owner,
+		"repo", repoName,
+		"dir_path", dirPath,
+	)
 
 	var allFiles []*external.GitHubFile
 	err = c.fetchDirectoryRecursive(ctx, client, owner, repoName, dirPath, &allFiles, 10, 500)
@@ -440,7 +456,7 @@ func (c *GitHubAppClient) fetchDirectoryRecursive(
 	depth, maxFiles int,
 ) error {
 	if depth <= 0 {
-		c.logger.WithField("path", path).Warn("Maximum directory depth reached, skipping deeper directories")
+		c.logger.Warn("Maximum directory depth reached, skipping deeper directories", "path", path)
 		return nil
 	}
 	if len(*allFiles) >= maxFiles {
@@ -469,7 +485,11 @@ func (c *GitHubAppClient) fetchDirectoryRecursive(
 				allFiles, depth-1, maxFiles,
 			)
 			if subErr != nil {
-				c.logger.WithError(subErr).WithField("path", item.GetPath()).Warn("Failed to fetch subdirectory")
+				c.logger.Warn(
+					"Failed to fetch subdirectory",
+					"error", subErr,
+					"path", item.GetPath(),
+				)
 			}
 		}
 	}
@@ -487,13 +507,21 @@ func (c *GitHubAppClient) fetchFileContent(
 ) {
 	fileContent, _, _, err := client.Repositories.GetContents(ctx, owner, repo, item.GetPath(), nil)
 	if err != nil {
-		c.logger.WithError(err).WithField("path", item.GetPath()).Warn("Failed to fetch file content")
+		c.logger.Warn(
+			"Failed to fetch file content",
+			"error", err,
+			"path", item.GetPath(),
+		)
 		return
 	}
 
 	content, err := fileContent.GetContent()
 	if err != nil {
-		c.logger.WithError(err).WithField("path", item.GetPath()).Warn("Failed to decode file content")
+		c.logger.Warn(
+			"Failed to decode file content",
+			"error", err,
+			"path", item.GetPath(),
+		)
 		return
 	}
 
@@ -511,11 +539,12 @@ func (c *GitHubAppClient) generateJWT() (string, error) {
 		return "", fmt.Errorf("invalid GitHub App ID: %w", err)
 	}
 
-	c.logger.WithFields(logrus.Fields{
-		"app_id":          c.cfg.AppID,
-		"app_id_int":      appIDInt,
-		"has_private_key": c.cfg.PrivateKey != nil,
-	}).Debug("Generating GitHub App JWT")
+	c.logger.Debug(
+		"Generating GitHub App JWT",
+		"app_id", c.cfg.AppID,
+		"app_id_int", appIDInt,
+		"has_private_key", c.cfg.PrivateKey != nil,
+	)
 
 	// Set IssuedAt 60 seconds in the past to account for clock skew (per GitHub docs)
 	claims := jwt.RegisteredClaims{

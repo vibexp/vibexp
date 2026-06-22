@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -175,8 +175,7 @@ func createTestAuthServer(container *MockAuthContainer) *Server {
 		FrontendBaseURL:      "http://localhost:5173",
 		WorkOSCookiePassword: testCookiePassword,
 	}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel) // Suppress logs during test
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 

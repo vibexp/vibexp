@@ -3,11 +3,11 @@ package container_test
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"testing"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,10 +57,8 @@ func setupTestDB(t *testing.T) *database.DB {
 }
 
 // setupTestLogger creates a test logger with minimal output
-func setupTestLogger() *logrus.Logger {
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel) // Suppress logs during tests
-	return logger
+func setupTestLogger() *slog.Logger {
+	return slog.New(slog.DiscardHandler)
 }
 
 // TestInitializeContainer_Success tests successful container initialization with valid configuration

@@ -4,10 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -35,7 +34,7 @@ func (r *APIKeyRepository) Create(ctx context.Context, apiKey *models.APIKey) er
 	}
 	defer func() {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
-			logrus.WithError(rollbackErr).Error("Failed to rollback transaction")
+			slog.Error("Failed to rollback transaction", "error", rollbackErr)
 		}
 	}()
 
@@ -92,7 +91,7 @@ func (r *APIKeyRepository) GetByUserID(ctx context.Context, userID string) ([]mo
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -209,7 +208,7 @@ func (r *APIKeyRepository) GetIntegrationsByAPIKeyID(ctx context.Context, apiKey
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -301,7 +300,7 @@ func (r *APIKeyRepository) GetValidIntegrationCodes(ctx context.Context) ([]stri
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 

@@ -3,11 +3,10 @@ package server
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -30,8 +29,7 @@ const (
 func newServerWithNullLogger(t *testing.T) *Server {
 	t.Helper()
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)
 }
 

@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
@@ -16,7 +16,7 @@ import (
 
 func TestPromptGalleryService_GetCategories(t *testing.T) {
 	mockRepo := new(mocks.MockPromptGalleryRepository)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	service := NewPromptGalleryService(mockRepo, nil, logger)
 
@@ -50,7 +50,7 @@ func TestPromptGalleryService_GetCategories(t *testing.T) {
 //nolint:funlen // Test function with multiple subtests
 func TestPromptGalleryService_ListPrompts(t *testing.T) {
 	mockRepo := new(mocks.MockPromptGalleryRepository)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	service := NewPromptGalleryService(mockRepo, nil, logger)
 
@@ -135,7 +135,7 @@ func TestPromptGalleryService_ListPrompts(t *testing.T) {
 
 func TestPromptGalleryService_GetPromptByID(t *testing.T) {
 	mockRepo := new(mocks.MockPromptGalleryRepository)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	service := NewPromptGalleryService(mockRepo, nil, logger)
 
@@ -170,7 +170,7 @@ func TestPromptGalleryService_GetPromptByID(t *testing.T) {
 
 func TestPromptGalleryService_TrackPromptUsage(t *testing.T) {
 	mockRepo := new(mocks.MockPromptGalleryRepository)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	service := NewPromptGalleryService(mockRepo, nil, logger)
 

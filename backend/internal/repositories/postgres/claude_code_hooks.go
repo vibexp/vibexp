@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -52,7 +52,7 @@ func (r *claudeCodeHooksRepository) Create(ctx context.Context, payload *models.
 	).Scan(&payload.ID, &payload.CreatedAt, &payload.UpdatedAt)
 
 	if err != nil {
-		logrus.WithError(err).Error("Failed to create Claude Code hook payload")
+		slog.Error("Failed to create Claude Code hook payload", "error", err)
 		return fmt.Errorf("failed to create Claude Code hook payload: %w", err)
 	}
 
@@ -93,7 +93,7 @@ func (r *claudeCodeHooksRepository) GetByID(
 	)
 
 	if err != nil {
-		logrus.WithError(err).Error("Failed to get Claude Code hook payload by ID")
+		slog.Error("Failed to get Claude Code hook payload by ID", "error", err)
 		return nil, fmt.Errorf("failed to get Claude Code hook payload: %w", err)
 	}
 
@@ -152,7 +152,7 @@ func (r *claudeCodeHooksRepository) countHooks(ctx context.Context, conditions s
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&total); err != nil {
-		logrus.WithError(err).Error("Failed to count Claude Code hook payloads")
+		slog.Error("Failed to count Claude Code hook payloads", "error", err)
 		return 0, fmt.Errorf("failed to count Claude Code hook payloads: %w", err)
 	}
 
@@ -186,12 +186,12 @@ func (r *claudeCodeHooksRepository) queryHooks(
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query Claude Code hook payloads")
+		slog.Error("Failed to query Claude Code hook payloads", "error", err)
 		return nil, fmt.Errorf("failed to query Claude Code hook payloads: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -222,7 +222,7 @@ func scanClaudeCodeHookRows(rows *sql.Rows) []models.ClaudeCodeHookPayload {
 			&payload.UpdatedAt,
 		)
 		if err != nil {
-			logrus.WithError(err).Error("Failed to scan Claude Code hook payload row")
+			slog.Error("Failed to scan Claude Code hook payload row", "error", err)
 			continue
 		}
 		payloads = append(payloads, payload)
@@ -263,7 +263,7 @@ func (r *claudeCodeHooksRepository) GetSessions(ctx context.Context, filters rep
 	var total int
 	err := r.db.QueryRowContext(ctx, countQuery, *filters.UserID).Scan(&total)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count Claude Code sessions")
+		slog.Error("Failed to count Claude Code sessions", "error", err)
 		return nil, fmt.Errorf("failed to count Claude Code sessions: %w", err)
 	}
 
@@ -292,12 +292,12 @@ func (r *claudeCodeHooksRepository) GetSessions(ctx context.Context, filters rep
 
 	rows, err := r.db.QueryContext(ctx, dataQuery, *filters.UserID, filters.Limit, offset)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query Claude Code sessions")
+		slog.Error("Failed to query Claude Code sessions", "error", err)
 		return nil, fmt.Errorf("failed to query Claude Code sessions: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -313,7 +313,7 @@ func (r *claudeCodeHooksRepository) GetSessions(ctx context.Context, filters rep
 			&session.UniqueTools,
 		)
 		if err != nil {
-			logrus.WithError(err).Error("Failed to scan Claude Code session row")
+			slog.Error("Failed to scan Claude Code session row", "error", err)
 			continue
 		}
 		sessions = append(sessions, session)
@@ -355,7 +355,7 @@ func (r *claudeCodeHooksRepository) GetSessionCounts(
 	var totalSessions int
 	err := r.db.QueryRowContext(ctx, countQuery, userID).Scan(&totalSessions)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count total Claude Code sessions")
+		slog.Error("Failed to count total Claude Code sessions", "error", err)
 		return nil, fmt.Errorf("failed to count total Claude Code sessions: %w", err)
 	}
 
@@ -371,12 +371,12 @@ func (r *claudeCodeHooksRepository) GetSessionCounts(
 
 	rows, err := r.db.QueryContext(ctx, countsQuery, userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query Claude Code session counts by date")
+		slog.Error("Failed to query Claude Code session counts by date", "error", err)
 		return nil, fmt.Errorf("failed to query Claude Code session counts by date: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -385,7 +385,7 @@ func (r *claudeCodeHooksRepository) GetSessionCounts(
 		var count models.SessionCountByDate
 		err := rows.Scan(&count.Date, &count.Count)
 		if err != nil {
-			logrus.WithError(err).Error("Failed to scan Claude Code session count row")
+			slog.Error("Failed to scan Claude Code session count row", "error", err)
 			continue
 		}
 		counts = append(counts, count)
@@ -421,7 +421,7 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 	totalQuery := "SELECT COUNT(DISTINCT session_id) FROM claude_code_hooks_payload WHERE user_id = $1"
 	err := r.db.QueryRowContext(ctx, totalQuery, userID).Scan(&stats.TotalSessions)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count total sessions")
+		slog.Error("Failed to count total sessions", "error", err)
 		return nil, fmt.Errorf("failed to count total sessions: %w", err)
 	}
 
@@ -430,7 +430,7 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 day'`
 	err = r.db.QueryRowContext(ctx, thisWeekQuery, userID).Scan(&stats.SessionsThisWeek)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count sessions this week")
+		slog.Error("Failed to count sessions this week", "error", err)
 		stats.SessionsThisWeek = 0
 	}
 
@@ -440,7 +440,7 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 		AND created_at < CURRENT_DATE - INTERVAL '7 day'`
 	err = r.db.QueryRowContext(ctx, lastWeekQuery, userID).Scan(&stats.SessionsLastWeek)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count sessions last week")
+		slog.Error("Failed to count sessions last week", "error", err)
 		stats.SessionsLastWeek = 0
 	}
 
@@ -463,7 +463,7 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 		) as session_prompts`
 	err = r.db.QueryRowContext(ctx, avgPromptsQuery, userID).Scan(&stats.AvgUserPromptsPerSession)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to calculate average prompts per session")
+		slog.Error("Failed to calculate average prompts per session", "error", err)
 		stats.AvgUserPromptsPerSession = 0
 	}
 
@@ -472,7 +472,7 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 		"WHERE user_id = $1 AND tool_name IS NOT NULL"
 	err = r.db.QueryRowContext(ctx, uniqueToolsQuery, userID).Scan(&stats.TotalUniqueTools)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count unique tools")
+		slog.Error("Failed to count unique tools", "error", err)
 		stats.TotalUniqueTools = 0
 	}
 
@@ -486,12 +486,12 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 		LIMIT 3`
 	topToolsRows, err := r.db.QueryContext(ctx, topToolsQuery, userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query top tools")
+		slog.Error("Failed to query top tools", "error", err)
 		stats.TopTools = []models.ToolUsageCount{}
 	} else {
 		defer func() {
 			if closeErr := topToolsRows.Close(); closeErr != nil {
-				logrus.WithError(closeErr).Error("Failed to close rows")
+				slog.Error("Failed to close rows", "error", closeErr)
 			}
 		}()
 		var topTools []models.ToolUsageCount
@@ -499,7 +499,7 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 			var tool models.ToolUsageCount
 			scanErr := topToolsRows.Scan(&tool.ToolName, &tool.Count)
 			if scanErr != nil {
-				logrus.WithError(scanErr).Error("Failed to scan top tool row")
+				slog.Error("Failed to scan top tool row", "error", scanErr)
 				continue
 			}
 			topTools = append(topTools, tool)
@@ -522,7 +522,7 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 		) as session_durations`
 	err = r.db.QueryRowContext(ctx, avgDurationQuery, userID).Scan(&stats.AvgSessionDurationMinutes)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to calculate average session duration")
+		slog.Error("Failed to calculate average session duration", "error", err)
 		stats.AvgSessionDurationMinutes = 0
 	}
 
@@ -530,7 +530,7 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 	memoriesCountQuery := "SELECT COUNT(*) FROM memories WHERE user_id = $1"
 	err = r.db.QueryRowContext(ctx, memoriesCountQuery, userID).Scan(&stats.TotalMemories)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count total memories")
+		slog.Error("Failed to count total memories", "error", err)
 		stats.TotalMemories = 0
 	}
 
@@ -620,7 +620,7 @@ func (r *claudeCodeHooksRepository) countRecentActivities(ctx context.Context, c
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&total); err != nil {
-		logrus.WithError(err).Error("Failed to count Claude Code activities")
+		slog.Error("Failed to count Claude Code activities", "error", err)
 		return 0, fmt.Errorf("failed to count Claude Code activities: %w", err)
 	}
 
@@ -648,12 +648,12 @@ func (r *claudeCodeHooksRepository) queryRecentActivities(
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query recent Claude Code activities")
+		slog.Error("Failed to query recent Claude Code activities", "error", err)
 		return nil, fmt.Errorf("failed to query recent Claude Code activities: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -669,7 +669,7 @@ func (r *claudeCodeHooksRepository) queryRecentActivities(
 			&activity.CreatedAt,
 		)
 		if err != nil {
-			logrus.WithError(err).Error("Failed to scan recent activity row")
+			slog.Error("Failed to scan recent activity row", "error", err)
 			continue
 		}
 		activities = append(activities, activity)
@@ -726,7 +726,7 @@ func (r *claudeCodeHooksRepository) SessionExists(ctx context.Context, userID, s
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, userID, sessionID).Scan(&exists)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to check if Claude Code session exists")
+		slog.Error("Failed to check if Claude Code session exists", "error", err)
 		return false, fmt.Errorf("failed to check if session exists: %w", err)
 	}
 
@@ -744,7 +744,7 @@ func (r *claudeCodeHooksRepository) CountUniqueSessions(ctx context.Context, use
 	var count int
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count unique Claude Code sessions")
+		slog.Error("Failed to count unique Claude Code sessions", "error", err)
 		return 0, fmt.Errorf("failed to count unique sessions: %w", err)
 	}
 
@@ -760,15 +760,15 @@ func (r *claudeCodeHooksRepository) DeleteSession(ctx context.Context, userID, s
 	// First, check if the session exists and belongs to the user
 	exists, err := r.SessionExists(ctx, userID, sessionID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to check if Claude Code session exists")
+		slog.Error("Failed to check if Claude Code session exists", "error", err)
 		return fmt.Errorf("failed to check if session exists: %w", err)
 	}
 
 	if !exists {
-		logrus.WithFields(logrus.Fields{
-			"user_id":    userID,
-			"session_id": sessionID,
-		}).Warn("Attempted to delete non-existent or unauthorized Claude Code session")
+		slog.With(
+			"user_id", userID,
+			"session_id", sessionID,
+		).Warn("Attempted to delete non-existent or unauthorized Claude Code session")
 		return repositories.ErrHookSessionNotFound
 	}
 
@@ -777,21 +777,21 @@ func (r *claudeCodeHooksRepository) DeleteSession(ctx context.Context, userID, s
 
 	result, err := r.db.ExecContext(ctx, query, userID, sessionID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to delete Claude Code session")
+		slog.Error("Failed to delete Claude Code session", "error", err)
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		logrus.WithError(err).Error("Failed to get rows affected count")
+		slog.Error("Failed to get rows affected count", "error", err)
 		return fmt.Errorf("failed to verify deletion: %w", err)
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"user_id":       userID,
-		"session_id":    sessionID,
-		"rows_affected": rowsAffected,
-	}).Info("Claude Code session deleted successfully")
+	slog.With(
+		"user_id", userID,
+		"session_id", sessionID,
+		"rows_affected", rowsAffected,
+	).Info("Claude Code session deleted successfully")
 
 	return nil
 }

@@ -2,13 +2,12 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -26,8 +25,7 @@ import (
 
 func TestContactSendMessage_Success(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	// Valid contact form request
@@ -55,8 +53,7 @@ func TestContactSendMessage_Success(t *testing.T) {
 
 func TestContactSendMessage_InvalidJSON(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -163,8 +160,7 @@ func TestContactSendMessage_ValidationErrors(t *testing.T) {
 
 func TestContactSendMessage_ValidWithPhoneNumber(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	// Valid contact form request with phone number
@@ -193,8 +189,7 @@ func TestContactSendMessage_ValidWithPhoneNumber(t *testing.T) {
 
 func TestContactSendMessage_MethodNotAllowed(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -229,8 +224,7 @@ func TestContactSendMessage_MethodNotAllowed(t *testing.T) {
 
 func TestContactSendMessage_ContentTypeHandling(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	validBody := `{
@@ -330,8 +324,7 @@ func TestContactSendMessage_EdgeCases(t *testing.T) {
 
 func TestContactSendMessage_InvalidPaths(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -511,8 +504,7 @@ var _ container.Container = (*MockContainerForContact)(nil)
 func TestContactSendMessage_IntegrationSuccess(t *testing.T) {
 	// Setup
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockEmailService := new(MockEmailServiceForContact)
 	mockContainer := &MockContainerForContact{
@@ -565,8 +557,7 @@ func TestContactSendMessage_IntegrationSuccess(t *testing.T) {
 func TestContactSendMessage_IntegrationWithPhoneNumber(t *testing.T) {
 	// Setup
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockEmailService := new(MockEmailServiceForContact)
 	mockContainer := &MockContainerForContact{
@@ -617,8 +608,7 @@ func TestContactSendMessage_IntegrationWithPhoneNumber(t *testing.T) {
 func TestContactSendMessage_IntegrationEmailServiceError(t *testing.T) {
 	// Setup
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockEmailService := new(MockEmailServiceForContact)
 	mockContainer := &MockContainerForContact{
@@ -667,8 +657,7 @@ func TestContactSendMessage_IntegrationEmailServiceError(t *testing.T) {
 func TestContactSendMessage_IntegrationEmailValidation(t *testing.T) {
 	// Setup
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockEmailService := new(MockEmailServiceForContact)
 	mockContainer := &MockContainerForContact{
@@ -755,8 +744,7 @@ func TestContactSendMessage_IntegrationEmailValidation(t *testing.T) {
 func TestContactSendMessage_IntegrationMessageLengthValidation(t *testing.T) {
 	// Setup
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockEmailService := new(MockEmailServiceForContact)
 	mockContainer := &MockContainerForContact{
@@ -846,8 +834,7 @@ func TestContactSendMessage_IntegrationMessageLengthValidation(t *testing.T) {
 func TestContactSendMessage_IntegrationRequestPayloadVerification(t *testing.T) {
 	// Setup
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockEmailService := new(MockEmailServiceForContact)
 	mockContainer := &MockContainerForContact{

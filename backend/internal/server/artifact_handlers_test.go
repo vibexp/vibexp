@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -27,8 +26,7 @@ import (
 //nolint:funlen // Test function requires comprehensive setup for multiple scenarios
 func TestArtifactHandlers_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -102,8 +100,7 @@ func TestCreateArtifact_BadRequest(t *testing.T) {
 
 func TestUpdateArtifact_BadRequest(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -153,8 +150,7 @@ func TestUpdateArtifact_BadRequest(t *testing.T) {
 
 func TestArtifactHandlers_QueryParameters(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -214,8 +210,7 @@ func TestArtifactHandlers_QueryParameters(t *testing.T) {
 
 func TestArtifactHandlers_InvalidPaths(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -315,8 +310,7 @@ func TestArtifactHandlers_ContentTypeValidation(t *testing.T) {
 //nolint:funlen // Test function requires comprehensive setup for multiple route scenarios
 func TestArtifactHandlers_RouteMatching(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -429,8 +423,7 @@ func TestArtifactHandlers_RouteMatching(t *testing.T) {
 
 func TestArtifactHandlers_MetadataFiltering(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -474,8 +467,7 @@ func TestArtifactHandlers_MetadataFiltering(t *testing.T) {
 
 func TestArtifactHandlers_LargeBodies(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -732,8 +724,7 @@ func TestHandleListArtifacts_Success_WithMockedService(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -784,8 +775,7 @@ func TestHandleListArtifacts_WithPagination(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -831,8 +821,7 @@ func TestHandleListArtifacts_WithMetadataFilters(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -863,8 +852,7 @@ func TestHandleListArtifacts_ServiceError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -883,8 +871,7 @@ func TestHandleListArtifacts_ServiceError(t *testing.T) {
 // retired "expired" value and any unknown value are rejected with a 400.
 func TestValidateArtifactStatus(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {

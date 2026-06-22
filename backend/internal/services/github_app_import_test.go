@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -492,8 +493,7 @@ func setupTestService(
 ) GitHubAppServiceInterface {
 	blueprintRepo := new(MockBlueprintRepository)
 	encryptionSvc := new(MockEncryptionService)
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	return NewGitHubAppService(
 		installationRepo,
@@ -937,7 +937,7 @@ func TestGitHubAppService_DetermineTypeFromPath(t *testing.T) {
 	}
 
 	service := &GitHubAppService{
-		logger: logrus.New(),
+		logger: slog.New(slog.DiscardHandler),
 	}
 
 	for _, tt := range tests {
@@ -984,7 +984,7 @@ func TestGitHubAppService_GenerateBlueprintSlug(t *testing.T) {
 	}
 
 	service := &GitHubAppService{
-		logger: logrus.New(),
+		logger: slog.New(slog.DiscardHandler),
 	}
 
 	for _, tt := range tests {
@@ -1055,24 +1055,73 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 					TeamID: "team-456",
 					GitURL: "https://github.com/owner/test-repo",
 				}
-				projectRepo.On("GetByGitURL", mock.Anything, "team-456", "user-123", "https://github.com/owner/test-repo").
-					Return(project, nil)
+				projectRepo.On(
+					"GetByGitURL",
+					mock.Anything,
+					"team-456",
+					"user-123",
+					"https://github.com/owner/test-repo",
+				).
+					Return(
+						project,
+						nil,
+					)
 
 				// Simulate directory scanning (using owner and repoName instead of repoID)
-				githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(12345), "owner", "test-repo", ".claude").
-					Return([]*external.GitHubFile{
-						{Path: ".claude/agents/agent.md", Content: "# Agent"},
-						{Path: ".claude/agents/script.py", Content: "# Python"},
-					}, nil)
+				githubClient.On(
+					"GetDirectoryContentsRecursive",
+					mock.Anything,
+					int64(12345),
+					"owner",
+					"test-repo",
+					".claude",
+				).
+					Return(
+						[]*external.GitHubFile{
+							{Path: ".claude/agents/agent.md", Content: "# Agent"},
+							{Path: ".claude/agents/script.py", Content: "# Python"},
+						},
+						nil,
+					)
 
-				githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(12345), "owner", "test-repo", ".cursor").
-					Return(nil, errors.New("directory not found"))
+				githubClient.On(
+					"GetDirectoryContentsRecursive",
+					mock.Anything,
+					int64(12345),
+					"owner",
+					"test-repo",
+					".cursor",
+				).
+					Return(
+						nil,
+						errors.New("directory not found"),
+					)
 
-				githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(12345), "owner", "test-repo", ".codex").
-					Return(nil, errors.New("directory not found"))
+				githubClient.On(
+					"GetDirectoryContentsRecursive",
+					mock.Anything,
+					int64(12345),
+					"owner",
+					"test-repo",
+					".codex",
+				).
+					Return(
+						nil,
+						errors.New("directory not found"),
+					)
 
-				githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(12345), "owner", "test-repo", ".agents").
-					Return(nil, errors.New("directory not found"))
+				githubClient.On(
+					"GetDirectoryContentsRecursive",
+					mock.Anything,
+					int64(12345),
+					"owner",
+					"test-repo",
+					".agents",
+				).
+					Return(
+						nil,
+						errors.New("directory not found"),
+					)
 
 				// Root files (using owner and repoName instead of repoID)
 				githubClient.On("GetFileContent", mock.Anything, int64(12345), "owner", "test-repo", "CLAUDE.md").
@@ -1085,8 +1134,18 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 					Return(nil, errors.New("file not found"))
 
 				// Mock GetByProjectIDAndSlug to return nil (no existing blueprint)
-				blueprintRepo.On("GetByProjectIDAndSlug", mock.Anything, "user-123", "team-456", "project-123", mock.Anything).
-					Return(nil, errors.New("not found"))
+				blueprintRepo.On(
+					"GetByProjectIDAndSlug",
+					mock.Anything,
+					"user-123",
+					"team-456",
+					"project-123",
+					mock.Anything,
+				).
+					Return(
+						nil,
+						errors.New("not found"),
+					)
 
 				// Expect blueprint creation for markdown files only
 				blueprintRepo.On("Create", mock.Anything, mock.MatchedBy(func(b *models.Blueprint) bool {
@@ -1158,22 +1217,71 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 					TeamID: "team-456",
 					GitURL: "https://github.com/owner/test-repo",
 				}
-				projectRepo.On("GetByGitURL", mock.Anything, "team-456", "user-123", "https://github.com/owner/test-repo").
-					Return(project, nil)
+				projectRepo.On(
+					"GetByGitURL",
+					mock.Anything,
+					"team-456",
+					"user-123",
+					"https://github.com/owner/test-repo",
+				).
+					Return(
+						project,
+						nil,
+					)
 
 				// Empty file
 				githubClient.On("GetFileContent", mock.Anything, int64(12345), "owner", "test-repo", "CLAUDE.md").
 					Return(&external.GitHubFile{Path: "CLAUDE.md", Content: ""}, nil)
 
 				// No other directories/files - using specific parameters
-				githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(12345), "owner", "test-repo", ".claude").
-					Return(nil, errors.New("not found"))
-				githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(12345), "owner", "test-repo", ".cursor").
-					Return(nil, errors.New("not found"))
-				githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(12345), "owner", "test-repo", ".codex").
-					Return(nil, errors.New("not found"))
-				githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(12345), "owner", "test-repo", ".agents").
-					Return(nil, errors.New("not found"))
+				githubClient.On(
+					"GetDirectoryContentsRecursive",
+					mock.Anything,
+					int64(12345),
+					"owner",
+					"test-repo",
+					".claude",
+				).
+					Return(
+						nil,
+						errors.New("not found"),
+					)
+				githubClient.On(
+					"GetDirectoryContentsRecursive",
+					mock.Anything,
+					int64(12345),
+					"owner",
+					"test-repo",
+					".cursor",
+				).
+					Return(
+						nil,
+						errors.New("not found"),
+					)
+				githubClient.On(
+					"GetDirectoryContentsRecursive",
+					mock.Anything,
+					int64(12345),
+					"owner",
+					"test-repo",
+					".codex",
+				).
+					Return(
+						nil,
+						errors.New("not found"),
+					)
+				githubClient.On(
+					"GetDirectoryContentsRecursive",
+					mock.Anything,
+					int64(12345),
+					"owner",
+					"test-repo",
+					".agents",
+				).
+					Return(
+						nil,
+						errors.New("not found"),
+					)
 				githubClient.On("GetFileContent", mock.Anything, int64(12345), "owner", "test-repo", "CURSOR.md").
 					Return(nil, errors.New("not found"))
 				githubClient.On("GetFileContent", mock.Anything, int64(12345), "owner", "test-repo", "AGENTS.md").
@@ -1213,8 +1321,17 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 				githubClient.On("GetRepository", mock.Anything, int64(12345), int64(789)).Return(repo, nil)
 
 				// Project not found for this repository
-				projectRepo.On("GetByGitURL", mock.Anything, "team-456", "user-123", "https://github.com/owner/test-repo").
-					Return(nil, errors.New("project not found"))
+				projectRepo.On(
+					"GetByGitURL",
+					mock.Anything,
+					"team-456",
+					"user-123",
+					"https://github.com/owner/test-repo",
+				).
+					Return(
+						nil,
+						errors.New("project not found"),
+					)
 			},
 			wantErr:         true,
 			wantErrContains: "project not found",
@@ -1232,8 +1349,7 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 			tt.setupMocks(installationRepo, projectRepo, blueprintRepo, githubClient, eventManager)
 
 			encryptionSvc := new(MockEncryptionService)
-			logger := logrus.New()
-			logger.SetLevel(logrus.ErrorLevel)
+			logger := slog.New(slog.DiscardHandler)
 
 			service := NewGitHubAppService(
 				installationRepo,
@@ -1411,8 +1527,7 @@ func TestGitHubAppService_ImportSingleFile_FrontMatter(t *testing.T) {
 			})).Return(nil)
 
 			encryptionSvc := new(MockEncryptionService)
-			logger := logrus.New()
-			logger.SetLevel(logrus.ErrorLevel)
+			logger := slog.New(slog.DiscardHandler)
 
 			service := NewGitHubAppService(
 				installationRepo,

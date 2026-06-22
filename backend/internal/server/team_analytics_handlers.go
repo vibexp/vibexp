@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -52,12 +51,12 @@ func (s *Server) validateTeamAnalyticsRequest(
 	}
 
 	if err := s.validateTeamAccess(r.Context(), userID, teamID); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": handler,
-			"user_id": userID,
-			"team_id": teamID,
-		}).Warn("Team access denied for analytics request")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", handler,
+			"user_id", userID,
+			"team_id", teamID,
+		).Warn("Team access denied for analytics request")
 		writeErrorResponse(w, r, "access_denied", "Access denied", http.StatusForbidden)
 		return "", false
 	}
@@ -73,20 +72,20 @@ func (s *Server) handleGetTeamStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetTeamStats",
-		"team_id": teamID,
-	}).Info("Get team stats request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetTeamStats",
+		"team_id", teamID,
+	).Info("Get team stats request received")
 
 	stats, err := s.container.TeamService().GetTeamStats(r.Context(), teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetTeamStats",
-			"team_id": teamID,
-			"error":   err.Error(),
-		}).Error("Failed to get team stats")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetTeamStats",
+			"team_id", teamID,
+			"error", err.Error(),
+		).Error("Failed to get team stats")
 		writeErrorResponse(w, r, "internal_error", "Failed to get team stats", http.StatusInternalServerError)
 		return
 	}
@@ -114,12 +113,12 @@ func (s *Server) handleGetTeamResourceCreationMetrics(w http.ResponseWriter, r *
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetTeamResourceCreationMetrics",
-		"team_id": teamID,
-		"range":   rangeStr,
-	}).Info("Get team resource creation metrics request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetTeamResourceCreationMetrics",
+		"team_id", teamID,
+		"range", rangeStr,
+	).Info("Get team resource creation metrics request received")
 
 	// Align the SQL window start with the zero-filled series start by truncating to
 	// UTC midnight (see handleGetProjectResourceCreationMetrics for why).
@@ -129,12 +128,12 @@ func (s *Server) handleGetTeamResourceCreationMetrics(w http.ResponseWriter, r *
 
 	counts, err := s.container.TeamService().GetTeamResourceCreationMetrics(r.Context(), teamID, since)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetTeamResourceCreationMetrics",
-			"team_id": teamID,
-			"error":   err.Error(),
-		}).Error("Failed to get team resource creation metrics")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetTeamResourceCreationMetrics",
+			"team_id", teamID,
+			"error", err.Error(),
+		).Error("Failed to get team resource creation metrics")
 		writeErrorResponse(
 			w, r, "internal_error",
 			"Failed to get team resource creation metrics", http.StatusInternalServerError,
@@ -189,12 +188,12 @@ func (s *Server) handleGetTeamFeedCreationMetrics(w http.ResponseWriter, r *http
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetTeamFeedCreationMetrics",
-		"team_id": teamID,
-		"range":   rangeStr,
-	}).Info("Get team feed creation metrics request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetTeamFeedCreationMetrics",
+		"team_id", teamID,
+		"range", rangeStr,
+	).Info("Get team feed creation metrics request received")
 
 	// Align the SQL window start with the zero-filled series start by truncating to
 	// UTC midnight (see handleGetTeamResourceCreationMetrics for why).
@@ -204,12 +203,12 @@ func (s *Server) handleGetTeamFeedCreationMetrics(w http.ResponseWriter, r *http
 
 	counts, err := s.container.TeamService().GetTeamFeedCreationMetrics(r.Context(), teamID, since)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetTeamFeedCreationMetrics",
-			"team_id": teamID,
-			"error":   err.Error(),
-		}).Error("Failed to get team feed creation metrics")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetTeamFeedCreationMetrics",
+			"team_id", teamID,
+			"error", err.Error(),
+		).Error("Failed to get team feed creation metrics")
 		writeErrorResponse(
 			w, r, "internal_error",
 			"Failed to get team feed creation metrics", http.StatusInternalServerError,
@@ -245,21 +244,21 @@ func (s *Server) handleGetTeamResourceAccessMetrics(w http.ResponseWriter, r *ht
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetTeamResourceAccessMetrics",
-		"team_id": teamID,
-		"range":   rangeStr,
-	}).Info("Get team resource access metrics request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetTeamResourceAccessMetrics",
+		"team_id", teamID,
+		"range", rangeStr,
+	).Info("Get team resource access metrics request received")
 
 	result, err := s.container.ResourceAccessService().GetTeamMetrics(r.Context(), teamID, rangeDays)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetTeamResourceAccessMetrics",
-			"team_id": teamID,
-			"error":   err.Error(),
-		}).Error("Failed to get team resource access metrics")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetTeamResourceAccessMetrics",
+			"team_id", teamID,
+			"error", err.Error(),
+		).Error("Failed to get team resource access metrics")
 		writeErrorResponse(
 			w, r, "internal_error",
 			"Failed to get team resource access metrics", http.StatusInternalServerError,
@@ -408,24 +407,24 @@ func (s *Server) handleGetTeamTopAccessedResources(w http.ResponseWriter, r *htt
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetTeamTopAccessedResources",
-		"team_id": teamID,
-		"range":   rangeStr,
-		"limit":   limit,
-		"source":  source,
-	}).Info("Get team top accessed resources request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetTeamTopAccessedResources",
+		"team_id", teamID,
+		"range", rangeStr,
+		"limit", limit,
+		"source", source,
+	).Info("Get team top accessed resources request received")
 
 	items, err := s.container.ResourceAccessService().
 		GetTopAccessedResources(r.Context(), teamID, rangeDays, source, limit)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetTeamTopAccessedResources",
-			"team_id": teamID,
-			"error":   err.Error(),
-		}).Error("Failed to get team top accessed resources")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetTeamTopAccessedResources",
+			"team_id", teamID,
+			"error", err.Error(),
+		).Error("Failed to get team top accessed resources")
 		writeErrorResponse(
 			w, r, "internal_error",
 			"Failed to get team top accessed resources", http.StatusInternalServerError,

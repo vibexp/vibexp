@@ -3,10 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 )
 
 // resolveTeamPageSize is the page size used when paging through a user's teams
@@ -57,10 +57,10 @@ func (s *Server) resolveTeam(
 	for {
 		listResp, err := s.container.TeamService().ListTeams(ctx, userID, page, resolveTeamPageSize)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"user_id": userID,
-				"error":   fmt.Sprintf("%+v", err),
-			}).Error("Failed to list teams while resolving team identifier for MCP tool")
+			slog.With(
+				"user_id", userID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to list teams while resolving team identifier for MCP tool")
 			// Generic message: never leak whether the failure was lookup or membership.
 			return "", mcpTextError(teamAccessDeniedText)
 		}
@@ -78,9 +78,9 @@ func (s *Server) resolveTeam(
 		page++
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"user_id":         userID,
-		"team_identifier": identifier,
-	}).Warn("MCP tool rejected: team_id did not match any team the user belongs to")
+	slog.With(
+		"user_id", userID,
+		"team_identifier", identifier,
+	).Warn("MCP tool rejected: team_id did not match any team the user belongs to")
 	return "", mcpTextError(teamAccessDeniedText)
 }

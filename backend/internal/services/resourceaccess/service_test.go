@@ -3,10 +3,10 @@ package resourceaccess
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -25,16 +25,9 @@ func (s *syncSubmitter) Submit(task func()) {
 	task()
 }
 
-func newTestLogger() *logrus.Logger {
-	logger := logrus.New()
-	logger.SetOutput(testWriter{})
-	return logger
+func newTestLogger() *slog.Logger {
+	return slog.New(slog.DiscardHandler)
 }
-
-// testWriter discards log output during tests.
-type testWriter struct{}
-
-func (testWriter) Write(p []byte) (int, error) { return len(p), nil }
 
 func newServiceWithFake(
 	repo *mocks.MockResourceAccessRepository,

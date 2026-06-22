@@ -3,10 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -19,7 +18,7 @@ type ArtifactService struct {
 	eventManager      events.EventPublisher
 	resourceUsageSvc  ResourceUsageServiceInterface
 	contentVersionSvc ContentVersionServiceInterface
-	logger            *logrus.Logger
+	logger            *slog.Logger
 }
 
 // Ensure ArtifactService implements ArtifactServiceInterface
@@ -30,7 +29,7 @@ func NewArtifactService(
 	teamService TeamServiceInterface,
 	eventManager events.EventPublisher,
 	resourceUsageSvc ResourceUsageServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
 ) *ArtifactService {
 	return &ArtifactService{
@@ -70,19 +69,21 @@ func (s *ArtifactService) validateAndResolveTeamID(
 
 	isMember, err := s.teamService.IsUserMemberOfTeam(ctx, userID, *requestedTeamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": *requestedTeamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to validate team membership")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", *requestedTeamID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to validate team membership")
 		return "", fmt.Errorf("failed to validate team membership")
 	}
 
 	if !isMember {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": *requestedTeamID,
-		}).Warn("User attempted to create artifact in team they are not a member of")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", *requestedTeamID,
+		).
+			Warn("User attempted to create artifact in team they are not a member of")
 		return "", fmt.Errorf("user is not a member of the specified team")
 	}
 
@@ -132,10 +133,10 @@ func (s *ArtifactService) CreateArtifact(
 
 	err = s.repo.Create(ctx, artifact)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "artifact",
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to create artifact")
+		s.logger.With(
+			"service", "artifact",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create artifact")
 		return nil, err
 	}
 
@@ -146,7 +147,7 @@ func (s *ArtifactService) CreateArtifact(
 			artifact.Title, artifact.Type, artifact.Content, artifact.CreatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish artifact created event")
+			s.logger.With("error", err).Warn("Failed to publish artifact created event")
 		}
 	}
 
@@ -157,13 +158,13 @@ func (s *ArtifactService) GetArtifactByProjectIDAndSlug(userID, projectID, slug 
 	// Search across all user's teams
 	artifact, err := s.repo.GetByProjectIDAndSlugCrossTeam(context.Background(), userID, projectID, slug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "artifact",
-			"user_id":    userID,
-			"project_id": projectID,
-			"slug":       slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to get artifact")
+		s.logger.With(
+			"service", "artifact",
+			"user_id", userID,
+			"project_id", projectID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get artifact")
 		return nil, err
 	}
 
@@ -179,14 +180,14 @@ func (s *ArtifactService) GetArtifactByProjectIDAndSlugInTeam(
 ) (*models.Artifact, error) {
 	artifact, err := s.repo.GetByProjectIDAndSlug(context.Background(), userID, teamID, projectID, slug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "artifact",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": projectID,
-			"slug":       slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to get artifact (team-scoped)")
+		s.logger.With(
+			"service", "artifact",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", projectID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get artifact (team-scoped)")
 		return nil, err
 	}
 
@@ -202,13 +203,13 @@ func (s *ArtifactService) GetArtifactByIDInTeam(
 ) (*models.Artifact, error) {
 	artifact, err := s.repo.GetByID(context.Background(), userID, teamID, artifactID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "artifact",
-			"user_id":     userID,
-			"team_id":     teamID,
-			"artifact_id": artifactID,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to get artifact by id (team-scoped)")
+		s.logger.With(
+			"service", "artifact",
+			"user_id", userID,
+			"team_id", teamID,
+			"artifact_id", artifactID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get artifact by id (team-scoped)")
 		return nil, err
 	}
 
@@ -247,11 +248,12 @@ func (s *ArtifactService) ListArtifacts(userID string, filters ArtifactFilters) 
 
 	artifacts, totalCount, err := s.repo.List(context.Background(), userID, repoFilters)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "artifact",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list artifacts")
+		s.logger.With(
+			"service", "artifact",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to list artifacts")
 		return nil, err
 	}
 
@@ -308,12 +310,12 @@ func (s *ArtifactService) ListArtifactsByProjectCrossTeam(
 
 	artifacts, totalCount, err := s.repo.ListCrossTeam(context.Background(), userID, repoFilters)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "artifact",
-			"user_id":    userID,
-			"project_id": projectID,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to list artifacts (cross-team)")
+		s.logger.With(
+			"service", "artifact",
+			"user_id", userID,
+			"project_id", projectID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list artifacts (cross-team)")
 		return nil, err
 	}
 
@@ -415,19 +417,19 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 			ChangeSummary: req.ChangeSummary,
 			ActorType:     actorType,
 		}); err != nil {
-			s.logger.WithError(err).Warn("Failed to snapshot artifact content version")
+			s.logger.With("error", err).Warn("Failed to snapshot artifact content version")
 		}
 	}
 
 	err := s.repo.Update(ctx, artifact)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "artifact",
-			"user_id":    userID,
-			"project_id": artifact.ProjectID,
-			"slug":       artifact.Slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to update artifact")
+		s.logger.With(
+			"service", "artifact",
+			"user_id", userID,
+			"project_id", artifact.ProjectID,
+			"slug", artifact.Slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update artifact")
 		return nil, err
 	}
 
@@ -438,7 +440,7 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 			artifact.Title, artifact.Type, artifact.Content, artifact.UpdatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish artifact updated event")
+			s.logger.With("error", err).Warn("Failed to publish artifact updated event")
 		}
 	}
 
@@ -455,13 +457,13 @@ func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, projectID, sl
 	ctx := context.Background()
 	err = s.repo.Delete(ctx, userID, artifact.TeamID, artifact.ID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "artifact",
-			"user_id":    userID,
-			"project_id": projectID,
-			"slug":       slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete artifact")
+		s.logger.With(
+			"service", "artifact",
+			"user_id", userID,
+			"project_id", projectID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to delete artifact")
 		return err
 	}
 
@@ -520,12 +522,13 @@ func (s *ArtifactService) RestoreArtifactVersionInTeam(
 func (s *ArtifactService) GetArtifactStats(userID, teamID string) (*models.ArtifactStatsResponse, error) {
 	stats, err := s.repo.GetStats(context.Background(), userID, teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "artifact",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get artifact stats")
+		s.logger.With(
+			"service", "artifact",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to get artifact stats")
 		return nil, err
 	}
 

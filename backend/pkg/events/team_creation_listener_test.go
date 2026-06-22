@@ -3,10 +3,10 @@ package events
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -47,13 +47,13 @@ func TestNewTeamCreationListener(t *testing.T) {
 		name           string
 		teamService    TeamCreatorServiceInterface
 		projectService ProjectCreatorServiceInterface
-		logger         *logrus.Logger
+		logger         *slog.Logger
 	}{
 		{
 			name:           "with all dependencies",
 			teamService:    &MockTeamCreatorService{},
 			projectService: &MockProjectCreatorService{},
-			logger:         logrus.New(),
+			logger:         slog.New(slog.DiscardHandler),
 		},
 		{
 			name:           "with nil logger creates default",
@@ -65,7 +65,7 @@ func TestNewTeamCreationListener(t *testing.T) {
 			name:           "with nil project service",
 			teamService:    &MockTeamCreatorService{},
 			projectService: nil,
-			logger:         logrus.New(),
+			logger:         slog.New(slog.DiscardHandler),
 		},
 	}
 
@@ -82,7 +82,9 @@ func TestNewTeamCreationListener(t *testing.T) {
 }
 
 func TestTeamCreationListener_EventTypes(t *testing.T) {
-	listener := NewTeamCreationListener(&MockTeamCreatorService{}, &MockProjectCreatorService{}, logrus.New())
+	listener := NewTeamCreationListener(
+		&MockTeamCreatorService{}, &MockProjectCreatorService{}, slog.New(slog.DiscardHandler),
+	)
 
 	eventTypes := listener.EventTypes()
 
@@ -93,8 +95,7 @@ func TestTeamCreationListener_EventTypes(t *testing.T) {
 func TestTeamCreationListener_Handle_SuccessfulCreation(t *testing.T) {
 	mockTeamSvc := &MockTeamCreatorService{}
 	mockProjectSvc := &MockProjectCreatorService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	team := &models.Team{
 		ID:      "team-456",
@@ -129,8 +130,7 @@ func TestTeamCreationListener_Handle_SuccessfulCreation(t *testing.T) {
 func TestTeamCreationListener_Handle_TeamCreationFails(t *testing.T) {
 	mockTeamSvc := &MockTeamCreatorService{}
 	mockProjectSvc := &MockProjectCreatorService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockTeamSvc.On("CreateDefaultTeam", mock.Anything, "user-123").
 		Return(nil, errors.New("database error"))
@@ -148,8 +148,7 @@ func TestTeamCreationListener_Handle_TeamCreationFails(t *testing.T) {
 func TestTeamCreationListener_Handle_ProjectCreationFails(t *testing.T) {
 	mockTeamSvc := &MockTeamCreatorService{}
 	mockProjectSvc := &MockProjectCreatorService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	team := &models.Team{ID: "team-456", OwnerID: "user-123", Name: "Private Workspace"}
 	mockTeamSvc.On("CreateDefaultTeam", mock.Anything, "user-123").Return(team, nil)
@@ -169,8 +168,7 @@ func TestTeamCreationListener_Handle_ProjectCreationFails(t *testing.T) {
 func TestTeamCreationListener_Handle_WrongEventType(t *testing.T) {
 	mockTeamSvc := &MockTeamCreatorService{}
 	mockProjectSvc := &MockProjectCreatorService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	listener := NewTeamCreationListener(mockTeamSvc, mockProjectSvc, logger)
 	event := NewPromptCreatedEvent("prompt-123", "user-123", "", "", "", "", "", time.Now())
@@ -185,8 +183,7 @@ func TestTeamCreationListener_Handle_WrongEventType(t *testing.T) {
 func TestTeamCreationListener_Handle_InvalidPayload(t *testing.T) {
 	mockTeamSvc := &MockTeamCreatorService{}
 	mockProjectSvc := &MockProjectCreatorService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	listener := NewTeamCreationListener(mockTeamSvc, mockProjectSvc, logger)
 	event := &BaseEvent{
@@ -204,8 +201,7 @@ func TestTeamCreationListener_Handle_InvalidPayload(t *testing.T) {
 
 func TestTeamCreationListener_Handle_NilProjectService(t *testing.T) {
 	mockTeamSvc := &MockTeamCreatorService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	team := &models.Team{
 		ID:      "team-456",
@@ -230,8 +226,7 @@ func TestTeamCreationListener_DefaultProjectAttributes(t *testing.T) {
 	// Test that the default project has the correct attributes
 	mockTeamSvc := &MockTeamCreatorService{}
 	mockProjectSvc := &MockProjectCreatorService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	team := &models.Team{
 		ID:      "team-456",
@@ -277,8 +272,7 @@ func TestTeamCreationListener_ProjectAssociatedWithCorrectTeam(t *testing.T) {
 	// Test that the project is created with the correct team_id
 	mockTeamSvc := &MockTeamCreatorService{}
 	mockProjectSvc := &MockProjectCreatorService{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	expectedTeamID := "private-workspace-team-id-abc123"
 	team := &models.Team{
@@ -333,8 +327,7 @@ func TestTeamCreationListener_NonBlockingBehavior(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockTeamSvc := &MockTeamCreatorService{}
 			mockProjectSvc := &MockProjectCreatorService{}
-			logger := logrus.New()
-			logger.SetLevel(logrus.ErrorLevel)
+			logger := slog.New(slog.DiscardHandler)
 
 			tt.setupMocks(mockTeamSvc, mockProjectSvc)
 

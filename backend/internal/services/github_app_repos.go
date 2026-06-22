@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -61,12 +59,12 @@ func (s *GitHubAppService) fetchAllRepoURLs(
 			}
 		}
 		if page == maxRepoPages {
-			s.logger.WithFields(logrus.Fields{
-				"service":         "github-app-service",
-				"team_id":         teamID,
-				"installation_id": installationID,
-				"pages_fetched":   maxRepoPages,
-			}).Warn("fetchAllRepoURLs: reached max page limit; some repositories may not be reflected")
+			s.logger.With(
+				"service", "github-app-service",
+				"team_id", teamID,
+				"installation_id", installationID,
+				"pages_fetched", maxRepoPages,
+			).Warn("fetchAllRepoURLs: reached max page limit; some repositories may not be reflected")
 		}
 	}
 	return repoURLs, nil
@@ -131,10 +129,12 @@ func (s *GitHubAppService) enrichRepositoriesWithProjectSlugs(
 
 	gitURLToSlug, err := s.projectRepo.ListGitURLToSlugByTeam(ctx, teamID, userID)
 	if err != nil {
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"service": "github-app-service",
-			"team_id": teamID,
-		}).Warn("failed to load project git_url->slug map; returning repositories without slugs")
+		s.logger.With("error", err).
+			With(
+				"service", "github-app-service",
+				"team_id", teamID,
+			).
+			Warn("failed to load project git_url->slug map; returning repositories without slugs")
 		return repos
 	}
 

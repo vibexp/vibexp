@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -921,7 +922,7 @@ func TestCheckResourceLimit(t *testing.T) {
 		new(mockFeedRepo),
 		new(mockFeedItemRepo),
 		new(mockFeedItemReplyRepo),
-		logrus.New(),
+		slog.New(slog.DiscardHandler),
 	)
 
 	for _, resourceType := range []string{
@@ -996,8 +997,7 @@ func TestNormalizePlanName_UnknownPlan(t *testing.T) {
 }
 
 func TestGetResourceLimit_PowerUserPlan(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := &ResourceUsageService{logger: logger}
 	planName := "VibeXP - Power User"
 
@@ -1021,8 +1021,7 @@ func TestGetResourceLimit_PowerUserPlan(t *testing.T) {
 }
 
 func TestGetResourceLimit_ProfessionalPlan(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := &ResourceUsageService{logger: logger}
 	planName := "VibeXP - Professional"
 
@@ -1031,8 +1030,7 @@ func TestGetResourceLimit_ProfessionalPlan(t *testing.T) {
 }
 
 func TestGetResourceLimit_StarterPlan(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := &ResourceUsageService{logger: logger}
 	planName := "VibeXP - Starter"
 
@@ -1049,8 +1047,7 @@ func TestCountAgentConversations_EmptyAgentID(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// Setup mock AI hooks repositories
 	claudeCodeRepo := new(mockClaudeCodeRepo)
@@ -1124,8 +1121,7 @@ func TestCountAgentConversations_Pagination(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// Setup mock AI hooks repositories
 	claudeCodeRepo := new(mockClaudeCodeRepo)
@@ -1202,8 +1198,7 @@ func TestCountSpecLibraries(t *testing.T) {
 	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
 	service := NewResourceUsageService(
@@ -1348,8 +1343,7 @@ func TestCountTeams(t *testing.T) {
 	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
 	service := NewResourceUsageService(
@@ -1407,8 +1401,7 @@ func TestGetResourceUsage_IncludesTeams(t *testing.T) {
 	feedRepo := new(mockFeedRepo)
 	feedItemRepo := new(mockFeedItemRepo)
 	feedItemReplyRepo := new(mockFeedItemReplyRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
 	service := NewResourceUsageService(
@@ -1701,8 +1694,7 @@ func TestGetTeamQuotaContribution_SingleTeam(t *testing.T) {
 			teamRepo := new(mockTeamRepo)
 			teamMemberRepo := new(mockTeamMemberRepo)
 			teamSubscriptionRepo := new(mockTeamSubscriptionRepo)
-			logger := logrus.New()
-			logger.SetLevel(logrus.FatalLevel)
+			logger := slog.New(slog.DiscardHandler)
 
 			// Setup service
 			service := NewResourceUsageService(
@@ -1779,8 +1771,7 @@ func TestGetTeamQuotaContribution_MultipleTeams(t *testing.T) {
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
 	teamSubscriptionRepo := new(mockTeamSubscriptionRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
 	service := NewResourceUsageService(
@@ -1870,8 +1861,7 @@ func TestGetTeamQuotaContribution_PersonalWorkspaceExcluded(t *testing.T) {
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
 	teamSubscriptionRepo := new(mockTeamSubscriptionRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
 	service := NewResourceUsageService(
@@ -1953,8 +1943,7 @@ func TestGetTeamQuotaContribution_InactiveSubscriptionExcluded(t *testing.T) {
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
 	teamSubscriptionRepo := new(mockTeamSubscriptionRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
 	service := NewResourceUsageService(
@@ -2044,8 +2033,7 @@ func TestGetResourceUsage_WithTeamQuotaBreakdown(t *testing.T) {
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
 	teamSubscriptionRepo := new(mockTeamSubscriptionRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	feedRepo2 := new(mockFeedRepo)
 	feedItemRepo2 := new(mockFeedItemRepo)
@@ -2226,8 +2214,7 @@ func TestGetTeamQuotaContribution_OverflowProtection(t *testing.T) {
 			teamRepo := new(mockTeamRepo)
 			teamMemberRepo := new(mockTeamMemberRepo)
 			teamSubscriptionRepo := new(mockTeamSubscriptionRepo)
-			logger := logrus.New()
-			logger.SetLevel(logrus.FatalLevel)
+			logger := slog.New(slog.DiscardHandler)
 
 			// Setup service
 			service := NewResourceUsageService(
@@ -2309,8 +2296,7 @@ func TestGetTeamQuotaContribution_AccumulationOverflow(t *testing.T) {
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
 	teamSubscriptionRepo := new(mockTeamSubscriptionRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
 	service := NewResourceUsageService(
@@ -2450,8 +2436,7 @@ func TestGetTeamQuotaContribution_NegativeValueValidation(t *testing.T) {
 			teamRepo := new(mockTeamRepo)
 			teamMemberRepo := new(mockTeamMemberRepo)
 			teamSubscriptionRepo := new(mockTeamSubscriptionRepo)
-			logger := logrus.New()
-			logger.SetLevel(logrus.FatalLevel)
+			logger := slog.New(slog.DiscardHandler)
 
 			// Setup service
 			service := NewResourceUsageService(
@@ -2518,8 +2503,7 @@ func TestGetTeamQuotaContribution_NegativeValueValidation(t *testing.T) {
 // TestCountFeeds verifies that countFeeds delegates to FeedRepository.CountAll correctly.
 func TestCountFeeds(t *testing.T) {
 	feedRepo := new(mockFeedRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewResourceUsageService(
 		new(mockUserRepo),
@@ -2556,8 +2540,7 @@ func TestCountFeeds(t *testing.T) {
 func TestCountFeedItems(t *testing.T) {
 	feedItemRepo := new(mockFeedItemRepo)
 	feedItemReplyRepo := new(mockFeedItemReplyRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewResourceUsageService(
 		new(mockUserRepo),
@@ -2597,8 +2580,7 @@ func TestCountFeedItems(t *testing.T) {
 func TestCountFeedItems_ItemRepoError(t *testing.T) {
 	feedItemRepo := new(mockFeedItemRepo)
 	feedItemReplyRepo := new(mockFeedItemReplyRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewResourceUsageService(
 		new(mockUserRepo),
@@ -2634,8 +2616,7 @@ func TestCountFeedItems_ItemRepoError(t *testing.T) {
 func TestCountFeedItems_ReplyRepoError(t *testing.T) {
 	feedItemRepo := new(mockFeedItemRepo)
 	feedItemReplyRepo := new(mockFeedItemReplyRepo)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewResourceUsageService(
 		new(mockUserRepo),

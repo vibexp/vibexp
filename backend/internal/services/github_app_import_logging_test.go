@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -15,14 +15,19 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// newTestLoggerWithBuffer creates a logrus logger that writes to a buffer so we can
+// newTestLoggerWithBuffer creates an slog logger that writes to a buffer so we can
 // assert log output in tests. The level is set to Debug so all levels are captured.
-func newTestLoggerWithBuffer() (*logrus.Logger, *bytes.Buffer) {
+func newTestLoggerWithBuffer() (*slog.Logger, *bytes.Buffer) {
 	buf := &bytes.Buffer{}
-	logger := logrus.New()
-	logger.SetOutput(buf)
-	logger.SetLevel(logrus.DebugLevel)
-	logger.SetFormatter(&logrus.TextFormatter{DisableTimestamp: true})
+	logger := slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return a
+		},
+	}))
 	return logger, buf
 }
 
@@ -78,7 +83,7 @@ func newImportLoggingService(
 	projectRepo *MockProjectRepository,
 	blueprintRepo *MockBlueprintRepository,
 	githubClient *MockGitHubAppClient,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *GitHubAppService {
 	eventManager := new(MockEventPublisher)
 	encryptionSvc := new(MockEncryptionService)

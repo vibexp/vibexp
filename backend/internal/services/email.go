@@ -6,12 +6,12 @@ import (
 	"embed"
 	"fmt"
 	htmltemplate "html/template"
+	"log/slog"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/darkrockmountain/gomail"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
@@ -61,7 +61,7 @@ func (es *EmailService) appBaseURL() string {
 func (es *EmailService) SendContactMessage(req *models.ContactFormRequest) error {
 	// Send notification email to the configured admin recipient.
 	if err := es.sendAdminNotification(req); err != nil {
-		logrus.WithError(err).Error("Failed to send admin notification email")
+		slog.With("error", err).Error("Failed to send admin notification email")
 		return fmt.Errorf("failed to send admin notification: %w", err)
 	}
 
@@ -79,7 +79,7 @@ func (es *EmailService) SendSupportRequest(userName, userEmail string, req *mode
 	if req.Acknowledgement {
 		if err := es.sendSupportAcknowledgement(userName, userEmail, req); err != nil {
 			// Log but don't fail - admin notification was sent
-			logrus.WithError(err).Warn("Failed to send acknowledgement email")
+			slog.With("error", err).Warn("Failed to send acknowledgement email")
 		}
 	}
 
@@ -159,14 +159,14 @@ func (es *EmailService) sendEmail(to, subject, htmlBody, textBody string) error 
 
 // logEmailSent logs successful email sending
 func (es *EmailService) logEmailSent(to, subject, htmlBody, textBody string) {
-	logrus.WithFields(logrus.Fields{
-		"to":            to,
-		"subject":       subject,
-		"email_backend": es.cfg.EmailProvider,
-		"text_body":     textBody != "",
-		"html_body":     htmlBody != "",
-		"multipart":     textBody != "" && htmlBody != "",
-	}).Info("Email sent successfully")
+	slog.With(
+		"to", to,
+		"subject", subject,
+		"email_backend", es.cfg.EmailProvider,
+		"text_body", textBody != "",
+		"html_body", htmlBody != "",
+		"multipart", textBody != "" && htmlBody != "",
+	).Info("Email sent successfully")
 }
 
 func (es *EmailService) sendSupportNotificationToAdmin(userName, userEmail string, req *models.SupportRequest) error {
@@ -382,7 +382,9 @@ func (es *EmailService) buildAdditionalInfo(additionalInfo map[string]string) (h
 
 	// Build HTML version
 	htmlBuf := &strings.Builder{}
-	htmlBuf.WriteString("<p><strong>Additional Information:</strong></p><ul style=\"list-style-type: none; padding: 0;\">")
+	htmlBuf.WriteString(
+		"<p><strong>Additional Information:</strong></p><ul style=\"list-style-type: none; padding: 0;\">",
+	)
 	for key, value := range additionalInfo {
 		fmt.Fprintf(htmlBuf,
 			"<li style=\"margin-bottom: 8px;\"><strong>%s:</strong> %s</li>\n",

@@ -4,8 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -66,7 +65,7 @@ func (r *contentVersionRepository) Create(ctx context.Context, v *models.Content
 		createdBy,
 	).Scan(&v.ID, &v.VersionNumber, &v.CreatedAt)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to create content version")
+		slog.Error("Failed to create content version", "error", err)
 		return fmt.Errorf("failed to create content version: %w", err)
 	}
 
@@ -92,12 +91,12 @@ func (r *contentVersionRepository) ListByResource(
 
 	rows, err := r.db.QueryContext(ctx, query, teamID, resourceType, resourceID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query content versions")
+		slog.Error("Failed to query content versions", "error", err)
 		return nil, fmt.Errorf("failed to query content versions: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -111,7 +110,7 @@ func (r *contentVersionRepository) ListByResource(
 	}
 
 	if err := rows.Err(); err != nil {
-		logrus.WithError(err).Error("Failed to iterate content version rows")
+		slog.Error("Failed to iterate content version rows", "error", err)
 		return nil, fmt.Errorf("failed to iterate content versions: %w", err)
 	}
 
@@ -162,7 +161,7 @@ func (r *contentVersionRepository) PruneToCap(
 		) - $3`
 
 	if _, err := r.db.ExecContext(ctx, query, resourceType, resourceID, keep); err != nil {
-		logrus.WithError(err).Error("Failed to prune content versions")
+		slog.Error("Failed to prune content versions", "error", err)
 		return fmt.Errorf("failed to prune content versions: %w", err)
 	}
 

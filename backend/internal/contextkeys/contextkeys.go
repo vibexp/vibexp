@@ -5,8 +5,7 @@ package contextkeys
 
 import (
 	"context"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 )
 
 // ContextKey is a custom type for context keys to avoid collisions
@@ -17,7 +16,6 @@ type ContextKey string
 const (
 	// Logging and tracing context keys
 	RequestID ContextKey = "request_id"
-	TraceID   ContextKey = "trace_id"
 	Logger    ContextKey = "logger"
 
 	// User authentication and authorization context keys
@@ -78,27 +76,19 @@ func GetAccessedResourceID(ctx context.Context) (string, bool) {
 }
 
 // GetLoggerFromContext retrieves the request-scoped logger from context.
-// If no logger is found, returns a new logger with basic fields including
-// request_id and trace_id if available in the context.
-func GetLoggerFromContext(ctx context.Context) *logrus.Entry {
-	if logger, ok := ctx.Value(Logger).(*logrus.Entry); ok {
+// If no logger is found, returns the default logger enriched with the
+// request_id from the context when available.
+func GetLoggerFromContext(ctx context.Context) *slog.Logger {
+	if logger, ok := ctx.Value(Logger).(*slog.Logger); ok {
 		return logger
 	}
 
-	// Fallback: create a new logger with available context
-	fields := logrus.Fields{
-		"service": "vibexp-api",
-	}
-
+	// Fallback: derive from the default logger with whatever context we have.
+	logger := slog.Default()
 	if requestID, ok := ctx.Value(RequestID).(string); ok && requestID != "" {
-		fields["request_id"] = requestID
+		logger = logger.With("request_id", requestID)
 	}
-
-	if traceID, ok := ctx.Value(TraceID).(string); ok && traceID != "" {
-		fields["logging.googleapis.com/trace"] = traceID
-	}
-
-	return logrus.WithFields(fields)
+	return logger
 }
 
 // GetRequestID retrieves the request ID from context.
@@ -110,18 +100,8 @@ func GetRequestID(ctx context.Context) string {
 	return ""
 }
 
-// GetTraceID retrieves the Cloud Trace ID from context.
-// Returns empty string if not found.
-func GetTraceID(ctx context.Context) string {
-	if traceID, ok := ctx.Value(TraceID).(string); ok {
-		return traceID
-	}
-	return ""
-}
-
-// AddLogFields adds additional fields to the request-scoped logger.
-// Returns a new logger entry with the added fields.
-func AddLogFields(ctx context.Context, fields logrus.Fields) *logrus.Entry {
-	logger := GetLoggerFromContext(ctx)
-	return logger.WithFields(fields)
+// AddLogFields returns the request-scoped logger augmented with additional
+// attributes, supplied as alternating key/value pairs (slog style).
+func AddLogFields(ctx context.Context, args ...any) *slog.Logger {
+	return GetLoggerFromContext(ctx).With(args...)
 }

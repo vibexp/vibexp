@@ -3,14 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -708,9 +707,8 @@ func TestBackofficeAuthMiddleware_APIKeyAuthNotAccepted(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
-func setupTestLogger() *logrus.Logger {
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+func setupTestLogger() *slog.Logger {
+	logger := slog.New(slog.DiscardHandler)
 	return logger
 }
 

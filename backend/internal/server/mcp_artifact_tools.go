@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
@@ -127,6 +127,8 @@ func buildArtifactURL(baseURL, projectID, slug string) string {
 // Artifact Tool Implementations
 
 // createArtifact implements the tool that creates a new artifact in the resolved team.
+//
+//nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
 func (s *Server) createArtifact(
 	ctx context.Context, _ *mcp.CallToolRequest, params *CreateArtifactParams, userID string,
 ) (*mcp.CallToolResult, any, error) {
@@ -136,12 +138,13 @@ func (s *Server) createArtifact(
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_create_artifact",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-		}).Warn("MCP tool rejected: invalid project_id")
+		slog.Warn(
+			"MCP tool rejected: invalid project_id",
+			"tool", "vibexp_io_create_artifact",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+		)
 		return r, nil, nil
 	}
 
@@ -158,10 +161,12 @@ func (s *Server) createArtifact(
 
 	artifact, err := s.container.ArtifactService().CreateArtifact(userID, teamID, createReq)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": teamID,
-		}).WithError(err).Error("Failed to create artifact via MCP")
+		slog.Error(
+			"Failed to create artifact via MCP",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", err,
+		)
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to create artifact: %v", err)}},
 			IsError: true,
@@ -236,12 +241,13 @@ func (s *Server) listArtifactsByProject(
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_search_artifacts",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-		}).Warn("MCP tool rejected: invalid project_id")
+		slog.Warn(
+			"MCP tool rejected: invalid project_id",
+			"tool", "vibexp_io_search_artifacts",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+		)
 		return r, nil, nil
 	}
 
@@ -258,13 +264,14 @@ func (s *Server) listArtifactsByProject(
 
 	response, err := s.container.ArtifactService().ListArtifactsByProject(userID, params.ProjectID, filters)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_search_artifacts",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to search artifacts via MCP")
+		slog.Error(
+			"Failed to search artifacts via MCP",
+			"tool", "vibexp_io_search_artifacts",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -312,12 +319,13 @@ func (s *Server) getArtifact(
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_get_artifact",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-		}).Warn("MCP tool rejected: invalid project_id")
+		slog.Warn(
+			"MCP tool rejected: invalid project_id",
+			"tool", "vibexp_io_get_artifact",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+		)
 		return r, nil, nil
 	}
 
@@ -325,14 +333,15 @@ func (s *Server) getArtifact(
 		userID, teamID, params.ProjectID, params.Slug,
 	)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_get_artifact",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-			"slug":       params.Slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to get artifact via MCP")
+		slog.Error(
+			"Failed to get artifact via MCP",
+			"tool", "vibexp_io_get_artifact",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+			"slug", params.Slug,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -402,12 +411,13 @@ func (s *Server) updateArtifact(
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_update_artifact",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-		}).Warn("MCP tool rejected: invalid project_id")
+		slog.Warn(
+			"MCP tool rejected: invalid project_id",
+			"tool", "vibexp_io_update_artifact",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+		)
 		return r, nil, nil
 	}
 
@@ -417,14 +427,15 @@ func (s *Server) updateArtifact(
 		userID, teamID, params.ProjectID, params.Slug, updateReq,
 	)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_update_artifact",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-			"slug":       params.Slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to update artifact via MCP")
+		slog.Error(
+			"Failed to update artifact via MCP",
+			"tool", "vibexp_io_update_artifact",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+			"slug", params.Slug,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{

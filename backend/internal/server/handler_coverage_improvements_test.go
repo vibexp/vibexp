@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -270,8 +270,7 @@ func newCoverageTestContainer(t *testing.T) *CoverageTestContainer {
 
 func createCoverageTestServer(container *CoverageTestContainer) *Server {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 
@@ -567,8 +566,7 @@ func TestTeamCreateCoverage_DescriptionTooLong(t *testing.T) {
 func TestEmbeddingProviderGetCoverage_ServiceError(t *testing.T) {
 	container := newCoverageTestContainer(t)
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 	srv := &Server{
@@ -597,8 +595,7 @@ func TestEmbeddingProviderGetCoverage_ServiceError(t *testing.T) {
 func TestEmbeddingProviderUpdateCoverage_ServiceError(t *testing.T) {
 	container := newCoverageTestContainer(t)
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 	srv := &Server{
@@ -632,8 +629,7 @@ func TestEmbeddingProviderUpdateCoverage_ServiceError(t *testing.T) {
 func TestEmbeddingProviderUpdateCoverage_SuccessWithValidData(t *testing.T) {
 	container := newCoverageTestContainer(t)
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 	srv := &Server{

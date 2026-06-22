@@ -3,10 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -18,7 +17,7 @@ type ProjectService struct {
 	repo         repositories.ProjectRepository
 	teamService  TeamServiceInterface
 	eventManager events.EventPublisher
-	logger       *logrus.Logger
+	logger       *slog.Logger
 }
 
 // Ensure ProjectService implements ProjectServiceInterface
@@ -29,7 +28,7 @@ func NewProjectService(
 	repo repositories.ProjectRepository,
 	teamService TeamServiceInterface,
 	eventManager events.EventPublisher,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *ProjectService {
 	return &ProjectService{
 		repo:         repo,
@@ -56,21 +55,22 @@ func (s *ProjectService) validateAndResolveTeamID(
 	// Validate user is member of the requested team
 	isMember, err := s.teamService.IsUserMemberOfTeam(ctx, userID, *requestedTeamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project-service",
-			"user_id": userID,
-			"team_id": *requestedTeamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to validate team membership")
+		s.logger.With(
+			"service", "project-service",
+			"user_id", userID,
+			"team_id", *requestedTeamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to validate team membership")
 		return "", fmt.Errorf("failed to validate team membership")
 	}
 
 	if !isMember {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project-service",
-			"user_id": userID,
-			"team_id": *requestedTeamID,
-		}).Warn("User attempted to create project in team they are not a member of")
+		s.logger.With(
+			"service", "project-service",
+			"user_id", userID,
+			"team_id", *requestedTeamID,
+		).
+			Warn("User attempted to create project in team they are not a member of")
 		return "", fmt.Errorf("user is not a member of the specified team")
 	}
 
@@ -80,12 +80,12 @@ func (s *ProjectService) validateAndResolveTeamID(
 // validateTeamReassignment checks if user is trying to move resource to different team
 func (s *ProjectService) validateTeamReassignment(requestedTeamID *string, currentTeamID, projectID string) error {
 	if requestedTeamID != nil && *requestedTeamID != currentTeamID {
-		s.logger.WithFields(logrus.Fields{
-			"service":        "project-service",
-			"project_id":     projectID,
-			"existing_team":  currentTeamID,
-			"requested_team": *requestedTeamID,
-		}).Warn("User attempted to reassign project to different team")
+		s.logger.With(
+			"service", "project-service",
+			"project_id", projectID,
+			"existing_team", currentTeamID,
+			"requested_team", *requestedTeamID,
+		).Warn("User attempted to reassign project to different team")
 		return fmt.Errorf("resources cannot be moved between teams once created")
 	}
 	return nil
@@ -117,11 +117,12 @@ func (s *ProjectService) CreateProject(
 
 	err = s.repo.Create(ctx, project)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to create project")
+		s.logger.With(
+			"service", "project",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to create project")
 		return nil, err
 	}
 
@@ -138,7 +139,7 @@ func (s *ProjectService) CreateProject(
 			project.CreatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish project created event")
+			s.logger.With("error", err).Warn("Failed to publish project created event")
 		}
 	}
 
@@ -149,13 +150,13 @@ func (s *ProjectService) CreateProject(
 func (s *ProjectService) GetProjectBySlug(teamID, userID, slug string) (*models.Project, error) {
 	project, err := s.repo.GetBySlug(context.Background(), teamID, userID, slug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project",
-			"team_id": teamID,
-			"user_id": userID,
-			"slug":    slug,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get project")
+		s.logger.With(
+			"service", "project",
+			"team_id", teamID,
+			"user_id", userID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get project")
 		return nil, err
 	}
 
@@ -175,11 +176,12 @@ func (s *ProjectService) ListProjects(userID string, filters ProjectFilters) (*m
 
 	projects, totalCount, err := s.repo.List(context.Background(), userID, repoFilters)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list projects")
+		s.logger.With(
+			"service", "project",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to list projects")
 		return nil, err
 	}
 
@@ -240,12 +242,13 @@ func (s *ProjectService) UpdateProject(
 	ctx := context.Background()
 	err = s.repo.Update(ctx, existingProject)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project",
-			"user_id": userID,
-			"slug":    slug,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to update project")
+		s.logger.With(
+			"service", "project",
+			"user_id", userID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to update project")
 		return nil, err
 	}
 
@@ -262,7 +265,7 @@ func (s *ProjectService) UpdateProject(
 			existingProject.UpdatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish project updated event")
+			s.logger.With("error", err).Warn("Failed to publish project updated event")
 		}
 	}
 
@@ -273,13 +276,13 @@ func (s *ProjectService) UpdateProject(
 func (s *ProjectService) GetProjectStats(teamID, userID, slug string) (*models.ProjectStatsResponse, error) {
 	stats, err := s.repo.GetProjectStats(context.Background(), teamID, userID, slug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project",
-			"team_id": teamID,
-			"user_id": userID,
-			"slug":    slug,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get project stats")
+		s.logger.With(
+			"service", "project",
+			"team_id", teamID,
+			"user_id", userID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get project stats")
 		return nil, err
 	}
 	return stats, nil
@@ -294,13 +297,13 @@ func (s *ProjectService) GetProjectResourceCreationMetrics(
 ) ([]models.ProjectResourceCreationCount, error) {
 	counts, err := s.repo.GetProjectResourceCreationMetrics(context.Background(), teamID, userID, slug, since)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project",
-			"team_id": teamID,
-			"user_id": userID,
-			"slug":    slug,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get project resource creation metrics")
+		s.logger.With(
+			"service", "project",
+			"team_id", teamID,
+			"user_id", userID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get project resource creation metrics")
 		return nil, err
 	}
 	return counts, nil
@@ -319,11 +322,12 @@ func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
 	// Check if this is the last project in the team
 	projectCount, err := s.repo.CountByTeamID(ctx, teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project",
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to count projects")
+		s.logger.With(
+			"service", "project",
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to count projects")
 		return fmt.Errorf("failed to verify project count: %w", err)
 	}
 
@@ -333,13 +337,13 @@ func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
 
 	err = s.repo.Delete(ctx, teamID, userID, slug)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "project",
-			"team_id": teamID,
-			"user_id": userID,
-			"slug":    slug,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete project")
+		s.logger.With(
+			"service", "project",
+			"team_id", teamID,
+			"user_id", userID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to delete project")
 		return err
 	}
 
@@ -352,7 +356,7 @@ func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
 			time.Now(),
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish project deleted event")
+			s.logger.With("error", err).Warn("Failed to publish project deleted event")
 		}
 	}
 

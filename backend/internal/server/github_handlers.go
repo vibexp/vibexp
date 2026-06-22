@@ -78,12 +78,12 @@ func (s *Server) handleGitHubStatus(w http.ResponseWriter, r *http.Request) {
 
 	status, err := s.container.GitHubAppService().GetInstallationStatus(r.Context(), teamID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to get GitHub installation status")
+		s.logger.Error("Failed to get GitHub installation status", "error", err)
 		writeErrorResponse(w, r, "internal_error", "Failed to get installation status", http.StatusInternalServerError)
 		return
 	}
 
-	s.logger.WithField("user_id", userID).WithField("team_id", teamID).Info("GitHub installation status retrieved")
+	s.logger.With("user_id", userID).With("team_id", teamID).Info("GitHub installation status retrieved")
 
 	writeOK(w, status, s.logger)
 }
@@ -133,17 +133,17 @@ func (s *Server) handleGitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	stateTeamID, valid := s.verifyGitHubState(req.State)
 	if !valid {
-		s.logger.WithField("state", req.State).Warn("Invalid or expired state parameter")
+		s.logger.With("state", req.State).Warn("Invalid or expired state parameter")
 		writeErrorResponse(w, r, "invalid_request", "Invalid or expired state parameter", http.StatusBadRequest)
 		return
 	}
 
 	// Verify state matches the team ID from URL
 	if stateTeamID != teamID {
-		s.logger.WithFields(map[string]interface{}{
-			"state_team_id": stateTeamID,
-			"url_team_id":   teamID,
-		}).Warn("State team ID mismatch")
+		s.logger.With(
+			"state_team_id", stateTeamID,
+			"url_team_id", teamID,
+		).Warn("State team ID mismatch")
 		writeErrorResponse(w, r, "forbidden", "State parameter does not match team", http.StatusForbidden)
 		return
 	}
@@ -158,7 +158,7 @@ func (s *Server) handleGitHubCallback(w http.ResponseWriter, r *http.Request) {
 			writeErrorResponse(w, r, "installation_already_connected", conflictMsg, http.StatusConflict)
 			return
 		}
-		s.logger.WithError(err).Error("Failed to handle installation callback")
+		s.logger.Error("Failed to handle installation callback", "error", err)
 		writeErrorResponse(w, r, "internal_error", "Failed to complete installation", http.StatusInternalServerError)
 		return
 	}
@@ -187,7 +187,7 @@ func (s *Server) handleGitHubRepositories(w http.ResponseWriter, r *http.Request
 			writeErrorResponse(w, r, "github_not_installed", "GitHub App not installed for this team", http.StatusNotFound)
 			return
 		}
-		s.logger.WithError(err).Error("Failed to get GitHub repositories")
+		s.logger.Error("Failed to get GitHub repositories", "error", err)
 		writeErrorResponse(w, r, "internal_error", "Failed to get repositories", http.StatusInternalServerError)
 		return
 	}
@@ -201,7 +201,7 @@ func (s *Server) handleGitHubDisconnect(w http.ResponseWriter, r *http.Request) 
 	teamID := chi.URLParam(r, "team_id")
 
 	if err := s.container.GitHubAppService().DisconnectInstallation(r.Context(), userID, teamID); err != nil {
-		s.logger.WithError(err).Error("Failed to disconnect GitHub installation")
+		s.logger.Error("Failed to disconnect GitHub installation", "error", err)
 		writeErrorResponse(w, r, "internal_error", "Failed to disconnect installation", http.StatusInternalServerError)
 		return
 	}
@@ -225,7 +225,7 @@ func (s *Server) handleGitHubImportProject(w http.ResponseWriter, r *http.Reques
 		r.Context(), userID, teamID, repoID,
 	)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to import project from repository")
+		s.logger.Error("Failed to import project from repository", "error", err)
 		s.handleImportProjectError(w, r, err)
 		return
 	}
@@ -284,13 +284,13 @@ func (s *Server) writeImportProjectResponse(
 
 	writeJSON(w, statusCode, response, s.logger)
 
-	s.logger.WithFields(map[string]interface{}{
-		"user_id":    userID,
-		"team_id":    teamID,
-		"repo_id":    repoID,
-		"project_id": project.ID,
-		"created":    created,
-	}).Info("GitHub repository import completed")
+	s.logger.With(
+		"user_id", userID,
+		"team_id", teamID,
+		"repo_id", repoID,
+		"project_id", project.ID,
+		"created", created,
+	).Info("GitHub repository import completed")
 }
 
 // handleGitHubImportBlueprints imports AI assistant configurations from a repository as blueprints
@@ -318,7 +318,7 @@ func (s *Server) handleGitHubImportBlueprints(w http.ResponseWriter, r *http.Req
 		r.Context(), userID, teamID, req.RepositoryID,
 	)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to import blueprints from repository")
+		s.logger.Error("Failed to import blueprints from repository", "error", err)
 		s.handleImportBlueprintsError(w, r, err)
 		return
 	}
@@ -344,15 +344,15 @@ func (s *Server) handleGitHubImportBlueprints(w http.ResponseWriter, r *http.Req
 
 	writeOK(w, report, s.logger)
 
-	s.logger.WithFields(map[string]interface{}{
-		"user_id":          userID,
-		"team_id":          teamID,
-		"repo_id":          req.RepositoryID,
-		"total_scanned":    report.TotalScanned,
-		"total_successful": report.TotalSuccessful,
-		"total_failed":     report.TotalFailed,
-		"total_skipped":    report.TotalSkipped,
-	}).Info("GitHub blueprints import completed")
+	s.logger.With(
+		"user_id", userID,
+		"team_id", teamID,
+		"repo_id", req.RepositoryID,
+		"total_scanned", report.TotalScanned,
+		"total_successful", report.TotalSuccessful,
+		"total_failed", report.TotalFailed,
+		"total_skipped", report.TotalSkipped,
+	).Info("GitHub blueprints import completed")
 }
 
 // handleImportBlueprintsError handles errors from the import blueprints service call

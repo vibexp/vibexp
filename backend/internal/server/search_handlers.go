@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -32,26 +31,26 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	req.Page = pagination.Page
 	req.PerPage = pagination.Limit
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleSearch",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"types":      req.Types,
-		"project_id": req.ProjectID,
-		"page":       req.Page,
-		"per_page":   req.PerPage,
-	}).Info("Semantic search request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleSearch",
+		"user_id", userID,
+		"team_id", teamID,
+		"types", req.Types,
+		"project_id", req.ProjectID,
+		"page", req.Page,
+		"per_page", req.PerPage,
+	).Info("Semantic search request received")
 
 	response, err := s.container.SearchService().Search(r.Context(), teamID, &req)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleSearch",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   err.Error(),
-		}).Error("Failed to perform semantic search")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleSearch",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", err.Error(),
+		).Error("Failed to perform semantic search")
 		writeErrorResponse(w, r, "internal_error", "Failed to perform search", http.StatusInternalServerError)
 		return
 	}

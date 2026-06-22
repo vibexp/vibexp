@@ -2,11 +2,11 @@ package events
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func (f *fakeEmbeddingProcessor) callCount() int {
 
 func TestEmbeddingWorker_HandleDelegates(t *testing.T) {
 	proc := &fakeEmbeddingProcessor{}
-	w := NewEmbeddingWorker(proc, logrus.New())
+	w := NewEmbeddingWorker(proc, slog.New(slog.DiscardHandler))
 
 	event := NewPromptCreatedEvent("p1", "u1", "e", "proj", "slug", "t", "b", time.Now())
 	require.NoError(t, w.Handle(context.Background(), event))
@@ -42,7 +42,7 @@ func TestEmbeddingWorker_HandleDelegates(t *testing.T) {
 }
 
 func TestEmbeddingWorker_EventTypes(t *testing.T) {
-	w := NewEmbeddingWorker(&fakeEmbeddingProcessor{}, logrus.New())
+	w := NewEmbeddingWorker(&fakeEmbeddingProcessor{}, slog.New(slog.DiscardHandler))
 	types := w.EventTypes()
 
 	// Entity create + update events drive embedding; feed items/replies are
@@ -59,8 +59,7 @@ func TestEmbeddingWorker_EventTypes(t *testing.T) {
 // bus: publishing an entity created event invokes the processor asynchronously,
 // with no broker involved.
 func TestEmbeddingWorker_AsyncOnBus(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.PanicLevel)
+	logger := slog.New(slog.DiscardHandler)
 	bus := NewInMemoryEventBus(EventBusConfig{Config: Config{WorkerCount: 2, BufferSize: 10}, Logger: logger})
 	require.NoError(t, bus.Start())
 	defer func() { require.NoError(t, bus.Stop()) }()

@@ -3,10 +3,10 @@ package services_test
 import (
 	"testing"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
@@ -52,7 +52,7 @@ func TestPromptService_UpdateSnapshotsOldBody(t *testing.T) {
 			repo := repomocks.NewMockPromptRepository(t)
 			refRepo := repomocks.NewMockPromptReferenceRepository(t)
 			cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-			logger, _ := test.NewNullLogger()
+			logger, _ := logtest.New()
 
 			existing := &models.Prompt{
 				ID: promptID, TeamID: teamID, UserID: userID, Slug: "p", Body: tt.oldBody,
@@ -115,7 +115,7 @@ func TestPromptService_RestoreSnapshotsAsSystem(t *testing.T) {
 	repo := repomocks.NewMockPromptRepository(t)
 	refRepo := repomocks.NewMockPromptReferenceRepository(t)
 	cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	existing := &models.Prompt{
 		ID: promptID, TeamID: teamID, UserID: userID, Slug: slug, Body: "live {{x}}",
@@ -162,7 +162,7 @@ func TestPromptService_ListAndGetVersionsScopeByTeam(t *testing.T) {
 	t.Run("list", func(t *testing.T) {
 		repo := repomocks.NewMockPromptRepository(t)
 		cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 
 		existing := &models.Prompt{ID: id, TeamID: teamID, UserID: userID, Slug: slug, Body: "x"}
 		repo.EXPECT().GetBySlug(mock.Anything, userID, teamID, slug).Return(existing, nil).Once()
@@ -178,7 +178,7 @@ func TestPromptService_ListAndGetVersionsScopeByTeam(t *testing.T) {
 	t.Run("get", func(t *testing.T) {
 		repo := repomocks.NewMockPromptRepository(t)
 		cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-		logger, _ := test.NewNullLogger()
+		logger, _ := logtest.New()
 
 		existing := &models.Prompt{ID: id, TeamID: teamID, UserID: userID, Slug: slug, Body: "x"}
 		repo.EXPECT().GetBySlug(mock.Anything, userID, teamID, slug).Return(existing, nil).Once()

@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -50,8 +49,7 @@ func (m *MockAttachmentContainer) AttachmentService() services.AttachmentService
 
 func newAttachmentTestServer(c *MockAttachmentContainer) *Server {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = c
 	// Rebuild the attachment owner-authorizer registry against the mock container
