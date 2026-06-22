@@ -15,13 +15,13 @@ The frontend consumes two npm packages that are NOT in this repo: `@vibexp/api-c
 
 Only `backend/` and `frontend/` live here. If a task needs another VibeXP project, clone it into this repo's **parent directory** (as a sibling, e.g. `$HOME/Projects/<name>` when this repo is `$HOME/Projects/vibexp`):
 
-| Repo | URL | What |
-|---|---|---|
-| website | https://github.com/vibexp/website | Marketing site (vibexp.io) |
-| docs | https://github.com/vibexp/docs | Docs site (docs.vibexp.io) |
-| blog | https://github.com/vibexp/blog | Blog (blog.vibexp.io) |
-| cli | https://github.com/vibexp/cli | VibeXP CLI |
-| api-client-js | https://github.com/vibexp/api-client-js | Source of `@vibexp/api-client` |
+| Repo | Repo URL | Live site | What |
+|---|---|---|---|
+| website | https://github.com/vibexp/website | https://vibexp.io | Marketing site |
+| docs | https://github.com/vibexp/docs | https://docs.vibexp.io | Docs site |
+| blog | https://github.com/vibexp/blog | https://blog.vibexp.io | Blog |
+| cli | https://github.com/vibexp/cli | - | VibeXP CLI |
+| api-client-js | https://github.com/vibexp/api-client-js | - | Source of `@vibexp/api-client` |
 
 ## Layout
 
