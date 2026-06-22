@@ -16,7 +16,6 @@ type ContextKey string
 const (
 	// Logging and tracing context keys
 	RequestID ContextKey = "request_id"
-	TraceID   ContextKey = "trace_id"
 	Logger    ContextKey = "logger"
 
 	// User authentication and authorization context keys
@@ -97,15 +96,6 @@ func GetLoggerFromContext(ctx context.Context) *slog.Logger {
 func GetRequestID(ctx context.Context) string {
 	if requestID, ok := ctx.Value(RequestID).(string); ok {
 		return requestID
-	}
-	return ""
-}
-
-// GetTraceID retrieves the trace ID from context.
-// Returns empty string if not found.
-func GetTraceID(ctx context.Context) string {
-	if traceID, ok := ctx.Value(TraceID).(string); ok {
-		return traceID
 	}
 	return ""
 }

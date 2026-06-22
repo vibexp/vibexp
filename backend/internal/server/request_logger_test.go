@@ -114,20 +114,6 @@ func TestGetRequestID(t *testing.T) {
 	})
 }
 
-func TestGetTraceID(t *testing.T) {
-	t.Run("with trace ID in context", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), contextkeys.TraceID, "projects/test/traces/123")
-		traceID := contextkeys.GetTraceID(ctx)
-		assert.Equal(t, "projects/test/traces/123", traceID)
-	})
-
-	t.Run("without trace ID in context", func(t *testing.T) {
-		ctx := context.Background()
-		traceID := contextkeys.GetTraceID(ctx)
-		assert.Empty(t, traceID)
-	})
-}
-
 func TestAddLogFields(t *testing.T) {
 	// Create base logger that records what it emits.
 	recordLogger, hook := logtest.New()
