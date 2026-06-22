@@ -261,6 +261,39 @@ func (r *EmbeddingProviderRepository) GetDefault(
 	return &provider, nil
 }
 
+// GetActiveProvider resolves the single system-wide embedding provider used by
+// the embedding pipeline, independent of any one user. A default-flagged provider
+// wins; otherwise the most recently updated provider is used. Returns
+// ErrNoActiveEmbeddingProvider when the table is empty so callers can treat
+// "no provider configured" as embedding-disabled rather than an error.
+func (r *EmbeddingProviderRepository) GetActiveProvider(
+	ctx context.Context,
+) (*models.EmbeddingProvider, error) {
+	query := `
+		SELECT id, user_id, name, provider_type, is_default, base_url,
+		api_key_encrypted, configuration, created_at, updated_at, version
+		FROM embedding_providers
+		ORDER BY is_default DESC, updated_at DESC
+		LIMIT 1
+	`
+
+	var provider models.EmbeddingProvider
+	err := r.db.QueryRowContext(ctx, query).Scan(
+		&provider.ID, &provider.UserID, &provider.Name, &provider.ProviderType,
+		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
+		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt, &provider.Version,
+	)
+
+	if err != nil {
+		return nil, mapNoRows(
+			fmt.Errorf("failed to get active embedding provider: %w", err),
+			repositories.ErrNoActiveEmbeddingProvider,
+		)
+	}
+
+	return &provider, nil
+}
+
 // SetDefault sets an embedding provider as the default for a user
 func (r *EmbeddingProviderRepository) SetDefault(ctx context.Context, userID, providerID string) error {
 	// Start a transaction to ensure atomicity

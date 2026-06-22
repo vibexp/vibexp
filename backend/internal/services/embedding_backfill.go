@@ -28,9 +28,9 @@ var ErrBackfillScopeAmbiguous = stderrors.New("all and entity_types are mutually
 const backfillPageSize = 500
 
 // backfillEntityTypes is the canonical, ordered set of embeddable entity types the
-// backfill can republish. It matches the `.created` event types forwarded to
-// Pub/Sub (config.GetPubSubForwardedEventTypes) so a backfill regenerates exactly
-// the embeddings the live pipeline produces.
+// backfill can republish. It matches the `.created` event types the embedding
+// worker consumes, so a backfill regenerates exactly the embeddings the live
+// pipeline produces.
 var backfillEntityTypes = []string{
 	"prompt", "artifact", "memory", "blueprint", "feed_item",
 }
@@ -77,8 +77,8 @@ type EmbeddingBackfillResult struct {
 }
 
 // EmbeddingBackfillServiceInterface regenerates embeddings for every embeddable
-// entity by republishing each entity's `.created` event, letting the existing
-// pipeline (ai-service chunking → `<entity>.embedding.generated` → SaveEmbeddingChunks)
+// entity by republishing each entity's `.created` event, letting the in-process
+// embedding worker (chunk in Go → embed via the active provider → SaveEmbeddingChunks)
 // rebuild the vectors. It is a permanent operational tool for model/dimension swaps.
 type EmbeddingBackfillServiceInterface interface {
 	Backfill(ctx context.Context, req EmbeddingBackfillRequest) (*EmbeddingBackfillResult, error)

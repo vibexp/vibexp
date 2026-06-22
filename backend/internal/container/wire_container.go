@@ -603,16 +603,5 @@ func (c *WireContainer) Close() error {
 		c.resourceAccessWorkerPool.Stop()
 	}
 
-	// Close Pub/Sub client
-	if c.eventSystemDeps != nil && c.eventSystemDeps.PubSubClient != nil {
-		if err := c.eventSystemDeps.PubSubClient.Close(); err != nil {
-			c.logger.Error(
-				"Failed to close Pub/Sub client",
-				"service", "vibexp-api",
-				"error", fmt.Sprintf("%+v", err),
-			)
-		}
-	}
-
 	return nil
 }
