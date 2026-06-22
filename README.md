@@ -10,7 +10,7 @@ One shared knowledge base your prompts, rules, memory, and past work live in, th
 
 Free, open source, and self-hostable.
 
-[🌐 Website](https://vibexp.io) · [📚 Docs](https://docs.vibexp.io) · [✍️ Blog](https://blog.vibexp.io)
+[🌐 Website](https://vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=brand_link&utm_content=header) · [📚 Docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=header) · [✍️ Blog](https://blog.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=blog_link&utm_content=header)
 
 ⭐ **If this solves a problem for you, please [star the repo](https://github.com/vibexp/vibexp)** so more people find it.
 
@@ -25,6 +25,12 @@ The more AI tools you use, the more you lose, and the more your team duplicates:
 - 🔁 **You rewrite the same prompts** in every tool, every session.
 - 🗣️ **You re-explain your context constantly** because your AI starts from scratch every time.
 - 🧱 **Your knowledge is trapped in silos** that never talk to each other, and never reach your teammates.
+
+## The concept 🎬
+
+A short walkthrough of the idea behind VibeXP and how it changes the way you work with AI:
+
+https://github.com/user-attachments/assets/8b211880-1a15-46da-ba47-e451658b80ea
 
 ## How VibeXP solves it ✨
 
@@ -74,7 +80,7 @@ The defaults in `docker-compose.yml` are for local evaluation only. For any real
 - **`DB_PASSWORD`** change it from the default.
 - **`DEV_LOGIN_ENABLED`** set to `false` and configure [WorkOS AuthKit](https://workos.com) (`WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `WORKOS_REDIRECT_URI`).
 - **`FRONTEND_BASE_URL` / `CORS_ALLOWED_ORIGINS`** set to your real public URLs.
-- **Semantic search & file attachments** are optional, opt-in services. See the comments in `docker-compose.yml` and the [docs](https://docs.vibexp.io).
+- **Semantic search & file attachments** are optional, opt-in services. See the comments in `docker-compose.yml` and the [docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=self_host).
 
 Data persists in the `pgdata` volume.
 
@@ -90,7 +96,7 @@ VibeXP exposes a single MCP endpoint. Sign in once in the browser, no API keys t
 claude mcp add --transport http vibexp http://localhost:8080/mcp/v1/common
 ```
 
-Swap `localhost:8080` for your deployment's public URL. Full per-tool instructions (Cursor, VS Code, Gemini CLI, ChatGPT, Codex) are in the **[docs](https://docs.vibexp.io)**.
+Swap `localhost:8080` for your deployment's public URL. Full per-tool instructions (Cursor, VS Code, Gemini CLI, ChatGPT, Codex) are in the **[docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=connect)**.
 
 ---
 
@@ -143,6 +149,6 @@ Contributions are welcome. Branch off `main`, open a PR, and let CI pass. 💚
 
 If VibeXP saves you from re-explaining yourself to your AI, **[give it a ⭐](https://github.com/vibexp/vibexp)** and tell a teammate.
 
-[Website](https://vibexp.io) · [Docs](https://docs.vibexp.io) · [Blog](https://blog.vibexp.io)
+[Website](https://vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=brand_link&utm_content=footer) · [Docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=footer) · [Blog](https://blog.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=blog_link&utm_content=footer)
 
 </div>
