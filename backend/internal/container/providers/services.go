@@ -318,7 +318,6 @@ func ProvideEmbeddingService(
 	blueprintRepo repositories.BlueprintRepository,
 	feedItemRepo repositories.FeedItemRepository,
 	feedItemReplyRepo repositories.FeedItemReplyRepository,
-	cfg *config.Config,
 	logger *logrus.Logger,
 ) services.EmbeddingServiceInterface {
 	return services.NewEmbeddingService(

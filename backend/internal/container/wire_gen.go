@@ -98,7 +98,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *logrus.Log
 	a2AStreamProcessorInterface := providers.ProvideA2AStreamProcessor(agentExecutionEventRepository, agentExecutionRepository, logger)
 	agentInvocationServiceInterface := providers.ProvideAgentInvocationService(agentRepository, agentExecutionRepository, a2AHTTPClientInterface, a2AStreamProcessorInterface, logger)
 	memoryServiceInterface := providers.ProvideMemoryService(memoryRepository, teamServiceInterface, eventManager, logger, contentVersionServiceInterface)
-	embeddingServiceInterface := providers.ProvideEmbeddingService(embeddingRepository, promptRepository, artifactRepository, memoryRepository, blueprintRepository, feedItemRepository, feedItemReplyRepository, cfg, logger)
+	embeddingServiceInterface := providers.ProvideEmbeddingService(embeddingRepository, promptRepository, artifactRepository, memoryRepository, blueprintRepository, feedItemRepository, feedItemReplyRepository, logger)
 	searchRepository := providers.ProvideSearchRepository(db)
 	queryEmbedder := providers.ProvideQueryEmbedder(embeddingProviderServiceInterface, cfg, logger)
 	searchServiceInterface := providers.ProvideSearchService(searchRepository, queryEmbedder, logger, cfg)
