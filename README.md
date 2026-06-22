@@ -28,7 +28,7 @@ The more AI tools you use, the more you lose, and the more your team duplicates:
 
 ## How VibeXP solves it ✨
 
-VibeXP is one place for everything your AI relies on, connected to your tools over the **Model Context Protocol (MCP)**. It turns one-off chats into a knowledge base that compounds:
+VibeXP is one place for everything your AI relies on, connected to your tools over the **Model Context Protocol (MCP)** (Claude Code CLI, Cowork, Codex, Gemini CLI, Cursor, VS Code, ChatGPT, and more). It turns one-off chats into a knowledge base that compounds:
 
 1. **Before a task** your AI reads the relevant prompts, rules, memory, and past work first, so it starts with everything already learned.
 2. **As it works** it saves new lessons, updates memory, and stores outputs back into VibeXP.
