@@ -8,11 +8,11 @@ package aiclient
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"google.golang.org/api/idtoken"
 )
 
@@ -26,16 +26,17 @@ import (
 // (no token). ai-service accepts unauthenticated callers locally when
 // REQUIRE_CALLER_OIDC is disabled. To exercise the OIDC path locally, run with
 // service-account ADC.
-func New(ctx context.Context, aiServiceURL string, timeout time.Duration, logger *logrus.Logger) *http.Client {
+func New(ctx context.Context, aiServiceURL string, timeout time.Duration, logger *slog.Logger) *http.Client {
 	// The audience must equal the receiving service's base URL (no trailing slash).
 	audience := strings.TrimSuffix(aiServiceURL, "/")
 
 	client, err := idtoken.NewClient(ctx, audience)
 	if err != nil {
 		if logger != nil {
-			logger.WithError(err).Warn(
-				"AI service OIDC ID-token client unavailable; calling without an identity token " +
+			logger.Warn(
+				"AI service OIDC ID-token client unavailable; calling without an identity token "+
 					"(expected in local dev, not on Cloud Run)",
+				"error", err,
 			)
 		}
 		return &http.Client{Timeout: timeout}

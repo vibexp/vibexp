@@ -3,10 +3,10 @@ package providers
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	firebase "firebase.google.com/go/v4"
 	fcmmessaging "firebase.google.com/go/v4/messaging"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/config"
 )
@@ -25,7 +25,7 @@ import (
 // signature free of a cleanup return and allowing Wire to regenerate cleanly.
 func ProvideFirebaseMessagingClient(
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) (*fcmmessaging.Client, error) {
 	if !cfg.FCMEnabled {
 		logger.Info("FCM_ENABLED=false, web push notifications disabled")

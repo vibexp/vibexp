@@ -2,27 +2,26 @@ package errors
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 )
 
 // newRequestWithTestLogger creates an HTTP request with a test logger injected into context.
 // The returned hook can be used to inspect log entries captured during the request.
-func newRequestWithTestLogger(t *testing.T) (*http.Request, *test.Hook) {
+func newRequestWithTestLogger(t *testing.T) (*http.Request, *logtest.Recorder) {
 	t.Helper()
-	logger, hook := test.NewNullLogger()
-	logger.SetLevel(logrus.DebugLevel)
+	logger, hook := logtest.New()
 
 	req := httptest.NewRequest(http.MethodGet, "/test/path", nil)
-	ctx := context.WithValue(req.Context(), contextkeys.Logger, logrus.NewEntry(logger))
+	ctx := context.WithValue(req.Context(), contextkeys.Logger, logger)
 	return req.WithContext(ctx), hook
 }
 
@@ -41,8 +40,8 @@ func TestWriteJSONError_5xxLogsAtError(t *testing.T) {
 				Type: "https://api.vibexp.io/errors/test", Title: "Server Error",
 				Status: tt.status, Detail: "detail", Code: "CODE",
 			})
-			require.NotEmpty(t, hook.Entries)
-			assert.Equal(t, logrus.ErrorLevel, hook.Entries[len(hook.Entries)-1].Level)
+			require.NotEmpty(t, hook.AllEntries())
+			assert.Equal(t, slog.LevelError, hook.LastEntry().Level)
 		})
 	}
 }
@@ -63,8 +62,8 @@ func TestWriteJSONError_AuthAndNotFoundLogsAtInfo(t *testing.T) {
 				Type: "https://api.vibexp.io/errors/test", Title: "Client Error",
 				Status: tt.status, Detail: "detail", Code: "CODE",
 			})
-			require.NotEmpty(t, hook.Entries)
-			assert.Equal(t, logrus.InfoLevel, hook.Entries[len(hook.Entries)-1].Level)
+			require.NotEmpty(t, hook.AllEntries())
+			assert.Equal(t, slog.LevelInfo, hook.LastEntry().Level)
 		})
 	}
 }
@@ -85,8 +84,8 @@ func TestWriteJSONError_Other4xxLogsAtWarn(t *testing.T) {
 				Type: "https://api.vibexp.io/errors/test", Title: "Client Error",
 				Status: tt.status, Detail: "detail", Code: "CODE",
 			})
-			require.NotEmpty(t, hook.Entries)
-			assert.Equal(t, logrus.WarnLevel, hook.Entries[len(hook.Entries)-1].Level)
+			require.NotEmpty(t, hook.AllEntries())
+			assert.Equal(t, slog.LevelWarn, hook.LastEntry().Level)
 		})
 	}
 }
@@ -98,8 +97,8 @@ func TestWriteJSONError_DefaultLogsAtInfo(t *testing.T) {
 		Type: "https://api.vibexp.io/errors/test", Title: "OK",
 		Status: http.StatusOK, Detail: "detail", Code: "CODE",
 	})
-	require.NotEmpty(t, hook.Entries)
-	assert.Equal(t, logrus.InfoLevel, hook.Entries[len(hook.Entries)-1].Level)
+	require.NotEmpty(t, hook.AllEntries())
+	assert.Equal(t, slog.LevelInfo, hook.LastEntry().Level)
 }
 
 func TestWriteJSONError_LogFields(t *testing.T) {
@@ -116,12 +115,12 @@ func TestWriteJSONError_LogFields(t *testing.T) {
 
 	WriteJSONError(w, req, apiErr)
 
-	require.NotEmpty(t, hook.Entries)
-	entry := hook.Entries[len(hook.Entries)-1]
+	require.NotEmpty(t, hook.AllEntries())
+	entry := hook.LastEntry()
 
 	assert.Equal(t, "TEST_ERROR", entry.Data["error_code"], "error_code field should be set")
 	assert.Equal(t, "something went wrong", entry.Data["error_detail"], "error_detail field should be set")
-	assert.Equal(t, http.StatusInternalServerError, entry.Data["status"], "status field should be set")
+	assert.EqualValues(t, http.StatusInternalServerError, entry.Data["status"], "status field should be set")
 }
 
 func TestWriteJSONError_ResponseShape(t *testing.T) {

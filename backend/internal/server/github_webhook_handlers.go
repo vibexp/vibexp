@@ -41,7 +41,7 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	// Read body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to read webhook body")
+		s.logger.Error("Failed to read webhook body", "error", err)
 		writeErrorResponse(w, r, "invalid_request", "Failed to read body", http.StatusBadRequest)
 		return
 	}
@@ -60,13 +60,13 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	// Check for duplicate event
 	processed, err := s.container.WebhookEventRepository().IsProcessed(r.Context(), deliveryID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to check webhook event")
+		s.logger.Error("Failed to check webhook event", "error", err)
 		writeErrorResponse(w, r, "internal_error", "Failed to process webhook", http.StatusInternalServerError)
 		return
 	}
 
 	if processed {
-		s.logger.WithField("delivery_id", deliveryID).Info("Webhook event already processed")
+		s.logger.With("delivery_id", deliveryID).Info("Webhook event already processed")
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -74,7 +74,7 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	// Parse payload
 	var payload GitHubWebhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
-		s.logger.WithError(err).Error("Failed to parse webhook payload")
+		s.logger.Error("Failed to parse webhook payload", "error", err)
 		writeErrorResponse(w, r, "invalid_request", "Invalid payload", http.StatusBadRequest)
 		return
 	}
@@ -92,7 +92,7 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 		payload.Installation.ID,
 		payload.Action,
 	); err != nil {
-		s.logger.WithError(err).Error("Failed to handle webhook event")
+		s.logger.Error("Failed to handle webhook event", "error", err)
 		writeErrorResponse(w, r, "internal_error", "Failed to process event", http.StatusInternalServerError)
 		return
 	}
@@ -104,7 +104,7 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 		eventType,
 		nil,
 	); err != nil {
-		s.logger.WithError(err).Error("Failed to mark webhook as processed")
+		s.logger.Error("Failed to mark webhook as processed", "error", err)
 	}
 
 	w.WriteHeader(http.StatusOK)

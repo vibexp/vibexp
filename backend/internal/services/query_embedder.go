@@ -5,10 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/aiclient"
 )
@@ -34,7 +33,7 @@ type AIQueryEmbedder struct {
 	aiServiceURL string
 	model        string
 	dimensions   int
-	logger       *logrus.Logger
+	logger       *slog.Logger
 }
 
 // AIQueryEmbedderConfig configures an AIQueryEmbedder. Model and Dimensions come
@@ -43,7 +42,7 @@ type AIQueryEmbedderConfig struct {
 	AIServiceURL string
 	Model        string
 	Dimensions   int
-	Logger       *logrus.Logger
+	Logger       *slog.Logger
 }
 
 // NewAIQueryEmbedder creates a new AIQueryEmbedder.
@@ -102,7 +101,7 @@ func (e *AIQueryEmbedder) EmbedQuery(ctx context.Context, query string) ([]float
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil && e.logger != nil {
-			e.logger.WithError(closeErr).Error("Failed to close embeddings response body")
+			e.logger.With("error", closeErr).Error("Failed to close embeddings response body")
 		}
 	}()
 

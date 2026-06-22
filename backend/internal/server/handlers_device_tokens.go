@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -97,12 +95,12 @@ func (s *Server) handleRegisterDeviceToken(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		s.logger.WithFields(logrus.Fields{
-			"handler":  "handleRegisterDeviceToken",
-			"user_id":  userID,
-			"platform": req.Platform,
-			"error":    err.Error(),
-		}).Error("Failed to register device token")
+		s.logger.With(
+			"handler", "handleRegisterDeviceToken",
+			"user_id", userID,
+			"platform", req.Platform,
+			"error", err.Error(),
+		).Error("Failed to register device token")
 
 		apierrors.WriteJSONError(w, r, apierrors.NewInternalError("Failed to register device token"))
 
@@ -136,11 +134,11 @@ func (s *Server) handleDeleteDeviceToken(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := s.container.DeviceTokenRepository().Delete(r.Context(), req.Token, userID); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"handler": "handleDeleteDeviceToken",
-			"user_id": userID,
-			"error":   err.Error(),
-		}).Error("Failed to delete device token")
+		s.logger.With(
+			"handler", "handleDeleteDeviceToken",
+			"user_id", userID,
+			"error", err.Error(),
+		).Error("Failed to delete device token")
 
 		apierrors.WriteJSONError(w, r, apierrors.NewInternalError("Failed to delete device token"))
 

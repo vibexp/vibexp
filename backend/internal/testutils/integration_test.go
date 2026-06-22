@@ -1,11 +1,10 @@
 package testutils
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/server"
@@ -47,8 +46,7 @@ func setupTestServer() http.Handler {
 		FrontendBaseURL:      "http://localhost:5173",
 	}
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	return server.New("8080", nil, "test-api-key", cfg, logger)
 }

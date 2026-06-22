@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container"
@@ -31,8 +30,7 @@ func CreateTestServer(t TestingT, services container.Container) *httptest.Server
 	}
 
 	// Create a test logger with minimal output
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce noise in tests
+	logger := slog.New(slog.DiscardHandler)
 
 	// Create a server with the provided services container
 	srv := server.New("8080", &database.DB{}, "test-api-key", cfg, logger)
@@ -58,8 +56,7 @@ func CreateTestServerWithDB(t TestingT, db *database.DB) *httptest.Server {
 	}
 
 	// Create a test logger with minimal output
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce noise in tests
+	logger := slog.New(slog.DiscardHandler)
 
 	srv := server.New("8080", db, "test-api-key", cfg, logger)
 	testServer := httptest.NewServer(srv)

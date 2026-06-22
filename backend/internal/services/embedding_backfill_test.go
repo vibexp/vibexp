@@ -3,10 +3,10 @@ package services_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -32,8 +32,7 @@ func newTestBackfillService(t *testing.T) (
 	repo := repomocks.NewMockEmbeddingBackfillRepository(t)
 	publisher := eventmocks.NewMockEventPublisher(t)
 	renderer := svcmocks.NewMockPromptBodyRenderer(t)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return services.NewEmbeddingBackfillService(repo, publisher, renderer, testModelID, logger), repo, publisher, renderer
 }
 

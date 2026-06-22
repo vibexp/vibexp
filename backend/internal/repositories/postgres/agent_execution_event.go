@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/database"
@@ -35,11 +34,11 @@ func (r *agentExecutionEventRepository) Create(ctx context.Context, event *model
 
 	eventDataJSON, err := json.Marshal(event.EventData)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":       "Create",
-			"execution_id": event.ExecutionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to marshal event_data")
+		logger.With(
+			"method", "Create",
+			"execution_id", event.ExecutionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to marshal event_data")
 		return fmt.Errorf("failed to marshal event_data: %w", err)
 	}
 
@@ -53,33 +52,33 @@ func (r *agentExecutionEventRepository) Create(ctx context.Context, event *model
 
 	if err != nil {
 		if uniqueViolation(err) != nil {
-			logger.WithFields(logrus.Fields{
-				"method":          "Create",
-				"execution_id":    event.ExecutionID,
-				"sequence_number": event.SequenceNumber,
-				"error":           fmt.Sprintf("%+v", err),
-			}).Warn("Duplicate event detected")
+			logger.With(
+				"method", "Create",
+				"execution_id", event.ExecutionID,
+				"sequence_number", event.SequenceNumber,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Duplicate event detected")
 			return fmt.Errorf(
 				"event with execution_id %s and sequence_number %d already exists",
 				event.ExecutionID, event.SequenceNumber,
 			)
 		}
 
-		logger.WithFields(logrus.Fields{
-			"method":       "Create",
-			"execution_id": event.ExecutionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to create agent execution event")
+		logger.With(
+			"method", "Create",
+			"execution_id", event.ExecutionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create agent execution event")
 		return fmt.Errorf("failed to create agent execution event: %w", err)
 	}
 
-	logger.WithFields(logrus.Fields{
-		"method":          "Create",
-		"event_id":        event.ID,
-		"execution_id":    event.ExecutionID,
-		"event_type":      event.EventType,
-		"sequence_number": event.SequenceNumber,
-	}).Debug("Agent execution event created")
+	logger.With(
+		"method", "Create",
+		"event_id", event.ID,
+		"execution_id", event.ExecutionID,
+		"event_type", event.EventType,
+		"sequence_number", event.SequenceNumber,
+	).Debug("Agent execution event created")
 
 	return nil
 }
@@ -106,21 +105,21 @@ func (r *agentExecutionEventRepository) GetByID(
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, repositories.ErrAgentExecutionEventNotFound
 		}
-		logger.WithFields(logrus.Fields{
-			"method":   "GetByID",
-			"event_id": eventID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to get agent execution event by ID")
+		logger.With(
+			"method", "GetByID",
+			"event_id", eventID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get agent execution event by ID")
 		return nil, fmt.Errorf("failed to get agent execution event: %w", err)
 	}
 
 	if len(eventDataJSON) > 0 {
 		if err := json.Unmarshal(eventDataJSON, &event.EventData); err != nil {
-			logger.WithFields(logrus.Fields{
-				"method":   "GetByID",
-				"event_id": eventID,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Error("Failed to unmarshal event_data")
+			logger.With(
+				"method", "GetByID",
+				"event_id", eventID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to unmarshal event_data")
 			return nil, fmt.Errorf("failed to unmarshal event_data: %w", err)
 		}
 	}
@@ -139,11 +138,11 @@ func (r *agentExecutionEventRepository) ListByExecutionID(ctx context.Context, e
 	var totalCount int
 	err := r.db.QueryRowContext(ctx, countQuery, executionID).Scan(&totalCount)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":       "ListByExecutionID",
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to count agent execution events")
+		logger.With(
+			"method", "ListByExecutionID",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to count agent execution events")
 		return nil, 0, fmt.Errorf("failed to count agent execution events: %w", err)
 	}
 
@@ -166,16 +165,16 @@ func (r *agentExecutionEventRepository) ListByExecutionID(ctx context.Context, e
 
 	rows, err := r.db.QueryContext(ctx, query, executionID, limit, offset)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":       "ListByExecutionID",
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to list agent execution events")
+		logger.With(
+			"method", "ListByExecutionID",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list agent execution events")
 		return nil, 0, fmt.Errorf("failed to list agent execution events: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logger.WithError(closeErr).Error("Failed to close rows")
+			logger.With("error", closeErr).Error("Failed to close rows")
 		}
 	}()
 
@@ -189,22 +188,22 @@ func (r *agentExecutionEventRepository) ListByExecutionID(ctx context.Context, e
 			&event.SequenceNumber, &event.ReceivedAt,
 		)
 		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"method":       "ListByExecutionID",
-				"execution_id": executionID,
-				"error":        fmt.Sprintf("%+v", err),
-			}).Error("Failed to scan agent execution event row")
+			logger.With(
+				"method", "ListByExecutionID",
+				"execution_id", executionID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to scan agent execution event row")
 			return nil, 0, fmt.Errorf("failed to scan agent execution event: %w", err)
 		}
 
 		if len(eventDataJSON) > 0 {
 			if err := json.Unmarshal(eventDataJSON, &event.EventData); err != nil {
-				logger.WithFields(logrus.Fields{
-					"method":       "ListByExecutionID",
-					"execution_id": executionID,
-					"event_id":     event.ID,
-					"error":        fmt.Sprintf("%+v", err),
-				}).Warn("Failed to unmarshal event_data, continuing with empty event_data")
+				logger.With(
+					"method", "ListByExecutionID",
+					"execution_id", executionID,
+					"event_id", event.ID,
+					"error", fmt.Sprintf("%+v", err),
+				).Warn("Failed to unmarshal event_data, continuing with empty event_data")
 				event.EventData = make(map[string]interface{})
 			}
 		}
@@ -213,11 +212,11 @@ func (r *agentExecutionEventRepository) ListByExecutionID(ctx context.Context, e
 	}
 
 	if err := rows.Err(); err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":       "ListByExecutionID",
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Error iterating agent execution event rows")
+		logger.With(
+			"method", "ListByExecutionID",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Error iterating agent execution event rows")
 		return nil, 0, fmt.Errorf("failed to iterate agent execution events: %w", err)
 	}
 
@@ -239,17 +238,17 @@ func (r *agentExecutionEventRepository) ListAfterSequence(ctx context.Context, e
 
 	rows, err := r.db.QueryContext(ctx, query, executionID, afterSequence)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":         "ListAfterSequence",
-			"execution_id":   executionID,
-			"after_sequence": afterSequence,
-			"error":          fmt.Sprintf("%+v", err),
-		}).Error("Failed to list agent execution events after sequence")
+		logger.With(
+			"method", "ListAfterSequence",
+			"execution_id", executionID,
+			"after_sequence", afterSequence,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list agent execution events after sequence")
 		return nil, fmt.Errorf("failed to list agent execution events after sequence: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logger.WithError(closeErr).Error("Failed to close rows")
+			logger.With("error", closeErr).Error("Failed to close rows")
 		}
 	}()
 
@@ -263,22 +262,22 @@ func (r *agentExecutionEventRepository) ListAfterSequence(ctx context.Context, e
 			&event.SequenceNumber, &event.ReceivedAt,
 		)
 		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"method":       "ListAfterSequence",
-				"execution_id": executionID,
-				"error":        fmt.Sprintf("%+v", err),
-			}).Error("Failed to scan agent execution event row")
+			logger.With(
+				"method", "ListAfterSequence",
+				"execution_id", executionID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to scan agent execution event row")
 			return nil, fmt.Errorf("failed to scan agent execution event: %w", err)
 		}
 
 		if len(eventDataJSON) > 0 {
 			if err := json.Unmarshal(eventDataJSON, &event.EventData); err != nil {
-				logger.WithFields(logrus.Fields{
-					"method":       "ListAfterSequence",
-					"execution_id": executionID,
-					"event_id":     event.ID,
-					"error":        fmt.Sprintf("%+v", err),
-				}).Warn("Failed to unmarshal event_data, continuing with empty event_data")
+				logger.With(
+					"method", "ListAfterSequence",
+					"execution_id", executionID,
+					"event_id", event.ID,
+					"error", fmt.Sprintf("%+v", err),
+				).Warn("Failed to unmarshal event_data, continuing with empty event_data")
 				event.EventData = make(map[string]interface{})
 			}
 		}
@@ -287,21 +286,21 @@ func (r *agentExecutionEventRepository) ListAfterSequence(ctx context.Context, e
 	}
 
 	if err := rows.Err(); err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":         "ListAfterSequence",
-			"execution_id":   executionID,
-			"after_sequence": afterSequence,
-			"error":          fmt.Sprintf("%+v", err),
-		}).Error("Error iterating agent execution event rows")
+		logger.With(
+			"method", "ListAfterSequence",
+			"execution_id", executionID,
+			"after_sequence", afterSequence,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Error iterating agent execution event rows")
 		return nil, fmt.Errorf("failed to iterate agent execution events: %w", err)
 	}
 
-	logger.WithFields(logrus.Fields{
-		"method":         "ListAfterSequence",
-		"execution_id":   executionID,
-		"after_sequence": afterSequence,
-		"event_count":    len(events),
-	}).Debug("Events retrieved after sequence")
+	logger.With(
+		"method", "ListAfterSequence",
+		"execution_id", executionID,
+		"after_sequence", afterSequence,
+		"event_count", len(events),
+	).Debug("Events retrieved after sequence")
 
 	return events, nil
 }
@@ -328,11 +327,11 @@ func (r *agentExecutionEventRepository) GetLatestByExecutionID(
 
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			logger.WithFields(logrus.Fields{
-				"method":       "GetLatestByExecutionID",
-				"execution_id": executionID,
-				"error":        fmt.Sprintf("%+v", err),
-			}).Error("Failed to get latest agent execution event")
+			logger.With(
+				"method", "GetLatestByExecutionID",
+				"execution_id", executionID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to get latest agent execution event")
 		}
 		return nil, mapNoRows(
 			fmt.Errorf("failed to get latest agent execution event: %w", err),
@@ -342,12 +341,12 @@ func (r *agentExecutionEventRepository) GetLatestByExecutionID(
 
 	if len(eventDataJSON) > 0 {
 		if err := json.Unmarshal(eventDataJSON, &event.EventData); err != nil {
-			logger.WithFields(logrus.Fields{
-				"method":       "GetLatestByExecutionID",
-				"execution_id": executionID,
-				"event_id":     event.ID,
-				"error":        fmt.Sprintf("%+v", err),
-			}).Error("Failed to unmarshal event_data")
+			logger.With(
+				"method", "GetLatestByExecutionID",
+				"execution_id", executionID,
+				"event_id", event.ID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to unmarshal event_data")
 			return nil, fmt.Errorf("failed to unmarshal event_data: %w", err)
 		}
 	}
@@ -364,11 +363,11 @@ func (r *agentExecutionEventRepository) CountByExecutionID(ctx context.Context, 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, executionID).Scan(&count)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"method":       "CountByExecutionID",
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to count agent execution events")
+		logger.With(
+			"method", "CountByExecutionID",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to count agent execution events")
 		return 0, fmt.Errorf("failed to count agent execution events: %w", err)
 	}
 

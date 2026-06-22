@@ -3,9 +3,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -140,7 +140,7 @@ func (r *EmbeddingProviderRepository) queryList(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -270,7 +270,7 @@ func (r *EmbeddingProviderRepository) SetDefault(ctx context.Context, userID, pr
 	}
 	defer func() {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			logrus.WithError(rollbackErr).Error("Failed to rollback transaction")
+			slog.Error("Failed to rollback transaction", "error", rollbackErr)
 		}
 	}()
 

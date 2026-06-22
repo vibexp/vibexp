@@ -2,10 +2,10 @@ package aiclient
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,8 +15,7 @@ import (
 // must be usable and carry the configured timeout (New sets Timeout on both the
 // OIDC and the fallback client, so this holds regardless of the environment).
 func TestNew_ReturnsClientWithConfiguredTimeout(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	client := New(context.Background(), "https://ai-service.example.run.app", 7*time.Second, logger)
 

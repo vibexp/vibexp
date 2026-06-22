@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"log/slog"
+
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -18,7 +19,7 @@ import (
 func TestA2AStreamProcessor_HandleArtifactUpdate_AppendTrue(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
 
@@ -87,7 +88,7 @@ func TestA2AStreamProcessor_HandleArtifactUpdate_AppendTrue(t *testing.T) {
 func TestA2AStreamProcessor_HandleArtifactUpdate_AppendFalse(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
 
@@ -147,7 +148,7 @@ func TestA2AStreamProcessor_HandleArtifactUpdate_AppendFalse(t *testing.T) {
 func TestA2AStreamProcessor_HandleArtifactUpdate_MultipleArtifacts(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
 
@@ -211,7 +212,7 @@ func TestA2AStreamProcessor_HandleArtifactUpdate_MultipleArtifacts(t *testing.T)
 func TestA2AStreamProcessor_ProcessStream_SavesEvents(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
 
@@ -283,7 +284,7 @@ func TestA2AStreamProcessor_ProcessStream_SavesEvents(t *testing.T) {
 func TestA2AStreamProcessor_SaveArtifacts_OnlyNonEmptyParts(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
 

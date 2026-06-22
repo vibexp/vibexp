@@ -130,9 +130,13 @@ backend-vulncheck:
 	cd backend && govulncheck ./...
 
 # Run security scan
+# G706 (log injection) is excluded: the backend logs via log/slog with constant
+# message strings and user-derived data only ever in structured attributes, which
+# slog's JSON/Text handlers escape and quote — so they are not injectable. G706's
+# taint analysis flags these structured-logging calls as false positives.
 backend-security:
 	@echo "🔒 Running security scan..."
-	cd backend && gosec -fmt=text -exclude-generated -exclude-dir=.worktree ./...
+	cd backend && gosec -fmt=text -exclude-generated -exclude-dir=.worktree -exclude=G706 ./...
 
 # Run all code quality and security checks
 backend-check: backend-lint backend-vulncheck backend-security

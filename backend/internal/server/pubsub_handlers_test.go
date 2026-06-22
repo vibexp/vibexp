@@ -3,14 +3,13 @@ package server
 import (
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/config"
@@ -66,8 +65,7 @@ func createTestPubSubRequest(t *testing.T, body []byte, authHeader string) *http
 
 func TestPubSubHandlers_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -98,8 +96,7 @@ func TestPubSubHandlers_Unauthorized(t *testing.T) {
 
 func TestPubSubHandlers_InvalidPayload(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -258,8 +255,7 @@ func createTestServerWithMockEmbedding(t *testing.T) (*Server, *svcmocks.MockEmb
 	}
 
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	srv := &Server{
 		router:    nil,
@@ -565,8 +561,7 @@ func TestPubSubHandlers_RouteEventToHandler_UnknownEventType(t *testing.T) {
 
 func TestPubSubHandlers_ParsePubSubMessage_InvalidBase64(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	srv := &Server{
 		router:    nil,
@@ -603,8 +598,7 @@ func TestPubSubHandlers_ParsePubSubMessage_InvalidBase64(t *testing.T) {
 
 func TestPubSubHandlers_ParsePubSubMessage_InvalidJSON(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	srv := &Server{
 		router:    nil,

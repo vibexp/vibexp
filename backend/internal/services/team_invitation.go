@@ -6,10 +6,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/logging"
@@ -30,7 +29,7 @@ type TeamInvitationService struct {
 	userRepo       repositories.UserRepository
 	emailService   EmailServiceInterface
 	cfg            *config.Config
-	logger         *logrus.Logger
+	logger         *slog.Logger
 }
 
 // NewTeamInvitationService creates a new TeamInvitationService
@@ -41,10 +40,10 @@ func NewTeamInvitationService(
 	userRepo repositories.UserRepository,
 	emailService EmailServiceInterface,
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *TeamInvitationService {
 	if logger == nil {
-		logger = logging.NewCloudLogger(logging.CloudLoggerConfig{})
+		logger = logging.New(logging.Config{})
 	}
 	return &TeamInvitationService{
 		invitationRepo: invitationRepo,
@@ -84,12 +83,12 @@ func (s *TeamInvitationService) InviteMembers(
 
 	// Prevent invitations to personal workspaces
 	if team.IsPersonal {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-invitation-service",
-			"team_id":   teamID,
-			"user_id":   userID,
-		}).Warn("Attempted to invite members to personal workspace")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-invitation-service",
+			"team_id", teamID,
+			"user_id", userID,
+		).Warn("Attempted to invite members to personal workspace")
 		return nil, NewPersonalWorkspaceError(teamID)
 	}
 
@@ -117,25 +116,25 @@ func (s *TeamInvitationService) InviteMembers(
 			// User exists, check if they're already a team member
 			_, memberErr := s.teamMemberRepo.GetByTeamAndUser(ctx, teamID, user.ID)
 			if memberErr == nil {
-				s.logger.WithFields(logrus.Fields{
-					"service":   "vibexp-api",
-					"component": "team-invitation-service",
-					"team_id":   teamID,
-					"email":     email,
-					"user_id":   user.ID,
-				}).Warn("User already a member of team")
+				s.logger.With(
+					"service", "vibexp-api",
+					"component", "team-invitation-service",
+					"team_id", teamID,
+					"email", email,
+					"user_id", user.ID,
+				).Warn("User already a member of team")
 				duplicateEmails = append(duplicateEmails, email)
 				continue
 			}
 		} else if !errors.Is(err, repositories.ErrUserNotFound) {
 			// Database error (not "user not found"), log and skip this email
-			s.logger.WithFields(logrus.Fields{
-				"service":   "vibexp-api",
-				"component": "team-invitation-service",
-				"team_id":   teamID,
-				"email":     email,
-				"error":     fmt.Sprintf("%+v", err),
-			}).Error("Failed to check if user exists, skipping invitation for this email")
+			s.logger.With(
+				"service", "vibexp-api",
+				"component", "team-invitation-service",
+				"team_id", teamID,
+				"email", email,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to check if user exists, skipping invitation for this email")
 			continue
 		}
 		// If err contains "user not found", user doesn't exist yet, proceed with invitation
@@ -144,13 +143,13 @@ func (s *TeamInvitationService) InviteMembers(
 		pendingInvitations, err := s.invitationRepo.GetPendingByEmail(ctx, email)
 		if err != nil {
 			// Database error when checking pending invitations
-			s.logger.WithFields(logrus.Fields{
-				"service":   "vibexp-api",
-				"component": "team-invitation-service",
-				"team_id":   teamID,
-				"email":     email,
-				"error":     fmt.Sprintf("%+v", err),
-			}).Error("Failed to check pending invitations, skipping invitation for this email")
+			s.logger.With(
+				"service", "vibexp-api",
+				"component", "team-invitation-service",
+				"team_id", teamID,
+				"email", email,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to check pending invitations, skipping invitation for this email")
 			continue
 		}
 
@@ -158,12 +157,12 @@ func (s *TeamInvitationService) InviteMembers(
 		hasPendingForTeam := false
 		for _, pending := range pendingInvitations {
 			if pending.TeamID == teamID {
-				s.logger.WithFields(logrus.Fields{
-					"service":   "vibexp-api",
-					"component": "team-invitation-service",
-					"team_id":   teamID,
-					"email":     email,
-				}).Warn("Pending invitation already exists for this email and team")
+				s.logger.With(
+					"service", "vibexp-api",
+					"component", "team-invitation-service",
+					"team_id", teamID,
+					"email", email,
+				).Warn("Pending invitation already exists for this email and team")
 				hasPendingForTeam = true
 				break
 			}
@@ -191,37 +190,38 @@ func (s *TeamInvitationService) InviteMembers(
 		}
 
 		if err := s.invitationRepo.Create(ctx, invitation); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":   "vibexp-api",
-				"component": "team-invitation-service",
-				"team_id":   teamID,
-				"email":     email,
-				"error":     fmt.Sprintf("%+v", err),
-			}).Error("Failed to create invitation")
+			s.logger.With(
+				"service", "vibexp-api",
+				"component", "team-invitation-service",
+				"team_id", teamID,
+				"email", email,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to create invitation")
 			return nil, fmt.Errorf("failed to create invitation: %w", err)
 		}
 
 		// Send invitation email
 		if err := s.emailService.SendTeamInvitation(invitation, team.Name, inviterName); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":   "vibexp-api",
-				"component": "team-invitation-service",
-				"team_id":   teamID,
-				"email":     email,
-				"error":     fmt.Sprintf("%+v", err),
-			}).Error("Failed to send invitation email")
+			s.logger.With(
+				"service", "vibexp-api",
+				"component", "team-invitation-service",
+				"team_id", teamID,
+				"email", email,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to send invitation email")
+
 			// Continue with other invitations even if email fails
 		}
 
 		invitations = append(invitations, invitation)
 
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"component":     "team-invitation-service",
-			"team_id":       teamID,
-			"email":         email,
-			"invitation_id": invitation.ID,
-		}).Info("Team invitation created successfully")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-invitation-service",
+			"team_id", teamID,
+			"email", email,
+			"invitation_id", invitation.ID,
+		).Info("Team invitation created successfully")
 	}
 
 	// If there are duplicate emails, return an error
@@ -285,13 +285,13 @@ func (s *TeamInvitationService) GetInvitationByToken(
 
 	inviter, err := s.userRepo.GetByID(ctx, invitation.InviterID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"component":     "team-invitation-service",
-			"invitation_id": invitation.ID,
-			"inviter_id":    invitation.InviterID,
-			"error":         fmt.Sprintf("%+v", err),
-		}).Warn("Failed to load inviter for invitation, continuing without inviter info")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-invitation-service",
+			"invitation_id", invitation.ID,
+			"inviter_id", invitation.InviterID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to load inviter for invitation, continuing without inviter info")
 		return details, nil
 	}
 
@@ -344,13 +344,13 @@ func (s *TeamInvitationService) AcceptInvitation(
 
 	// Verify the user's email matches the invitation
 	if !strings.EqualFold(user.Email, invitation.InviteeEmail) {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"component":     "team-invitation-service",
-			"user_email":    user.Email,
-			"invitee_email": invitation.InviteeEmail,
-			"invitation_id": invitation.ID,
-		}).Warn("User attempted to accept invitation for different email")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-invitation-service",
+			"user_email", user.Email,
+			"invitee_email", invitation.InviteeEmail,
+			"invitation_id", invitation.ID,
+		).Warn("User attempted to accept invitation for different email")
 		return "", fmt.Errorf("this invitation was sent to a different email address")
 	}
 
@@ -387,13 +387,13 @@ func (s *TeamInvitationService) AcceptInvitation(
 		return "", fmt.Errorf("failed to update invitation status: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"component":     "team-invitation-service",
-		"team_id":       invitation.TeamID,
-		"user_id":       userID,
-		"invitation_id": invitation.ID,
-	}).Info("Team invitation accepted successfully")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-invitation-service",
+		"team_id", invitation.TeamID,
+		"user_id", userID,
+		"invitation_id", invitation.ID,
+	).Info("Team invitation accepted successfully")
 
 	return invitation.TeamID, nil
 }
@@ -414,13 +414,13 @@ func (s *TeamInvitationService) RejectInvitation(ctx context.Context, token stri
 
 	// Verify the user's email matches the invitation
 	if !strings.EqualFold(user.Email, invitation.InviteeEmail) {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"component":     "team-invitation-service",
-			"user_email":    user.Email,
-			"invitee_email": invitation.InviteeEmail,
-			"invitation_id": invitation.ID,
-		}).Warn("User attempted to reject invitation for different email")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-invitation-service",
+			"user_email", user.Email,
+			"invitee_email", invitation.InviteeEmail,
+			"invitation_id", invitation.ID,
+		).Warn("User attempted to reject invitation for different email")
 		return fmt.Errorf("user is not authorized to reject this invitation")
 	}
 
@@ -434,11 +434,12 @@ func (s *TeamInvitationService) RejectInvitation(ctx context.Context, token stri
 		return fmt.Errorf("failed to update invitation status: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"component":     "team-invitation-service",
-		"invitation_id": invitation.ID,
-	}).Info("Team invitation rejected")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-invitation-service",
+		"invitation_id", invitation.ID,
+	).
+		Info("Team invitation rejected")
 
 	return nil
 }
@@ -469,13 +470,13 @@ func (s *TeamInvitationService) RevokeInvitation(
 		return fmt.Errorf("failed to revoke invitation: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"component":     "team-invitation-service",
-		"team_id":       invitation.TeamID,
-		"user_id":       userID,
-		"invitation_id": invitationID,
-	}).Info("Team invitation revoked")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-invitation-service",
+		"team_id", invitation.TeamID,
+		"user_id", userID,
+		"invitation_id", invitationID,
+	).Info("Team invitation revoked")
 
 	return nil
 }
@@ -525,12 +526,12 @@ func (s *TeamInvitationService) canManageTeam(ctx context.Context, userID, teamI
 func (s *TeamInvitationService) resolveInviterDisplayName(ctx context.Context, userID string) string {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-invitation-service",
-			"user_id":   userID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Warn("Failed to resolve inviter display name; using fallback")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-invitation-service",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to resolve inviter display name; using fallback")
 		return fallbackInviterName
 	}
 	if user == nil {

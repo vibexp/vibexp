@@ -5,11 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/aiclient"
 	"github.com/vibexp/vibexp/internal/logging"
@@ -29,7 +28,7 @@ type HTTPSyncListener struct {
 	client            *http.Client
 	aiServiceURL      string
 	eventTypes        []string
-	logger            *logrus.Logger
+	logger            *slog.Logger
 	embeddingHandlers EmbeddingHandlers
 }
 
@@ -37,7 +36,7 @@ type HTTPSyncListener struct {
 type HTTPSyncListenerConfig struct {
 	AIServiceURL      string
 	EventTypes        []string
-	Logger            *logrus.Logger
+	Logger            *slog.Logger
 	EmbeddingHandlers EmbeddingHandlers
 }
 
@@ -50,7 +49,7 @@ func NewHTTPSyncListener(config HTTPSyncListenerConfig) (*HTTPSyncListener, erro
 		return nil, fmt.Errorf("embedding handlers are required")
 	}
 	if config.Logger == nil {
-		config.Logger = logging.NewCloudLogger(logging.CloudLoggerConfig{})
+		config.Logger = logging.New(logging.Config{})
 	}
 
 	return &HTTPSyncListener{
@@ -80,7 +79,7 @@ func (l *HTTPSyncListener) Handle(ctx context.Context, event Event) error {
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			l.logger.WithError(closeErr).Error("Failed to close response body")
+			l.logger.With("error", closeErr).Error("Failed to close response body")
 		}
 	}()
 
@@ -104,12 +103,12 @@ func (l *HTTPSyncListener) createRequestPayload(event Event) ([]byte, error) {
 
 	requestBytes, err := json.Marshal(requestData)
 	if err != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "http-sync-listener",
-			"event_type": event.Type(),
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to marshal request")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"event_type", event.Type(),
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to marshal request")
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
@@ -125,12 +124,12 @@ func (l *HTTPSyncListener) sendEventToAIService(
 	endpoint := fmt.Sprintf("%s/api/v1/events/sync", l.aiServiceURL)
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(requestBytes))
 	if err != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "http-sync-listener",
-			"event_type": event.Type(),
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to create HTTP request")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"event_type", event.Type(),
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create HTTP request")
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -138,25 +137,25 @@ func (l *HTTPSyncListener) sendEventToAIService(
 	// Auth is the Cloud Run OIDC ID token attached by the aiclient transport
 	// (see internal/aiclient); ai-service verifies the caller's SA identity.
 
-	l.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"component":  "http-sync-listener",
-		"event_type": event.Type(),
-		"user_id":    event.UserID(),
-		"endpoint":   endpoint,
-	}).Info("Sending event to AI service")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "http-sync-listener",
+		"event_type", event.Type(),
+		"user_id", event.UserID(),
+		"endpoint", endpoint,
+	).Info("Sending event to AI service")
 
 	// #nosec G704 - URL is from system configuration (l.aiServiceURL), not user input
 	resp, err := l.client.Do(req)
 	if err != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"component":   "http-sync-listener",
-			"event_type":  event.Type(),
-			"endpoint":    endpoint,
-			"error":       fmt.Sprintf("%+v", err),
-			"duration_ms": time.Since(startTime).Milliseconds(),
-		}).Error("Failed to call AI service")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"event_type", event.Type(),
+			"endpoint", endpoint,
+			"error", fmt.Sprintf("%+v", err),
+			"duration_ms", time.Since(startTime).Milliseconds(),
+		).Error("Failed to call AI service")
 		return nil, fmt.Errorf("failed to call AI service: %w", err)
 	}
 
@@ -171,25 +170,25 @@ func (l *HTTPSyncListener) parseAIServiceResponse(
 	endpoint := fmt.Sprintf("%s/api/v1/events/sync", l.aiServiceURL)
 
 	if resp.StatusCode != http.StatusOK {
-		l.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"component":   "http-sync-listener",
-			"event_type":  event.Type(),
-			"endpoint":    endpoint,
-			"status_code": resp.StatusCode,
-			"duration_ms": duration.Milliseconds(),
-		}).Error("AI service returned non-OK status")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"event_type", event.Type(),
+			"endpoint", endpoint,
+			"status_code", resp.StatusCode,
+			"duration_ms", duration.Milliseconds(),
+		).Error("AI service returned non-OK status")
 		return nil, fmt.Errorf("AI service returned status %d", resp.StatusCode)
 	}
 
 	var response map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "http-sync-listener",
-			"event_type": event.Type(),
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to decode AI service response")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"event_type", event.Type(),
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to decode AI service response")
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
@@ -203,43 +202,43 @@ func (l *HTTPSyncListener) processEmbeddingResponse(
 ) error {
 	responseType, ok := response["type"].(string)
 	if !ok {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "http-sync-listener",
-			"event_type": event.Type(),
-		}).Error("Response missing type field")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"event_type", event.Type(),
+		).Error("Response missing type field")
 		return fmt.Errorf("response missing type field")
 	}
 
 	payload, ok := response["payload"].(map[string]interface{})
 	if !ok {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "http-sync-listener",
-			"event_type": event.Type(),
-		}).Error("Response missing payload field")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"event_type", event.Type(),
+		).Error("Response missing payload field")
 		return fmt.Errorf("response missing payload field")
 	}
 
 	handlerErr := l.routeToEmbeddingHandler(responseType, payload)
 	if handlerErr != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"component":     "http-sync-listener",
-			"event_type":    event.Type(),
-			"response_type": responseType,
-			"error":         fmt.Sprintf("%+v", handlerErr),
-		}).Error("Failed to process embedding")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"event_type", event.Type(),
+			"response_type", responseType,
+			"error", fmt.Sprintf("%+v", handlerErr),
+		).Error("Failed to process embedding")
 		return fmt.Errorf("failed to process embedding: %w", handlerErr)
 	}
 
-	l.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"component":     "http-sync-listener",
-		"event_type":    event.Type(),
-		"response_type": responseType,
-		"duration_ms":   duration.Milliseconds(),
-	}).Info("Successfully processed embedding from AI service")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "http-sync-listener",
+		"event_type", event.Type(),
+		"response_type", responseType,
+		"duration_ms", duration.Milliseconds(),
+	).Info("Successfully processed embedding from AI service")
 
 	return nil
 }
@@ -250,21 +249,21 @@ func (l *HTTPSyncListener) processEmbeddingResponse(
 func (l *HTTPSyncListener) routeToEmbeddingHandler(responseType string, payload map[string]interface{}) error {
 	const suffix = ".embedding.generated"
 	if !strings.HasSuffix(responseType, suffix) {
-		l.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"component":     "http-sync-listener",
-			"response_type": responseType,
-		}).Warn("Unknown response type from AI service")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"response_type", responseType,
+		).Warn("Unknown response type from AI service")
 		return fmt.Errorf("unknown response type: %s", responseType)
 	}
 
 	entityType := strings.TrimSuffix(responseType, suffix)
 	if entityType == "" {
-		l.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"component":     "http-sync-listener",
-			"response_type": responseType,
-		}).Warn("Empty entity type in response type")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "http-sync-listener",
+			"response_type", responseType,
+		).Warn("Empty entity type in response type")
 		return fmt.Errorf("empty entity type in response type: %s", responseType)
 	}
 

@@ -4,8 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -86,7 +85,7 @@ func (r *TypeRepository) List(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -118,7 +117,7 @@ func (r *TypeRepository) DeleteCustom(
 		}
 		if rbErr := tx.Rollback(); rbErr != nil &&
 			rbErr.Error() != "sql: transaction has already been committed or rolled back" {
-			logrus.WithError(rbErr).Error("Failed to rollback transaction")
+			slog.Error("Failed to rollback transaction", "error", rbErr)
 		}
 	}()
 

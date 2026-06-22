@@ -6,12 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -51,14 +50,14 @@ type Contact struct {
 type HubSpotService struct {
 	accessToken string
 	httpClient  *http.Client
-	logger      *logrus.Logger
+	logger      *slog.Logger
 	baseURL     string // For testing, defaults to hubspotAPIBaseURL
 }
 
 // NewHubSpotService creates a new HubSpot service
-func NewHubSpotService(accessToken string, logger *logrus.Logger) *HubSpotService {
+func NewHubSpotService(accessToken string, logger *slog.Logger) *HubSpotService {
 	if logger == nil {
-		logger = logrus.New()
+		logger = slog.New(slog.DiscardHandler)
 	}
 
 	return &HubSpotService{
@@ -90,12 +89,12 @@ func (s *HubSpotService) CreateContact(ctx context.Context, contactData ContactD
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := s.calculateBackoff(attempt)
-			s.logger.WithFields(logrus.Fields{
-				"service":   "hubspot-crm",
-				"component": "create-contact",
-				"attempt":   attempt + 1,
-				"backoff":   backoff,
-			}).Info("Retrying contact creation")
+			s.logger.With(
+				"service", "hubspot-crm",
+				"component", "create-contact",
+				"attempt", attempt+1,
+				"backoff", backoff,
+			).Info("Retrying contact creation")
 			time.Sleep(backoff)
 		}
 
@@ -107,21 +106,21 @@ func (s *HubSpotService) CreateContact(ctx context.Context, contactData ContactD
 
 		// Success
 		if statusCode >= 200 && statusCode < 300 {
-			s.logger.WithFields(logrus.Fields{
-				"service":   "hubspot-crm",
-				"component": "create-contact",
-				"email":     contactData.Email,
-			}).Info("Contact created successfully")
+			s.logger.With(
+				"service", "hubspot-crm",
+				"component", "create-contact",
+				"email", contactData.Email,
+			).Info("Contact created successfully")
 			return nil
 		}
 
 		// Contact already exists - try update instead
 		if statusCode == 409 {
-			s.logger.WithFields(logrus.Fields{
-				"service":   "hubspot-crm",
-				"component": "create-contact",
-				"email":     contactData.Email,
-			}).Info("Contact already exists, attempting update")
+			s.logger.With(
+				"service", "hubspot-crm",
+				"component", "create-contact",
+				"email", contactData.Email,
+			).Info("Contact already exists, attempting update")
 			return s.UpdateContact(ctx, contactData.Email, contactData)
 		}
 
@@ -164,12 +163,12 @@ func (s *HubSpotService) UpdateContact(ctx context.Context, email string, contac
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := s.calculateBackoff(attempt)
-			s.logger.WithFields(logrus.Fields{
-				"service":   "hubspot-crm",
-				"component": "update-contact",
-				"attempt":   attempt + 1,
-				"backoff":   backoff,
-			}).Info("Retrying contact update")
+			s.logger.With(
+				"service", "hubspot-crm",
+				"component", "update-contact",
+				"attempt", attempt+1,
+				"backoff", backoff,
+			).Info("Retrying contact update")
 			time.Sleep(backoff)
 		}
 
@@ -181,12 +180,12 @@ func (s *HubSpotService) UpdateContact(ctx context.Context, email string, contac
 
 		// Success
 		if statusCode >= 200 && statusCode < 300 {
-			s.logger.WithFields(logrus.Fields{
-				"service":    "hubspot-crm",
-				"component":  "update-contact",
-				"contact_id": contact.ID,
-				"email":      email,
-			}).Info("Contact updated successfully")
+			s.logger.With(
+				"service", "hubspot-crm",
+				"component", "update-contact",
+				"contact_id", contact.ID,
+				"email", email,
+			).Info("Contact updated successfully")
 			return nil
 		}
 
@@ -352,7 +351,7 @@ func (s *HubSpotService) makeRequest(ctx context.Context, method, url string, bo
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			s.logger.WithError(closeErr).Warn("Failed to close response body")
+			s.logger.With("error", closeErr).Warn("Failed to close response body")
 		}
 	}()
 

@@ -3,9 +3,9 @@ package channels
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	firebase "firebase.google.com/go/v4/messaging"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -16,7 +16,7 @@ import (
 type WebPushChannel struct {
 	fcm       *firebase.Client
 	tokenRepo repositories.DeviceTokenRepository
-	logger    *logrus.Logger
+	logger    *slog.Logger
 }
 
 // NewWebPushChannel creates a new WebPushChannel.
@@ -25,7 +25,7 @@ type WebPushChannel struct {
 func NewWebPushChannel(
 	fcm *firebase.Client,
 	tokenRepo repositories.DeviceTokenRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *WebPushChannel {
 	return &WebPushChannel{
 		fcm:       fcm,
@@ -158,7 +158,7 @@ func (c *WebPushChannel) pruneExpiredTokens(
 
 	if deleteErr := c.tokenRepo.DeleteByTokens(ctx, expiredTokens); deleteErr != nil {
 		if c.logger != nil {
-			c.logger.WithError(deleteErr).Warn("failed to delete expired FCM tokens")
+			c.logger.With("error", deleteErr).Warn("failed to delete expired FCM tokens")
 		}
 	}
 }

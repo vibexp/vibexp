@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -23,25 +22,25 @@ func (s *Server) handleGetExecutionStatus(w http.ResponseWriter, r *http.Request
 	teamID := chi.URLParam(r, "team_id")
 	executionID := chi.URLParam(r, "id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"handler":      "handleGetExecutionStatus",
-		"user_id":      userID,
-		"team_id":      teamID,
-		"execution_id": executionID,
-	}).Info("Get execution status request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetExecutionStatus",
+		"user_id", userID,
+		"team_id", teamID,
+		"execution_id", executionID,
+	).Info("Get execution status request received")
 
 	// Get execution from repository
 	execution, err := s.container.AgentExecutionRepository().GetByID(r.Context(), userID, executionID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"handler":      "handleGetExecutionStatus",
-			"user_id":      userID,
-			"team_id":      teamID,
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to get execution")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetExecutionStatus",
+			"user_id", userID,
+			"team_id", teamID,
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get execution")
 
 		// Check if execution not found or belongs to different user
 		if errors.Is(err, repositories.ErrAgentExecutionNotFound) {
@@ -49,36 +48,42 @@ func (s *Server) handleGetExecutionStatus(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		writeErrorResponse(w, nil, "internal_error", "Failed to retrieve execution status", http.StatusInternalServerError)
+		writeErrorResponse(
+			w,
+			nil,
+			"internal_error",
+			"Failed to retrieve execution status",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	// Verify that the execution's agent belongs to the specified team
 	agent, err := s.container.AgentRepository().GetByID(r.Context(), userID, teamID, execution.AgentID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"handler":      "handleGetExecutionStatus",
-			"execution_id": executionID,
-			"agent_id":     execution.AgentID,
-			"team_id":      teamID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Warn("Execution's agent not found in specified team")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetExecutionStatus",
+			"execution_id", executionID,
+			"agent_id", execution.AgentID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Execution's agent not found in specified team")
 		writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
 		return
 	}
 
 	// Log what we're returning
-	s.logger.WithFields(logrus.Fields{
-		"service":        "vibexp-api",
-		"handler":        "handleGetExecutionStatus",
-		"execution_id":   executionID,
-		"agent_id":       agent.ID,
-		"team_id":        teamID,
-		"status":         execution.Status,
-		"current_state":  execution.CurrentState,
-		"artifact_count": len(execution.Artifacts),
-	}).Info("Returning execution status")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetExecutionStatus",
+		"execution_id", executionID,
+		"agent_id", agent.ID,
+		"team_id", teamID,
+		"status", execution.Status,
+		"current_state", execution.CurrentState,
+		"artifact_count", len(execution.Artifacts),
+	).Info("Returning execution status")
 
 	// Return full execution with all A2A fields
 	writeOK(w, execution, s.logger)
@@ -100,22 +105,22 @@ func (s *Server) handleCursorBasedPolling(
 		since = parsedSince
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"handler":      "handleGetExecutionEvents",
-		"execution_id": executionID,
-		"since":        since,
-	}).Info("Polling events since sequence")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetExecutionEvents",
+		"execution_id", executionID,
+		"since", since,
+	).Info("Polling events since sequence")
 
 	// Get events after the specified sequence number
 	events, listErr := s.container.AgentExecutionEventRepository().ListAfterSequence(r.Context(), execution.ID, since)
 	if listErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"handler":      "handleGetExecutionEvents",
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", listErr),
-		}).Error("Failed to get events after sequence")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetExecutionEvents",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", listErr),
+		).Error("Failed to get events after sequence")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to retrieve events", http.StatusInternalServerError)
 		return
@@ -172,10 +177,19 @@ func (s *Server) handlePageBasedPagination(
 		r.Context(), execution.ID, limit, offset,
 	)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID, "execution_id": executionID, "error": fmt.Sprintf("%+v", err),
-		}).Error("Failed to get execution events")
-		writeErrorResponse(w, nil, "internal_error", "Failed to retrieve execution events", http.StatusInternalServerError)
+		s.logger.With(
+			"user_id", userID,
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Error("Failed to get execution events")
+		writeErrorResponse(
+			w,
+			nil,
+			"internal_error",
+			"Failed to retrieve execution events",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -199,25 +213,25 @@ func (s *Server) handleGetExecutionEvents(w http.ResponseWriter, r *http.Request
 	teamID := chi.URLParam(r, "team_id")
 	executionID := chi.URLParam(r, "id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"handler":      "handleGetExecutionEvents",
-		"user_id":      userID,
-		"team_id":      teamID,
-		"execution_id": executionID,
-	}).Info("Get execution events request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetExecutionEvents",
+		"user_id", userID,
+		"team_id", teamID,
+		"execution_id", executionID,
+	).Info("Get execution events request received")
 
 	// Verify execution belongs to user
 	execution, err := s.container.AgentExecutionRepository().GetByID(r.Context(), userID, executionID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"handler":      "handleGetExecutionEvents",
-			"user_id":      userID,
-			"team_id":      teamID,
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to get execution")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetExecutionEvents",
+			"user_id", userID,
+			"team_id", teamID,
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get execution")
 
 		if errors.Is(err, repositories.ErrAgentExecutionNotFound) {
 			writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
@@ -231,14 +245,14 @@ func (s *Server) handleGetExecutionEvents(w http.ResponseWriter, r *http.Request
 	// Verify that the execution's agent belongs to the specified team
 	_, err = s.container.AgentRepository().GetByID(r.Context(), userID, teamID, execution.AgentID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"handler":      "handleGetExecutionEvents",
-			"execution_id": executionID,
-			"agent_id":     execution.AgentID,
-			"team_id":      teamID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Warn("Execution's agent not found in specified team")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetExecutionEvents",
+			"execution_id", executionID,
+			"agent_id", execution.AgentID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Execution's agent not found in specified team")
 		writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
 		return
 	}
@@ -278,15 +292,15 @@ func (s *Server) handleGetConversationExecutions(w http.ResponseWriter, r *http.
 		}
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":         "vibexp-api",
-		"handler":         "handleGetConversationExecutions",
-		"user_id":         userID,
-		"team_id":         teamID,
-		"conversation_id": conversationID,
-		"limit":           limit,
-		"before":          before,
-	}).Info("Get conversation executions request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetConversationExecutions",
+		"user_id", userID,
+		"team_id", teamID,
+		"conversation_id", conversationID,
+		"limit", limit,
+		"before", before,
+	).Info("Get conversation executions request received")
 
 	// Get executions by conversation with pagination
 	executions, hasMore, totalCount, err := s.container.AgentExecutionRepository().GetByConversationID(
@@ -297,14 +311,14 @@ func (s *Server) handleGetConversationExecutions(w http.ResponseWriter, r *http.
 		before,
 	)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":         "vibexp-api",
-			"handler":         "handleGetConversationExecutions",
-			"user_id":         userID,
-			"team_id":         teamID,
-			"conversation_id": conversationID,
-			"error":           fmt.Sprintf("%+v", err),
-		}).Error("Failed to get conversation executions")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetConversationExecutions",
+			"user_id", userID,
+			"team_id", teamID,
+			"conversation_id", conversationID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get conversation executions")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to retrieve conversation", http.StatusInternalServerError)
 		return
@@ -314,14 +328,14 @@ func (s *Server) handleGetConversationExecutions(w http.ResponseWriter, r *http.
 	if len(executions) > 0 {
 		_, err = s.container.AgentRepository().GetByID(r.Context(), userID, teamID, executions[0].AgentID)
 		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":         "vibexp-api",
-				"handler":         "handleGetConversationExecutions",
-				"conversation_id": conversationID,
-				"agent_id":        executions[0].AgentID,
-				"team_id":         teamID,
-				"error":           fmt.Sprintf("%+v", err),
-			}).Warn("Conversation's agent not found in specified team")
+			s.logger.With(
+				"service", "vibexp-api",
+				"handler", "handleGetConversationExecutions",
+				"conversation_id", conversationID,
+				"agent_id", executions[0].AgentID,
+				"team_id", teamID,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Conversation's agent not found in specified team")
 			writeErrorResponse(w, nil, "not_found", "Conversation not found", http.StatusNotFound)
 			return
 		}
@@ -363,27 +377,27 @@ func (s *Server) handleListAgentConversations(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":  "vibexp-api",
-		"handler":  "handleListAgentConversations",
-		"user_id":  userID,
-		"team_id":  teamID,
-		"agent_id": agentID,
-		"page":     page,
-		"limit":    limit,
-	}).Info("List agent conversations request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListAgentConversations",
+		"user_id", userID,
+		"team_id", teamID,
+		"agent_id", agentID,
+		"page", page,
+		"limit", limit,
+	).Info("List agent conversations request received")
 
 	// Verify agent belongs to the specified team
 	_, err := s.container.AgentRepository().GetByID(r.Context(), userID, teamID, agentID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "vibexp-api",
-			"handler":  "handleListAgentConversations",
-			"user_id":  userID,
-			"team_id":  teamID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Warn("Agent not found in specified team")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListAgentConversations",
+			"user_id", userID,
+			"team_id", teamID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Agent not found in specified team")
 		writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
 		return
 	}
@@ -397,14 +411,14 @@ func (s *Server) handleListAgentConversations(w http.ResponseWriter, r *http.Req
 		limit,
 	)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "vibexp-api",
-			"handler":  "handleListAgentConversations",
-			"user_id":  userID,
-			"team_id":  teamID,
-			"agent_id": agentID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to list conversations")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListAgentConversations",
+			"user_id", userID,
+			"team_id", teamID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list conversations")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to retrieve conversations", http.StatusInternalServerError)
 		return

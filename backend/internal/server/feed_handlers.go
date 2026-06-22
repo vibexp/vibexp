@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -25,12 +24,12 @@ func (s *Server) handleCreateFeed(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCreateFeed",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("Create feed request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreateFeed",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("Create feed request received")
 
 	var req models.CreateFeedRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -60,13 +59,13 @@ func (s *Server) handleGetFeed(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 	feedID := chi.URLParam(r, "feed_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetFeed",
-		"user_id": userID,
-		"team_id": teamID,
-		"feed_id": feedID,
-	}).Info("Get feed request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetFeed",
+		"user_id", userID,
+		"team_id", teamID,
+		"feed_id", feedID,
+	).Info("Get feed request received")
 
 	if !isValidUUID(feedID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
@@ -86,12 +85,12 @@ func (s *Server) handleListFeeds(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleListFeeds",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("List feeds request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListFeeds",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("List feeds request received")
 
 	filters := s.buildFeedFilters(r, teamID)
 
@@ -109,13 +108,13 @@ func (s *Server) handleUpdateFeed(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 	feedID := chi.URLParam(r, "feed_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleUpdateFeed",
-		"user_id": userID,
-		"team_id": teamID,
-		"feed_id": feedID,
-	}).Info("Update feed request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUpdateFeed",
+		"user_id", userID,
+		"team_id", teamID,
+		"feed_id", feedID,
+	).Info("Update feed request received")
 
 	if !isValidUUID(feedID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
@@ -146,13 +145,13 @@ func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 	feedID := chi.URLParam(r, "feed_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleDeleteFeed",
-		"user_id": userID,
-		"team_id": teamID,
-		"feed_id": feedID,
-	}).Info("Delete feed request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDeleteFeed",
+		"user_id", userID,
+		"team_id", teamID,
+		"feed_id", feedID,
+	).Info("Delete feed request received")
 
 	if !isValidUUID(feedID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
@@ -177,13 +176,13 @@ func (s *Server) handleCreateFeedItem(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 	feedID := chi.URLParam(r, "feed_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCreateFeedItem",
-		"user_id": userID,
-		"team_id": teamID,
-		"feed_id": feedID,
-	}).Info("Create feed item request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreateFeedItem",
+		"user_id", userID,
+		"team_id", teamID,
+		"feed_id", feedID,
+	).Info("Create feed item request received")
 
 	if !isValidUUID(feedID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
@@ -217,12 +216,12 @@ func (s *Server) handleListFeedItems(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleListFeedItems",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("List feed items request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListFeedItems",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("List feed items request received")
 
 	filters, filterErr := s.buildFeedItemFilters(r, teamID, "")
 	if filterErr != nil {
@@ -238,7 +237,7 @@ func (s *Server) handleListFeedItems(w http.ResponseWriter, r *http.Request) {
 
 	enriched, err := s.container.FeedItemService().EnrichWithReplyCounts(r.Context(), teamID, response.Items)
 	if err != nil {
-		s.logger.WithError(err).Warn("Failed to enrich feed items with reply counts; returning without counts")
+		s.logger.With("error", err).Warn("Failed to enrich feed items with reply counts; returning without counts")
 	} else {
 		response.Items = enriched
 	}
@@ -251,13 +250,13 @@ func (s *Server) handleListFeedItemsByFeed(w http.ResponseWriter, r *http.Reques
 	teamID := chi.URLParam(r, "team_id")
 	feedID := chi.URLParam(r, "feed_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleListFeedItemsByFeed",
-		"user_id": userID,
-		"team_id": teamID,
-		"feed_id": feedID,
-	}).Info("List feed items by feed request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListFeedItemsByFeed",
+		"user_id", userID,
+		"team_id", teamID,
+		"feed_id", feedID,
+	).Info("List feed items by feed request received")
 
 	if !isValidUUID(feedID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
@@ -278,7 +277,7 @@ func (s *Server) handleListFeedItemsByFeed(w http.ResponseWriter, r *http.Reques
 
 	enriched, err := s.container.FeedItemService().EnrichWithReplyCounts(r.Context(), teamID, response.Items)
 	if err != nil {
-		s.logger.WithError(err).Warn("Failed to enrich feed items with reply counts; returning without counts")
+		s.logger.With("error", err).Warn("Failed to enrich feed items with reply counts; returning without counts")
 	} else {
 		response.Items = enriched
 	}
@@ -291,13 +290,13 @@ func (s *Server) handleGetFeedItem(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 	itemID := chi.URLParam(r, "item_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetFeedItem",
-		"user_id": userID,
-		"team_id": teamID,
-		"item_id": itemID,
-	}).Info("Get feed item request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetFeedItem",
+		"user_id", userID,
+		"team_id", teamID,
+		"item_id", itemID,
+	).Info("Get feed item request received")
 
 	if !isValidUUID(itemID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
@@ -318,13 +317,13 @@ func (s *Server) handleArchiveFeedItem(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 	itemID := chi.URLParam(r, "item_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleArchiveFeedItem",
-		"user_id": userID,
-		"team_id": teamID,
-		"item_id": itemID,
-	}).Info("Archive feed item request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleArchiveFeedItem",
+		"user_id", userID,
+		"team_id", teamID,
+		"item_id", itemID,
+	).Info("Archive feed item request received")
 
 	if !isValidUUID(itemID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
@@ -345,13 +344,13 @@ func (s *Server) handleUnarchiveFeedItem(w http.ResponseWriter, r *http.Request)
 	teamID := chi.URLParam(r, "team_id")
 	itemID := chi.URLParam(r, "item_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleUnarchiveFeedItem",
-		"user_id": userID,
-		"team_id": teamID,
-		"item_id": itemID,
-	}).Info("Unarchive feed item request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUnarchiveFeedItem",
+		"user_id", userID,
+		"team_id", teamID,
+		"item_id", itemID,
+	).Info("Unarchive feed item request received")
 
 	if !isValidUUID(itemID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
@@ -372,13 +371,13 @@ func (s *Server) handleDeleteFeedItem(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 	itemID := chi.URLParam(r, "item_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleDeleteFeedItem",
-		"user_id": userID,
-		"team_id": teamID,
-		"item_id": itemID,
-	}).Info("Delete feed item request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDeleteFeedItem",
+		"user_id", userID,
+		"team_id", teamID,
+		"item_id", itemID,
+	).Info("Delete feed item request received")
 
 	if !isValidUUID(itemID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
@@ -417,27 +416,27 @@ func (s *Server) deleteFeedItemEmbeddings(
 	if err := s.container.EmbeddingService().DeleteEmbeddingsByEntity(
 		"feed_item", item.ID,
 	); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleDeleteFeedItem",
-			"user_id": item.PostedByUserID,
-			"item_id": item.ID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Warn("Failed to delete feed item embeddings (non-fatal)")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeleteFeedItem",
+			"user_id", item.PostedByUserID,
+			"item_id", item.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete feed item embeddings (non-fatal)")
 	}
 
 	for _, poster := range replyPosters {
 		if err := s.container.EmbeddingService().DeleteEmbeddingsByEntity(
 			"feed_item_reply", poster.ReplyID,
 		); err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":  "vibexp-api",
-				"handler":  "handleDeleteFeedItem",
-				"user_id":  poster.PostedByUserID,
-				"reply_id": poster.ReplyID,
-				"item_id":  item.ID,
-				"error":    fmt.Sprintf("%+v", err),
-			}).Warn("Failed to delete feed item reply embeddings (non-fatal)")
+			s.logger.With(
+				"service", "vibexp-api",
+				"handler", "handleDeleteFeedItem",
+				"user_id", poster.PostedByUserID,
+				"reply_id", poster.ReplyID,
+				"item_id", item.ID,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Failed to delete feed item reply embeddings (non-fatal)")
 		}
 	}
 }
@@ -451,14 +450,14 @@ func (s *Server) gatherReplyPostersForCleanup(
 ) []repositories.FeedItemReplyPoster {
 	replyPosters, err := s.container.FeedItemReplyService().ListReplyPosters(ctx, userID, teamID, itemID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleDeleteFeedItem",
-			"user_id": userID,
-			"team_id": teamID,
-			"item_id": itemID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Warn("Failed to list reply posters for embedding cleanup (non-fatal); proceeding with delete")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeleteFeedItem",
+			"user_id", userID,
+			"team_id", teamID,
+			"item_id", itemID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to list reply posters for embedding cleanup (non-fatal); proceeding with delete")
 		return nil
 	}
 	return replyPosters
@@ -656,13 +655,13 @@ func (s *Server) buildFeedItemFilters(
 
 // handleFeedServiceError maps service errors for Feed create/delete operations.
 func (s *Server) handleFeedServiceError(w http.ResponseWriter, handler, userID, teamID string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": handler,
-		"user_id": userID,
-		"team_id": teamID,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Feed service error")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", handler,
+		"user_id", userID,
+		"team_id", teamID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Feed service error")
 
 	msg := err.Error()
 	switch {
@@ -679,14 +678,14 @@ func (s *Server) handleFeedServiceError(w http.ResponseWriter, handler, userID, 
 
 // handleFeedGetError maps service errors for Feed get/update/delete operations.
 func (s *Server) handleFeedGetError(w http.ResponseWriter, handler, userID, teamID, feedID string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": handler,
-		"user_id": userID,
-		"team_id": teamID,
-		"feed_id": feedID,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Feed operation error")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", handler,
+		"user_id", userID,
+		"team_id", teamID,
+		"feed_id", feedID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Feed operation error")
 
 	msg := err.Error()
 	switch {
@@ -703,14 +702,14 @@ func (s *Server) handleFeedGetError(w http.ResponseWriter, handler, userID, team
 
 // handleFeedItemServiceError maps service errors for FeedItem create operations.
 func (s *Server) handleFeedItemServiceError(w http.ResponseWriter, handler, userID, teamID, feedID string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": handler,
-		"user_id": userID,
-		"team_id": teamID,
-		"feed_id": feedID,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Feed item service error")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", handler,
+		"user_id", userID,
+		"team_id", teamID,
+		"feed_id", feedID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Feed item service error")
 
 	msg := err.Error()
 	switch {
@@ -729,14 +728,14 @@ func (s *Server) handleFeedItemServiceError(w http.ResponseWriter, handler, user
 
 // handleFeedItemGetError maps service errors for FeedItem get/archive/delete operations.
 func (s *Server) handleFeedItemGetError(w http.ResponseWriter, handler, userID, teamID, itemID string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": handler,
-		"user_id": userID,
-		"team_id": teamID,
-		"item_id": itemID,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Feed item operation error")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", handler,
+		"user_id", userID,
+		"team_id", teamID,
+		"item_id", itemID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Feed item operation error")
 
 	switch {
 	case errors.Is(err, repositories.ErrFeedItemForbidden):
@@ -762,23 +761,23 @@ func (s *Server) handleFeedItemGetError(w http.ResponseWriter, handler, userID, 
 func (s *Server) checkFeedResourceLimit(w http.ResponseWriter, ctx context.Context, userID string) bool {
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeed)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "checkFeedResourceLimit",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to check feed resource limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "checkFeedResourceLimit",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to check feed resource limit")
 		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
 		return false
 	}
 
 	if !allowed {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"handler":       "checkFeedResourceLimit",
-			"user_id":       userID,
-			"resource_type": events.ResourceTypeFeed,
-		}).Warn("User has reached their feed limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "checkFeedResourceLimit",
+			"user_id", userID,
+			"resource_type", events.ResourceTypeFeed,
+		).Warn("User has reached their feed limit")
 		writeErrorResponse(
 			w, nil, "resource_limit_exceeded",
 			"You have reached the maximum number of feeds allowed for your subscription plan",
@@ -795,23 +794,23 @@ func (s *Server) checkFeedResourceLimit(w http.ResponseWriter, ctx context.Conte
 func (s *Server) checkFeedItemResourceLimit(w http.ResponseWriter, ctx context.Context, userID string) bool {
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeedItem)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "checkFeedItemResourceLimit",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to check feed item resource limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "checkFeedItemResourceLimit",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to check feed item resource limit")
 		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
 		return false
 	}
 
 	if !allowed {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"handler":       "checkFeedItemResourceLimit",
-			"user_id":       userID,
-			"resource_type": events.ResourceTypeFeedItem,
-		}).Warn("User has reached their feed item limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "checkFeedItemResourceLimit",
+			"user_id", userID,
+			"resource_type", events.ResourceTypeFeedItem,
+		).Warn("User has reached their feed item limit")
 		writeErrorResponse(
 			w, nil, "resource_limit_exceeded",
 			"You have reached the maximum number of feed items allowed for your subscription plan",
@@ -837,13 +836,13 @@ func (s *Server) handleCreateFeedItemReply(w http.ResponseWriter, r *http.Reques
 	teamID := chi.URLParam(r, "team_id")
 	itemID := chi.URLParam(r, "item_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCreateFeedItemReply",
-		"user_id": userID,
-		"team_id": teamID,
-		"item_id": itemID,
-	}).Info("Create feed item reply request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreateFeedItemReply",
+		"user_id", userID,
+		"team_id", teamID,
+		"item_id", itemID,
+	).Info("Create feed item reply request received")
 
 	if !isValidUUID(itemID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
@@ -878,13 +877,13 @@ func (s *Server) handleListFeedItemReplies(w http.ResponseWriter, r *http.Reques
 	teamID := chi.URLParam(r, "team_id")
 	itemID := chi.URLParam(r, "item_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleListFeedItemReplies",
-		"user_id": userID,
-		"team_id": teamID,
-		"item_id": itemID,
-	}).Info("List feed item replies request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListFeedItemReplies",
+		"user_id", userID,
+		"team_id", teamID,
+		"item_id", itemID,
+	).Info("List feed item replies request received")
 
 	if !isValidUUID(itemID) {
 		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
@@ -937,14 +936,14 @@ func (s *Server) validateCreateFeedItemReplyRequest(
 func (s *Server) handleFeedItemReplyServiceError(
 	w http.ResponseWriter, handler, userID, teamID, itemID string, err error,
 ) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": handler,
-		"user_id": userID,
-		"team_id": teamID,
-		"item_id": itemID,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Feed item reply service error")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", handler,
+		"user_id", userID,
+		"team_id", teamID,
+		"item_id", itemID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Feed item reply service error")
 
 	msg := err.Error()
 	switch {

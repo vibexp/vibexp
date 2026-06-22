@@ -3,10 +3,10 @@ package services_test
 import (
 	"testing"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
@@ -42,7 +42,7 @@ func TestBlueprintService_UpdateSnapshotsOldContent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := repomocks.NewMockBlueprintRepository(t)
 			cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-			logger, _ := test.NewNullLogger()
+			logger, _ := logtest.New()
 
 			existing := &models.Blueprint{
 				ID: "bp-1", ProjectID: projectID, Slug: slug, TeamID: teamID,
@@ -97,7 +97,7 @@ func TestBlueprintService_RestoreSnapshotsAsSystem(t *testing.T) {
 
 	repo := repomocks.NewMockBlueprintRepository(t)
 	cvs := servicemocks.NewMockContentVersionServiceInterface(t)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	existing := &models.Blueprint{
 		ID: "bp-1", ProjectID: projectID, Slug: slug, TeamID: teamID,

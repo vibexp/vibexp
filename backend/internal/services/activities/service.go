@@ -3,11 +3,11 @@ package activities
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
@@ -82,7 +82,7 @@ func (s *Service) RecordActivity(ctx context.Context, userID string, req CreateA
 
 	err := s.repo.Create(ctx, activity)
 	if err != nil {
-		logger.WithError(err).Error("Failed to create activity")
+		logger.With("error", err).Error("Failed to create activity")
 		return nil, fmt.Errorf("failed to create activity: %w", err)
 	}
 
@@ -90,12 +90,12 @@ func (s *Service) RecordActivity(ctx context.Context, userID string, req CreateA
 	converted := convertModelActivity(*activity)
 	serviceActivity := &converted
 
-	logger.WithFields(logrus.Fields{
-		"activity_id":   activityID,
-		"user_id":       userID,
-		"activity_type": req.ActivityType,
-		"entity_type":   req.EntityType,
-	}).Info("Activity recorded successfully")
+	logger.With(
+		"activity_id", activityID,
+		"user_id", userID,
+		"activity_type", req.ActivityType,
+		"entity_type", req.EntityType,
+	).Info("Activity recorded successfully")
 
 	return serviceActivity, nil
 }
@@ -210,13 +210,13 @@ func (s *Service) GetActivities(ctx context.Context, filters ActivityFilters) (*
 		TotalPages: response.TotalPages,
 	}
 
-	contextkeys.GetLoggerFromContext(ctx).WithFields(logrus.Fields{
-		"total_count": response.TotalCount,
-		"page":        response.Page,
-		"per_page":    response.PerPage,
-		"total_pages": response.TotalPages,
-		"activities":  len(serviceActivities),
-	}).Debug("Activities retrieved successfully")
+	contextkeys.GetLoggerFromContext(ctx).With(
+		"total_count", response.TotalCount,
+		"page", response.Page,
+		"per_page", response.PerPage,
+		"total_pages", response.TotalPages,
+		"activities", len(serviceActivities),
+	).Debug("Activities retrieved successfully")
 
 	return serviceResponse, nil
 }
@@ -300,7 +300,7 @@ func (s *Service) DeleteActivity(ctx context.Context, activityID string) error {
 		return err
 	}
 
-	contextkeys.GetLoggerFromContext(ctx).WithField("activity_id", activityID).Info("Activity deleted successfully")
+	contextkeys.GetLoggerFromContext(ctx).With("activity_id", activityID).Info("Activity deleted successfully")
 	return nil
 }
 
@@ -355,11 +355,11 @@ func (s *Service) RunRetentionJob(ctx context.Context) error {
 		return fmt.Errorf("run activity retention job: %w", err)
 	}
 
-	contextkeys.GetLoggerFromContext(ctx).WithFields(logrus.Fields{
-		"deleted_count":  count,
-		"older_than":     cutoff.Format(time.RFC3339),
-		"retention_days": s.retentionDays,
-	}).Info("Activity retention job completed")
+	contextkeys.GetLoggerFromContext(ctx).With(
+		"deleted_count", count,
+		"older_than", cutoff.Format(time.RFC3339),
+		"retention_days", s.retentionDays,
+	).Info("Activity retention job completed")
 
 	return nil
 }
@@ -438,42 +438,42 @@ func (s *Service) fetchEntityNames(
 }
 
 func (s *Service) lookupProjectNames(
-	ctx context.Context, logger *logrus.Entry, userID string, ids []string,
+	ctx context.Context, logger *slog.Logger, userID string, ids []string,
 ) map[string]string {
 	if len(ids) == 0 || s.projectRepo == nil {
 		return nil
 	}
 	names, err := s.projectRepo.GetNamesByIDs(ctx, userID, lo.Uniq(ids))
 	if err != nil {
-		logger.WithError(err).Warn("failed to resolve project names for activities")
+		logger.With("error", err).Warn("failed to resolve project names for activities")
 		return nil
 	}
 	return names
 }
 
 func (s *Service) lookupPromptNames(
-	ctx context.Context, logger *logrus.Entry, userID string, ids []string,
+	ctx context.Context, logger *slog.Logger, userID string, ids []string,
 ) map[string]string {
 	if len(ids) == 0 || s.promptRepo == nil {
 		return nil
 	}
 	names, err := s.promptRepo.GetNamesByIDsCrossTeam(ctx, userID, lo.Uniq(ids))
 	if err != nil {
-		logger.WithError(err).Warn("failed to resolve prompt names for activities")
+		logger.With("error", err).Warn("failed to resolve prompt names for activities")
 		return nil
 	}
 	return names
 }
 
 func (s *Service) lookupArtifactNames(
-	ctx context.Context, logger *logrus.Entry, userID string, ids []string,
+	ctx context.Context, logger *slog.Logger, userID string, ids []string,
 ) map[string]string {
 	if len(ids) == 0 || s.artifactRepo == nil {
 		return nil
 	}
 	names, err := s.artifactRepo.GetNamesByIDsCrossTeam(ctx, userID, lo.Uniq(ids))
 	if err != nil {
-		logger.WithError(err).Warn("failed to resolve artifact names for activities")
+		logger.With("error", err).Warn("failed to resolve artifact names for activities")
 		return nil
 	}
 	return names
@@ -484,70 +484,70 @@ func (s *Service) lookupArtifactNames(
 // here the entity_id IS a user ID and we want to show that user's display name as the
 // EntityName field, not the ActorName field.
 func (s *Service) lookupUserEntityNames(
-	ctx context.Context, logger *logrus.Entry, ids []string,
+	ctx context.Context, logger *slog.Logger, ids []string,
 ) map[string]string {
 	if len(ids) == 0 || s.userRepo == nil {
 		return nil
 	}
 	names, err := s.userRepo.GetNamesByIDs(ctx, lo.Uniq(ids))
 	if err != nil {
-		logger.WithError(err).Warn("failed to resolve user entity names for activities")
+		logger.With("error", err).Warn("failed to resolve user entity names for activities")
 		return nil
 	}
 	return names
 }
 
 func (s *Service) lookupAPIKeyNames(
-	ctx context.Context, logger *logrus.Entry, userID string, ids []string,
+	ctx context.Context, logger *slog.Logger, userID string, ids []string,
 ) map[string]string {
 	if len(ids) == 0 || s.apiKeyRepo == nil {
 		return nil
 	}
 	names, err := s.apiKeyRepo.GetNamesByIDs(ctx, userID, lo.Uniq(ids))
 	if err != nil {
-		logger.WithError(err).Warn("failed to resolve api key names for activities")
+		logger.With("error", err).Warn("failed to resolve api key names for activities")
 		return nil
 	}
 	return names
 }
 
 func (s *Service) lookupAgentNames(
-	ctx context.Context, logger *logrus.Entry, userID string, ids []string,
+	ctx context.Context, logger *slog.Logger, userID string, ids []string,
 ) map[string]string {
 	if len(ids) == 0 || s.agentRepo == nil {
 		return nil
 	}
 	names, err := s.agentRepo.GetNamesByIDsCrossTeam(ctx, userID, lo.Uniq(ids))
 	if err != nil {
-		logger.WithError(err).Warn("failed to resolve agent names for activities")
+		logger.With("error", err).Warn("failed to resolve agent names for activities")
 		return nil
 	}
 	return names
 }
 
 func (s *Service) lookupMemoryNames(
-	ctx context.Context, logger *logrus.Entry, userID string, ids []string,
+	ctx context.Context, logger *slog.Logger, userID string, ids []string,
 ) map[string]string {
 	if len(ids) == 0 || s.memoryRepo == nil {
 		return nil
 	}
 	names, err := s.memoryRepo.GetNamesByIDsCrossTeam(ctx, userID, lo.Uniq(ids))
 	if err != nil {
-		logger.WithError(err).Warn("failed to resolve memory names for activities")
+		logger.With("error", err).Warn("failed to resolve memory names for activities")
 		return nil
 	}
 	return names
 }
 
 func (s *Service) lookupBlueprintNames(
-	ctx context.Context, logger *logrus.Entry, userID string, ids []string,
+	ctx context.Context, logger *slog.Logger, userID string, ids []string,
 ) map[string]string {
 	if len(ids) == 0 || s.blueprintRepo == nil {
 		return nil
 	}
 	names, err := s.blueprintRepo.GetNamesByIDsCrossTeam(ctx, userID, lo.Uniq(ids))
 	if err != nil {
-		logger.WithError(err).Warn("failed to resolve blueprint names for activities")
+		logger.With("error", err).Warn("failed to resolve blueprint names for activities")
 		return nil
 	}
 	return names
@@ -577,7 +577,7 @@ func (s *Service) fetchActorNames(ctx context.Context, activities []Activity) ma
 
 	names, err := s.userRepo.GetNamesByIDs(ctx, actorIDs)
 	if err != nil {
-		contextkeys.GetLoggerFromContext(ctx).WithError(err).Warn("failed to resolve actor names for activities")
+		contextkeys.GetLoggerFromContext(ctx).With("error", err).Warn("failed to resolve actor names for activities")
 		return nil
 	}
 	return names

@@ -2,16 +2,15 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
@@ -161,7 +160,7 @@ func TestAPIKeyService_GenerateAPIKey_New(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.MockAPIKeyRepository{}
-			service := NewAPIKeyService(mockRepo, func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }())
+			service := NewAPIKeyService(mockRepo, func() *slog.Logger { l, _ := logtest.New(); return l }())
 			tt.setupMocks(mockRepo)
 
 			ctx := context.Background()
@@ -247,7 +246,7 @@ func TestAPIKeyService_GetAPIKeysByUserID_New(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.MockAPIKeyRepository{}
-			service := NewAPIKeyService(mockRepo, func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }())
+			service := NewAPIKeyService(mockRepo, func() *slog.Logger { l, _ := logtest.New(); return l }())
 			tt.setupMocks(mockRepo)
 
 			ctx := context.Background()
@@ -306,7 +305,7 @@ func TestAPIKeyService_ValidateAPIKey_New(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.MockAPIKeyRepository{}
-			service := NewAPIKeyService(mockRepo, func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }())
+			service := NewAPIKeyService(mockRepo, func() *slog.Logger { l, _ := logtest.New(); return l }())
 			tt.setupMocks(mockRepo)
 
 			ctx := context.Background()
@@ -356,7 +355,7 @@ func TestAPIKeyService_DeleteAPIKey_New(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.MockAPIKeyRepository{}
-			service := NewAPIKeyService(mockRepo, func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }())
+			service := NewAPIKeyService(mockRepo, func() *slog.Logger { l, _ := logtest.New(); return l }())
 			tt.setupMocks(mockRepo)
 
 			ctx := context.Background()
@@ -506,7 +505,7 @@ func TestAPIKeyService_ValidateAPIKeyForIntegration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &mocks.MockAPIKeyRepository{}
-			service := NewAPIKeyService(mockRepo, func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }())
+			service := NewAPIKeyService(mockRepo, func() *slog.Logger { l, _ := logtest.New(); return l }())
 			tt.setupMocks(mockRepo)
 
 			ctx := context.Background()
@@ -570,7 +569,7 @@ func TestAPIKeyService_NilServiceCheck(t *testing.T) {
 }
 
 func TestAPIKeyService_NilRepoCheck(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	service := NewAPIKeyService(nil, logger)
 
 	ctx := context.Background()

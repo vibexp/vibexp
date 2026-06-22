@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"cloud.google.com/go/pubsub" //nolint:staticcheck // v2 has breaking changes, will upgrade when stable
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/logging"
 )
@@ -17,7 +17,7 @@ type PubSubForwarderListener struct {
 	client       *pubsub.Client
 	topic        *pubsub.Topic
 	eventTypes   []string
-	logger       *logrus.Logger
+	logger       *slog.Logger
 	publishAsync bool
 }
 
@@ -26,7 +26,7 @@ type PubSubForwarderConfig struct {
 	Client       *pubsub.Client
 	TopicName    string
 	EventTypes   []string
-	Logger       *logrus.Logger
+	Logger       *slog.Logger
 	PublishAsync bool // If true, don't wait for publish result
 }
 
@@ -39,7 +39,7 @@ func NewPubSubForwarderListener(config PubSubForwarderConfig) (*PubSubForwarderL
 		return nil, fmt.Errorf("topic name is required")
 	}
 	if config.Logger == nil {
-		config.Logger = logging.NewCloudLogger(logging.CloudLoggerConfig{})
+		config.Logger = logging.New(logging.Config{})
 	}
 
 	topic := config.Client.Topic(config.TopicName)
@@ -90,12 +90,12 @@ func (l *PubSubForwarderListener) serializeEvent(event Event) ([]byte, error) {
 		"user_id":   event.UserID(),
 	})
 	if err != nil {
-		l.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"component":  "pubsub-forwarder",
-			"event_type": event.Type(),
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to marshal event for Pub/Sub")
+		l.logger.With(
+			"service", "vibexp-api",
+			"component", "pubsub-forwarder",
+			"event_type", event.Type(),
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to marshal event for Pub/Sub")
 		return nil, fmt.Errorf("failed to marshal event: %w", err)
 	}
 	return data, nil
@@ -116,12 +116,12 @@ func (l *PubSubForwarderListener) createPubSubMessage(event Event, data []byte) 
 
 // logAsyncPublish logs when an event is queued for async publishing
 func (l *PubSubForwarderListener) logAsyncPublish(event Event) {
-	l.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"component":  "pubsub-forwarder",
-		"event_type": event.Type(),
-		"user_id":    event.UserID(),
-	}).Debug("Event queued for Pub/Sub (async)")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "pubsub-forwarder",
+		"event_type", event.Type(),
+		"user_id", event.UserID(),
+	).Debug("Event queued for Pub/Sub (async)")
 }
 
 // waitForPublishResult waits for the publish result and logs the outcome
@@ -142,26 +142,26 @@ func (l *PubSubForwarderListener) waitForPublishResult(
 
 // logPublishFailure logs when publish fails
 func (l *PubSubForwarderListener) logPublishFailure(event Event, err error, duration time.Duration) {
-	l.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"component":   "pubsub-forwarder",
-		"event_type":  event.Type(),
-		"user_id":     event.UserID(),
-		"error":       fmt.Sprintf("%+v", err),
-		"duration_ms": duration.Milliseconds(),
-	}).Error("Failed to publish event to Pub/Sub")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "pubsub-forwarder",
+		"event_type", event.Type(),
+		"user_id", event.UserID(),
+		"error", fmt.Sprintf("%+v", err),
+		"duration_ms", duration.Milliseconds(),
+	).Error("Failed to publish event to Pub/Sub")
 }
 
 // logPublishSuccess logs when publish succeeds
 func (l *PubSubForwarderListener) logPublishSuccess(event Event, serverID string, duration time.Duration) {
-	l.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"component":   "pubsub-forwarder",
-		"event_type":  event.Type(),
-		"user_id":     event.UserID(),
-		"server_id":   serverID,
-		"duration_ms": duration.Milliseconds(),
-	}).Info("Event forwarded to Pub/Sub successfully")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "pubsub-forwarder",
+		"event_type", event.Type(),
+		"user_id", event.UserID(),
+		"server_id", serverID,
+		"duration_ms", duration.Milliseconds(),
+	).Info("Event forwarded to Pub/Sub successfully")
 }
 
 // EventTypes returns the event types this listener handles
@@ -171,18 +171,18 @@ func (l *PubSubForwarderListener) EventTypes() []string {
 
 // Close stops the forwarder and flushes pending messages
 func (l *PubSubForwarderListener) Close() error {
-	l.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "pubsub-forwarder",
-	}).Info("Stopping Pub/Sub forwarder, flushing pending messages")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "pubsub-forwarder",
+	).Info("Stopping Pub/Sub forwarder, flushing pending messages")
 
 	// Stop the topic to flush pending messages
 	l.topic.Stop()
 
-	l.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "pubsub-forwarder",
-	}).Info("Pub/Sub forwarder stopped")
+	l.logger.With(
+		"service", "vibexp-api",
+		"component", "pubsub-forwarder",
+	).Info("Pub/Sub forwarder stopped")
 
 	return nil
 }

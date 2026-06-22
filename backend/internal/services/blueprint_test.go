@@ -2,15 +2,14 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
-
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -120,7 +119,7 @@ func TestNewBlueprintService(t *testing.T) {
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewBlueprintService(
 		repo, nil, nil, mockResourceUsageSvc,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
 
@@ -233,7 +232,7 @@ func TestBlueprintService_CreateBlueprint(t *testing.T) {
 
 			service := NewBlueprintService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			blueprint, err := service.CreateBlueprint(tt.userID, "team-123", tt.request)
@@ -311,7 +310,7 @@ func TestBlueprintService_GetBlueprintByProjectIDAndSlug(t *testing.T) {
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewBlueprintService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			blueprint, err := service.GetBlueprintByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug)
@@ -350,7 +349,7 @@ func TestBlueprintService_GetBlueprintByIDInTeam(t *testing.T) {
 
 			service := NewBlueprintService(
 				repo, nil, nil, &MockResourceUsageService{},
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			got, err := service.GetBlueprintByIDInTeam(userID, teamID, blueprintID)
@@ -492,7 +491,7 @@ func TestBlueprintService_ListSpecLibraries(t *testing.T) {
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewBlueprintService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			response, err := service.ListBlueprints(tt.userID, tt.filters)
@@ -515,7 +514,7 @@ func TestBlueprintService_ListSpecLibrariesByProject(t *testing.T) {
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewBlueprintService(
 		repo, nil, nil, mockResourceUsageSvc,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
 	response, err := service.ListBlueprintsByProject(
@@ -722,7 +721,7 @@ func TestBlueprintService_UpdateBlueprintByProjectIDAndSlug(t *testing.T) {
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewBlueprintService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			blueprint, err := service.UpdateBlueprintByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug, tt.request)
@@ -825,7 +824,7 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 
 			service := NewBlueprintService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			err := service.DeleteBlueprintByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug)
@@ -914,7 +913,7 @@ func TestBlueprintService_GetBlueprintStats(t *testing.T) {
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewBlueprintService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			stats, err := service.GetBlueprintStats(tt.userID)
@@ -930,7 +929,7 @@ func TestBlueprintService_ImplementsInterface(t *testing.T) {
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewBlueprintService(
 		repo, nil, nil, mockResourceUsageSvc,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
 
@@ -1040,7 +1039,7 @@ func TestBlueprintService_PublishesBlueprintEvents(t *testing.T) {
 
 			service := NewBlueprintService(
 				mockRepo, nil, mockEventManager, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 
@@ -1067,7 +1066,7 @@ func TestBlueprintService_UpdateBlueprint_PreservesTeamID(t *testing.T) {
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewBlueprintService(
 		mockRepo, nil, nil, mockResourceUsageSvc,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
 
@@ -1368,7 +1367,7 @@ func TestBlueprintService_CreateBlueprintWithNewTypes(t *testing.T) {
 
 			service := NewBlueprintService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			blueprint, err := service.CreateBlueprint(tt.userID, "team-123", tt.request)

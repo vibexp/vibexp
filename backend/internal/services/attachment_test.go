@@ -5,14 +5,14 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 )
@@ -61,9 +61,8 @@ func (f *fakeObjectStore) Delete(_ context.Context, key string) error {
 	return nil
 }
 
-func newTestLogger() *logrus.Logger {
-	l, _ := test.NewNullLogger()
-	l.SetLevel(logrus.ErrorLevel)
+func newTestLogger() *slog.Logger {
+	l, _ := logtest.New()
 	return l
 }
 

@@ -5,7 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -23,8 +24,7 @@ const (
 func newTypeService(t *testing.T) (*TypeService, *repomocks.MockTypeRepository) {
 	t.Helper()
 	repo := repomocks.NewMockTypeRepository(t)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return NewTypeService(repo, logger), repo
 }
 
@@ -56,8 +56,16 @@ func TestTypeService_CreateCustom_Validation(t *testing.T) {
 			ErrTypeResourceTypeUnsupported,
 		},
 		{"empty slug", CreateTypeParams{ResourceType: "artifacts", Slug: "", Name: "X"}, ErrTypeSlugRequired},
-		{"bad slug chars", CreateTypeParams{ResourceType: "artifacts", Slug: "Bad Slug", Name: "X"}, ErrTypeSlugInvalid},
-		{"uppercase slug", CreateTypeParams{ResourceType: "artifacts", Slug: "BugReport", Name: "X"}, ErrTypeSlugInvalid},
+		{
+			"bad slug chars",
+			CreateTypeParams{ResourceType: "artifacts", Slug: "Bad Slug", Name: "X"},
+			ErrTypeSlugInvalid,
+		},
+		{
+			"uppercase slug",
+			CreateTypeParams{ResourceType: "artifacts", Slug: "BugReport", Name: "X"},
+			ErrTypeSlugInvalid,
+		},
 		{"empty name", CreateTypeParams{ResourceType: "artifacts", Slug: "bug-report", Name: ""}, ErrTypeNameRequired},
 	}
 	for _, tc := range cases {

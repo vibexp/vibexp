@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -94,11 +92,12 @@ func (s *GitHubAppService) checkExistingProject(
 ) (*models.Project, error) {
 	existingProject, err := s.projectRepo.GetByGitURL(ctx, teamID, userID, gitURL)
 	if err == nil {
-		s.logger.WithFields(logrus.Fields{
-			"team_id":    teamID,
-			"git_url":    gitURL,
-			"project_id": existingProject.ID,
-		}).Info("Project already exists for this repository")
+		s.logger.With(
+			"team_id", teamID,
+			"git_url", gitURL,
+			"project_id", existingProject.ID,
+		).
+			Info("Project already exists for this repository")
 	}
 	return existingProject, err
 }
@@ -147,26 +146,26 @@ func (s *GitHubAppService) createAndPublishProject(
 			return false, handledErr
 		}
 		if !wasCreated {
-			s.logger.WithFields(logrus.Fields{
-				"service":    "github-app",
-				"team_id":    teamID,
-				"project_id": project.ID,
-				"git_url":    project.GitURL,
-			}).Info("Project already exists - no event published")
+			s.logger.With(
+				"service", "github-app",
+				"team_id", teamID,
+				"project_id", project.ID,
+				"git_url", project.GitURL,
+			).Info("Project already exists - no event published")
 			return false, nil
 		}
 	}
 
 	s.publishProjectCreatedEvent(ctx, project)
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "github-app",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"repo_id":    repoID,
-		"project_id": project.ID,
-		"git_url":    project.GitURL,
-	}).Info("Successfully created project from GitHub repository")
+	s.logger.With(
+		"service", "github-app",
+		"user_id", userID,
+		"team_id", teamID,
+		"repo_id", repoID,
+		"project_id", project.ID,
+		"git_url", project.GitURL,
+	).Info("Successfully created project from GitHub repository")
 
 	return true, nil
 }
@@ -201,11 +200,12 @@ func (s *GitHubAppService) handleGitURLConstraintViolation(
 	project *models.Project,
 	teamID, userID string,
 ) error {
-	s.logger.WithFields(logrus.Fields{
-		"service": "github-app",
-		"team_id": teamID,
-		"git_url": project.GitURL,
-	}).Info("Unique constraint violation on git_url - project already exists")
+	s.logger.With(
+		"service", "github-app",
+		"team_id", teamID,
+		"git_url", project.GitURL,
+	).
+		Info("Unique constraint violation on git_url - project already exists")
 
 	existingProject, queryErr := s.projectRepo.GetByGitURL(ctx, teamID, userID, project.GitURL)
 	if queryErr == nil {
@@ -215,7 +215,7 @@ func (s *GitHubAppService) handleGitURLConstraintViolation(
 		return nil
 	}
 
-	s.logger.WithError(queryErr).Error("Failed to query existing project after constraint violation")
+	s.logger.With("error", queryErr).Error("Failed to query existing project after constraint violation")
 	return fmt.Errorf("constraint violation on git_url but failed to query existing project: %w", queryErr)
 }
 
@@ -226,11 +226,12 @@ func (s *GitHubAppService) handleSlugConstraintViolation(
 	teamID, userID string,
 	repoID int64,
 ) error {
-	s.logger.WithFields(logrus.Fields{
-		"service":       "github-app",
-		"team_id":       teamID,
-		"original_slug": project.Slug,
-	}).Info("Slug collision detected - generating unique slug with suffix")
+	s.logger.With(
+		"service", "github-app",
+		"team_id", teamID,
+		"original_slug", project.Slug,
+	).
+		Info("Slug collision detected - generating unique slug with suffix")
 
 	baseSlug := project.Slug
 	var err error
@@ -246,14 +247,14 @@ func (s *GitHubAppService) handleSlugConstraintViolation(
 		}
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "github-app",
-		"user_id": userID,
-		"team_id": teamID,
-		"repo_id": repoID,
-		"slug":    project.Slug,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error(fmt.Sprintf("Failed to create project with unique slug after %d attempts", maxSlugRetries))
+	s.logger.With(
+		"service", "github-app",
+		"user_id", userID,
+		"team_id", teamID,
+		"repo_id", repoID,
+		"slug", project.Slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error(fmt.Sprintf("Failed to create project with unique slug after %d attempts", maxSlugRetries))
 	return fmt.Errorf("failed to create project with unique slug: %w", err)
 }
 
@@ -264,14 +265,14 @@ func (s *GitHubAppService) logAndReturnCreateError(
 	gitURL string,
 	err error,
 ) error {
-	s.logger.WithFields(logrus.Fields{
-		"service": "github-app",
-		"user_id": userID,
-		"team_id": teamID,
-		"repo_id": repoID,
-		"git_url": gitURL,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to create project from repository")
+	s.logger.With(
+		"service", "github-app",
+		"user_id", userID,
+		"team_id", teamID,
+		"repo_id", repoID,
+		"git_url", gitURL,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to create project from repository")
 	return fmt.Errorf("failed to create project: %w", err)
 }
 
@@ -292,7 +293,7 @@ func (s *GitHubAppService) publishProjectCreatedEvent(
 			project.CreatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.WithError(err).Warn("Failed to publish project created event")
+			s.logger.With("error", err).Warn("Failed to publish project created event")
 		}
 	}
 }

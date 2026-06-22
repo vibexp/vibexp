@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -60,7 +60,7 @@ func (r *activityRepository) Create(ctx context.Context, activity *models.Activi
 	).Scan(&activity.CreatedAt)
 
 	if err != nil {
-		logrus.WithError(err).Error("Failed to create activity")
+		slog.Error("Failed to create activity", "error", err)
 		return fmt.Errorf("failed to create activity: %w", err)
 	}
 
@@ -99,7 +99,7 @@ func (r *activityRepository) GetByID(ctx context.Context, userID, activityID str
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, repositories.ErrActivityNotFound
 		}
-		logrus.WithError(err).Error("Failed to get activity by ID")
+		slog.Error("Failed to get activity by ID", "error", err)
 		return nil, fmt.Errorf("failed to get activity: %w", err)
 	}
 
@@ -172,7 +172,7 @@ func (r *activityRepository) countActivities(ctx context.Context, conditions squ
 
 	var totalCount int
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&totalCount); err != nil {
-		logrus.WithError(err).Error("Failed to count activities")
+		slog.Error("Failed to count activities", "error", err)
 		return 0, fmt.Errorf("failed to count activities: %w", err)
 	}
 
@@ -207,12 +207,12 @@ func (r *activityRepository) queryActivities(
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query activities")
+		slog.Error("Failed to query activities", "error", err)
 		return nil, fmt.Errorf("failed to query activities: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -241,7 +241,7 @@ func scanActivityListRows(rows *sql.Rows) []models.Activity {
 			&activity.CreatedAt,
 		)
 		if err != nil {
-			logrus.WithError(err).Error("Failed to scan activity row")
+			slog.Error("Failed to scan activity row", "error", err)
 			continue
 		}
 
@@ -272,7 +272,7 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 	err := r.db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM activities WHERE user_id = $1", userID).Scan(&stats.TotalActivities)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to get total activities count")
+		slog.Error("Failed to get total activities count", "error", err)
 		return nil, fmt.Errorf("failed to get activity stats: %w", err)
 	}
 
@@ -283,7 +283,7 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 		userID,
 	).Scan(&stats.ActivitiesToday)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to get today's activities count")
+		slog.Error("Failed to get today's activities count", "error", err)
 		stats.ActivitiesToday = 0
 	}
 
@@ -294,7 +294,7 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 		userID,
 	).Scan(&stats.ActivitiesThisWeek)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to get this week's activities count")
+		slog.Error("Failed to get this week's activities count", "error", err)
 		stats.ActivitiesThisWeek = 0
 	}
 
@@ -309,12 +309,12 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 
 	rows, err := r.db.QueryContext(ctx, topActivityTypesQuery, userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query top activity types")
+		slog.Error("Failed to query top activity types", "error", err)
 		stats.TopActivityTypes = []models.ActivityTypeCount{}
 	} else {
 		defer func() {
 			if closeErr := rows.Close(); closeErr != nil {
-				logrus.WithError(closeErr).Error("Failed to close rows")
+				slog.Error("Failed to close rows", "error", closeErr)
 			}
 		}()
 		var topActivityTypes []models.ActivityTypeCount
@@ -341,12 +341,12 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 
 	rows, err = r.db.QueryContext(ctx, topEntityTypesQuery, userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query top entity types")
+		slog.Error("Failed to query top entity types", "error", err)
 		stats.TopEntityTypes = []models.EntityTypeCount{}
 	} else {
 		defer func() {
 			if closeErr := rows.Close(); closeErr != nil {
-				logrus.WithError(closeErr).Error("Failed to close rows")
+				slog.Error("Failed to close rows", "error", closeErr)
 			}
 		}()
 		var topEntityTypes []models.EntityTypeCount
@@ -373,12 +373,12 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 
 	rows, err = r.db.QueryContext(ctx, recentActivitiesQuery, userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query recent activities")
+		slog.Error("Failed to query recent activities", "error", err)
 		stats.RecentActivities = []models.Activity{}
 	} else {
 		defer func() {
 			if closeErr := rows.Close(); closeErr != nil {
-				logrus.WithError(closeErr).Error("Failed to close rows")
+				slog.Error("Failed to close rows", "error", closeErr)
 			}
 		}()
 		var recentActivities []models.Activity
@@ -425,12 +425,12 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 
 	rows, err = r.db.QueryContext(ctx, activitiesByDateQuery, userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query activities by date")
+		slog.Error("Failed to query activities by date", "error", err)
 		stats.ActivitiesByDateWeek = []models.ActivityCountByDate{}
 	} else {
 		defer func() {
 			if closeErr := rows.Close(); closeErr != nil {
-				logrus.WithError(closeErr).Error("Failed to close rows")
+				slog.Error("Failed to close rows", "error", closeErr)
 			}
 		}()
 		var activitiesByDate []models.ActivityCountByDate
@@ -458,7 +458,7 @@ func (r *activityRepository) Delete(ctx context.Context, activityID string) erro
 	query := "DELETE FROM activities WHERE id = $1"
 	result, err := r.db.ExecContext(ctx, query, activityID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to delete activity")
+		slog.Error("Failed to delete activity", "error", err)
 		return fmt.Errorf("failed to delete activity: %w", err)
 	}
 

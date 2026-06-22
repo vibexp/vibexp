@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -39,7 +39,7 @@ type NotificationService struct {
 	userRepo     repositories.UserRepository
 	channels     []Channel
 	appMetrics   *metrics.Metrics
-	logger       *logrus.Logger
+	logger       *slog.Logger
 }
 
 // Ensure NotificationService implements NotificationServiceInterface
@@ -53,7 +53,7 @@ func NewNotificationService(
 	userRepo repositories.UserRepository,
 	channels []Channel,
 	appMetrics *metrics.Metrics,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *NotificationService {
 	return &NotificationService{
 		notifRepo:    notifRepo,
@@ -170,10 +170,10 @@ func (s *NotificationService) loadUserAndPrefs(
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		if s.logger != nil {
-			s.logger.WithFields(logrus.Fields{
-				"user_id": userID,
-				"error":   fmt.Sprintf("%+v", err),
-			}).Warn("Failed to load user for notification delivery")
+			s.logger.With(
+				"user_id", userID,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Failed to load user for notification delivery")
 		}
 
 		return nil, nil
@@ -212,11 +212,11 @@ func (s *NotificationService) recordDelivery(
 
 	if err := s.deliveryRepo.Insert(ctx, delivery); err != nil {
 		if s.logger != nil {
-			s.logger.WithFields(logrus.Fields{
-				"notification_id": notifID,
-				"channel":         ch.Name(),
-				"error":           fmt.Sprintf("%+v", err),
-			}).Error("Failed to record notification delivery")
+			s.logger.With(
+				"notification_id", notifID,
+				"channel", ch.Name(),
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to record notification delivery")
 		}
 	}
 
@@ -349,11 +349,11 @@ func (s *NotificationService) RunRetentionJob(ctx context.Context) error {
 	}
 
 	if s.logger != nil {
-		s.logger.WithFields(logrus.Fields{
-			"deleted_count":  count,
-			"older_than":     before.Format(time.RFC3339),
-			"retention_days": retentionDays,
-		}).Info("Notification retention job completed")
+		s.logger.With(
+			"deleted_count", count,
+			"older_than", before.Format(time.RFC3339),
+			"retention_days", retentionDays,
+		).Info("Notification retention job completed")
 	}
 
 	return nil

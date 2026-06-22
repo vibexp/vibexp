@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
@@ -22,12 +21,13 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCreateBlueprint",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("Create blueprint request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreateBlueprint",
+		"user_id", userID,
+		"team_id", teamID,
+	).
+		Info("Create blueprint request received")
 
 	var req models.CreateBlueprintRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -81,13 +81,13 @@ func (s *Server) handleGetBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleGetBlueprint",
-		"user_id":    userID,
-		"project_id": decodedProjectID,
-		"slug":       decodedSlug,
-	}).Info("Get blueprint request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetBlueprint",
+		"user_id", userID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+	).Info("Get blueprint request received")
 
 	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlug(
 		userID, decodedProjectID, decodedSlug,
@@ -106,12 +106,13 @@ func (s *Server) handleListBlueprints(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleListBlueprints",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("List blueprints request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListBlueprints",
+		"user_id", userID,
+		"team_id", teamID,
+	).
+		Info("List blueprints request received")
 
 	filters, ok := s.buildBlueprintFilters(r, "", teamID)
 	if !ok {
@@ -120,12 +121,12 @@ func (s *Server) handleListBlueprints(w http.ResponseWriter, r *http.Request) {
 
 	response, listErr := s.container.BlueprintService().ListBlueprints(userID, filters)
 	if listErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleListBlueprints",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", listErr),
-		}).Error("Failed to list blueprints")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListBlueprints",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", listErr),
+		).Error("Failed to list blueprints")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to list blueprints", http.StatusInternalServerError)
 		return
@@ -152,13 +153,13 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleListBlueprintsByProject",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"project_id": decodedProjectID,
-	}).Info("List blueprints by project request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListBlueprintsByProject",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", decodedProjectID,
+	).Info("List blueprints by project request received")
 
 	filters, ok := s.buildBlueprintFilters(r, decodedProjectID, teamID)
 	if !ok {
@@ -167,14 +168,14 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 
 	response, listErr := s.container.BlueprintService().ListBlueprints(userID, filters)
 	if listErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"handler":    "handleListBlueprintsByProject",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": decodedProjectID,
-			"error":      fmt.Sprintf("%+v", listErr),
-		}).Error("Failed to list blueprints by project")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListBlueprintsByProject",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", decodedProjectID,
+			"error", fmt.Sprintf("%+v", listErr),
+		).Error("Failed to list blueprints by project")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to list blueprints", http.StatusInternalServerError)
 		return
@@ -201,13 +202,13 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleUpdateBlueprint",
-		"user_id":    userID,
-		"project_id": decodedProjectID,
-		"slug":       decodedSlug,
-	}).Info("Update blueprint request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUpdateBlueprint",
+		"user_id", userID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+	).Info("Update blueprint request received")
 
 	if !s.checkBlueprintResourceLimit(w, r.Context(), userID) {
 		return
@@ -240,6 +241,7 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, blueprint, s.logger)
 }
 
+//nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
 func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	projectID := chi.URLParam(r, "project_id")
@@ -258,13 +260,13 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleDeleteBlueprint",
-		"user_id":    userID,
-		"project_id": decodedProjectID,
-		"slug":       decodedSlug,
-	}).Info("Delete blueprint request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDeleteBlueprint",
+		"user_id", userID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+	).Info("Delete blueprint request received")
 
 	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlug(
 		userID, decodedProjectID, decodedSlug,
@@ -276,8 +278,18 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	err = s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(userID, decodedProjectID, decodedSlug)
 	if err != nil {
-		s.logBlueprintError(w, "handleDeleteBlueprint", userID, decodedProjectID, decodedSlug, err,
-			"Failed to delete blueprint", "internal_error", "Failed to delete blueprint", http.StatusInternalServerError)
+		s.logBlueprintError(
+			w,
+			"handleDeleteBlueprint",
+			userID,
+			decodedProjectID,
+			decodedSlug,
+			err,
+			"Failed to delete blueprint",
+			"internal_error",
+			"Failed to delete blueprint",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -300,21 +312,22 @@ func (s *Server) handleGetBlueprintStats(w http.ResponseWriter, r *http.Request)
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetBlueprintStats",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("Get blueprint stats request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetBlueprintStats",
+		"user_id", userID,
+		"team_id", teamID,
+	).
+		Info("Get blueprint stats request received")
 
 	stats, err := s.container.BlueprintService().GetBlueprintStats(userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetBlueprintStats",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get blueprint stats")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetBlueprintStats",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get blueprint stats")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to get blueprint stats", http.StatusInternalServerError)
 		return
@@ -521,23 +534,23 @@ func (s *Server) validateBlueprintStatus(w http.ResponseWriter, status *string) 
 func (s *Server) checkBlueprintResourceLimit(w http.ResponseWriter, ctx context.Context, userID string) bool {
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, "blueprint")
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "checkBlueprintResourceLimit",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to check resource limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "checkBlueprintResourceLimit",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to check resource limit")
 		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
 		return false
 	}
 
 	if !allowed {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"handler":       "checkBlueprintResourceLimit",
-			"user_id":       userID,
-			"resource_type": "blueprint",
-		}).Warn("User has reached their blueprint limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "checkBlueprintResourceLimit",
+			"user_id", userID,
+			"resource_type", "blueprint",
+		).Warn("User has reached their blueprint limit")
 		writeErrorResponse(
 			w, nil, "resource_limit_exceeded",
 			"You have reached the maximum number of blueprints allowed for your subscription plan",
@@ -551,12 +564,12 @@ func (s *Server) checkBlueprintResourceLimit(w http.ResponseWriter, ctx context.
 
 // handleCreateBlueprintError handles errors from blueprint creation
 func (s *Server) handleCreateBlueprintError(w http.ResponseWriter, userID string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCreateBlueprint",
-		"user_id": userID,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to create blueprint")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreateBlueprint",
+		"user_id", userID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to create blueprint")
 
 	if strings.Contains(err.Error(), "already exists") {
 		writeErrorResponse(w, nil, "conflict", err.Error(), http.StatusConflict)
@@ -603,14 +616,14 @@ func (s *Server) decodeBlueprintURLParams(w http.ResponseWriter, userID, handler
 
 // handleGetBlueprintError handles errors from getting a blueprint
 func (s *Server) handleGetBlueprintError(w http.ResponseWriter, userID, projectID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleGetBlueprint",
-		"user_id":    userID,
-		"project_id": projectID,
-		"slug":       slug,
-		"error":      fmt.Sprintf("%+v", err),
-	}).Error("Failed to get blueprint")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetBlueprint",
+		"user_id", userID,
+		"project_id", projectID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to get blueprint")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Blueprint not found", http.StatusNotFound)
@@ -622,14 +635,14 @@ func (s *Server) handleGetBlueprintError(w http.ResponseWriter, userID, projectI
 
 // handleUpdateBlueprintError handles errors from blueprint update
 func (s *Server) handleUpdateBlueprintError(w http.ResponseWriter, userID, projectID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleUpdateBlueprint",
-		"user_id":    userID,
-		"project_id": projectID,
-		"slug":       slug,
-		"error":      fmt.Sprintf("%+v", err),
-	}).Error("Failed to update blueprint")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUpdateBlueprint",
+		"user_id", userID,
+		"project_id", projectID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to update blueprint")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Blueprint not found", http.StatusNotFound)
@@ -696,34 +709,29 @@ func (s *Server) buildBlueprintFilters(
 func (s *Server) deleteBlueprintEmbeddings(userID, blueprintID, projectID, slug string) {
 	err := s.container.EmbeddingService().DeleteEmbeddingsByEntity("blueprint", blueprintID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":         "vibexp-api",
-			"handler":         "handleDeleteBlueprint",
-			"user_id":         userID,
-			"spec_library_id": blueprintID,
-			"project_id":      projectID,
-			"slug":            slug,
-			"error":           fmt.Sprintf("%+v", err),
-		}).Warn("Failed to delete blueprint embeddings (non-fatal)")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeleteBlueprint",
+			"user_id", userID,
+			"spec_library_id", blueprintID,
+			"project_id", projectID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete blueprint embeddings (non-fatal)")
 	}
 }
 
 // logBlueprintError logs a blueprint error and writes error response
 func (s *Server) logBlueprintError(w http.ResponseWriter, handler, userID, projectID, slug string,
 	err error, logMsg, errCode, errMsg string, statusCode int) {
-	fields := logrus.Fields{
-		"service": "vibexp-api",
-		"handler": handler,
-		"user_id": userID,
-		"error":   fmt.Sprintf("%+v", err),
-	}
+	fields := []any{"service", "vibexp-api", "handler", handler, "user_id", userID, "error", fmt.Sprintf("%+v", err)}
 	if projectID != "" {
-		fields["project_id"] = projectID
+		fields = append(fields, "project_id", projectID)
 	}
 	if slug != "" {
-		fields["slug"] = slug
+		fields = append(fields, "slug", slug)
 	}
-	s.logger.WithFields(fields).Error(logMsg)
+	s.logger.With(fields...).Error(logMsg)
 	writeErrorResponse(w, nil, errCode, errMsg, statusCode)
 }
 
@@ -761,13 +769,13 @@ func (s *Server) handleListBlueprintVersions(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleListBlueprintVersions",
-		"user_id":    userID,
-		"project_id": decodedProjectID,
-		"slug":       decodedSlug,
-	}).Info("List blueprint versions request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListBlueprintVersions",
+		"user_id", userID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+	).Info("List blueprint versions request received")
 
 	versions, err := s.container.BlueprintService().ListBlueprintVersions(
 		userID, decodedProjectID, decodedSlug,
@@ -803,14 +811,14 @@ func (s *Server) handleGetBlueprintVersion(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":        "vibexp-api",
-		"handler":        "handleGetBlueprintVersion",
-		"user_id":        userID,
-		"project_id":     decodedProjectID,
-		"slug":           decodedSlug,
-		"version_number": versionNumber,
-	}).Info("Get blueprint version request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetBlueprintVersion",
+		"user_id", userID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+		"version_number", versionNumber,
+	).Info("Get blueprint version request received")
 
 	version, err := s.container.BlueprintService().GetBlueprintVersion(
 		userID, decodedProjectID, decodedSlug, versionNumber,
@@ -847,14 +855,14 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":        "vibexp-api",
-		"handler":        "handleRestoreBlueprintVersion",
-		"user_id":        userID,
-		"project_id":     decodedProjectID,
-		"slug":           decodedSlug,
-		"version_number": versionNumber,
-	}).Info("Restore blueprint version request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleRestoreBlueprintVersion",
+		"user_id", userID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+		"version_number", versionNumber,
+	).Info("Restore blueprint version request received")
 
 	blueprint, err := s.container.BlueprintService().RestoreBlueprintVersion(
 		userID, decodedProjectID, decodedSlug, versionNumber,
@@ -874,14 +882,14 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 
 // handleBlueprintVersionError maps content-version lookup errors to HTTP responses.
 func (s *Server) handleBlueprintVersionError(w http.ResponseWriter, userID, projectID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "blueprintVersion",
-		"user_id":    userID,
-		"project_id": projectID,
-		"slug":       slug,
-		"error":      fmt.Sprintf("%+v", err),
-	}).Error("Failed to process blueprint version request")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "blueprintVersion",
+		"user_id", userID,
+		"project_id", projectID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to process blueprint version request")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Not found", http.StatusNotFound)

@@ -3,25 +3,23 @@ package server
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 )
 
 func TestPanicLoggerMiddleware_PanicWithString(t *testing.T) {
-	nullLogger, hook := test.NewNullLogger()
-	nullLogger.SetLevel(logrus.DebugLevel)
+	nullLogger, hook := logtest.New()
 
-	entry := logrus.NewEntry(nullLogger)
 	req := httptest.NewRequest(http.MethodGet, "/test-panic", nil)
-	ctx := context.WithValue(req.Context(), contextkeys.Logger, entry)
+	ctx := context.WithValue(req.Context(), contextkeys.Logger, nullLogger)
 	req = req.WithContext(ctx)
 
 	panicHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -36,10 +34,10 @@ func TestPanicLoggerMiddleware_PanicWithString(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 
 	// Exactly one log entry
-	require.Len(t, hook.Entries, 1)
+	require.Len(t, hook.AllEntries(), 1)
 
-	entry0 := hook.Entries[0]
-	assert.Equal(t, logrus.ErrorLevel, entry0.Level)
+	entry0 := hook.AllEntries()[0]
+	assert.Equal(t, slog.LevelError, entry0.Level)
 	assert.Equal(t, "recovered from panic", entry0.Message)
 
 	// Verify required fields
@@ -49,12 +47,10 @@ func TestPanicLoggerMiddleware_PanicWithString(t *testing.T) {
 }
 
 func TestPanicLoggerMiddleware_PanicWithError(t *testing.T) {
-	nullLogger, hook := test.NewNullLogger()
-	nullLogger.SetLevel(logrus.DebugLevel)
+	nullLogger, hook := logtest.New()
 
-	entry := logrus.NewEntry(nullLogger)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/crash", nil)
-	ctx := context.WithValue(req.Context(), contextkeys.Logger, entry)
+	ctx := context.WithValue(req.Context(), contextkeys.Logger, nullLogger)
 	req = req.WithContext(ctx)
 
 	panicErr := errors.New("database connection lost")
@@ -68,10 +64,10 @@ func TestPanicLoggerMiddleware_PanicWithError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 
-	require.Len(t, hook.Entries, 1)
+	require.Len(t, hook.AllEntries(), 1)
 
-	entry0 := hook.Entries[0]
-	assert.Equal(t, logrus.ErrorLevel, entry0.Level)
+	entry0 := hook.AllEntries()[0]
+	assert.Equal(t, slog.LevelError, entry0.Level)
 	assert.Equal(t, "recovered from panic", entry0.Message)
 
 	assert.Equal(t, "panic", entry0.Data["event"])
@@ -82,12 +78,10 @@ func TestPanicLoggerMiddleware_PanicWithError(t *testing.T) {
 }
 
 func TestPanicLoggerMiddleware_ErrAbortHandlerIsRepanicked(t *testing.T) {
-	nullLogger, hook := test.NewNullLogger()
-	nullLogger.SetLevel(logrus.DebugLevel)
+	nullLogger, hook := logtest.New()
 
-	entry := logrus.NewEntry(nullLogger)
 	req := httptest.NewRequest(http.MethodGet, "/abort", nil)
-	ctx := context.WithValue(req.Context(), contextkeys.Logger, entry)
+	ctx := context.WithValue(req.Context(), contextkeys.Logger, nullLogger)
 	req = req.WithContext(ctx)
 
 	abortHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,16 +97,14 @@ func TestPanicLoggerMiddleware_ErrAbortHandlerIsRepanicked(t *testing.T) {
 	})
 
 	// No log entry should be emitted for intentional aborts.
-	assert.Empty(t, hook.Entries)
+	assert.Empty(t, hook.AllEntries())
 }
 
 func TestPanicLoggerMiddleware_NoPanic(t *testing.T) {
-	nullLogger, hook := test.NewNullLogger()
-	nullLogger.SetLevel(logrus.DebugLevel)
+	nullLogger, hook := logtest.New()
 
-	entry := logrus.NewEntry(nullLogger)
 	req := httptest.NewRequest(http.MethodGet, "/healthy", nil)
-	ctx := context.WithValue(req.Context(), contextkeys.Logger, entry)
+	ctx := context.WithValue(req.Context(), contextkeys.Logger, nullLogger)
 	req = req.WithContext(ctx)
 
 	successHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -126,5 +118,5 @@ func TestPanicLoggerMiddleware_NoPanic(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	// No log entries when no panic occurs
-	assert.Empty(t, hook.Entries)
+	assert.Empty(t, hook.AllEntries())
 }

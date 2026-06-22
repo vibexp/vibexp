@@ -3,9 +3,8 @@ package channels
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -25,14 +24,14 @@ type NotificationEmailSender interface {
 type EmailChannel struct {
 	emailSender NotificationEmailSender
 	digestRepo  repositories.NotificationDigestQueueRepository
-	logger      *logrus.Logger
+	logger      *slog.Logger
 }
 
 // NewEmailChannel creates a new EmailChannel
 func NewEmailChannel(
 	emailSender NotificationEmailSender,
 	digestRepo repositories.NotificationDigestQueueRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *EmailChannel {
 	return &EmailChannel{
 		emailSender: emailSender,
@@ -93,11 +92,11 @@ func (c *EmailChannel) deliverInstant(
 
 	if err := c.emailSender.SendNotificationEmail(user.Email, subject, htmlBody); err != nil {
 		if c.logger != nil {
-			c.logger.WithFields(logrus.Fields{
-				"notification_id":   n.ID,
-				"recipient_user_id": n.RecipientUserID,
-				"error":             err.Error(),
-			}).Error("Failed to send instant notification email")
+			c.logger.With(
+				"notification_id", n.ID,
+				"recipient_user_id", n.RecipientUserID,
+				"error", err.Error(),
+			).Error("Failed to send instant notification email")
 		}
 
 		return notifications.DeliveryResult{
@@ -118,12 +117,12 @@ func (c *EmailChannel) enqueueDigest(
 
 	if err := c.digestRepo.Enqueue(ctx, user.ID, n.ID, scheduledFor); err != nil {
 		if c.logger != nil {
-			c.logger.WithFields(logrus.Fields{
-				"notification_id":   n.ID,
-				"recipient_user_id": n.RecipientUserID,
-				"scheduled_for":     scheduledFor,
-				"error":             fmt.Sprintf("%+v", err),
-			}).Error("Failed to enqueue notification for digest")
+			c.logger.With(
+				"notification_id", n.ID,
+				"recipient_user_id", n.RecipientUserID,
+				"scheduled_for", scheduledFor,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to enqueue notification for digest")
 		}
 
 		return notifications.DeliveryResult{

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -24,10 +23,10 @@ func (s *Server) extractPromptArguments(body string, userID string) []*mcp.Promp
 	// Note: ExtractAllPlaceholders doesn't require teamID as it operates on prompt body content
 	placeholders, err := s.container.PromptService().ExtractAllPlaceholders(userID, body, make(map[string]bool))
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Warn("Failed to extract placeholders for MCP prompt arguments")
+		s.logger.With(
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to extract placeholders for MCP prompt arguments")
 		return nil
 	}
 
@@ -62,10 +61,10 @@ func (s *Server) addUserPromptsToMCP(ctx context.Context, mcpServer *mcp.Server,
 	for {
 		listResp, err := s.container.TeamService().ListTeams(ctx, userID, page, promptsListPageSize)
 		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"user_id": userID,
-				"error":   fmt.Sprintf("%+v", err),
-			}).Error("Failed to list teams for MCP prompts")
+			s.logger.With(
+				"user_id", userID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to list teams for MCP prompts")
 			return
 		}
 
@@ -80,10 +79,10 @@ func (s *Server) addUserPromptsToMCP(ctx context.Context, mcpServer *mcp.Server,
 		page++
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"user_id":      userID,
-		"prompt_count": total,
-	}).Info("Added user prompts to MCP server across teams")
+	s.logger.With(
+		"user_id", userID,
+		"prompt_count", total,
+	).Info("Added user prompts to MCP server across teams")
 }
 
 // addTeamPromptsToMCP registers one team's published, MCP-exposed prompts and
@@ -104,11 +103,11 @@ func (s *Server) addTeamPromptsToMCP(
 
 	promptResponse, err := s.container.PromptService().ListPrompts(userID, filters)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to load team prompts for MCP")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to load team prompts for MCP")
 		return 0
 	}
 
@@ -175,12 +174,12 @@ func (s *Server) handleMCPPromptRequestWithTeam(
 	// Render the prompt using the prompt service
 	renderedResponse, err := s.container.PromptService().RenderPrompt(userID, teamID, promptData.Slug, placeholders)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"user_id":     userID,
-			"team_id":     teamID,
-			"prompt_slug": promptData.Slug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Error("Failed to render prompt for MCP request")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"prompt_slug", promptData.Slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to render prompt for MCP request")
 		return nil, fmt.Errorf("failed to render prompt: %w", err)
 	}
 

@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
@@ -23,12 +22,13 @@ func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCreateArtifact",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("Create artifact request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreateArtifact",
+		"user_id", userID,
+		"team_id", teamID,
+	).
+		Info("Create artifact request received")
 
 	var req models.CreateArtifactRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -81,14 +81,14 @@ func (s *Server) handleGetArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleGetArtifact",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"project_id": decodedProjectID,
-		"slug":       decodedSlug,
-	}).Info("Get artifact request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetArtifact",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+	).Info("Get artifact request received")
 
 	artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlug(userID, decodedProjectID, decodedSlug)
 	if err != nil {
@@ -105,24 +105,25 @@ func (s *Server) handleListArtifacts(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleListArtifacts",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("List artifacts request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListArtifacts",
+		"user_id", userID,
+		"team_id", teamID,
+	).
+		Info("List artifacts request received")
 
 	filters := s.buildArtifactFilters(r, "", teamID)
 
 	response, listErr := s.container.ArtifactService().ListArtifacts(userID, filters)
 	if listErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleListArtifacts",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", listErr),
-		}).Error("Failed to list artifacts")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListArtifacts",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", listErr),
+		).Error("Failed to list artifacts")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to list artifacts", http.StatusInternalServerError)
 		return
@@ -149,26 +150,26 @@ func (s *Server) handleListArtifactsByProject(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleListArtifactsByProject",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"project_id": decodedProjectID,
-	}).Info("List artifacts by project request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListArtifactsByProject",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", decodedProjectID,
+	).Info("List artifacts by project request received")
 
 	filters := s.buildArtifactFilters(r, decodedProjectID, teamID)
 
 	response, listErr := s.container.ArtifactService().ListArtifacts(userID, filters)
 	if listErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"handler":    "handleListArtifactsByProject",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": decodedProjectID,
-			"error":      fmt.Sprintf("%+v", listErr),
-		}).Error("Failed to list artifacts by project")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListArtifactsByProject",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", decodedProjectID,
+			"error", fmt.Sprintf("%+v", listErr),
+		).Error("Failed to list artifacts by project")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to list artifacts", http.StatusInternalServerError)
 		return
@@ -194,14 +195,14 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleUpdateArtifact",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"project_id": decodedProjectID,
-		"slug":       decodedSlug,
-	}).Info("Update artifact request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUpdateArtifact",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+	).Info("Update artifact request received")
 
 	// Check resource limit before allowing update
 	if !s.checkArtifactResourceLimit(w, r.Context(), userID) {
@@ -252,14 +253,14 @@ func (s *Server) handleDeleteArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleDeleteArtifact",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"project_id": decodedProjectID,
-		"slug":       decodedSlug,
-	}).Info("Delete artifact request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDeleteArtifact",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+	).Info("Delete artifact request received")
 
 	artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlug(userID, decodedProjectID, decodedSlug)
 	if err != nil {
@@ -294,22 +295,23 @@ func (s *Server) handleGetArtifactStats(w http.ResponseWriter, r *http.Request) 
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetArtifactStats",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("Get artifact stats request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetArtifactStats",
+		"user_id", userID,
+		"team_id", teamID,
+	).
+		Info("Get artifact stats request received")
 
 	stats, err := s.container.ArtifactService().GetArtifactStats(userID, teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetArtifactStats",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get artifact stats")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetArtifactStats",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get artifact stats")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to get artifact stats", http.StatusInternalServerError)
 		return
@@ -336,14 +338,14 @@ func (s *Server) handleListArtifactVersions(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleListArtifactVersions",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"project_id": decodedProjectID,
-		"slug":       decodedSlug,
-	}).Info("List artifact versions request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListArtifactVersions",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+	).Info("List artifact versions request received")
 
 	versions, err := s.container.ArtifactService().ListArtifactVersionsInTeam(
 		userID, teamID, decodedProjectID, decodedSlug,
@@ -379,15 +381,15 @@ func (s *Server) handleGetArtifactVersion(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":        "vibexp-api",
-		"handler":        "handleGetArtifactVersion",
-		"user_id":        userID,
-		"team_id":        teamID,
-		"project_id":     decodedProjectID,
-		"slug":           decodedSlug,
-		"version_number": versionNumber,
-	}).Info("Get artifact version request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetArtifactVersion",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+		"version_number", versionNumber,
+	).Info("Get artifact version request received")
 
 	version, err := s.container.ArtifactService().GetArtifactVersionInTeam(
 		userID, teamID, decodedProjectID, decodedSlug, versionNumber,
@@ -423,15 +425,15 @@ func (s *Server) handleRestoreArtifactVersion(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":        "vibexp-api",
-		"handler":        "handleRestoreArtifactVersion",
-		"user_id":        userID,
-		"team_id":        teamID,
-		"project_id":     decodedProjectID,
-		"slug":           decodedSlug,
-		"version_number": versionNumber,
-	}).Info("Restore artifact version request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleRestoreArtifactVersion",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", decodedProjectID,
+		"slug", decodedSlug,
+		"version_number", versionNumber,
+	).Info("Restore artifact version request received")
 
 	artifact, err := s.container.ArtifactService().RestoreArtifactVersionInTeam(
 		userID, teamID, decodedProjectID, decodedSlug, versionNumber,
@@ -462,14 +464,14 @@ func (s *Server) parseVersionNumber(w http.ResponseWriter, raw string) (int, boo
 // handleArtifactVersionError maps content-version lookup errors to HTTP responses,
 // distinguishing a missing artifact/version (404) from other failures (500).
 func (s *Server) handleArtifactVersionError(w http.ResponseWriter, userID, projectID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "artifactVersion",
-		"user_id":    userID,
-		"project_id": projectID,
-		"slug":       slug,
-		"error":      fmt.Sprintf("%+v", err),
-	}).Error("Failed to process artifact version request")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "artifactVersion",
+		"user_id", userID,
+		"project_id", projectID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to process artifact version request")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Not found", http.StatusNotFound)
@@ -582,12 +584,12 @@ func (s *Server) validateArtifactType(
 	}
 	valid, err := s.container.TypeService().ValidateType(ctx, teamID, "artifacts", *artifactType)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"handler": "validateArtifactType",
-			"team_id": teamID,
-			"type":    *artifactType,
-			"error":   err.Error(),
-		}).Error("Failed to validate artifact type")
+		s.logger.With(
+			"handler", "validateArtifactType",
+			"team_id", teamID,
+			"type", *artifactType,
+			"error", err.Error(),
+		).Error("Failed to validate artifact type")
 		writeErrorResponse(w, nil, "internal_error", "Failed to validate artifact type", http.StatusInternalServerError)
 		return false
 	}
@@ -618,23 +620,23 @@ func (s *Server) validateArtifactStatus(w http.ResponseWriter, status *string) b
 func (s *Server) checkArtifactResourceLimit(w http.ResponseWriter, ctx context.Context, userID string) bool {
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, "artifact")
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "checkArtifactResourceLimit",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to check resource limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "checkArtifactResourceLimit",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to check resource limit")
 		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
 		return false
 	}
 
 	if !allowed {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"handler":       "checkArtifactResourceLimit",
-			"user_id":       userID,
-			"resource_type": "artifact",
-		}).Warn("User has reached their artifact limit")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "checkArtifactResourceLimit",
+			"user_id", userID,
+			"resource_type", "artifact",
+		).Warn("User has reached their artifact limit")
 		writeErrorResponse(
 			w, nil, "resource_limit_exceeded",
 			"You have reached the maximum number of artifacts allowed for your subscription plan",
@@ -648,12 +650,12 @@ func (s *Server) checkArtifactResourceLimit(w http.ResponseWriter, ctx context.C
 
 // handleCreateArtifactError handles errors from artifact creation
 func (s *Server) handleCreateArtifactError(w http.ResponseWriter, userID string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCreateArtifact",
-		"user_id": userID,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to create artifact")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreateArtifact",
+		"user_id", userID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to create artifact")
 
 	if strings.Contains(err.Error(), "already exists") {
 		writeErrorResponse(w, nil, "conflict", "An artifact with this slug already exists", http.StatusConflict)
@@ -700,14 +702,14 @@ func (s *Server) decodeArtifactURLParams(w http.ResponseWriter, userID, handler,
 
 // handleGetArtifactError handles errors from getting an artifact
 func (s *Server) handleGetArtifactError(w http.ResponseWriter, userID, projectID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleGetArtifact",
-		"user_id":    userID,
-		"project_id": projectID,
-		"slug":       slug,
-		"error":      fmt.Sprintf("%+v", err),
-	}).Error("Failed to get artifact")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetArtifact",
+		"user_id", userID,
+		"project_id", projectID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to get artifact")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Artifact not found", http.StatusNotFound)
@@ -719,14 +721,14 @@ func (s *Server) handleGetArtifactError(w http.ResponseWriter, userID, projectID
 
 // handleUpdateArtifactError handles errors from artifact update
 func (s *Server) handleUpdateArtifactError(w http.ResponseWriter, userID, projectID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleUpdateArtifact",
-		"user_id":    userID,
-		"project_id": projectID,
-		"slug":       slug,
-		"error":      fmt.Sprintf("%+v", err),
-	}).Error("Failed to update artifact")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUpdateArtifact",
+		"user_id", userID,
+		"project_id", projectID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to update artifact")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Artifact not found", http.StatusNotFound)
@@ -804,33 +806,28 @@ func extractMetadataFromQuery(query url.Values) map[string]string {
 func (s *Server) deleteArtifactEmbeddings(userID, artifactID, projectID, slug string) {
 	err := s.container.EmbeddingService().DeleteEmbeddingsByEntity("artifact", artifactID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "handleDeleteArtifact",
-			"user_id":     userID,
-			"artifact_id": artifactID,
-			"project_id":  projectID,
-			"slug":        slug,
-			"error":       fmt.Sprintf("%+v", err),
-		}).Warn("Failed to delete artifact embeddings (non-fatal)")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeleteArtifact",
+			"user_id", userID,
+			"artifact_id", artifactID,
+			"project_id", projectID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete artifact embeddings (non-fatal)")
 	}
 }
 
 // logArtifactError logs an artifact error and writes error response
 func (s *Server) logArtifactError(w http.ResponseWriter, handler, userID, projectID, slug string,
 	err error, logMsg, errCode, errMsg string, statusCode int) {
-	fields := logrus.Fields{
-		"service": "vibexp-api",
-		"handler": handler,
-		"user_id": userID,
-		"error":   fmt.Sprintf("%+v", err),
-	}
+	fields := []any{"service", "vibexp-api", "handler", handler, "user_id", userID, "error", fmt.Sprintf("%+v", err)}
 	if projectID != "" {
-		fields["project_id"] = projectID
+		fields = append(fields, "project_id", projectID)
 	}
 	if slug != "" {
-		fields["slug"] = slug
+		fields = append(fields, "slug", slug)
 	}
-	s.logger.WithFields(fields).Error(logMsg)
+	s.logger.With(fields...).Error(logMsg)
 	writeErrorResponse(w, nil, errCode, errMsg, statusCode)
 }

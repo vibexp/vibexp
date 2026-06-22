@@ -5,18 +5,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
 func createTestProjectService(repo repositories.ProjectRepository) *ProjectService {
-	return NewProjectService(repo, nil, nil, func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }())
+	return NewProjectService(repo, nil, nil, func() *slog.Logger { l, _ := logtest.New(); return l }())
 }
 
 func createTestProject() *models.Project {
@@ -176,7 +177,10 @@ func TestProjectService_GetProjectBySlug(t *testing.T) {
 			slug:   "test-project",
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				project := createTestProject()
-				mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+				mockRepo.EXPECT().
+					GetBySlug(mock.Anything, "team-123", "user-123", "test-project").
+					Return(project, nil).
+					Once()
 			},
 			expected:  createTestProject(),
 			expectErr: false,
@@ -241,9 +245,12 @@ func TestProjectService_ListProjects(t *testing.T) {
 			},
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				projects := []models.Project{*createTestProject()}
-				mockRepo.EXPECT().List(mock.Anything, "user-123", mock.MatchedBy(func(f repositories.ProjectListFilters) bool {
-					return f.TeamID == "team-123" && f.Page == 1 && f.Limit == 10
-				})).Return(projects, 1, nil).Once()
+				mockRepo.EXPECT().
+					List(mock.Anything, "user-123", mock.MatchedBy(func(f repositories.ProjectListFilters) bool {
+						return f.TeamID == "team-123" && f.Page == 1 && f.Limit == 10
+					})).
+					Return(projects, 1, nil).
+					Once()
 			},
 			expectErr: false,
 			expectLen: 1,
@@ -259,9 +266,12 @@ func TestProjectService_ListProjects(t *testing.T) {
 			},
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				projects := []models.Project{*createTestProject()}
-				mockRepo.EXPECT().List(mock.Anything, "user-123", mock.MatchedBy(func(f repositories.ProjectListFilters) bool {
-					return f.Search == "test" && f.TeamID == "team-123" && f.Page == 1 && f.Limit == 10
-				})).Return(projects, 1, nil).Once()
+				mockRepo.EXPECT().
+					List(mock.Anything, "user-123", mock.MatchedBy(func(f repositories.ProjectListFilters) bool {
+						return f.Search == "test" && f.TeamID == "team-123" && f.Page == 1 && f.Limit == 10
+					})).
+					Return(projects, 1, nil).
+					Once()
 			},
 			expectErr: false,
 			expectLen: 1,
@@ -275,7 +285,10 @@ func TestProjectService_ListProjects(t *testing.T) {
 				Limit:  10,
 			},
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
-				mockRepo.EXPECT().List(mock.Anything, "user-123", mock.Anything).Return([]models.Project{}, 0, nil).Once()
+				mockRepo.EXPECT().
+					List(mock.Anything, "user-123", mock.Anything).
+					Return([]models.Project{}, 0, nil).
+					Once()
 			},
 			expectErr: false,
 			expectLen: 0,
@@ -338,7 +351,10 @@ func TestProjectService_UpdateProject(t *testing.T) {
 			request: createTestUpdateProjectRequest(),
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				project := createTestProject()
-				mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+				mockRepo.EXPECT().
+					GetBySlug(mock.Anything, "team-123", "user-123", "test-project").
+					Return(project, nil).
+					Once()
 				mockRepo.EXPECT().Update(mock.Anything, mock.MatchedBy(func(p *models.Project) bool {
 					return p.Name == "Updated Project" &&
 						p.Description == "Updated description" &&
@@ -358,7 +374,10 @@ func TestProjectService_UpdateProject(t *testing.T) {
 			}(),
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				project := createTestProject()
-				mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+				mockRepo.EXPECT().
+					GetBySlug(mock.Anything, "team-123", "user-123", "test-project").
+					Return(project, nil).
+					Once()
 				mockRepo.EXPECT().Update(mock.Anything, mock.MatchedBy(func(p *models.Project) bool {
 					return p.Slug == "new-slug"
 				})).Return(nil).Once()
@@ -386,7 +405,10 @@ func TestProjectService_UpdateProject(t *testing.T) {
 			request: createTestUpdateProjectRequest(),
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				project := createTestProject()
-				mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+				mockRepo.EXPECT().
+					GetBySlug(mock.Anything, "team-123", "user-123", "test-project").
+					Return(project, nil).
+					Once()
 				mockRepo.EXPECT().Update(mock.Anything, mock.Anything).
 					Return(fmt.Errorf("database error")).Once()
 			},
@@ -404,7 +426,10 @@ func TestProjectService_UpdateProject(t *testing.T) {
 			}(),
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				project := createTestProject()
-				mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+				mockRepo.EXPECT().
+					GetBySlug(mock.Anything, "team-123", "user-123", "test-project").
+					Return(project, nil).
+					Once()
 				mockRepo.EXPECT().Update(mock.Anything, mock.Anything).
 					Return(fmt.Errorf("project with slug 'existing-slug' already exists")).Once()
 			},
@@ -451,7 +476,10 @@ func TestProjectService_DeleteProject(t *testing.T) {
 			slug:   "test-project",
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				project := createTestProject()
-				mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+				mockRepo.EXPECT().
+					GetBySlug(mock.Anything, "team-123", "user-123", "test-project").
+					Return(project, nil).
+					Once()
 				mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").Return(2, nil).Once()
 				mockRepo.EXPECT().Delete(mock.Anything, "team-123", "user-123", "test-project").Return(nil).Once()
 			},
@@ -465,7 +493,10 @@ func TestProjectService_DeleteProject(t *testing.T) {
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				project := createTestProject()
 				project.Slug = "last-project"
-				mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "last-project").Return(project, nil).Once()
+				mockRepo.EXPECT().
+					GetBySlug(mock.Anything, "team-123", "user-123", "last-project").
+					Return(project, nil).
+					Once()
 				mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").Return(1, nil).Once()
 			},
 			expectErr:  true,
@@ -490,7 +521,10 @@ func TestProjectService_DeleteProject(t *testing.T) {
 			slug:   "test-project",
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				project := createTestProject()
-				mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+				mockRepo.EXPECT().
+					GetBySlug(mock.Anything, "team-123", "user-123", "test-project").
+					Return(project, nil).
+					Once()
 				mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").
 					Return(0, fmt.Errorf("database error")).Once()
 			},
@@ -504,7 +538,10 @@ func TestProjectService_DeleteProject(t *testing.T) {
 			slug:   "test-project",
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				project := createTestProject()
-				mockRepo.EXPECT().GetBySlug(mock.Anything, "team-123", "user-123", "test-project").Return(project, nil).Once()
+				mockRepo.EXPECT().
+					GetBySlug(mock.Anything, "team-123", "user-123", "test-project").
+					Return(project, nil).
+					Once()
 				mockRepo.EXPECT().CountByTeamID(mock.Anything, "team-123").Return(2, nil).Once()
 				mockRepo.EXPECT().Delete(mock.Anything, "team-123", "user-123", "test-project").
 					Return(fmt.Errorf("database error")).Once()
@@ -614,7 +651,10 @@ func TestProjectService_GetProjectStats(t *testing.T) {
 					TotalMemories:   7,
 					TotalFeedItems:  1,
 				}
-				mockRepo.EXPECT().GetProjectStats(mock.Anything, "team-123", "user-123", "test-project").Return(stats, nil).Once()
+				mockRepo.EXPECT().
+					GetProjectStats(mock.Anything, "team-123", "user-123", "test-project").
+					Return(stats, nil).
+					Once()
 			},
 			expected: &models.ProjectStatsResponse{
 				TotalPrompts:    5,
@@ -632,7 +672,10 @@ func TestProjectService_GetProjectStats(t *testing.T) {
 			slug:   "empty-project",
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				stats := &models.ProjectStatsResponse{}
-				mockRepo.EXPECT().GetProjectStats(mock.Anything, "team-123", "user-123", "empty-project").Return(stats, nil).Once()
+				mockRepo.EXPECT().
+					GetProjectStats(mock.Anything, "team-123", "user-123", "empty-project").
+					Return(stats, nil).
+					Once()
 			},
 			expected:  &models.ProjectStatsResponse{},
 			expectErr: false,
@@ -644,7 +687,11 @@ func TestProjectService_GetProjectStats(t *testing.T) {
 			slug:   "nonexistent",
 			setupMock: func(mockRepo *mocks.MockProjectRepository) {
 				mockRepo.EXPECT().GetProjectStats(mock.Anything, "team-123", "user-123", "nonexistent").
-					Return(nil, fmt.Errorf("%w: slug=nonexistent team=team-123", repositories.ErrProjectNotFoundForRepo)).Once()
+					Return(
+						nil,
+						fmt.Errorf("%w: slug=nonexistent team=team-123", repositories.ErrProjectNotFoundForRepo),
+					).
+					Once()
 			},
 			expected:   nil,
 			expectErr:  true,

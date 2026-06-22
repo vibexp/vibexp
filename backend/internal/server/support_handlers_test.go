@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,9 +24,6 @@ import (
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 	"github.com/vibexp/vibexp/pkg/events"
-
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 )
 
 // MockEmailServiceForSupport is a mock implementation of EmailServiceInterface for support handler testing
@@ -181,8 +179,7 @@ func setupSupportTestServer(
 	authSvc *svcmocks.MockAuthServiceInterface,
 ) *Server {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockContainer := &MockContainerForSupport{
 		emailService: emailSvc,
@@ -297,8 +294,7 @@ func TestHandleSupportMessage_IntegrationWithoutAcknowledgement(t *testing.T) {
 func TestHandleSupportMessage_IntegrationEmailServiceError(t *testing.T) {
 	// Setup
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockEmailService := new(MockEmailServiceForSupport)
 	mockAuthService := svcmocks.NewMockAuthServiceInterface(t)
@@ -365,8 +361,7 @@ func TestHandleSupportMessage_IntegrationEmailServiceError(t *testing.T) {
 //nolint:funlen
 func TestHandleSupportMessage_ValidationErrors(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	mockEmailService := new(MockEmailServiceForSupport)
 	mockAuthService := svcmocks.NewMockAuthServiceInterface(t)

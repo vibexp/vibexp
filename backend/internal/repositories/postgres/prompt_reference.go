@@ -3,8 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -35,7 +34,7 @@ func (r *PromptReferenceRepository) CreateBatch(ctx context.Context, references 
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			logrus.WithError(err).Error("Failed to rollback transaction")
+			slog.Error("Failed to rollback transaction", "error", err)
 		}
 	}()
 
@@ -90,7 +89,7 @@ func (r *PromptReferenceRepository) GetPromptsUsingPrompt(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -130,7 +129,7 @@ func (r *PromptReferenceRepository) GetPromptsUsedByPrompt(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 

@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +15,6 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/auth/authkit"
 	"github.com/vibexp/vibexp/internal/auth/session"
@@ -89,7 +90,7 @@ type Server struct {
 	resourceAccessService resourceaccess.ResourceAccessService
 	metrics               *metrics.Metrics
 	tracer                *tracing.Tracer
-	logger                *logrus.Logger
+	logger                *slog.Logger
 	sessionManager        *session.Manager
 	// apiTokenVerifier validates AuthKit bearer JWTs on /api/v1/*. Nil when
 	// API_OAUTH_ISSUER is unset, which disables the JWT branch in the auth
@@ -108,7 +109,7 @@ type Server struct {
 }
 
 // initializeMetrics sets up OpenTelemetry metrics with the provided configuration
-func initializeMetrics(cfg *config.Config, logger *logrus.Logger) *metrics.Metrics {
+func initializeMetrics(cfg *config.Config, logger *slog.Logger) *metrics.Metrics {
 	// Service version should be set via build-time variable: -ldflags "-X main.version=1.0.0"
 	serviceVersion := "dev"
 	if v := cfg.ServiceVersion; v != "" {
@@ -123,25 +124,25 @@ func initializeMetrics(cfg *config.Config, logger *logrus.Logger) *metrics.Metri
 		metrics.WithLogger(logger),
 	)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"error":   fmt.Sprintf("%+v", err),
-		}).Warn("Failed to initialize metrics, continuing without metrics")
+		logger.With(
+			"service", "vibexp-api",
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to initialize metrics, continuing without metrics")
 		return nil
 	}
 
-	logger.WithFields(logrus.Fields{
-		"service":         "vibexp-api",
-		"version":         serviceVersion,
-		"otel_endpoint":   cfg.OTel.Endpoint,
-		"export_interval": cfg.OTel.ExportInterval.String(),
-	}).Info("OpenTelemetry metrics initialized successfully")
+	logger.With(
+		"service", "vibexp-api",
+		"version", serviceVersion,
+		"otel_endpoint", cfg.OTel.Endpoint,
+		"export_interval", cfg.OTel.ExportInterval.String(),
+	).Info("OpenTelemetry metrics initialized successfully")
 
 	return appMetrics
 }
 
 // initializeTracing sets up OpenTelemetry tracing with the provided configuration
-func initializeTracing(cfg *config.Config, logger *logrus.Logger) *tracing.Tracer {
+func initializeTracing(cfg *config.Config, logger *slog.Logger) *tracing.Tracer {
 	// Check if tracing is enabled
 	if !cfg.OTel.TracingEnabled {
 		logger.Info("OpenTelemetry tracing is disabled")
@@ -161,23 +162,23 @@ func initializeTracing(cfg *config.Config, logger *logrus.Logger) *tracing.Trace
 		tracing.WithSampleRatio(cfg.OTel.TraceSampleRatio),
 	)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"error": fmt.Sprintf("%+v", err),
-		}).Warn("Failed to initialize tracing, continuing without tracing")
+		logger.With(
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to initialize tracing, continuing without tracing")
 		return nil
 	}
 
-	logger.WithFields(logrus.Fields{
-		"version":       serviceVersion,
-		"otel_endpoint": cfg.OTel.Endpoint,
-		"sample_ratio":  cfg.OTel.TraceSampleRatio,
-	}).Info("OpenTelemetry tracing initialized successfully")
+	logger.With(
+		"version", serviceVersion,
+		"otel_endpoint", cfg.OTel.Endpoint,
+		"sample_ratio", cfg.OTel.TraceSampleRatio,
+	).Info("OpenTelemetry tracing initialized successfully")
 
 	return appTracer
 }
 
 //nolint:funlen // Server constructor initialises many subsystems; factoring them out reduces readability
-func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger *logrus.Logger) *Server {
+func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger *slog.Logger) *Server {
 	r := chi.NewRouter()
 
 	// Initialize OpenTelemetry metrics
@@ -226,8 +227,8 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 	}
 
 	// Other middleware
-	r.Use(RequestIDMiddleware(logger, cfg)) // Custom request ID + Cloud Trace integration
-	r.Use(structuredRequestLogger(logger))  // Structured JSON request-completion log (replaces middleware.Logger)
+	r.Use(RequestIDMiddleware(logger))     // Request ID (honors inbound X-Request-ID) + request-scoped logger
+	r.Use(structuredRequestLogger(logger)) // Structured request-completion log (replaces middleware.Logger)
 	// middleware.RealIP trusts X-Forwarded-For/X-Real-IP; only safe behind a
 	// trusted reverse proxy (chi deprecation GHSA-3fxj-6jh8-hvhx).
 	r.Use(middleware.RealIP) //nolint:staticcheck // safe only behind a trusted proxy
@@ -236,10 +237,11 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 
 	c, err := container.InitializeContainer(db, cfg, logger)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"error":   fmt.Sprintf("%+v", err),
-		}).Fatal("Failed to initialize container")
+		logger.With(
+			"service", "vibexp-api",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to initialize container")
+		os.Exit(1)
 	}
 
 	// Build the session manager. IsDevelopment uses FrontendBaseURL heuristic;
@@ -251,10 +253,11 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 		isLocal := envSvc != nil && envSvc.IsDevelopment()
 		sessMgr, err = session.NewManager(cfg.WorkOSCookiePassword, isLocal)
 		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"service": "vibexp-api",
-				"error":   fmt.Sprintf("%+v", err),
-			}).Fatal("Failed to initialize session manager")
+			logger.With(
+				"service", "vibexp-api",
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to initialize session manager")
+			os.Exit(1)
 		}
 		logger.Info("Session manager initialized")
 	} else {
@@ -296,7 +299,7 @@ func setupAttachmentAuthorizers(c container.Container) *services.AttachmentAutho
 // newAPITokenVerifier builds the API-surface AuthKit JWT verifier. When
 // API_OAUTH_ISSUER is empty it returns nil and the auth middleware keeps
 // rejecting non-API-key bearer tokens, preserving pre-mobile behavior.
-func newAPITokenVerifier(cfg *config.Config, c container.Container, logger *logrus.Logger) *authkit.Verifier {
+func newAPITokenVerifier(cfg *config.Config, c container.Container, logger *slog.Logger) *authkit.Verifier {
 	if cfg.APIOAuthIssuer == "" {
 		return nil
 	}
@@ -308,10 +311,11 @@ func newAPITokenVerifier(cfg *config.Config, c container.Container, logger *logr
 		userResolverAdapter{users: c.UserRepository()},
 	)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"error":   fmt.Sprintf("%+v", err),
-		}).Fatal("Failed to initialize API OAuth token verifier")
+		logger.With(
+			"service", "vibexp-api",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to initialize API OAuth token verifier")
+		os.Exit(1)
 	}
 	logger.Info("API OAuth bearer JWT authentication enabled")
 	return verifier
@@ -352,7 +356,7 @@ func (s *Server) setupResourceUsageRoutes(r chi.Router) {
 	resourceUsageService := s.container.ResourceUsageService()
 	// Skip if resource usage service is not available
 	if resourceUsageService == nil {
-		s.logger.Warning("Resource usage service not available, skipping route setup")
+		s.logger.Warn("Resource usage service not available, skipping route setup")
 		return
 	}
 
@@ -972,25 +976,25 @@ func (s *Server) teamValidationMiddleware() func(http.Handler) http.Handler {
 
 func (s *Server) handlePing(w http.ResponseWriter, r *http.Request) {
 	logger := contextkeys.GetLoggerFromContext(r.Context())
-	logger.WithFields(logrus.Fields{
-		"handler":    "handlePing",
-		"user_agent": r.Header.Get("User-Agent"),
-		"remote_ip":  r.RemoteAddr,
-	}).Info("Ping endpoint accessed")
+	logger.With(
+		"handler", "handlePing",
+		"user_agent", r.Header.Get("User-Agent"),
+		"remote_ip", r.RemoteAddr,
+	).Info("Ping endpoint accessed")
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("pong")); err != nil {
-		logger.WithError(err).Error("Failed to write response")
+		logger.With("error", err).Error("Failed to write response")
 	}
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	logger := contextkeys.GetLoggerFromContext(r.Context())
-	logger.WithFields(logrus.Fields{
-		"handler":    "handleHealth",
-		"user_agent": r.Header.Get("User-Agent"),
-		"remote_ip":  r.RemoteAddr,
-	}).Info("Health endpoint accessed")
+	logger.With(
+		"handler", "handleHealth",
+		"user_agent", r.Header.Get("User-Agent"),
+		"remote_ip", r.RemoteAddr,
+	).Info("Health endpoint accessed")
 
 	sha := s.config.ReleaseSHA
 	if len(sha) > 8 {
@@ -1027,7 +1031,7 @@ func (s *Server) Start(ctx context.Context) error {
 		if s.tracer != nil {
 			s.logger.Info("Shutting down tracer provider...")
 			if err := s.tracer.Shutdown(shutdownCtx); err != nil {
-				s.logger.WithError(err).Error("Tracer shutdown error")
+				s.logger.Error("Tracer shutdown error", "error", err)
 			}
 		}
 
@@ -1035,15 +1039,15 @@ func (s *Server) Start(ctx context.Context) error {
 		if s.metrics != nil {
 			s.logger.Info("Shutting down metrics provider...")
 			if err := s.metrics.Shutdown(shutdownCtx); err != nil {
-				s.logger.WithError(err).Error("Metrics shutdown error")
+				s.logger.Error("Metrics shutdown error", "error", err)
 			}
 		}
 
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			s.logger.WithError(err).Error("Server shutdown error")
+			s.logger.Error("Server shutdown error", "error", err)
 		}
 	}()
 
-	s.logger.WithField("port", s.port).Info("Starting server")
+	s.logger.With("port", s.port).Info("Starting server")
 	return srv.ListenAndServe()
 }

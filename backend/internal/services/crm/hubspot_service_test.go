@@ -3,12 +3,12 @@ package crm
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ func writeString(t *testing.T, w http.ResponseWriter, s string) {
 }
 
 func TestNewHubSpotService(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	assert.NotNil(t, service)
@@ -45,7 +45,7 @@ func TestNewHubSpotService_NilLogger(t *testing.T) {
 }
 
 func TestBuildContactProperties(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	createdAt := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -73,7 +73,7 @@ func TestBuildContactProperties(t *testing.T) {
 }
 
 func TestBuildContactProperties_MinimalData(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	contactData := ContactData{
@@ -93,7 +93,7 @@ func TestBuildContactProperties_MinimalData(t *testing.T) {
 }
 
 func TestMapSubscriptionStatusToLifecycleStage(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	tests := []struct {
@@ -119,7 +119,7 @@ func TestMapSubscriptionStatusToLifecycleStage(t *testing.T) {
 }
 
 func TestCalculateBackoff(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	// Test that backoff increases with attempt number
@@ -136,8 +136,7 @@ func TestCalculateBackoff(t *testing.T) {
 }
 
 func TestMakeRequest_InvalidURL(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	ctx := context.Background()
@@ -149,8 +148,7 @@ func TestMakeRequest_InvalidURL(t *testing.T) {
 }
 
 func TestCreateContact_ContextCancellation(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	// Create a cancelled context
@@ -169,8 +167,7 @@ func TestCreateContact_ContextCancellation(t *testing.T) {
 }
 
 func TestUpdateContact_ContextCancellation(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	// Create a cancelled context
@@ -189,8 +186,7 @@ func TestUpdateContact_ContextCancellation(t *testing.T) {
 }
 
 func TestGetContactByEmail_ContextCancellation(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	// Create a cancelled context
@@ -205,7 +201,7 @@ func TestGetContactByEmail_ContextCancellation(t *testing.T) {
 }
 
 func TestBuildContactProperties_EmptyValues(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	contactData := ContactData{}
@@ -219,7 +215,7 @@ func TestBuildContactProperties_EmptyValues(t *testing.T) {
 }
 
 func TestBuildContactProperties_Timestamps(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	createdAt := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -235,7 +231,7 @@ func TestBuildContactProperties_Timestamps(t *testing.T) {
 }
 
 func TestBuildContactProperties_PromptTracking(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	lastPromptCreated := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
@@ -262,7 +258,7 @@ func TestBuildContactProperties_PromptTracking(t *testing.T) {
 }
 
 func TestBuildContactProperties_AIToolIntegration(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	totalTools := 2
@@ -282,7 +278,7 @@ func TestBuildContactProperties_AIToolIntegration(t *testing.T) {
 }
 
 func TestBuildContactProperties_AIToolIntegration_SingleTool(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	totalTools := 1
@@ -300,7 +296,7 @@ func TestBuildContactProperties_AIToolIntegration_SingleTool(t *testing.T) {
 }
 
 func TestBuildContactProperties_AIToolIntegration_EmptyArray(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	contactData := ContactData{
@@ -315,7 +311,7 @@ func TestBuildContactProperties_AIToolIntegration_EmptyArray(t *testing.T) {
 }
 
 func TestBuildContactProperties_AllNewFields(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	lastPromptCreated := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
@@ -352,8 +348,7 @@ func TestHubSpotService_UpdateContact_ContactNotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 	service.baseURL = server.URL
 
@@ -379,8 +374,7 @@ func TestHubSpotService_GetContactByEmail_NotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 	service.baseURL = server.URL
 
@@ -410,8 +404,7 @@ func TestHubSpotService_GetContactByEmail_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 	service.baseURL = server.URL
 
@@ -434,8 +427,7 @@ func TestHubSpotService_CreateContact_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 	service.baseURL = server.URL
 
@@ -467,8 +459,7 @@ func TestHubSpotService_CreateContact_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 	service.baseURL = server.URL
 
@@ -485,7 +476,7 @@ func TestHubSpotService_CreateContact_Success(t *testing.T) {
 }
 
 func TestMapSubscriptionStatusToLifecycleStage_AllCases(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	tests := []struct {
@@ -520,7 +511,7 @@ func TestMapSubscriptionStatusToLifecycleStage_AllCases(t *testing.T) {
 }
 
 func TestCalculateBackoff_ExponentialGrowth(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	// Run multiple iterations to account for jitter
@@ -555,8 +546,7 @@ func TestHubSpotService_MakeRequest_WithBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	ctx := context.Background()
@@ -582,8 +572,7 @@ func TestHubSpotService_MakeRequest_GET(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 
 	ctx := context.Background()
@@ -604,8 +593,7 @@ func TestHubSpotService_MakeRequest_Unauthorized(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("invalid-token", logger)
 
 	ctx := context.Background()
@@ -643,8 +631,7 @@ func TestHubSpotService_UpdateContact_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	service := NewHubSpotService("test-token", logger)
 	service.baseURL = server.URL
 

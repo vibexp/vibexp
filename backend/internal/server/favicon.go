@@ -21,6 +21,6 @@ func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(faviconICO); err != nil {
-		contextkeys.GetLoggerFromContext(r.Context()).WithError(err).Error("Failed to write favicon response")
+		contextkeys.GetLoggerFromContext(r.Context()).Error("Failed to write favicon response", "error", err)
 	}
 }

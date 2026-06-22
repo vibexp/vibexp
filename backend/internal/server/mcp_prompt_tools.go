@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -75,12 +75,12 @@ func (s *Server) createPrompt(
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_create_prompt",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-		}).Warn("MCP tool rejected: invalid project_id")
+		slog.With(
+			"tool", "vibexp_io_create_prompt",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+		).Warn("MCP tool rejected: invalid project_id")
 		return r, nil, nil
 	}
 
@@ -97,10 +97,10 @@ func (s *Server) createPrompt(
 
 	prompt, err := s.container.PromptService().CreatePrompt(userID, teamID, createReq)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": teamID,
-		}).WithError(err).Error("Failed to create prompt via MCP")
+		slog.With(
+			"user_id", userID,
+			"team_id", teamID,
+		).With("error", err).Error("Failed to create prompt via MCP")
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to create prompt: %v", err)}},
 			IsError: true,
@@ -154,13 +154,13 @@ func (s *Server) updatePrompt(
 
 	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, params.Slug, updateReq)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_update_prompt",
-			"user_id": userID,
-			"team_id": teamID,
-			"slug":    params.Slug,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to update prompt via MCP")
+		slog.With(
+			"tool", "vibexp_io_update_prompt",
+			"user_id", userID,
+			"team_id", teamID,
+			"slug", params.Slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update prompt via MCP")
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to update prompt: %v", err)}},

@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
@@ -122,13 +122,14 @@ func (s *Server) authorizeAttachmentOwnerMCP(
 		errors.Is(err, services.ErrAttachmentOwnerAccessDenied):
 		return mcpTextError(attachmentOwnerDeniedText)
 	default:
-		logrus.WithFields(logrus.Fields{
-			"tool":       tool,
-			"user_id":    userID,
-			"team_id":    teamID,
-			"owner_type": ownerType,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to authorize attachment owner via MCP")
+		slog.Error(
+			"Failed to authorize attachment owner via MCP",
+			"tool", tool,
+			"user_id", userID,
+			"team_id", teamID,
+			"owner_type", ownerType,
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return mcpTextError("Failed to authorize attachment owner")
 	}
 }
@@ -224,13 +225,14 @@ func (s *Server) uploadAttachment(
 		File:         bytes.NewReader(decoded),
 	})
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_upload_attachment",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"owner_type": ownerType,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Warn("Failed to upload attachment via MCP")
+		slog.Warn(
+			"Failed to upload attachment via MCP",
+			"tool", "vibexp_io_upload_attachment",
+			"user_id", userID,
+			"team_id", teamID,
+			"owner_type", ownerType,
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return mcpAttachmentUploadError(err), nil, nil
 	}
 
@@ -270,13 +272,14 @@ func (s *Server) listAttachments(
 
 	resp, err := s.container.AttachmentService().List(ctx, ownerType, ownerID)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_list_attachments",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"owner_type": ownerType,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to list attachments via MCP")
+		slog.Error(
+			"Failed to list attachments via MCP",
+			"tool", "vibexp_io_list_attachments",
+			"user_id", userID,
+			"team_id", teamID,
+			"owner_type", ownerType,
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return mcpTextError("Failed to list attachments"), nil, nil
 	}
 
@@ -323,13 +326,14 @@ func (s *Server) deleteAttachment(
 		if errors.Is(err, repositories.ErrAttachmentNotFound) {
 			return mcpTextError(attachmentNotFoundText), nil, nil
 		}
-		logrus.WithFields(logrus.Fields{
-			"tool":          "vibexp_io_delete_attachment",
-			"user_id":       userID,
-			"team_id":       teamID,
-			"attachment_id": attachmentID,
-			"error":         fmt.Sprintf("%+v", err),
-		}).Error("Failed to load attachment via MCP")
+		slog.Error(
+			"Failed to load attachment via MCP",
+			"tool", "vibexp_io_delete_attachment",
+			"user_id", userID,
+			"team_id", teamID,
+			"attachment_id", attachmentID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return mcpTextError("Failed to delete attachment"), nil, nil
 	}
 
@@ -343,13 +347,14 @@ func (s *Server) deleteAttachment(
 		if errors.Is(err, repositories.ErrAttachmentNotFound) {
 			return mcpTextError(attachmentNotFoundText), nil, nil
 		}
-		logrus.WithFields(logrus.Fields{
-			"tool":          "vibexp_io_delete_attachment",
-			"user_id":       userID,
-			"team_id":       teamID,
-			"attachment_id": attachmentID,
-			"error":         fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete attachment via MCP")
+		slog.Error(
+			"Failed to delete attachment via MCP",
+			"tool", "vibexp_io_delete_attachment",
+			"user_id", userID,
+			"team_id", teamID,
+			"attachment_id", attachmentID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return mcpTextError("Failed to delete attachment"), nil, nil
 	}
 

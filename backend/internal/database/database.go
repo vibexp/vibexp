@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
-	"github.com/sirupsen/logrus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/vibexp/vibexp/internal/config"
@@ -51,7 +51,7 @@ func NewConnection(cfg *config.Config) (*DB, error) {
 	// The returned Registration is intentionally discarded here; Cloud Run
 	// processes exit cleanly on shutdown so explicit Unregister is not needed.
 	if _, err := otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(semconv.DBSystemPostgreSQL)); err != nil {
-		logrus.WithError(err).Warn("Failed to register DB stats metrics with OTel, continuing without DB pool metrics")
+		slog.Warn("Failed to register DB stats metrics with OTel, continuing without DB pool metrics", "error", err)
 	}
 
 	// Configure connection pool settings for Cloud SQL
@@ -63,7 +63,7 @@ func NewConnection(cfg *config.Config) (*DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	logrus.Info("Database connection established successfully")
+	slog.Info("Database connection established successfully")
 	return &DB{db}, nil
 }
 
@@ -73,7 +73,7 @@ func (db *DB) RunMigrations() error {
 
 	// Check if migrations directory exists
 	if _, err := filepath.Glob("migrations/*.sql"); err != nil {
-		logrus.Info("No migrations directory found, skipping migrations")
+		slog.Info("No migrations directory found, skipping migrations")
 		return nil
 	}
 
@@ -85,16 +85,16 @@ func (db *DB) RunMigrations() error {
 	m, err := migrate.NewWithDatabaseInstance(migrationsPath, "postgres", driver)
 	if err != nil {
 		// Log the actual error message for debugging duplicate migrations and other issues
-		logrus.WithField("error", err.Error()).Error("Failed to create migrate instance")
+		slog.Error("Failed to create migrate instance", "error", err.Error())
 		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		logrus.WithField("error", err.Error()).Error("Failed to apply migrations")
+		slog.Error("Failed to apply migrations", "error", err.Error())
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	logrus.Info("Database migrations completed successfully")
+	slog.Info("Database migrations completed successfully")
 	return nil
 }
 

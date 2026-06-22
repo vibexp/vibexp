@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
@@ -87,27 +86,27 @@ func (s *Server) handleGetResourceAccessMetrics(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"handler":       "handleGetResourceAccessMetrics",
-		"user_id":       userID,
-		"team_id":       teamID,
-		"resource_type": resourceType,
-		"resource_id":   resourceID,
-		"range":         rangeStr,
-	}).Info("Resource access metrics request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetResourceAccessMetrics",
+		"user_id", userID,
+		"team_id", teamID,
+		"resource_type", resourceType,
+		"resource_id", resourceID,
+		"range", rangeStr,
+	).Info("Resource access metrics request received")
 
 	result, err := s.container.ResourceAccessService().GetMetrics(r.Context(), teamID, resourceType, resourceID, rangeDays)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"handler":       "handleGetResourceAccessMetrics",
-			"user_id":       userID,
-			"team_id":       teamID,
-			"resource_type": resourceType,
-			"resource_id":   resourceID,
-			"error":         err.Error(),
-		}).Error("Failed to get resource access metrics")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetResourceAccessMetrics",
+			"user_id", userID,
+			"team_id", teamID,
+			"resource_type", resourceType,
+			"resource_id", resourceID,
+			"error", err.Error(),
+		).Error("Failed to get resource access metrics")
 		writeErrorResponse(w, r, "internal_error", "Failed to get resource access metrics", http.StatusInternalServerError)
 		return
 	}

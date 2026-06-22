@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/vibexp/vibexp/internal/services"
 )
 
@@ -36,12 +34,12 @@ func (s *Server) handleEntityEmbeddingGenerated(
 		return http.StatusInternalServerError
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"user_id":     userID,
-		"entity_type": entityType,
-		"entity_id":   entityID,
-		"model":       model,
-	}).Info("Successfully saved entity embeddings")
+	s.logger.With(
+		"user_id", userID,
+		"entity_type", entityType,
+		"entity_id", entityID,
+		"model", model,
+	).Info("Successfully saved entity embeddings")
 
 	return http.StatusOK
 }
@@ -53,12 +51,12 @@ func (s *Server) parseEmbeddingPayload(
 ) (userID, entityID, model string, chunks []services.EmbeddingChunk, status int) {
 	cfg, ok := services.GetEmbeddingEntityConfig(entityType)
 	if !ok {
-		s.logger.WithFields(logrus.Fields{
-			"service":     "vibexp-api",
-			"handler":     "entity-embedding-generated",
-			"entity_type": entityType,
-			"message_id":  messageID,
-		}).Error("Unknown entity type for embedding event")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "entity-embedding-generated",
+			"entity_type", entityType,
+			"message_id", messageID,
+		).Error("Unknown entity type for embedding event")
 		return "", "", "", nil, http.StatusBadRequest
 	}
 
@@ -67,13 +65,13 @@ func (s *Server) parseEmbeddingPayload(
 	entityID, _ = eventPayload.Payload[cfg.EntityIDField].(string)
 
 	if userID == "" || entityID == "" || model == "" {
-		s.logger.WithFields(logrus.Fields{
-			"user_id":     userID,
-			"entity_type": entityType,
-			"entity_id":   entityID,
-			"model":       model,
-			"message_id":  messageID,
-		}).Error("Invalid payload: missing required fields")
+		s.logger.With(
+			"user_id", userID,
+			"entity_type", entityType,
+			"entity_id", entityID,
+			"model", model,
+			"message_id", messageID,
+		).Error("Invalid payload: missing required fields")
 		return "", "", "", nil, http.StatusBadRequest
 	}
 
@@ -84,10 +82,13 @@ func (s *Server) parseEmbeddingPayload(
 		return "", "", "", nil, http.StatusBadRequest
 	}
 	if len(chunks) == 0 {
-		s.logger.WithFields(logrus.Fields{
-			"user_id": userID, "entity_type": entityType, "entity_id": entityID,
-			"model": model, "message_id": messageID,
-		}).Error("Invalid payload: no embedding chunks provided")
+		s.logger.With(
+			"user_id", userID,
+			"entity_type", entityType,
+			"entity_id", entityID,
+			"model", model,
+			"message_id", messageID,
+		).Error("Invalid payload: no embedding chunks provided")
 		return "", "", "", nil, http.StatusBadRequest
 	}
 
@@ -95,44 +96,44 @@ func (s *Server) parseEmbeddingPayload(
 }
 
 func (s *Server) logEmbeddingReceived(eventType, entityType, entityID, userID, model, messageID string, count int) {
-	s.logger.WithFields(logrus.Fields{
-		"service":          "vibexp-api",
-		"handler":          "entity-embedding-generated",
-		"event_type":       eventType,
-		"entity_type":      entityType,
-		"entity_id":        entityID,
-		"user_id":          userID,
-		"model":            model,
-		"embeddings_count": count,
-		"message_id":       messageID,
-	}).Info("Received entity embedding generated event")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "entity-embedding-generated",
+		"event_type", eventType,
+		"entity_type", entityType,
+		"entity_id", entityID,
+		"user_id", userID,
+		"model", model,
+		"embeddings_count", count,
+		"message_id", messageID,
+	).Info("Received entity embedding generated event")
 }
 
 // logEmbeddingEntityGone records, at WARN rather than ERROR, an embedding event
 // acked without saving because its target entity no longer exists — expected
 // when an entity is deleted between embedding generation and event delivery.
 func (s *Server) logEmbeddingEntityGone(entityType, entityID, userID, messageID string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "entity-embedding-generated",
-		"entity_type": entityType,
-		"entity_id":   entityID,
-		"user_id":     userID,
-		"message_id":  messageID,
-		"phase":       "save",
-		"error":       fmt.Sprintf("%+v", err),
-	}).Warn("Entity deleted before embedding arrived; acked event without saving")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "entity-embedding-generated",
+		"entity_type", entityType,
+		"entity_id", entityID,
+		"user_id", userID,
+		"message_id", messageID,
+		"phase", "save",
+		"error", fmt.Sprintf("%+v", err),
+	).Warn("Entity deleted before embedding arrived; acked event without saving")
 }
 
 func (s *Server) logEmbeddingError(entityType, entityID, userID, messageID, phase, msg string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service":     "vibexp-api",
-		"handler":     "entity-embedding-generated",
-		"entity_type": entityType,
-		"entity_id":   entityID,
-		"user_id":     userID,
-		"message_id":  messageID,
-		"phase":       phase,
-		"error":       fmt.Sprintf("%+v", err),
-	}).Error(msg)
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "entity-embedding-generated",
+		"entity_type", entityType,
+		"entity_id", entityID,
+		"user_id", userID,
+		"message_id", messageID,
+		"phase", phase,
+		"error", fmt.Sprintf("%+v", err),
+	).Error(msg)
 }

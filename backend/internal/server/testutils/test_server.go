@@ -1,10 +1,9 @@
 package testutils
 
 import (
+	"log/slog"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/database"
@@ -34,8 +33,7 @@ func NewTestServer(t *testing.T) *TestServer {
 	}
 
 	// Create a test logger with minimal output
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce noise in tests
+	logger := slog.New(slog.DiscardHandler)
 
 	// Create server with nil database for basic testing (ping, health endpoints)
 	srv := server.New("8080", nil, "test-api-key", cfg, logger)
@@ -64,8 +62,7 @@ func NewTestServerWithDB(t *testing.T, db *database.DB) *TestServer {
 	}
 
 	// Create a test logger with minimal output
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce noise in tests
+	logger := slog.New(slog.DiscardHandler)
 
 	srv := server.New("8080", db, "test-api-key", cfg, logger)
 	httpServer := httptest.NewServer(srv)

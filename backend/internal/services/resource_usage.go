@@ -3,8 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -34,7 +33,7 @@ type ResourceUsageService struct {
 	feedRepo             repositories.FeedRepository
 	feedItemRepo         repositories.FeedItemRepository
 	feedItemReplyRepo    repositories.FeedItemReplyRepository
-	logger               *logrus.Logger
+	logger               *slog.Logger
 }
 
 // NewResourceUsageService creates a new resource usage service
@@ -54,7 +53,7 @@ func NewResourceUsageService(
 	feedRepo repositories.FeedRepository,
 	feedItemRepo repositories.FeedItemRepository,
 	feedItemReplyRepo repositories.FeedItemReplyRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *ResourceUsageService {
 	return &ResourceUsageService{
 		userRepo:             userRepo,
@@ -239,7 +238,7 @@ func (s *ResourceUsageService) getResourceCount(ctx context.Context, userID, res
 	case events.ResourceTypeFeedItem:
 		return s.countFeedItems(ctx, userID)
 	default:
-		s.logger.WithField("resource_type", resourceType).Warn("Unknown resource type for count check")
+		s.logger.With("resource_type", resourceType).Warn("Unknown resource type for count check")
 		return 0, nil
 	}
 }
@@ -280,10 +279,12 @@ func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, use
 		// Get team details to check if it's a personal workspace
 		team, err := s.teamRepo.GetByID(ctx, membership.TeamID)
 		if err != nil {
-			s.logger.WithError(err).WithFields(logrus.Fields{
-				"user_id": userID,
-				"team_id": membership.TeamID,
-			}).Warn("Failed to get team details for quota calculation")
+			s.logger.With("error", err).
+				With(
+					"user_id", userID,
+					"team_id", membership.TeamID,
+				).
+				Warn("Failed to get team details for quota calculation")
 			continue
 		}
 
@@ -296,10 +297,11 @@ func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, use
 		teamSub, err := s.teamSubscriptionRepo.GetByTeamID(ctx, membership.TeamID)
 		if err != nil {
 			// Team might not have a subscription yet, skip gracefully
-			s.logger.WithFields(logrus.Fields{
-				"user_id": userID,
-				"team_id": membership.TeamID,
-			}).Debug("Team has no subscription, skipping quota contribution")
+			s.logger.With(
+				"user_id", userID,
+				"team_id", membership.TeamID,
+			).
+				Debug("Team has no subscription, skipping quota contribution")
 			continue
 		}
 
@@ -318,11 +320,12 @@ func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, use
 		case models.TeamTierEnterprise:
 			planName = models.PlanTeamsEnterprise
 		default:
-			s.logger.WithFields(logrus.Fields{
-				"user_id": userID,
-				"team_id": membership.TeamID,
-				"tier":    teamSub.Tier,
-			}).Warn("Unknown team tier, skipping quota contribution")
+			s.logger.With(
+				"user_id", userID,
+				"team_id", membership.TeamID,
+				"tier", teamSub.Tier,
+			).
+				Warn("Unknown team tier, skipping quota contribution")
 			continue
 		}
 
@@ -332,12 +335,12 @@ func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, use
 
 		// HIGH-02: Validate no invalid negative values (except -1 unlimited)
 		if baseQuota < -1 || perSeatBonus < 0 {
-			s.logger.WithFields(logrus.Fields{
-				"user_id":        userID,
-				"team_id":        membership.TeamID,
-				"base_quota":     baseQuota,
-				"per_seat_bonus": perSeatBonus,
-			}).Error("Invalid negative quota values detected")
+			s.logger.With(
+				"user_id", userID,
+				"team_id", membership.TeamID,
+				"base_quota", baseQuota,
+				"per_seat_bonus", perSeatBonus,
+			).Error("Invalid negative quota values detected")
 			continue
 		}
 
@@ -351,12 +354,12 @@ func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, use
 			// Prevent overflow: check if multiplication would exceed max int
 			const maxInt = int(^uint(0) >> 1)
 			if perSeatBonus > (maxInt / teamSub.SeatCount) {
-				s.logger.WithFields(logrus.Fields{
-					"user_id":        userID,
-					"team_id":        membership.TeamID,
-					"per_seat_bonus": perSeatBonus,
-					"seat_count":     teamSub.SeatCount,
-				}).Error("Integer overflow detected in per-seat quota calculation")
+				s.logger.With(
+					"user_id", userID,
+					"team_id", membership.TeamID,
+					"per_seat_bonus", perSeatBonus,
+					"seat_count", teamSub.SeatCount,
+				).Error("Integer overflow detected in per-seat quota calculation")
 				return 0, fmt.Errorf("quota calculation would overflow for team %s", membership.TeamID)
 			}
 		}
@@ -365,21 +368,23 @@ func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, use
 
 		// HIGH-03: Comprehensive unlimited quota detection
 		if teamQuota == -1 {
-			s.logger.WithFields(logrus.Fields{
-				"user_id":    userID,
-				"team_id":    membership.TeamID,
-				"team_quota": teamQuota,
-			}).Debug("Team has unlimited quota for resource type")
+			s.logger.With(
+				"user_id", userID,
+				"team_id", membership.TeamID,
+				"team_quota", teamQuota,
+			).
+				Debug("Team has unlimited quota for resource type")
 			return -1, nil
 		}
 
 		// HIGH-02: Validate calculated quota is non-negative
 		if teamQuota < 0 {
-			s.logger.WithFields(logrus.Fields{
-				"user_id":    userID,
-				"team_id":    membership.TeamID,
-				"team_quota": teamQuota,
-			}).Error("Calculated team quota is negative")
+			s.logger.With(
+				"user_id", userID,
+				"team_id", membership.TeamID,
+				"team_quota", teamQuota,
+			).
+				Error("Calculated team quota is negative")
 			continue
 		}
 
@@ -387,11 +392,12 @@ func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, use
 		if totalTeamQuota > 0 && teamQuota > 0 {
 			const maxInt = int(^uint(0) >> 1)
 			if teamQuota > (maxInt - totalTeamQuota) {
-				s.logger.WithFields(logrus.Fields{
-					"user_id":          userID,
-					"total_team_quota": totalTeamQuota,
-					"new_team_quota":   teamQuota,
-				}).Error("Integer overflow detected in total team quota accumulation")
+				s.logger.With(
+					"user_id", userID,
+					"total_team_quota", totalTeamQuota,
+					"new_team_quota", teamQuota,
+				).
+					Error("Integer overflow detected in total team quota accumulation")
 				// Return current total, skip this team to prevent overflow
 				return totalTeamQuota, nil
 			}
@@ -399,16 +405,16 @@ func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, use
 
 		totalTeamQuota += teamQuota
 
-		s.logger.WithFields(logrus.Fields{
-			"user_id":        userID,
-			"team_id":        membership.TeamID,
-			"resource_type":  resourceType,
-			"plan":           planName,
-			"base_quota":     baseQuota,
-			"per_seat_bonus": perSeatBonus,
-			"seat_count":     teamSub.SeatCount,
-			"team_quota":     teamQuota,
-		}).Debug("Calculated team quota contribution")
+		s.logger.With(
+			"user_id", userID,
+			"team_id", membership.TeamID,
+			"resource_type", resourceType,
+			"plan", planName,
+			"base_quota", baseQuota,
+			"per_seat_bonus", perSeatBonus,
+			"seat_count", teamSub.SeatCount,
+			"team_quota", teamQuota,
+		).Debug("Calculated team quota contribution")
 	}
 
 	return totalTeamQuota, nil
@@ -451,10 +457,12 @@ func (s *ResourceUsageService) GetResourceUsage(
 	for _, resourceType := range resourceTypes {
 		count, err := s.getResourceCount(ctx, userID, resourceType)
 		if err != nil {
-			s.logger.WithError(err).WithFields(logrus.Fields{
-				"user_id":       userID,
-				"resource_type": resourceType,
-			}).Error("Failed to get resource count")
+			s.logger.With("error", err).
+				With(
+					"user_id", userID,
+					"resource_type", resourceType,
+				).
+				Error("Failed to get resource count")
 
 			// Continue with other resource types even if one fails
 			count = 0
@@ -466,10 +474,12 @@ func (s *ResourceUsageService) GetResourceUsage(
 		// Get team quota contribution
 		teamQuota, err := s.getTeamQuotaContribution(ctx, userID, resourceType)
 		if err != nil {
-			s.logger.WithError(err).WithFields(logrus.Fields{
-				"user_id":       userID,
-				"resource_type": resourceType,
-			}).Warn("Failed to get team quota contribution")
+			s.logger.With("error", err).
+				With(
+					"user_id", userID,
+					"resource_type", resourceType,
+				).
+				Warn("Failed to get team quota contribution")
 			teamQuota = 0
 		}
 
@@ -588,14 +598,15 @@ func (s *ResourceUsageService) getResourceLimit(resourceType string, plan *strin
 		}
 		// If plan not found, return basic tier limit for this resource
 		if limit, ok := limits[models.PlanBasic]; ok {
-			s.logger.WithFields(logrus.Fields{
-				"resource_type": resourceType,
-				"plan_name":     planName,
-			}).Warn("Plan not found in resource limits, falling back to basic tier")
+			s.logger.With(
+				"resource_type", resourceType,
+				"plan_name", planName,
+			).
+				Warn("Plan not found in resource limits, falling back to basic tier")
 			return limit
 		}
 	}
 
-	s.logger.WithField("resource_type", resourceType).Warn("Unknown resource type for limit check")
+	s.logger.With("resource_type", resourceType).Warn("Unknown resource type for limit check")
 	return -1 // Unlimited for unknown types
 }

@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -21,10 +20,10 @@ func (s *Server) decodeCursorHookPayload(r *http.Request) (*models.IncomingCurso
 	}
 
 	userID := r.Context().Value(contextKeyUserID).(string)
-	s.logger.WithFields(logrus.Fields{
-		"raw_payload": rawPayload,
-		"user_id":     userID,
-	}).Info("Received Cursor IDE hook payload")
+	s.logger.With(
+		"raw_payload", rawPayload,
+		"user_id", userID,
+	).Info("Received Cursor IDE hook payload")
 
 	payloadBytes, err := json.Marshal(rawPayload)
 	if err != nil {
@@ -74,7 +73,7 @@ func (s *Server) checkSessionLimitAndRespond(
 	resourceUsageService := s.container.ResourceUsageService()
 	canCreateSession, err := resourceUsageService.CheckResourceLimit(r.Context(), userID, "ai_session")
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to check AI session limit")
+		s.logger.With("error", err).Error("Failed to check AI session limit")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
 		return false
 	}
@@ -91,11 +90,11 @@ func (s *Server) checkSessionLimitAndRespond(
 			}
 		}
 
-		s.logger.WithFields(logrus.Fields{
-			"user_id":       userID,
-			"current_usage": currentUsage,
-			"limit":         limit,
-		}).Warn("AI session limit reached")
+		s.logger.With(
+			"user_id", userID,
+			"current_usage", currentUsage,
+			"limit", limit,
+		).Warn("AI session limit reached")
 
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"status":  "error",
@@ -120,7 +119,7 @@ func (s *Server) checkToolLimitAndRespond(
 	resourceUsageService := s.container.ResourceUsageService()
 	canCreateTool, err := resourceUsageService.CheckResourceLimit(r.Context(), userID, "ai_tool")
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to check AI tool limit")
+		s.logger.With("error", err).Error("Failed to check AI tool limit")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
 		return false
 	}
@@ -137,11 +136,11 @@ func (s *Server) checkToolLimitAndRespond(
 			}
 		}
 
-		s.logger.WithFields(logrus.Fields{
-			"user_id":       userID,
-			"current_usage": currentUsage,
-			"limit":         limit,
-		}).Warn("AI tool limit reached")
+		s.logger.With(
+			"user_id", userID,
+			"current_usage", currentUsage,
+			"limit", limit,
+		).Warn("AI tool limit reached")
 
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"status":  "error",
@@ -180,32 +179,32 @@ func convertCursorPayloadFields(payload *models.IncomingCursorHookPayload) (
 	var err error
 	configuration, err = convertCursorFieldToJSONBData(payload.Configuration)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to convert configuration")
+		slog.Error("Failed to convert configuration", "error", err)
 	}
 
 	reference, err = convertCursorFieldToJSONBData(payload.Reference)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to convert reference")
+		slog.Error("Failed to convert reference", "error", err)
 	}
 
 	context, err = convertCursorFieldToJSONBData(payload.Context)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to convert context")
+		slog.Error("Failed to convert context", "error", err)
 	}
 
 	input, err = convertCursorFieldToJSONBData(payload.Input)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to convert input")
+		slog.Error("Failed to convert input", "error", err)
 	}
 
 	output, err = convertCursorFieldToJSONBData(payload.Output)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to convert output")
+		slog.Error("Failed to convert output", "error", err)
 	}
 
 	inducedFailure, err = convertCursorFieldToJSONBData(payload.InducedFailure)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to convert induced failure")
+		slog.Error("Failed to convert induced failure", "error", err)
 	}
 
 	return configuration, reference, context, input, output, inducedFailure
@@ -266,14 +265,14 @@ func (s *Server) checkCursorSessionAndCount(
 ) (sessionExists bool, count int, err error) {
 	sessionExists, err = repo.SessionExists(ctx, userID, sessionID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to check if session exists")
+		s.logger.With("error", err).Error("Failed to check if session exists")
 		return false, 0, err
 	}
 
 	if !sessionExists {
 		count, err = repo.CountUniqueSessions(ctx, userID)
 		if err != nil {
-			s.logger.WithError(err).Error("Failed to count Cursor IDE sessions")
+			s.logger.With("error", err).Error("Failed to count Cursor IDE sessions")
 			// Don't fail the request, just log the error
 			return sessionExists, 0, nil
 		}
@@ -291,7 +290,7 @@ func (s *Server) checkCursorResourceLimits(
 	cursorIDERepo := s.container.CursorIDEHooksRepository()
 	sessionExists, checkErr := cursorIDERepo.SessionExists(r.Context(), userID, sessionID)
 	if checkErr != nil {
-		s.logger.WithError(checkErr).Error("Failed to check if session exists")
+		s.logger.With("error", checkErr).Error("Failed to check if session exists")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to check session", s.logger)
 		return false
 	}
@@ -304,7 +303,7 @@ func (s *Server) checkCursorResourceLimits(
 
 		cursorCount, countErr := cursorIDERepo.CountUniqueSessions(r.Context(), userID)
 		if countErr != nil {
-			s.logger.WithError(countErr).Error("Failed to count Cursor IDE sessions")
+			s.logger.With("error", countErr).Error("Failed to count Cursor IDE sessions")
 			respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
 			return false
 		}
@@ -319,18 +318,20 @@ func (s *Server) checkCursorResourceLimits(
 }
 
 // handleCursorIDEHooksPost handles POST /api/v1/cursor-ide/hooks
+//
+//nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
 func (s *Server) handleCursorIDEHooksPost(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	payload, err := s.decodeCursorHookPayload(r)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to decode Cursor IDE hook payload")
+		s.logger.With("error", err).Error("Failed to decode Cursor IDE hook payload")
 		respondWithHookError(w, http.StatusBadRequest, "Invalid JSON payload", s.logger)
 		return
 	}
 
 	if validationErr := validateCursorHookPayload(payload); validationErr != nil {
-		s.logger.WithField("payload", payload).Error("Validation failed")
+		s.logger.With("payload", payload).Error("Validation failed")
 		respondWithHookError(w, http.StatusBadRequest, validationErr.Error(), s.logger)
 		return
 	}
@@ -348,28 +349,34 @@ func (s *Server) handleCursorIDEHooksPost(w http.ResponseWriter, r *http.Request
 
 	teamID, err := s.getUserDefaultTeamID(r.Context(), userID)
 	if err != nil {
-		s.logger.WithField("user_id", userID).WithError(err).Error("Failed to get user's default team")
+		s.logger.With(
+			"user_id", userID,
+			"error", err,
+		).Error("Failed to get user's default team")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to get user's team", s.logger)
 		return
 	}
 
 	hookPayload, err := prepareCursorHookPayload(userID, teamID, payload)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to prepare hook payload")
+		s.logger.With("error", err).Error("Failed to prepare hook payload")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to process payload", s.logger)
 		return
 	}
 
 	if err = repo.Create(r.Context(), hookPayload); err != nil {
-		logrus.WithError(err).Error("Failed to store Cursor IDE hook payload")
+		slog.Error("Failed to store Cursor IDE hook payload", "error", err)
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to store hook payload", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"id": hookPayload.ID, "session_id": payload.SessionID,
-		"hook_event_name": payload.HookEventName, "tool_name": payload.ToolName,
-	}).Info("Cursor IDE hook payload stored successfully")
+	slog.Info(
+		"Cursor IDE hook payload stored successfully",
+		"id", hookPayload.ID,
+		"session_id", payload.SessionID,
+		"hook_event_name", payload.HookEventName,
+		"tool_name", payload.ToolName,
+	)
 
 	if !sessionExists && cursorCount == 0 {
 		s.fireAIToolSessionEvent(r.Context(), userID, payload.SessionID, "cursor_ide", true)
@@ -404,18 +411,19 @@ func (s *Server) handleCursorIDEHooksGet(w http.ResponseWriter, r *http.Request)
 	repo := s.container.CursorIDEHooksRepository()
 	response, err := repo.List(r.Context(), filters)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to retrieve Cursor IDE hook payloads")
+		slog.Error("Failed to retrieve Cursor IDE hook payloads", "error", err)
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to retrieve hook payloads", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"page":        response.Page,
-		"limit":       response.Limit,
-		"total":       response.Total,
-		"total_pages": response.TotalPages,
-		"count":       len(response.Data),
-	}).Info("Cursor IDE hook payloads retrieved successfully")
+	slog.Info(
+		"Cursor IDE hook payloads retrieved successfully",
+		"page", response.Page,
+		"limit", response.Limit,
+		"total", response.Total,
+		"total_pages", response.TotalPages,
+		"count", len(response.Data),
+	)
 
 	respondWithJSON(w, map[string]interface{}{
 		"status":  "success",
@@ -438,18 +446,19 @@ func (s *Server) handleCursorIDESessionsGet(w http.ResponseWriter, r *http.Reque
 	repo := s.container.CursorIDEHooksRepository()
 	response, err := repo.GetSessions(r.Context(), filters)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to retrieve Cursor IDE sessions")
+		slog.Error("Failed to retrieve Cursor IDE sessions", "error", err)
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to retrieve sessions", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"page":        response.Page,
-		"limit":       response.Limit,
-		"total":       response.Total,
-		"total_pages": response.TotalPages,
-		"count":       len(response.Data),
-	}).Info("Cursor IDE sessions retrieved successfully")
+	slog.Info(
+		"Cursor IDE sessions retrieved successfully",
+		"page", response.Page,
+		"limit", response.Limit,
+		"total", response.Total,
+		"total_pages", response.TotalPages,
+		"count", len(response.Data),
+	)
 
 	respondWithJSON(w, map[string]interface{}{
 		"status":  "success",
@@ -483,16 +492,17 @@ func (s *Server) handleCursorIDESessionCountsGet(w http.ResponseWriter, r *http.
 	repo := s.container.CursorIDEHooksRepository()
 	response, err := repo.GetSessionCounts(r.Context(), userID, days)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to retrieve Cursor IDE session counts")
+		slog.Error("Failed to retrieve Cursor IDE session counts", "error", err)
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to retrieve session counts", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"total_sessions": response.TotalSessions,
-		"range_days":     days,
-		"count_entries":  len(response.Counts),
-	}).Info("Cursor IDE session counts retrieved successfully")
+	slog.Info(
+		"Cursor IDE session counts retrieved successfully",
+		"total_sessions", response.TotalSessions,
+		"range_days", days,
+		"count_entries", len(response.Counts),
+	)
 
 	writeOK(w, map[string]any{
 		"status":  "success",
@@ -511,19 +521,20 @@ func (s *Server) handleCursorIDEOverviewStatsGet(w http.ResponseWriter, r *http.
 	repo := s.container.CursorIDEHooksRepository()
 	stats, err := repo.GetOverviewStats(r.Context(), userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to retrieve overview stats")
+		slog.Error("Failed to retrieve overview stats", "error", err)
 		http.Error(w, "Failed to retrieve stats", http.StatusInternalServerError)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"total_sessions":               stats.TotalSessions,
-		"sessions_this_week":           stats.SessionsThisWeek,
-		"weekly_trend_percent":         stats.WeeklyTrendPercent,
-		"avg_user_prompts_per_session": stats.AvgUserPromptsPerSession,
-		"total_unique_tools":           stats.TotalUniqueTools,
-		"top_tools_count":              len(stats.TopTools),
-	}).Info("Cursor IDE overview stats retrieved successfully")
+	slog.Info(
+		"Cursor IDE overview stats retrieved successfully",
+		"total_sessions", stats.TotalSessions,
+		"sessions_this_week", stats.SessionsThisWeek,
+		"weekly_trend_percent", stats.WeeklyTrendPercent,
+		"avg_user_prompts_per_session", stats.AvgUserPromptsPerSession,
+		"total_unique_tools", stats.TotalUniqueTools,
+		"top_tools_count", len(stats.TopTools),
+	)
 
 	writeOK(w, map[string]any{
 		"status":  "success",
@@ -570,18 +581,19 @@ func (s *Server) handleCursorIDERecentActivitiesGet(w http.ResponseWriter, r *ht
 	repo := s.container.CursorIDEHooksRepository()
 	response, err := repo.GetRecentActivities(r.Context(), filters)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to retrieve recent Cursor IDE activities")
+		slog.Error("Failed to retrieve recent Cursor IDE activities", "error", err)
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to retrieve recent activities", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"activities_count": len(response.Activities),
-		"page":             response.Page,
-		"limit":            response.Limit,
-		"total":            response.Total,
-		"total_pages":      response.TotalPages,
-	}).Info("Cursor IDE recent activities retrieved successfully")
+	slog.Info(
+		"Cursor IDE recent activities retrieved successfully",
+		"activities_count", len(response.Activities),
+		"page", response.Page,
+		"limit", response.Limit,
+		"total", response.Total,
+		"total_pages", response.TotalPages,
+	)
 
 	respondWithJSON(w, map[string]interface{}{
 		"status":  "success",
@@ -608,10 +620,11 @@ func (s *Server) handleCursorIDESessionDelete(w http.ResponseWriter, r *http.Req
 	repo := s.container.CursorIDEHooksRepository()
 	err := repo.DeleteSession(r.Context(), userID, sessionID)
 	if err != nil {
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"user_id":    userID,
-			"session_id": sessionID,
-		}).Error("Failed to delete Cursor IDE session")
+		s.logger.With(
+			"error", err,
+			"user_id", userID,
+			"session_id", sessionID,
+		).Error("Failed to delete Cursor IDE session")
 
 		// Check if it's a "not found" error
 		if errors.Is(err, repositories.ErrHookSessionNotFound) {
@@ -623,10 +636,10 @@ func (s *Server) handleCursorIDESessionDelete(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"user_id":    userID,
-		"session_id": sessionID,
-	}).Info("Cursor IDE session deleted successfully")
+	s.logger.With(
+		"user_id", userID,
+		"session_id", sessionID,
+	).Info("Cursor IDE session deleted successfully")
 
 	writeNoContent(w)
 }

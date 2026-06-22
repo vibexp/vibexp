@@ -3,11 +3,11 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -77,7 +77,7 @@ func TestAgentInvocationService_InvokeAgent_Success(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 
@@ -143,7 +143,7 @@ func TestAgentInvocationService_InvokeAgent_AgentNotFound(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 
@@ -165,7 +165,7 @@ func TestAgentInvocationService_InvokeAgent_AgentNotActive(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 
@@ -193,7 +193,7 @@ func TestAgentInvocationService_InvokeAgent_CreateExecutionFails(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 
@@ -223,7 +223,7 @@ func TestAgentInvocationService_InvokeAgent_InvocationError(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 
@@ -271,7 +271,7 @@ func TestAgentInvocationService_InvokeAgent_UpdateExecutionFails(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 
@@ -316,7 +316,7 @@ func TestAgentInvocationService_InvokeAgent_StatsUpdateFails(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 
@@ -365,7 +365,7 @@ func TestAgentInvocationService_InvokeAgent_Streaming(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 
@@ -465,7 +465,7 @@ func TestAgentInvocationService_InvokeAgent_StreamingError(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 
@@ -524,7 +524,7 @@ func TestAgentInvocationService_InvokeAgent_ChannelClosing(t *testing.T) {
 	executionRepo := new(mocks.MockAgentExecutionRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 
 	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
 

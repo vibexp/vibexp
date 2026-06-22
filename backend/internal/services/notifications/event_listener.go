@@ -3,10 +3,10 @@ package notifications
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -25,7 +25,7 @@ type NotificationEventListener struct {
 	feedItemRepo    repositories.FeedItemRepository
 	frontendBaseURL string
 	appMetrics      *metrics.Metrics
-	logger          *logrus.Logger
+	logger          *slog.Logger
 }
 
 // NewNotificationEventListener creates a new NotificationEventListener
@@ -37,7 +37,7 @@ func NewNotificationEventListener(
 	feedItemRepo repositories.FeedItemRepository,
 	frontendBaseURL string,
 	appMetrics *metrics.Metrics,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *NotificationEventListener {
 	return &NotificationEventListener{
 		notifSvc:        notifSvc,
@@ -245,21 +245,21 @@ func (l *NotificationEventListener) logError(eventType, contextID, msg string, e
 	if l.logger == nil {
 		return
 	}
-	l.logger.WithFields(logrus.Fields{
-		"event_type": eventType,
-		"context_id": contextID,
-		"error":      fmt.Sprintf("%+v", err),
-	}).Error(msg)
+	l.logger.With(
+		"event_type", eventType,
+		"context_id", contextID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error(msg)
 }
 
 func (l *NotificationEventListener) logWarn(operation, contextID, msg string, err error) {
 	if l.logger == nil {
 		return
 	}
-	l.logger.WithError(err).WithFields(logrus.Fields{
-		"operation":  operation,
-		"context_id": contextID,
-	}).Warn(msg)
+	l.logger.With("error", err).With(
+		"operation", operation,
+		"context_id", contextID,
+	).Warn(msg)
 }
 
 // recordListenerError increments the listener error counter

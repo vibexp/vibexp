@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -56,7 +56,7 @@ func (r *cursorIDEHooksRepository) Create(ctx context.Context, payload *models.C
 	).Scan(&payload.ID, &payload.CreatedAt, &payload.UpdatedAt)
 
 	if err != nil {
-		logrus.WithError(err).Error("Failed to create Cursor IDE hook payload")
+		slog.Error("Failed to create Cursor IDE hook payload", "error", err)
 		return fmt.Errorf("failed to create Cursor IDE hook payload: %w", err)
 	}
 
@@ -100,7 +100,7 @@ func (r *cursorIDEHooksRepository) GetByID(
 	)
 
 	if err != nil {
-		logrus.WithError(err).Error("Failed to get Cursor IDE hook payload by ID")
+		slog.Error("Failed to get Cursor IDE hook payload by ID", "error", err)
 		return nil, fmt.Errorf("failed to get Cursor IDE hook payload: %w", err)
 	}
 
@@ -159,7 +159,7 @@ func (r *cursorIDEHooksRepository) countHooks(ctx context.Context, conditions sq
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&total); err != nil {
-		logrus.WithError(err).Error("Failed to count Cursor IDE hook payloads")
+		slog.Error("Failed to count Cursor IDE hook payloads", "error", err)
 		return 0, fmt.Errorf("failed to count Cursor IDE hook payloads: %w", err)
 	}
 
@@ -194,12 +194,12 @@ func (r *cursorIDEHooksRepository) queryHooks(
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query Cursor IDE hook payloads")
+		slog.Error("Failed to query Cursor IDE hook payloads", "error", err)
 		return nil, fmt.Errorf("failed to query Cursor IDE hook payloads: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -233,7 +233,7 @@ func scanCursorIDEHookRows(rows *sql.Rows) []models.CursorIDEHookPayload {
 			&payload.UpdatedAt,
 		)
 		if err != nil {
-			logrus.WithError(err).Error("Failed to scan Cursor IDE hook payload row")
+			slog.Error("Failed to scan Cursor IDE hook payload row", "error", err)
 			continue
 		}
 		payloads = append(payloads, payload)
@@ -274,7 +274,7 @@ func (r *cursorIDEHooksRepository) GetSessions(ctx context.Context, filters repo
 	var total int
 	err := r.db.QueryRowContext(ctx, countQuery, *filters.UserID).Scan(&total)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count Cursor IDE sessions")
+		slog.Error("Failed to count Cursor IDE sessions", "error", err)
 		return nil, fmt.Errorf("failed to count Cursor IDE sessions: %w", err)
 	}
 
@@ -297,12 +297,12 @@ func (r *cursorIDEHooksRepository) GetSessions(ctx context.Context, filters repo
 
 	rows, err := r.db.QueryContext(ctx, dataQuery, *filters.UserID, filters.Limit, offset)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query Cursor IDE sessions")
+		slog.Error("Failed to query Cursor IDE sessions", "error", err)
 		return nil, fmt.Errorf("failed to query Cursor IDE sessions: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -317,7 +317,7 @@ func (r *cursorIDEHooksRepository) GetSessions(ctx context.Context, filters repo
 			&session.UniqueTools,
 		)
 		if err != nil {
-			logrus.WithError(err).Error("Failed to scan Cursor IDE session row")
+			slog.Error("Failed to scan Cursor IDE session row", "error", err)
 			continue
 		}
 		sessions = append(sessions, session)
@@ -359,7 +359,7 @@ func (r *cursorIDEHooksRepository) GetSessionCounts(
 	var totalSessions int
 	err := r.db.QueryRowContext(ctx, countQuery, userID).Scan(&totalSessions)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count total Cursor IDE sessions")
+		slog.Error("Failed to count total Cursor IDE sessions", "error", err)
 		return nil, fmt.Errorf("failed to count total Cursor IDE sessions: %w", err)
 	}
 
@@ -375,12 +375,12 @@ func (r *cursorIDEHooksRepository) GetSessionCounts(
 
 	rows, err := r.db.QueryContext(ctx, countsQuery, userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query Cursor IDE session counts by date")
+		slog.Error("Failed to query Cursor IDE session counts by date", "error", err)
 		return nil, fmt.Errorf("failed to query Cursor IDE session counts by date: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -389,7 +389,7 @@ func (r *cursorIDEHooksRepository) GetSessionCounts(
 		var count models.SessionCountByDate
 		err := rows.Scan(&count.Date, &count.Count)
 		if err != nil {
-			logrus.WithError(err).Error("Failed to scan Cursor IDE session count row")
+			slog.Error("Failed to scan Cursor IDE session count row", "error", err)
 			continue
 		}
 		counts = append(counts, count)
@@ -423,7 +423,7 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 	totalQuery := "SELECT COUNT(DISTINCT session_id) FROM cursor_ide_hooks_payload WHERE user_id = $1"
 	err := r.db.QueryRowContext(ctx, totalQuery, userID).Scan(&stats.TotalSessions)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count total sessions")
+		slog.Error("Failed to count total sessions", "error", err)
 		return nil, fmt.Errorf("failed to count total sessions: %w", err)
 	}
 
@@ -432,7 +432,7 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 day'`
 	err = r.db.QueryRowContext(ctx, thisWeekQuery, userID).Scan(&stats.SessionsThisWeek)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count sessions this week")
+		slog.Error("Failed to count sessions this week", "error", err)
 		stats.SessionsThisWeek = 0
 	}
 
@@ -442,7 +442,7 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 		AND created_at < CURRENT_DATE - INTERVAL '7 day'`
 	err = r.db.QueryRowContext(ctx, lastWeekQuery, userID).Scan(&stats.SessionsLastWeek)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count sessions last week")
+		slog.Error("Failed to count sessions last week", "error", err)
 		stats.SessionsLastWeek = 0
 	}
 
@@ -465,7 +465,7 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 		) as session_prompts`
 	err = r.db.QueryRowContext(ctx, avgPromptsQuery, userID).Scan(&stats.AvgUserPromptsPerSession)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to calculate average prompts per session")
+		slog.Error("Failed to calculate average prompts per session", "error", err)
 		stats.AvgUserPromptsPerSession = 0
 	}
 
@@ -474,7 +474,7 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 		"WHERE user_id = $1 AND tool_name IS NOT NULL"
 	err = r.db.QueryRowContext(ctx, uniqueToolsQuery, userID).Scan(&stats.TotalUniqueTools)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count unique tools")
+		slog.Error("Failed to count unique tools", "error", err)
 		stats.TotalUniqueTools = 0
 	}
 
@@ -488,12 +488,12 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 		LIMIT 3`
 	topToolsRows, err := r.db.QueryContext(ctx, topToolsQuery, userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query top tools")
+		slog.Error("Failed to query top tools", "error", err)
 		stats.TopTools = []models.ToolUsageCount{}
 	} else {
 		defer func() {
 			if closeErr := topToolsRows.Close(); closeErr != nil {
-				logrus.WithError(closeErr).Error("Failed to close rows")
+				slog.Error("Failed to close rows", "error", closeErr)
 			}
 		}()
 		var topTools []models.ToolUsageCount
@@ -501,7 +501,7 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 			var tool models.ToolUsageCount
 			scanErr := topToolsRows.Scan(&tool.ToolName, &tool.Count)
 			if scanErr != nil {
-				logrus.WithError(scanErr).Error("Failed to scan top tool row")
+				slog.Error("Failed to scan top tool row", "error", scanErr)
 				continue
 			}
 			topTools = append(topTools, tool)
@@ -524,7 +524,7 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 		) as session_durations`
 	err = r.db.QueryRowContext(ctx, avgDurationQuery, userID).Scan(&stats.AvgSessionDurationMinutes)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to calculate average session duration")
+		slog.Error("Failed to calculate average session duration", "error", err)
 		stats.AvgSessionDurationMinutes = 0
 	}
 
@@ -614,7 +614,7 @@ func (r *cursorIDEHooksRepository) countRecentActivities(ctx context.Context, co
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&total); err != nil {
-		logrus.WithError(err).Error("Failed to count Cursor IDE activities")
+		slog.Error("Failed to count Cursor IDE activities", "error", err)
 		return 0, fmt.Errorf("failed to count Cursor IDE activities: %w", err)
 	}
 
@@ -642,12 +642,12 @@ func (r *cursorIDEHooksRepository) queryRecentActivities(
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query recent Cursor IDE activities")
+		slog.Error("Failed to query recent Cursor IDE activities", "error", err)
 		return nil, fmt.Errorf("failed to query recent Cursor IDE activities: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -662,7 +662,7 @@ func (r *cursorIDEHooksRepository) queryRecentActivities(
 			&activity.CreatedAt,
 		)
 		if err != nil {
-			logrus.WithError(err).Error("Failed to scan recent activity row")
+			slog.Error("Failed to scan recent activity row", "error", err)
 			continue
 		}
 		activities = append(activities, activity)
@@ -719,7 +719,7 @@ func (r *cursorIDEHooksRepository) SessionExists(ctx context.Context, userID, se
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, userID, sessionID).Scan(&exists)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to check if Cursor IDE session exists")
+		slog.Error("Failed to check if Cursor IDE session exists", "error", err)
 		return false, fmt.Errorf("failed to check if session exists: %w", err)
 	}
 
@@ -737,7 +737,7 @@ func (r *cursorIDEHooksRepository) CountUniqueSessions(ctx context.Context, user
 	var count int
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to count unique Cursor IDE sessions")
+		slog.Error("Failed to count unique Cursor IDE sessions", "error", err)
 		return 0, fmt.Errorf("failed to count unique sessions: %w", err)
 	}
 
@@ -753,15 +753,15 @@ func (r *cursorIDEHooksRepository) DeleteSession(ctx context.Context, userID, se
 	// First, check if the session exists and belongs to the user
 	exists, err := r.SessionExists(ctx, userID, sessionID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to check if Cursor IDE session exists")
+		slog.Error("Failed to check if Cursor IDE session exists", "error", err)
 		return fmt.Errorf("failed to check if session exists: %w", err)
 	}
 
 	if !exists {
-		logrus.WithFields(logrus.Fields{
-			"user_id":    userID,
-			"session_id": sessionID,
-		}).Warn("Attempted to delete non-existent or unauthorized Cursor IDE session")
+		slog.With(
+			"user_id", userID,
+			"session_id", sessionID,
+		).Warn("Attempted to delete non-existent or unauthorized Cursor IDE session")
 		return repositories.ErrHookSessionNotFound
 	}
 
@@ -770,21 +770,21 @@ func (r *cursorIDEHooksRepository) DeleteSession(ctx context.Context, userID, se
 
 	result, err := r.db.ExecContext(ctx, query, userID, sessionID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to delete Cursor IDE session")
+		slog.Error("Failed to delete Cursor IDE session", "error", err)
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		logrus.WithError(err).Error("Failed to get rows affected count")
+		slog.Error("Failed to get rows affected count", "error", err)
 		return fmt.Errorf("failed to verify deletion: %w", err)
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"user_id":       userID,
-		"session_id":    sessionID,
-		"rows_affected": rowsAffected,
-	}).Info("Cursor IDE session deleted successfully")
+	slog.With(
+		"user_id", userID,
+		"session_id", sessionID,
+		"rows_affected", rowsAffected,
+	).Info("Cursor IDE session deleted successfully")
 
 	return nil
 }

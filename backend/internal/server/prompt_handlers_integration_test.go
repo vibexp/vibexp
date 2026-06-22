@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -79,8 +79,7 @@ func setupPromptDefaultTeamMock(container *MockPromptContainer) {
 
 func createTestServer(container *MockPromptContainer) *Server {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel) // Suppress logs during test
+	logger := slog.New(slog.DiscardHandler)
 
 	// Initialize router manually for testing
 	r := chi.NewRouter()
@@ -1103,8 +1102,7 @@ func TestHandleGetPromptDependencies_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	srv := &Server{
 		router:    chi.NewRouter(),
@@ -1164,8 +1162,7 @@ func TestHandleGetPromptDependencies_EmptyArrays(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	srv := &Server{
 		router:    chi.NewRouter(),
@@ -1224,8 +1221,7 @@ func TestHandleGetPromptDependencies_PromptNotFound(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	srv := &Server{
 		router:    chi.NewRouter(),

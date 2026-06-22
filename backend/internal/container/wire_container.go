@@ -2,8 +2,7 @@ package container
 
 import (
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
@@ -23,7 +22,7 @@ import (
 type WireContainer struct {
 	db     *database.DB
 	config *config.Config
-	logger *logrus.Logger
+	logger *slog.Logger
 
 	// Repositories
 	userRepo                repositories.UserRepository
@@ -117,7 +116,7 @@ type WireContainer struct {
 func NewWireContainer(
 	db *database.DB,
 	cfg *config.Config,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	// Repositories
 	userRepo repositories.UserRepository,
 	apiKeyRepo repositories.APIKeyRepository,
@@ -590,10 +589,11 @@ func (c *WireContainer) Close() error {
 	// Stop event manager
 	if c.eventSystemDeps != nil && c.eventSystemDeps.EventManager != nil {
 		if err := c.eventSystemDeps.EventManager.Stop(); err != nil {
-			c.logger.WithFields(logrus.Fields{
-				"service": "vibexp-api",
-				"error":   fmt.Sprintf("%+v", err),
-			}).Error("Failed to stop event manager")
+			c.logger.Error(
+				"Failed to stop event manager",
+				"service", "vibexp-api",
+				"error", fmt.Sprintf("%+v", err),
+			)
 		}
 	}
 
@@ -606,10 +606,11 @@ func (c *WireContainer) Close() error {
 	// Close Pub/Sub client
 	if c.eventSystemDeps != nil && c.eventSystemDeps.PubSubClient != nil {
 		if err := c.eventSystemDeps.PubSubClient.Close(); err != nil {
-			c.logger.WithFields(logrus.Fields{
-				"service": "vibexp-api",
-				"error":   fmt.Sprintf("%+v", err),
-			}).Error("Failed to close Pub/Sub client")
+			c.logger.Error(
+				"Failed to close Pub/Sub client",
+				"service", "vibexp-api",
+				"error", fmt.Sprintf("%+v", err),
+			)
 		}
 	}
 

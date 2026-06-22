@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -95,7 +95,7 @@ type UploadAttachmentParams struct {
 type AttachmentService struct {
 	repo   repositories.AttachmentRepository
 	store  storage.ObjectStore
-	logger *logrus.Logger
+	logger *slog.Logger
 }
 
 // NewAttachmentService creates a new AttachmentService. store may be nil when
@@ -104,7 +104,7 @@ type AttachmentService struct {
 func NewAttachmentService(
 	repo repositories.AttachmentRepository,
 	store storage.ObjectStore,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *AttachmentService {
 	return &AttachmentService{repo: repo, store: store, logger: logger}
 }
@@ -268,11 +268,12 @@ func (s *AttachmentService) bestEffortDelete(ctx context.Context, objectKey stri
 		return
 	}
 	if err := s.store.Delete(ctx, objectKey); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "attachment",
-			"object_key": objectKey,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Warn("Failed to delete attachment object (orphaned, non-fatal)")
+		s.logger.With(
+			"service", "attachment",
+			"object_key", objectKey,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Warn("Failed to delete attachment object (orphaned, non-fatal)")
 	}
 }
 

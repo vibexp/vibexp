@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
@@ -53,12 +52,13 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 		)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"project_id":   project.ID,
-		"project_name": project.Name,
-		"repo_url":     repo.HTMLURL,
-		"team_id":      teamID,
-	}).Info("Found project for blueprint import")
+	s.logger.With(
+		"project_id", project.ID,
+		"project_name", project.Name,
+		"repo_url", repo.HTMLURL,
+		"team_id", teamID,
+	).
+		Info("Found project for blueprint import")
 
 	projectID := project.ID
 
@@ -96,10 +96,10 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 				ctx, installation.InstallationID, owner, repoName, scanPath.path,
 			)
 			if err != nil {
-				s.logger.WithFields(logrus.Fields{
-					"path":    scanPath.path,
-					"repo_id": repoID,
-				}).Debug("Directory not found, skipping")
+				s.logger.With(
+					"path", scanPath.path,
+					"repo_id", repoID,
+				).Debug("Directory not found, skipping")
 				continue
 			}
 
@@ -119,10 +119,10 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 				ctx, installation.InstallationID, owner, repoName, scanPath.path,
 			)
 			if err != nil {
-				s.logger.WithFields(logrus.Fields{
-					"path":    scanPath.path,
-					"repo_id": repoID,
-				}).Debug("File not found, skipping")
+				s.logger.With(
+					"path", scanPath.path,
+					"repo_id", repoID,
+				).Debug("File not found, skipping")
 				continue
 			}
 
@@ -138,15 +138,15 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 // logImportProgress logs import progress every importProgressInterval files scanned.
 func (s *GitHubAppService) logImportProgress(report *models.BlueprintImportReport, repoID int64, teamID string) {
 	if report.TotalScanned%importProgressInterval == 0 {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "github-app",
-			"scanned":    report.TotalScanned,
-			"successful": report.TotalSuccessful,
-			"failed":     report.TotalFailed,
-			"skipped":    report.TotalSkipped,
-			"repo_id":    repoID,
-			"team_id":    teamID,
-		}).Info("GitHub blueprint import progress")
+		s.logger.With(
+			"service", "github-app",
+			"scanned", report.TotalScanned,
+			"successful", report.TotalSuccessful,
+			"failed", report.TotalFailed,
+			"skipped", report.TotalSkipped,
+			"repo_id", repoID,
+			"team_id", teamID,
+		).Info("GitHub blueprint import progress")
 	}
 }
 
@@ -163,14 +163,14 @@ func (s *GitHubAppService) importSingleFile(
 ) {
 	// Check file extension - ONLY markdown files
 	if !strings.HasSuffix(strings.ToLower(file.Path), ".md") {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "github-app",
-			"file_path": file.Path,
-			"extension": filepath.Ext(file.Path),
-			"repo_id":   repo.ID,
-			"team_id":   teamID,
-			"reason":    "invalid_extension",
-		}).Info("Skipped file during blueprint import")
+		s.logger.With(
+			"service", "github-app",
+			"file_path", file.Path,
+			"extension", filepath.Ext(file.Path),
+			"repo_id", repo.ID,
+			"team_id", teamID,
+			"reason", "invalid_extension",
+		).Info("Skipped file during blueprint import")
 		report.TotalSkipped++
 		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
 			FilePath: file.Path,
@@ -181,13 +181,13 @@ func (s *GitHubAppService) importSingleFile(
 
 	// Skip if file is empty
 	if len(file.Content) == 0 {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "github-app",
-			"file_path": file.Path,
-			"repo_id":   repo.ID,
-			"team_id":   teamID,
-			"reason":    "empty_content",
-		}).Debug("Skipped empty file during blueprint import")
+		s.logger.With(
+			"service", "github-app",
+			"file_path", file.Path,
+			"repo_id", repo.ID,
+			"team_id", teamID,
+			"reason", "empty_content",
+		).Debug("Skipped empty file during blueprint import")
 		report.TotalSkipped++
 		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
 			FilePath: file.Path,
@@ -198,15 +198,15 @@ func (s *GitHubAppService) importSingleFile(
 
 	// Skip files larger than maxFileSize
 	if len(file.Content) > maxFileSize {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "github-app",
-			"file_path": file.Path,
-			"file_size": len(file.Content),
-			"max_size":  maxFileSize,
-			"repo_id":   repo.ID,
-			"team_id":   teamID,
-			"reason":    "file_too_large",
-		}).Info("Skipped file during blueprint import")
+		s.logger.With(
+			"service", "github-app",
+			"file_path", file.Path,
+			"file_size", len(file.Content),
+			"max_size", maxFileSize,
+			"repo_id", repo.ID,
+			"team_id", teamID,
+			"reason", "file_too_large",
+		).Info("Skipped file during blueprint import")
 		report.TotalSkipped++
 		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
 			FilePath: file.Path,
@@ -218,11 +218,11 @@ func (s *GitHubAppService) importSingleFile(
 	blueprintType, subtype := s.determineTypeFromPath(file.Path)
 
 	if blueprintType == "general" {
-		s.logger.WithFields(logrus.Fields{
-			"file_path": file.Path,
-			"repo_id":   repo.ID,
-			"team_id":   teamID,
-		}).Warn("Unmapped file path pattern encountered during blueprint import - consider adding support for this pattern")
+		s.logger.With(
+			"file_path", file.Path,
+			"repo_id", repo.ID,
+			"team_id", teamID,
+		).Warn("Unmapped file path pattern encountered during blueprint import - consider adding support for this pattern")
 	}
 
 	slug := s.generateBlueprintSlug(file.Path, repo.Name)
@@ -241,22 +241,23 @@ func (s *GitHubAppService) importSingleFile(
 		title = v
 	}
 	if titleRunes := []rune(title); len(titleRunes) > maxTitleLen {
-		s.logger.WithFields(logrus.Fields{
-			"file_path":    file.Path,
-			"title_length": len(titleRunes),
-			"max_length":   maxTitleLen,
-		}).Warn("Frontmatter title exceeds maximum length, truncating")
+		s.logger.With(
+			"file_path", file.Path,
+			"title_length", len(titleRunes),
+			"max_length", maxTitleLen,
+		).
+			Warn("Frontmatter title exceeds maximum length, truncating")
 		title = string(titleRunes[:maxTitleLen])
 	}
 
 	description := fmt.Sprintf("Imported from %s", repo.FullName)
 	if v, ok := fm.Metadata["description"]; ok && v != "" {
 		if descRunes := []rune(v); len(descRunes) > maxDescriptionLen {
-			s.logger.WithFields(logrus.Fields{
-				"file_path":          file.Path,
-				"description_length": len(descRunes),
-				"max_length":         maxDescriptionLen,
-			}).Warn("Frontmatter description exceeds maximum length, truncating")
+			s.logger.With(
+				"file_path", file.Path,
+				"description_length", len(descRunes),
+				"max_length", maxDescriptionLen,
+			).Warn("Frontmatter description exceeds maximum length, truncating")
 			v = string(descRunes[:maxDescriptionLen])
 		}
 		description = v
@@ -297,14 +298,14 @@ func (s *GitHubAppService) importSingleFile(
 
 	existingBlueprint, checkErr := s.blueprintRepo.GetByProjectIDAndSlug(ctx, userID, teamID, projectID, slug)
 	if checkErr == nil && existingBlueprint != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "github-app",
-			"file_path": file.Path,
-			"slug":      slug,
-			"repo_id":   repo.ID,
-			"team_id":   teamID,
-			"reason":    "existing_slug",
-		}).Info("Skipped file during blueprint import")
+		s.logger.With(
+			"service", "github-app",
+			"file_path", file.Path,
+			"slug", slug,
+			"repo_id", repo.ID,
+			"team_id", teamID,
+			"reason", "existing_slug",
+		).Info("Skipped file during blueprint import")
 		report.TotalSkipped++
 		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
 			FilePath: file.Path,
@@ -314,10 +315,10 @@ func (s *GitHubAppService) importSingleFile(
 	}
 
 	if err := s.blueprintRepo.Create(ctx, blueprint); err != nil {
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"file_path": file.Path,
-			"slug":      slug,
-		}).Error("Failed to create blueprint")
+		s.logger.With("error", err).With(
+			"file_path", file.Path,
+			"slug", slug,
+		).Error("Failed to create blueprint")
 		report.TotalFailed++
 		report.FailedItems = append(report.FailedItems, models.BlueprintImportFailed{
 			FilePath: file.Path,
@@ -339,16 +340,16 @@ func (s *GitHubAppService) importSingleFile(
 		Subtype:     subtypeStr,
 	})
 
-	s.logger.WithFields(logrus.Fields{
-		"service":      "github-app",
-		"file_path":    file.Path,
-		"blueprint_id": blueprint.ID,
-		"title":        blueprint.Title,
-		"type":         blueprint.Type,
-		"subtype":      subtypeStr,
-		"repo_id":      repo.ID,
-		"team_id":      teamID,
-	}).Info("Successfully imported blueprint from GitHub")
+	s.logger.With(
+		"service", "github-app",
+		"file_path", file.Path,
+		"blueprint_id", blueprint.ID,
+		"title", blueprint.Title,
+		"type", blueprint.Type,
+		"subtype", subtypeStr,
+		"repo_id", repo.ID,
+		"team_id", teamID,
+	).Info("Successfully imported blueprint from GitHub")
 }
 
 // determineTypeFromPath determines blueprint type and subtype from file path

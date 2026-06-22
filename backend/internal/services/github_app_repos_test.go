@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/external"
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -25,10 +26,10 @@ func buildGitHubAppServiceForReposTest(
 	installationRepo *MockGitHubInstallationRepository,
 	projectRepo *MockProjectRepository,
 	githubClient *MockGitHubAppClient,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) GitHubAppServiceInterface {
 	if logger == nil {
-		logger, _ = test.NewNullLogger()
+		logger, _ = logtest.New()
 	}
 	return NewGitHubAppService(
 		installationRepo,
@@ -171,8 +172,7 @@ func TestGetRepositories_ProjectRepoErrorReturnsReposWithEmptySlugs(t *testing.T
 	projectRepo := &MockProjectRepository{}
 	githubClient := &MockGitHubAppClient{}
 
-	logger, hook := test.NewNullLogger()
-	logger.SetLevel(logrus.WarnLevel)
+	logger, hook := logtest.New()
 
 	installationRepo.On("GetByTeamID", mock.Anything, "team-123").
 		Return(sampleInstallationForRepos(), nil)
@@ -201,7 +201,7 @@ func TestGetRepositories_ProjectRepoErrorReturnsReposWithEmptySlugs(t *testing.T
 	require.NotEmpty(t, hook.AllEntries(), "expected a warning log entry")
 	var found bool
 	for _, e := range hook.AllEntries() {
-		if e.Level == logrus.WarnLevel && e.Data["service"] == "github-app-service" {
+		if e.Level == slog.LevelWarn && e.Data["service"] == "github-app-service" {
 			found = true
 			assert.Equal(t, "team-123", e.Data["team_id"])
 			break
@@ -390,7 +390,7 @@ func TestGetRepositories_InstallationGoneAlreadyDeletedIsBenign(t *testing.T) {
 	projectRepo := &MockProjectRepository{}
 	githubClient := &MockGitHubAppClient{}
 
-	logger, hook := test.NewNullLogger()
+	logger, hook := logtest.New()
 
 	installationRepo.On("GetByTeamID", mock.Anything, "team-123").
 		Return(sampleInstallationForRepos(), nil)
@@ -406,7 +406,7 @@ func TestGetRepositories_InstallationGoneAlreadyDeletedIsBenign(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, external.ErrGitHubInstallationGone))
 	for _, e := range hook.AllEntries() {
-		assert.NotEqual(t, logrus.ErrorLevel, e.Level,
+		assert.NotEqual(t, slog.LevelError, e.Level,
 			"already-deleted must not produce an error-level log: %s", e.Message)
 	}
 

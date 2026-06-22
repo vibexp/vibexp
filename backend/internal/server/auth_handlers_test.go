@@ -1,14 +1,12 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/config"
@@ -19,8 +17,7 @@ func TestWorkOSAuthLogin_Endpoints(t *testing.T) {
 		FrontendBaseURL:      "http://localhost:5173",
 		WorkOSCookiePassword: testCookiePassword,
 	}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -64,8 +61,7 @@ func TestDevLogin_BadRequest(t *testing.T) {
 		WorkOSCookiePassword: testCookiePassword,
 		DevLoginEnabled:      true,
 	}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -123,8 +119,7 @@ func TestFlexibleAuthMiddleware_MissingAuth(t *testing.T) {
 		FrontendBaseURL:      "http://localhost:5173",
 		WorkOSCookiePassword: testCookiePassword,
 	}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -159,8 +154,7 @@ func TestFlexibleAuthMiddleware_InvalidHeader(t *testing.T) {
 		FrontendBaseURL:      "http://localhost:5173",
 		WorkOSCookiePassword: testCookiePassword,
 	}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -200,8 +194,7 @@ func TestAuthHandlers_InvalidPaths(t *testing.T) {
 		FrontendBaseURL:      "http://localhost:5173",
 		WorkOSCookiePassword: testCookiePassword,
 	}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -237,8 +230,7 @@ func TestLogout_ClearsSessionCookie(t *testing.T) {
 		FrontendBaseURL:      "http://localhost:5173",
 		WorkOSCookiePassword: testCookiePassword,
 	}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("POST", "/api/v1/auth/logout", nil)
@@ -275,7 +267,7 @@ func TestStateSigningAndValidation(t *testing.T) {
 		FrontendBaseURL:      "http://localhost:5173",
 		WorkOSCookiePassword: testCookiePassword,
 	}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	// Extract the Server from the http.Handler (it implements ServeHTTP)
@@ -311,8 +303,7 @@ func TestSessionCookieAuth_EndToEnd(t *testing.T) {
 		FrontendBaseURL:      "http://localhost:5173",
 		WorkOSCookiePassword: testCookiePassword,
 	}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	server := srv
 

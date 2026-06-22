@@ -5,11 +5,10 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/auth/authkit"
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
@@ -56,15 +55,13 @@ func isTransientRefreshError(err error) bool {
 // keys (UserID, AuthType) and a logger enriched with the auth metadata plus
 // any extra fields. Every auth path sets up its success context through this
 // helper so the context shape cannot drift between paths.
-func authenticatedContext(ctx context.Context, userID, authType string, extra logrus.Fields) context.Context {
+func authenticatedContext(ctx context.Context, userID, authType string, extra []any) context.Context {
 	ctx = context.WithValue(ctx, contextkeys.UserID, userID)
 	ctx = context.WithValue(ctx, contextkeys.AuthType, authType)
 
-	fields := logrus.Fields{"auth_type": authType, "user_id": userID}
-	for k, v := range extra {
-		fields[k] = v
-	}
-	logger := contextkeys.GetLoggerFromContext(ctx).WithFields(fields)
+	fields := []any{"auth_type", authType, "user_id", userID}
+	fields = append(fields, extra...)
+	logger := contextkeys.GetLoggerFromContext(ctx).With(fields...)
 	return context.WithValue(ctx, contextkeys.Logger, logger)
 }
 
@@ -96,9 +93,9 @@ func isAPIKey(token string) bool {
 func (s *Server) flexibleAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := contextkeys.GetLoggerFromContext(r.Context())
-		logger.WithFields(logrus.Fields{
-			"middleware": "flexibleAuthMiddleware",
-		}).Debug("Processing flexible authentication")
+		logger.With(
+			"middleware", "flexibleAuthMiddleware",
+		).Debug("Processing flexible authentication")
 
 		// 1. Try API key from Authorization header
 		authHeader := r.Header.Get("Authorization")
@@ -115,9 +112,9 @@ func (s *Server) flexibleAuthMiddleware(next http.Handler) http.Handler {
 					s.authenticateWithOAuthJWT(w, r, next, token)
 					return
 				}
-				logger.WithFields(logrus.Fields{
-					"middleware": "flexibleAuthMiddleware",
-				}).Warn("Bearer token is not a valid API key; cookie session required")
+				logger.With(
+					"middleware", "flexibleAuthMiddleware",
+				).Warn("Bearer token is not a valid API key; cookie session required")
 				apiErr := apierrors.NewAuthInvalidError("Invalid token; use session cookie authentication")
 				apierrors.WriteJSONError(w, r, apiErr)
 				return
@@ -140,9 +137,9 @@ func (s *Server) extractBearerToken(r *http.Request) (string, error) {
 	logger := contextkeys.GetLoggerFromContext(r.Context())
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		logger.WithFields(logrus.Fields{
-			"middleware": "extractBearerToken",
-		}).Warn("Authorization header missing")
+		logger.With(
+			"middleware", "extractBearerToken",
+		).Warn("Authorization header missing")
 		return "", http.ErrNoCookie
 	}
 
@@ -150,9 +147,9 @@ func (s *Server) extractBearerToken(r *http.Request) (string, error) {
 	// RFC 7235 auth-scheme names are case-insensitive; native clients may send
 	// "bearer".
 	if len(bearerToken) != 2 || !strings.EqualFold(bearerToken[0], "Bearer") {
-		logger.WithFields(logrus.Fields{
-			"middleware": "extractBearerToken",
-		}).Warn("Invalid authorization header format")
+		logger.With(
+			"middleware", "extractBearerToken",
+		).Warn("Invalid authorization header format")
 		return "", http.ErrNoCookie
 	}
 
@@ -161,18 +158,18 @@ func (s *Server) extractBearerToken(r *http.Request) (string, error) {
 
 func (s *Server) authenticateWithAPIKey(w http.ResponseWriter, r *http.Request, next http.Handler, token string) {
 	logger := contextkeys.GetLoggerFromContext(r.Context())
-	logger.WithFields(logrus.Fields{
-		"middleware": "authenticateWithAPIKey",
-		"auth_type":  "api_key",
-	}).Debug("Attempting API key authentication")
+	logger.With(
+		"middleware", "authenticateWithAPIKey",
+		"auth_type", "api_key",
+	).Debug("Attempting API key authentication")
 
 	apiKey, err := s.container.APIKeyService().ValidateAPIKey(r.Context(), token)
 	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"middleware": "authenticateWithAPIKey",
-			"auth_type":  "api_key",
-			"error":      fmt.Sprintf("%+v", err),
-		}).Warn("Failed to validate API key")
+		logger.With(
+			"middleware", "authenticateWithAPIKey",
+			"auth_type", "api_key",
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to validate API key")
 		apiErr := apierrors.NewAuthInvalidError("Invalid API key")
 		apierrors.WriteJSONError(w, r, apiErr)
 		return
@@ -180,7 +177,7 @@ func (s *Server) authenticateWithAPIKey(w http.ResponseWriter, r *http.Request, 
 
 	// Set user context from API key
 	ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
-	ctx = authenticatedContext(ctx, apiKey.UserID, "api_key", logrus.Fields{"api_key_id": apiKey.ID})
+	ctx = authenticatedContext(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID})
 
 	contextkeys.GetLoggerFromContext(ctx).Debug("API key authentication successful")
 	next.ServeHTTP(w, r.WithContext(ctx))
@@ -192,28 +189,28 @@ func (s *Server) authenticateWithAPIKey(w http.ResponseWriter, r *http.Request, 
 // infrastructure failures during subject resolution yield a 500, never a 401.
 func (s *Server) authenticateWithOAuthJWT(w http.ResponseWriter, r *http.Request, next http.Handler, token string) {
 	logger := contextkeys.GetLoggerFromContext(r.Context())
-	logger.WithFields(logrus.Fields{
-		"middleware": "authenticateWithOAuthJWT",
-		"auth_type":  "oauth",
-	}).Debug("Attempting OAuth bearer JWT authentication")
+	logger.With(
+		"middleware", "authenticateWithOAuthJWT",
+		"auth_type", "oauth",
+	).Debug("Attempting OAuth bearer JWT authentication")
 
 	info, err := s.apiTokenVerifier.Verify(r.Context(), token)
 	if err != nil {
 		if errors.Is(err, authkit.ErrUserResolution) {
-			logger.WithFields(logrus.Fields{
-				"middleware": "authenticateWithOAuthJWT",
-				"auth_type":  "oauth",
-				"error":      fmt.Sprintf("%+v", err),
-			}).Error("OAuth JWT subject resolution failed (infrastructure error)")
+			logger.With(
+				"middleware", "authenticateWithOAuthJWT",
+				"auth_type", "oauth",
+				"error", fmt.Sprintf("%+v", err),
+			).Error("OAuth JWT subject resolution failed (infrastructure error)")
 			apiErr := apierrors.NewInternalError("")
 			apierrors.WriteJSONError(w, r, apiErr)
 			return
 		}
-		logger.WithFields(logrus.Fields{
-			"middleware": "authenticateWithOAuthJWT",
-			"auth_type":  "oauth",
-			"error":      fmt.Sprintf("%+v", err),
-		}).Warn("OAuth bearer JWT validation failed")
+		logger.With(
+			"middleware", "authenticateWithOAuthJWT",
+			"auth_type", "oauth",
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("OAuth bearer JWT validation failed")
 		apiErr := apierrors.NewAuthInvalidError("Invalid token")
 		apierrors.WriteJSONError(w, r, apiErr)
 		return
@@ -232,22 +229,22 @@ func (s *Server) authenticateWithOAuthJWT(w http.ResponseWriter, r *http.Request
 //nolint:funlen // Session auth must handle cookie read, expiry check, refresh, and context setup
 func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request, next http.Handler) {
 	logger := contextkeys.GetLoggerFromContext(r.Context())
-	logger.WithFields(logrus.Fields{
-		"middleware": "authenticateWithSession",
-		"auth_type":  "cookie",
-	}).Debug("Attempting cookie session authentication")
+	logger.With(
+		"middleware", "authenticateWithSession",
+		"auth_type", "cookie",
+	).Debug("Attempting cookie session authentication")
 
 	sess, err := s.sessionManager.Read(r)
 	if err != nil {
 		if errors.Is(err, sesslib.ErrNoCookie) {
-			logger.WithFields(logrus.Fields{
-				"middleware": "authenticateWithSession",
-			}).Debug("No session cookie present")
+			logger.With(
+				"middleware", "authenticateWithSession",
+			).Debug("No session cookie present")
 		} else {
-			logger.WithFields(logrus.Fields{
-				"middleware": "authenticateWithSession",
-				"error":      fmt.Sprintf("%+v", err),
-			}).Warn("Invalid session cookie")
+			logger.With(
+				"middleware", "authenticateWithSession",
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Invalid session cookie")
 		}
 		apiErr := apierrors.NewAuthRequiredError("Authentication required")
 		apierrors.WriteJSONError(w, r, apiErr)
@@ -258,10 +255,10 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 	// user to avoid racing on WorkOS's single-use refresh tokens (H1).
 	if sess.IsExpired() {
 		if sess.RefreshToken == "" {
-			logger.WithFields(logrus.Fields{
-				"middleware": "authenticateWithSession",
-				"user_id":    sess.UserID,
-			}).Info("Session expired and no refresh token available")
+			logger.With(
+				"middleware", "authenticateWithSession",
+				"user_id", sess.UserID,
+			).Info("Session expired and no refresh token available")
 			apiErr := apierrors.NewAuthInvalidError("Session expired")
 			apierrors.WriteJSONError(w, r, apiErr)
 			return
@@ -304,28 +301,28 @@ func (s *Server) refreshSession(
 	w http.ResponseWriter,
 	r *http.Request,
 	sess *sesslib.Session,
-	logger *logrus.Entry,
+	logger *slog.Logger,
 ) (*sesslib.Session, bool) {
-	logger.WithFields(logrus.Fields{
-		"middleware": "authenticateWithSession",
-		"user_id":    sess.UserID,
-	}).Debug("Access token expired, attempting refresh")
+	logger.With(
+		"middleware", "authenticateWithSession",
+		"user_id", sess.UserID,
+	).Debug("Access token expired, attempting refresh")
 
 	newTokens, refreshErr := s.container.AuthService().RefreshTokens(r.Context(), sess.RefreshToken)
 	if refreshErr != nil {
-		fields := logrus.Fields{
-			"middleware": "authenticateWithSession",
-			"user_id":    sess.UserID,
-			"error":      fmt.Sprintf("%+v", refreshErr),
+		fields := []any{
+			"middleware", "authenticateWithSession",
+			"user_id", sess.UserID,
+			"error", fmt.Sprintf("%+v", refreshErr),
 		}
 		if isTransientRefreshError(refreshErr) {
-			logger.WithFields(fields).Warn("Transient refresh failure; keeping session, asking client to retry")
+			logger.With(fields...).Warn("Transient refresh failure; keeping session, asking client to retry")
 			w.Header().Set("Retry-After", "5")
 			apiErr := apierrors.NewServiceUnavailableError("Authentication provider temporarily unavailable")
 			apierrors.WriteJSONError(w, r, apiErr)
 			return nil, false
 		}
-		logger.WithFields(fields).Warn("Permanent refresh failure; clearing session")
+		logger.With(fields...).Warn("Permanent refresh failure; clearing session")
 		s.sessionManager.Clear(w)
 		apiErr := apierrors.NewAuthInvalidError("Session expired")
 		apierrors.WriteJSONError(w, r, apiErr)
@@ -336,10 +333,10 @@ func (s *Server) refreshSession(
 		// WorkOS always returns a new refresh token on rotation. Empty
 		// here means upstream behaviour changed; the cached refresh token
 		// has been invalidated and the next refresh will fail.
-		logger.WithFields(logrus.Fields{
-			"middleware": "authenticateWithSession",
-			"user_id":    sess.UserID,
-		}).Warn("Refresh response missing new refresh_token; subsequent refreshes may fail")
+		logger.With(
+			"middleware", "authenticateWithSession",
+			"user_id", sess.UserID,
+		).Warn("Refresh response missing new refresh_token; subsequent refreshes may fail")
 	} else {
 		sess.RefreshToken = newTokens.RefreshToken
 	}
@@ -347,7 +344,7 @@ func (s *Server) refreshSession(
 	sess.ExpiresAt = newTokens.ExpiresAt
 
 	if writeErr := s.sessionManager.Write(w, sess); writeErr != nil {
-		logger.WithError(writeErr).Warn("Failed to rewrite refreshed session cookie")
+		logger.With("error", writeErr).Warn("Failed to rewrite refreshed session cookie")
 		// Continue anyway — the user is authenticated with the new tokens
 	}
 
@@ -370,7 +367,7 @@ func (s *Server) optionalAuthMiddleware(next http.Handler) http.Handler {
 				if apiKeyErr == nil {
 					ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
 					ctx = authenticatedContext(ctx, apiKey.UserID, "api_key",
-						logrus.Fields{"api_key_id": apiKey.ID})
+						[]any{"api_key_id", apiKey.ID})
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return
 				}
@@ -414,11 +411,11 @@ func (s *Server) optionalOAuthJWTContext(r *http.Request, token string) (context
 		return authenticatedContext(r.Context(), info.UserID, "oauth", nil), true
 	}
 
-	logEntry := contextkeys.GetLoggerFromContext(r.Context()).WithFields(logrus.Fields{
-		"middleware": "optionalAuthMiddleware",
-		"auth_type":  "oauth",
-		"error":      fmt.Sprintf("%+v", err),
-	})
+	logEntry := contextkeys.GetLoggerFromContext(r.Context()).With(
+		"middleware", "optionalAuthMiddleware",
+		"auth_type", "oauth",
+		"error", fmt.Sprintf("%+v", err),
+	)
 	if errors.Is(err, authkit.ErrUserResolution) {
 		logEntry.Error("OAuth JWT subject resolution failed (infrastructure error); proceeding unauthenticated")
 	} else {
@@ -458,15 +455,15 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 func (s *Server) backofficeAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := contextkeys.GetLoggerFromContext(r.Context())
-		logger.WithFields(logrus.Fields{
-			"middleware": "backofficeAuthMiddleware",
-		}).Debug("Processing backoffice authentication")
+		logger.With(
+			"middleware", "backofficeAuthMiddleware",
+		).Debug("Processing backoffice authentication")
 
 		token, err := s.extractBearerToken(r)
 		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"middleware": "backofficeAuthMiddleware",
-			}).Warn("Authorization header missing")
+			logger.With(
+				"middleware", "backofficeAuthMiddleware",
+			).Warn("Authorization header missing")
 			apiErr := apierrors.NewAuthRequiredError("Authorization header is required")
 			apierrors.WriteJSONError(w, r, apiErr)
 			return
@@ -474,9 +471,9 @@ func (s *Server) backofficeAuthMiddleware(next http.Handler) http.Handler {
 
 		// Validate the token against the back office admin API key
 		if s.config.BackofficeAdminAPIKey == "" {
-			logger.WithFields(logrus.Fields{
-				"middleware": "backofficeAuthMiddleware",
-			}).Error("Back office admin API key not configured")
+			logger.With(
+				"middleware", "backofficeAuthMiddleware",
+			).Error("Back office admin API key not configured")
 			apiErr := apierrors.NewAPIError(
 				"CONFIGURATION_ERROR",
 				"Configuration Error",
@@ -488,17 +485,17 @@ func (s *Server) backofficeAuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		if subtle.ConstantTimeCompare([]byte(token), []byte(s.config.BackofficeAdminAPIKey)) != 1 {
-			logger.WithFields(logrus.Fields{
-				"middleware": "backofficeAuthMiddleware",
-			}).Warn("Invalid back office admin API key")
+			logger.With(
+				"middleware", "backofficeAuthMiddleware",
+			).Warn("Invalid back office admin API key")
 			apiErr := apierrors.NewAuthInvalidError("Invalid back office admin API key")
 			apierrors.WriteJSONError(w, r, apiErr)
 			return
 		}
 
-		logger.WithFields(logrus.Fields{
-			"middleware": "backofficeAuthMiddleware",
-		}).Debug("Back office authentication successful")
+		logger.With(
+			"middleware", "backofficeAuthMiddleware",
+		).Debug("Back office authentication successful")
 		next.ServeHTTP(w, r)
 	})
 }

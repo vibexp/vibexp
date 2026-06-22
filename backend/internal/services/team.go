@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/logging"
 	"github.com/vibexp/vibexp/internal/models"
@@ -19,7 +18,7 @@ type TeamService struct {
 	teamRepo       repositories.TeamRepository
 	teamMemberRepo repositories.TeamMemberRepository
 	userRepo       repositories.UserRepository
-	logger         *logrus.Logger
+	logger         *slog.Logger
 }
 
 // NewTeamService creates a new TeamService
@@ -27,10 +26,10 @@ func NewTeamService(
 	teamRepo repositories.TeamRepository,
 	teamMemberRepo repositories.TeamMemberRepository,
 	userRepo repositories.UserRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *TeamService {
 	if logger == nil {
-		logger = logging.NewCloudLogger(logging.CloudLoggerConfig{})
+		logger = logging.New(logging.Config{})
 	}
 	return &TeamService{
 		teamRepo:       teamRepo,
@@ -54,12 +53,12 @@ func (s *TeamService) CreateDefaultTeam(ctx context.Context, userID string) (*mo
 	}
 
 	if err := s.teamRepo.Create(ctx, team); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to create default team")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create default team")
 		return nil, fmt.Errorf("failed to create default team: %w", err)
 	}
 
@@ -72,34 +71,36 @@ func (s *TeamService) CreateDefaultTeam(ctx context.Context, userID string) (*mo
 		UpdatedAt: now,
 	}
 	if err := s.teamMemberRepo.Create(ctx, member); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"team_id":   team.ID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to create team member")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"team_id", team.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create team member")
 		return nil, fmt.Errorf("failed to create team member: %w", err)
 	}
 
 	// Update user's default_team_id
 	if err := s.userRepo.UpdateDefaultTeamID(ctx, userID, team.ID); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"team_id":   team.ID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Warn("Failed to update user's default team ID")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"team_id", team.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to update user's default team ID")
+
 		// Don't return error here - the team was created successfully
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "team-service",
-		"user_id":   userID,
-		"team_id":   team.ID,
-	}).Info("Default team created successfully")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-service",
+		"user_id", userID,
+		"team_id", team.ID,
+	).
+		Info("Default team created successfully")
 
 	return team, nil
 }
@@ -139,12 +140,12 @@ func (s *TeamService) CreateTeam(
 	}
 
 	if err := s.teamRepo.Create(ctx, team); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to create team")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create team")
 		return nil, fmt.Errorf("failed to create team: %w", err)
 	}
 
@@ -157,22 +158,23 @@ func (s *TeamService) CreateTeam(
 		UpdatedAt: now,
 	}
 	if err := s.teamMemberRepo.Create(ctx, member); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"team_id":   team.ID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to create team member")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"team_id", team.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create team member")
 		return nil, fmt.Errorf("failed to create team member: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "team-service",
-		"user_id":   userID,
-		"team_id":   team.ID,
-	}).Info("Team created successfully")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-service",
+		"user_id", userID,
+		"team_id", team.ID,
+	).
+		Info("Team created successfully")
 
 	return team, nil
 }
@@ -193,13 +195,13 @@ func (s *TeamService) verifyTeamOwnership(ctx context.Context, userID, teamID st
 	// Get user's role in this team
 	member, err := s.teamMemberRepo.GetByTeamAndUser(ctx, team.ID, userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"team_id":   team.ID,
-			"user_id":   userID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Warn("Failed to get team member role for owner")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"team_id", team.ID,
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to get team member role for owner")
 		team.Role = string(models.TeamMemberRoleOwner)
 	} else {
 		team.Role = string(member.Role)
@@ -260,22 +262,23 @@ func (s *TeamService) UpdateTeam(
 	team.UpdatedAt = time.Now()
 
 	if err := s.teamRepo.Update(ctx, team); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"team_id":   teamID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to update team")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to update team")
 		return nil, fmt.Errorf("failed to update team: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "team-service",
-		"user_id":   userID,
-		"team_id":   teamID,
-	}).Info("Team updated successfully")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-service",
+		"user_id", userID,
+		"team_id", teamID,
+	).
+		Info("Team updated successfully")
 
 	return team, nil
 }
@@ -300,12 +303,12 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 	// 3. Check if this is the user's default team
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to get user")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get user")
 		return fmt.Errorf("failed to verify default team: %w", err)
 	}
 
@@ -320,12 +323,12 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 	// 4. Check for multiple members (must remove all members first except owner)
 	members, err := s.teamMemberRepo.GetByTeamID(ctx, teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"team_id":   teamID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Warn("Failed to get team members for deletion validation")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to get team members for deletion validation")
 	}
 
 	memberCount := len(members)
@@ -337,35 +340,36 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 	if err == nil {
 		for _, member := range members {
 			if delErr := s.teamMemberRepo.Delete(ctx, teamID, member.UserID); delErr != nil {
-				s.logger.WithFields(logrus.Fields{
-					"service":   "vibexp-api",
-					"component": "team-service",
-					"team_id":   teamID,
-					"user_id":   member.UserID,
-					"error":     fmt.Sprintf("%+v", delErr),
-				}).Warn("Failed to delete team member")
+				s.logger.With(
+					"service", "vibexp-api",
+					"component", "team-service",
+					"team_id", teamID,
+					"user_id", member.UserID,
+					"error", fmt.Sprintf("%+v", delErr),
+				).Warn("Failed to delete team member")
 			}
 		}
 	}
 
 	// Delete the team
 	if err := s.teamRepo.Delete(ctx, userID, teamID); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"team_id":   teamID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to delete team")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to delete team")
 		return fmt.Errorf("failed to delete team: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "team-service",
-		"user_id":   userID,
-		"team_id":   teamID,
-	}).Info("Team deleted successfully")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-service",
+		"user_id", userID,
+		"team_id", teamID,
+	).
+		Info("Team deleted successfully")
 
 	return nil
 }
@@ -397,13 +401,13 @@ func (s *TeamService) GetTeamMembers(
 	// Get team members
 	members, err := s.teamMemberRepo.GetByTeamID(ctx, teamID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"team_id":   teamID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to get team members")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get team members")
 		return nil, fmt.Errorf("failed to get team members: %w", err)
 	}
 
@@ -429,12 +433,12 @@ func (s *TeamService) fetchMemberDetails(
 	for _, member := range members {
 		user, userErr := s.userRepo.GetByID(ctx, member.UserID)
 		if userErr != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":   "vibexp-api",
-				"component": "team-service",
-				"user_id":   member.UserID,
-				"error":     fmt.Sprintf("%+v", userErr),
-			}).Warn("Failed to get user details for team member")
+			s.logger.With(
+				"service", "vibexp-api",
+				"component", "team-service",
+				"user_id", member.UserID,
+				"error", fmt.Sprintf("%+v", userErr),
+			).Warn("Failed to get user details for team member")
 			continue // Skip this member if user not found
 		}
 
@@ -491,24 +495,24 @@ func (s *TeamService) RemoveTeamMember(ctx context.Context, userID, teamID, memb
 
 	// Remove the member
 	if err := s.teamMemberRepo.Delete(ctx, teamID, memberUserID); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"team_id":   teamID,
-			"member_id": memberUserID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to remove team member")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"team_id", teamID,
+			"member_id", memberUserID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to remove team member")
 		return fmt.Errorf("failed to remove team member: %w", err)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "team-service",
-		"user_id":   userID,
-		"team_id":   teamID,
-		"member_id": memberUserID,
-	}).Info("Team member removed successfully")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-service",
+		"user_id", userID,
+		"team_id", teamID,
+		"member_id", memberUserID,
+	).Info("Team member removed successfully")
 
 	return nil
 }
@@ -531,12 +535,12 @@ func (s *TeamService) ListTeams(
 
 	teams, totalCount, err := s.teamRepo.ListByUserID(ctx, userID, pageSize, offset)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "team-service",
-			"user_id":   userID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to list teams")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list teams")
 		return nil, fmt.Errorf("failed to list teams: %w", err)
 	}
 
@@ -545,13 +549,13 @@ func (s *TeamService) ListTeams(
 		// Get user's role in this team
 		member, err := s.teamMemberRepo.GetByTeamAndUser(ctx, teams[i].ID, userID)
 		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":   "vibexp-api",
-				"component": "team-service",
-				"team_id":   teams[i].ID,
-				"user_id":   userID,
-				"error":     fmt.Sprintf("%+v", err),
-			}).Warn("Failed to get team member role, setting to member")
+			s.logger.With(
+				"service", "vibexp-api",
+				"component", "team-service",
+				"team_id", teams[i].ID,
+				"user_id", userID,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Failed to get team member role, setting to member")
 			teams[i].Role = string(models.TeamMemberRoleMember)
 		} else {
 			teams[i].Role = string(member.Role)
@@ -560,12 +564,12 @@ func (s *TeamService) ListTeams(
 		// Get member count for this team
 		members, err := s.teamMemberRepo.GetByTeamID(ctx, teams[i].ID)
 		if err != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":   "vibexp-api",
-				"component": "team-service",
-				"team_id":   teams[i].ID,
-				"error":     fmt.Sprintf("%+v", err),
-			}).Warn("Failed to get team members count, setting to 0")
+			s.logger.With(
+				"service", "vibexp-api",
+				"component", "team-service",
+				"team_id", teams[i].ID,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Failed to get team members count, setting to 0")
 			teams[i].MemberCount = 0
 		} else {
 			teams[i].MemberCount = len(members)

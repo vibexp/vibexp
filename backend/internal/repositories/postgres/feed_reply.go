@@ -3,10 +3,10 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -123,7 +123,7 @@ func (r *FeedItemReplyRepository) ListReplyPostersByItemID(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close reply poster rows")
+			slog.Error("Failed to close reply poster rows", "error", closeErr)
 		}
 	}()
 
@@ -174,7 +174,7 @@ func (r *FeedItemReplyRepository) ListReplies(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close feed item reply rows")
+			slog.Error("Failed to close feed item reply rows", "error", closeErr)
 		}
 	}()
 
@@ -218,7 +218,7 @@ func (r *FeedItemReplyRepository) CountRepliesByItemIDs(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close reply count rows")
+			slog.Error("Failed to close reply count rows", "error", closeErr)
 		}
 	}()
 

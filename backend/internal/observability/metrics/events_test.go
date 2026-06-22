@@ -2,23 +2,24 @@ package metrics
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	logrustest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 )
 
 // newTestMetricsWithLogger creates a Metrics instance backed by a ManualReader
-// and a logrus null logger with a test hook, so a test can assert on both the
+// and a recording test logger with a hook, so a test can assert on both the
 // emitted business-event log lines and the OTel counter samples.
-func newTestMetricsWithLogger(t *testing.T) (*Metrics, sdkmetric.Reader, *logrustest.Hook) {
+func newTestMetricsWithLogger(t *testing.T) (*Metrics, sdkmetric.Reader, *logtest.Recorder) {
 	t.Helper()
 	reader := sdkmetric.NewManualReader()
-	logger, hook := logrustest.NewNullLogger()
+	logger, hook := logtest.New()
 	m, err := New(
 		"test-version",
 		WithReaderProvider(func(_ context.Context) (sdkmetric.Reader, error) {
@@ -77,7 +78,7 @@ func TestRecordUserCreated_EmitsEventAndCounter(t *testing.T) {
 	entry := hook.LastEntry()
 	assert.Equal(t, "user.created", entry.Data["event"])
 	assert.Equal(t, eventCategoryUser, entry.Data["event_category"])
-	assert.Equal(t, logrus.InfoLevel, entry.Level)
+	assert.Equal(t, slog.LevelInfo, entry.Level)
 	assert.Equal(t, "business event", entry.Message)
 
 	rm := scrapeMetrics(t, reader)

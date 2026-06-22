@@ -9,7 +9,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/sirupsen/logrus"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/observability"
@@ -34,6 +33,8 @@ const (
 type Config struct {
 	Port     string `envconfig:"PORT" default:"8080"`
 	LogLevel string `envconfig:"LOG_LEVEL" default:"info"`
+	// LogFormat selects the log output format: "json" (default) or "text".
+	LogFormat string `envconfig:"LOG_FORMAT" default:"json"`
 
 	// Service version for metrics and observability
 	ServiceVersion string `envconfig:"SERVICE_VERSION" default:"dev"`
@@ -607,13 +608,9 @@ func Load() (*Config, error) {
 	// call site) to keep the package-level error constructors dependency-free.
 	apierrors.SetTypeBaseURI(cfg.ErrorTypeBaseURI)
 
-	// Set log level
-	level, err := logrus.ParseLevel(cfg.LogLevel)
-	if err != nil {
-		logrus.WithError(err).Warn("Invalid log level, using info")
-		level = logrus.InfoLevel
-	}
-	logrus.SetLevel(level)
+	// The application logger (level + format) is constructed from cfg.LogLevel /
+	// cfg.LogFormat by configureLogger at startup; no global logger state is set
+	// here.
 
 	return &cfg, nil
 }

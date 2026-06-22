@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -79,12 +79,13 @@ func (s *Server) createBlueprint(
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_create_blueprint",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-		}).Warn("MCP tool rejected: invalid project_id")
+		slog.Warn(
+			"MCP tool rejected: invalid project_id",
+			"tool", "vibexp_io_create_blueprint",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+		)
 		return r, nil, nil
 	}
 
@@ -102,10 +103,12 @@ func (s *Server) createBlueprint(
 
 	blueprint, err := s.container.BlueprintService().CreateBlueprint(userID, teamID, createReq)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"user_id": userID,
-			"team_id": teamID,
-		}).WithError(err).Error("Failed to create blueprint via MCP")
+		slog.Error(
+			"Failed to create blueprint via MCP",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", err,
+		)
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to create blueprint: %v", err)}},
 			IsError: true,
@@ -159,12 +162,13 @@ func (s *Server) updateBlueprint(
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_update_blueprint",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-		}).Warn("MCP tool rejected: invalid project_id")
+		slog.Warn(
+			"MCP tool rejected: invalid project_id",
+			"tool", "vibexp_io_update_blueprint",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+		)
 		return r, nil, nil
 	}
 
@@ -174,14 +178,15 @@ func (s *Server) updateBlueprint(
 		userID, params.ProjectID, params.Slug, updateReq,
 	)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":       "vibexp_io_update_blueprint",
-			"user_id":    userID,
-			"team_id":    teamID,
-			"project_id": params.ProjectID,
-			"slug":       params.Slug,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to update blueprint via MCP")
+		slog.Error(
+			"Failed to update blueprint via MCP",
+			"tool", "vibexp_io_update_blueprint",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", params.ProjectID,
+			"slug", params.Slug,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to update blueprint: %v", err)}},

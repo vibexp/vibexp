@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 )
 
 // PubSubMessage represents the structure of a Pub/Sub push message
@@ -46,11 +44,11 @@ func (s *Server) handlePubSubPush(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(statusCode)
 	if statusCode == http.StatusOK {
 		if _, err := w.Write([]byte("OK")); err != nil {
-			s.logger.WithError(err).Error("Failed to write response")
+			s.logger.With("error", err).Error("Failed to write response")
 		}
 	} else {
 		if _, err := w.Write([]byte("Error processing event")); err != nil {
-			s.logger.WithError(err).Error("Failed to write response")
+			s.logger.With("error", err).Error("Failed to write response")
 		}
 	}
 }
@@ -61,47 +59,47 @@ func (s *Server) parsePubSubMessage(
 ) (*PubSubMessage, *PubSubEventPayload, error) {
 	var pubsubMsg PubSubMessage
 	if err := json.NewDecoder(r.Body).Decode(&pubsubMsg); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "pubsub-push",
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to decode Pub/Sub message")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "pubsub-push",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to decode Pub/Sub message")
 		return nil, nil, err
 	}
 
 	decodedData, err := base64.StdEncoding.DecodeString(pubsubMsg.Message.Data)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"handler":    "pubsub-push",
-			"message_id": pubsubMsg.Message.MessageID,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to decode message data")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "pubsub-push",
+			"message_id", pubsubMsg.Message.MessageID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to decode message data")
 		return nil, nil, err
 	}
 
 	var eventPayload PubSubEventPayload
 	if err := json.Unmarshal(decodedData, &eventPayload); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"handler":    "pubsub-push",
-			"message_id": pubsubMsg.Message.MessageID,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to parse event payload")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "pubsub-push",
+			"message_id", pubsubMsg.Message.MessageID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to parse event payload")
 		return nil, nil, err
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":            "vibexp-api",
-		"handler":            "pubsub-push",
-		"event_type":         eventPayload.Type,
-		"user_id":            eventPayload.UserID,
-		"message_id":         pubsubMsg.Message.MessageID,
-		"publish_time":       pubsubMsg.Message.PublishTime,
-		"subscription":       pubsubMsg.Subscription,
-		"service_account":    serviceAccount,
-		"message_attributes": pubsubMsg.Message.Attributes,
-	}).Info("Received event from Pub/Sub")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "pubsub-push",
+		"event_type", eventPayload.Type,
+		"user_id", eventPayload.UserID,
+		"message_id", pubsubMsg.Message.MessageID,
+		"publish_time", pubsubMsg.Message.PublishTime,
+		"subscription", pubsubMsg.Subscription,
+		"service_account", serviceAccount,
+		"message_attributes", pubsubMsg.Message.Attributes,
+	).Info("Received event from Pub/Sub")
 
 	return &pubsubMsg, &eventPayload, nil
 }
@@ -115,23 +113,23 @@ func (s *Server) routeEventToHandler(eventPayload *PubSubEventPayload, messageID
 	if strings.HasSuffix(eventPayload.Type, embeddingSuffix) {
 		entityType := strings.TrimSuffix(eventPayload.Type, embeddingSuffix)
 		if entityType == "" {
-			s.logger.WithFields(logrus.Fields{
-				"service":    "vibexp-api",
-				"handler":    "pubsub-push",
-				"event_type": eventPayload.Type,
-				"message_id": messageID,
-			}).Warn("Malformed embedding event type — acknowledging to prevent retries")
+			s.logger.With(
+				"service", "vibexp-api",
+				"handler", "pubsub-push",
+				"event_type", eventPayload.Type,
+				"message_id", messageID,
+			).Warn("Malformed embedding event type — acknowledging to prevent retries")
 			return http.StatusOK
 		}
 		return s.handleEntityEmbeddingGenerated(entityType, *eventPayload, messageID)
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "pubsub-push",
-		"event_type": eventPayload.Type,
-		"message_id": messageID,
-		"user_id":    eventPayload.UserID,
-	}).Warn("Unknown event type received - acknowledging to prevent retries")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "pubsub-push",
+		"event_type", eventPayload.Type,
+		"message_id", messageID,
+		"user_id", eventPayload.UserID,
+	).Warn("Unknown event type received - acknowledging to prevent retries")
 	return http.StatusOK
 }

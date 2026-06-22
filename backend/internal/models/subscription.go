@@ -1,10 +1,9 @@
 package models
 
 import (
+	"log/slog"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Subscription models
@@ -158,9 +157,11 @@ func NormalizePlanName(stripePlanName string) string {
 	case PlanPowerUser, "poweruser":
 		return PlanPowerUser
 	default:
-		logrus.WithField("stripe_plan_name", stripePlanName).
-			WithField("normalized_plan_name", planName).
-			Warn("Unknown plan name from Stripe, falling back to starter")
+		slog.Warn(
+			"Unknown plan name from Stripe, falling back to starter",
+			"stripe_plan_name", stripePlanName,
+			"normalized_plan_name", planName,
+		)
 		return PlanStarter
 	}
 }

@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -20,14 +20,14 @@ type A2AStreamProcessorInterface interface {
 type A2AStreamProcessor struct {
 	eventRepo     repositories.AgentExecutionEventRepository
 	executionRepo repositories.AgentExecutionRepository
-	logger        *logrus.Logger
+	logger        *slog.Logger
 }
 
 // NewA2AStreamProcessor creates a new A2A stream processor
 func NewA2AStreamProcessor(
 	eventRepo repositories.AgentExecutionEventRepository,
 	executionRepo repositories.AgentExecutionRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *A2AStreamProcessor {
 	return &A2AStreamProcessor{
 		eventRepo:     eventRepo,
@@ -54,14 +54,14 @@ func (p *A2AStreamProcessor) storeEventInDB(
 	}
 
 	if err := p.eventRepo.Create(ctx, eventModel); err != nil {
-		p.logger.WithFields(logrus.Fields{
-			"service":         "vibexp-api",
-			"method":          "ProcessStream",
-			"execution_id":    executionID,
-			"sequence_number": sequenceNumber,
-			"event_type":      event.Type,
-			"error":           fmt.Sprintf("%+v", err),
-		}).Error("Failed to store event")
+		p.logger.With(
+			"service", "vibexp-api",
+			"method", "ProcessStream",
+			"execution_id", executionID,
+			"sequence_number", sequenceNumber,
+			"event_type", event.Type,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to store event")
 	}
 }
 
@@ -75,21 +75,21 @@ func (p *A2AStreamProcessor) processEventByType(
 	switch event.Type {
 	case "task":
 		if err := p.handleTaskEvent(ctx, executionID, event); err != nil {
-			p.logger.WithFields(logrus.Fields{
-				"service":      "vibexp-api",
-				"method":       "ProcessStream",
-				"execution_id": executionID,
-				"error":        fmt.Sprintf("%+v", err),
-			}).Error("Failed to handle task event")
+			p.logger.With(
+				"service", "vibexp-api",
+				"method", "ProcessStream",
+				"execution_id", executionID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to handle task event")
 		}
 	case "status-update":
 		if err := p.handleStatusUpdate(ctx, executionID, event); err != nil {
-			p.logger.WithFields(logrus.Fields{
-				"service":      "vibexp-api",
-				"method":       "ProcessStream",
-				"execution_id": executionID,
-				"error":        fmt.Sprintf("%+v", err),
-			}).Error("Failed to handle status update")
+			p.logger.With(
+				"service", "vibexp-api",
+				"method", "ProcessStream",
+				"execution_id", executionID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to handle status update")
 		}
 	case "artifact-update":
 		p.handleArtifactUpdate(executionID, event, artifacts)
@@ -106,12 +106,12 @@ func (p *A2AStreamProcessor) saveIncrementalArtifacts(
 	artifacts map[string]map[string]interface{},
 ) {
 	if err := p.saveArtifacts(ctx, executionID, artifacts); err != nil {
-		p.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "ProcessStream",
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Warn("Failed to save incremental artifacts")
+		p.logger.With(
+			"service", "vibexp-api",
+			"method", "ProcessStream",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to save incremental artifacts")
 	}
 }
 
@@ -125,29 +125,29 @@ func (p *A2AStreamProcessor) finalizeExecution(
 	// Save final artifacts if any
 	if len(artifacts) > 0 {
 		if err := p.saveArtifacts(bgCtx, executionID, artifacts); err != nil {
-			p.logger.WithFields(logrus.Fields{
-				"service":      "vibexp-api",
-				"method":       "ProcessStream",
-				"execution_id": executionID,
-				"error":        fmt.Sprintf("%+v", err),
-			}).Error("Failed to save artifacts")
+			p.logger.With(
+				"service", "vibexp-api",
+				"method", "ProcessStream",
+				"execution_id", executionID,
+				"error", fmt.Sprintf("%+v", err),
+			).Error("Failed to save artifacts")
 		}
 	}
 
 	// Ensure execution is finalized
 	if err := p.executionRepo.UpdateStatus(bgCtx, executionID, "success"); err != nil {
-		p.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "ProcessStream",
-			"execution_id": executionID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Warn("Failed to auto-finalize execution (may already be finalized)")
+		p.logger.With(
+			"service", "vibexp-api",
+			"method", "ProcessStream",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to auto-finalize execution (may already be finalized)")
 	} else {
-		p.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "ProcessStream",
-			"execution_id": executionID,
-		}).Info("Ensured execution is finalized after stream completion")
+		p.logger.With(
+			"service", "vibexp-api",
+			"method", "ProcessStream",
+			"execution_id", executionID,
+		).Info("Ensured execution is finalized after stream completion")
 	}
 }
 
@@ -159,11 +159,12 @@ func (p *A2AStreamProcessor) ProcessStream(
 	sequenceNumber := 0
 	artifacts := make(map[string]map[string]interface{})
 
-	p.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"method":       "ProcessStream",
-		"execution_id": executionID,
-	}).Info("Starting stream processing")
+	p.logger.With(
+		"service", "vibexp-api",
+		"method", "ProcessStream",
+		"execution_id", executionID,
+	).
+		Info("Starting stream processing")
 
 	for event := range eventChan {
 		bgCtx := context.Background()
@@ -174,12 +175,12 @@ func (p *A2AStreamProcessor) ProcessStream(
 
 	p.finalizeExecution(executionID, artifacts)
 
-	p.logger.WithFields(logrus.Fields{
-		"service":      "vibexp-api",
-		"method":       "ProcessStream",
-		"execution_id": executionID,
-		"total_events": sequenceNumber,
-	}).Info("Stream processing completed")
+	p.logger.With(
+		"service", "vibexp-api",
+		"method", "ProcessStream",
+		"execution_id", executionID,
+		"total_events", sequenceNumber,
+	).Info("Stream processing completed")
 
 	return nil
 }
@@ -219,14 +220,14 @@ func (p *A2AStreamProcessor) handleTaskEvent(
 		return fmt.Errorf("failed to update task info: %w", err)
 	}
 
-	p.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"method":        "handleTaskEvent",
-		"execution_id":  executionID,
-		"task_id":       taskID,
-		"context_id":    contextID,
-		"current_state": currentState,
-	}).Info("Task event processed")
+	p.logger.With(
+		"service", "vibexp-api",
+		"method", "handleTaskEvent",
+		"execution_id", executionID,
+		"task_id", taskID,
+		"context_id", contextID,
+		"current_state", currentState,
+	).Info("Task event processed")
 
 	return nil
 }
@@ -277,14 +278,14 @@ func (p *A2AStreamProcessor) finalizeFinalStatus(ctx context.Context, executionI
 		return fmt.Errorf("failed to finalize execution status: %w", err)
 	}
 
-	p.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"method":        "handleStatusUpdate",
-		"execution_id":  executionID,
-		"current_state": currentState,
-		"final_status":  finalStatus,
-		"final":         true,
-	}).Info("Final status update received - execution finalized")
+	p.logger.With(
+		"service", "vibexp-api",
+		"method", "handleStatusUpdate",
+		"execution_id", executionID,
+		"current_state", currentState,
+		"final_status", finalStatus,
+		"final", true,
+	).Info("Final status update received - execution finalized")
 
 	return nil
 }
@@ -305,12 +306,12 @@ func (p *A2AStreamProcessor) handleStatusUpdate(
 		return p.finalizeFinalStatus(ctx, executionID, currentState)
 	}
 
-	p.logger.WithFields(logrus.Fields{
-		"service":       "vibexp-api",
-		"method":        "handleStatusUpdate",
-		"execution_id":  executionID,
-		"current_state": currentState,
-	}).Info("Status update processed")
+	p.logger.With(
+		"service", "vibexp-api",
+		"method", "handleStatusUpdate",
+		"execution_id", executionID,
+		"current_state", currentState,
+	).Info("Status update processed")
 
 	return nil
 }
@@ -381,11 +382,12 @@ func (p *A2AStreamProcessor) handleArtifactUpdate(
 ) {
 	artifactID := extractArtifactID(event.Data)
 	if artifactID == "" {
-		p.logger.WithFields(logrus.Fields{
-			"service":      "vibexp-api",
-			"method":       "handleArtifactUpdate",
-			"execution_id": executionID,
-		}).Warn("Artifact update missing artifactId")
+		p.logger.With(
+			"service", "vibexp-api",
+			"method", "handleArtifactUpdate",
+			"execution_id", executionID,
+		).
+			Warn("Artifact update missing artifactId")
 		return
 	}
 
@@ -410,16 +412,16 @@ func (p *A2AStreamProcessor) handleArtifactUpdate(
 
 	totalParts := calculateTotalParts(artifacts, artifactID)
 
-	p.logger.WithFields(logrus.Fields{
-		"service":           "vibexp-api",
-		"method":            "handleArtifactUpdate",
-		"execution_id":      executionID,
-		"artifact_id":       artifactID,
-		"append":            shouldAppend,
-		"last_chunk":        lastChunk,
-		"new_parts_count":   len(newParts),
-		"total_parts_count": totalParts,
-	}).Info("Artifact update processed")
+	p.logger.With(
+		"service", "vibexp-api",
+		"method", "handleArtifactUpdate",
+		"execution_id", executionID,
+		"artifact_id", artifactID,
+		"append", shouldAppend,
+		"last_chunk", lastChunk,
+		"new_parts_count", len(newParts),
+		"total_parts_count", totalParts,
+	).Info("Artifact update processed")
 }
 
 // saveArtifacts saves the accumulated artifacts to the database
@@ -464,13 +466,13 @@ func (p *A2AStreamProcessor) saveArtifacts(
 		}
 	}
 
-	p.logger.WithFields(logrus.Fields{
-		"service":        "vibexp-api",
-		"method":         "saveArtifacts",
-		"execution_id":   executionID,
-		"artifact_count": len(artifactArray),
-		"total_parts":    totalParts,
-	}).Info("Artifacts saved in A2A-compliant format")
+	p.logger.With(
+		"service", "vibexp-api",
+		"method", "saveArtifacts",
+		"execution_id", executionID,
+		"artifact_count", len(artifactArray),
+		"total_parts", totalParts,
+	).Info("Artifacts saved in A2A-compliant format")
 
 	return nil
 }

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/server/gen"
@@ -45,22 +44,22 @@ func (n *notificationsStrictServer) ListNotifications(
 
 	items, listErr := n.s.container.NotificationService().ListForUser(ctx, userID, filters)
 	if listErr != nil {
-		n.s.logger.WithFields(logrus.Fields{
-			"handler": "ListNotifications",
-			"user_id": userID,
-			"error":   listErr.Error(),
-		}).Error("Failed to list notifications")
+		n.s.logger.With(
+			"handler", "ListNotifications",
+			"user_id", userID,
+			"error", listErr.Error(),
+		).Error("Failed to list notifications")
 
 		return nil, apierrors.NewInternalError("Failed to list notifications")
 	}
 
 	genItems, convErr := toGenNotifications(items)
 	if convErr != nil {
-		n.s.logger.WithFields(logrus.Fields{
-			"handler": "ListNotifications",
-			"user_id": userID,
-			"error":   convErr.Error(),
-		}).Error("Failed to convert notifications to spec types")
+		n.s.logger.With(
+			"handler", "ListNotifications",
+			"user_id", userID,
+			"error", convErr.Error(),
+		).Error("Failed to convert notifications to spec types")
 
 		return nil, apierrors.NewInternalError("Failed to list notifications")
 	}
@@ -81,11 +80,11 @@ func (n *notificationsStrictServer) GetUnreadNotificationCount(
 
 	count, err := n.s.container.NotificationService().GetUnreadCount(ctx, userID)
 	if err != nil {
-		n.s.logger.WithFields(logrus.Fields{
-			"handler": "GetUnreadNotificationCount",
-			"user_id": userID,
-			"error":   err.Error(),
-		}).Error("Failed to get unread notification count")
+		n.s.logger.With(
+			"handler", "GetUnreadNotificationCount",
+			"user_id", userID,
+			"error", err.Error(),
+		).Error("Failed to get unread notification count")
 
 		return nil, apierrors.NewInternalError("Failed to get unread notification count")
 	}
@@ -103,12 +102,12 @@ func (n *notificationsStrictServer) MarkNotificationRead(
 	notifID := request.Id.String()
 
 	if err := n.s.container.NotificationService().MarkRead(ctx, userID, notifID); err != nil {
-		n.s.logger.WithFields(logrus.Fields{
-			"handler":         "MarkNotificationRead",
-			"user_id":         userID,
-			"notification_id": notifID,
-			"error":           err.Error(),
-		}).Error("Failed to mark notification as read")
+		n.s.logger.With(
+			"handler", "MarkNotificationRead",
+			"user_id", userID,
+			"notification_id", notifID,
+			"error", err.Error(),
+		).Error("Failed to mark notification as read")
 
 		return nil, apierrors.NewInternalError("Failed to mark notification as read")
 	}
@@ -123,11 +122,11 @@ func (n *notificationsStrictServer) MarkAllNotificationsRead(
 	userID := ctx.Value(contextKeyUserID).(string)
 
 	if err := n.s.container.NotificationService().MarkAllRead(ctx, userID); err != nil {
-		n.s.logger.WithFields(logrus.Fields{
-			"handler": "MarkAllNotificationsRead",
-			"user_id": userID,
-			"error":   err.Error(),
-		}).Error("Failed to mark all notifications as read")
+		n.s.logger.With(
+			"handler", "MarkAllNotificationsRead",
+			"user_id", userID,
+			"error", err.Error(),
+		).Error("Failed to mark all notifications as read")
 
 		return nil, apierrors.NewInternalError("Failed to mark all notifications as read")
 	}
@@ -250,7 +249,7 @@ func (s *Server) notificationsResponseErrorHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	s.logger.WithError(err).Error("Notifications strict handler failed")
+	s.logger.With("error", err).Error("Notifications strict handler failed")
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError("Internal server error"))
 }
 
@@ -258,10 +257,10 @@ func (s *Server) notificationsResponseErrorHandler(w http.ResponseWriter, r *htt
 // Protected by pubSubOIDCMiddleware (Cloud Scheduler → OIDC-authenticated HTTP).
 func (s *Server) handleNotificationRetentionJob(w http.ResponseWriter, r *http.Request) {
 	if err := s.container.NotificationService().RunRetentionJob(r.Context()); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"handler": "handleNotificationRetentionJob",
-			"error":   err.Error(),
-		}).Error("Notification retention job failed")
+		s.logger.With(
+			"handler", "handleNotificationRetentionJob",
+			"error", err.Error(),
+		).Error("Notification retention job failed")
 
 		apierrors.WriteJSONError(w, r, apierrors.NewInternalError("Retention job failed"))
 
@@ -270,7 +269,7 @@ func (s *Server) handleNotificationRetentionJob(w http.ResponseWriter, r *http.R
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("OK")); err != nil {
-		s.logger.WithError(err).Error("Failed to write retention job response")
+		s.logger.With("error", err).Error("Failed to write retention job response")
 	}
 }
 
@@ -278,10 +277,10 @@ func (s *Server) handleNotificationRetentionJob(w http.ResponseWriter, r *http.R
 // Protected by pubSubOIDCMiddleware (Cloud Scheduler → OIDC-authenticated HTTP).
 func (s *Server) handleNotificationDigestJob(w http.ResponseWriter, r *http.Request) {
 	if err := s.container.DigestRunner().Run(r.Context(), time.Now().UTC()); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"handler": "handleNotificationDigestJob",
-			"error":   err.Error(),
-		}).Error("Notification digest job failed")
+		s.logger.With(
+			"handler", "handleNotificationDigestJob",
+			"error", err.Error(),
+		).Error("Notification digest job failed")
 
 		apierrors.WriteJSONError(w, r, apierrors.NewInternalError("Digest job failed"))
 
@@ -290,6 +289,6 @@ func (s *Server) handleNotificationDigestJob(w http.ResponseWriter, r *http.Requ
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("OK")); err != nil {
-		s.logger.WithError(err).Error("Failed to write digest job response")
+		s.logger.With("error", err).Error("Failed to write digest job response")
 	}
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/services/activities"
 	"github.com/vibexp/vibexp/internal/services/projectmigration"
@@ -28,13 +27,13 @@ func (s *Server) handleGetMigrationInventory(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleGetMigrationInventory",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"project_id": projectID,
-	}).Info("Get migration inventory request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetMigrationInventory",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", projectID,
+	).Info("Get migration inventory request received")
 
 	inventory, err := s.container.ProjectMigrationService().GetInventory(r.Context(), userID, teamID, projectID)
 	if err != nil {
@@ -58,13 +57,13 @@ func (s *Server) handleMigrateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    "handleMigrateProject",
-		"user_id":    userID,
-		"team_id":    teamID,
-		"project_id": projectID,
-	}).Info("Migrate project request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleMigrateProject",
+		"user_id", userID,
+		"team_id", teamID,
+		"project_id", projectID,
+	).Info("Migrate project request received")
 
 	req, ok := decodeMigrationRequest(w, r)
 	if !ok {
@@ -145,13 +144,13 @@ func validateMigrationRequest(req *projectmigration.MigrationRequest) error {
 func (s *Server) handleMigrationError(
 	w http.ResponseWriter, handler, userID, projectID string, err error,
 ) {
-	s.logger.WithFields(logrus.Fields{
-		"service":    "vibexp-api",
-		"handler":    handler,
-		"user_id":    userID,
-		"project_id": projectID,
-		"error":      fmt.Sprintf("%+v", err),
-	}).Error("Migration operation failed")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", handler,
+		"user_id", userID,
+		"project_id", projectID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Migration operation failed")
 
 	errStr := err.Error()
 	switch {

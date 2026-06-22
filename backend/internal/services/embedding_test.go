@@ -4,16 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
-
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/pgvector/pgvector-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
@@ -39,7 +38,7 @@ func createTestEmbeddingService(
 		nil, // feedItemRepo — not exercised by non-feed tests
 		nil, // feedItemReplyRepo — not exercised by non-feed tests
 		testEmbeddingDimensions,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 	)
 }
 
@@ -60,7 +59,7 @@ func createTestEmbeddingServiceWithFeed(
 		feedItemRepo,
 		feedItemReplyRepo,
 		testEmbeddingDimensions,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 	)
 }
 
@@ -1116,7 +1115,7 @@ func TestEmbeddingService_resolveEntityTeam_NilRepoSkipsForBuiltinTypes(t *testi
 	// All typed repos are intentionally nil.
 	service := NewEmbeddingService(
 		embRepo, nil, nil, nil, nil, nil, nil, testEmbeddingDimensions,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 	)
 
 	for _, et := range []string{"prompt", "artifact", "memory", "blueprint", "feed_item", "feed_item_reply"} {

@@ -7,9 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
-
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -45,8 +42,6 @@ func checkCredentialValidationResult(t *testing.T, err error, shouldError bool, 
 }
 
 func TestCredentialValidation(t *testing.T) {
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
 
 	tests := []struct {
 		name        string
@@ -105,8 +100,6 @@ func TestCredentialValidation(t *testing.T) {
 
 // TestUpdateAgentCredentials_ValidationIntegration tests the full handler with validation
 func TestUpdateAgentCredentials_ValidationIntegration(t *testing.T) {
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
 
 	tests := []struct {
 		name           string

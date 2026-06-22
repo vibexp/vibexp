@@ -5,7 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -22,8 +23,7 @@ func newSanitizeTestService() (*GitHubAppService, *MockBlueprintRepository) {
 	encryptionSvc := new(MockEncryptionService)
 	eventManager := new(MockEventPublisher)
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	svc := NewGitHubAppService(
 		installationRepo, projectRepo, blueprintRepo,

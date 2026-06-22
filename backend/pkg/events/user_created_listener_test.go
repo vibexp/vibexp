@@ -2,16 +2,16 @@ package events
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewUserCreatedListener(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewUserCreatedListener(logger)
 
 	assert.NotNil(t, listener)
@@ -26,7 +26,7 @@ func TestNewUserCreatedListener_WithNilLogger(t *testing.T) {
 }
 
 func TestUserCreatedListener_Handle(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewUserCreatedListener(logger)
 
 	// Create a test event
@@ -39,7 +39,7 @@ func TestUserCreatedListener_Handle(t *testing.T) {
 }
 
 func TestUserCreatedListener_EventTypes(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	listener := NewUserCreatedListener(logger)
 
 	eventTypes := listener.EventTypes()

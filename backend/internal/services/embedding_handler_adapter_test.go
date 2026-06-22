@@ -2,19 +2,19 @@ package services_test
 
 import (
 	"fmt"
+	"log/slog"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/mocks"
 )
 
-func newNullLogger() *logrus.Logger {
-	l, _ := test.NewNullLogger()
+func newNullLogger() *slog.Logger {
+	l, _ := logtest.New()
 	return l
 }
 

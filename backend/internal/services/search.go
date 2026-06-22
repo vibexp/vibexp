@@ -3,10 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -31,7 +30,7 @@ var allEntityTypes = []string{"prompt", "artifact", "blueprint", "memory"}
 type SearchService struct {
 	repo     repositories.SearchRepository
 	embedder QueryEmbedder
-	logger   *logrus.Logger
+	logger   *slog.Logger
 	ranking  SearchRankingConfig
 	// model is the configured embedding model id; it gates the model_id filter so
 	// query embeddings only match rows written by the same model.
@@ -49,7 +48,7 @@ var _ SearchServiceInterface = (*SearchService)(nil)
 func NewSearchService(
 	repo repositories.SearchRepository,
 	embedder QueryEmbedder,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	ranking SearchRankingConfig,
 	model string,
 ) *SearchService {
@@ -87,11 +86,12 @@ func (s *SearchService) Search(
 		// No matches can mean a genuinely empty result or that no embeddings exist
 		// for the configured model (e.g. the AI service changed its model
 		// identifier). Log enough to tell the two apart without warning-level noise.
-		s.logger.WithFields(logrus.Fields{
-			"team_id":      teamID,
-			"model_id":     s.model,
-			"entity_types": entityTypes,
-		}).Debug("semantic search returned no results")
+		s.logger.With(
+			"team_id", teamID,
+			"model_id", s.model,
+			"entity_types", entityTypes,
+		).
+			Debug("semantic search returned no results")
 	}
 
 	items := make([]models.SearchResultItem, 0, len(pageRows))

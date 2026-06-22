@@ -2,12 +2,12 @@ package events
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
 	"cloud.google.com/go/pubsub" //nolint:staticcheck // v2 has breaking changes, will upgrade when stable
 	"cloud.google.com/go/pubsub/pstest"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -74,7 +74,7 @@ func TestPubSubForwarderListener_RequiresClient(t *testing.T) {
 		Client:     nil,
 		TopicName:  "test-topic",
 		EventTypes: []string{"test.event"},
-		Logger:     logrus.New(),
+		Logger:     slog.New(slog.DiscardHandler),
 	})
 
 	if err == nil {
@@ -93,7 +93,7 @@ func TestPubSubForwarderListener_RequiresTopicName(t *testing.T) {
 		Client:     helper.client,
 		TopicName:  "",
 		EventTypes: []string{"test.event"},
-		Logger:     logrus.New(),
+		Logger:     slog.New(slog.DiscardHandler),
 	})
 
 	if err == nil {
@@ -117,7 +117,7 @@ func TestPubSubForwarderListener_CreatesSuccessfully(t *testing.T) {
 		Client:       helper.client,
 		TopicName:    topic.ID(),
 		EventTypes:   []string{"test.event", "another.event"},
-		Logger:       logrus.New(),
+		Logger:       slog.New(slog.DiscardHandler),
 		PublishAsync: false,
 	})
 
@@ -145,8 +145,7 @@ func TestPubSubForwarder_ForwardsEventsSuccessfully(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	forwarder, err := NewPubSubForwarderListener(PubSubForwarderConfig{
 		Client:       helper.client,

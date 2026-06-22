@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -40,7 +39,7 @@ func (s *Server) checkClaudeSessionLimit(w http.ResponseWriter, r *http.Request,
 	resourceUsageService := s.container.ResourceUsageService()
 	canCreateSession, err := resourceUsageService.CheckResourceLimit(r.Context(), userID, "ai_session")
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to check AI session limit")
+		s.logger.With("error", err).Error("Failed to check AI session limit")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
 		return false
 	}
@@ -57,11 +56,11 @@ func (s *Server) checkClaudeSessionLimit(w http.ResponseWriter, r *http.Request,
 			}
 		}
 
-		s.logger.WithFields(logrus.Fields{
-			"user_id":       userID,
-			"current_usage": currentUsage,
-			"limit":         limit,
-		}).Warn("AI session limit reached")
+		s.logger.With(
+			"user_id", userID,
+			"current_usage", currentUsage,
+			"limit", limit,
+		).Warn("AI session limit reached")
 
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"status":  "error",
@@ -82,7 +81,7 @@ func (s *Server) checkClaudeToolLimit(w http.ResponseWriter, r *http.Request, us
 	resourceUsageService := s.container.ResourceUsageService()
 	canCreateTool, err := resourceUsageService.CheckResourceLimit(r.Context(), userID, "ai_tool")
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to check AI tool limit")
+		s.logger.With("error", err).Error("Failed to check AI tool limit")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
 		return false
 	}
@@ -99,11 +98,11 @@ func (s *Server) checkClaudeToolLimit(w http.ResponseWriter, r *http.Request, us
 			}
 		}
 
-		s.logger.WithFields(logrus.Fields{
-			"user_id":       userID,
-			"current_usage": currentUsage,
-			"limit":         limit,
-		}).Warn("AI tool limit reached")
+		s.logger.With(
+			"user_id", userID,
+			"current_usage", currentUsage,
+			"limit", limit,
+		).Warn("AI tool limit reached")
 
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"status":  "error",
@@ -155,12 +154,12 @@ func prepareClaudeHookPayload(
 	// Convert tool_input and tool_response if they exist
 	toolInput, err := convertToJSONBData(payload.ToolInput)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to convert tool input")
+		slog.With("error", err).Error("Failed to convert tool input")
 	}
 
 	toolResponse, err := convertToJSONBData(payload.ToolResponse)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to convert tool response")
+		slog.With("error", err).Error("Failed to convert tool response")
 	}
 
 	return &models.ClaudeCodeHookPayload{
@@ -188,7 +187,7 @@ func (s *Server) checkClaudeResourceLimits(
 	claudeCodeRepo := s.container.ClaudeCodeHooksRepository()
 	sessionExists, checkErr := claudeCodeRepo.SessionExists(r.Context(), userID, sessionID)
 	if checkErr != nil {
-		s.logger.WithError(checkErr).Error("Failed to check if session exists")
+		s.logger.With("error", checkErr).Error("Failed to check if session exists")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to check session", s.logger)
 		return false
 	}
@@ -201,7 +200,7 @@ func (s *Server) checkClaudeResourceLimits(
 
 		claudeCount, countErr := claudeCodeRepo.CountUniqueSessions(r.Context(), userID)
 		if countErr != nil {
-			s.logger.WithError(countErr).Error("Failed to count Claude Code sessions")
+			s.logger.With("error", countErr).Error("Failed to count Claude Code sessions")
 			respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
 			return false
 		}
@@ -238,7 +237,7 @@ func parsePaginationParams(r *http.Request) (page, limit int) {
 }
 
 // respondWithJSON sends a JSON success response with HTTP 200 OK
-func respondWithJSON(w http.ResponseWriter, data interface{}, logger *logrus.Logger) {
+func respondWithJSON(w http.ResponseWriter, data interface{}, logger *slog.Logger) {
 	writeOK(w, data, logger)
 }
 
@@ -248,14 +247,14 @@ func (s *Server) checkClaudeSessionAndCount(
 ) (sessionExists bool, count int, err error) {
 	sessionExists, err = repo.SessionExists(ctx, userID, sessionID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to check if session exists")
+		s.logger.With("error", err).Error("Failed to check if session exists")
 		return false, 0, err
 	}
 
 	if !sessionExists {
 		count, err = repo.CountUniqueSessions(ctx, userID)
 		if err != nil {
-			s.logger.WithError(err).Error("Failed to count Claude Code sessions")
+			s.logger.With("error", err).Error("Failed to count Claude Code sessions")
 			// Don't fail the request, just log the error
 			return sessionExists, 0, nil
 		}
@@ -265,7 +264,7 @@ func (s *Server) checkClaudeSessionAndCount(
 }
 
 // respondWithHookSuccess sends a successful hook creation response
-func respondWithHookSuccess(w http.ResponseWriter, hookPayload interface{}, logger *logrus.Logger) {
+func respondWithHookSuccess(w http.ResponseWriter, hookPayload interface{}, logger *slog.Logger) {
 	type hookResponse struct {
 		ID        int    `json:"id"`
 		CreatedAt string `json:"created_at"`
@@ -299,7 +298,7 @@ func (s *Server) fireAIToolSessionEvent(ctx context.Context, userID, sessionID, 
 	user, userErr := userRepo.GetByID(ctx, userID)
 	userEmail := ""
 	if userErr != nil {
-		s.logger.WithError(userErr).Warn("Failed to fetch user email for AI tool session event")
+		s.logger.With("error", userErr).Warn("Failed to fetch user email for AI tool session event")
 	} else {
 		userEmail = user.Email
 	}
@@ -309,14 +308,14 @@ func (s *Server) fireAIToolSessionEvent(ctx context.Context, userID, sessionID, 
 	if eventManager != nil {
 		event := events.NewAIToolSessionCreatedEvent(userID, userEmail, sessionID, toolType, isNewTool)
 		if publishErr := eventManager.Publish(ctx, event); publishErr != nil {
-			s.logger.WithError(publishErr).Warn("Failed to publish AI tool session created event")
+			s.logger.With("error", publishErr).Warn("Failed to publish AI tool session created event")
 		} else {
-			s.logger.WithFields(logrus.Fields{
-				"user_id":     userID,
-				"session_id":  sessionID,
-				"tool_type":   toolType,
-				"is_new_tool": isNewTool,
-			}).Info("AI tool session created event published successfully")
+			s.logger.With(
+				"user_id", userID,
+				"session_id", sessionID,
+				"tool_type", toolType,
+				"is_new_tool", isNewTool,
+			).Info("AI tool session created event published successfully")
 		}
 	}
 }
@@ -334,24 +333,24 @@ func (s *Server) processClaudeHookPayload(
 	// Prepare hook payload for storage
 	hookPayload, prepareErr := prepareClaudeHookPayload(userID, teamID, payload)
 	if prepareErr != nil {
-		s.logger.WithError(prepareErr).Error("Failed to prepare hook payload")
+		s.logger.With("error", prepareErr).Error("Failed to prepare hook payload")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to process payload", s.logger)
 		return
 	}
 
 	// Store the payload in repository
 	if err := repo.Create(r.Context(), hookPayload); err != nil {
-		s.logger.WithError(err).Error("Failed to store Claude Code hook payload")
+		s.logger.With("error", err).Error("Failed to store Claude Code hook payload")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to store hook payload", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"id":              hookPayload.ID,
-		"session_id":      payload.SessionID,
-		"hook_event_name": payload.HookEventName,
-		"tool_name":       payload.ToolName,
-	}).Info("Claude Code hook payload stored successfully")
+	slog.With(
+		"id", hookPayload.ID,
+		"session_id", payload.SessionID,
+		"hook_event_name", payload.HookEventName,
+		"tool_name", payload.ToolName,
+	).Info("Claude Code hook payload stored successfully")
 
 	// Record metrics
 	if s.metrics != nil {
@@ -378,7 +377,7 @@ func (s *Server) handleClaudeCodeHooksPost(w http.ResponseWriter, r *http.Reques
 	// Decode and validate payload
 	payload, err := s.decodeClaudeHookPayload(r)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to decode Claude Code hook payload")
+		s.logger.With("error", err).Error("Failed to decode Claude Code hook payload")
 		respondWithHookError(w, http.StatusBadRequest, "Invalid JSON payload", s.logger)
 		return
 	}
@@ -406,11 +405,12 @@ func (s *Server) handleClaudeCodeHooksPost(w http.ResponseWriter, r *http.Reques
 	// Get user's default team ID for resource creation
 	teamID, teamErr := s.getUserDefaultTeamID(r.Context(), userID)
 	if teamErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"handler": "handleClaudeCodeHooksPost",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", teamErr),
-		}).Error("Failed to get user's default team")
+		s.logger.With(
+			"handler", "handleClaudeCodeHooksPost",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", teamErr),
+		).
+			Error("Failed to get user's default team")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to get user's team", s.logger)
 		return
 	}
@@ -446,18 +446,18 @@ func (s *Server) handleClaudeCodeHooksGet(w http.ResponseWriter, r *http.Request
 	repo := s.container.ClaudeCodeHooksRepository()
 	response, listErr := repo.List(r.Context(), filters)
 	if listErr != nil {
-		logrus.WithError(listErr).Error("Failed to retrieve Claude Code hook payloads")
+		slog.With("error", listErr).Error("Failed to retrieve Claude Code hook payloads")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to retrieve hook payloads", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"page":        response.Page,
-		"limit":       response.Limit,
-		"total":       response.Total,
-		"total_pages": response.TotalPages,
-		"count":       len(response.Data),
-	}).Info("Claude Code hook payloads retrieved successfully")
+	slog.With(
+		"page", response.Page,
+		"limit", response.Limit,
+		"total", response.Total,
+		"total_pages", response.TotalPages,
+		"count", len(response.Data),
+	).Info("Claude Code hook payloads retrieved successfully")
 
 	respondWithJSON(w, map[string]interface{}{
 		"status":  "success",
@@ -480,18 +480,18 @@ func (s *Server) handleClaudeCodeSessionsGet(w http.ResponseWriter, r *http.Requ
 	repo := s.container.ClaudeCodeHooksRepository()
 	response, getErr := repo.GetSessions(r.Context(), filters)
 	if getErr != nil {
-		logrus.WithError(getErr).Error("Failed to retrieve Claude Code sessions")
+		slog.With("error", getErr).Error("Failed to retrieve Claude Code sessions")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to retrieve sessions", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"page":        response.Page,
-		"limit":       response.Limit,
-		"total":       response.Total,
-		"total_pages": response.TotalPages,
-		"count":       len(response.Data),
-	}).Info("Claude Code sessions retrieved successfully")
+	slog.With(
+		"page", response.Page,
+		"limit", response.Limit,
+		"total", response.Total,
+		"total_pages", response.TotalPages,
+		"count", len(response.Data),
+	).Info("Claude Code sessions retrieved successfully")
 
 	respondWithJSON(w, map[string]interface{}{
 		"status":  "success",
@@ -525,16 +525,17 @@ func (s *Server) handleClaudeCodeSessionCountsGet(w http.ResponseWriter, r *http
 	repo := s.container.ClaudeCodeHooksRepository()
 	response, err := repo.GetSessionCounts(r.Context(), userID, days)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to retrieve Claude Code session counts")
+		slog.With("error", err).Error("Failed to retrieve Claude Code session counts")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to retrieve session counts", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"total_sessions": response.TotalSessions,
-		"range_days":     days,
-		"count_entries":  len(response.Counts),
-	}).Info("Claude Code session counts retrieved successfully")
+	slog.With(
+		"total_sessions", response.TotalSessions,
+		"range_days", days,
+		"count_entries", len(response.Counts),
+	).
+		Info("Claude Code session counts retrieved successfully")
 
 	writeOK(w, map[string]any{
 		"status":  "success",
@@ -553,19 +554,19 @@ func (s *Server) handleClaudeCodeOverviewStatsGet(w http.ResponseWriter, r *http
 	repo := s.container.ClaudeCodeHooksRepository()
 	stats, err := repo.GetOverviewStats(r.Context(), userID)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to retrieve overview stats")
+		slog.With("error", err).Error("Failed to retrieve overview stats")
 		http.Error(w, "Failed to retrieve stats", http.StatusInternalServerError)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"total_sessions":               stats.TotalSessions,
-		"sessions_this_week":           stats.SessionsThisWeek,
-		"weekly_trend_percent":         stats.WeeklyTrendPercent,
-		"avg_user_prompts_per_session": stats.AvgUserPromptsPerSession,
-		"total_unique_tools":           stats.TotalUniqueTools,
-		"top_tools_count":              len(stats.TopTools),
-	}).Info("Claude Code overview stats retrieved successfully")
+	slog.With(
+		"total_sessions", stats.TotalSessions,
+		"sessions_this_week", stats.SessionsThisWeek,
+		"weekly_trend_percent", stats.WeeklyTrendPercent,
+		"avg_user_prompts_per_session", stats.AvgUserPromptsPerSession,
+		"total_unique_tools", stats.TotalUniqueTools,
+		"top_tools_count", len(stats.TopTools),
+	).Info("Claude Code overview stats retrieved successfully")
 
 	writeOK(w, map[string]any{
 		"status":  "success",
@@ -612,18 +613,18 @@ func (s *Server) handleClaudeCodeRecentActivitiesGet(w http.ResponseWriter, r *h
 	repo := s.container.ClaudeCodeHooksRepository()
 	response, err := repo.GetRecentActivities(r.Context(), filters)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to retrieve recent Claude Code activities")
+		slog.With("error", err).Error("Failed to retrieve recent Claude Code activities")
 		respondWithHookError(w, http.StatusInternalServerError, "Failed to retrieve recent activities", s.logger)
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"activities_count": len(response.Activities),
-		"page":             response.Page,
-		"limit":            response.Limit,
-		"total":            response.Total,
-		"total_pages":      response.TotalPages,
-	}).Info("Claude Code recent activities retrieved successfully")
+	slog.With(
+		"activities_count", len(response.Activities),
+		"page", response.Page,
+		"limit", response.Limit,
+		"total", response.Total,
+		"total_pages", response.TotalPages,
+	).Info("Claude Code recent activities retrieved successfully")
 
 	respondWithJSON(w, map[string]interface{}{
 		"status":  "success",
@@ -650,10 +651,12 @@ func (s *Server) handleClaudeCodeSessionDelete(w http.ResponseWriter, r *http.Re
 	repo := s.container.ClaudeCodeHooksRepository()
 	err := repo.DeleteSession(r.Context(), userID, sessionID)
 	if err != nil {
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"user_id":    userID,
-			"session_id": sessionID,
-		}).Error("Failed to delete Claude Code session")
+		s.logger.With("error", err).
+			With(
+				"user_id", userID,
+				"session_id", sessionID,
+			).
+			Error("Failed to delete Claude Code session")
 
 		// Check if it's a "not found" error
 		if errors.Is(err, repositories.ErrHookSessionNotFound) {
@@ -665,10 +668,10 @@ func (s *Server) handleClaudeCodeSessionDelete(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"user_id":    userID,
-		"session_id": sessionID,
-	}).Info("Claude Code session deleted successfully")
+	s.logger.With(
+		"user_id", userID,
+		"session_id", sessionID,
+	).Info("Claude Code session deleted successfully")
 
 	writeNoContent(w)
 }

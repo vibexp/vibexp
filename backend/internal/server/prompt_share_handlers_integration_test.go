@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -546,8 +546,7 @@ func TestGetSharedPrompt_Integration(t *testing.T) {
 // newTestServer creates a test server with the provided mock container
 func newTestServer(t *testing.T, mockContainer *MockPromptShareContainer, cfg *config.Config) *Server {
 	t.Helper()
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel) // Suppress logs during test
+	logger := slog.New(slog.DiscardHandler)
 
 	// Initialize router manually for testing
 	r := chi.NewRouter()

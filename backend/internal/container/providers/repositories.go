@@ -1,7 +1,7 @@
 package providers
 
 import (
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -124,7 +124,7 @@ func ProvideEmbeddingBackfillRepository(db *database.DB) repositories.EmbeddingB
 }
 
 // ProvideResourceUsageRepository creates a new ResourceUsageRepository
-func ProvideResourceUsageRepository(db *database.DB, logger *logrus.Logger) repositories.ResourceUsageRepository {
+func ProvideResourceUsageRepository(db *database.DB, logger *slog.Logger) repositories.ResourceUsageRepository {
 	if db == nil || db.DB == nil {
 		return nil
 	}
@@ -177,7 +177,7 @@ func ProvideWebhookEventRepository(db *database.DB) repositories.WebhookEventRep
 // ProvideGitHubInstallationRepository creates a new GitHubInstallationRepository
 func ProvideGitHubInstallationRepository(
 	db *database.DB,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) repositories.GitHubInstallationRepository {
 	if db == nil || db.DB == nil {
 		return nil

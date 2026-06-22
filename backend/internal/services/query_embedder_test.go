@@ -7,7 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sirupsen/logrus"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,8 +23,7 @@ const (
 )
 
 func newTestEmbedder(url string) *services.AIQueryEmbedder {
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return services.NewAIQueryEmbedder(services.AIQueryEmbedderConfig{
 		AIServiceURL: url,
 		Model:        testEmbedderModel,

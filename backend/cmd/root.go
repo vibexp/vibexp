@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/vibexp/vibexp/internal/config"
@@ -31,7 +31,8 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		logrus.WithError(err).Fatal("Failed to execute command")
+		slog.Error("Failed to execute command", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -54,8 +55,9 @@ func runServer(cmd *cobra.Command, args []string) {
 func loadConfiguration() *config.Config {
 	cfg, err := config.Load()
 	if err != nil {
-		// Use standard logrus for bootstrap errors (config not yet available)
-		logrus.WithError(err).Fatal("Failed to load configuration")
+		// Use the default slog logger for bootstrap errors (config not yet available)
+		slog.Error("Failed to load configuration", "error", err)
+		os.Exit(1)
 	}
 
 	// Precedence: env var RELEASE_SHA → ldflags buildSHA → runtime/debug VCS → "unknown"
@@ -75,50 +77,51 @@ func loadConfiguration() *config.Config {
 	return cfg
 }
 
-func configureLogger(cfg *config.Config) *logrus.Logger {
-	logger := logging.NewCloudLogger(logging.CloudLoggerConfig{
-		ServiceName:    cfg.KService,
-		ServiceVersion: cfg.KRevision,
-		LogLevel:       cfg.LogLevel,
+func configureLogger(cfg *config.Config) *slog.Logger {
+	logger := logging.New(logging.Config{
+		Format: cfg.LogFormat,
+		Level:  cfg.LogLevel,
 	})
-	// Also configure the global logrus logger for any code that uses it directly
-	logrus.SetFormatter(logger.Formatter)
-	logrus.SetOutput(logger.Out)
-	logrus.SetLevel(logger.Level)
+	// Make this the process-wide default so code logging via slog's package-level
+	// functions (and the context-logger fallback) shares the same configuration.
+	slog.SetDefault(logger)
 
-	logger.WithFields(logrus.Fields{
-		"port":         cfg.Port,
-		"log_level":    cfg.LogLevel,
-		"release_sha":  cfg.ReleaseSHA,
-		"release_date": cfg.ReleaseDate,
-	}).Info("Starting server")
+	logger.Info("Starting server",
+		"port", cfg.Port,
+		"log_level", cfg.LogLevel,
+		"log_format", cfg.LogFormat,
+		"release_sha", cfg.ReleaseSHA,
+		"release_date", cfg.ReleaseDate,
+	)
 
 	return logger
 }
 
-func initializeDatabase(cfg *config.Config, logger *logrus.Logger) *database.DB {
+func initializeDatabase(cfg *config.Config, logger *slog.Logger) *database.DB {
 	db, err := database.NewConnection(cfg)
 	if err != nil {
-		logger.WithError(err).Fatal("Failed to connect to database - database connection is required")
+		logger.Error("Failed to connect to database - database connection is required", "error", err)
+		os.Exit(1)
 	}
 	logger.Info("Database connection established")
 	return db
 }
 
-func closeDatabase(db *database.DB, logger *logrus.Logger) {
+func closeDatabase(db *database.DB, logger *slog.Logger) {
 	if err := db.Close(); err != nil {
-		logger.WithError(err).Error("Failed to close database connection")
+		logger.Error("Failed to close database connection", "error", err)
 	}
 }
 
-func runMigrations(db *database.DB, logger *logrus.Logger) {
+func runMigrations(db *database.DB, logger *slog.Logger) {
 	if err := db.RunMigrations(); err != nil {
-		logger.WithError(err).Fatal("Failed to run database migrations")
+		logger.Error("Failed to run database migrations", "error", err)
+		os.Exit(1)
 	}
 	logger.Info("Database migrations completed successfully")
 }
 
-func setupShutdownContext(logger *logrus.Logger) (context.Context, context.CancelFunc) {
+func setupShutdownContext(logger *slog.Logger) (context.Context, context.CancelFunc) {
 	// #nosec G118 -- cancel is returned to caller who owns its lifecycle
 	ctx, cancel := context.WithCancel(context.Background())
 	sigChan := make(chan os.Signal, 1)
@@ -133,22 +136,23 @@ func setupShutdownContext(logger *logrus.Logger) (context.Context, context.Cance
 	return ctx, cancel
 }
 
-func closeContainer(c container.Container, logger *logrus.Logger) {
+func closeContainer(c container.Container, logger *slog.Logger) {
 	logger.Info("Closing container resources (event manager, etc.)")
 	if err := c.Close(); err != nil {
-		logger.WithError(err).Error("Failed to close container")
+		logger.Error("Failed to close container", "error", err)
 	}
 }
 
-func startServer(ctx context.Context, srv *server.Server, logger *logrus.Logger) {
+func startServer(ctx context.Context, srv *server.Server, logger *slog.Logger) {
 	if err := srv.Start(ctx); err != nil {
-		// http.ErrServerClosed is returned during graceful shutdown (Cloud Run scale-down/rotation)
-		// context.Canceled is returned when shutdown signal is received
-		// Both are expected during normal Cloud Run operations, not actual errors
+		// http.ErrServerClosed is returned during graceful shutdown.
+		// context.Canceled is returned when a shutdown signal is received.
+		// Both are expected during normal operation, not actual errors.
 		if err == http.ErrServerClosed || err == context.Canceled {
 			logger.Info("Server shutting down gracefully")
 		} else {
-			logger.WithError(err).Fatal("Server failed")
+			logger.Error("Server failed", "error", err)
+			os.Exit(1)
 		}
 	}
 	logger.Info("Server stopped")

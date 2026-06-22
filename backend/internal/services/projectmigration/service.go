@@ -5,9 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -31,14 +30,14 @@ var _ interface {
 type Service struct {
 	db          *database.DB
 	projectRepo repositories.ProjectRepository
-	logger      *logrus.Logger
+	logger      *slog.Logger
 }
 
 // NewService creates a new project migration service.
 func NewService(
 	db *database.DB,
 	projectRepo repositories.ProjectRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *Service {
 	return &Service{
 		db:          db,
@@ -115,7 +114,7 @@ func (s *Service) queryInventoryItems(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			s.logger.WithError(closeErr).Warn("failed to close rows in queryInventoryItems")
+			s.logger.With("error", closeErr).Warn("failed to close rows in queryInventoryItems")
 		}
 	}()
 
@@ -160,7 +159,7 @@ func (s *Service) Migrate(
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			s.logger.WithError(rbErr).Error("Migrate: failed to rollback transaction")
+			s.logger.With("error", rbErr).Error("Migrate: failed to rollback transaction")
 		}
 	}()
 
@@ -533,7 +532,7 @@ func (s *Service) existingSlugs(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			s.logger.WithError(closeErr).Warn("failed to close rows in existingSlugs")
+			s.logger.With("error", closeErr).Warn("failed to close rows in existingSlugs")
 		}
 	}()
 
@@ -577,7 +576,7 @@ func (s *Service) queryIDsFromTxArgs(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			s.logger.WithError(closeErr).Warn("failed to close rows in queryIDsFromTxArgs")
+			s.logger.With("error", closeErr).Warn("failed to close rows in queryIDsFromTxArgs")
 		}
 	}()
 
@@ -607,7 +606,7 @@ func (s *Service) queryIDSlugsFromTxArgs(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			s.logger.WithError(closeErr).Warn("failed to close rows in queryIDSlugsFromTxArgs")
+			s.logger.With("error", closeErr).Warn("failed to close rows in queryIDSlugsFromTxArgs")
 		}
 	}()
 

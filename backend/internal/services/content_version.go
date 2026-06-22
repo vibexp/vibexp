@@ -3,10 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"unicode"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -70,7 +69,7 @@ type ContentVersionServiceInterface interface {
 type ContentVersionService struct {
 	repo     repositories.ContentVersionRepository
 	users    repositories.UserRepository
-	logger   *logrus.Logger
+	logger   *slog.Logger
 	registry map[string]ContentVersionAdapter
 }
 
@@ -81,7 +80,7 @@ var _ ContentVersionServiceInterface = (*ContentVersionService)(nil)
 func NewContentVersionService(
 	repo repositories.ContentVersionRepository,
 	users repositories.UserRepository,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 	adapters ...ContentVersionAdapter,
 ) *ContentVersionService {
 	registry := make(map[string]ContentVersionAdapter, len(adapters))
@@ -230,7 +229,7 @@ func (s *ContentVersionService) resolveAuthor(
 
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
-		s.logger.WithError(err).WithField("user_id", userID).
+		s.logger.With("error", err).With("user_id", userID).
 			Debug("content version author could not be resolved")
 		cache[userID] = nil
 		return nil

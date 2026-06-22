@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -15,8 +16,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -97,8 +96,7 @@ func validOAuthClaims(issuer string) jwt.MapClaims {
 func newOAuthJWTTestServer(t *testing.T, cookiePassword string) *Server {
 	t.Helper()
 	cfg := &config.Config{WorkOSCookiePassword: cookiePassword}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)
 }
 
@@ -243,7 +241,7 @@ func TestFlexibleAuth_Precedence_APIKeyPrefixBeforeJWT(t *testing.T) {
 	apiKeySvc.EXPECT().ValidateAPIKey(mock.Anything, mock.Anything).
 		Return(nil, errors.New("unknown api key"))
 
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := &Server{
 		port:      "8080",
 		container: &teamsAPIKeyContainer{apiKeySvc: apiKeySvc},
@@ -394,7 +392,7 @@ func TestAPIAudiencePolicy(t *testing.T) {
 // TestNewAPITokenVerifier_Activation pins that the verifier is nil (feature
 // off) without an issuer and non-nil with one.
 func TestNewAPITokenVerifier_Activation(t *testing.T) {
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 
 	t.Run("no issuer: nil verifier", func(t *testing.T) {
 		v := newAPITokenVerifier(&config.Config{}, &teamsAPIKeyContainer{}, logger)

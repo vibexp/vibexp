@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -24,11 +24,11 @@ func (s *Server) getUserWithUser(
 ) (*mcp.CallToolResult, any, error) {
 	user, err := s.container.AuthService().GetUserByID(ctx, userID)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_get_user",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get user via MCP")
+		slog.With(
+			"tool", "vibexp_io_get_user",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get user via MCP")
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Failed to get user: %v", err)}},
 			IsError: true,

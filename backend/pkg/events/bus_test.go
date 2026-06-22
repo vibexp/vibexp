@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -74,8 +74,7 @@ func (m *MockListener) SetShouldFail(shouldFail bool, failureCount int) {
 }
 
 func TestInMemoryEventBusBasics(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	t.Run("NewInMemoryEventBus creates bus with defaults", func(t *testing.T) {
 		testBusCreation(t, logger)
@@ -107,8 +106,7 @@ func TestInMemoryEventBusBasics(t *testing.T) {
 }
 
 func TestInMemoryEventBusReliability(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	t.Run("EventBus handles listener errors with retry", func(t *testing.T) {
 		testBusListenerRetry(t, logger)
@@ -128,8 +126,7 @@ func TestInMemoryEventBusReliability(t *testing.T) {
 }
 
 func TestInMemoryEventBusRetryLogic(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	t.Run("EventBus applies exponential backoff on retry", func(t *testing.T) {
 		testBusExponentialBackoff(t, logger)
@@ -152,7 +149,7 @@ func TestInMemoryEventBusRetryLogic(t *testing.T) {
 	})
 }
 
-func testBusCreation(t *testing.T, logger *logrus.Logger) {
+func testBusCreation(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Logger: logger}
 	bus := NewInMemoryEventBus(config)
 
@@ -163,7 +160,7 @@ func testBusCreation(t *testing.T, logger *logrus.Logger) {
 	assert.NotNil(t, bus.circuitBreaker)
 }
 
-func testBusStartStop(t *testing.T, logger *logrus.Logger) {
+func testBusStartStop(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 2, BufferSize: 10}, Logger: logger}
 	bus := NewInMemoryEventBus(config)
 
@@ -176,7 +173,7 @@ func testBusStartStop(t *testing.T, logger *logrus.Logger) {
 	assert.False(t, bus.running)
 }
 
-func testBusCannotStartTwice(t *testing.T, logger *logrus.Logger) {
+func testBusCannotStartTwice(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Logger: logger}
 	bus := NewInMemoryEventBus(config)
 
@@ -192,7 +189,7 @@ func testBusCannotStartTwice(t *testing.T, logger *logrus.Logger) {
 	}
 }
 
-func testBusPublishAndDispatch(t *testing.T, logger *logrus.Logger) {
+func testBusPublishAndDispatch(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 2, BufferSize: 10}, Logger: logger}
 	bus := NewInMemoryEventBus(config)
 	if err := bus.Start(); err != nil {
@@ -213,7 +210,7 @@ func testBusPublishAndDispatch(t *testing.T, logger *logrus.Logger) {
 	assert.Equal(t, event.Type(), handledEvents[0].Type())
 }
 
-func testBusMultipleListeners(t *testing.T, logger *logrus.Logger) {
+func testBusMultipleListeners(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 3, BufferSize: 10}, Logger: logger}
 	bus := NewInMemoryEventBus(config)
 	if err := bus.Start(); err != nil {
@@ -233,7 +230,7 @@ func testBusMultipleListeners(t *testing.T, logger *logrus.Logger) {
 	}
 }
 
-func testBusMultipleEventTypes(t *testing.T, logger *logrus.Logger) {
+func testBusMultipleEventTypes(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 2, BufferSize: 10}, Logger: logger}
 	bus := NewInMemoryEventBus(config)
 	if err := bus.Start(); err != nil {
@@ -261,7 +258,7 @@ func testBusMultipleEventTypes(t *testing.T, logger *logrus.Logger) {
 	assert.Equal(t, "event.type2", listener2.GetHandledEvents()[0].Type())
 }
 
-func testBusUnsubscribe(t *testing.T, logger *logrus.Logger) {
+func testBusUnsubscribe(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 2, BufferSize: 10}, Logger: logger}
 	bus := NewInMemoryEventBus(config)
 	if err := bus.Start(); err != nil {
@@ -289,7 +286,7 @@ func testBusUnsubscribe(t *testing.T, logger *logrus.Logger) {
 	assert.Equal(t, 1, len(listener.GetHandledEvents()))
 }
 
-func testBusListenerRetry(t *testing.T, logger *logrus.Logger) {
+func testBusListenerRetry(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{
 		Config: Config{
 			WorkerCount:  1,
@@ -317,7 +314,7 @@ func testBusListenerRetry(t *testing.T, logger *logrus.Logger) {
 	assert.Equal(t, int32(3), listener.GetHandleCount())
 }
 
-func testBusNotRunning(t *testing.T, logger *logrus.Logger) {
+func testBusNotRunning(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Logger: logger}
 	bus := NewInMemoryEventBus(config)
 
@@ -327,7 +324,7 @@ func testBusNotRunning(t *testing.T, logger *logrus.Logger) {
 	assert.Contains(t, err.Error(), "not running")
 }
 
-func testBusContextTimeout(t *testing.T, logger *logrus.Logger) {
+func testBusContextTimeout(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 1, BufferSize: 1}, Logger: logger}
 	bus := NewInMemoryEventBus(config)
 	if err := bus.Start(); err != nil {
@@ -352,7 +349,7 @@ func testBusContextTimeout(t *testing.T, logger *logrus.Logger) {
 	}
 }
 
-func testBusHighLoad(t *testing.T, logger *logrus.Logger) {
+func testBusHighLoad(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{Config: Config{WorkerCount: 5, BufferSize: 100}, Logger: logger}
 	bus := NewInMemoryEventBus(config)
 	if err := bus.Start(); err != nil {
@@ -394,7 +391,7 @@ func subscribeMultipleListeners(t *testing.T, bus *InMemoryEventBus, count int, 
 }
 
 // testBusExponentialBackoff verifies that exponential backoff is applied between retries
-func testBusExponentialBackoff(t *testing.T, logger *logrus.Logger) {
+func testBusExponentialBackoff(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{
 		Config: Config{
 			WorkerCount:  1,
@@ -433,7 +430,7 @@ func testBusExponentialBackoff(t *testing.T, logger *logrus.Logger) {
 }
 
 // testBusRetryPolicyNone verifies that events with RetryPolicyNone are not retried
-func testBusRetryPolicyNone(t *testing.T, logger *logrus.Logger) {
+func testBusRetryPolicyNone(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{
 		Config: Config{
 			WorkerCount:  1,
@@ -464,7 +461,7 @@ func testBusRetryPolicyNone(t *testing.T, logger *logrus.Logger) {
 }
 
 // testBusRetryPolicyTransient verifies that events with RetryPolicyTransient only retry transient errors
-func testBusRetryPolicyTransient(t *testing.T, logger *logrus.Logger) {
+func testBusRetryPolicyTransient(t *testing.T, logger *slog.Logger) {
 	config := EventBusConfig{
 		Config: Config{
 			WorkerCount:  1,
@@ -556,7 +553,7 @@ func testTransientErrorDetection(t *testing.T) {
 }
 
 // testBackoffCalculationWithJitter verifies the exponential backoff policy with and without jitter
-func testBackoffCalculationWithJitter(t *testing.T, logger *logrus.Logger) {
+func testBackoffCalculationWithJitter(t *testing.T, logger *slog.Logger) {
 	t.Run("without jitter", func(t *testing.T) {
 		config := EventBusConfig{
 			Config: Config{
@@ -606,7 +603,7 @@ func testBackoffCalculationWithJitter(t *testing.T, logger *logrus.Logger) {
 // a delay can reach up to ~33s (30s × 1.1, plus the library's 1ns interval
 // fudge) but must never exceed that bound. The 5s base is the maximum that
 // survives NewInMemoryEventBus validation (larger values are capped to 5s).
-func testRetryBackoffCap(t *testing.T, logger *logrus.Logger) {
+func testRetryBackoffCap(t *testing.T, logger *slog.Logger) {
 	cases := []struct {
 		name   string
 		jitter bool

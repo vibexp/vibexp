@@ -3,10 +3,10 @@ package providers
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/darkrockmountain/gomail"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/auth/idp/oidc"
@@ -31,7 +31,7 @@ import (
 //
 // No branch returns a fatal error on misconfiguration: a misconfigured
 // provider degrades to the stub rather than crashing startup.
-func ProvideIdentityProvider(cfg *config.Config, logger *logrus.Logger) (idp.IdentityProvider, error) {
+func ProvideIdentityProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.AuthProvider)) {
 	case "workos":
 		return provideWorkOSIdentityProvider(cfg, logger)
@@ -41,10 +41,10 @@ func ProvideIdentityProvider(cfg *config.Config, logger *logrus.Logger) (idp.Ide
 		if cfg.WorkOSClientID != "" && cfg.WorkOSAPIKey != "" {
 			return provideWorkOSIdentityProvider(cfg, logger)
 		}
-		logger.WithField("auth_provider", "stub").Info("Identity provider initialized")
+		logger.With("auth_provider", "stub").Info("Identity provider initialized")
 		return &stubIdentityProvider{}, nil
 	default:
-		logger.WithField("auth_provider", cfg.AuthProvider).
+		logger.With("auth_provider", cfg.AuthProvider).
 			Warn("Unrecognized AUTH_PROVIDER; web login disabled (using no-op stub)")
 		return &stubIdentityProvider{}, nil
 	}
@@ -52,9 +52,9 @@ func ProvideIdentityProvider(cfg *config.Config, logger *logrus.Logger) (idp.Ide
 
 // provideWorkOSIdentityProvider constructs the WorkOS provider, falling back to
 // the no-op stub when credentials are absent.
-func provideWorkOSIdentityProvider(cfg *config.Config, logger *logrus.Logger) (idp.IdentityProvider, error) {
+func provideWorkOSIdentityProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, error) {
 	if cfg.WorkOSClientID == "" || cfg.WorkOSAPIKey == "" {
-		logger.WithField("auth_provider", "stub").
+		logger.With("auth_provider", "stub").
 			Warn("AUTH_PROVIDER=workos but WorkOS credentials are absent; web login disabled (using no-op stub)")
 		return &stubIdentityProvider{}, nil
 	}
@@ -67,14 +67,14 @@ func provideWorkOSIdentityProvider(cfg *config.Config, logger *logrus.Logger) (i
 	if err != nil {
 		return nil, err
 	}
-	logger.WithField("auth_provider", "workos").Info("Identity provider initialized")
+	logger.With("auth_provider", "workos").Info("Identity provider initialized")
 	return provider, nil
 }
 
 // provideOIDCIdentityProvider constructs the generic OIDC provider. OIDC
 // discovery failure is non-fatal: a WARNING is logged and the no-op stub is
 // returned so the server still boots with web login disabled.
-func provideOIDCIdentityProvider(cfg *config.Config, logger *logrus.Logger) (idp.IdentityProvider, error) {
+func provideOIDCIdentityProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, error) {
 	provider, err := oidc.New(context.Background(), oidc.Config{
 		Name:         idp.ProviderName("oidc"),
 		IssuerURL:    cfg.OIDCIssuerURL,
@@ -83,14 +83,18 @@ func provideOIDCIdentityProvider(cfg *config.Config, logger *logrus.Logger) (idp
 		RedirectURL:  cfg.OIDCRedirectURI,
 	})
 	if err != nil {
-		logger.WithError(err).WithField("issuer_url", cfg.OIDCIssuerURL).
+		logger.With(
+			"error", err,
+			"issuer_url", cfg.OIDCIssuerURL,
+		).
 			Warn("OIDC provider initialization failed; web login disabled (using no-op stub)")
 		return &stubIdentityProvider{}, nil
 	}
-	logger.WithFields(logrus.Fields{
-		"auth_provider": "oidc",
-		"issuer_url":    cfg.OIDCIssuerURL,
-	}).Info("Identity provider initialized")
+	logger.Info(
+		"Identity provider initialized",
+		"auth_provider", "oidc",
+		"issuer_url", cfg.OIDCIssuerURL,
+	)
 	return provider, nil
 }
 
@@ -122,25 +126,25 @@ func (s *stubIdentityProvider) Refresh(ctx context.Context, refreshToken string)
 // lowercase and trimmed before matching, so "MAILGUN" and "smtp " work correctly.
 // When EMAIL_PROVIDER is empty or "smtp" and no SMTP host/port are configured,
 // a no-op stub is returned so the container can wire up without email credentials.
-func ProvideEmailProvider(cfg *config.Config, logger *logrus.Logger) (external.EmailProvider, error) {
+func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.EmailProvider, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.EmailProvider)) {
 	case "mailgun":
 		provider, err := implementations.NewMailgunEmailProvider(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("email provider factory: %w", err)
 		}
-		logger.WithField("email_provider", "mailgun").Info("Email provider initialized")
+		logger.With("email_provider", "mailgun").Info("Email provider initialized")
 		return provider, nil
 	case "smtp", "":
 		if cfg.SMTPHost == "" || cfg.SMTPPort == "" {
-			logger.WithField("email_provider", "stub").Info("Email provider initialized")
+			logger.With("email_provider", "stub").Info("Email provider initialized")
 			return &stubEmailProvider{}, nil
 		}
 		provider, err := implementations.NewSMTPEmailProvider(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("email provider factory: %w", err)
 		}
-		logger.WithField("email_provider", "smtp").Info("Email provider initialized")
+		logger.With("email_provider", "smtp").Info("Email provider initialized")
 		return provider, nil
 	default:
 		return nil, fmt.Errorf("email provider factory: unknown email provider %q", cfg.EmailProvider)
@@ -161,7 +165,7 @@ func ProvideSMTPClient(cfg *config.Config) external.SMTPClient {
 }
 
 // ProvideGitHubAppClient creates a new GitHubAppClient
-func ProvideGitHubAppClient(cfg *config.Config, logger *logrus.Logger) (external.GitHubAppClient, error) {
+func ProvideGitHubAppClient(cfg *config.Config, logger *slog.Logger) (external.GitHubAppClient, error) {
 	githubCfg, err := cfg.GetGitHubAppConfig()
 	if err != nil {
 		return nil, err

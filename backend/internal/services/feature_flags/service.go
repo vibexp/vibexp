@@ -2,23 +2,22 @@ package feature_flags
 
 import (
 	"context"
+	"log/slog"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 // FeatureFlagService is the core implementation of the feature flag system
 type FeatureFlagService struct {
 	flags  map[string]FeatureFlagEvaluator
 	mu     sync.RWMutex
-	logger *logrus.Logger
+	logger *slog.Logger
 }
 
 // Ensure FeatureFlagService implements FeatureFlagServiceInterface
 var _ FeatureFlagServiceInterface = (*FeatureFlagService)(nil)
 
 // NewFeatureFlagService creates a new instance of FeatureFlagService
-func NewFeatureFlagService(logger *logrus.Logger) *FeatureFlagService {
+func NewFeatureFlagService(logger *slog.Logger) *FeatureFlagService {
 	return &FeatureFlagService{
 		flags:  make(map[string]FeatureFlagEvaluator),
 		logger: logger,
@@ -34,11 +33,11 @@ func (s *FeatureFlagService) RegisterFlag(flag FeatureFlagEvaluator) {
 	flagName := flag.Name()
 	s.flags[flagName] = flag
 
-	s.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "feature-flags",
-		"flag_name": flagName,
-	}).Info("Feature flag registered")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "feature-flags",
+		"flag_name", flagName,
+	).Info("Feature flag registered")
 }
 
 // IsEnabled checks if a specific feature flag is enabled for the given context
@@ -50,23 +49,23 @@ func (s *FeatureFlagService) IsEnabled(ctx context.Context, flagName string) boo
 	s.mu.RUnlock()
 
 	if !exists {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "feature-flags",
-			"flag_name": flagName,
-		}).Debug("Feature flag not registered, returning false")
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "feature-flags",
+			"flag_name", flagName,
+		).Debug("Feature flag not registered, returning false")
 		return false
 	}
 
 	// Evaluate the flag with error recovery
 	enabled := s.evaluateFlag(ctx, flag)
 
-	s.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "feature-flags",
-		"flag_name": flagName,
-		"enabled":   enabled,
-	}).Debug("Feature flag evaluated")
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "feature-flags",
+		"flag_name", flagName,
+		"enabled", enabled,
+	).Debug("Feature flag evaluated")
 
 	return enabled
 }
@@ -75,12 +74,12 @@ func (s *FeatureFlagService) IsEnabled(ctx context.Context, flagName string) boo
 func (s *FeatureFlagService) evaluateFlag(ctx context.Context, flag FeatureFlagEvaluator) bool {
 	defer func() {
 		if r := recover(); r != nil {
-			s.logger.WithFields(logrus.Fields{
-				"service":   "vibexp-api",
-				"component": "feature-flags",
-				"flag_name": flag.Name(),
-				"panic":     r,
-			}).Error("Feature flag evaluation panicked, returning false")
+			s.logger.With(
+				"service", "vibexp-api",
+				"component", "feature-flags",
+				"flag_name", flag.Name(),
+				"panic", r,
+			).Error("Feature flag evaluation panicked, returning false")
 		}
 	}()
 

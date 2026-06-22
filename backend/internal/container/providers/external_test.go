@@ -2,11 +2,11 @@ package providers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,10 +16,8 @@ import (
 	"github.com/vibexp/vibexp/internal/external/implementations"
 )
 
-func testLogger() *logrus.Logger {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel) // suppress output in tests
-	return logger
+func testLogger() *slog.Logger {
+	return slog.New(slog.DiscardHandler)
 }
 
 func TestProvideEmailProvider_SMTPWithConfig(t *testing.T) {

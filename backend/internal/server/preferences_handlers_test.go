@@ -1,13 +1,12 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,8 +16,7 @@ import (
 // TestGetPreferences_Unauthorized tests getting preferences without auth
 func TestGetPreferences_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/preferences", nil)
@@ -33,8 +31,7 @@ func TestGetPreferences_Unauthorized(t *testing.T) {
 // TestGetPreferences_RouteRegistered verifies the route is registered
 func TestGetPreferences_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/preferences", nil)
@@ -51,8 +48,7 @@ func TestGetPreferences_RouteRegistered(t *testing.T) {
 // TestUpdatePreferences_Unauthorized tests updating preferences without auth
 func TestUpdatePreferences_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"theme": "dark"}`
@@ -69,8 +65,7 @@ func TestUpdatePreferences_Unauthorized(t *testing.T) {
 // TestUpdatePreferences_RouteRegistered verifies the route is registered
 func TestUpdatePreferences_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"theme": "dark"}`
@@ -89,8 +84,7 @@ func TestUpdatePreferences_RouteRegistered(t *testing.T) {
 // TestUpdatePreferences_InvalidJSON tests updating preferences with invalid JSON
 func TestUpdatePreferences_InvalidJSON(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{invalid json}`
@@ -109,8 +103,7 @@ func TestUpdatePreferences_InvalidJSON(t *testing.T) {
 // TestUpdatePreferences_EmptyBody tests updating preferences with empty body
 func TestUpdatePreferences_EmptyBody(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("PUT", "/api/v1/preferences", strings.NewReader(""))
@@ -129,8 +122,7 @@ func TestUpdatePreferences_EmptyBody(t *testing.T) {
 // Note: Auth middleware runs first, so unauthorized requests return 401
 func TestPreferencesEndpoints_MethodNotAllowed(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -175,8 +167,7 @@ func TestPreferencesEndpoints_MethodNotAllowed(t *testing.T) {
 // TestUpdatePreferences_ValidPayload tests updating preferences with valid payload
 func TestUpdatePreferences_ValidPayload(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -216,8 +207,7 @@ func TestUpdatePreferences_ValidPayload(t *testing.T) {
 // TestGetPreferences_WithAPIKey tests getting preferences with API key auth
 func TestGetPreferences_WithAPIKey(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/preferences", nil)
@@ -235,8 +225,7 @@ func TestGetPreferences_WithAPIKey(t *testing.T) {
 // TestPreferencesEndpoint_ContentType tests content type handling
 func TestPreferencesEndpoint_ContentType(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {

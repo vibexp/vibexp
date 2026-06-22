@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"log/slog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -37,8 +38,7 @@ func newTestSearchServiceWithRanking(t *testing.T, ranking services.SearchRankin
 ) {
 	repo := repomocks.NewMockSearchRepository(t)
 	embedder := svcmocks.NewMockQueryEmbedder(t)
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return services.NewSearchService(repo, embedder, logger, ranking, testEmbeddingModel), repo, embedder
 }
 
@@ -298,7 +298,14 @@ func TestSearchService_Search_RankingEnabled_PullsCandidateCapAndReRanks(t *test
 	// c-stale: 0.5*0.70 + 0.5*~0.0625 ~= 0.381
 	// c-fresh: 0.5*0.60 + 0.5*1.0      = 0.800
 	candidates := []models.SearchResultRow{
-		{EntityType: "prompt", EntityID: "p-stale", ChunkID: "c-stale", Distance: 0.30, CreatedAt: stale, UpdatedAt: stale},
+		{
+			EntityType: "prompt",
+			EntityID:   "p-stale",
+			ChunkID:    "c-stale",
+			Distance:   0.30,
+			CreatedAt:  stale,
+			UpdatedAt:  stale,
+		},
 		{EntityType: "prompt", EntityID: "p-fresh", ChunkID: "c-fresh", Distance: 0.40, CreatedAt: now, UpdatedAt: now},
 	}
 

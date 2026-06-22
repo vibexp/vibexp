@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/sirupsen/logrus"
 
 	vibexperrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
@@ -64,16 +63,16 @@ func (s *Server) extractUserContext(r *http.Request) (userID, userEmail string) 
 
 // logSupportRequest logs incoming support request
 func (s *Server) logSupportRequest(userID, userEmail string) {
-	s.logger.WithFields(logrus.Fields{
-		"user_id": userID,
-		"email":   userEmail,
-	}).Info("Support message request received")
+	s.logger.With(
+		"user_id", userID,
+		"email", userEmail,
+	).Info("Support message request received")
 }
 
 // validateSupportRequest validates the support request and returns validation errors if any
 func (s *Server) validateSupportRequest(req *models.SupportRequest) []vibexperrors.ValidationError {
 	if err := validate.Struct(req); err != nil {
-		s.logger.WithError(err).Error("Support request validation failed")
+		s.logger.With("error", err).Error("Support request validation failed")
 		var validationErrors []vibexperrors.ValidationError
 		if validationErrs, ok := err.(validator.ValidationErrors); ok {
 			for _, fieldErr := range validationErrs {
@@ -116,16 +115,16 @@ func (s *Server) writeErrorResponse(
 	apiErr *vibexperrors.APIError,
 	logMsg string,
 ) {
-	s.logger.WithField("error", apiErr.Detail).Error(logMsg)
+	s.logger.With("error", apiErr.Detail).Error(logMsg)
 	vibexperrors.WriteJSONError(w, r, apiErr)
 }
 
 // writeSuccessResponse writes a successful response to the client
 func (s *Server) writeSuccessResponse(w http.ResponseWriter, userID string, req *models.SupportRequest) {
-	s.logger.WithFields(logrus.Fields{
-		"user_id":         userID,
-		"acknowledgement": req.Acknowledgement,
-	}).Info("Support request sent successfully")
+	s.logger.With(
+		"user_id", userID,
+		"acknowledgement", req.Acknowledgement,
+	).Info("Support request sent successfully")
 
 	response := map[string]interface{}{
 		"message": "Thank you for your message! We'll get back to you soon.",

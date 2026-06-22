@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
@@ -41,14 +40,20 @@ func (s *Server) authorizeAttachmentOwner(
 	case errors.Is(err, services.ErrAttachmentOwnerAccessDenied):
 		writeErrorResponse(w, nil, "not_found", "Attachment owner not found", http.StatusNotFound)
 	default:
-		s.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"handler":    "authorizeAttachmentOwner",
-			"owner_type": ownerType,
-			"owner_id":   ownerID,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to authorize attachment owner")
-		writeErrorResponse(w, nil, "internal_error", "Failed to authorize attachment owner", http.StatusInternalServerError)
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "authorizeAttachmentOwner",
+			"owner_type", ownerType,
+			"owner_id", ownerID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to authorize attachment owner")
+		writeErrorResponse(
+			w,
+			nil,
+			"internal_error",
+			"Failed to authorize attachment owner",
+			http.StatusInternalServerError,
+		)
 	}
 	return false
 }
@@ -67,7 +72,7 @@ func (s *Server) handleUploadAttachment(w http.ResponseWriter, r *http.Request) 
 	}
 	defer func() {
 		if cerr := file.Close(); cerr != nil {
-			s.logger.WithError(cerr).Warn("Failed to close uploaded file")
+			s.logger.With("error", cerr).Warn("Failed to close uploaded file")
 		}
 	}()
 
@@ -136,13 +141,13 @@ func (s *Server) handleListAttachments(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := s.container.AttachmentService().List(r.Context(), ownerType, ownerID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":    "vibexp-api",
-			"handler":    "handleListAttachments",
-			"owner_type": ownerType,
-			"owner_id":   ownerID,
-			"error":      fmt.Sprintf("%+v", err),
-		}).Error("Failed to list attachments")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListAttachments",
+			"owner_type", ownerType,
+			"owner_id", ownerID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list attachments")
 		writeErrorResponse(w, nil, "internal_error", "Failed to list attachments", http.StatusInternalServerError)
 		return
 	}
@@ -162,7 +167,7 @@ func (s *Server) handleDownloadAttachment(w http.ResponseWriter, r *http.Request
 	}
 	defer func() {
 		if cerr := rc.Close(); cerr != nil {
-			s.logger.WithError(cerr).Warn("Failed to close attachment reader")
+			s.logger.With("error", cerr).Warn("Failed to close attachment reader")
 		}
 	}()
 	s.streamAttachment(w, att, rc, "handleDownloadAttachment")
@@ -220,11 +225,11 @@ func (s *Server) streamAttachment(
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if _, copyErr := io.Copy(w, rc); copyErr != nil {
 		// Headers are already sent; log and stop. Cannot change the status now.
-		s.logger.WithFields(logrus.Fields{
-			"service":       "vibexp-api",
-			"handler":       handler,
-			"attachment_id": att.ID,
-			"error":         fmt.Sprintf("%+v", copyErr),
-		}).Error("Failed to stream attachment body")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", handler,
+			"attachment_id", att.ID,
+			"error", fmt.Sprintf("%+v", copyErr),
+		).Error("Failed to stream attachment body")
 	}
 }

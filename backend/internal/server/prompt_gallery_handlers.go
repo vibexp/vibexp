@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -50,11 +49,11 @@ func sanitizeQueryParam(param string, maxLength int) string {
 func (s *Server) handleGetPromptGalleryCategories(w http.ResponseWriter, r *http.Request) {
 	categories, err := s.container.PromptGalleryService().GetCategories()
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleGetPromptGalleryCategories",
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to get prompt gallery categories")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetPromptGalleryCategories",
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get prompt gallery categories")
 		writeErrorResponse(w, nil, "internal_error", "Failed to get categories", http.StatusInternalServerError)
 		return
 	}
@@ -98,13 +97,13 @@ func (s *Server) handleListPromptGalleryPrompts(w http.ResponseWriter, r *http.R
 
 	prompts, err := s.container.PromptGalleryService().ListPrompts(category, search, tags, page, limit)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":  "vibexp-api",
-			"handler":  "handleListPromptGalleryPrompts",
-			"category": category,
-			"search":   search,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to list prompt gallery prompts")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListPromptGalleryPrompts",
+			"category", category,
+			"search", search,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to list prompt gallery prompts")
 		writeErrorResponse(w, nil, "internal_error", "Failed to list prompts", http.StatusInternalServerError)
 		return
 	}
@@ -128,12 +127,12 @@ func (s *Server) handleGetPromptGalleryPrompt(w http.ResponseWriter, r *http.Req
 
 	prompt, err := s.container.PromptGalleryService().GetPromptByID(promptID)
 	if err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"handler":   "handleGetPromptGalleryPrompt",
-			"prompt_id": promptID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to get prompt gallery prompt")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetPromptGalleryPrompt",
+			"prompt_id", promptID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get prompt gallery prompt")
 
 		if errors.Is(err, repositories.ErrPromptNotFound) {
 			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
@@ -171,13 +170,13 @@ func (s *Server) handleTrackPromptGalleryUsage(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := s.container.PromptGalleryService().TrackPromptUsage(userID, req); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"handler":   "handleTrackPromptGalleryUsage",
-			"user_id":   userID,
-			"prompt_id": promptID,
-			"error":     fmt.Sprintf("%+v", err),
-		}).Error("Failed to track prompt gallery usage")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleTrackPromptGalleryUsage",
+			"user_id", userID,
+			"prompt_id", promptID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to track prompt gallery usage")
 
 		if errors.Is(err, repositories.ErrPromptNotFound) {
 			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)

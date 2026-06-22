@@ -5,9 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -17,14 +16,14 @@ type PromptShareService struct {
 	shareRepo     repositories.PromptShareRepository
 	promptRepo    repositories.PromptRepository
 	promptService *PromptService
-	logger        *logrus.Logger
+	logger        *slog.Logger
 }
 
 func NewPromptShareService(
 	shareRepo repositories.PromptShareRepository,
 	promptRepo repositories.PromptRepository,
 	promptService *PromptService,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *PromptShareService {
 	return &PromptShareService{
 		shareRepo:     shareRepo,
@@ -74,20 +73,20 @@ func (s *PromptShareService) CreateShare(
 		// Share exists, update it
 		existingShare.ShareType = req.ShareType
 		if updateErr := s.shareRepo.Update(ctx, existingShare); updateErr != nil {
-			s.logger.WithError(updateErr).Error("Failed to update prompt share")
+			s.logger.With("error", updateErr).Error("Failed to update prompt share")
 			return nil, fmt.Errorf("failed to update share: %w", updateErr)
 		}
 
 		// Update access emails if restricted
 		if req.ShareType == "restricted" {
 			if emailErr := s.shareRepo.AddAccessEmails(ctx, existingShare.ID, req.Emails); emailErr != nil {
-				s.logger.WithError(emailErr).Error("Failed to update access emails")
+				s.logger.With("error", emailErr).Error("Failed to update access emails")
 				return nil, fmt.Errorf("failed to update access emails: %w", emailErr)
 			}
 		} else {
 			// Clear access emails for public shares
 			if clearErr := s.shareRepo.AddAccessEmails(ctx, existingShare.ID, []string{}); clearErr != nil {
-				s.logger.WithError(clearErr).Error("Failed to clear access emails")
+				s.logger.With("error", clearErr).Error("Failed to clear access emails")
 			}
 		}
 
@@ -111,7 +110,7 @@ func (s *PromptShareService) CreateShare(
 	// Create new share
 	token, err := s.generateShareToken()
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to generate share token")
+		s.logger.With("error", err).Error("Failed to generate share token")
 		return nil, fmt.Errorf("failed to generate share token: %w", err)
 	}
 
@@ -126,14 +125,14 @@ func (s *PromptShareService) CreateShare(
 	}
 
 	if err := s.shareRepo.Create(ctx, share); err != nil {
-		s.logger.WithError(err).Error("Failed to create prompt share")
+		s.logger.With("error", err).Error("Failed to create prompt share")
 		return nil, fmt.Errorf("failed to create share: %w", err)
 	}
 
 	// Add access emails for restricted shares
 	if req.ShareType == "restricted" {
 		if err := s.shareRepo.AddAccessEmails(ctx, share.ID, req.Emails); err != nil {
-			s.logger.WithError(err).Error("Failed to add access emails")
+			s.logger.With("error", err).Error("Failed to add access emails")
 			return nil, fmt.Errorf("failed to add access emails: %w", err)
 		}
 	}
@@ -198,7 +197,7 @@ func (s *PromptShareService) DeleteShare(userID, promptSlug string) error {
 
 	// Delete share
 	if err := s.shareRepo.Delete(ctx, share.ID); err != nil {
-		s.logger.WithError(err).Error("Failed to delete prompt share")
+		s.logger.With("error", err).Error("Failed to delete prompt share")
 		return fmt.Errorf("failed to delete share: %w", err)
 	}
 
@@ -245,7 +244,7 @@ func (s *PromptShareService) GetSharedPrompt(
 	// Increment access count asynchronously (don't block on errors)
 	go func() {
 		if incErr := s.shareRepo.IncrementAccessCount(context.Background(), share.ID); incErr != nil {
-			s.logger.WithError(incErr).Warn("Failed to increment access count")
+			s.logger.With("error", incErr).Warn("Failed to increment access count")
 		}
 	}()
 
@@ -265,7 +264,7 @@ func (s *PromptShareService) GetSharedPrompt(
 		// Pass empty teamID for shared prompts
 		renderResp, renderErr := s.promptService.RenderPrompt(prompt.UserID, "", prompt.Slug, make(map[string]string))
 		if renderErr != nil {
-			s.logger.WithError(renderErr).Warn("Failed to render prompt, using raw body")
+			s.logger.With("error", renderErr).Warn("Failed to render prompt, using raw body")
 		} else {
 			renderedBody = renderResp.RenderedBody
 		}

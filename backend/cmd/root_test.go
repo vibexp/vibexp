@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -45,8 +45,7 @@ func TestStartServer_GracefulShutdown(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockSrv := &mockServer{startErr: tt.serverError}
-			logger := logrus.New()
-			logger.SetOutput(logrus.StandardLogger().Out)
+			logger := slog.New(slog.DiscardHandler)
 
 			ctx := context.Background()
 			err := mockSrv.Start(ctx)

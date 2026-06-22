@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
@@ -22,14 +21,14 @@ import (
 func (s *Server) handleActivitiesGet(w http.ResponseWriter, r *http.Request) {
 	userID := s.getUserIDFromContext(r)
 	if userID == "" {
-		s.logger.WithFields(logrus.Fields{
-			"service":        "vibexp-api",
-			"handler":        "handleActivitiesGet",
-			"endpoint":       "/api/v1/activities",
-			"remote_ip":      getClientIP(r),
-			"user_agent":     r.UserAgent(),
-			"security_event": "unauthorized_access_attempt",
-		}).Warn("Unauthorized access attempt to activities list endpoint")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleActivitiesGet",
+			"endpoint", "/api/v1/activities",
+			"remote_ip", getClientIP(r),
+			"user_agent", r.UserAgent(),
+			"security_event", "unauthorized_access_attempt",
+		).Warn("Unauthorized access attempt to activities list endpoint")
 		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
 		return
 	}
@@ -37,7 +36,7 @@ func (s *Server) handleActivitiesGet(w http.ResponseWriter, r *http.Request) {
 	filters := s.parseActivityFilters(r, userID)
 	response, err := s.activityService.GetActivities(r.Context(), filters)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to get activities")
+		s.logger.With("error", err).Error("Failed to get activities")
 		writeErrorResponse(w, r, "server_error", "Failed to retrieve activities", http.StatusInternalServerError)
 		return
 	}
@@ -119,14 +118,14 @@ func (s *Server) handleActivityGet(w http.ResponseWriter, r *http.Request) {
 	userID := s.getUserIDFromContext(r)
 	if userID == "" {
 		// Log unauthorized access attempt for security monitoring
-		s.logger.WithFields(logrus.Fields{
-			"service":        "vibexp-api",
-			"handler":        "handleActivityGet",
-			"endpoint":       "/api/v1/activities/{id}",
-			"remote_ip":      getClientIP(r),
-			"user_agent":     r.UserAgent(),
-			"security_event": "unauthorized_access_attempt",
-		}).Warn("Unauthorized access attempt to individual activity endpoint")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleActivityGet",
+			"endpoint", "/api/v1/activities/{id}",
+			"remote_ip", getClientIP(r),
+			"user_agent", r.UserAgent(),
+			"security_event", "unauthorized_access_attempt",
+		).Warn("Unauthorized access attempt to individual activity endpoint")
 
 		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
 		return
@@ -144,7 +143,7 @@ func (s *Server) handleActivityGet(w http.ResponseWriter, r *http.Request) {
 			writeErrorResponse(w, r, "not_found", "Activity not found", http.StatusNotFound)
 			return
 		}
-		s.logger.WithError(err).Error("Failed to get activity")
+		s.logger.With("error", err).Error("Failed to get activity")
 		writeErrorResponse(w, r, "server_error", "Failed to retrieve activity", http.StatusInternalServerError)
 		return
 	}
@@ -161,14 +160,14 @@ func (s *Server) handleActivitiesStatsGet(w http.ResponseWriter, r *http.Request
 	userID := s.getUserIDFromContext(r)
 	if userID == "" {
 		// Log unauthorized access attempt for security monitoring
-		s.logger.WithFields(logrus.Fields{
-			"service":        "vibexp-api",
-			"handler":        "handleActivitiesStatsGet",
-			"endpoint":       "/api/v1/activities/stats",
-			"remote_ip":      getClientIP(r),
-			"user_agent":     r.UserAgent(),
-			"security_event": "unauthorized_access_attempt",
-		}).Warn("Unauthorized access attempt to activity stats endpoint")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleActivitiesStatsGet",
+			"endpoint", "/api/v1/activities/stats",
+			"remote_ip", getClientIP(r),
+			"user_agent", r.UserAgent(),
+			"security_event", "unauthorized_access_attempt",
+		).Warn("Unauthorized access attempt to activity stats endpoint")
 
 		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
 		return
@@ -176,8 +175,14 @@ func (s *Server) handleActivitiesStatsGet(w http.ResponseWriter, r *http.Request
 
 	stats, err := s.activityService.GetActivityStats(r.Context(), userID)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to get activity stats")
-		writeErrorResponse(w, r, "server_error", "Failed to retrieve activity statistics", http.StatusInternalServerError)
+		s.logger.With("error", err).Error("Failed to get activity stats")
+		writeErrorResponse(
+			w,
+			r,
+			"server_error",
+			"Failed to retrieve activity statistics",
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
@@ -194,14 +199,14 @@ func (s *Server) handleActivitiesTypesGet(w http.ResponseWriter, r *http.Request
 	userID := s.getUserIDFromContext(r)
 	if userID == "" {
 		// Log unauthorized access attempt for security monitoring
-		s.logger.WithFields(logrus.Fields{
-			"service":        "vibexp-api",
-			"handler":        "handleActivitiesTypesGet",
-			"endpoint":       "/api/v1/activities/types",
-			"remote_ip":      getClientIP(r),
-			"user_agent":     r.UserAgent(),
-			"security_event": "unauthorized_access_attempt",
-		}).Warn("Unauthorized access attempt to activity types endpoint")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleActivitiesTypesGet",
+			"endpoint", "/api/v1/activities/types",
+			"remote_ip", getClientIP(r),
+			"user_agent", r.UserAgent(),
+			"security_event", "unauthorized_access_attempt",
+		).Warn("Unauthorized access attempt to activity types endpoint")
 
 		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
 		return
@@ -222,14 +227,14 @@ func (s *Server) handleActivitiesEntityTypesGet(w http.ResponseWriter, r *http.R
 	userID := s.getUserIDFromContext(r)
 	if userID == "" {
 		// Log unauthorized access attempt for security monitoring
-		s.logger.WithFields(logrus.Fields{
-			"service":        "vibexp-api",
-			"handler":        "handleActivitiesEntityTypesGet",
-			"endpoint":       "/api/v1/activities/entity-types",
-			"remote_ip":      getClientIP(r),
-			"user_agent":     r.UserAgent(),
-			"security_event": "unauthorized_access_attempt",
-		}).Warn("Unauthorized access attempt to activity entity types endpoint")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleActivitiesEntityTypesGet",
+			"endpoint", "/api/v1/activities/entity-types",
+			"remote_ip", getClientIP(r),
+			"user_agent", r.UserAgent(),
+			"security_event", "unauthorized_access_attempt",
+		).Warn("Unauthorized access attempt to activity entity types endpoint")
 
 		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
 		return
@@ -255,7 +260,7 @@ func (s *Server) handleActivityPost(w http.ResponseWriter, r *http.Request) {
 
 	var req activities.CreateActivityRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logger.WithError(err).Error("Failed to decode activity request")
+		s.logger.With("error", err).Error("Failed to decode activity request")
 		writeErrorResponse(w, r, "bad_request", "Invalid JSON payload", http.StatusBadRequest)
 		return
 	}
@@ -269,7 +274,7 @@ func (s *Server) handleActivityPost(w http.ResponseWriter, r *http.Request) {
 
 	activity, err := s.activityService.RecordActivity(r.Context(), userID, req)
 	if err != nil {
-		s.logger.WithError(err).Error("Failed to create activity")
+		s.logger.With("error", err).Error("Failed to create activity")
 		writeErrorResponse(w, r, "server_error", "Failed to create activity", http.StatusInternalServerError)
 		return
 	}
@@ -279,15 +284,15 @@ func (s *Server) handleActivityPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) logUnauthorizedActivityAccess(r *http.Request, handler string) {
-	s.logger.WithFields(logrus.Fields{
-		"service":        "vibexp-api",
-		"handler":        handler,
-		"endpoint":       "/api/v1/activities",
-		"method":         "POST",
-		"remote_ip":      getClientIP(r),
-		"user_agent":     r.UserAgent(),
-		"security_event": "unauthorized_access_attempt",
-	}).Warn("Unauthorized access attempt to activity creation endpoint")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", handler,
+		"endpoint", "/api/v1/activities",
+		"method", "POST",
+		"remote_ip", getClientIP(r),
+		"user_agent", r.UserAgent(),
+		"security_event", "unauthorized_access_attempt",
+	).Warn("Unauthorized access attempt to activity creation endpoint")
 }
 
 func (s *Server) validateActivityRequest(req *activities.CreateActivityRequest) error {
@@ -321,12 +326,12 @@ func (s *Server) logActivityCreation(
 	activity *activities.Activity,
 	req activities.CreateActivityRequest,
 ) {
-	s.logger.WithFields(logrus.Fields{
-		"user_id":       userID,
-		"activity_id":   activity.ID,
-		"activity_type": req.ActivityType,
-		"entity_type":   req.EntityType,
-	}).Info("Activity created successfully")
+	s.logger.With(
+		"user_id", userID,
+		"activity_id", activity.ID,
+		"activity_type", req.ActivityType,
+		"entity_type", req.EntityType,
+	).Info("Activity created successfully")
 }
 
 func (s *Server) writeActivityResponse(
@@ -389,14 +394,14 @@ func (s *Server) handleActivityRetentionJob(w http.ResponseWriter, r *http.Reque
 	logger := contextkeys.GetLoggerFromContext(r.Context())
 
 	if err := s.activityService.RunRetentionJob(r.Context()); err != nil {
-		logger.WithError(err).Error("Activity retention job failed")
+		logger.With("error", err).Error("Activity retention job failed")
 		apierrors.WriteJSONError(w, r, apierrors.NewInternalError("Retention job failed"))
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("OK")); err != nil {
-		logger.WithError(err).Error("Failed to write activity retention job response")
+		logger.With("error", err).Error("Failed to write activity retention job response")
 	}
 }
 
@@ -406,13 +411,13 @@ func (s *Server) handleAccessEventsRetentionJob(w http.ResponseWriter, r *http.R
 	logger := contextkeys.GetLoggerFromContext(r.Context())
 
 	if err := s.resourceAccessService.RunRetentionJob(r.Context()); err != nil {
-		logger.WithError(err).Error("Access events retention job failed")
+		logger.With("error", err).Error("Access events retention job failed")
 		apierrors.WriteJSONError(w, r, apierrors.NewInternalError("Retention job failed"))
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("OK")); err != nil {
-		logger.WithError(err).Error("Failed to write access events retention job response")
+		logger.With("error", err).Error("Failed to write access events retention job response")
 	}
 }

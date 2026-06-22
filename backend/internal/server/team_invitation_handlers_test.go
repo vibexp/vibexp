@@ -2,14 +2,13 @@ package server
 
 import (
 	stderrors "errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,8 +20,7 @@ import (
 // TestSendTeamInvitations_Unauthorized tests sending invitations without auth
 func TestSendTeamInvitations_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"emails": ["user@example.com"], "role": "member"}`
@@ -39,8 +37,7 @@ func TestSendTeamInvitations_Unauthorized(t *testing.T) {
 // TestSendTeamInvitations_InvalidJSON tests sending invitations with invalid JSON
 func TestSendTeamInvitations_InvalidJSON(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{invalid json}`
@@ -59,8 +56,7 @@ func TestSendTeamInvitations_InvalidJSON(t *testing.T) {
 // TestSendTeamInvitations_RouteRegistered verifies the route is registered
 func TestSendTeamInvitations_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"emails": ["user@example.com"], "role": "member"}`
@@ -79,8 +75,7 @@ func TestSendTeamInvitations_RouteRegistered(t *testing.T) {
 // TestListTeamInvitations_Unauthorized tests listing invitations without auth
 func TestListTeamInvitations_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/teams/team-123/invitations", nil)
@@ -95,8 +90,7 @@ func TestListTeamInvitations_Unauthorized(t *testing.T) {
 // TestListTeamInvitations_RouteRegistered verifies the route is registered
 func TestListTeamInvitations_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/teams/550e8400-e29b-41d4-a716-446655440000/invitations", nil)
@@ -112,8 +106,7 @@ func TestListTeamInvitations_RouteRegistered(t *testing.T) {
 // TestRevokeInvitation_Unauthorized tests revoking invitation without auth
 func TestRevokeInvitation_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("DELETE",
@@ -129,8 +122,7 @@ func TestRevokeInvitation_Unauthorized(t *testing.T) {
 // TestRevokeInvitation_RouteRegistered verifies the route is registered
 func TestRevokeInvitation_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("DELETE",
@@ -148,8 +140,7 @@ func TestRevokeInvitation_RouteRegistered(t *testing.T) {
 // TestGetPendingInvitations_Unauthorized tests getting pending invitations without auth
 func TestGetPendingInvitations_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/invitations/pending", nil)
@@ -164,8 +155,7 @@ func TestGetPendingInvitations_Unauthorized(t *testing.T) {
 // TestGetPendingInvitations_RouteRegistered verifies the route is registered
 func TestGetPendingInvitations_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/invitations/pending", nil)
@@ -182,8 +172,7 @@ func TestGetPendingInvitations_RouteRegistered(t *testing.T) {
 // TestAcceptInvitation_Unauthorized tests accepting invitation without auth
 func TestAcceptInvitation_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("POST", "/api/v1/invitations/test-token-123/accept", nil)
@@ -198,8 +187,7 @@ func TestAcceptInvitation_Unauthorized(t *testing.T) {
 // TestAcceptInvitation_RouteRegistered verifies the route is registered
 func TestAcceptInvitation_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("POST", "/api/v1/invitations/test-token-123/accept", nil)
@@ -216,8 +204,7 @@ func TestAcceptInvitation_RouteRegistered(t *testing.T) {
 // TestRejectInvitation_Unauthorized tests rejecting invitation without auth
 func TestRejectInvitation_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("POST", "/api/v1/invitations/test-token-123/reject", nil)
@@ -232,8 +219,7 @@ func TestRejectInvitation_Unauthorized(t *testing.T) {
 // TestRejectInvitation_RouteRegistered verifies the route is registered
 func TestRejectInvitation_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("POST", "/api/v1/invitations/test-token-123/reject", nil)
@@ -318,8 +304,7 @@ func TestSendTeamInvitations_EmailLimit(t *testing.T) {
 // TestSendTeamInvitations_EmptyEmails tests sending empty email list
 func TestSendTeamInvitations_EmptyEmails(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"emails": [], "role": "member"}`
@@ -340,8 +325,7 @@ func TestSendTeamInvitations_EmptyEmails(t *testing.T) {
 // TestSendTeamInvitations_InvalidEmail tests sending invalid email format
 func TestSendTeamInvitations_InvalidEmail(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"emails": ["not-an-email"], "role": "member"}`
@@ -362,8 +346,7 @@ func TestSendTeamInvitations_InvalidEmail(t *testing.T) {
 // TestSendTeamInvitations_InvalidRole tests sending invalid role
 func TestSendTeamInvitations_InvalidRole(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	body := `{"emails": ["user@example.com"], "role": "superadmin"}`
@@ -385,8 +368,7 @@ func TestSendTeamInvitations_InvalidRole(t *testing.T) {
 // Note: Auth middleware runs first, so unauthorized requests return 401
 func TestTeamInvitationEndpoints_MethodNotAllowed(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -431,8 +413,7 @@ func TestTeamInvitationEndpoints_MethodNotAllowed(t *testing.T) {
 // TestAcceptInvitation_EmptyToken tests accepting with empty token
 func TestAcceptInvitation_EmptyToken(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	// Empty token in URL
@@ -456,7 +437,7 @@ func TestBuildInvitationResponses_EmptyInput(t *testing.T) {
 
 	// Use a mock server instance
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	responses := srv.buildInvitationResponses(invitations, teams, inviters)
@@ -466,8 +447,7 @@ func TestBuildInvitationResponses_EmptyInput(t *testing.T) {
 // TestGetInvitationByToken_Unauthorized verifies anonymous callers receive 401.
 func TestGetInvitationByToken_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/invitations/some-token-123", nil)
@@ -482,8 +462,7 @@ func TestGetInvitationByToken_Unauthorized(t *testing.T) {
 // TestGetInvitationByToken_RouteRegistered confirms chi can match the new route.
 func TestGetInvitationByToken_RouteRegistered(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest("GET", "/api/v1/invitations/some-token-123", nil)
@@ -509,8 +488,7 @@ func TestGetInvitationByToken_RouteRegistered(t *testing.T) {
 // static /pending route wins.
 func TestGetInvitationByToken_PendingPath_NotShadowed(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	rctx := chi.NewRouteContext()
@@ -541,8 +519,7 @@ func TestGetInvitationByToken_PendingPath_NotShadowed(t *testing.T) {
 // without depending on the full route + auth stack.
 func TestHandleGetInvitationByTokenError_StatusMapping(t *testing.T) {
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {

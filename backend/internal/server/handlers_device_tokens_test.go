@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -36,8 +36,7 @@ func buildDeviceTokenServer(t *testing.T, repo *repomocks.MockDeviceTokenReposit
 	t.Helper()
 
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
 	ctr := &deviceTokenContainerStub{tokenRepo: repo}
@@ -83,8 +82,7 @@ func makeDeviceTokenReq(t *testing.T, method, body string) *http.Request {
 // TestRegisterDeviceToken_Unauthorized verifies the route requires authentication.
 func TestRegisterDeviceToken_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/device-tokens", bytes.NewBufferString(`{}`))
@@ -99,8 +97,7 @@ func TestRegisterDeviceToken_Unauthorized(t *testing.T) {
 // TestDeleteDeviceToken_Unauthorized verifies the route requires authentication.
 func TestDeleteDeviceToken_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	req, err := http.NewRequest(http.MethodDelete, "/api/v1/device-tokens", bytes.NewBufferString(`{}`))

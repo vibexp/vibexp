@@ -2,11 +2,11 @@ package events
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -95,8 +95,7 @@ func TestMarkBackfillOrigin_EventWithoutMarkerPassesThrough(t *testing.T) {
 // side-effect CRM listener skips it. It also confirms a normal event still
 // drives the CRM listener, proving the skip is scoped to the marker.
 func TestBackfillOrigin_BusDispatch_ForwarderReceivesCRMSkips(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 
 	bus := NewInMemoryEventBus(EventBusConfig{
 		Config: Config{WorkerCount: 2, BufferSize: 10},

@@ -3,9 +3,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -46,7 +45,7 @@ func (r *resourceAccessRepository) Create(ctx context.Context, event *models.Res
 	).Scan(&event.ID, &event.CreatedAt)
 
 	if err != nil {
-		logrus.WithError(err).Error("Failed to create resource access event")
+		slog.Error("Failed to create resource access event", "error", err)
 		return fmt.Errorf("failed to create resource access event: %w", err)
 	}
 
@@ -82,12 +81,12 @@ func (r *resourceAccessRepository) GetMetricsByResource(
 
 	rows, err := r.db.QueryContext(ctx, query, teamID, resourceType, resourceID, since)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query resource access metrics")
+		slog.Error("Failed to query resource access metrics", "error", err)
 		return nil, fmt.Errorf("failed to query resource access metrics: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -95,14 +94,14 @@ func (r *resourceAccessRepository) GetMetricsByResource(
 	for rows.Next() {
 		var item models.DailyAccessCount
 		if scanErr := rows.Scan(&item.Date, &item.Source, &item.Count); scanErr != nil {
-			logrus.WithError(scanErr).Error("Failed to scan resource access metric row")
+			slog.Error("Failed to scan resource access metric row", "error", scanErr)
 			return nil, fmt.Errorf("failed to scan resource access metric: %w", scanErr)
 		}
 		counts = append(counts, item)
 	}
 
 	if err := rows.Err(); err != nil {
-		logrus.WithError(err).Error("Failed to iterate resource access metric rows")
+		slog.Error("Failed to iterate resource access metric rows", "error", err)
 		return nil, fmt.Errorf("failed to iterate resource access metrics: %w", err)
 	}
 
@@ -138,12 +137,12 @@ func (r *resourceAccessRepository) GetTeamMetrics(
 
 	rows, err := r.db.QueryContext(ctx, query, teamID, since)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query team resource access metrics")
+		slog.Error("Failed to query team resource access metrics", "error", err)
 		return nil, fmt.Errorf("failed to query team resource access metrics: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -151,14 +150,14 @@ func (r *resourceAccessRepository) GetTeamMetrics(
 	for rows.Next() {
 		var item models.DailyAccessCount
 		if scanErr := rows.Scan(&item.Date, &item.Source, &item.Count); scanErr != nil {
-			logrus.WithError(scanErr).Error("Failed to scan team resource access metric row")
+			slog.Error("Failed to scan team resource access metric row", "error", scanErr)
 			return nil, fmt.Errorf("failed to scan team resource access metric: %w", scanErr)
 		}
 		counts = append(counts, item)
 	}
 
 	if err := rows.Err(); err != nil {
-		logrus.WithError(err).Error("Failed to iterate team resource access metric rows")
+		slog.Error("Failed to iterate team resource access metric rows", "error", err)
 		return nil, fmt.Errorf("failed to iterate team resource access metrics: %w", err)
 	}
 
@@ -191,12 +190,12 @@ func (r *resourceAccessRepository) GetTopAccessedResources(
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to query top accessed resources")
+		slog.Error("Failed to query top accessed resources", "error", err)
 		return nil, fmt.Errorf("failed to query top accessed resources: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			logrus.WithError(closeErr).Error("Failed to close rows")
+			slog.Error("Failed to close rows", "error", closeErr)
 		}
 	}()
 
@@ -204,13 +203,13 @@ func (r *resourceAccessRepository) GetTopAccessedResources(
 	for rows.Next() {
 		var item models.TopAccessedResource
 		if scanErr := rows.Scan(&item.ResourceType, &item.ResourceID, &item.AccessCount, &item.Name); scanErr != nil {
-			logrus.WithError(scanErr).Error("Failed to scan top accessed resource row")
+			slog.Error("Failed to scan top accessed resource row", "error", scanErr)
 			return nil, fmt.Errorf("failed to scan top accessed resource: %w", scanErr)
 		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		logrus.WithError(err).Error("Failed to iterate top accessed resource rows")
+		slog.Error("Failed to iterate top accessed resource rows", "error", err)
 		return nil, fmt.Errorf("failed to iterate top accessed resources: %w", err)
 	}
 

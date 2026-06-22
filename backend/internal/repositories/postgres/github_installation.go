@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/lib/pq"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -16,11 +16,11 @@ import (
 // GitHubInstallationRepository is the PostgreSQL implementation of repositories.GitHubInstallationRepository
 type GitHubInstallationRepository struct {
 	db     *sql.DB
-	logger *logrus.Logger
+	logger *slog.Logger
 }
 
 // NewGitHubInstallationRepository creates a new GitHub installation repository
-func NewGitHubInstallationRepository(db *sql.DB, logger *logrus.Logger) repositories.GitHubInstallationRepository {
+func NewGitHubInstallationRepository(db *sql.DB, logger *slog.Logger) repositories.GitHubInstallationRepository {
 	return &GitHubInstallationRepository{db: db, logger: logger}
 }
 

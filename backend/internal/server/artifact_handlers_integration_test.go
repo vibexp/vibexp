@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,8 +12,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -62,8 +61,7 @@ func TestHandleGetArtifact_Success_WithMockedService(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -110,8 +108,7 @@ func TestHandleGetArtifact_NotFound(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -157,8 +154,7 @@ func TestHandleGetArtifactsByProject_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -231,8 +227,7 @@ func TestHandleCreateArtifact_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -278,8 +273,7 @@ func TestHandleCreateArtifact_InvalidType(t *testing.T) {
 	mockContainer := &MockArtifactContainer{TypeServiceMock: mockType}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -317,8 +311,7 @@ func TestHandleCreateArtifact_ValidationError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -383,8 +376,7 @@ func TestHandleCreateArtifact_ResourceLimitExceeded(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -441,8 +433,7 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -493,8 +484,7 @@ func TestHandleUpdateArtifact_NotFound(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -551,8 +541,7 @@ func TestHandleDeleteArtifact_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -587,8 +576,7 @@ func TestHandleDeleteArtifact_NotFound(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -638,8 +626,7 @@ func TestHandleGetArtifactStats_Success(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
@@ -680,8 +667,7 @@ func TestHandleGetArtifactStats_ServiceError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	logger, _ := test.NewNullLogger()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 

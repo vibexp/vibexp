@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
@@ -180,12 +180,13 @@ func (s *Server) listFeeds(
 
 	response, err := s.container.FeedService().ListFeedsForMCP(ctx, userID, filters)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_list_feeds",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list feeds via MCP")
+		slog.Error(
+			"Failed to list feeds via MCP",
+			"tool", "vibexp_io_list_feeds",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -249,11 +250,12 @@ func (s *Server) postToFeed(
 
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeedItem)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_post_to_feed",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to check feed item resource limit")
+		slog.Error(
+			"Failed to check feed item resource limit",
+			"tool", "vibexp_io_post_to_feed",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{Text: "Failed to check resource limit"},
@@ -279,13 +281,14 @@ func (s *Server) postToFeed(
 
 	item, err := s.container.FeedItemService().CreateFeedItem(ctx, userID, teamID, params.FeedID, req)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_post_to_feed",
-			"user_id": userID,
-			"team_id": teamID,
-			"feed_id": params.FeedID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to post to feed via MCP")
+		slog.Error(
+			"Failed to post to feed via MCP",
+			"tool", "vibexp_io_post_to_feed",
+			"user_id", userID,
+			"team_id", teamID,
+			"feed_id", params.FeedID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -345,11 +348,12 @@ func (s *Server) replyToFeedItem(
 
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeedItem)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_reply_to_feed_item",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to check feed item resource limit")
+		slog.Error(
+			"Failed to check feed item resource limit",
+			"tool", "vibexp_io_reply_to_feed_item",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{Text: "Failed to check resource limit"},
@@ -373,13 +377,14 @@ func (s *Server) replyToFeedItem(
 
 	reply, err := s.container.FeedItemReplyService().CreateReply(ctx, userID, teamID, params.FeedItemID, req)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":         "vibexp_io_reply_to_feed_item",
-			"user_id":      userID,
-			"team_id":      teamID,
-			"feed_item_id": params.FeedItemID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to reply to feed item via MCP")
+		slog.Error(
+			"Failed to reply to feed item via MCP",
+			"tool", "vibexp_io_reply_to_feed_item",
+			"user_id", userID,
+			"team_id", teamID,
+			"feed_item_id", params.FeedItemID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -450,13 +455,14 @@ func (s *Server) listFeedItems(
 
 	response, err := s.container.FeedItemService().ListFeedItems(ctx, userID, filters)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_list_feed_items",
-			"user_id": userID,
-			"team_id": teamID,
-			"feed_id": params.FeedID,
-			"error":   fmt.Sprintf("%+v", err),
-		}).Error("Failed to list feed items via MCP")
+		slog.Error(
+			"Failed to list feed items via MCP",
+			"tool", "vibexp_io_list_feed_items",
+			"user_id", userID,
+			"team_id", teamID,
+			"feed_id", params.FeedID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -473,10 +479,12 @@ func (s *Server) listFeedItems(
 
 	enriched, enrichErr := s.container.FeedItemService().EnrichWithReplyCounts(ctx, teamID, response.Items)
 	if enrichErr != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":    "vibexp_io_list_feed_items",
-			"team_id": teamID,
-		}).WithError(enrichErr).Warn("Failed to enrich feed items with reply counts")
+		slog.Warn(
+			"Failed to enrich feed items with reply counts",
+			"tool", "vibexp_io_list_feed_items",
+			"team_id", teamID,
+			"error", enrichErr,
+		)
 	} else {
 		response.Items = enriched
 	}
@@ -569,13 +577,14 @@ func (s *Server) listFeedItemReplies(
 
 	response, err := s.container.FeedItemReplyService().ListReplies(ctx, userID, teamID, params.FeedItemID, page, limit)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":         "vibexp_io_list_feed_item_replies",
-			"user_id":      userID,
-			"team_id":      teamID,
-			"feed_item_id": params.FeedItemID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to list feed item replies via MCP")
+		slog.Error(
+			"Failed to list feed item replies via MCP",
+			"tool", "vibexp_io_list_feed_item_replies",
+			"user_id", userID,
+			"team_id", teamID,
+			"feed_item_id", params.FeedItemID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -666,13 +675,14 @@ func (s *Server) getFeedItem(
 
 	item, err := s.container.FeedItemService().GetFeedItem(ctx, userID, teamID, params.FeedItemID)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":         "vibexp_io_get_feed_item",
-			"user_id":      userID,
-			"team_id":      teamID,
-			"feed_item_id": params.FeedItemID,
-			"error":        fmt.Sprintf("%+v", err),
-		}).Error("Failed to get feed item via MCP")
+		slog.Error(
+			"Failed to get feed item via MCP",
+			"tool", "vibexp_io_get_feed_item",
+			"user_id", userID,
+			"team_id", teamID,
+			"feed_item_id", params.FeedItemID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -718,13 +728,14 @@ func (s *Server) getFeedItemReply(
 
 	reply, err := s.container.FeedItemReplyService().GetReply(ctx, userID, teamID, params.ReplyID)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"tool":     "vibexp_io_get_feed_item_reply",
-			"user_id":  userID,
-			"team_id":  teamID,
-			"reply_id": params.ReplyID,
-			"error":    fmt.Sprintf("%+v", err),
-		}).Error("Failed to get feed item reply via MCP")
+		slog.Error(
+			"Failed to get feed item reply via MCP",
+			"tool", "vibexp_io_get_feed_item_reply",
+			"user_id", userID,
+			"team_id", teamID,
+			"reply_id", params.ReplyID,
+			"error", fmt.Sprintf("%+v", err),
+		)
 
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{

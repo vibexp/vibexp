@@ -2,10 +2,9 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"runtime/debug"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 )
@@ -29,7 +28,7 @@ const maxPanicStackBytes = 32 * 1024
 //
 // The logger parameter is accepted for signature consistency with other middleware constructors
 // but logging always goes through the context-scoped logger.
-func panicLoggerMiddleware(logger *logrus.Logger) func(http.Handler) http.Handler { //nolint:unparam
+func panicLoggerMiddleware(logger *slog.Logger) func(http.Handler) http.Handler { //nolint:unparam
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
@@ -44,13 +43,13 @@ func panicLoggerMiddleware(logger *logrus.Logger) func(http.Handler) http.Handle
 						stack = stack[:maxPanicStackBytes] + "\n... [truncated]"
 					}
 
-					contextkeys.GetLoggerFromContext(r.Context()).WithFields(logrus.Fields{
-						"event":          "panic",
-						"panic.message":  fmt.Sprintf("%v", rec),
-						"panic.stack":    stack,
-						"request.method": r.Method,
-						"request.path":   r.URL.Path,
-					}).Error("recovered from panic")
+					contextkeys.GetLoggerFromContext(r.Context()).With(
+						"event", "panic",
+						"panic.message", fmt.Sprintf("%v", rec),
+						"panic.stack", stack,
+						"request.method", r.Method,
+						"request.path", r.URL.Path,
+					).Error("recovered from panic")
 					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				}
 			}()

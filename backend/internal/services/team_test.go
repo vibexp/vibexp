@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
@@ -18,7 +18,7 @@ func createTestTeamService(
 	teamMemberRepo *mocks.MockTeamMemberRepository,
 	userRepo *mocks.MockUserRepository,
 ) *TeamService {
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 	return NewTeamService(teamRepo, teamMemberRepo, userRepo, logger)
 }
 
@@ -689,7 +689,7 @@ func TestTeamService_DeleteTeam(t *testing.T) {
 			mockUserRepo := mocks.NewMockUserRepository(t)
 			tt.setupMock(mockTeamRepo, mockTeamMemberRepo, mockUserRepo)
 
-			logger, _ := test.NewNullLogger()
+			logger, _ := logtest.New()
 			service := NewTeamService(mockTeamRepo, mockTeamMemberRepo, mockUserRepo, logger)
 			err := service.DeleteTeam(context.Background(), tt.userID, tt.teamID)
 
@@ -939,7 +939,7 @@ func TestTeamService_DeleteTeam_WithMultipleMembers(t *testing.T) {
 	mockTeamRepo := mocks.NewMockTeamRepository(t)
 	mockTeamMemberRepo := mocks.NewMockTeamMemberRepository(t)
 	mockUserRepo := mocks.NewMockUserRepository(t)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	service := NewTeamService(
 		mockTeamRepo, mockTeamMemberRepo, mockUserRepo, logger,
@@ -989,7 +989,7 @@ func TestTeamService_DeleteTeam_PersonalWorkspace(t *testing.T) {
 	mockTeamRepo := mocks.NewMockTeamRepository(t)
 	mockTeamMemberRepo := mocks.NewMockTeamMemberRepository(t)
 	mockUserRepo := mocks.NewMockUserRepository(t)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	service := NewTeamService(
 		mockTeamRepo, mockTeamMemberRepo, mockUserRepo, logger,
@@ -1027,7 +1027,7 @@ func TestTeamService_DeleteTeam_Success(t *testing.T) {
 	mockTeamRepo := mocks.NewMockTeamRepository(t)
 	mockTeamMemberRepo := mocks.NewMockTeamMemberRepository(t)
 	mockUserRepo := mocks.NewMockUserRepository(t)
-	logger, _ := test.NewNullLogger()
+	logger, _ := logtest.New()
 
 	service := NewTeamService(
 		mockTeamRepo, mockTeamMemberRepo, mockUserRepo, logger,

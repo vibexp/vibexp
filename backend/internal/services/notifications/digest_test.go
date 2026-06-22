@@ -3,10 +3,10 @@ package notifications_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -41,8 +41,7 @@ func newDigestRunner(
 	prefRepo *repomocks.MockUserPreferencesRepository,
 	emailSvc notifications.DigestEmailSender,
 ) *notifications.DigestRunner {
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return notifications.NewDigestRunner(
 		digestRepo,
 		notifRepo,
@@ -664,7 +663,7 @@ func TestDigestRunner_Run_RenderError(t *testing.T) {
 	prefRepo := repomocks.NewMockUserPreferencesRepository(t)
 	emailSvc := &mockDigestEmailSender{}
 
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	runner := notifications.NewDigestRunner(
 		digestRepo, notifRepo, userRepo, teamRepo, prefRepo, emailSvc,
 		notifications.NewTemplateRenderer("https://app.example.com"),

@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
@@ -46,22 +45,22 @@ func (t *typesStrictServer) ListTypes(
 		if errors.Is(err, services.ErrTypeResourceTypeUnsupported) {
 			return nil, apierrors.NewBadRequestError(err.Error())
 		}
-		t.s.logger.WithFields(logrus.Fields{
-			"handler":       "ListTypes",
-			"team_id":       teamID,
-			"resource_type": resourceType,
-			"error":         err.Error(),
-		}).Error("Failed to list types")
+		t.s.logger.With(
+			"handler", "ListTypes",
+			"team_id", teamID,
+			"resource_type", resourceType,
+			"error", err.Error(),
+		).Error("Failed to list types")
 		return nil, apierrors.NewInternalError("Failed to list types")
 	}
 
 	genTypes, convErr := toGenTypes(items)
 	if convErr != nil {
-		t.s.logger.WithFields(logrus.Fields{
-			"handler": "ListTypes",
-			"team_id": teamID,
-			"error":   convErr.Error(),
-		}).Error("Failed to convert types to spec types")
+		t.s.logger.With(
+			"handler", "ListTypes",
+			"team_id", teamID,
+			"error", convErr.Error(),
+		).Error("Failed to convert types to spec types")
 		return nil, apierrors.NewInternalError("Failed to list types")
 	}
 
@@ -97,21 +96,21 @@ func (t *typesStrictServer) CreateType(
 			return nil, apierrors.NewResourceExistsError("type",
 				"A type with this slug already exists for this resource")
 		}
-		t.s.logger.WithFields(logrus.Fields{
-			"handler": "CreateType",
-			"team_id": teamID,
-			"error":   err.Error(),
-		}).Error("Failed to create type")
+		t.s.logger.With(
+			"handler", "CreateType",
+			"team_id", teamID,
+			"error", err.Error(),
+		).Error("Failed to create type")
 		return nil, apierrors.NewInternalError("Failed to create type")
 	}
 
 	genType, convErr := toGenType(*created)
 	if convErr != nil {
-		t.s.logger.WithFields(logrus.Fields{
-			"handler": "CreateType",
-			"team_id": teamID,
-			"error":   convErr.Error(),
-		}).Error("Failed to convert created type to spec type")
+		t.s.logger.With(
+			"handler", "CreateType",
+			"team_id", teamID,
+			"error", convErr.Error(),
+		).Error("Failed to convert created type to spec type")
 		return nil, apierrors.NewInternalError("Failed to create type")
 	}
 
@@ -129,12 +128,12 @@ func (t *typesStrictServer) DeleteType(
 		if errors.Is(err, repositories.ErrTypeNotFound) {
 			return nil, apierrors.NewResourceNotFoundError("type", "Type not found")
 		}
-		t.s.logger.WithFields(logrus.Fields{
-			"handler": "DeleteType",
-			"team_id": teamID,
-			"type_id": id,
-			"error":   err.Error(),
-		}).Error("Failed to delete type")
+		t.s.logger.With(
+			"handler", "DeleteType",
+			"team_id", teamID,
+			"type_id", id,
+			"error", err.Error(),
+		).Error("Failed to delete type")
 		return nil, apierrors.NewInternalError("Failed to delete type")
 	}
 
@@ -223,6 +222,6 @@ func (s *Server) typesResponseErrorHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	s.logger.WithError(err).Error("Types strict handler failed")
+	s.logger.With("error", err).Error("Types strict handler failed")
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError("Internal server error"))
 }

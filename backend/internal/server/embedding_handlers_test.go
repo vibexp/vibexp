@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -30,8 +29,7 @@ import (
 // TestEmbeddingHandlers_Unauthorized tests that embedding endpoints require authentication
 func TestEmbeddingHandlers_Unauthorized(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel) // Reduce test noise
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	// Create a sample Pub/Sub message with prompt embedding event
@@ -84,8 +82,7 @@ func TestEmbeddingHandlers_Unauthorized(t *testing.T) {
 // TestEmbeddingHandlers_InvalidPayload tests handling of invalid payloads
 func TestEmbeddingHandlers_InvalidPayload(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	tests := []struct {
@@ -163,8 +160,7 @@ func TestHandleEntityEmbeddingGenerated_AllEntityTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.entityType, func(t *testing.T) {
 			cfg := &config.Config{}
-			logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-			logger.SetLevel(logrus.ErrorLevel)
+			logger := slog.New(slog.DiscardHandler)
 			srv := New("8080", nil, "test-api-key", cfg, logger)
 
 			mockEmbeddingService := mocks.NewMockEmbeddingServiceInterface(t)
@@ -196,8 +192,7 @@ func TestHandleEntityEmbeddingGenerated_AllEntityTypes(t *testing.T) {
 // entity type returns 400.
 func TestHandleEntityEmbeddingGenerated_UnknownEntityType(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	mockEmbeddingService := mocks.NewMockEmbeddingServiceInterface(t)
@@ -251,8 +246,7 @@ func missingFieldPayloads() []struct {
 // TestHandleEntityEmbeddingGenerated_MissingFields tests validation of required payload fields.
 func TestHandleEntityEmbeddingGenerated_MissingFields(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	mockEmbeddingService := mocks.NewMockEmbeddingServiceInterface(t)
@@ -270,8 +264,7 @@ func TestHandleEntityEmbeddingGenerated_MissingFields(t *testing.T) {
 // TestHandleEntityEmbeddingGenerated_ServiceError tests handling of service errors.
 func TestHandleEntityEmbeddingGenerated_ServiceError(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	mockEmbeddingService := mocks.NewMockEmbeddingServiceInterface(t)
@@ -294,8 +287,7 @@ func TestHandleEntityEmbeddingGenerated_ServiceError(t *testing.T) {
 // alerts, while retrying can never succeed because the entity is gone.
 func TestHandleEntityEmbeddingGenerated_EntityNotFound(t *testing.T) {
 	cfg := &config.Config{}
-	logger := func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
 	mockEmbeddingService := mocks.NewMockEmbeddingServiceInterface(t)

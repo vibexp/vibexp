@@ -2,9 +2,8 @@ package feature_flags
 
 import (
 	"context"
+	"log/slog"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 )
 
 // ContextKey is a custom type for context keys to avoid collisions
@@ -23,7 +22,7 @@ var AllowedSignInUsers = []string{}
 // It validates whether a user's email address is in the allowlist for signing in to the platform.
 type UserSignInAllowlistFlag struct {
 	allowedEmails []string
-	logger        *logrus.Logger
+	logger        *slog.Logger
 }
 
 // Ensure UserSignInAllowlistFlag implements FeatureFlagEvaluator
@@ -34,7 +33,7 @@ var _ FeatureFlagEvaluator = (*UserSignInAllowlistFlag)(nil)
 // allowedEmails is the configured allowlist (typically config.SignInAllowedEmails).
 // An empty list means open registration: every email is allowed. Pass
 // AllowedSignInUsers to fall back to the (empty) package default.
-func NewUserSignInAllowlistFlag(logger *logrus.Logger, allowedEmails []string) *UserSignInAllowlistFlag {
+func NewUserSignInAllowlistFlag(logger *slog.Logger, allowedEmails []string) *UserSignInAllowlistFlag {
 	// Normalize allowed emails to lowercase and trim spaces once at creation,
 	// dropping any blank entries (e.g. from a trailing comma in the env var).
 	normalizedEmails := make([]string, 0, len(allowedEmails))
@@ -69,11 +68,11 @@ func (f *UserSignInAllowlistFlag) Evaluate(ctx context.Context) bool {
 	// Extract email from context
 	email, ok := ctx.Value(EmailContextKey).(string)
 	if !ok || email == "" {
-		f.logger.WithFields(logrus.Fields{
-			"service":   "vibexp-api",
-			"component": "feature-flags",
-			"flag":      "user_signin_allowlist",
-		}).Debug("No email found in context, denying sign-in access")
+		f.logger.With(
+			"service", "vibexp-api",
+			"component", "feature-flags",
+			"flag", "user_signin_allowlist",
+		).Debug("No email found in context, denying sign-in access")
 		return false
 	}
 
@@ -83,22 +82,22 @@ func (f *UserSignInAllowlistFlag) Evaluate(ctx context.Context) bool {
 	// Check if email is in the allowlist
 	for _, allowedEmail := range f.allowedEmails {
 		if strings.EqualFold(allowedEmail, email) {
-			f.logger.WithFields(logrus.Fields{
-				"service":   "vibexp-api",
-				"component": "feature-flags",
-				"flag":      "user_signin_allowlist",
-				"email":     email,
-			}).Debug("Email is in sign-in allowlist, granting access")
+			f.logger.With(
+				"service", "vibexp-api",
+				"component", "feature-flags",
+				"flag", "user_signin_allowlist",
+				"email", email,
+			).Debug("Email is in sign-in allowlist, granting access")
 			return true
 		}
 	}
 
-	f.logger.WithFields(logrus.Fields{
-		"service":   "vibexp-api",
-		"component": "feature-flags",
-		"flag":      "user_signin_allowlist",
-		"email":     email,
-	}).Debug("Email not in sign-in allowlist, denying access")
+	f.logger.With(
+		"service", "vibexp-api",
+		"component", "feature-flags",
+		"flag", "user_signin_allowlist",
+		"email", email,
+	).Debug("Email not in sign-in allowlist, denying access")
 
 	return false
 }

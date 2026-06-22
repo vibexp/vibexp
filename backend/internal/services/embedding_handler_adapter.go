@@ -2,8 +2,7 @@ package services
 
 import (
 	"fmt"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/vibexp/vibexp/pkg/events"
 )
@@ -15,7 +14,7 @@ import (
 // registry entry.
 type EmbeddingHandlerAdapter struct {
 	embeddingService EmbeddingServiceInterface
-	logger           *logrus.Logger
+	logger           *slog.Logger
 }
 
 // Ensure EmbeddingHandlerAdapter satisfies the events.EmbeddingHandlers interface.
@@ -24,7 +23,7 @@ var _ events.EmbeddingHandlers = (*EmbeddingHandlerAdapter)(nil)
 // NewEmbeddingHandlerAdapter creates a new EmbeddingHandlerAdapter.
 func NewEmbeddingHandlerAdapter(
 	embeddingService EmbeddingServiceInterface,
-	logger *logrus.Logger,
+	logger *slog.Logger,
 ) *EmbeddingHandlerAdapter {
 	return &EmbeddingHandlerAdapter{
 		embeddingService: embeddingService,
@@ -64,19 +63,19 @@ func (a *EmbeddingHandlerAdapter) HandleEmbedding(entityType string, payload map
 		return fmt.Errorf("no embeddings provided")
 	}
 
-	a.logger.WithFields(logrus.Fields{
-		"service":          "vibexp-api",
-		"component":        "embedding-handler-adapter",
-		"entity_type":      entityType,
-		"entity_id":        entityID,
-		"user_id":          userID,
-		"model":            model,
-		"embeddings_count": len(chunks),
-	}).Info("Processing entity embeddings")
+	a.logger.With(
+		"service", "vibexp-api",
+		"component", "embedding-handler-adapter",
+		"entity_type", entityType,
+		"entity_id", entityID,
+		"user_id", userID,
+		"model", model,
+		"embeddings_count", len(chunks),
+	).Info("Processing entity embeddings")
 
 	err = a.embeddingService.SaveEmbeddingChunks(userID, entityType, entityID, model, chunks)
 	if err != nil {
-		a.logger.WithError(err).Error("Failed to save entity embeddings")
+		a.logger.With("error", err).Error("Failed to save entity embeddings")
 		return fmt.Errorf("failed to save embeddings: %w", err)
 	}
 

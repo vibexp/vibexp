@@ -3,12 +3,12 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,8 +28,7 @@ func (m *mockEmbeddingHandlers) HandleEmbedding(entityType string, payload map[s
 
 //nolint:funlen // Test function naturally requires multiple test cases for comprehensive validation
 func TestNewHTTPSyncListener(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	handlers := &mockEmbeddingHandlers{}
 
 	tests := []struct {
@@ -126,8 +125,7 @@ func TestHTTPSyncListener_Handle_PromptCreated(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create listener
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	handlers := &mockEmbeddingHandlers{}
 
 	listener, err := NewHTTPSyncListener(HTTPSyncListenerConfig{
@@ -188,8 +186,7 @@ func TestHTTPSyncListener_Handle_ArtifactCreated(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create listener
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	handlers := &mockEmbeddingHandlers{}
 
 	listener, err := NewHTTPSyncListener(HTTPSyncListenerConfig{
@@ -248,8 +245,7 @@ func TestHTTPSyncListener_Handle_MemoryCreated(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create listener
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	handlers := &mockEmbeddingHandlers{}
 
 	listener, err := NewHTTPSyncListener(HTTPSyncListenerConfig{
@@ -290,8 +286,7 @@ func TestHTTPSyncListener_Handle_ServiceError(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create listener
-	logger := logrus.New()
-	logger.SetLevel(logrus.ErrorLevel)
+	logger := slog.New(slog.DiscardHandler)
 	handlers := &mockEmbeddingHandlers{}
 
 	listener, err := NewHTTPSyncListener(HTTPSyncListenerConfig{
@@ -320,7 +315,7 @@ func TestHTTPSyncListener_Handle_ServiceError(t *testing.T) {
 }
 
 func TestHTTPSyncListener_EventTypes(t *testing.T) {
-	logger := logrus.New()
+	logger := slog.New(slog.DiscardHandler)
 	handlers := &mockEmbeddingHandlers{}
 
 	expectedTypes := []string{"prompt.created", "artifact.created", "memory.created"}

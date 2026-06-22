@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -346,8 +346,7 @@ func runAgentLimitTest(t *testing.T, tt agentLimitTestCase) {
 
 	// Create server with mock container
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel) // Suppress logs during test
+	logger := slog.New(slog.DiscardHandler)
 	srv := &Server{
 		port:      "8080",
 		container: mockContainer,
@@ -431,8 +430,7 @@ func setupResourceLimitTestServer(
 		Return(checkLimitReturns, checkLimitError)
 
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := &Server{
 		port:      "8080",
 		container: mockContainer,
@@ -601,8 +599,7 @@ func runResourceLimitErrorTest(t *testing.T, tt resourceLimitErrorTestCase) {
 
 	// Create server
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	srv := &Server{
 		port:      "8080",
 		container: mockContainer,
@@ -690,8 +687,7 @@ func setupUpdateTestServer(
 		Return(checkLimitReturns, checkLimitError).Once()
 
 	cfg := &config.Config{}
-	logger := logrus.New()
-	logger.SetLevel(logrus.FatalLevel)
+	logger := slog.New(slog.DiscardHandler)
 	return &Server{
 		port:      "8080",
 		container: mockContainer,

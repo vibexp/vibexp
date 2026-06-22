@@ -2,9 +2,8 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
@@ -28,7 +27,7 @@ func (ar *ActivityRecorder) RecordAuthActivity(
 ) {
 	// Skip activity recording if service is not available (e.g., during tests)
 	if ar.activityService == nil {
-		logrus.Debug("Activity service not available, skipping activity recording")
+		slog.Debug("Activity service not available, skipping activity recording")
 		return
 	}
 
@@ -45,10 +44,12 @@ func (ar *ActivityRecorder) RecordAuthActivity(
 		ctx, userID, activityType, sessionID, metadata, &clientIP, &userAgent,
 	)
 	if err != nil {
-		logrus.WithError(err).WithFields(logrus.Fields{
-			"user_id":       userID,
-			"activity_type": activityType,
-		}).Error("Failed to record auth activity")
+		slog.With("error", err).
+			With(
+				"user_id", userID,
+				"activity_type", activityType,
+			).
+			Error("Failed to record auth activity")
 	}
 }
 
@@ -59,7 +60,7 @@ func (ar *ActivityRecorder) RecordResourceActivity(
 ) {
 	// Skip activity recording if service is not available (e.g., during tests)
 	if ar.activityService == nil {
-		logrus.Debug("Activity service not available, skipping activity recording")
+		slog.Debug("Activity service not available, skipping activity recording")
 		return
 	}
 
@@ -75,11 +76,13 @@ func (ar *ActivityRecorder) RecordResourceActivity(
 		ctx, userID, activityType, entityType, entityID, description, metadata,
 	)
 	if err != nil {
-		logrus.WithError(err).WithFields(logrus.Fields{
-			"user_id":       userID,
-			"activity_type": activityType,
-			"entity_type":   entityType,
-		}).Error("Failed to record resource activity")
+		slog.With("error", err).
+			With(
+				"user_id", userID,
+				"activity_type", activityType,
+				"entity_type", entityType,
+			).
+			Error("Failed to record resource activity")
 	}
 }
 
@@ -109,7 +112,7 @@ func (ar *ActivityRecorder) RecordClaudeCodeActivity(
 ) {
 	// Skip activity recording if service is not available (e.g., during tests)
 	if ar.activityService == nil {
-		logrus.Debug("Activity service not available, skipping activity recording")
+		slog.Debug("Activity service not available, skipping activity recording")
 		return
 	}
 
@@ -119,11 +122,13 @@ func (ar *ActivityRecorder) RecordClaudeCodeActivity(
 
 	err := ar.activityService.RecordClaudeCodeActivity(ctx, userID, sessionID, toolName, hookEventName, metadata)
 	if err != nil {
-		logrus.WithError(err).WithFields(logrus.Fields{
-			"user_id":         userID,
-			"session_id":      sessionID,
-			"hook_event_name": hookEventName,
-		}).Error("Failed to record Claude Code activity")
+		slog.With("error", err).
+			With(
+				"user_id", userID,
+				"session_id", sessionID,
+				"hook_event_name", hookEventName,
+			).
+			Error("Failed to record Claude Code activity")
 	}
 }
 

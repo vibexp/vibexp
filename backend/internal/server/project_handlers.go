@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sirupsen/logrus"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
@@ -21,12 +20,12 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCreateProject",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("Create project request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreateProject",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("Create project request received")
 
 	var req models.CreateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -58,13 +57,13 @@ func (s *Server) handleGetProjectStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetProjectStats",
-		"user_id": userID,
-		"team_id": teamID,
-		"slug":    decodedSlug,
-	}).Info("Get project stats request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetProjectStats",
+		"user_id", userID,
+		"team_id", teamID,
+		"slug", decodedSlug,
+	).Info("Get project stats request received")
 
 	stats, err := s.container.ProjectService().GetProjectStats(teamID, userID, decodedSlug)
 	if err != nil {
@@ -85,13 +84,13 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetProject",
-		"user_id": userID,
-		"team_id": teamID,
-		"slug":    decodedSlug,
-	}).Info("Get project request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetProject",
+		"user_id", userID,
+		"team_id", teamID,
+		"slug", decodedSlug,
+	).Info("Get project request received")
 
 	project, err := s.container.ProjectService().GetProjectBySlug(teamID, userID, decodedSlug)
 	if err != nil {
@@ -108,23 +107,23 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id")
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleListProjects",
-		"user_id": userID,
-		"team_id": teamID,
-	}).Info("List projects request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleListProjects",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("List projects request received")
 
 	filters := s.buildProjectFilters(r, teamID)
 
 	response, listErr := s.container.ProjectService().ListProjects(userID, filters)
 	if listErr != nil {
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleListProjects",
-			"user_id": userID,
-			"error":   fmt.Sprintf("%+v", listErr),
-		}).Error("Failed to list projects")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListProjects",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", listErr),
+		).Error("Failed to list projects")
 
 		writeErrorResponse(w, nil, "internal_error", "Failed to list projects", http.StatusInternalServerError)
 		return
@@ -135,13 +134,13 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	repoURLs, ghErr := s.container.GitHubAppService().GetAccessibleRepoURLs(r.Context(), teamID)
 	if ghErr != nil {
 		// Non-fatal: log and continue with github_connected defaulting to false
-		s.logger.WithFields(logrus.Fields{
-			"service": "vibexp-api",
-			"handler": "handleListProjects",
-			"user_id": userID,
-			"team_id": teamID,
-			"error":   fmt.Sprintf("%+v", ghErr),
-		}).Warn("Failed to fetch GitHub accessible repositories; defaulting github_connected to false")
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleListProjects",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", ghErr),
+		).Warn("Failed to fetch GitHub accessible repositories; defaulting github_connected to false")
 		repoURLs = map[string]bool{}
 	}
 
@@ -178,13 +177,13 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleUpdateProject",
-		"user_id": userID,
-		"team_id": teamID,
-		"slug":    decodedSlug,
-	}).Info("Update project request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUpdateProject",
+		"user_id", userID,
+		"team_id", teamID,
+		"slug", decodedSlug,
+	).Info("Update project request received")
 
 	var req models.UpdateProjectRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
@@ -216,13 +215,13 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleDeleteProject",
-		"user_id": userID,
-		"team_id": teamID,
-		"slug":    decodedSlug,
-	}).Info("Delete project request received")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDeleteProject",
+		"user_id", userID,
+		"team_id", teamID,
+		"slug", decodedSlug,
+	).Info("Delete project request received")
 
 	err := s.container.ProjectService().DeleteProject(teamID, userID, decodedSlug)
 	if err != nil {
@@ -320,12 +319,12 @@ func (s *Server) decodeProjectSlug(w http.ResponseWriter, userID, handler, slug 
 
 // handleCreateProjectError handles errors from project creation
 func (s *Server) handleCreateProjectError(w http.ResponseWriter, userID string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleCreateProject",
-		"user_id": userID,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to create project")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCreateProject",
+		"user_id", userID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to create project")
 
 	if strings.Contains(err.Error(), "already exists") {
 		writeErrorResponse(w, nil, "conflict", err.Error(), http.StatusConflict)
@@ -343,13 +342,13 @@ func (s *Server) handleCreateProjectError(w http.ResponseWriter, userID string, 
 
 // handleGetProjectError handles errors from getting a project
 func (s *Server) handleGetProjectError(w http.ResponseWriter, userID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetProject",
-		"user_id": userID,
-		"slug":    slug,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to get project")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetProject",
+		"user_id", userID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to get project")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Project not found", http.StatusNotFound)
@@ -361,13 +360,13 @@ func (s *Server) handleGetProjectError(w http.ResponseWriter, userID, slug strin
 
 // handleUpdateProjectError handles errors from project update
 func (s *Server) handleUpdateProjectError(w http.ResponseWriter, userID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleUpdateProject",
-		"user_id": userID,
-		"slug":    slug,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to update project")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleUpdateProject",
+		"user_id", userID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to update project")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Project not found", http.StatusNotFound)
@@ -400,13 +399,13 @@ func (s *Server) handleUpdateProjectError(w http.ResponseWriter, userID, slug st
 
 // handleDeleteProjectError handles errors from project deletion
 func (s *Server) handleDeleteProjectError(w http.ResponseWriter, userID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleDeleteProject",
-		"user_id": userID,
-		"slug":    slug,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to delete project")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDeleteProject",
+		"user_id", userID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to delete project")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Project not found", http.StatusNotFound)
@@ -425,13 +424,13 @@ func (s *Server) handleDeleteProjectError(w http.ResponseWriter, userID, slug st
 
 // handleGetProjectStatsError handles errors from getting project stats
 func (s *Server) handleGetProjectStatsError(w http.ResponseWriter, userID, slug string, err error) {
-	s.logger.WithFields(logrus.Fields{
-		"service": "vibexp-api",
-		"handler": "handleGetProjectStats",
-		"user_id": userID,
-		"slug":    slug,
-		"error":   fmt.Sprintf("%+v", err),
-	}).Error("Failed to get project stats")
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetProjectStats",
+		"user_id", userID,
+		"slug", slug,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to get project stats")
 
 	if strings.Contains(err.Error(), "not found") {
 		writeErrorResponse(w, nil, "not_found", "Project not found", http.StatusNotFound)
@@ -477,15 +476,15 @@ func (s *Server) buildProjectFilters(r *http.Request, teamID string) services.Pr
 // logProjectError logs a project error and writes error response
 func (s *Server) logProjectError(w http.ResponseWriter, handler, userID, slug string,
 	err error, logMsg, errCode, errMsg string, statusCode int) {
-	fields := logrus.Fields{
-		"service": "vibexp-api",
-		"handler": handler,
-		"user_id": userID,
-		"error":   fmt.Sprintf("%+v", err),
+	fields := []any{
+		"service", "vibexp-api",
+		"handler", handler,
+		"user_id", userID,
+		"error", fmt.Sprintf("%+v", err),
 	}
 	if slug != "" {
-		fields["slug"] = slug
+		fields = append(fields, "slug", slug)
 	}
-	s.logger.WithFields(fields).Error(logMsg)
+	s.logger.With(fields...).Error(logMsg)
 	writeErrorResponse(w, nil, errCode, errMsg, statusCode)
 }

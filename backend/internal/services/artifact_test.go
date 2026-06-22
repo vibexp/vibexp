@@ -2,16 +2,15 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
-
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -156,7 +155,7 @@ func TestNewArtifactService(t *testing.T) {
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewArtifactService(
 		repo, nil, nil, mockResourceUsageSvc,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
 
@@ -269,7 +268,7 @@ func TestArtifactService_CreateArtifact(t *testing.T) {
 
 			service := NewArtifactService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			artifact, err := service.CreateArtifact(tt.userID, "team-123", tt.request)
@@ -349,7 +348,7 @@ func TestArtifactService_GetArtifactByProjectIDAndSlug(t *testing.T) {
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			artifact, err := service.GetArtifactByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug)
@@ -412,7 +411,7 @@ func TestArtifactService_GetArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 
 			service := NewArtifactService(
 				repo, nil, nil, &MockResourceUsageService{},
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			artifact, err := service.GetArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
@@ -446,7 +445,7 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 
 		service := NewArtifactService(
 			repo, nil, nil, &MockResourceUsageService{},
-			func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+			func() *slog.Logger { l, _ := logtest.New(); return l }(),
 			nil,
 		)
 		artifact, err := service.UpdateArtifactByProjectIDAndSlugInTeam(
@@ -468,7 +467,7 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 
 		service := NewArtifactService(
 			repo, nil, nil, &MockResourceUsageService{},
-			func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+			func() *slog.Logger { l, _ := logtest.New(); return l }(),
 			nil,
 		)
 		artifact, err := service.UpdateArtifactByProjectIDAndSlugInTeam(
@@ -585,7 +584,7 @@ func TestArtifactService_ListArtifacts(t *testing.T) {
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			response, err := service.ListArtifacts(tt.userID, tt.filters)
@@ -608,7 +607,7 @@ func TestArtifactService_ListArtifactsByProject(t *testing.T) {
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewArtifactService(
 		repo, nil, nil, mockResourceUsageSvc,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
 	response, err := service.ListArtifactsByProject(
@@ -750,7 +749,7 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlug(t *testing.T) {
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			artifact, err := service.UpdateArtifactByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug, tt.request)
@@ -855,7 +854,7 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 
 			service := NewArtifactService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			err := service.DeleteArtifactByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug)
@@ -933,7 +932,7 @@ func TestArtifactService_GetArtifactStats(t *testing.T) {
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			stats, err := service.GetArtifactStats(tt.userID, tt.teamID)
@@ -1048,7 +1047,7 @@ func TestArtifactService_ListArtifactsByProjectCrossTeam(t *testing.T) {
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
 				repo, nil, nil, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 			resp, err := service.ListArtifactsByProjectCrossTeam(tt.userID, tt.projectID, tt.filters)
@@ -1064,7 +1063,7 @@ func TestArtifactService_ImplementsInterface(t *testing.T) {
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewArtifactService(
 		repo, nil, nil, mockResourceUsageSvc,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 		//nolint:funlen // Test function requires comprehensive setup and assertions
 	)
@@ -1180,7 +1179,7 @@ func TestArtifactService_PublishesArtifactEvents(t *testing.T) {
 
 			service := NewArtifactService(
 				mockRepo, nil, mockEventManager, mockResourceUsageSvc,
-				func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
 
@@ -1207,7 +1206,7 @@ func TestArtifactService_UpdateArtifact_PreservesTeamID(t *testing.T) {
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewArtifactService(
 		mockRepo, nil, nil, mockResourceUsageSvc,
-		func() *logrus.Logger { l, _ := test.NewNullLogger(); return l }(),
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
 

@@ -262,8 +262,8 @@ func (v *Verifier) resolveUserID(ctx context.Context, subject string) (string, e
 		if errors.Is(err, repositories.ErrUserNotFound) {
 			return "", ErrUnknownSubject
 		}
-		contextkeys.GetLoggerFromContext(ctx).WithError(err).
-			Error("AuthKit token subject resolution failed (infrastructure error)")
+		contextkeys.GetLoggerFromContext(ctx).
+			Error("AuthKit token subject resolution failed (infrastructure error)", "error", err)
 		return "", ErrUserResolution
 	}
 	if userID == "" {
