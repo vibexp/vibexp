@@ -128,6 +128,19 @@ type Config struct {
 	MailgunDomain     string `envconfig:"MAILGUN_DOMAIN" default:""`
 	MailgunSendingKey string `envconfig:"MAILGUN_SENDING_KEY" default:""`
 
+	// Postmark configuration
+	// PostmarkServerToken is the Postmark Server API token used for sending.
+	// Required when EMAIL_PROVIDER=postmark.
+	PostmarkServerToken string `envconfig:"POSTMARK_SERVER_TOKEN" default:""`
+	// PostmarkMessageStream selects the Postmark message stream to send on.
+	// Defaults to "outbound" (the default transactional stream).
+	PostmarkMessageStream string `envconfig:"POSTMARK_MESSAGE_STREAM" default:"outbound"`
+
+	// SendGrid configuration
+	// SendGridAPIKey is the SendGrid API key (needs "Mail Send" permission).
+	// Required when EMAIL_PROVIDER=sendgrid.
+	SendGridAPIKey string `envconfig:"SENDGRID_API_KEY" default:""`
+
 	// Frontend URL configuration for redirects
 	FrontendBaseURL string `envconfig:"FRONTEND_BASE_URL" default:"http://localhost:5173"`
 

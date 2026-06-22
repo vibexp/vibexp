@@ -27,12 +27,15 @@ require (
 	github.com/mailgun/mailgun-go/v4 v4.23.0
 	github.com/mattn/go-sqlite3 v1.14.46
 	github.com/modelcontextprotocol/go-sdk v1.6.1
+	github.com/mrz1836/postmark v1.9.2
 	github.com/oapi-codegen/runtime v1.4.2
 	github.com/panjf2000/ants/v2 v2.12.1
 	github.com/pb33f/libopenapi v0.38.1
 	github.com/pb33f/libopenapi-validator v0.13.10
 	github.com/pgvector/pgvector-go v0.4.0
 	github.com/samber/lo v1.53.0
+	github.com/sendgrid/rest v2.6.9+incompatible
+	github.com/sendgrid/sendgrid-go v3.16.1+incompatible
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
