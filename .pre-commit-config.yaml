@@ -1,0 +1,165 @@
+repos:
+  # ------------------------------------------------------------------
+  # Backend hooks (Go)
+  # ------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: gofmt-check
+        name: gofmt check
+        entry: bash -c 'make backend-format'
+        language: system
+        files: ^backend/
+        pass_filenames: false
+
+      - id: golangci-lint
+        name: golangci-lint
+        entry: bash -c 'make backend-lint'
+        language: system
+        files: ^backend/
+        pass_filenames: false
+
+      - id: go-vulncheck
+        name: go vulnerability check
+        entry: bash -c 'make backend-vulncheck'
+        language: system
+        files: ^backend/
+        pass_filenames: false
+
+      - id: go-security
+        name: go security scan
+        entry: bash -c 'make backend-security'
+        language: system
+        files: ^backend/
+        pass_filenames: false
+
+      - id: openapi-validate
+        name: OpenAPI validation
+        entry: bash -c 'make backend-validate-openapi'
+        language: system
+        files: ^backend/(openapi\.yaml|paths/.*\.ya?ml|schemas/.*\.ya?ml)$
+        pass_filenames: false
+
+      - id: no-os-getenv
+        name: Block os.Getenv usage in backend
+        # Block os.Getenv - use the config package instead.
+        # Excluded: test files and testutils directory (use test helpers).
+        entry: 'os\.Getenv'
+        language: pygrep
+        types: [text]
+        files: ^backend/
+        exclude: ^backend/(.*_test\.go|.*/testutils/.*|testutils/.*)$
+
+  # ------------------------------------------------------------------
+  # Frontend hooks (TypeScript/React)
+  # ------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: frontend-lint-staged
+        name: frontend lint-staged (format & fix)
+        entry: bash -c 'cd frontend && npx lint-staged'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: frontend-lint
+        name: frontend lint
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: frontend-typecheck
+        name: frontend type-check
+        entry: bash -c 'cd frontend && npm run type-check'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: frontend-test
+        name: frontend test
+        entry: bash -c 'cd frontend && npm run test'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: frontend-build
+        name: frontend build
+        entry: bash -c 'cd frontend && npm run build'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: frontend-security
+        name: frontend security scan
+        entry: bash -c 'cd frontend && npm run security:scan'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+
+      - id: frontend-audit
+        name: frontend dependency audit
+        entry: bash -c 'cd frontend && npm run audit:deps'
+        language: system
+        files: ^frontend/package-lock\.json$
+        pass_filenames: false
+
+      - id: frontend-complexity
+        name: frontend complexity check
+        entry: bash -c 'cd frontend && npm run complexity:check'
+        language: system
+        files: ^frontend/
+        pass_filenames: false
+
+  # ------------------------------------------------------------------
+  # Security: Secret Detection
+  # ------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.2
+    hooks:
+      - id: gitleaks
+
+  # ------------------------------------------------------------------
+  # General & Policy Hooks
+  # ------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        # 1MB: npm lockfiles (~600KB) and other large assets exceed the
+        # 500KB default.
+        args: ['--maxkb=1024']
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+        args: ['--branch', 'main']
+      - id: check-case-conflict
+      - id: check-json
+        # Exclude tsconfig files — TypeScript conventionally allows JSONC
+        # (JSON with comments) in tsconfig*.json.
+        exclude: (^|/)tsconfig(\..+)?\.json$
+
+  # ------------------------------------------------------------------
+  # Policy: Block nolint / eslint-disable comments
+  # ------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: no-nolint-comments
+        name: Block nolint comments
+        entry: '//.*nolint'
+        language: pygrep
+        types: [text]
+        # Exclude: this config, workflow files, test files, generated files,
+        # and complex services/repositories with intentional suppressions.
+        exclude: ^(vendor/|\.pre-commit-config\.yaml$|\.github/workflows/.*\.ya?ml$|.*_test\.go$|backend/internal/container/wire.*\.go$|backend/internal/container/providers/.*\.go$|backend/internal/repositories/postgres/.*\.go$|backend/internal/services/.*\.go$|backend/internal/server/.*\.go$|backend/internal/errors/.*\.go$|backend/internal/external/.*\.go$|backend/pkg/events/.*\.go$)
+      - id: no-eslint-disable
+        name: Block eslint-disable comments (Frontend only)
+        # Matches 'eslint-disable', 'eslint-disable-line', 'eslint-disable-next-line'
+        entry: 'eslint-disable'
+        language: pygrep
+        types: [text]
+        # Restrict to the frontend directory.
+        files: ^frontend/
+        # Exclude: test files.
+        exclude: ^frontend/.*\.test\.(ts|tsx)$
