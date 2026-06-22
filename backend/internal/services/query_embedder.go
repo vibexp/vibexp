@@ -27,8 +27,8 @@ type ProviderQueryEmbedder struct {
 // Ensure ProviderQueryEmbedder implements QueryEmbedder.
 var _ QueryEmbedder = (*ProviderQueryEmbedder)(nil)
 
-// NewProviderQueryEmbedder creates a ProviderQueryEmbedder. model and dimensions
-// are the deployment-wide values (EMBEDDING_MODEL / EMBEDDING_DIMENSIONS).
+// NewProviderQueryEmbedder creates a ProviderQueryEmbedder. model is
+// EMBEDDING_MODEL and dimensions is the fixed EmbeddingVectorDimensions constant.
 func NewProviderQueryEmbedder(
 	resolver ActiveEmbeddingProviderResolver, model string, dimensions int, logger *logrus.Logger,
 ) *ProviderQueryEmbedder {

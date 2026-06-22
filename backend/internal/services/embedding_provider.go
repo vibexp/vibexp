@@ -386,8 +386,8 @@ func (eps *EmbeddingProviderService) GetDefaultEmbeddingProvider(
 }
 
 // ResolveActiveProvider resolves the single system-wide embedding provider into a
-// ready-to-use EmbeddingProvider, decrypting its stored API key. model and
-// dimensions are the deployment-wide values (EMBEDDING_MODEL / EMBEDDING_DIMENSIONS)
+// ready-to-use EmbeddingProvider, decrypting its stored API key. model is
+// EMBEDDING_MODEL and dimensions is the fixed EmbeddingVectorDimensions constant,
 // so document and query embeddings share one model and one vector width. It
 // returns (nil, nil) when no provider is configured, signalling the embedding
 // pipeline to no-op so entity writes still succeed.

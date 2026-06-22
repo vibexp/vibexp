@@ -44,19 +44,16 @@ func TestLoad_ActivityRetentionDays_Default(t *testing.T) {
 }
 
 func TestLoad_EmbeddingDefaults(t *testing.T) {
-	for _, name := range []string{"EMBEDDING_MODEL", "EMBEDDING_DIMENSIONS"} {
-		prev, exists := os.LookupEnv(name)
-		require.NoError(t, os.Unsetenv(name))
-		if exists {
-			t.Cleanup(func() { require.NoError(t, os.Setenv(name, prev)) })
-		}
+	prev, exists := os.LookupEnv("EMBEDDING_MODEL")
+	require.NoError(t, os.Unsetenv("EMBEDDING_MODEL"))
+	if exists {
+		t.Cleanup(func() { require.NoError(t, os.Setenv("EMBEDDING_MODEL", prev)) })
 	}
 
 	cfg, err := Load()
 
 	require.NoError(t, err)
 	assert.Equal(t, "gemini-embedding-001", cfg.EmbeddingModel)
-	assert.Equal(t, 768, cfg.EmbeddingDimensions)
 }
 
 func TestLoad_EmbeddingModel_Empty_ReturnsError(t *testing.T) {
@@ -67,16 +64,6 @@ func TestLoad_EmbeddingModel_Empty_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.Contains(t, err.Error(), "EMBEDDING_MODEL")
-}
-
-func TestLoad_EmbeddingDimensions_Zero_ReturnsError(t *testing.T) {
-	t.Setenv("EMBEDDING_DIMENSIONS", "0")
-
-	cfg, err := Load()
-
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "EMBEDDING_DIMENSIONS")
 }
 
 func TestLoad_ActivityRetentionDays_ValidValue(t *testing.T) {

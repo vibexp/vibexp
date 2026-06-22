@@ -48,6 +48,7 @@ func TestOpenAICompatibleProvider_HappyPathAndAuthHeader(t *testing.T) {
 	assert.Equal(t, "/v1/embeddings", gotPath)
 	assert.Equal(t, []string{"alpha", "beta"}, gotReq.Input)
 	assert.Equal(t, "test-model", gotReq.Model)
+	assert.Equal(t, 2, gotReq.Dimensions, "provider must request the configured dimension width")
 	assert.Equal(t, [][]float32{{0.1, 0.2}, {0.3, 0.4}}, vectors)
 	assert.Equal(t, "test-model", p.Model())
 	assert.Equal(t, 2, p.Dimensions())
@@ -136,7 +137,7 @@ func TestNewGenerationProvider_Factory(t *testing.T) {
 	p, err := NewGenerationProvider(&models.EmbeddingProvider{
 		ProviderType: ProviderTypeOpenAICompatible,
 		BaseURL:      strptr("http://localhost:1234/v1"),
-	}, "key", "model", 768, time.Second)
+	}, "key", "model", 1024, time.Second)
 	require.NoError(t, err)
 	assert.Equal(t, ProviderTypeOpenAICompatible, p.Type())
 

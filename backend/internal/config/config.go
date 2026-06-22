@@ -179,14 +179,13 @@ type Config struct {
 
 	// EmbeddingModel is the model identifier used to embed both documents and search
 	// queries; it is the model_id tag written on every embedding row and the filter
-	// search uses to keep query and document vectors comparable. EmbeddingDimensions
-	// is the output dimensionality and the vector(N) column width; the two must
-	// agree with the active migration or every embed/search call fails the length
-	// check. Both are deployment-wide (a dimension change is a migration + re-embed).
-	// The active embedding provider (base URL, API key, type) is configured in the
-	// embedding_providers table, not via env.
-	EmbeddingModel      string `envconfig:"EMBEDDING_MODEL" default:"gemini-embedding-001"`
-	EmbeddingDimensions int    `envconfig:"EMBEDDING_DIMENSIONS" default:"768"`
+	// search uses to keep query and document vectors comparable. Operators set it to
+	// match the model their configured provider serves.
+	//
+	// The embedding vector width is NOT configured here — it is the fixed constant
+	// services.EmbeddingVectorDimensions (locked to the vector(N) migration). The
+	// active provider (base URL, API key, type) lives in the embedding_providers table.
+	EmbeddingModel string `envconfig:"EMBEDDING_MODEL" default:"gemini-embedding-001"`
 
 	// EmbeddingChunkSize and EmbeddingChunkOverlap configure the in-Go document
 	// chunker (rune-based sliding window). Overlap preserves context across chunk
@@ -446,14 +445,11 @@ func validateRetentionDays(envName string, value int) error {
 }
 
 // validateEmbeddingConfig enforces that the embedding model is named and the
-// dimension is positive, so the service fails closed at startup rather than
-// embedding/searching with an empty model_id or a zero-width vector.
+// chunker sizing is sane, so the service fails closed at startup rather than
+// embedding/searching with an empty model_id or a stalled chunker.
 func validateEmbeddingConfig(cfg *Config) error {
 	if cfg.EmbeddingModel == "" {
 		return fmt.Errorf("EMBEDDING_MODEL is required and must be non-empty")
-	}
-	if cfg.EmbeddingDimensions < 1 {
-		return fmt.Errorf("EMBEDDING_DIMENSIONS must be >= 1, got %d", cfg.EmbeddingDimensions)
 	}
 	if cfg.EmbeddingChunkSize < 1 {
 		return fmt.Errorf("EMBEDDING_CHUNK_SIZE must be >= 1, got %d", cfg.EmbeddingChunkSize)

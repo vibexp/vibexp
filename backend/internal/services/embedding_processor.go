@@ -24,10 +24,10 @@ type embeddingInput struct {
 // entity text in Go, embeds the chunks, and persists them via EmbeddingService.
 // It is the in-process replacement for the external ai-service embedding path.
 //
-// model and dimensions are the deployment-wide values (EMBEDDING_MODEL /
-// EMBEDDING_DIMENSIONS). model is the model_id tag written on every chunk row and
-// is also used by search to filter candidate rows, so document and query
-// embeddings stay comparable.
+// model is EMBEDDING_MODEL and dimensions is the fixed EmbeddingVectorDimensions
+// constant. model is the model_id tag written on every chunk row and is also used
+// by search to filter candidate rows, so document and query embeddings stay
+// comparable.
 type EmbeddingGenerationProcessor struct {
 	resolver         ActiveEmbeddingProviderResolver
 	chunker          Chunker

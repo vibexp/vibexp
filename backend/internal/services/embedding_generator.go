@@ -17,6 +17,19 @@ import (
 // It matches the type accepted by EmbeddingProviderService.ValidateEmbeddingProvider.
 const ProviderTypeOpenAICompatible = "openai_compatible"
 
+// EmbeddingVectorDimensions is the fixed embedding width VibeXP stores. It is a
+// constant, not configuration: it is locked to the `vector(N)` column set by the
+// image-baked migration, so an operator cannot change it (changing it is a VibeXP
+// release that ships a new migration). Operators instead pick an embedding model
+// that outputs this width.
+//
+// 1024 is the broadest OpenAI-compatible dimension: native for Bedrock Titan V2,
+// Cohere v3, Mistral, mxbai-embed-large and bge-large, and requested from the
+// Matryoshka models (OpenAI text-embedding-3-*, Gemini gemini-embedding-001) via
+// the request's `dimensions` field. It MUST match the vector(N) column width in
+// the latest embeddings migration.
+const EmbeddingVectorDimensions = 1024
+
 // generateEmbeddingsTimeout bounds a single outbound embeddings call.
 const generateEmbeddingsTimeout = 30 * time.Second
 
@@ -95,6 +108,12 @@ type openAIEmbeddingsRequest struct {
 	Input          []string `json:"input"`
 	Model          string   `json:"model"`
 	EncodingFormat string   `json:"encoding_format"`
+	// Dimensions pins the output width for Matryoshka models (OpenAI
+	// text-embedding-3-*, Gemini gemini-embedding-001, Bedrock Titan V2) whose
+	// native default differs from the configured width. Fixed-dimension endpoints
+	// ignore it and return their native width, which must equal Dimensions or the
+	// response is rejected.
+	Dimensions int `json:"dimensions,omitempty"`
 }
 
 type openAIEmbeddingsResponse struct {
@@ -117,6 +136,7 @@ func (p *OpenAICompatibleProvider) GenerateEmbeddings(
 		Input:          texts,
 		Model:          p.model,
 		EncodingFormat: "float",
+		Dimensions:     p.dimensions,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal embeddings request: %w", err)
@@ -187,9 +207,9 @@ func (p *OpenAICompatibleProvider) orderVectors(decoded openAIEmbeddingsResponse
 
 // NewGenerationProvider builds an EmbeddingProvider from a stored provider row.
 // It maps provider_type to a concrete implementation; future provider types are a
-// single additional case here plus their implementation. model and dimensions are
-// the deployment-wide values (EMBEDDING_MODEL / EMBEDDING_DIMENSIONS) so document
-// and query embeddings always share one model and one vector width.
+// single additional case here plus their implementation. model is EMBEDDING_MODEL
+// and dimensions is the fixed EmbeddingVectorDimensions constant, so document and
+// query embeddings always share one model and one vector width.
 func NewGenerationProvider(
 	provider *models.EmbeddingProvider, apiKey, model string, dimensions int, timeout time.Duration,
 ) (EmbeddingProvider, error) {

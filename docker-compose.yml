@@ -47,14 +47,14 @@ services:
       #   openssl rand -base64 24 | cut -c1-32
       ENCRYPTION_KEY: "changemechangemechangeme32bytes!"
 
-      # Embedding dimensions MUST match the pgvector column (vector(768)).
-      # EMBEDDING_MODEL is the model_id tag + search filter; EMBEDDING_DIMENSIONS is
-      # the vector(N) column width. Embeddings are generated in-process — no separate
-      # AI service or Pub/Sub. To enable semantic search, configure an embedding
-      # provider (OpenAI-compatible endpoint) in the app; without one, embedding is
-      # skipped and entities still save.
+      # The embedding vector width is fixed at 1024 in code (locked to the pgvector
+      # column) — pick a model that outputs 1024 dims (Titan V2, Cohere v3, Mistral,
+      # mxbai-embed-large; or OpenAI text-embedding-3-* / Gemini, which VibeXP requests
+      # at 1024). EMBEDDING_MODEL is the model_id tag + search filter. Embeddings are
+      # generated in-process — no separate AI service or Pub/Sub. To enable semantic
+      # search, configure an embedding provider (OpenAI-compatible endpoint) in the
+      # app; without one, embedding is skipped and entities still save.
       EMBEDDING_MODEL: "gemini-embedding-001"
-      EMBEDDING_DIMENSIONS: "768"
 
       # YOUR deployment's public URLs — change these for a remote deploy.
       FRONTEND_BASE_URL: "http://localhost:5173"

@@ -323,7 +323,7 @@ func ProvideEmbeddingService(
 ) services.EmbeddingServiceInterface {
 	return services.NewEmbeddingService(
 		repo, promptRepo, artifactRepo, memoryRepo, blueprintRepo, feedItemRepo, feedItemReplyRepo,
-		cfg.EmbeddingDimensions, logger,
+		services.EmbeddingVectorDimensions, logger,
 	)
 }
 
@@ -336,7 +336,7 @@ func ProvideQueryEmbedder(
 	logger *logrus.Logger,
 ) services.QueryEmbedder {
 	return services.NewProviderQueryEmbedder(
-		providerSvc, cfg.EmbeddingModel, cfg.EmbeddingDimensions, logger,
+		providerSvc, cfg.EmbeddingModel, services.EmbeddingVectorDimensions, logger,
 	)
 }
 
@@ -351,7 +351,7 @@ func ProvideEmbeddingProcessor(
 ) events.EmbeddingProcessor {
 	chunker := services.NewTextChunker(cfg.EmbeddingChunkSize, cfg.EmbeddingChunkOverlap)
 	return services.NewEmbeddingGenerationProcessor(
-		providerSvc, chunker, embeddingService, cfg.EmbeddingModel, cfg.EmbeddingDimensions, logger,
+		providerSvc, chunker, embeddingService, cfg.EmbeddingModel, services.EmbeddingVectorDimensions, logger,
 	)
 }
 
