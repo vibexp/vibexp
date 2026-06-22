@@ -1,142 +1,71 @@
 # CLAUDE.md
 
-Guidance for AI agents (and humans) working in this repository.
+Guidance for AI agents working in this repo.
 
 ## What this is
 
-**VibeXP** — an open-source, self-hostable "personal AI command center": manage
-prompts, memories, artifacts, agents, and MCP integrations across tools like
-Claude Code, Cursor, and VS Code. This repository is the open-source home of the
-product; it is a monorepo containing two independently deployable components:
+**VibeXP**: open-source, self-hostable AI command center (prompts, memories, artifacts, agents, MCP integrations for Claude Code, Cursor, VS Code, etc.). Monorepo with two independently deployable components:
 
-- **`backend/`** — Go REST API (module `github.com/vibexp/vibexp`). Spec-first
-  OpenAPI, PostgreSQL + pgvector, MCP endpoint, WorkOS-based auth.
-- **`frontend/`** — standalone Vite + React + TypeScript SPA, served by nginx in
-  production.
+- **`backend/`**: Go REST API (module `github.com/vibexp/vibexp`). Spec-first OpenAPI, PostgreSQL + pgvector, MCP endpoint, WorkOS auth.
+- **`frontend/`**: Vite + React + TypeScript SPA, served by nginx in production.
 
-Two supporting packages are **published to the public npm registry** and consumed
-by the frontend (they are NOT in this repo):
+The frontend consumes two npm packages that are NOT in this repo: `@vibexp/api-client` (typed client generated from `backend/openapi.yaml`) and `@vibexp/design-system` (shared UI).
 
-- `@vibexp/api-client` — typed API client generated from `backend/openapi.yaml`;
-  source lives in the separate repo `vibexp/api-client-js`.
-- `@vibexp/design-system` — shared UI/design tokens and components.
+## Related repos
 
-## Repository layout
+Only `backend/` and `frontend/` live here. If a task needs another VibeXP project, clone it into this repo's **parent directory** (as a sibling, e.g. `$HOME/Projects/<name>` when this repo is `$HOME/Projects/vibexp`):
+
+| Repo | URL | What |
+|---|---|---|
+| website | https://github.com/vibexp/website | Marketing site (vibexp.io) |
+| docs | https://github.com/vibexp/docs | Docs site (docs.vibexp.io) |
+| blog | https://github.com/vibexp/blog | Blog (blog.vibexp.io) |
+| cli | https://github.com/vibexp/cli | VibeXP CLI |
+| api-client-js | https://github.com/vibexp/api-client-js | Source of `@vibexp/api-client` |
+
+## Layout
 
 ```
-backend/            Go API service
-  cmd/              CLI entrypoints (cobra)
-  internal/         app code: server, services, repositories, auth, container (wire DI), …
-  migrations/       SQL migrations
-  openapi.yaml      OpenAPI spec (+ paths/, schemas/) — source of truth for the API
-  Dockerfile        production image (ghcr.io/vibexp/backend)
-  docker-compose.yml local dev Postgres (used by `make backend-run`)
-frontend/           Vite/React SPA
-  src/              app code: pages, components, features, hooks, services, lib, utils
-  Dockerfile        production image: builds the SPA, serves via nginx with an /api proxy
-  nginx.conf.template runtime nginx config (reverse-proxies /api → BACKEND_ORIGIN)
-Makefile            all dev/CI tasks (backend-* and frontend-* targets)
-docker-compose.yml  runs the PUBLISHED images (ghcr.io/vibexp/*) + Postgres for self-hosting
-.github/workflows/  ci-backend, ci-frontend (make-driven), release-backend, release-frontend
+backend/   Go API: cmd/ (cobra), internal/ (server, services, repositories, auth, container=wire DI),
+           migrations/, openapi.yaml (+paths/ +schemas/ = API source of truth), Dockerfile
+frontend/  SPA: src/ (pages, components, features, hooks, services, lib, utils), Dockerfile,
+           nginx.conf.template (reverse-proxies /api -> BACKEND_ORIGIN)
+Makefile   all dev/CI tasks (backend-*, frontend-*)
+docker-compose.yml  runs PUBLISHED ghcr.io/vibexp/* images + Postgres (self-host, NOT for dev)
+.github/workflows/  ci-backend, ci-frontend, release-backend, release-frontend
 ```
 
-## Local development — use `make`, not docker-compose
+## Local development: use `make`
 
-Local development uses the Makefile. The root `docker-compose.yml` is for
-*running the published images* (self-host/deploy), not for developing.
+The root `docker-compose.yml` runs the published images (self-host), not for developing. Develop via the Makefile:
 
-Backend:
-- `make backend-run-dev` — Postgres (via `backend/docker-compose.yml`) + hot-reload API (air)
-- `make backend-test` / `make backend-lint` / `make backend-check`
-- `make backend-generate-openapi-server` — regenerate server bindings from the spec
-- `make backend-wire-gen` — regenerate Wire DI; `make backend-mock-generate` — regenerate mocks
+- Backend: `make backend-run-dev` (Postgres + air hot-reload), plus `backend-test`, `backend-lint`, `backend-check`, `backend-generate-openapi-server`, `backend-wire-gen`, `backend-mock-generate`.
+- Frontend: `make frontend-run-dev` (Vite, http://localhost:5173), plus `frontend-install`, `frontend-lint`, `frontend-type-check`, `frontend-test`, `frontend-build`.
+- Go toolchain is pinned: the Makefile sets `GOTOOLCHAIN=go1.25.11`. Keep `GO_VERSION` in sync with `go-version` in `ci-backend.yml`.
 
-Frontend:
-- `make frontend-run-dev` — Vite dev server (http://localhost:5173)
-- `make frontend-install` / `frontend-lint` / `frontend-type-check` / `frontend-test` / `frontend-build`
+## Pre-commit hooks are MANDATORY
 
-### Pre-commit hooks are MANDATORY
+`.pre-commit-config.yaml` gates every commit on the CI checks (gofmt, golangci-lint, govulncheck, gosec, OpenAPI validation, frontend lint/type-check/test/build, gitleaks, policy hooks).
 
-This repo ships a `.pre-commit-config.yaml` that gates every commit on the same
-quality checks CI runs (gofmt, golangci-lint, govulncheck, gosec, OpenAPI
-validation, frontend lint/type-check/test/build, gitleaks, and policy hooks).
-Local development **must** have these hooks installed — skipping them lets
-quality regressions slip in unnoticed.
-
-- Install once per clone: `pre-commit install` (requires the `pre-commit` tool —
-  `pipx install pre-commit` or `brew install pre-commit`).
-- **Agents:** before committing, verify the hook is installed (e.g.
-  `.git/hooks/pre-commit` exists and `command -v pre-commit` succeeds). If
-  `pre-commit` is not installed, **stop and ask the user to install it** — do not
-  proceed without it. This is non-negotiable; a missing hook means missed code
-  quality.
-- **Never bypass the hooks.** Using `git commit --no-verify` / `-n` (or
-  `git push --no-verify`) to skip pre-commit is forbidden. If a hook fails, fix
-  the underlying problem rather than evading the check.
-
-### Go toolchain is pinned
-The Makefile sets `GOTOOLCHAIN=go1.25.11` (matching CI) so local builds use the
-exact same Go as CI — this keeps `govulncheck`/`staticcheck`/analyzers
-reproducible. Keep `GO_VERSION` in the Makefile in sync with the `go-version`
-in `.github/workflows/ci-backend.yml`.
+- Install once per clone: `pre-commit install` (needs `pre-commit`: `pipx install pre-commit` or `brew install pre-commit`).
+- Before committing, verify it is installed. If `pre-commit` is missing, STOP and ask the user to install it. Do not proceed.
+- Never bypass the hooks (`git commit`/`push --no-verify` or `-n` is forbidden). If a hook fails, fix the cause.
 
 ## Conventions & gotchas
 
-- **Spec-first backend.** `backend/openapi.yaml` (bundled from `paths/` + `schemas/`)
-  is the source of truth. Generated server code (oapi-codegen) and Wire/mocks are
-  committed; regenerate via the `make` targets above rather than hand-editing
-  `*_gen.go` / `mock_*.go` / `wire_gen.go`. After the module rename, generated
-  files must stay `gofmt -s` clean (CI enforces it).
-- **Frontend ↔ API client.** The frontend imports `@vibexp/api-client` from npm.
-  Changing the backend API means: update `backend/openapi.yaml` → release a new
-  `@vibexp/api-client` (from `vibexp/api-client-js`) → bump the frontend dep.
-- **Frontend is deployment-agnostic.** It is built with a relative
-  `VITE_API_BASE_URL=/api/v1`; the production nginx image reverse-proxies `/api/`
-  to `BACKEND_ORIGIN` (default `http://backend:8080`). Don't hardcode a backend
-  origin into the build.
-- **No service worker.** The app ships no PWA/workbox service worker (only an
-  on-demand `firebase-messaging-sw.js` for push). `src/utils/serviceWorker.ts`
-  evicts stale/legacy workers on boot, and `public/{sw,dev-sw}.js` are
-  self-destruct kill-switches for browsers still holding an old worker. Do not
-  reintroduce a precaching service worker without a clear upgrade/cleanup story.
-- **Secrets.** `.env` files are gitignored and must never be committed; only
-  `.env.example` is tracked. Keep example/config values neutral (e.g.
-  `example.com`) — this is open source and self-hosted by third parties.
+- **Spec-first backend.** `backend/openapi.yaml` (bundled from `paths/` + `schemas/`) is the source of truth. Generated code (oapi-codegen server, Wire, mocks) is committed: regenerate via `make`, never hand-edit `*_gen.go` / `mock_*.go` / `wire_gen.go`. Generated files must stay `gofmt -s` clean (CI enforces).
+- **API change flow.** Update `backend/openapi.yaml` -> release a new `@vibexp/api-client` (from `api-client-js`) -> bump the frontend dep.
+- **Frontend is deployment-agnostic.** Built with relative `VITE_API_BASE_URL=/api/v1`; nginx proxies `/api/` to `BACKEND_ORIGIN` (default `http://backend:8080`). Don't hardcode a backend origin.
+- **No service worker.** No PWA/precaching SW (only on-demand `firebase-messaging-sw.js` for push). `src/utils/serviceWorker.ts` + `public/{sw,dev-sw}.js` evict legacy workers. Don't reintroduce a precaching SW without a cleanup story.
+- **Secrets.** `.env` is gitignored, never commit it; only `.env.example` is tracked, with neutral values (e.g. `example.com`) since this is public and self-hosted.
 
-## Testing & CI
+## CI & releases
 
-- CI mirrors local exactly because every CI step calls a `make` target.
-  - `ci-backend.yml`: `backend-download-deps` → `backend-format` → `backend-build`
-    → `backend-test`; plus `backend-lint` (golangci-lint) and OpenAPI validation.
-  - `ci-frontend.yml`: `frontend-install` → `frontend-lint` → `frontend-type-check`
-    → `frontend-test` → `frontend-build`.
-- Run the same targets locally before pushing.
+- CI runs the same `make` targets, so run them locally first. Backend: download-deps -> format -> build -> test, plus lint and OpenAPI validation. Frontend: install -> lint -> type-check -> test -> build.
+- Released independently via prefixed Git tags: a GitHub Release `backend-vX.Y.Z` builds `ghcr.io/vibexp/backend:X.Y.Z` (+ `:latest`); `frontend-vX.Y.Z` likewise.
 
-## Releases & deployment
+## Working agreement
 
-Backend and frontend are versioned **independently** via prefixed Git tags:
-
-- Create a GitHub **Release** tagged `backend-vX.Y.Z` → builds & pushes
-  `ghcr.io/vibexp/backend:X.Y.Z` (+ `:latest` for non-prereleases).
-- `frontend-vX.Y.Z` → `ghcr.io/vibexp/frontend:X.Y.Z` (+ `:latest`).
-
-Self-hosters run the published images:
-
-```sh
-docker compose up -d   # uses ghcr.io/vibexp/{backend,frontend}:latest + Postgres (pgvector)
-```
-
-`docker-compose.yml` persists data in the `pgdata` volume, runs on a dedicated
-`vibexp` network, enables dev-login for local evaluation, and includes an
-optional GCS-emulator service for persistent file attachments.
-
-## Working agreement for agents
-
-- Prefer the `make` targets; match the existing code's style and conventions.
-- Before committing: run the relevant `make ...-lint` / `...-test` / build targets.
-- Pre-commit hooks are mandatory — ensure they are installed (`pre-commit install`)
-  and **never** bypass them with `--no-verify` / `-n`. If `pre-commit` isn't
-  installed, ask the user to install it before committing. See
-  "Pre-commit hooks are MANDATORY" above.
-- Don't commit secrets or generated artifacts that are gitignored.
-- Branch off `main`, open a PR, and let CI pass before merging.
+- Branch off `main`, match existing style, run the relevant `make ...-lint` / `...-test` / build targets before committing, open a PR, let CI pass.
+- Pre-commit hooks are mandatory (see above); never use `--no-verify`.
+- Don't commit secrets or gitignored generated artifacts.
