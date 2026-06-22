@@ -1059,7 +1059,6 @@ func TestEmbeddingService_resolveEntityTeam_RegistryDispatch(t *testing.T) {
 	// minimum-viable test seam: the test lives in the same package, so it can
 	// mutate svc.entityRegistry directly to register a stub validator.
 	service.entityRegistry["fake-entity"] = EmbeddingEntityConfig{
-		EntityIDField: "fakeID",
 		ValidatorFunc: func(_ context.Context, userID, entityID string) (string, error) {
 			gotUserID = userID
 			gotEntityID = entityID
@@ -1093,7 +1092,6 @@ func TestEmbeddingService_resolveEntityTeam_NilValidatorSkips(t *testing.T) {
 	service := createTestEmbeddingService(embRepo, promptRepo, artifactRepo, memoryRepo, blueprintRepo)
 
 	service.entityRegistry["validator-less"] = EmbeddingEntityConfig{
-		EntityIDField: "vlID",
 		ValidatorFunc: nil,
 	}
 
@@ -1126,49 +1124,10 @@ func TestEmbeddingService_resolveEntityTeam_NilRepoSkipsForBuiltinTypes(t *testi
 	}
 }
 
-// TestGetEmbeddingEntityConfig asserts the package-level routing registry still
-// exposes EntityIDField for the four built-in entity types — guards the
-// embedding_handler_adapter and server.embedding_handlers callers that were
-// added in PR #1318 and read cfg.EntityIDField.
-func TestGetEmbeddingEntityConfig(t *testing.T) {
-	tests := []struct {
-		entityType     string
-		wantField      string
-		wantRegistered bool
-	}{
-		{"prompt", "promptID", true},
-		{"artifact", "artifactID", true},
-		{"memory", "memoryID", true},
-		{"blueprint", "blueprintID", true},
-		{"feed_item", "feedItemID", true},
-		{"feed_item_reply", "feedItemReplyID", true},
-		{"unknown", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.entityType, func(t *testing.T) {
-			cfg, ok := GetEmbeddingEntityConfig(tt.entityType)
-			assert.Equal(t, tt.wantRegistered, ok)
-			if tt.wantRegistered {
-				assert.Equal(t, tt.wantField, cfg.EntityIDField)
-				// The package-level registry intentionally leaves ValidatorFunc unset;
-				// existence validation is per-instance, not package-level.
-				assert.Nil(t, cfg.ValidatorFunc)
-			}
-		})
-	}
-}
-
-// TestEntityRegistries_AreConsistent guards the dual-registry split. The
-// package-level embeddingEntityRegistry (consumed by handler-layer payload
-// routing in embedding_handler_adapter.go and server/embedding_handlers.go)
-// and the per-instance EmbeddingService.entityRegistry (consumed by
-// resolveEntityTeam) must agree on the set of registered entity types AND
-// on the EntityIDField value for each type. If a future contributor adds an
-// entity to one but not the other, or uses a different EntityIDField in each,
-// the handler layer and the service layer will silently diverge — this test
-// fails CI before that ships.
-func TestEntityRegistries_AreConsistent(t *testing.T) {
+// TestEntityRegistry_CoversAllEmbeddableTypes asserts the per-instance entity
+// registry registers every embeddable entity type with a non-nil ValidatorFunc,
+// so resolveEntityTeam can validate existence and resolve the team for each.
+func TestEntityRegistry_CoversAllEmbeddableTypes(t *testing.T) {
 	embRepo := mocks.NewMockEmbeddingRepository(t)
 	promptRepo := mocks.NewMockPromptRepository(t)
 	artifactRepo := mocks.NewMockArtifactRepository(t)
@@ -1176,25 +1135,12 @@ func TestEntityRegistries_AreConsistent(t *testing.T) {
 	blueprintRepo := mocks.NewMockBlueprintRepository(t)
 	service := createTestEmbeddingService(embRepo, promptRepo, artifactRepo, memoryRepo, blueprintRepo)
 
-	// Same set of keys.
-	assert.Equal(t, len(embeddingEntityRegistry), len(service.entityRegistry),
-		"package-level and per-instance registries must have the same number of entries")
-
-	for entityType, pkgCfg := range embeddingEntityRegistry {
-		instCfg, ok := service.entityRegistry[entityType]
-		assert.Truef(t, ok,
-			"entity %q present in package-level registry must also be in per-instance registry",
-			entityType)
-		assert.Equalf(t, pkgCfg.EntityIDField, instCfg.EntityIDField,
-			"entity %q EntityIDField must match between registries (pkg=%q, inst=%q)",
-			entityType, pkgCfg.EntityIDField, instCfg.EntityIDField)
-	}
-	for entityType := range service.entityRegistry {
-		_, ok := embeddingEntityRegistry[entityType]
-		assert.Truef(t, ok,
-			"entity %q present in per-instance registry must also be in package-level registry "+
-				"(handler-layer routing depends on the package registry)",
-			entityType)
+	want := []string{"prompt", "artifact", "memory", "blueprint", "feed_item", "feed_item_reply"}
+	assert.Len(t, service.entityRegistry, len(want))
+	for _, entityType := range want {
+		cfg, ok := service.entityRegistry[entityType]
+		assert.Truef(t, ok, "entity %q must be registered", entityType)
+		assert.NotNilf(t, cfg.ValidatorFunc, "entity %q must have a ValidatorFunc", entityType)
 	}
 }
 
