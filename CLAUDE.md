@@ -55,6 +55,25 @@ Frontend:
 - `make frontend-run-dev` — Vite dev server (http://localhost:5173)
 - `make frontend-install` / `frontend-lint` / `frontend-type-check` / `frontend-test` / `frontend-build`
 
+### Pre-commit hooks are MANDATORY
+
+This repo ships a `.pre-commit-config.yaml` that gates every commit on the same
+quality checks CI runs (gofmt, golangci-lint, govulncheck, gosec, OpenAPI
+validation, frontend lint/type-check/test/build, gitleaks, and policy hooks).
+Local development **must** have these hooks installed — skipping them lets
+quality regressions slip in unnoticed.
+
+- Install once per clone: `pre-commit install` (requires the `pre-commit` tool —
+  `pipx install pre-commit` or `brew install pre-commit`).
+- **Agents:** before committing, verify the hook is installed (e.g.
+  `.git/hooks/pre-commit` exists and `command -v pre-commit` succeeds). If
+  `pre-commit` is not installed, **stop and ask the user to install it** — do not
+  proceed without it. This is non-negotiable; a missing hook means missed code
+  quality.
+- **Never bypass the hooks.** Using `git commit --no-verify` / `-n` (or
+  `git push --no-verify`) to skip pre-commit is forbidden. If a hook fails, fix
+  the underlying problem rather than evading the check.
+
 ### Go toolchain is pinned
 The Makefile sets `GOTOOLCHAIN=go1.25.11` (matching CI) so local builds use the
 exact same Go as CI — this keeps `govulncheck`/`staticcheck`/analyzers
@@ -115,5 +134,9 @@ optional GCS-emulator service for persistent file attachments.
 
 - Prefer the `make` targets; match the existing code's style and conventions.
 - Before committing: run the relevant `make ...-lint` / `...-test` / build targets.
+- Pre-commit hooks are mandatory — ensure they are installed (`pre-commit install`)
+  and **never** bypass them with `--no-verify` / `-n`. If `pre-commit` isn't
+  installed, ask the user to install it before committing. See
+  "Pre-commit hooks are MANDATORY" above.
 - Don't commit secrets or generated artifacts that are gitignored.
 - Branch off `main`, open a PR, and let CI pass before merging.
