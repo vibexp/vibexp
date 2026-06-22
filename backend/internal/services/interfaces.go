@@ -204,6 +204,11 @@ type EmbeddingProviderServiceInterface interface {
 	GetDefaultEmbeddingProvider(ctx context.Context, userID string) (*models.EmbeddingProvider, error)
 	ValidateEmbeddingProvider(ctx context.Context, req models.ValidateEmbeddingProviderRequest,
 	) (*models.ValidateEmbeddingProviderResponse, error)
+	// ResolveActiveProvider resolves the single system-wide embedding provider used
+	// by the embedding pipeline (document + query embedding). Returns (nil, nil)
+	// when none is configured so embedding silently no-ops. See
+	// ActiveEmbeddingProviderResolver.
+	ResolveActiveProvider(ctx context.Context, model string, dimensions int) (EmbeddingProvider, error)
 }
 
 // EmailServiceInterface defines the interface for email operations

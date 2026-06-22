@@ -327,14 +327,32 @@ func ProvideEmbeddingService(
 	)
 }
 
-// ProvideQueryEmbedder creates a new QueryEmbedder backed by the AI service.
-func ProvideQueryEmbedder(cfg *config.Config, logger *logrus.Logger) services.QueryEmbedder {
-	return services.NewAIQueryEmbedder(services.AIQueryEmbedderConfig{
-		AIServiceURL: cfg.AIServiceURL,
-		Model:        cfg.EmbeddingModel,
-		Dimensions:   cfg.EmbeddingDimensions,
-		Logger:       logger,
-	})
+// ProvideQueryEmbedder creates a QueryEmbedder backed by the active system-wide
+// embedding provider, so search queries embed with the same provider, model, and
+// dimension as documents.
+func ProvideQueryEmbedder(
+	providerSvc services.EmbeddingProviderServiceInterface,
+	cfg *config.Config,
+	logger *logrus.Logger,
+) services.QueryEmbedder {
+	return services.NewProviderQueryEmbedder(
+		providerSvc, cfg.EmbeddingModel, cfg.EmbeddingDimensions, logger,
+	)
+}
+
+// ProvideEmbeddingProcessor creates the events.EmbeddingProcessor the embedding
+// worker uses to generate and persist embeddings off the event bus: it resolves
+// the active provider, chunks entity text in Go, embeds it, and saves the chunks.
+func ProvideEmbeddingProcessor(
+	providerSvc services.EmbeddingProviderServiceInterface,
+	embeddingService services.EmbeddingServiceInterface,
+	cfg *config.Config,
+	logger *logrus.Logger,
+) events.EmbeddingProcessor {
+	chunker := services.NewTextChunker(cfg.EmbeddingChunkSize, cfg.EmbeddingChunkOverlap)
+	return services.NewEmbeddingGenerationProcessor(
+		providerSvc, chunker, embeddingService, cfg.EmbeddingModel, cfg.EmbeddingDimensions, logger,
+	)
 }
 
 // ProvideSearchService creates a new SearchService, wiring the recency-ranking

@@ -48,10 +48,13 @@ services:
       ENCRYPTION_KEY: "changemechangemechangeme32bytes!"
 
       # Embedding dimensions MUST match the pgvector column (vector(768)).
+      # EMBEDDING_MODEL is the model_id tag + search filter; EMBEDDING_DIMENSIONS is
+      # the vector(N) column width. Embeddings are generated in-process — no separate
+      # AI service or Pub/Sub. To enable semantic search, configure an embedding
+      # provider (OpenAI-compatible endpoint) in the app; without one, embedding is
+      # skipped and entities still save.
       EMBEDDING_MODEL: "gemini-embedding-001"
       EMBEDDING_DIMENSIONS: "768"
-      # Semantic search/embeddings need a separate AI service (optional):
-      # AI_SERVICE_URL: "http://ai-service:8000"
 
       # YOUR deployment's public URLs — change these for a remote deploy.
       FRONTEND_BASE_URL: "http://localhost:5173"

@@ -124,27 +124,6 @@ func TestLoad_ActivityRetentionDays_AtMaxBoundary_Succeeds(t *testing.T) {
 	assert.Equal(t, 3650, cfg.ActivityRetentionDays)
 }
 
-// TestGetPubSubForwardedEventTypes_IncludesAllFourEntities locks in the
-// embedding parity guarantee: prompt, artifact, memory, and blueprint each
-// publish create + update events that must be forwarded to the AI service via
-// Pub/Sub. A regression here breaks Blueprint embedding propagation (issue
-// #1297) and would silently degrade RAG quality.
-func TestGetPubSubForwardedEventTypes_IncludesAllFourEntities(t *testing.T) {
-	cfg := &Config{}
-
-	got := cfg.GetPubSubForwardedEventTypes()
-
-	required := []string{
-		"prompt.created", "prompt.updated",
-		"artifact.created", "artifact.updated",
-		"memory.created", "memory.updated",
-		"blueprint.created", "blueprint.updated",
-	}
-	for _, evt := range required {
-		assert.Contains(t, got, evt, "GetPubSubForwardedEventTypes must include %q for embedding parity", evt)
-	}
-}
-
 func TestLoad_SearchRankingDefaults(t *testing.T) {
 	cfg, err := Load()
 
@@ -256,18 +235,6 @@ func TestLoad_ShortEncryptionKey_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "ENCRYPTION_KEY")
 }
 
-// TestGetPubSubForwardedEventTypes_IncludesFeedItemNotReply locks in the embedding
-// scope: feed items are forwarded for embedding, but feed item replies are not
-// (product decision — replies must never be embedded).
-func TestGetPubSubForwardedEventTypes_IncludesFeedItemNotReply(t *testing.T) {
-	cfg := &Config{}
-
-	got := cfg.GetPubSubForwardedEventTypes()
-
-	assert.Contains(t, got, "feed_item.created", "feed items must be forwarded for embedding")
-	assert.NotContains(t, got, "feed_item_reply.created", "feed item replies must not be embedded")
-}
-
 func TestLoad_AbuseHardeningDefaults(t *testing.T) {
 	cfg, err := Load()
 
@@ -314,55 +281,25 @@ func TestLoad_RateLimits_NonPositive_ReturnsError(t *testing.T) {
 	}
 }
 
-// TestEventBackendMode_Resolution covers the effective-backend resolution,
-// including the backward-compat rule that PUBSUB_FORWARDING_ENABLED=true forces
-// the pubsub backend regardless of EVENT_BACKEND, and that an empty/garbage
-// EVENT_BACKEND falls back to sync.
-func TestEventBackendMode_Resolution(t *testing.T) {
-	tests := []struct {
-		name             string
-		eventBackend     string
-		pubSubForwarding bool
-		want             string
-	}{
-		{"empty defaults to sync", "", false, EventBackendSync},
-		{"explicit sync", "sync", false, EventBackendSync},
-		{"explicit pubsub", "pubsub", false, EventBackendPubSub},
-		{"case and space insensitive", "  PubSub  ", false, EventBackendPubSub},
-		{"unknown falls back to sync", "kafka", false, EventBackendSync},
-		{"legacy flag forces pubsub", "sync", true, EventBackendPubSub},
-		{"legacy flag wins over empty", "", true, EventBackendPubSub},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &Config{
-				EventBackend:            tc.eventBackend,
-				PubSubForwardingEnabled: tc.pubSubForwarding,
-			}
-
-			assert.Equal(t, tc.want, cfg.EventBackendMode())
-		})
-	}
-}
-
-// TestLoad_EventBackendDefaultsToSync locks in that a fresh self-host (no
-// EVENT_BACKEND set) selects the broker-free sync backend.
-func TestLoad_EventBackendDefaultsToSync(t *testing.T) {
+// TestLoad_EmbeddingChunkDefaults locks in the in-Go chunker defaults so a fresh
+// self-host gets a sane sliding window without extra configuration.
+func TestLoad_EmbeddingChunkDefaults(t *testing.T) {
 	cfg, err := Load()
 
 	require.NoError(t, err)
-	assert.Equal(t, EventBackendSync, cfg.EventBackend)
-	assert.Equal(t, EventBackendSync, cfg.EventBackendMode())
+	assert.Equal(t, 1000, cfg.EmbeddingChunkSize)
+	assert.Equal(t, 200, cfg.EmbeddingChunkOverlap)
 }
 
-// TestLoad_EventBackendInvalid fails closed on a typo so a misconfigured
-// Pub/Sub deployment never silently degrades to sync.
-func TestLoad_EventBackendInvalid(t *testing.T) {
-	t.Setenv("EVENT_BACKEND", "rabbitmq")
+// TestLoad_EmbeddingChunkOverlapInvalid fails closed when the overlap is not
+// smaller than the chunk size, which would stall the chunker.
+func TestLoad_EmbeddingChunkOverlapInvalid(t *testing.T) {
+	t.Setenv("EMBEDDING_CHUNK_SIZE", "500")
+	t.Setenv("EMBEDDING_CHUNK_OVERLAP", "500")
 
 	cfg, err := Load()
 
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "EVENT_BACKEND")
+	assert.Contains(t, err.Error(), "EMBEDDING_CHUNK_OVERLAP")
 }

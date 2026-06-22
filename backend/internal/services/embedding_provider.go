@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,10 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
+
+// Ensure EmbeddingProviderService satisfies the narrow resolver seam consumed by
+// the embedding worker and query embedder.
+var _ ActiveEmbeddingProviderResolver = (*EmbeddingProviderService)(nil)
 
 type EmbeddingProviderService struct {
 	repo          repositories.EmbeddingProviderRepository
@@ -378,6 +383,38 @@ func (eps *EmbeddingProviderService) GetDefaultEmbeddingProvider(
 	}
 
 	return provider, nil
+}
+
+// ResolveActiveProvider resolves the single system-wide embedding provider into a
+// ready-to-use EmbeddingProvider, decrypting its stored API key. model and
+// dimensions are the deployment-wide values (EMBEDDING_MODEL / EMBEDDING_DIMENSIONS)
+// so document and query embeddings share one model and one vector width. It
+// returns (nil, nil) when no provider is configured, signalling the embedding
+// pipeline to no-op so entity writes still succeed.
+func (eps *EmbeddingProviderService) ResolveActiveProvider(
+	ctx context.Context, model string, dimensions int,
+) (EmbeddingProvider, error) {
+	if eps == nil || eps.repo == nil {
+		return nil, fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	row, err := eps.repo.GetActiveProvider(ctx)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNoActiveEmbeddingProvider) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to resolve active embedding provider: %w", err)
+	}
+
+	apiKey := ""
+	if row.APIKeyEncrypted != nil {
+		apiKey, err = eps.decrypt(*row.APIKeyEncrypted)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt embedding provider API key: %w", err)
+		}
+	}
+
+	return NewGenerationProvider(row, apiKey, model, dimensions, generateEmbeddingsTimeout)
 }
 
 func (eps *EmbeddingProviderService) ValidateEmbeddingProvider(

@@ -59,7 +59,6 @@ var notFoundStubRoutes = map[string]string{
 // the #1696 backfill eliminated all "TODO" entries; never add new ones.
 var undocumentedRouteAllowlist = map[string]string{
 	// Intentionally excluded by the documentation scope policy.
-	"POST /api/v1/events/pubsub":               "Pub/Sub push endpoint (OIDC-authenticated), not client-facing",
 	"POST /api/v1/integrations/github/webhook": "308 permanent-redirect shim to /api/v1/webhooks/github",
 }
 

@@ -4,7 +4,6 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -14,21 +13,6 @@ import (
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/observability"
 	"github.com/vibexp/vibexp/pkg/events"
-)
-
-// Event delivery backends selectable via EVENT_BACKEND. These decide how
-// embedding events leave the in-process event bus:
-//
-//   - EventBackendSync   — in-process / synchronous. Each event is POSTed
-//     directly to the AI service (AI_SERVICE_URL) and embeddings are persisted
-//     inline. No external message broker is required, so self-hosters get the
-//     full semantic-search feature set with only Postgres + an embeddings
-//     service. This is the default.
-//   - EventBackendPubSub — forward events to GCP Pub/Sub for an out-of-process
-//     worker to consume. Requires GCP_PROJECT_ID and is GCP-specific.
-const (
-	EventBackendSync   = "sync"
-	EventBackendPubSub = "pubsub"
 )
 
 type Config struct {
@@ -174,47 +158,41 @@ type Config struct {
 	// attachments.
 	AttachmentsBucket string `envconfig:"GCS_RESOURCE_ATTACHMENTS_BUCKET" default:""`
 
-	// EventBackend selects how embedding events are delivered off the in-process
-	// event bus: "sync" (default — POST directly to the AI service, no broker) or
-	// "pubsub" (forward to GCP Pub/Sub). See the EventBackend* constants and
-	// EventBackendMode for how the legacy PUBSUB_FORWARDING_ENABLED flag is
-	// reconciled with this value.
-	EventBackend string `envconfig:"EVENT_BACKEND" default:"sync"`
+	// GCPProjectID is the Google Cloud project id used for observability
+	// (trace/log correlation in the tracing exporter and request logger). It is
+	// optional and empty by default; it is NOT required for embedding generation,
+	// which is broker-free and runs in-process.
+	GCPProjectID string `envconfig:"GCP_PROJECT_ID" default:""`
 
-	// Google Cloud Pub/Sub configuration. GCPProjectID and PubSubEventsTopicName
-	// must be supplied via env when the pubsub event backend is selected; there
-	// are no tenant-specific defaults baked in.
-	GCPProjectID            string `envconfig:"GCP_PROJECT_ID" default:""`
-	PubSubEventsTopicName   string `envconfig:"PUBSUB_EVENTS_TOPIC_NAME" default:"events"`
-	PubSubForwardingEnabled bool   `envconfig:"PUBSUB_FORWARDING_ENABLED" default:"false"`
-
-	// PubSubPushAudience is the OIDC token audience the Pub/Sub push
-	// subscription mints its bearer token for; the push endpoint validates the
-	// incoming ID token against this value. It must equal the public base URL
-	// the push subscription targets (e.g. the service's HTTPS URL). Required
-	// when Pub/Sub push delivery is used; no tenant-specific default.
+	// PubSubPushAudience is the OIDC token audience Cloud Scheduler (and any other
+	// Google OIDC push caller) mints its bearer token for; the internal job
+	// endpoints under /internal/jobs/* validate the incoming ID token against this
+	// value. It must equal the public base URL the caller targets. No default.
 	PubSubPushAudience string `envconfig:"PUBSUB_PUSH_AUDIENCE" default:""`
 
-	// PubSubPushServiceAccountSuffix restricts which service-account identities
-	// the Pub/Sub push OIDC middleware accepts: the token's email claim must end
-	// with this suffix (e.g. "@my-project.iam.gserviceaccount.com"). When empty,
-	// the service-account-domain check is skipped (issuer, signature and audience
-	// are still enforced).
+	// PubSubPushServiceAccountSuffix restricts which service-account identities the
+	// OIDC middleware accepts for the internal job endpoints: the token's email
+	// claim must end with this suffix (e.g. "@my-project.iam.gserviceaccount.com").
+	// When empty, the service-account-domain check is skipped (issuer, signature
+	// and audience are still enforced).
 	PubSubPushServiceAccountSuffix string `envconfig:"PUBSUB_PUSH_SERVICE_ACCOUNT_SUFFIX" default:""`
 
-	// AI Service configuration for direct embedding API.
-	// Authentication is Cloud Run OIDC (the runtime SA's ID token); ai-service
-	// verifies the caller identity, so no shared API key is needed.
-	AIServiceURL string `envconfig:"AI_SERVICE_URL" default:"http://localhost:8000"`
-
-	// EmbeddingModel is the model identifier used both to embed search queries and
-	// to filter stored embeddings by model_id. It must match the model ai-service
-	// uses to embed documents (EVENT_EMBEDDING_MODEL there) so query and document
-	// vectors are comparable. EmbeddingDimensions is the dimensionality of that
-	// model's output and the vector(N) column width; the two must agree with the
-	// active migration or every embed/search call fails the length check.
+	// EmbeddingModel is the model identifier used to embed both documents and search
+	// queries; it is the model_id tag written on every embedding row and the filter
+	// search uses to keep query and document vectors comparable. EmbeddingDimensions
+	// is the output dimensionality and the vector(N) column width; the two must
+	// agree with the active migration or every embed/search call fails the length
+	// check. Both are deployment-wide (a dimension change is a migration + re-embed).
+	// The active embedding provider (base URL, API key, type) is configured in the
+	// embedding_providers table, not via env.
 	EmbeddingModel      string `envconfig:"EMBEDDING_MODEL" default:"gemini-embedding-001"`
 	EmbeddingDimensions int    `envconfig:"EMBEDDING_DIMENSIONS" default:"768"`
+
+	// EmbeddingChunkSize and EmbeddingChunkOverlap configure the in-Go document
+	// chunker (rune-based sliding window). Overlap preserves context across chunk
+	// boundaries and must be smaller than the chunk size.
+	EmbeddingChunkSize    int `envconfig:"EMBEDDING_CHUNK_SIZE" default:"1000"`
+	EmbeddingChunkOverlap int `envconfig:"EMBEDDING_CHUNK_OVERLAP" default:"200"`
 
 	// HubSpot CRM configuration
 	HubSpotCRMAccessKey string `envconfig:"HUBSPOT_CRM_ACCESS_KEY" default:""`
@@ -364,48 +342,6 @@ func (c *Config) GetGitHubAppConfig() (*GitHubAppConfig, error) {
 	}, nil
 }
 
-// EventBackendMode returns the effective event delivery backend (one of the
-// EventBackend* constants), reconciling the new EVENT_BACKEND selector with the
-// legacy PUBSUB_FORWARDING_ENABLED flag.
-//
-// PUBSUB_FORWARDING_ENABLED=true wins for backward compatibility: existing
-// deployments that only set the old flag keep forwarding to Pub/Sub without
-// also having to set EVENT_BACKEND=pubsub. Otherwise the normalized
-// EVENT_BACKEND value decides; an empty value defaults to sync. Validation in
-// Load rejects any unrecognized EVENT_BACKEND value, so callers can trust the
-// result is one of the known constants.
-func (c *Config) EventBackendMode() string {
-	if c.PubSubForwardingEnabled {
-		return EventBackendPubSub
-	}
-	switch strings.ToLower(strings.TrimSpace(c.EventBackend)) {
-	case EventBackendPubSub:
-		return EventBackendPubSub
-	case "", EventBackendSync:
-		return EventBackendSync
-	default:
-		return EventBackendSync
-	}
-}
-
-// GetPubSubForwardedEventTypes returns the list of event types to forward to Pub/Sub
-// This is defined programmatically rather than via environment variable for better maintainability
-func (c *Config) GetPubSubForwardedEventTypes() []string {
-	return []string{
-		"user.created",
-		"user.updated",
-		"prompt.created",
-		"prompt.updated",
-		"artifact.created",
-		"artifact.updated",
-		"memory.created",
-		"memory.updated",
-		"blueprint.created",
-		"blueprint.updated",
-		"feed_item.created",
-	}
-}
-
 // GetDeploymentEnvironment determines the deployment environment from config
 // It checks OTEL_ENVIRONMENT first, then standard env vars, then cloud indicators, then defaults
 func (c *Config) GetDeploymentEnvironment() string {
@@ -519,25 +455,20 @@ func validateEmbeddingConfig(cfg *Config) error {
 	if cfg.EmbeddingDimensions < 1 {
 		return fmt.Errorf("EMBEDDING_DIMENSIONS must be >= 1, got %d", cfg.EmbeddingDimensions)
 	}
+	if cfg.EmbeddingChunkSize < 1 {
+		return fmt.Errorf("EMBEDDING_CHUNK_SIZE must be >= 1, got %d", cfg.EmbeddingChunkSize)
+	}
+	if cfg.EmbeddingChunkOverlap < 0 || cfg.EmbeddingChunkOverlap >= cfg.EmbeddingChunkSize {
+		return fmt.Errorf(
+			"EMBEDDING_CHUNK_OVERLAP must be in [0, EMBEDDING_CHUNK_SIZE), got %d (chunk size %d)",
+			cfg.EmbeddingChunkOverlap, cfg.EmbeddingChunkSize,
+		)
+	}
 	return nil
 }
 
 // validateRateLimits enforces that every per-IP rate limit is positive; a
 // non-positive value would reject every request to the guarded route group.
-// validateEventBackend rejects an unrecognized EVENT_BACKEND value so a typo
-// fails fast at boot rather than silently falling back to sync and leaving a
-// Pub/Sub deployment without its forwarder. The legacy PUBSUB_FORWARDING_ENABLED
-// flag is independent and always honored by EventBackendMode.
-func validateEventBackend(cfg *Config) error {
-	switch strings.ToLower(strings.TrimSpace(cfg.EventBackend)) {
-	case "", EventBackendSync, EventBackendPubSub:
-		return nil
-	default:
-		return fmt.Errorf("EVENT_BACKEND must be one of %q or %q, got %q",
-			EventBackendSync, EventBackendPubSub, cfg.EventBackend)
-	}
-}
-
 func validateRateLimits(cfg *Config) error {
 	if cfg.AuthRateLimitPerMinute < 1 {
 		return fmt.Errorf("AUTH_RATE_LIMIT_PER_MINUTE must be >= 1, got %d", cfg.AuthRateLimitPerMinute)
@@ -574,10 +505,6 @@ func Load() (*Config, error) {
 
 	if rateErr := validateRateLimits(&cfg); rateErr != nil {
 		return nil, rateErr
-	}
-
-	if backendErr := validateEventBackend(&cfg); backendErr != nil {
-		return nil, backendErr
 	}
 
 	if rankErr := validateSearchRankingConfig(&cfg); rankErr != nil {
