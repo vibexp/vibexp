@@ -46,8 +46,6 @@ VibeXP is one place for everything your AI relies on, connected to your tools ov
 | 🔎 **Semantic search** | Find anything across prompts, artifacts, blueprints, and memory by meaning, not keywords. |
 | 👥 **Teams** | Invite your team and everyone's AI draws from the same knowledge base. |
 
-> Prefer not to host it yourself? The hosted version is at **[vibexp.io](https://vibexp.io)**.
-
 ---
 
 ## Quick start (self-host) 🚀
@@ -86,13 +84,13 @@ Data persists in the `pgdata` volume.
 
 ## Connect your AI tools 🔌
 
-VibeXP exposes a single MCP endpoint. Sign in once in the browser, no API keys to copy-paste and babysit. For example, with Claude Code against the hosted service:
+VibeXP exposes a single MCP endpoint. Sign in once in the browser, no API keys to copy-paste and babysit. Point your tool at your own deployment's MCP endpoint, for example with Claude Code:
 
 ```sh
-claude mcp add --transport http vibexp https://connect.vibexp.io/mcp/v1/common
+claude mcp add --transport http vibexp http://localhost:8080/mcp/v1/common
 ```
 
-For a self-hosted instance, point your tool at your own deployment's MCP endpoint instead. Full per-tool instructions (Cursor, VS Code, Gemini CLI, ChatGPT, Codex) are in the **[docs](https://docs.vibexp.io)**.
+Swap `localhost:8080` for your deployment's public URL. Full per-tool instructions (Cursor, VS Code, Gemini CLI, ChatGPT, Codex) are in the **[docs](https://docs.vibexp.io)**.
 
 ---
 
