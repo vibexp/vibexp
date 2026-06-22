@@ -17,6 +17,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # Dev-only SMTP sink + web UI for inspecting outgoing email locally.
+  # SMTP on :1025, web UI on http://localhost:8025. No volume — the inbox is
+  # ephemeral, so `docker compose down` leaves no stale state.
+  mailpit:
+    image: axllent/mailpit:v1.30.2
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      # The smtp email provider hardcodes AUTH_PLAIN, so Mailpit must accept auth.
+      # Accept any credentials and allow it over the plaintext (non-TLS) dev link.
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+
   vibexp:
     build: .
     ports:
