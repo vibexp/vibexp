@@ -397,7 +397,6 @@ func (s *Server) setupPublicRoutes() {
 	s.router.Post("/api/v1/integrations/github/webhook", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/api/v1/webhooks/github", http.StatusPermanentRedirect)
 	})
-	s.router.With(s.pubSubOIDCMiddleware).Post("/api/v1/events/pubsub", s.handlePubSubPush)
 	s.router.With(s.pubSubOIDCMiddleware).Post("/internal/jobs/notifications/retention", s.handleNotificationRetentionJob)
 	s.router.With(s.pubSubOIDCMiddleware).Post("/internal/jobs/notifications/digest", s.handleNotificationDigestJob)
 	s.router.With(s.pubSubOIDCMiddleware).Post("/internal/jobs/activities/retention", s.handleActivityRetentionJob)

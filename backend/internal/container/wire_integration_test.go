@@ -32,12 +32,8 @@ func setupTestConfig() *config.Config {
 		// Encryption configuration (optional)
 		EncryptionKey: "", // Empty to skip encryption service
 
-		// PubSub configuration (disabled for tests)
-		PubSubForwardingEnabled: false,
-		GCPProjectID:            "",
-
-		// AI Service configuration (disabled for tests)
-		AIServiceURL: "",
+		// GCP project id (observability only; empty for tests)
+		GCPProjectID: "",
 
 		// HubSpot configuration (disabled for tests)
 		HubSpotCRMAccessKey: "",
@@ -266,20 +262,20 @@ func TestInitializeContainer_WithEncryptionService(t *testing.T) {
 	assert.NotNil(t, c.AgentService(), "AgentService should be initialized with encryption service")
 }
 
-// TestInitializeContainer_HTTPSyncListener_WhenPubSubDisabled tests HTTP sync listener initialization
-func TestInitializeContainer_HTTPSyncListener_WhenPubSubDisabled(t *testing.T) {
+// TestInitializeContainer_EmbeddingWorker_BrokerFree verifies the container
+// initializes the broker-free embedding path (in-process worker on the event bus)
+// with no Pub/Sub or AI-service configuration.
+func TestInitializeContainer_EmbeddingWorker_BrokerFree(t *testing.T) {
 	// Arrange
 	db := setupTestDB(t)
 	cfg := setupTestConfig()
-	cfg.PubSubForwardingEnabled = false
-	cfg.AIServiceURL = "http://localhost:9000"
 	logger := setupTestLogger()
 
 	// Act
 	c, err := container.InitializeContainer(db, cfg, logger)
 
 	// Assert
-	require.NoError(t, err, "Container should initialize with HTTP sync listener config")
+	require.NoError(t, err, "Container should initialize the in-process embedding worker")
 	require.NotNil(t, c, "Container should not be nil")
 	defer func() {
 		assert.NoError(t, c.Close())
@@ -287,32 +283,6 @@ func TestInitializeContainer_HTTPSyncListener_WhenPubSubDisabled(t *testing.T) {
 
 	// Verify event system is operational
 	assert.NotNil(t, c.EventManager(), "EventManager should be initialized")
-}
-
-// TestInitializeContainer_PubSubForwarder_WhenEnabled tests PubSub forwarder initialization
-func TestInitializeContainer_PubSubForwarder_WhenEnabled(t *testing.T) {
-	// Arrange
-	db := setupTestDB(t)
-	cfg := setupTestConfig()
-	cfg.PubSubForwardingEnabled = true
-	cfg.GCPProjectID = "test-project-id"
-	cfg.PubSubEventsTopicName = "test-events-topic"
-	logger := setupTestLogger()
-
-	// Act
-	// Note: This will fail to create actual PubSub client in tests, but container should still initialize
-	// The event system should gracefully handle PubSub client creation failures
-	c, err := container.InitializeContainer(db, cfg, logger)
-
-	// Assert
-	require.NoError(t, err, "Container should initialize even if PubSub client creation fails")
-	require.NotNil(t, c, "Container should not be nil")
-	defer func() {
-		assert.NoError(t, c.Close())
-	}()
-
-	// Verify event manager is still initialized
-	assert.NotNil(t, c.EventManager(), "EventManager should be initialized even if PubSub fails")
 }
 
 // runConditionalServiceTest is a helper to test conditional service initialization
@@ -380,7 +350,6 @@ func TestInitializeContainer_EventSystemIntegration(t *testing.T) {
 	// Arrange
 	db := setupTestDB(t)
 	cfg := setupTestConfig()
-	cfg.AIServiceURL = "http://localhost:9000"
 	logger := setupTestLogger()
 
 	// Act

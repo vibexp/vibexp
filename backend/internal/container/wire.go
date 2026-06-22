@@ -105,7 +105,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideQueryEmbedder,
 	providers.ProvideSearchService,
 	providers.ProvideEnvironmentService,
-	providers.ProvideEmbeddingHandlerAdapter,
+	providers.ProvideEmbeddingProcessor,
 	providers.ProvideBackofficeService,
 	providers.ProvideEmbeddingBackfillService,
 	providers.ProvideUserPreferencesService,

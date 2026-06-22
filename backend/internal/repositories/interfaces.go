@@ -128,6 +128,12 @@ var (
 	// EmbeddingProviderRepository.GetDefault when the user has no default provider.
 	ErrDefaultEmbeddingProviderNotFound = errors.New("no default embedding provider found")
 
+	// ErrNoActiveEmbeddingProvider is returned by
+	// EmbeddingProviderRepository.GetActiveProvider when no embedding provider is
+	// configured at all. Callers treat it as "embedding disabled" rather than a
+	// failure: entity writes still succeed and no embedding is generated.
+	ErrNoActiveEmbeddingProvider = errors.New("no active embedding provider configured")
+
 	// ErrFeedNotFound is returned by FeedRepository lookups/updates/deletes when no
 	// feed row matches the given identifier for the team.
 	ErrFeedNotFound = errors.New("feed not found")
@@ -407,6 +413,12 @@ type EmbeddingProviderRepository interface {
 	Update(ctx context.Context, provider *models.EmbeddingProvider) error
 	Delete(ctx context.Context, userID, providerID string) error
 	GetDefault(ctx context.Context, userID string) (*models.EmbeddingProvider, error)
+	// GetActiveProvider resolves the single system-wide embedding provider used to
+	// generate document and query embeddings, independent of any one user. It
+	// prefers a default-flagged provider, then the most recently updated one, so a
+	// single-tenant self-host deployment with one configured provider resolves it
+	// deterministically. Returns ErrNoActiveEmbeddingProvider when none exists.
+	GetActiveProvider(ctx context.Context) (*models.EmbeddingProvider, error)
 	SetDefault(ctx context.Context, userID, providerID string) error
 	UnsetAllDefaults(ctx context.Context, userID string) error
 	Count(ctx context.Context, userID string) (int, error)

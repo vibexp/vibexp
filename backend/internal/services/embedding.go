@@ -56,47 +56,15 @@ type EmbeddingChunk struct {
 // returning an empty teamID (the embeddings.team_id column is nullable).
 type EntityValidatorFunc func(ctx context.Context, userID, entityID string) (teamID string, err error)
 
-// EmbeddingEntityConfig holds routing and validation configuration for a
-// registered entity type in the embedding pipeline.
-//
-// The same struct serves two registries with different lifetimes:
-//   - The package-level embeddingEntityRegistry only populates EntityIDField,
-//     used by HTTP handlers and the PubSub adapter to decode payloads.
-//   - The per-instance EmbeddingService.entityRegistry additionally populates
-//     ValidatorFunc, which closes over the service's repositories so existence
-//     validation can dispatch through the registry rather than a switch.
+// EmbeddingEntityConfig holds the validation configuration for a registered
+// entity type in the embedding pipeline. It is populated per-instance in
+// NewEmbeddingService so each ValidatorFunc can close over the service's
+// repositories for existence validation and team resolution.
 type EmbeddingEntityConfig struct {
-	// EntityIDField is the payload key whose value holds the entity's identifier
-	// (e.g. "promptID" for prompts, "artifactID" for artifacts).
-	EntityIDField string
-	// ValidatorFunc checks that the entity identified by entityID exists for userID.
-	// A nil ValidatorFunc means validation is skipped for this entity type.
-	// Populated per-instance in NewEmbeddingService so the closure can capture the
-	// service's repositories without making them global.
+	// ValidatorFunc checks that the entity identified by entityID exists for userID
+	// and resolves its team id. A nil ValidatorFunc means validation is skipped for
+	// this entity type, returning an empty teamID.
 	ValidatorFunc EntityValidatorFunc
-}
-
-// embeddingEntityRegistry maps entity type names to their payload-routing config.
-// This package-level map is consumed by HTTP handlers and the PubSub adapter to
-// decode incoming embedding payloads. It intentionally does NOT carry
-// ValidatorFunc — existence validation lives on the per-instance registry built
-// in NewEmbeddingService so it can close over the actual repository dependencies.
-var embeddingEntityRegistry = map[string]EmbeddingEntityConfig{
-	"prompt":          {EntityIDField: "promptID"},
-	"artifact":        {EntityIDField: "artifactID"},
-	"memory":          {EntityIDField: "memoryID"},
-	"blueprint":       {EntityIDField: "blueprintID"},
-	"feed_item":       {EntityIDField: "feedItemID"},
-	"feed_item_reply": {EntityIDField: "feedItemReplyID"},
-}
-
-// GetEmbeddingEntityConfig returns the payload-routing config for a registered
-// entity type. The second return value is false if the entity type is not
-// registered. Callers that need existence validation should go through
-// EmbeddingService.resolveEntityTeam instead.
-func GetEmbeddingEntityConfig(entityType string) (EmbeddingEntityConfig, bool) {
-	cfg, ok := embeddingEntityRegistry[entityType]
-	return cfg, ok
 }
 
 // ParseEmbeddingChunks converts a raw embeddings array (as decoded from JSON)
@@ -147,19 +115,15 @@ type EmbeddingServiceInterface interface {
 //
 // The entityRegistry is populated in NewEmbeddingService and drives
 // resolveEntityTeam. To support a new entity type, the required edits are:
-//  1. Add a config entry (with EntityIDField + ValidatorFunc) to entityRegistry
-//     in NewEmbeddingService — drives existence validation.
+//  1. Add a config entry (with its ValidatorFunc) to entityRegistry in
+//     NewEmbeddingService — drives existence validation + team resolution.
 //  2. Wire the new repository into the constructor signature.
-//  3. Add a matching entry to the package-level embeddingEntityRegistry
-//     (EntityIDField only) — drives handler-layer payload routing in
-//     embedding_handler_adapter.go and server/embedding_handlers.go.
-//  4. Add the repository's Err*NotFound sentinel to entityNotFoundSentinels —
+//  3. Add the repository's Err*NotFound sentinel to entityNotFoundSentinels —
 //     without it, embedding events for deleted entities of the new type are
-//     classified as transient (5xx) and Pub/Sub retries them forever.
+//     classified as transient and the event bus retries them indefinitely.
 //
-// No further switch statements or struct surgery are required. The
-// TestEntityRegistries_AreConsistent test guards the package vs. per-instance
-// registry alignment so divergence is caught at CI time.
+// No switch statements are required: resolveEntityTeam dispatches by entity-type
+// name through the registry.
 type EmbeddingService struct {
 	repo              repositories.EmbeddingRepository
 	promptRepo        repositories.PromptRepository
@@ -238,30 +202,12 @@ func NewEmbeddingService(
 		logger:            logger,
 	}
 	svc.entityRegistry = map[string]EmbeddingEntityConfig{
-		"prompt": {
-			EntityIDField: "promptID",
-			ValidatorFunc: buildEntityValidator("prompt", promptCrossTeamLookup(svc)),
-		},
-		"artifact": {
-			EntityIDField: "artifactID",
-			ValidatorFunc: buildEntityValidator("artifact", artifactCrossTeamLookup(svc)),
-		},
-		"memory": {
-			EntityIDField: "memoryID",
-			ValidatorFunc: buildEntityValidator("memory", memoryCrossTeamLookup(svc)),
-		},
-		"blueprint": {
-			EntityIDField: "blueprintID",
-			ValidatorFunc: buildEntityValidator("blueprint", blueprintCrossTeamLookup(svc)),
-		},
-		"feed_item": {
-			EntityIDField: "feedItemID",
-			ValidatorFunc: buildEntityValidator("feed_item", feedItemLookup(svc)),
-		},
-		"feed_item_reply": {
-			EntityIDField: "feedItemReplyID",
-			ValidatorFunc: buildEntityValidator("feed_item_reply", feedItemReplyLookup(svc)),
-		},
+		"prompt":          {ValidatorFunc: buildEntityValidator("prompt", promptCrossTeamLookup(svc))},
+		"artifact":        {ValidatorFunc: buildEntityValidator("artifact", artifactCrossTeamLookup(svc))},
+		"memory":          {ValidatorFunc: buildEntityValidator("memory", memoryCrossTeamLookup(svc))},
+		"blueprint":       {ValidatorFunc: buildEntityValidator("blueprint", blueprintCrossTeamLookup(svc))},
+		"feed_item":       {ValidatorFunc: buildEntityValidator("feed_item", feedItemLookup(svc))},
+		"feed_item_reply": {ValidatorFunc: buildEntityValidator("feed_item_reply", feedItemReplyLookup(svc))},
 	}
 	return svc
 }
@@ -407,7 +353,7 @@ func (s *EmbeddingService) SaveEmbedding(userID, entityType, entityID, modelID s
 //
 // Order: validate entity → validate every chunk → delete existing → insert all chunks.
 // Chunk validation runs before the delete so a malformed payload never wipes good data
-// (e.g. a poison PubSub message that would otherwise erase the entity's embedding corpus).
+// (e.g. a poison event that would otherwise erase the entity's embedding corpus).
 //
 // Note: delete and inserts are NOT wrapped in a single DB transaction today, so a Create
 // failure mid-batch can leave the entity with fewer chunks than supplied. Callers must retry.
