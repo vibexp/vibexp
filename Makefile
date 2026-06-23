@@ -191,12 +191,13 @@ backend-run-dev:
 			echo "📋 backend/.env not found — copying from .env.example (dev defaults)"; \
 			cp backend/.env.example backend/.env; \
 		fi && \
-	echo "🐘 Starting PostgreSQL..." && \
-	cd backend && $$COMPOSE_CMD up postgres -d && \
+	echo "🐘 Starting PostgreSQL and Mailpit..." && \
+	cd backend && $$COMPOSE_CMD up postgres mailpit -d && \
 	echo "⏳ Waiting for PostgreSQL to be ready..." && \
 	sleep 3 && \
 	echo "🔥 Starting backend with hot reload..." && \
 	echo "📝 Watching for .go file changes..." && \
+	echo "📬 Mailpit (local email inbox) UI: http://localhost:8025" && \
 	echo "Press Ctrl+C to stop" && \
 	echo "" && \
 	export $$(grep -v '^#' .env | xargs) && air -c .air.toml
