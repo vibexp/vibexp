@@ -118,15 +118,71 @@ func TestProvideEmailProvider_MailgunWithEmptyKey_ReturnsError(t *testing.T) {
 	assert.Nil(t, provider)
 }
 
-func TestProvideEmailProvider_UnknownProvider_ReturnsError(t *testing.T) {
+func TestProvideEmailProvider_PostmarkWithValidToken(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider: "sendgrid",
+		EmailProvider:       "postmark",
+		PostmarkServerToken: "token-abc123",
+	}
+
+	provider, err := ProvideEmailProvider(cfg, testLogger())
+
+	require.NoError(t, err)
+	assert.NotNil(t, provider)
+
+	_, ok := provider.(*implementations.PostmarkEmailProvider)
+	assert.True(t, ok, "Provider should be *PostmarkEmailProvider when EMAIL_PROVIDER=postmark")
+}
+
+func TestProvideEmailProvider_PostmarkWithEmptyToken_ReturnsError(t *testing.T) {
+	cfg := &config.Config{
+		EmailProvider:       "postmark",
+		PostmarkServerToken: "",
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "sendgrid")
+	assert.Contains(t, err.Error(), "POSTMARK_SERVER_TOKEN")
+	assert.Nil(t, provider)
+}
+
+func TestProvideEmailProvider_SendGridWithValidKey(t *testing.T) {
+	cfg := &config.Config{
+		EmailProvider:  "sendgrid",
+		SendGridAPIKey: "test-sendgrid-key",
+	}
+
+	provider, err := ProvideEmailProvider(cfg, testLogger())
+
+	require.NoError(t, err)
+	assert.NotNil(t, provider)
+
+	_, ok := provider.(*implementations.SendGridEmailProvider)
+	assert.True(t, ok, "Provider should be *SendGridEmailProvider when EMAIL_PROVIDER=sendgrid")
+}
+
+func TestProvideEmailProvider_SendGridWithEmptyKey_ReturnsError(t *testing.T) {
+	cfg := &config.Config{
+		EmailProvider:  "sendgrid",
+		SendGridAPIKey: "",
+	}
+
+	provider, err := ProvideEmailProvider(cfg, testLogger())
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "SENDGRID_API_KEY")
+	assert.Nil(t, provider)
+}
+
+func TestProvideEmailProvider_UnknownProvider_ReturnsError(t *testing.T) {
+	cfg := &config.Config{
+		EmailProvider: "ses",
+	}
+
+	provider, err := ProvideEmailProvider(cfg, testLogger())
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "ses")
 	assert.Contains(t, err.Error(), "unknown email provider")
 	assert.Nil(t, provider)
 }

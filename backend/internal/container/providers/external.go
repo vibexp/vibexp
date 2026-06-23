@@ -122,9 +122,9 @@ func (s *stubIdentityProvider) Refresh(ctx context.Context, refreshToken string)
 }
 
 // ProvideEmailProvider creates an EmailProvider based on the EMAIL_PROVIDER config value.
-// Supported providers: "smtp" (default), "mailgun". The value is normalised to
-// lowercase and trimmed before matching, so "MAILGUN" and "smtp " work correctly.
-// When EMAIL_PROVIDER is empty or "smtp" and no SMTP host/port are configured,
+// Supported providers: "smtp" (default), "mailgun", "postmark", "sendgrid". The value
+// is normalised to lowercase and trimmed before matching, so "MAILGUN" and "smtp " work
+// correctly. When EMAIL_PROVIDER is empty or "smtp" and no SMTP host/port are configured,
 // a no-op stub is returned so the container can wire up without email credentials.
 func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.EmailProvider, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.EmailProvider)) {
@@ -134,6 +134,20 @@ func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.Ema
 			return nil, fmt.Errorf("email provider factory: %w", err)
 		}
 		logger.With("email_provider", "mailgun").Info("Email provider initialized")
+		return provider, nil
+	case "postmark":
+		provider, err := implementations.NewPostmarkEmailProvider(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("email provider factory: %w", err)
+		}
+		logger.With("email_provider", "postmark").Info("Email provider initialized")
+		return provider, nil
+	case "sendgrid":
+		provider, err := implementations.NewSendGridEmailProvider(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("email provider factory: %w", err)
+		}
+		logger.With("email_provider", "sendgrid").Info("Email provider initialized")
 		return provider, nil
 	case "smtp", "":
 		if cfg.SMTPHost == "" || cfg.SMTPPort == "" {
