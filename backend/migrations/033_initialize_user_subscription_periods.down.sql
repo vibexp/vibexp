@@ -1,3 +1,0 @@
--- No need to revert as we're just initializing data
--- If needed, we could set subscription_period_start to NULL for all users
--- UPDATE users SET subscription_period_start = NULL;
