@@ -111,6 +111,43 @@ func TestLoad_ActivityRetentionDays_AtMaxBoundary_Succeeds(t *testing.T) {
 	assert.Equal(t, 3650, cfg.ActivityRetentionDays)
 }
 
+func TestLoad_ContentVersionRetentionLimit_Default(t *testing.T) {
+	// Absent env var → envconfig falls back to the default tag (20). Unset rather
+	// than set to "" so envconfig can parse the int default.
+	prev, exists := os.LookupEnv("CONTENT_VERSION_RETENTION_LIMIT")
+	require.NoError(t, os.Unsetenv("CONTENT_VERSION_RETENTION_LIMIT"))
+	if exists {
+		t.Cleanup(func() {
+			require.NoError(t, os.Setenv("CONTENT_VERSION_RETENTION_LIMIT", prev))
+		})
+	}
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Equal(t, 20, cfg.ContentVersionRetentionLimit)
+}
+
+func TestLoad_ContentVersionRetentionLimit_Override(t *testing.T) {
+	t.Setenv("CONTENT_VERSION_RETENTION_LIMIT", "50")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Equal(t, 50, cfg.ContentVersionRetentionLimit)
+}
+
+func TestLoad_ContentVersionRetentionLimit_Zero_KeepsAll(t *testing.T) {
+	// 0 is a valid value meaning "disable pruning / keep all versions"; it must
+	// not error (unlike the validated *RetentionDays fields).
+	t.Setenv("CONTENT_VERSION_RETENTION_LIMIT", "0")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, cfg.ContentVersionRetentionLimit)
+}
+
 func TestLoad_SearchRankingDefaults(t *testing.T) {
 	cfg, err := Load()
 

@@ -84,48 +84,39 @@ func ProvidePromptShareService(
 	return services.NewPromptShareService(shareRepo, promptRepo, concretePromptService, logger)
 }
 
-// artifactRetentionCap bounds how many content-version snapshots are kept per artifact.
-const artifactRetentionCap = 5
-
-// blueprintRetentionCap bounds how many content-version snapshots are kept per blueprint.
-const blueprintRetentionCap = 5
-
-// memoryRetentionCap bounds how many content-version snapshots are kept per memory.
-const memoryRetentionCap = 5
-
-// promptRetentionCap bounds how many content-version snapshots are kept per prompt.
-const promptRetentionCap = 5
-
 // ProvideContentVersionService creates a new ContentVersionService with the artifact adapter
 // registered. New resource types are added by registering further adapters here. The user
-// repository resolves version authors for read responses.
+// repository resolves version authors for read responses. The retention cap for every
+// resource type comes from cfg.ContentVersionRetentionLimit (default 20, 0 = keep all).
 func ProvideContentVersionService(
 	repo repositories.ContentVersionRepository,
 	users repositories.UserRepository,
+	cfg *config.Config,
 	logger *slog.Logger,
 ) services.ContentVersionServiceInterface {
+	retentionCap := cfg.ContentVersionRetentionLimit
 	return services.NewContentVersionService(
 		repo,
 		users,
 		logger,
 		services.ContentVersionAdapter{
 			ResourceType:        "artifact",
-			RetentionCap:        artifactRetentionCap,
+			RetentionCap:        retentionCap,
 			InitialVersionLabel: "Created the artifact",
 		},
 		services.ContentVersionAdapter{
 			ResourceType:        "blueprint",
-			RetentionCap:        blueprintRetentionCap,
+			RetentionCap:        retentionCap,
 			InitialVersionLabel: "Created the blueprint",
 		},
 		services.ContentVersionAdapter{
 			ResourceType:        "memory",
-			RetentionCap:        memoryRetentionCap,
+			RetentionCap:        retentionCap,
 			InitialVersionLabel: "Created the memory",
 		},
 		services.ContentVersionAdapter{
 			ResourceType:        "prompt",
-			RetentionCap:        promptRetentionCap,
+			RetentionCap:        retentionCap,
 			InitialVersionLabel: "Created the prompt",
 		},
 	)
