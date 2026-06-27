@@ -207,9 +207,6 @@ type Config struct {
 	EmbeddingChunkSize    int `envconfig:"EMBEDDING_CHUNK_SIZE" default:"1000"`
 	EmbeddingChunkOverlap int `envconfig:"EMBEDDING_CHUNK_OVERLAP" default:"200"`
 
-	// HubSpot CRM configuration
-	HubSpotCRMAccessKey string `envconfig:"HUBSPOT_CRM_ACCESS_KEY" default:""`
-
 	// GitHub App configuration
 	GitHubAppID         string `envconfig:"GITHUB_APP_ID" default:""`
 	GitHubAppSlug       string `envconfig:"GITHUB_APP_SLUG" default:""`

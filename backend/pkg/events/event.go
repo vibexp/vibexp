@@ -45,7 +45,7 @@ type BaseEvent struct {
 	EventRetryPolicy RetryPolicy
 
 	// backfillOrigin marks events republished by the embeddings backfill tool so
-	// side-effect listeners (CRM, notifications) can skip them while the embedding
+	// side-effect listeners (notifications) can skip them while the embedding
 	// pipeline still processes them. It is intentionally unexported: it is an
 	// in-process routing hint, not part of the wire payload, so it never leaks into
 	// the Pub/Sub message the forwarder serializes. Read/write it through the
