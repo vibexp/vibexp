@@ -43,6 +43,7 @@ type MemoryFilters struct {
 	Search        string
 	MetadataKey   *string
 	MetadataValue *string
+	Status        *string
 	UserID        string
 	TeamID        string
 	ProjectID     *string
@@ -55,12 +56,19 @@ type MemoryFilters struct {
 func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMemoryRequest) (*models.Memory, error) {
 	ctx := context.Background()
 
+	// Default to active when no status is supplied (mirrors artifact create).
+	status := models.MemoryStatusActive
+	if req.Status != nil && *req.Status != "" {
+		status = *req.Status
+	}
+
 	now := time.Now()
 	memory := &models.Memory{
 		UserID:    userID,
 		TeamID:    teamID,
 		ProjectID: req.ProjectID,
 		Text:      req.Text,
+		Status:    status,
 		Metadata:  req.Metadata,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -105,6 +113,7 @@ func (s *MemoryService) ListMemories(userID string, filters MemoryFilters) (*mod
 		Search:        filters.Search,
 		MetadataKey:   filters.MetadataKey,
 		MetadataValue: filters.MetadataValue,
+		Status:        filters.Status,
 		TeamID:        filters.TeamID,
 		ProjectID:     filters.ProjectID,
 		SortBy:        filters.SortBy,
@@ -171,6 +180,11 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	}
 	if req.ProjectID != nil {
 		memory.ProjectID = *req.ProjectID
+	}
+	// An empty status is treated as "unchanged" (omitempty parity), so a partial
+	// update never clears an existing status back to the default.
+	if req.Status != nil && *req.Status != "" {
+		memory.Status = *req.Status
 	}
 
 	memory.UpdatedAt = time.Now()
@@ -277,6 +291,7 @@ func (s *MemoryService) SearchMemoriesByMetadata(
 
 	repoFilters := repositories.MemoryFilters{
 		Search:    filters.Search,
+		Status:    filters.Status,
 		TeamID:    filters.TeamID,
 		ProjectID: filters.ProjectID,
 		SortBy:    filters.SortBy,

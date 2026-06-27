@@ -33,14 +33,22 @@ func (r *MemoryRepository) Create(ctx context.Context, memory *models.Memory) er
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
+	// Default to active when the caller leaves status unset, so the explicit
+	// INSERT value never violates the memories_status_check constraint.
+	status := memory.Status
+	if status == "" {
+		status = models.MemoryStatusActive
+	}
+	memory.Status = status
+
 	query := `
-		INSERT INTO memories (user_id, team_id, project_id, text, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO memories (user_id, team_id, project_id, text, status, metadata, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at, updated_at
 	`
 
 	err = r.db.QueryRowContext(ctx, query,
-		memory.UserID, memory.TeamID, memory.ProjectID, memory.Text, metadataJSON,
+		memory.UserID, memory.TeamID, memory.ProjectID, memory.Text, status, metadataJSON,
 		memory.CreatedAt, memory.UpdatedAt,
 	).Scan(&memory.ID, &memory.CreatedAt, &memory.UpdatedAt)
 
@@ -55,7 +63,7 @@ func (r *MemoryRepository) Create(ctx context.Context, memory *models.Memory) er
 // Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
 func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID string) (*models.Memory, error) {
 	query := `
-		SELECT m.id, m.user_id, m.team_id, m.project_id, m.text, m.metadata,
+		SELECT m.id, m.user_id, m.team_id, m.project_id, m.text, m.status, m.metadata,
 		       m.created_at, m.updated_at, m.version
 		FROM memories m
 		WHERE m.id = $1
@@ -70,7 +78,7 @@ func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID
 	var metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, memoryID, teamID, userID).Scan(
-		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Text, &metadataJSON,
+		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Text, &memory.Status, &metadataJSON,
 		&memory.CreatedAt, &memory.UpdatedAt, &memory.Version,
 	)
 
@@ -88,7 +96,7 @@ func (r *MemoryRepository) GetByID(ctx context.Context, userID, teamID, memoryID
 // GetByIDCrossTeam retrieves a memory by ID across all user's teams
 func (r *MemoryRepository) GetByIDCrossTeam(ctx context.Context, userID, memoryID string) (*models.Memory, error) {
 	query := `
-		SELECT id, user_id, team_id, project_id, text, metadata, created_at, updated_at, version
+		SELECT id, user_id, team_id, project_id, text, status, metadata, created_at, updated_at, version
 		FROM memories
 		WHERE id = $1 AND user_id = $2
 	`
@@ -97,7 +105,7 @@ func (r *MemoryRepository) GetByIDCrossTeam(ctx context.Context, userID, memoryI
 	var metadataJSON []byte
 
 	err := r.db.QueryRowContext(ctx, query, memoryID, userID).Scan(
-		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Text, &metadataJSON,
+		&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Text, &memory.Status, &metadataJSON,
 		&memory.CreatedAt, &memory.UpdatedAt, &memory.Version,
 	)
 
@@ -129,6 +137,27 @@ func buildMemoryOrderByClause(filters repositories.MemoryFilters) string {
 	return orderBy
 }
 
+// applyMemoryStatusVisibility appends the status-visibility predicate to a memory
+// query's WHERE clause, mirroring applyArtifactStatusVisibility: a keyword search
+// returns only active memories; an explicit status filter returns exactly that
+// status; otherwise archived memories are hidden from the default listing (active
+// + draft remain visible). statusCol is the (optionally alias-qualified) status
+// column for the query path — "m.status" for the aliased list query, "status" for
+// the unaliased metadata search. The text-search ILIKE predicate is added by the
+// caller, so this helper only constrains status.
+func applyMemoryStatusVisibility(
+	where squirrel.And, statusCol string, filters repositories.MemoryFilters,
+) squirrel.And {
+	switch {
+	case filters.Search != "":
+		return append(where, squirrel.Eq{statusCol: models.MemoryStatusActive})
+	case filters.Status != nil && *filters.Status != "":
+		return append(where, squirrel.Eq{statusCol: *filters.Status})
+	default:
+		return append(where, squirrel.NotEq{statusCol: models.MemoryStatusArchived})
+	}
+}
+
 // buildMemoryListWhereClause builds the shared WHERE conditions for the memory
 // list query. Count and page queries consume the same conditions, so they can
 // never diverge. EXISTS subqueries avoid a Cartesian product with multi-member
@@ -154,7 +183,7 @@ func buildMemoryListWhereClause(userID string, filters repositories.MemoryFilter
 		))
 	}
 
-	return where
+	return applyMemoryStatusVisibility(where, "m.status", filters)
 }
 
 // List retrieves memories with filtering and pagination
@@ -229,7 +258,7 @@ func (r *MemoryRepository) queryList(
 	query, args, err := psql.
 		Select(
 			"m.id", "m.user_id", "m.team_id", "m.project_id",
-			"m.text", "m.metadata", "m.created_at", "m.updated_at",
+			"m.text", "m.status", "m.metadata", "m.created_at", "m.updated_at",
 		).
 		From("memories m").
 		Where(where).
@@ -263,7 +292,7 @@ func (r *MemoryRepository) queryList(
 	return memories, nil
 }
 
-// scanMemoryRows scans the 8-column memory projection shared by the list and
+// scanMemoryRows scans the 9-column memory projection shared by the list and
 // metadata-search queries, unmarshalling the JSON metadata column per row.
 func scanMemoryRows(rows *sql.Rows) ([]models.Memory, error) {
 	memories := make([]models.Memory, 0)
@@ -272,7 +301,7 @@ func scanMemoryRows(rows *sql.Rows) ([]models.Memory, error) {
 		var metadataJSON []byte
 
 		scanErr := rows.Scan(
-			&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Text, &metadataJSON,
+			&memory.ID, &memory.UserID, &memory.TeamID, &memory.ProjectID, &memory.Text, &memory.Status, &metadataJSON,
 			&memory.CreatedAt, &memory.UpdatedAt,
 		)
 		if scanErr != nil {
@@ -321,21 +350,29 @@ func (r *MemoryRepository) Update(ctx context.Context, memory *models.Memory) er
 	}
 
 	// Use EXISTS subqueries to avoid Cartesian product with multi-member teams
+	// Default to active when status is unset, so the UPDATE never writes an empty
+	// string that would violate the memories_status_check constraint.
+	status := memory.Status
+	if status == "" {
+		status = models.MemoryStatusActive
+	}
+	memory.Status = status
+
 	query := `
 		UPDATE memories
-		SET text = $2, metadata = $3, project_id = $4, team_id = $5, updated_at = $6, version = version + 1
+		SET text = $2, status = $3, metadata = $4, project_id = $5, team_id = $6, updated_at = $7, version = version + 1
 		WHERE id = $1
-			AND team_id = $7
-			AND version = $8
+			AND team_id = $8
+			AND version = $9
 			AND (
-				EXISTS (SELECT 1 FROM teams WHERE id = $7 AND owner_id = $9)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $7 AND user_id = $9)
+				EXISTS (SELECT 1 FROM teams WHERE id = $8 AND owner_id = $10)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $8 AND user_id = $10)
 			)
 		RETURNING updated_at, version
 	`
 
 	err = r.db.QueryRowContext(ctx, query,
-		memory.ID, memory.Text, metadataJSON, memory.ProjectID, memory.TeamID, memory.UpdatedAt,
+		memory.ID, memory.Text, status, metadataJSON, memory.ProjectID, memory.TeamID, memory.UpdatedAt,
 		memory.TeamID, memory.Version, memory.UserID,
 	).Scan(&memory.UpdatedAt, &memory.Version)
 
@@ -403,7 +440,7 @@ func buildMemorySearchWhereClause(
 		where = append(where, squirrel.Expr("text ILIKE ?", "%"+filters.Search+"%"))
 	}
 
-	return where
+	return applyMemoryStatusVisibility(where, "status", filters)
 }
 
 // SearchByMetadata searches memories by metadata key-value pairs
@@ -467,7 +504,7 @@ func (r *MemoryRepository) querySearchByMetadata(
 	}
 
 	query, args, err := psql.
-		Select("id", "user_id", "team_id", "project_id", "text", "metadata", "created_at", "updated_at").
+		Select("id", "user_id", "team_id", "project_id", "text", "status", "metadata", "created_at", "updated_at").
 		From("memories").
 		Where(where).
 		OrderBy("created_at DESC").

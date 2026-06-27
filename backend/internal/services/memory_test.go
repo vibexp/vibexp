@@ -666,3 +666,105 @@ func TestMemoryService_UpdateMemory_PreservesTeamID(t *testing.T) {
 	assert.Equal(t, testServiceProjectID, memory.ProjectID, "ProjectID should be preserved during update")
 	mockRepo.AssertExpectations(t)
 }
+
+// TestMemoryService_CreateMemory_StatusDefaulting verifies that create defaults
+// the status to active when none is supplied, and threads an explicit status
+// through to the persisted memory.
+func TestMemoryService_CreateMemory_StatusDefaulting(t *testing.T) {
+	draft := models.MemoryStatusDraft
+
+	tests := []struct {
+		name         string
+		reqStatus    *string
+		expectStatus string
+	}{
+		{name: "no status defaults to active", reqStatus: nil, expectStatus: models.MemoryStatusActive},
+		{name: "empty status defaults to active", reqStatus: ptrTo(""), expectStatus: models.MemoryStatusActive},
+		{name: "explicit status is preserved", reqStatus: &draft, expectStatus: models.MemoryStatusDraft},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mocks.NewMockMemoryRepository(t)
+			mockRepo.EXPECT().Create(mock.Anything, mock.MatchedBy(func(memory *models.Memory) bool {
+				return memory.Status == tt.expectStatus
+			})).Return(nil)
+
+			svc := createTestMemoryService(mockRepo)
+			req := &models.CreateMemoryRequest{
+				ProjectID: testServiceProjectID,
+				Text:      "a new memory",
+				Status:    tt.reqStatus,
+			}
+
+			memory, err := svc.CreateMemory("user-123", "team-123", req)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, memory)
+			assert.Equal(t, tt.expectStatus, memory.Status)
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+// TestMemoryService_UpdateMemory_ChangesStatus verifies that an update carrying a
+// status transitions the persisted memory, while an update without a status
+// leaves the loaded status untouched.
+func TestMemoryService_UpdateMemory_ChangesStatus(t *testing.T) {
+	archived := models.MemoryStatusArchived
+
+	tests := []struct {
+		name         string
+		reqStatus    *string
+		loadedStatus string
+		expectStatus string
+	}{
+		{name: "status change persists", reqStatus: &archived, loadedStatus: models.MemoryStatusActive, expectStatus: models.MemoryStatusArchived},
+		{name: "absent status keeps existing", reqStatus: nil, loadedStatus: models.MemoryStatusDraft, expectStatus: models.MemoryStatusDraft},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mocks.NewMockMemoryRepository(t)
+			existing := &models.Memory{
+				ID: "memory-123", UserID: "user-123", TeamID: "team-123",
+				ProjectID: testServiceProjectID, Text: "original", Status: tt.loadedStatus,
+				Metadata: map[string]interface{}{},
+			}
+			mockRepo.EXPECT().GetByID(mock.Anything, "user-123", "team-123", "memory-123").
+				Return(existing, nil)
+			mockRepo.EXPECT().Update(mock.Anything, mock.MatchedBy(func(memory *models.Memory) bool {
+				return memory.Status == tt.expectStatus
+			})).Return(nil)
+
+			svc := createTestMemoryService(mockRepo)
+			newText := "still here"
+			req := &models.UpdateMemoryRequest{Text: &newText, Status: tt.reqStatus}
+
+			memory, err := svc.UpdateMemory("user-123", "team-123", "memory-123", req)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, memory)
+			assert.Equal(t, tt.expectStatus, memory.Status)
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+// TestMemoryService_ListMemories_ThreadsStatusFilter verifies the status filter is
+// passed through to the repository filters unchanged.
+func TestMemoryService_ListMemories_ThreadsStatusFilter(t *testing.T) {
+	draft := models.MemoryStatusDraft
+	mockRepo := mocks.NewMockMemoryRepository(t)
+	mockRepo.EXPECT().List(mock.Anything, "user-123", mock.MatchedBy(func(f repositories.MemoryFilters) bool {
+		return f.Status != nil && *f.Status == models.MemoryStatusDraft
+	})).Return([]models.Memory{}, 0, nil)
+
+	svc := createTestMemoryService(mockRepo)
+	_, err := svc.ListMemories("user-123", MemoryFilters{TeamID: "team-123", Status: &draft, Page: 1, Limit: 10})
+
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+}
+
+func ptrTo[T any](v T) *T { return &v }

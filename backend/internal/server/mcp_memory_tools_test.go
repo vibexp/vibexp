@@ -416,3 +416,85 @@ func TestListMemoriesByProject_InvalidProjectID(t *testing.T) {
 		})
 	}
 }
+
+// TestStoreMemory_InvalidStatus rejects an out-of-enum status before the service
+// is ever called.
+func TestStoreMemory_InvalidStatus(t *testing.T) {
+	srv, mockMemoryService := newMemoryTestServer(t)
+
+	params := &StoreMemoryParams{
+		TeamID: testTeamUUID, ProjectID: testProjectID, Text: "hello", Status: "bogus",
+	}
+	result, structured, err := srv.storeMemory(context.Background(), nil, params, testMemberUserID)
+	if err != nil {
+		t.Errorf("unexpected function error: %v", err)
+	}
+	if structured != nil {
+		t.Error("expected nil structured result on rejection")
+	}
+	assertValidationFailure(t, result, []string{"active", "draft", "archived"})
+	mockMemoryService.AssertNotCalled(t, "CreateMemory")
+}
+
+// TestStoreMemory_StatusThreaded passes a valid status through to the create request.
+func TestStoreMemory_StatusThreaded(t *testing.T) {
+	srv, mockMemoryService := newMemoryTestServer(t)
+
+	expectedMemory := buildTestMemory()
+	mockMemoryService.On(
+		"CreateMemory", testMemberUserID, testTeamUUID,
+		mock.MatchedBy(func(req *models.CreateMemoryRequest) bool {
+			return req.Status != nil && *req.Status == models.MemoryStatusDraft
+		}),
+	).Return(expectedMemory, nil)
+
+	params := &StoreMemoryParams{
+		TeamID: testTeamUUID, ProjectID: testProjectID, Text: "hello", Status: models.MemoryStatusDraft,
+	}
+	result, _, err := srv.storeMemory(context.Background(), nil, params, testMemberUserID)
+	if err != nil {
+		t.Errorf("unexpected function error: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Fatalf("expected success, got %v", result)
+	}
+	mockMemoryService.AssertExpectations(t)
+}
+
+// TestUpdateMemory_InvalidStatus rejects an out-of-enum status before the service
+// is ever called.
+func TestUpdateMemory_InvalidStatus(t *testing.T) {
+	srv, mockMemoryService := newMemoryTestServer(t)
+
+	params := &UpdateMemoryParams{
+		TeamID: testTeamUUID, MemoryID: "mem-1", Status: "bogus",
+	}
+	result, structured, err := srv.updateMemory(context.Background(), nil, params, testMemberUserID)
+	if err != nil {
+		t.Errorf("unexpected function error: %v", err)
+	}
+	if structured != nil {
+		t.Error("expected nil structured result on rejection")
+	}
+	assertValidationFailure(t, result, []string{"active", "draft", "archived"})
+	mockMemoryService.AssertNotCalled(t, "UpdateMemory")
+}
+
+// TestListMemoriesByProject_InvalidStatus rejects an out-of-enum status filter
+// before the service is ever called.
+func TestListMemoriesByProject_InvalidStatus(t *testing.T) {
+	srv, mockMemoryService := newMemoryTestServer(t)
+
+	params := &ListMemoriesByProjectParams{
+		TeamID: testTeamUUID, ProjectID: testProjectID, Status: "bogus",
+	}
+	result, structured, err := srv.listMemoriesByProject(context.Background(), nil, params, testMemberUserID)
+	if err != nil {
+		t.Errorf("unexpected function error: %v", err)
+	}
+	if structured != nil {
+		t.Error("expected nil structured result on rejection")
+	}
+	assertValidationFailure(t, result, []string{"active", "draft", "archived"})
+	mockMemoryService.AssertNotCalled(t, "ListMemories")
+}
