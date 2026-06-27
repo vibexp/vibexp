@@ -269,6 +269,12 @@ type Config struct {
 	// Must be >= 1.
 	AccessEventRetentionDays int `envconfig:"ACCESS_EVENT_RETENTION_DAYS" default:"90"`
 
+	// ContentVersionRetentionLimit bounds how many content-version snapshots are
+	// kept per resource (artifact, blueprint, memory, prompt). On each change the
+	// oldest snapshots beyond this many are pruned. A value of 0 (or negative)
+	// disables pruning entirely, keeping every version.
+	ContentVersionRetentionLimit int `envconfig:"CONTENT_VERSION_RETENTION_LIMIT" default:"20"`
+
 	// Search ranking configuration. When SearchRecencyRankingEnabled is false
 	// (the default), search results keep the historical relevance-only ordering.
 	// When true, the service re-ranks a candidate pool by a weighted blend of

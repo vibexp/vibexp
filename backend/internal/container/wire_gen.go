@@ -66,7 +66,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	apiKeyServiceInterface := providers.ProvideAPIKeyService(apiKeyRepository, logger)
 	teamServiceInterface := providers.ProvideTeamService(teamRepository, teamMemberRepository, userRepository, logger)
 	contentVersionRepository := providers.ProvideContentVersionRepository(db)
-	contentVersionServiceInterface := providers.ProvideContentVersionService(contentVersionRepository, userRepository, logger)
+	contentVersionServiceInterface := providers.ProvideContentVersionService(contentVersionRepository, userRepository, cfg, logger)
 	promptServiceInterface := providers.ProvidePromptService(promptRepository, promptReferenceRepository, userRepository, projectRepository, teamServiceInterface, eventManager, logger, contentVersionServiceInterface)
 	promptGalleryServiceInterface := providers.ProvidePromptGalleryService(promptGalleryRepository, eventManager, logger)
 	promptShareService := providers.ProvidePromptShareService(promptShareRepository, promptRepository, promptServiceInterface, logger)
