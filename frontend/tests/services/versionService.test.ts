@@ -155,6 +155,7 @@ describe('createMemoryVersionSource', () => {
     team_id: teamId,
     project_id: 'proj-1',
     text: 'live text',
+    status: 'active',
     metadata: {},
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-02T00:00:00Z',

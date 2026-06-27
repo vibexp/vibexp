@@ -54,6 +54,7 @@ const mockCreatedMemory: Memory = {
   team_id: 'team-1',
   project_id: 'project-1',
   text: 'My new memory',
+  status: 'active',
   metadata: {},
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',

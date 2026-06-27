@@ -85,6 +85,7 @@ class MemoryServiceTestable {
     const params = new URLSearchParams()
 
     if (filters.search) params.append('search', filters.search)
+    if (filters.status) params.append('status', filters.status)
     if (filters.metadata_key)
       params.append('metadata_key', filters.metadata_key)
     if (filters.metadata_value)
@@ -162,6 +163,7 @@ describe('MemoryService', () => {
     team_id: mockTeamId,
     project_id: 'project-1',
     text: 'Test memory content',
+    status: 'active',
     metadata: { tag: 'test', category: 'personal' },
     created_at: '2023-01-01T00:00:00Z',
     updated_at: '2023-01-01T00:00:00Z',
@@ -260,6 +262,7 @@ describe('MemoryService', () => {
       it('should handle filters correctly', async () => {
         const filters: MemoryFilters = {
           search: 'test search',
+          status: 'archived',
           metadata_key: 'category',
           metadata_value: 'personal',
           page: 2,
@@ -277,6 +280,10 @@ describe('MemoryService', () => {
 
         expect(mockFetch).toHaveBeenCalledWith(
           expect.stringContaining('search=test+search'),
+          expect.any(Object)
+        )
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('status=archived'),
           expect.any(Object)
         )
         expect(mockFetch).toHaveBeenCalledWith(
@@ -893,6 +900,7 @@ describe('MemoryService', () => {
         team_id: mockTeamId,
         project_id: 'project-1',
         text: 'Text with special chars: "quotes", \'apostrophes\', & symbols',
+        status: 'active',
         metadata: {
           unicode: '🔥 emoji test 🚀',
           escaped: 'text with \n newlines \t and tabs',

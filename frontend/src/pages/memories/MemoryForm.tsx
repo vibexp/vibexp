@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -29,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { MEMORY_STATUS_OPTIONS } from '@/pages/memories/memoryStatus'
 import type {
   CreateMemoryRequest,
   Memory,
@@ -39,6 +41,7 @@ import type {
 const schema = z.object({
   text: z.string().trim().min(1, 'Memory content is required'),
   project_id: z.string().min(1, 'Project is required'),
+  status: z.enum(['active', 'draft', 'archived']),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -88,6 +91,7 @@ export const MemoryForm = forwardRef<MemoryFormHandle, MemoryFormProps>(
       defaultValues: {
         text: memory?.text ?? '',
         project_id: defaultProjectId,
+        status: memory?.status ?? 'active',
       },
     })
 
@@ -98,6 +102,7 @@ export const MemoryForm = forwardRef<MemoryFormHandle, MemoryFormProps>(
         form.reset({
           text: memory.text,
           project_id: resolvedProjectId,
+          status: memory.status,
         })
         setTags(extractTags(memory.metadata))
         extrasRef.current = extractExtras(memory.metadata)
@@ -118,6 +123,7 @@ export const MemoryForm = forwardRef<MemoryFormHandle, MemoryFormProps>(
       const request: CreateMemoryRequest = {
         project_id: values.project_id,
         text: values.text.trim(),
+        status: values.status,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       }
       await onSubmit(request)
@@ -206,6 +212,46 @@ Share insights, learnings, code snippets, or any valuable information you want t
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="sr-only">Status</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={isLoading}
+                      >
+                        <FormControl>
+                          <SelectTrigger data-testid="memory-status-select">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {MEMORY_STATUS_OPTIONS.map(option => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Drafts are hidden from search; archived memories are
+                        hidden from default lists and search.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -18,6 +18,7 @@ class MemoryService {
 
     if (filters.project_id) params.append('project_id', filters.project_id)
     if (filters.search) params.append('search', filters.search)
+    if (filters.status) params.append('status', filters.status)
     if (filters.metadata_key)
       params.append('metadata_key', filters.metadata_key)
     if (filters.metadata_value)

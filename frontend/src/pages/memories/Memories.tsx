@@ -251,6 +251,10 @@ export function Memories() {
             onProjectChange={value => {
               setFilters(prev => ({ ...prev, project_id: value, page: 1 }))
             }}
+            status={filters.status}
+            onStatusChange={value => {
+              setFilters(prev => ({ ...prev, status: value, page: 1 }))
+            }}
           />
         </ListPage.Filters>
 
@@ -262,7 +266,7 @@ export function Memories() {
             <EmptyState
               icon={HardDrive}
               title={
-                filters.search || filters.project_id
+                filters.search || filters.project_id || filters.status
                   ? 'No memories match your filters'
                   : 'No memories yet'
               }
@@ -271,8 +275,8 @@ export function Memories() {
                   ? 'Try a different search term or clear the filters.'
                   : filters.project_id && selectedProject
                     ? `No memories in ${selectedProject.name}. Create one to get started.`
-                    : filters.search || filters.project_id
-                      ? 'Try a different search term or clear the filter.'
+                    : filters.search || filters.project_id || filters.status
+                      ? 'Try a different search term or clear the filters.'
                       : 'Create your first memory to save insights, snippets, or notes.'
               }
               actions={
