@@ -113,7 +113,7 @@ func NewUserUpdatedEvent(userID, email, name string, updatedAt time.Time) Event 
 type PromptCreatedPayload struct {
 	PromptID    string
 	UserID      string
-	Email       string // User email for CRM sync
+	Email       string // User email for the event payload
 	ProjectName string
 	Slug        string
 	Title       string
@@ -352,7 +352,7 @@ func NewResourceDeletedEvent(userID, resourceType, resourceID string) Event {
 // AIToolSessionCreatedPayload represents payload for ai_tool_session.created events
 type AIToolSessionCreatedPayload struct {
 	UserID    string    `json:"user_id"`
-	Email     string    `json:"email"` // User email for CRM sync
+	Email     string    `json:"email"` // User email for the event payload
 	SessionID string    `json:"session_id"`
 	ToolType  string    `json:"tool_type"` // "claude_code_cli" or "cursor_ide"
 	IsNewTool bool      `json:"is_new_tool"`

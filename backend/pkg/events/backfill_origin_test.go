@@ -3,35 +3,12 @@ package events
 import (
 	"context"
 	"log/slog"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/vibexp/vibexp/internal/services/crm"
 )
-
-// countingCRMService is a thread-safe HubSpotCRMServiceInterface stub that counts
-// UpdateContact calls, so an assertion across the bus worker goroutine and the
-// test goroutine is race-free under `go test -race`.
-type countingCRMService struct {
-	updateContactCalls int32
-}
-
-func (c *countingCRMService) CreateContact(context.Context, crm.ContactData) error { return nil }
-
-func (c *countingCRMService) UpdateContact(context.Context, string, crm.ContactData) error {
-	atomic.AddInt32(&c.updateContactCalls, 1)
-	return nil
-}
-
-func (c *countingCRMService) GetContactByEmail(context.Context, string) (*crm.Contact, error) {
-	return nil, nil
-}
-
-func (c *countingCRMService) updateCalls() int32 { return atomic.LoadInt32(&c.updateContactCalls) }
 
 // eventWithoutMarker is an Event implementation that does NOT embed BaseEvent and
 // therefore carries no backfill-origin marker, exercising the helper's fallback.
@@ -88,13 +65,11 @@ func TestMarkBackfillOrigin_EventWithoutMarkerPassesThrough(t *testing.T) {
 	assert.False(t, IsBackfillOrigin(returned))
 }
 
-// TestBackfillOrigin_BusDispatch_ForwarderReceivesCRMSkips is the integration
-// assertion required by issue #1668's acceptance criteria: a backfill-origin
-// event dispatched through the real in-memory bus must reach a type-routed
-// listener (standing in for the Pub/Sub embedding forwarder) while the
-// side-effect CRM listener skips it. It also confirms a normal event still
-// drives the CRM listener, proving the skip is scoped to the marker.
-func TestBackfillOrigin_BusDispatch_ForwarderReceivesCRMSkips(t *testing.T) {
+// TestBackfillOrigin_BusDispatch_MarkerSurvives confirms a backfill-origin event
+// dispatched through the real in-memory bus reaches a type-routed listener
+// (standing in for the embedding forwarder) with its marker intact, so
+// side-effect listeners can still detect and skip it after dispatch.
+func TestBackfillOrigin_BusDispatch_MarkerSurvives(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	bus := NewInMemoryEventBus(EventBusConfig{
@@ -104,12 +79,9 @@ func TestBackfillOrigin_BusDispatch_ForwarderReceivesCRMSkips(t *testing.T) {
 	require.NoError(t, bus.Start())
 	defer func() { require.NoError(t, bus.Stop()) }()
 
-	// Stand-in for the Pub/Sub embedding forwarder: routes by event type only.
+	// Stand-in for the embedding forwarder: routes by event type only.
 	forwarder := NewMockListener([]string{EventTypePromptCreated})
 	require.NoError(t, bus.Subscribe(forwarder))
-
-	mockCRM := &countingCRMService{}
-	require.NoError(t, bus.Subscribe(NewHubSpotCRMListener(mockCRM, logger)))
 
 	backfillEvent := NewPromptCreatedEvent(
 		"prompt-1", "user-1", "test@example.com", "proj", "slug", "title", "body", time.Now(),
@@ -124,17 +96,4 @@ func TestBackfillOrigin_BusDispatch_ForwarderReceivesCRMSkips(t *testing.T) {
 		"the embedding forwarder must still receive backfill-origin events")
 	assert.True(t, IsBackfillOrigin(forwarder.GetHandledEvents()[0]),
 		"the backfill-origin marker must survive bus dispatch")
-	assert.Equal(t, int32(0), mockCRM.updateCalls(),
-		"the CRM listener must skip backfill-origin events")
-
-	// Control: a normal event of the same type still drives the CRM listener.
-	normalEvent := NewPromptCreatedEvent(
-		"prompt-2", "user-1", "test@example.com", "proj", "slug", "title", "body", time.Now(),
-	)
-	require.NoError(t, bus.Publish(context.Background(), normalEvent))
-	time.Sleep(200 * time.Millisecond)
-
-	assert.Equal(t, int32(1), mockCRM.updateCalls(),
-		"a normal prompt.created must still sync to the CRM")
-	assert.Equal(t, int32(2), forwarder.GetHandleCount())
 }

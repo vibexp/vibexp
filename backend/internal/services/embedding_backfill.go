@@ -217,8 +217,8 @@ func (s *EmbeddingBackfillService) publishEntity(ctx context.Context, e *models.
 			Warn("Failed to build created event during embedding backfill")
 		return false
 	}
-	// Tag the event as backfill-origin so user-facing side-effect listeners (CRM,
-	// notifications) skip it. The embedding forwarder routes by event type and is
+	// Tag the event as backfill-origin so user-facing side-effect listeners
+	// (notifications) skip it. The embedding forwarder routes by event type and is
 	// unaffected, so regeneration still happens for every entity.
 	event = events.MarkBackfillOrigin(event)
 	if err := s.publisher.Publish(ctx, event); err != nil {

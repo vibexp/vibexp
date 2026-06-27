@@ -293,7 +293,7 @@ func respondWithHookSuccess(w http.ResponseWriter, hookPayload interface{}, logg
 
 // fireAIToolSessionEvent fires an AI tool session created event
 func (s *Server) fireAIToolSessionEvent(ctx context.Context, userID, sessionID, toolType string, isNewTool bool) {
-	// Fetch user email for CRM sync
+	// Fetch user email for the event payload
 	userRepo := s.container.UserRepository()
 	user, userErr := userRepo.GetByID(ctx, userID)
 	userEmail := ""

@@ -5,7 +5,7 @@ package events
 // events through the shared EventManager so the embedding pipeline regenerates
 // vectors. Because Publish fans every event out to ALL in-process listeners,
 // those republished events would otherwise also drive user-facing side effects
-// (HubSpot CRM contact updates, feed-item notifications) once per entity.
+// (feed-item notifications) once per entity.
 //
 // Marking an event as backfill-origin lets side-effect listeners skip it via a
 // single shared check (IsBackfillOrigin) while the Pub/Sub forwarder and the

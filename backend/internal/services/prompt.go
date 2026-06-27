@@ -75,7 +75,7 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 		return
 	}
 
-	// Fetch user email for CRM sync
+	// Fetch user email for the event payload
 	userEmail := ""
 	if s.userRepo != nil {
 		user, err := s.userRepo.GetByID(ctx, prompt.UserID)

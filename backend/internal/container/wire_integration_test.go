@@ -34,9 +34,6 @@ func setupTestConfig() *config.Config {
 
 		// GCP project id (observability only; empty for tests)
 		GCPProjectID: "",
-
-		// HubSpot configuration (disabled for tests)
-		HubSpotCRMAccessKey: "",
 	}
 }
 
@@ -324,22 +321,6 @@ func TestInitializeContainer_ConditionalServices(t *testing.T) {
 		},
 		func(t *testing.T, c container.Container) {
 			assert.NotNil(t, c.AgentService(), "AgentService should be initialized with encryption")
-		})
-
-	runConditionalServiceTest(t, "Without HubSpot CRM access key",
-		func(cfg *config.Config) {
-			cfg.HubSpotCRMAccessKey = ""
-		},
-		func(t *testing.T, c container.Container) {
-			assert.NotNil(t, c.EventManager(), "EventManager should initialize without HubSpot")
-		})
-
-	runConditionalServiceTest(t, "With HubSpot CRM access key",
-		func(cfg *config.Config) {
-			cfg.HubSpotCRMAccessKey = "test-hubspot-key"
-		},
-		func(t *testing.T, c container.Container) {
-			assert.NotNil(t, c.EventManager(), "EventManager should initialize with HubSpot")
 		})
 }
 

@@ -9,7 +9,6 @@ import (
 	"github.com/vibexp/vibexp/internal/observability/metrics"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
-	"github.com/vibexp/vibexp/internal/services/crm"
 	notificationsvc "github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/pkg/events"
 )
@@ -99,7 +98,6 @@ func registerEventListeners(
 ) {
 	registerUserCreatedListener(eventManager, logger)
 	registerTeamCreationListener(eventManager, teamService, projectService, logger)
-	registerHubSpotCRMListener(eventManager, cfg, logger)
 	registerNotificationEventListener(
 		eventManager, notifSvc, teamMemberRepo,
 		userRepo, feedItemRepo, cfg.FrontendBaseURL, appMetrics, logger,
@@ -143,35 +141,6 @@ func registerUserCreatedListener(eventManager *events.EventManager, logger *slog
 			"component", "event-manager",
 			"error", fmt.Sprintf("%+v", err),
 		)
-	}
-}
-
-// registerHubSpotCRMListener registers the HubSpot CRM listener if configured
-func registerHubSpotCRMListener(eventManager *events.EventManager, cfg *config.Config, logger *slog.Logger) {
-	if cfg.HubSpotCRMAccessKey == "" {
-		logger.With(
-			"service", "vibexp-api",
-			"component", "hubspot-crm-listener",
-		).Info("HubSpot CRM access key not configured, skipping listener registration")
-		return
-	}
-
-	hubspotService := crm.NewHubSpotService(cfg.HubSpotCRMAccessKey, logger)
-	hubspotListener := events.NewHubSpotCRMListener(hubspotService, logger)
-
-	if err := eventManager.Subscribe(hubspotListener); err != nil {
-		logger.Error(
-			"Failed to subscribe HubSpot CRM listener",
-			"service", "vibexp-api",
-			"component", "event-manager",
-			"error", fmt.Sprintf("%+v", err),
-		)
-	} else {
-		logger.With(
-			"service", "vibexp-api",
-			"component", "hubspot-crm-listener",
-			"event_types", hubspotListener.EventTypes(),
-		).Info("HubSpot CRM listener registered successfully")
 	}
 }
 
