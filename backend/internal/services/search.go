@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -62,9 +63,11 @@ func NewSearchService(
 	}
 }
 
-// Search embeds the query, fetches matches from the repository, orders them
-// (relevance-only or recency-blended depending on the ranking config), and maps
-// the requested page to the response DTO.
+// Search embeds the query and runs semantic (vector) search; when no embedding
+// provider is configured it falls back to keyword (full-text) search over the
+// source tables, so search still works out-of-the-box. Either way it fetches
+// matches, orders them (relevance-only or recency-blended depending on the ranking
+// config), and maps the requested page to the response DTO.
 func (s *SearchService) Search(
 	ctx context.Context,
 	teamID string,
@@ -73,11 +76,12 @@ func (s *SearchService) Search(
 	entityTypes := resolveEntityTypes(req.Types)
 
 	vector, err := s.embedder.EmbedQuery(ctx, req.Query)
-	if err != nil {
+	keyword := errors.Is(err, ErrNoEmbeddingProvider)
+	if err != nil && !keyword {
 		return nil, fmt.Errorf("SearchService.Search: failed to embed query: %w", err)
 	}
 
-	pageRows, total, err := s.fetchPage(ctx, teamID, vector, entityTypes, req)
+	pageRows, total, err := s.fetchPage(ctx, teamID, vector, keyword, entityTypes, req)
 	if err != nil {
 		return nil, err
 	}
@@ -86,12 +90,17 @@ func (s *SearchService) Search(
 		// No matches can mean a genuinely empty result or that no embeddings exist
 		// for the configured model (e.g. the AI service changed its model
 		// identifier). Log enough to tell the two apart without warning-level noise.
+		mode := "semantic"
+		if keyword {
+			mode = "keyword"
+		}
 		s.logger.With(
 			"team_id", teamID,
 			"model_id", s.model,
 			"entity_types", entityTypes,
+			"mode", mode,
 		).
-			Debug("semantic search returned no results")
+			Debug("search returned no results")
 	}
 
 	items := make([]models.SearchResultItem, 0, len(pageRows))
@@ -110,30 +119,37 @@ func (s *SearchService) Search(
 
 // fetchPage returns the rows for the requested page plus the full match count.
 // With recency ranking disabled it asks the repository for exactly the page
-// (distance order). With it enabled it pulls a distance-ordered candidate pool,
-// re-ranks by the blended score in memory, and slices out the page.
+// (relevance order). With it enabled it pulls a relevance-ordered candidate pool,
+// re-ranks by the blended score in memory, and slices out the page. The keyword
+// flag selects the full-text fallback (SearchKeyword) over semantic search
+// (SearchSimilar); both return the same SearchResultRow shape, so the ranking and
+// pagination logic below is identical for either path.
 func (s *SearchService) fetchPage(
 	ctx context.Context,
 	teamID string,
 	vector []float32,
+	keyword bool,
 	entityTypes []string,
 	req *models.SearchRequest,
 ) ([]models.SearchResultRow, int, error) {
 	offset := (req.Page - 1) * req.PerPage
 
+	fetch := func(limit, offset int) ([]models.SearchResultRow, int, error) {
+		if keyword {
+			return s.repo.SearchKeyword(ctx, teamID, req.Query, entityTypes, req.ProjectID, limit, offset)
+		}
+		return s.repo.SearchSimilar(ctx, teamID, vector, s.model, entityTypes, req.ProjectID, limit, offset)
+	}
+
 	if !s.ranking.Enabled {
-		rows, total, err := s.repo.SearchSimilar(
-			ctx, teamID, vector, s.model, entityTypes, req.ProjectID, req.PerPage, offset,
-		)
+		rows, total, err := fetch(req.PerPage, offset)
 		if err != nil {
 			return nil, 0, fmt.Errorf("SearchService.Search: %w", err)
 		}
 		return rows, total, nil
 	}
 
-	candidates, total, err := s.repo.SearchSimilar(
-		ctx, teamID, vector, s.model, entityTypes, req.ProjectID, s.ranking.CandidateCap, 0,
-	)
+	candidates, total, err := fetch(s.ranking.CandidateCap, 0)
 	if err != nil {
 		return nil, 0, fmt.Errorf("SearchService.Search: %w", err)
 	}

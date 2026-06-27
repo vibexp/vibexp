@@ -683,6 +683,24 @@ type SearchRepository interface {
 		projectID string,
 		limit, offset int,
 	) ([]models.SearchResultRow, int, error)
+
+	// SearchKeyword returns the page of source rows (one result per entity) matching
+	// query via PostgreSQL full-text search. It is the fallback used when no embedding
+	// provider is configured: the embeddings table is empty without one, so it reads
+	// the source tables directly. Rows whose team_id matches teamID are restricted to
+	// the given singular entityTypes (applying each type's status filter) and ordered
+	// by ts_rank relevance descending; when projectID is non-empty results are further
+	// restricted to that project. The returned SearchResultRow.Distance carries
+	// 1 - ts_rank so callers derive Score identically to SearchSimilar. It also returns
+	// the total number of matching rows (ignoring limit/offset).
+	SearchKeyword(
+		ctx context.Context,
+		teamID string,
+		query string,
+		entityTypes []string,
+		projectID string,
+		limit, offset int,
+	) ([]models.SearchResultRow, int, error)
 }
 
 // EmbeddingBackfillRepository enumerates every embeddable entity across all users

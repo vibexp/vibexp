@@ -2,14 +2,23 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 )
 
+// ErrNoEmbeddingProvider signals that no active embedding provider is configured,
+// so a query cannot be embedded. It is non-fatal and distinguishable: SearchService
+// treats it as "embedding disabled" and falls back to keyword (full-text) search
+// rather than failing the request.
+var ErrNoEmbeddingProvider = errors.New("no active embedding provider configured")
+
 // QueryEmbedder converts a free-text query into an embedding vector.
 type QueryEmbedder interface {
 	// EmbedQuery returns the embedding vector for query. The returned slice always
-	// has the configured embedding dimensionality on success.
+	// has the configured embedding dimensionality on success. It returns
+	// ErrNoEmbeddingProvider (a nil vector) when no embedding provider is configured,
+	// signalling callers to fall back to keyword search instead of erroring.
 	EmbedQuery(ctx context.Context, query string) ([]float32, error)
 }
 
@@ -39,15 +48,16 @@ func NewProviderQueryEmbedder(
 	}
 }
 
-// EmbedQuery resolves the active provider and embeds query. It returns an error
-// when no provider is configured, since semantic search cannot run without one.
+// EmbedQuery resolves the active provider and embeds query. It returns
+// ErrNoEmbeddingProvider when none is configured so the caller can fall back to
+// keyword search rather than failing — semantic search cannot run without one.
 func (e *ProviderQueryEmbedder) EmbedQuery(ctx context.Context, query string) ([]float32, error) {
 	provider, err := e.resolver.ResolveActiveProvider(ctx, e.model, e.dimensions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve embedding provider: %w", err)
 	}
 	if provider == nil {
-		return nil, fmt.Errorf("no active embedding provider configured")
+		return nil, ErrNoEmbeddingProvider
 	}
 
 	vectors, err := provider.GenerateEmbeddings(ctx, []string{query})

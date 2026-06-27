@@ -22,6 +22,77 @@ func (_m *MockSearchRepository) EXPECT() *MockSearchRepository_Expecter {
 	return &MockSearchRepository_Expecter{mock: &_m.Mock}
 }
 
+// SearchKeyword provides a mock function with given fields: ctx, teamID, query, entityTypes, projectID, limit, offset
+func (_m *MockSearchRepository) SearchKeyword(ctx context.Context, teamID string, query string, entityTypes []string, projectID string, limit int, offset int) ([]models.SearchResultRow, int, error) {
+	ret := _m.Called(ctx, teamID, query, entityTypes, projectID, limit, offset)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchKeyword")
+	}
+
+	var r0 []models.SearchResultRow
+	var r1 int
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string, string, int, int) ([]models.SearchResultRow, int, error)); ok {
+		return rf(ctx, teamID, query, entityTypes, projectID, limit, offset)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string, string, int, int) []models.SearchResultRow); ok {
+		r0 = rf(ctx, teamID, query, entityTypes, projectID, limit, offset)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.SearchResultRow)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, []string, string, int, int) int); ok {
+		r1 = rf(ctx, teamID, query, entityTypes, projectID, limit, offset)
+	} else {
+		r1 = ret.Get(1).(int)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, []string, string, int, int) error); ok {
+		r2 = rf(ctx, teamID, query, entityTypes, projectID, limit, offset)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockSearchRepository_SearchKeyword_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SearchKeyword'
+type MockSearchRepository_SearchKeyword_Call struct {
+	*mock.Call
+}
+
+// SearchKeyword is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - query string
+//   - entityTypes []string
+//   - projectID string
+//   - limit int
+//   - offset int
+func (_e *MockSearchRepository_Expecter) SearchKeyword(ctx interface{}, teamID interface{}, query interface{}, entityTypes interface{}, projectID interface{}, limit interface{}, offset interface{}) *MockSearchRepository_SearchKeyword_Call {
+	return &MockSearchRepository_SearchKeyword_Call{Call: _e.mock.On("SearchKeyword", ctx, teamID, query, entityTypes, projectID, limit, offset)}
+}
+
+func (_c *MockSearchRepository_SearchKeyword_Call) Run(run func(ctx context.Context, teamID string, query string, entityTypes []string, projectID string, limit int, offset int)) *MockSearchRepository_SearchKeyword_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]string), args[4].(string), args[5].(int), args[6].(int))
+	})
+	return _c
+}
+
+func (_c *MockSearchRepository_SearchKeyword_Call) Return(_a0 []models.SearchResultRow, _a1 int, _a2 error) *MockSearchRepository_SearchKeyword_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockSearchRepository_SearchKeyword_Call) RunAndReturn(run func(context.Context, string, string, []string, string, int, int) ([]models.SearchResultRow, int, error)) *MockSearchRepository_SearchKeyword_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SearchSimilar provides a mock function with given fields: ctx, teamID, vec, modelID, entityTypes, projectID, limit, offset
 func (_m *MockSearchRepository) SearchSimilar(ctx context.Context, teamID string, vec []float32, modelID string, entityTypes []string, projectID string, limit int, offset int) ([]models.SearchResultRow, int, error) {
 	ret := _m.Called(ctx, teamID, vec, modelID, entityTypes, projectID, limit, offset)

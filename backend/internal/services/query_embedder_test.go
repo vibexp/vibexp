@@ -23,13 +23,16 @@ func TestProviderQueryEmbedder_HappyPath(t *testing.T) {
 	assert.Equal(t, 3, resolver.gotDims)
 }
 
-func TestProviderQueryEmbedder_NoProvider_Errors(t *testing.T) {
+func TestProviderQueryEmbedder_NoProvider_ReturnsSentinel(t *testing.T) {
 	resolver := &fakeResolver{provider: nil}
 	e := NewProviderQueryEmbedder(resolver, "fake-model", 3, slog.New(slog.DiscardHandler))
 
-	_, err := e.EmbedQuery(context.Background(), "q")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no active embedding provider")
+	vec, err := e.EmbedQuery(context.Background(), "q")
+	// No provider is a distinguishable, non-fatal condition (the search service
+	// branches on it to keyword search), so it must surface as ErrNoEmbeddingProvider
+	// with a nil vector — not an opaque error.
+	require.ErrorIs(t, err, ErrNoEmbeddingProvider)
+	assert.Nil(t, vec)
 }
 
 func TestProviderQueryEmbedder_ResolverError(t *testing.T) {
