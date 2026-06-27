@@ -2,8 +2,13 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Eye, FolderOpen, Pencil, Tag as TagIcon, Trash2 } from 'lucide-react'
 import type { NavigateFunction } from 'react-router-dom'
 
+import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  MEMORY_STATUS_LABEL,
+  memoryStatusTone,
+} from '@/pages/memories/memoryStatus'
 import type { Memory, Project } from '@/types'
 
 function formatDate(value: string) {
@@ -100,6 +105,15 @@ export function buildMemoriesColumns({
   }
 
   columns.push(
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <StatusBadge tone={memoryStatusTone(row.original.status)}>
+          {MEMORY_STATUS_LABEL[row.original.status]}
+        </StatusBadge>
+      ),
+    },
     {
       accessorKey: 'updated_at',
       header: 'Updated',

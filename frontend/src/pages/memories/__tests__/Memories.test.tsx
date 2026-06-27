@@ -17,6 +17,7 @@ const makeMemory = (overrides: Partial<Memory> = {}): Memory => ({
   team_id: 'team-1',
   project_id: 'project-alpha',
   text: 'Sample memory',
+  status: 'active',
   metadata: {},
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-02T00:00:00Z',
@@ -93,7 +94,7 @@ describe('buildMemoriesColumns', () => {
     expect(ids).toContain('tags')
   })
 
-  it('always includes text, updated_at, and actions columns', () => {
+  it('always includes text, status, updated_at, and actions columns', () => {
     const columns = buildMemoriesColumns({
       navigate: navigateMock,
       onDelete: onDeleteMock,
@@ -102,6 +103,7 @@ describe('buildMemoriesColumns', () => {
 
     const ids = columns.map(c => ('accessorKey' in c ? c.accessorKey : c.id))
     expect(ids).toContain('text')
+    expect(ids).toContain('status')
     expect(ids).toContain('updated_at')
     expect(ids).toContain('actions')
   })

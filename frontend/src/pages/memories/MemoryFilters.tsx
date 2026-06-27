@@ -8,7 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { Project } from '@/types'
+import { MEMORY_STATUS_OPTIONS } from '@/pages/memories/memoryStatus'
+import type { MemoryStatus, Project } from '@/types'
 
 interface Props {
   searchInput: string
@@ -19,6 +20,8 @@ interface Props {
   projects?: Project[]
   selectedProjectId?: string
   onProjectChange?: (projectId: string | undefined) => void
+  status?: MemoryStatus
+  onStatusChange?: (status: MemoryStatus | undefined) => void
 }
 
 export function MemoryFilters({
@@ -30,6 +33,8 @@ export function MemoryFilters({
   projects = [],
   selectedProjectId,
   onProjectChange,
+  status,
+  onStatusChange,
 }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -79,6 +84,31 @@ export function MemoryFilters({
             {tags.map(tag => (
               <SelectItem key={tag} value={tag}>
                 {tag}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {onStatusChange && (
+        <Select
+          value={status ?? 'all'}
+          onValueChange={value => {
+            onStatusChange(
+              value === 'all' ? undefined : (value as MemoryStatus)
+            )
+          }}
+        >
+          <SelectTrigger
+            className="w-[150px]"
+            data-testid="memory-status-filter"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {MEMORY_STATUS_OPTIONS.map(option => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>

@@ -18,6 +18,7 @@ import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { MetadataPanel, MetaRow } from '@/components/metadata/MetadataPanel'
 import { AdditionalDataCard } from '@/components/MetadataCard'
 import { PageHeader } from '@/components/PageHeader'
+import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import {
+  MEMORY_STATUS_LABEL,
+  memoryStatusTone,
+} from '@/pages/memories/memoryStatus'
 import { memoryService } from '@/services/memoryService'
 import { projectService } from '@/services/projectService'
 import type { Memory, MemoryVersion, Project } from '@/types'
@@ -269,6 +274,11 @@ export function MemoryView() {
             updatedAt={memory.updated_at}
             versionHistory={versionHistory}
           >
+            <MetaRow label="Status">
+              <StatusBadge tone={memoryStatusTone(memory.status)}>
+                {MEMORY_STATUS_LABEL[memory.status]}
+              </StatusBadge>
+            </MetaRow>
             {project && (
               <MetaRow label="Project">
                 <Link
