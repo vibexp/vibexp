@@ -87,9 +87,10 @@ func (s *SearchService) Search(
 	}
 
 	if total == 0 {
-		// No matches can mean a genuinely empty result or that no embeddings exist
-		// for the configured model (e.g. the AI service changed its model
-		// identifier). Log enough to tell the two apart without warning-level noise.
+		// No matches can mean a genuinely empty result or, in semantic mode, that no
+		// embeddings exist for the configured model (e.g. the embedding model id
+		// changed). Log the mode and enough context to tell these apart without
+		// warning-level noise.
 		mode := "semantic"
 		if keyword {
 			mode = "keyword"

@@ -456,7 +456,7 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 
 		// Page query binds query ($1), team_id ($2), project_id ($3), limit ($4), offset ($5),
 		// and orders by distance ASC (= ts_rank DESC).
-		mock.ExpectQuery(`source_body, created_at, updated_at, distance .*ORDER BY distance ASC LIMIT \$4 OFFSET \$5`).
+		mock.ExpectQuery(`source_body, created_at, updated_at, distance .*ORDER BY distance ASC, entity_id ASC LIMIT \$4 OFFSET \$5`).
 			WithArgs(query, teamID, nil, 10, 0).
 			WillReturnRows(resultRows)
 
@@ -480,7 +480,7 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 		resultRows := sqlmock.NewRows(resultCols).
 			AddRow("artifact", "a-1", "a-1", "Title", "art-slug", projectID, "Scoped Project", "", "body", now, now, 0.2)
 
-		mock.ExpectQuery(`ORDER BY distance ASC LIMIT \$4 OFFSET \$5`).
+		mock.ExpectQuery(`ORDER BY distance ASC, entity_id ASC LIMIT \$4 OFFSET \$5`).
 			WithArgs(query, teamID, projectID, 10, 0).
 			WillReturnRows(resultRows)
 
@@ -510,7 +510,7 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \(`).
 			WithArgs(query, teamID, nil).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-		mock.ExpectQuery(`ORDER BY distance ASC LIMIT \$4 OFFSET \$5`).
+		mock.ExpectQuery(`ORDER BY distance ASC, entity_id ASC LIMIT \$4 OFFSET \$5`).
 			WithArgs(query, teamID, nil, 10, 0).
 			WillReturnError(sql.ErrConnDone)
 

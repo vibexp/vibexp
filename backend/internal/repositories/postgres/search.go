@@ -378,10 +378,14 @@ func (r *SearchRepository) queryKeywordPage(
 		return nil, err
 	}
 
+	// entity_id is a deterministic secondary sort key: ts_rank produces identical
+	// scores for documents with the same matched-term frequency (common in keyword
+	// mode), and an unstable sort under LIMIT/OFFSET could repeat or skip rows across
+	// pages. Tie-break by entity_id so pagination is stable.
 	sqlQuery := fmt.Sprintf(
 		"SELECT entity_type, entity_id, chunk_id, title, slug, project_id, project_name, "+
 			"chunk_content, source_body, created_at, updated_at, distance "+
-			"FROM (%s) AS results ORDER BY distance ASC LIMIT $4 OFFSET $5",
+			"FROM (%s) AS results ORDER BY distance ASC, entity_id ASC LIMIT $4 OFFSET $5",
 		union,
 	)
 
