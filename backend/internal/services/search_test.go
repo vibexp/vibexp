@@ -434,3 +434,101 @@ func TestSearchService_Search_RankingEnabled_RepoError(t *testing.T) {
 
 	assert.Error(t, err)
 }
+
+// When the embedder reports no provider (ErrNoEmbeddingProvider), the service must
+// fall back to the keyword path: SearchKeyword is called with the raw query (not a
+// vector), and SearchSimilar is never invoked. Using NewMockSearchRepository(t),
+// an unexpected SearchSimilar call would fail the test.
+func TestSearchService_Search_NoProvider_FallsBackToKeyword(t *testing.T) {
+	svc, repo, embedder := newTestSearchService(t)
+	now := time.Now()
+
+	embedder.EXPECT().EmbedQuery(mock.Anything, "hello world").Return(nil, services.ErrNoEmbeddingProvider)
+	repo.EXPECT().
+		SearchKeyword(mock.Anything, testTeamID, "hello world",
+			[]string{"prompt", "artifact", "blueprint", "memory"}, "", 10, 0).
+		Return([]models.SearchResultRow{
+			{
+				EntityType: "prompt", EntityID: "p-1", ChunkID: "p-1",
+				Title: "T", Slug: "my-prompt", ProjectID: "proj-1", ProjectName: "Project One",
+				ChunkContent: "", SourceBody: "hello world body", Distance: 0.4, UpdatedAt: now,
+			},
+		}, 1, nil)
+
+	resp, err := svc.Search(context.Background(), testTeamID, &models.SearchRequest{
+		Query: "hello world", Page: 1, PerPage: 10,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Results, 1)
+	assert.Equal(t, 1, resp.TotalCount)
+	assert.Equal(t, "p-1", resp.Results[0].ID)
+	// Score is derived from the row's Distance (1 - ts_rank) exactly as the semantic
+	// path does, so keyword scores share the SearchResultItem contract.
+	assert.InDelta(t, 0.6, resp.Results[0].Score, 0.0001)
+	assert.Equal(t, "hello world body", resp.Results[0].Excerpt)
+}
+
+// The keyword path must thread the query, project filter and pagination offset into
+// SearchKeyword verbatim, just as the semantic path does for SearchSimilar.
+func TestSearchService_Search_NoProvider_ThreadsProjectAndPagination(t *testing.T) {
+	svc, repo, embedder := newTestSearchService(t)
+	projectID := "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+
+	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(nil, services.ErrNoEmbeddingProvider)
+	// Page 2, per_page 10 -> offset 10; project_id threaded through; types preserved.
+	repo.EXPECT().
+		SearchKeyword(mock.Anything, testTeamID, "q", []string{"memory", "prompt"}, projectID, 10, 10).
+		Return([]models.SearchResultRow{}, 42, nil)
+
+	resp, err := svc.Search(context.Background(), testTeamID, &models.SearchRequest{
+		Query: "q", Types: []string{"memories", "prompts"}, ProjectID: projectID, Page: 2, PerPage: 10,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 42, resp.TotalCount)
+	assert.Equal(t, 5, resp.TotalPages)
+}
+
+// A non-sentinel embedder error must still fail the request (no silent fallback).
+func TestSearchService_Search_EmbedderError_DoesNotFallBack(t *testing.T) {
+	svc, _, embedder := newTestSearchService(t)
+	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(nil, errors.New("ai down"))
+
+	_, err := svc.Search(context.Background(), testTeamID, &models.SearchRequest{
+		Query: "q", Page: 1, PerPage: 10,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to embed query")
+}
+
+// The keyword fallback participates in recency re-ranking identically to semantic
+// search: with ranking enabled it pulls the candidate cap (offset 0) via
+// SearchKeyword and re-orders by the blended score.
+func TestSearchService_Search_NoProvider_RankingEnabledReRanks(t *testing.T) {
+	svc, repo, embedder := newTestSearchServiceWithRanking(t, enabledRanking())
+	now := time.Date(2026, 5, 26, 0, 0, 0, 0, time.UTC)
+	svc.SetClockForTest(func() time.Time { return now })
+
+	stale := now.Add(-360 * 24 * time.Hour)
+	candidates := []models.SearchResultRow{
+		{EntityType: "prompt", EntityID: "p-stale", ChunkID: "c-stale", Distance: 0.30, CreatedAt: stale, UpdatedAt: stale},
+		{EntityType: "prompt", EntityID: "p-fresh", ChunkID: "c-fresh", Distance: 0.40, CreatedAt: now, UpdatedAt: now},
+	}
+
+	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(nil, services.ErrNoEmbeddingProvider)
+	repo.EXPECT().
+		SearchKeyword(mock.Anything, testTeamID, "q", mock.Anything, "", 200, 0).
+		Return(candidates, 2, nil)
+
+	resp, err := svc.Search(context.Background(), testTeamID, &models.SearchRequest{
+		Query: "q", Page: 1, PerPage: 10,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Results, 2)
+	// Fresher row overtakes the slightly-more-relevant but stale row after re-ranking.
+	assert.Equal(t, "c-fresh", resp.Results[0].ChunkID)
+	assert.Equal(t, "c-stale", resp.Results[1].ChunkID)
+}
