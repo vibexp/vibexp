@@ -650,6 +650,7 @@ type MemoryFilters struct {
 	Search        string
 	MetadataKey   *string
 	MetadataValue *string
+	Status        *string
 	TeamID        string
 	ProjectID     *string
 	SortBy        string

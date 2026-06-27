@@ -70,6 +70,15 @@ api-v1-team_id-memories:
         description: Filter by metadata value (requires metadata_key)
         schema:
           type: string
+      - name: status
+        in: query
+        description: >-
+          Filter by lifecycle status. When omitted, archived memories are hidden
+          (active and draft are returned); an explicit value returns only that
+          status. Returns 400 for unknown values.
+        schema:
+          type: string
+          enum: [active, draft, archived]
       - name: sort_by
         in: query
         description: "Field to sort results by. Allowed: text, updated_at, created_at. Returns 400 for unknown values."
@@ -144,6 +153,15 @@ api-v1-team_id-memories-search:
         description: Additional text search in memory content
         schema:
           type: string
+      - name: status
+        in: query
+        description: >-
+          Filter by lifecycle status. When omitted, archived memories are hidden
+          (active and draft are returned); an explicit value returns only that
+          status. Returns 400 for unknown values.
+        schema:
+          type: string
+          enum: [active, draft, archived]
       - name: page
         in: query
         description: Page number

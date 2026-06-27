@@ -50,6 +50,7 @@ type StoreMemoryParams struct {
 	TeamID    string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
 	ProjectID string                 `json:"project_id" jsonschema:"Project UUID — required; the project this memory belongs to"`
 	Text      string                 `json:"text" jsonschema:"Memory content/text"`
+	Status    string                 `json:"status,omitempty" jsonschema:"Lifecycle status: active (default), draft, or archived"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty" jsonschema:"Additional key-value metadata pairs"`
 }
 
@@ -62,6 +63,7 @@ type ListMemoriesByProjectParams struct {
 	Page        int    `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
 	Limit       int    `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
 	Search      string `json:"search,omitempty" jsonschema:"Search in memory text"`
+	Status      string `json:"status,omitempty" jsonschema:"Filter by lifecycle status: active, draft, or archived. Omit to hide archived"`
 	FullDetails bool   `json:"full_details,omitempty" jsonschema:"Not supported — search_memories always truncates text; use get_memory for full text"`
 }
 
@@ -80,6 +82,7 @@ type UpdateMemoryParams struct {
 	TeamID   string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
 	MemoryID string                 `json:"memory_id" jsonschema:"Memory identifier"`
 	Text     string                 `json:"text,omitempty" jsonschema:"New memory text"`
+	Status   string                 `json:"status,omitempty" jsonschema:"New lifecycle status: active, draft, or archived"`
 	Metadata map[string]interface{} `json:"metadata,omitempty" jsonschema:"New metadata"`
 }
 
@@ -110,9 +113,15 @@ func (s *Server) storeMemory(
 		return r, nil, nil
 	}
 
+	statusPtr, statusErr := validateMCPMemoryStatus(params.Status)
+	if statusErr != nil {
+		return statusErr, nil, nil
+	}
+
 	createReq := &models.CreateMemoryRequest{
 		ProjectID: params.ProjectID,
 		Text:      params.Text,
+		Status:    statusPtr,
 		Metadata:  params.Metadata,
 	}
 
@@ -150,6 +159,26 @@ func (s *Server) storeMemory(
 		},
 		StructuredContent: result,
 	}, result, nil
+}
+
+// validateMCPMemoryStatus validates an optional MCP status argument. It returns
+// the status as a pointer to thread into a request (nil when unset, so the
+// service default applies), or a non-nil error result to hand back to the caller
+// when the value falls outside the allowed enum.
+func validateMCPMemoryStatus(status string) (*string, *mcp.CallToolResult) {
+	if status == "" {
+		return nil, nil
+	}
+	if !isAllowedMemoryStatus(status) {
+		return nil, &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: "status must be one of: active, draft, archived"},
+			},
+			IsError: true,
+		}
+	}
+	s := status
+	return &s, nil
 }
 
 // buildMemoryWriteResponse builds the slim write response for a memory by ID.
@@ -196,6 +225,11 @@ func (s *Server) listMemoriesByProject(
 		return r, nil, nil
 	}
 
+	statusPtr, statusErr := validateMCPMemoryStatus(params.Status)
+	if statusErr != nil {
+		return statusErr, nil, nil
+	}
+
 	page := params.Page
 	if page <= 0 {
 		page = 1
@@ -210,6 +244,7 @@ func (s *Server) listMemoriesByProject(
 		TeamID:    teamID,
 		ProjectID: &projectID,
 		Search:    params.Search,
+		Status:    statusPtr,
 		Page:      page,
 		Limit:     limit,
 	}
@@ -342,7 +377,12 @@ func (s *Server) updateMemory(
 		return errResult, nil, nil
 	}
 
-	updateReq := &models.UpdateMemoryRequest{}
+	statusPtr, statusErr := validateMCPMemoryStatus(params.Status)
+	if statusErr != nil {
+		return statusErr, nil, nil
+	}
+
+	updateReq := &models.UpdateMemoryRequest{Status: statusPtr}
 	if params.Text != "" {
 		updateReq.Text = &params.Text
 	}

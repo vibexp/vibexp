@@ -1,3 +1,13 @@
+-- Memory lifecycle status (issue #17): add an active/draft/archived `status`
+-- column to memories, mirroring the artifacts pattern, so memories can be staged
+-- as draft or retired as archived. Existing rows backfill to 'active' via the
+-- NOT NULL default; a CHECK constraint enforces the allowed values.
+ALTER TABLE public.memories
+    ADD COLUMN status varchar(20) DEFAULT 'active'::character varying NOT NULL;
+
+ALTER TABLE public.memories
+    ADD CONSTRAINT memories_status_check CHECK (status IN ('active', 'draft', 'archived'));
+
 -- Full-text search fallback (issue #18): when no embedding provider is configured,
 -- search reads the source tables directly with PostgreSQL FTS instead of the empty
 -- embeddings table. These GIN indexes cover the exact combined title+body tsvector

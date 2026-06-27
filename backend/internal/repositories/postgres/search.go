@@ -68,7 +68,7 @@ var entitySources = map[string]entitySource{
 		titleExpr:    "LEFT(src.text, 100)",
 		bodyExpr:     "src.text",
 		slugExpr:     "''",
-		statusFilter: "",
+		statusFilter: "src.status = 'active'",
 	},
 }
 

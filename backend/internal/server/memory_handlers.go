@@ -62,6 +62,14 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Status != nil && *req.Status != "" && !isAllowedMemoryStatus(*req.Status) {
+		writeErrorResponse(
+			w, nil, "validation_error",
+			"status must be one of: active, draft, archived", http.StatusBadRequest,
+		)
+		return
+	}
+
 	if !s.validateProjectBelongsToTeam(r.Context(), w, userID, teamID, req.ProjectID) {
 		return
 	}
@@ -135,6 +143,18 @@ var allowedMemorySortFields = map[string]bool{
 	"text": true, "updated_at": true, "created_at": true,
 }
 
+// isAllowedMemoryStatus reports whether status is one of the memory lifecycle
+// statuses. An empty value is handled by the caller (treated as "unset"), so it
+// is not accepted here.
+func isAllowedMemoryStatus(status string) bool {
+	switch status {
+	case models.MemoryStatusActive, models.MemoryStatusDraft, models.MemoryStatusArchived:
+		return true
+	default:
+		return false
+	}
+}
+
 // parseMemoryFilters parses query parameters into MemoryFilters
 func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (services.MemoryFilters, bool) {
 	query := r.URL.Query()
@@ -167,12 +187,25 @@ func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (
 		projectID = &pid
 	}
 
+	var status *string
+	if st := query.Get("status"); st != "" {
+		if !isAllowedMemoryStatus(st) {
+			writeErrorResponse(
+				w, nil, "validation_error",
+				"status must be one of: active, draft, archived", http.StatusBadRequest,
+			)
+			return services.MemoryFilters{}, false
+		}
+		status = &st
+	}
+
 	filters := services.MemoryFilters{
 		TeamID:        teamID,
 		ProjectID:     projectID,
 		Search:        search,
 		MetadataKey:   metadataKey,
 		MetadataValue: metadataValue,
+		Status:        status,
 		SortBy:        sortBy,
 		SortOrder:     strings.ToLower(query.Get("sort_order")),
 		Page:          pagination.Page,
@@ -297,10 +330,10 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) validateUpdateMemoryRequest(w http.ResponseWriter, req *models.UpdateMemoryRequest) bool {
-	if req.Text == nil && req.Metadata == nil && req.ProjectID == nil {
+	if req.Text == nil && req.Metadata == nil && req.ProjectID == nil && req.Status == nil {
 		writeErrorResponse(
 			w, nil, "validation_error",
-			"At least one field (text, metadata, or project_id) must be provided",
+			"At least one field (text, metadata, project_id, or status) must be provided",
 			http.StatusBadRequest,
 		)
 		return false
@@ -313,6 +346,14 @@ func (s *Server) validateUpdateMemoryRequest(w http.ResponseWriter, req *models.
 
 	if req.ProjectID != nil && !isValidUUID(*req.ProjectID) {
 		writeErrorResponse(w, nil, "validation_error", "project_id must be a valid UUID", http.StatusBadRequest)
+		return false
+	}
+
+	if req.Status != nil && *req.Status != "" && !isAllowedMemoryStatus(*req.Status) {
+		writeErrorResponse(
+			w, nil, "validation_error",
+			"status must be one of: active, draft, archived", http.StatusBadRequest,
+		)
 		return false
 	}
 

@@ -15,10 +15,10 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// memoryListColumns mirrors the 8 columns scanned by List (no version column on
-// the list path).
+// memoryListColumns mirrors the 9 columns scanned by List (status added; no
+// version column on the list path).
 var memoryListColumns = []string{
-	"id", "user_id", "team_id", "project_id", "text", "metadata", "created_at", "updated_at",
+	"id", "user_id", "team_id", "project_id", "text", "status", "metadata", "created_at", "updated_at",
 }
 
 // setupMemoryListTest builds a MemoryRepository backed by a sqlmock connection.
@@ -37,6 +37,13 @@ func memoryListBaseArgs() []driver.Value {
 	return []driver.Value{"team-123", "team-123", "user-123", "team-123", "user-123"}
 }
 
+// memoryListDefaultArgs adds the trailing status-visibility argument bound by the
+// default path (no keyword search, no explicit status filter): archived memories
+// are excluded via `m.status <> 'archived'`.
+func memoryListDefaultArgs() []driver.Value {
+	return append(memoryListBaseArgs(), "archived")
+}
+
 //nolint:funlen // table-driven test with multiple filter scenarios
 func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 	repo, mock, mockDB := setupMemoryListTest(t)
@@ -51,11 +58,12 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 	projectID := "project-x"
 	metaKey := "env"
 	metaValue := "prod"
+	draftStatus := "draft"
 
 	oneRow := func() *sqlmock.Rows {
 		return sqlmock.NewRows(memoryListColumns).AddRow(
 			"memory-1", "user-123", "team-123", "project-123", "remember this",
-			[]byte(`{"env":"prod"}`), now, now,
+			"active", []byte(`{"env":"prod"}`), now, now,
 		)
 	}
 
@@ -73,10 +81,10 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 			},
 			setupMock: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM memories m .* ORDER BY m\.text ASC LIMIT 10 OFFSET 0`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(oneRow())
 			},
 			expectTotal: 1,
@@ -89,27 +97,60 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 			},
 			setupMock: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				// The injection attempt must never reach the query; default ordering applies.
 				mock.ExpectQuery(`FROM memories m .* ORDER BY m\.updated_at DESC LIMIT 10 OFFSET 0`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(oneRow())
 			},
 			expectTotal: 1,
 			expectCount: 1,
 		},
 		{
-			name: "Search binds a single %term% via ILIKE",
+			name: "default visibility hides archived via status <> archived",
+			filters: repositories.MemoryFilters{
+				TeamID: "team-123", Page: 1, Limit: 10,
+			},
+			setupMock: func() {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.status <> \$6`).
+					WithArgs(memoryListDefaultArgs()...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM memories m .* AND m\.status <> \$6`).
+					WithArgs(memoryListDefaultArgs()...).
+					WillReturnRows(oneRow())
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name: "explicit status filter selects that status and keeps archived reachable",
+			filters: repositories.MemoryFilters{
+				TeamID: "team-123", Status: &draftStatus, Page: 1, Limit: 10,
+			},
+			setupMock: func() {
+				args := append(memoryListBaseArgs(), "draft")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.status = \$6`).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM memories m .* AND m\.status = \$6`).
+					WithArgs(args...).
+					WillReturnRows(oneRow())
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name: "Search binds a single %term% via ILIKE and forces active status",
 			filters: repositories.MemoryFilters{
 				TeamID: "team-123", Search: "alpha", Page: 1, Limit: 10,
 			},
 			setupMock: func() {
-				args := append(memoryListBaseArgs(), "%alpha%")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.text ILIKE \$6`).
+				args := append(memoryListBaseArgs(), "%alpha%", "active")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.text ILIKE \$6 AND m\.status = \$7`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories m .* AND m\.text ILIKE \$6`).
+				mock.ExpectQuery(`FROM memories m .* AND m\.text ILIKE \$6 AND m\.status = \$7`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
@@ -122,11 +163,12 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 				TeamID: "team-123", ProjectID: &projectID, Page: 1, Limit: 10,
 			},
 			setupMock: func() {
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.project_id = \$6`).
-					WithArgs(append(memoryListBaseArgs(), "project-x")...).
+				args := append(memoryListBaseArgs(), "project-x", "archived")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.project_id = \$6 AND m\.status <> \$7`).
+					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories m .* AND m\.project_id = \$6`).
-					WithArgs(append(memoryListBaseArgs(), "project-x")...).
+				mock.ExpectQuery(`FROM memories m .* AND m\.project_id = \$6 AND m\.status <> \$7`).
+					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
 			expectTotal: 1,
@@ -138,11 +180,11 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 				TeamID: "team-123", MetadataKey: &metaKey, MetadataValue: &metaValue, Page: 1, Limit: 10,
 			},
 			setupMock: func() {
-				args := append(memoryListBaseArgs(), "env", "prod")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.metadata ->> \$6 = \$7`).
+				args := append(memoryListBaseArgs(), "env", "prod", "archived")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.metadata ->> \$6 = \$7 AND m\.status <> \$8`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories m .* AND m\.metadata ->> \$6 = \$7`).
+				mock.ExpectQuery(`FROM memories m .* AND m\.metadata ->> \$6 = \$7 AND m\.status <> \$8`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
@@ -156,10 +198,10 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 			},
 			setupMock: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
 				mock.ExpectQuery(`FROM memories m .* ORDER BY m\.updated_at DESC LIMIT 0 OFFSET 0`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows(memoryListColumns))
 			},
 			expectTotal: 3,
@@ -172,11 +214,11 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 			},
 			setupMock: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(20))
 				// offset = (3-1)*5 = 10
 				mock.ExpectQuery(`FROM memories m .* ORDER BY m\.updated_at DESC LIMIT 5 OFFSET 10`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(oneRow())
 			},
 			expectTotal: 20,
@@ -218,7 +260,7 @@ func TestMemoryRepository_List_RequiresTeamID(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestMemoryRepository_List_ExplicitProjection pins the full 8-column projection
+// TestMemoryRepository_List_ExplicitProjection pins the full 9-column projection
 // for the default path. A `.+` matcher would not catch column drift, so the
 // projection is asserted verbatim.
 func TestMemoryRepository_List_ExplicitProjection(t *testing.T) {
@@ -234,18 +276,18 @@ func TestMemoryRepository_List_ExplicitProjection(t *testing.T) {
 	filters := repositories.MemoryFilters{TeamID: "team-123", Page: 1, Limit: 10}
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-		WithArgs(memoryListBaseArgs()...).
+		WithArgs(memoryListDefaultArgs()...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	mock.ExpectQuery(
 		`SELECT m\.id, m\.user_id, m\.team_id, m\.project_id, ` +
-			`m\.text, m\.metadata, m\.created_at, m\.updated_at ` +
+			`m\.text, m\.status, m\.metadata, m\.created_at, m\.updated_at ` +
 			`FROM memories m WHERE`,
 	).
-		WithArgs(memoryListBaseArgs()...).
+		WithArgs(memoryListDefaultArgs()...).
 		WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
 			"memory-1", "user-123", "team-123", "project-123", "remember this",
-			[]byte(`{"env":"prod"}`), now, now,
+			"active", []byte(`{"env":"prod"}`), now, now,
 		))
 
 	memories, total, err := repo.List(ctx, "user-123", filters)
@@ -253,6 +295,7 @@ func TestMemoryRepository_List_ExplicitProjection(t *testing.T) {
 	assert.Equal(t, 1, total)
 	require.Len(t, memories, 1)
 	assert.Equal(t, "memory-1", memories[0].ID)
+	assert.Equal(t, "active", memories[0].Status)
 	assert.Equal(t, "prod", memories[0].Metadata["env"])
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -271,7 +314,7 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 			name: "count query error propagates wrapped",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnError(sql.ErrConnDone)
 			},
 			wantErr: "failed to count memories",
@@ -280,10 +323,10 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 			name: "list query error propagates wrapped",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnError(sql.ErrConnDone)
 			},
 			wantErr: "failed to list memories",
@@ -292,11 +335,11 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 			name: "scan error propagates wrapped",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				// One column instead of the eight the scan expects forces a scan error.
+				// One column instead of the nine the scan expects forces a scan error.
 				mock.ExpectQuery(`FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("memory-1"))
 			},
 			wantErr: "failed to scan memory",
@@ -305,13 +348,13 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 			name: "invalid metadata JSON propagates unmarshal error",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
 						"memory-1", "user-123", "team-123", "project-123", "remember this",
-						[]byte(`{not valid json`), now, now,
+						"active", []byte(`{not valid json`), now, now,
 					))
 			},
 			wantErr: "failed to unmarshal metadata",
@@ -320,14 +363,14 @@ func TestMemoryRepository_List_ErrorPaths(t *testing.T) {
 			name: "row iteration error propagates wrapped",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				rows := sqlmock.NewRows(memoryListColumns).AddRow(
 					"memory-1", "user-123", "team-123", "project-123", "remember this",
-					[]byte(`{"env":"prod"}`), now, now,
+					"active", []byte(`{"env":"prod"}`), now, now,
 				).RowError(0, sql.ErrConnDone)
 				mock.ExpectQuery(`FROM memories m`).
-					WithArgs(memoryListBaseArgs()...).
+					WithArgs(memoryListDefaultArgs()...).
 					WillReturnRows(rows)
 			},
 			wantErr: "failed to iterate memories",

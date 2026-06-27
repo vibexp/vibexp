@@ -79,9 +79,10 @@ func buildBranchCases() []buildBranchCase {
 			}, commonProjectFragments...),
 		},
 		{
-			name:       "memory branch has no status filter",
+			name:       "memory branch filters active status",
 			entityType: "memory",
 			mustContain: append([]string{
+				"src.status = 'active'",
 				"JOIN memories src",
 				"LEFT(src.text, 100) AS title",
 				"src.text AS source_body",
@@ -106,7 +107,7 @@ func TestBuildBranch_AppliesVisibilityAndScoping(t *testing.T) {
 	}
 
 	memoryBranch := buildBranch("memory", entitySources["memory"])
-	assert.NotContains(t, memoryBranch, "src.status")
+	assert.Contains(t, memoryBranch, "src.status = 'active'")
 }
 
 func TestBuildUnion_OrdersAndCountsBranches(t *testing.T) {
@@ -378,15 +379,16 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 			mustNotContain: []string{"FROM embeddings", "<=>"},
 		},
 		{
-			name:       "memory branch has no status filter",
+			name:       "memory branch filters active status",
 			entityType: "memory",
 			mustContain: append([]string{
+				"src.status = 'active'",
 				"FROM memories src",
 				"LEFT(src.text, 100) AS title",
 				"src.text AS source_body",
 				"'' AS slug",
 			}, commonFragments...),
-			mustNotContain: []string{"src.status", "FROM embeddings"},
+			mustNotContain: []string{"FROM embeddings"},
 		},
 	}
 

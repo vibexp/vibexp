@@ -16,6 +16,11 @@ Memory:
       type: string
       description: The text content of the memory
       example: "Remember to update the API documentation when adding new endpoints"
+    status:
+      type: string
+      enum: [active, draft, archived]
+      description: Current lifecycle status of the memory
+      example: "active"
     metadata:
       type: object
       additionalProperties: true
@@ -38,6 +43,7 @@ Memory:
     - id
     - user_id
     - text
+    - status
     - created_at
     - updated_at
 
@@ -50,6 +56,11 @@ CreateMemoryRequest:
       description: The text content of the memory
       minLength: 1
       example: "Remember to update the API documentation when adding new endpoints"
+    status:
+      type: string
+      enum: [active, draft, archived]
+      description: Initial lifecycle status of the memory (defaults to active)
+      example: "active"
     metadata:
       type: object
       additionalProperties: true
@@ -70,6 +81,11 @@ UpdateMemoryRequest:
       description: Updated text content of the memory
       minLength: 1
       example: "Updated reminder to include versioning in API documentation"
+    status:
+      type: string
+      enum: [active, draft, archived]
+      description: Updated lifecycle status of the memory
+      example: "archived"
     metadata:
       type: object
       additionalProperties: true

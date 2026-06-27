@@ -154,7 +154,7 @@ func TestHandleRestoreMemoryVersion_Success(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 	restored := &models.Memory{
 		ID: versionMemoryID, ProjectID: testHandlerProjectID, TeamID: versionTeamID,
-		UserID: "user-123", Text: "v1", Metadata: map[string]interface{}{},
+		UserID: "user-123", Text: "v1", Status: models.MemoryStatusActive, Metadata: map[string]interface{}{},
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 

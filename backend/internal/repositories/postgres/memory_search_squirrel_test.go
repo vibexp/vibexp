@@ -22,6 +22,13 @@ func searchBaseArgs() []driver.Value {
 	return []driver.Value{"user-123", "env", "prod"}
 }
 
+// searchDefaultArgs adds the trailing status-visibility argument bound by the
+// default path (no keyword search, no explicit status filter): archived memories
+// are excluded via `status <> 'archived'`.
+func searchDefaultArgs() []driver.Value {
+	return append(searchBaseArgs(), "archived")
+}
+
 //nolint:funlen // table-driven test with multiple filter scenarios
 func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 	repo, mock, mockDB := setupMemoryListTest(t)
@@ -34,11 +41,12 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	projectID := "project-x"
+	draftStatus := "draft"
 
 	oneRow := func() *sqlmock.Rows {
 		return sqlmock.NewRows(memoryListColumns).AddRow(
 			"memory-1", "user-123", "team-123", "project-123", "remember this",
-			[]byte(`{"env":"prod"}`), now, now,
+			"active", []byte(`{"env":"prod"}`), now, now,
 		)
 	}
 
@@ -50,14 +58,31 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 		expectCount int
 	}{
 		{
-			name:    "base metadata filter binds user_id and key/value",
+			name:    "base metadata filter binds user_id, key/value and hides archived",
 			filters: repositories.MemoryFilters{Page: 1, Limit: 10},
 			setupMock: func() {
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE \(user_id = \$1 AND metadata ->> \$2 = \$3\)`).
-					WithArgs(searchBaseArgs()...).
+				mock.ExpectQuery(
+					`SELECT COUNT\(\*\) FROM memories WHERE ` +
+						`\(user_id = \$1 AND metadata ->> \$2 = \$3 AND status <> \$4\)`).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM memories WHERE .* ORDER BY created_at DESC LIMIT 10 OFFSET 0`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
+					WillReturnRows(oneRow())
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name:    "explicit status filter selects that status",
+			filters: repositories.MemoryFilters{Status: &draftStatus, Page: 1, Limit: 10},
+			setupMock: func() {
+				args := append(searchBaseArgs(), "draft")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND status = \$4`).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM memories WHERE .* AND status = \$4`).
+					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
 			expectTotal: 1,
@@ -67,11 +92,11 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 			name:    "ProjectID filter binds project_id equality",
 			filters: repositories.MemoryFilters{ProjectID: &projectID, Page: 1, Limit: 10},
 			setupMock: func() {
-				args := append(searchBaseArgs(), "project-x")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND project_id = \$4`).
+				args := append(searchBaseArgs(), "project-x", "archived")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND project_id = \$4 AND status <> \$5`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories WHERE .* AND project_id = \$4`).
+				mock.ExpectQuery(`FROM memories WHERE .* AND project_id = \$4 AND status <> \$5`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
@@ -79,14 +104,14 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name:    "Search binds a single %term% via ILIKE",
+			name:    "Search binds a single %term% via ILIKE and forces active status",
 			filters: repositories.MemoryFilters{Search: "alpha", Page: 1, Limit: 10},
 			setupMock: func() {
-				args := append(searchBaseArgs(), "%alpha%")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND text ILIKE \$4`).
+				args := append(searchBaseArgs(), "%alpha%", "active")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND text ILIKE \$4 AND status = \$5`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories WHERE .* AND text ILIKE \$4`).
+				mock.ExpectQuery(`FROM memories WHERE .* AND text ILIKE \$4 AND status = \$5`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
@@ -94,14 +119,15 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name:    "ProjectID and Search bind both extra args",
+			name:    "ProjectID and Search bind both extra args and force active",
 			filters: repositories.MemoryFilters{ProjectID: &projectID, Search: "alpha", Page: 1, Limit: 10},
 			setupMock: func() {
-				args := append(searchBaseArgs(), "project-x", "%alpha%")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND project_id = \$4 AND text ILIKE \$5`).
+				args := append(searchBaseArgs(), "project-x", "%alpha%", "active")
+				mock.ExpectQuery(
+					`SELECT COUNT\(\*\) FROM memories WHERE .* AND project_id = \$4 AND text ILIKE \$5 AND status = \$6`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories WHERE .* AND project_id = \$4 AND text ILIKE \$5`).
+				mock.ExpectQuery(`FROM memories WHERE .* AND project_id = \$4 AND text ILIKE \$5 AND status = \$6`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
@@ -113,10 +139,10 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 			filters: repositories.MemoryFilters{Page: 0, Limit: -5},
 			setupMock: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
 				mock.ExpectQuery(`FROM memories WHERE .* ORDER BY created_at DESC LIMIT 0 OFFSET 0`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows(memoryListColumns))
 			},
 			expectTotal: 3,
@@ -127,11 +153,11 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 			filters: repositories.MemoryFilters{Page: 3, Limit: 5},
 			setupMock: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(20))
 				// offset = (3-1)*5 = 10
 				mock.ExpectQuery(`FROM memories WHERE .* ORDER BY created_at DESC LIMIT 5 OFFSET 10`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnRows(oneRow())
 			},
 			expectTotal: 20,
@@ -155,7 +181,7 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 }
 
 // TestMemoryRepository_SearchByMetadata_ExplicitProjection pins the full
-// 8-column projection so a column drift fails the test.
+// 9-column projection so a column drift fails the test.
 func TestMemoryRepository_SearchByMetadata_ExplicitProjection(t *testing.T) {
 	repo, mock, mockDB := setupMemoryListTest(t)
 	defer func() {
@@ -168,17 +194,17 @@ func TestMemoryRepository_SearchByMetadata_ExplicitProjection(t *testing.T) {
 	now := time.Now()
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE`).
-		WithArgs(searchBaseArgs()...).
+		WithArgs(searchDefaultArgs()...).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	mock.ExpectQuery(
-		`SELECT id, user_id, team_id, project_id, text, metadata, created_at, updated_at ` +
+		`SELECT id, user_id, team_id, project_id, text, status, metadata, created_at, updated_at ` +
 			`FROM memories WHERE`,
 	).
-		WithArgs(searchBaseArgs()...).
+		WithArgs(searchDefaultArgs()...).
 		WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
 			"memory-1", "user-123", "team-123", "project-123", "remember this",
-			[]byte(`{"env":"prod"}`), now, now,
+			"active", []byte(`{"env":"prod"}`), now, now,
 		))
 
 	memories, total, err := repo.SearchByMetadata(ctx, "user-123", "env", "prod",
@@ -187,6 +213,7 @@ func TestMemoryRepository_SearchByMetadata_ExplicitProjection(t *testing.T) {
 	assert.Equal(t, 1, total)
 	require.Len(t, memories, 1)
 	assert.Equal(t, "memory-1", memories[0].ID)
+	assert.Equal(t, "active", memories[0].Status)
 	assert.Equal(t, "prod", memories[0].Metadata["env"])
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -205,7 +232,7 @@ func TestMemoryRepository_SearchByMetadata_ErrorPaths(t *testing.T) {
 			name: "count query error propagates wrapped",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnError(sql.ErrConnDone)
 			},
 			wantErr: "failed to count memories",
@@ -214,10 +241,10 @@ func TestMemoryRepository_SearchByMetadata_ErrorPaths(t *testing.T) {
 			name: "search query error propagates wrapped",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM memories WHERE`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnError(sql.ErrConnDone)
 			},
 			wantErr: "failed to search memories by metadata",
@@ -226,13 +253,13 @@ func TestMemoryRepository_SearchByMetadata_ErrorPaths(t *testing.T) {
 			name: "invalid metadata JSON propagates unmarshal error",
 			setupMock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM memories WHERE`).
-					WithArgs(searchBaseArgs()...).
+					WithArgs(searchDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows(memoryListColumns).AddRow(
 						"memory-1", "user-123", "team-123", "project-123", "remember this",
-						[]byte(`{not valid json`), now, now,
+						"active", []byte(`{not valid json`), now, now,
 					))
 			},
 			wantErr: "failed to unmarshal metadata",
