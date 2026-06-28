@@ -62,8 +62,8 @@ func (r *oauthRequestRepository) Create(ctx context.Context, req *models.OAuthRe
 
 	_, err := r.db.ExecContext(ctx, query,
 		req.Signature, req.RequestID, req.ClientID, req.Subject,
-		pq.Array(req.RequestedScope), pq.Array(req.GrantedScope),
-		pq.Array(req.RequestedAudience), pq.Array(req.GrantedAudience),
+		pq.Array(nonNilArray(req.RequestedScope)), pq.Array(nonNilArray(req.GrantedScope)),
+		pq.Array(nonNilArray(req.RequestedAudience)), pq.Array(nonNilArray(req.GrantedAudience)),
 		req.RequestedAt, req.FormData, req.SessionData, req.Active, nullableTime(req.ExpiresAt),
 	)
 	if err != nil {
@@ -76,6 +76,17 @@ func (r *oauthRequestRepository) Create(ctx context.Context, req *models.OAuthRe
 // NULL (and thus never matched by the retention sweep) rather than the epoch.
 func nullableTime(t time.Time) sql.NullTime {
 	return sql.NullTime{Time: t, Valid: !t.IsZero()}
+}
+
+// nonNilArray maps a nil slice to a non-nil empty one so pq encodes it as the
+// empty SQL array '{}' rather than NULL. The text[] columns are NOT NULL DEFAULT
+// '{}', but an explicit NULL bind (e.g. a request with a `resource` param but no
+// `audience`, which yields a nil RequestedAudience) would violate that constraint.
+func nonNilArray(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 // DeleteExpired removes rows whose expiry has passed. Rows with a NULL expires_at

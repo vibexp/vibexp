@@ -185,6 +185,33 @@ func TestOAuthRequestRepository_CreateZeroExpiresAtIsNull(t *testing.T) {
 	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
+// TestOAuthRequestRepository_CreateNilArraysBindEmpty guards the regression where
+// a request carrying an RFC 8707 `resource` parameter but no `audience` (as the
+// Claude Code MCP client sends) yields a nil RequestedAudience. pq encodes a nil
+// slice as SQL NULL, which violates the requested_audience text[] NOT NULL
+// constraint and fails the authorization-code insert. All four array columns must
+// be bound as the empty array '{}' instead.
+func TestOAuthRequestRepository_CreateNilArraysBindEmpty(t *testing.T) {
+	db, dbMock, cleanup := newMockDB(t)
+	defer cleanup()
+	repo := NewOAuthCodeRepository(db)
+
+	dbMock.ExpectExec(`INSERT INTO oauth_authorization_codes`).
+		WithArgs(
+			"sig-3", "req-3", "client-1", "user-1",
+			"{}", "{}", "{}", "{}", // requested/granted scope + requested/granted audience
+			nowForTest(), []byte(`{}`), []byte(`{}`), true, sql.NullTime{},
+		).WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repo.Create(context.Background(), &models.OAuthRequest{
+		Signature: "sig-3", RequestID: "req-3", ClientID: "client-1", Subject: "user-1",
+		RequestedScope: nil, GrantedScope: nil, RequestedAudience: nil, GrantedAudience: nil,
+		RequestedAt: nowForTest(), FormData: []byte(`{}`), SessionData: []byte(`{}`), Active: true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
 func TestOAuthRequestRepository_DeleteExpired(t *testing.T) {
 	db, dbMock, cleanup := newMockDB(t)
 	defer cleanup()
