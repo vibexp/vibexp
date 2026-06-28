@@ -309,6 +309,11 @@ func newOAuthAuthorizationServer(
 			AuthCodeTTL:         cfg.OAuthASAuthCodeTTL,
 			KeyRotationInterval: cfg.OAuthASKeyRotationInterval,
 			CleanupInterval:     cfg.OAuthASCleanupInterval,
+			// Hard dev gate (development env AND DEV_LOGIN_ENABLED): lets the AS
+			// authorize flow fall back to dev login when no IdP is configured. Always
+			// false in production, so the dev-login authenticator is never registered
+			// there.
+			DevLoginEnabled: c.EnvironmentService().IsDevLoginEnabled(),
 		},
 		[]byte(cfg.EncryptionKey),
 		postgres.NewOAuthClientRepository(db),
@@ -431,8 +436,20 @@ func (s *Server) setupPublicRoutes() {
 	// OAuth 2.1 resource-server discovery for the MCP endpoint. Both are public
 	// (no auth): clients fetch them before they hold a token. RFC 9728 (PRM) and
 	// the legacy AS-metadata probe path that older MCP clients hit.
-	mcpMetadataPath, _ := deriveMCPMetadata(s.config.MCPResourceURI)
-	s.router.Handle(mcpMetadataPath, s.mcpProtectedResourceMetadataHandler())
+	//
+	// The PRM document is advertised ONLY when MCP auth is actually configured.
+	// With no resource URI there is nothing valid to publish: serving a document
+	// with empty `resource`/`authorization_servers` (as it once did) makes a client
+	// fail with an opaque "Invalid OAuth error response" instead of a clear signal,
+	// so the route is left unregistered and discovery 404s — the honest answer when
+	// MCP auth is off. The AS-metadata probe path already 404s when unconfigured.
+	if s.config.MCPResourceURI != "" {
+		mcpMetadataPath, _ := deriveMCPMetadata(s.config.MCPResourceURI)
+		s.router.Handle(mcpMetadataPath, s.mcpProtectedResourceMetadataHandler())
+	} else {
+		s.logger.Warn("MCP auth not configured (MCP_RESOURCE_URI empty); " +
+			"protected-resource metadata not advertised and the MCP endpoint rejects all tokens")
+	}
 	s.router.Get(mcpAuthorizationServerMetadataPath, s.handleMCPAuthorizationServerMetadata)
 	s.setupContactRoutes()
 	s.setupTestRoutes()
