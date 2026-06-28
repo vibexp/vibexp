@@ -56,7 +56,9 @@ export function MetaRow({
  * click-to-copy target — the one field people actually grab. The whole chip is a
  * real `<button>` (keyboard-activatable, with an `aria-label`), so it aligns
  * flush-right with the other rows instead of reserving space for a separate copy
- * button. On copy it swaps to a check affordance for ~1.5s. Wraps when long.
+ * button. On copy it swaps to a check affordance for ~1.5s. Long slugs truncate
+ * to a single line with a trailing ellipsis — the full value is still copied on
+ * click and announced via the `aria-label`/`title`, so nothing is lost.
  */
 export function MetaSlugRow({
   label = 'Slug',
@@ -81,9 +83,9 @@ export function MetaSlugRow({
         // assistive tech would announce the action but not what gets copied.
         aria-label={`${action}: ${value}`}
         title={copied ? 'Copied!' : action}
-        className="flex min-w-0 max-w-full cursor-pointer flex-wrap items-center justify-end gap-1.5 break-all rounded-sm bg-secondary px-2 py-[3px] font-mono text-xs text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 max-w-full cursor-pointer items-center justify-end gap-1.5 rounded-sm bg-secondary px-2 py-[3px] font-mono text-xs text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <code className="break-all font-mono">{value}</code>
+        <code className="min-w-0 truncate font-mono">{value}</code>
         <CopyIcon
           aria-hidden="true"
           className="size-3 shrink-0 text-muted-foreground"

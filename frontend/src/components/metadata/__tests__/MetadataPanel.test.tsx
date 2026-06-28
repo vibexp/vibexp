@@ -57,6 +57,42 @@ describe('MetaSlugRow', () => {
     expect(button).toHaveAccessibleName('Copy slug: my-artifact-slug')
   })
 
+  it('truncates a long slug to a single line instead of wrapping', () => {
+    const longSlug =
+      'a-very-long-resource-slug-that-would-otherwise-wrap-' + 'x'.repeat(60)
+    render(
+      <ul>
+        <MetaSlugRow value={longSlug} />
+      </ul>
+    )
+    const code = screen.getByText(longSlug)
+    // `truncate` (overflow-hidden + text-ellipsis + whitespace-nowrap) keeps the
+    // chip on one line; `min-w-0` lets it shrink so the ellipsis can show. The
+    // old wrapping behaviour (`break-all` + `flex-wrap`) must be gone.
+    expect(code).toHaveClass('truncate', 'min-w-0')
+    expect(code).not.toHaveClass('break-all')
+    const button = screen.getByRole('button', { name: /copy slug/i })
+    expect(button).not.toHaveClass('flex-wrap', 'break-all')
+  })
+
+  it('still copies the full, untruncated slug on click', async () => {
+    const writeText = jest.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    const longSlug = 'full-' + 'y'.repeat(120)
+    render(
+      <ul>
+        <MetaSlugRow value={longSlug} />
+      </ul>
+    )
+    fireEvent.click(screen.getByRole('button', { name: /copy slug/i }))
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(longSlug)
+    })
+  })
+
   it('honours a custom label in both the row and the copy action', () => {
     render(
       <ul>
