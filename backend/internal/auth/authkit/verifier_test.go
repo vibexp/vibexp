@@ -38,7 +38,8 @@ func (s stubResolver) ResolveUserID(_ context.Context, _, _ string) (string, err
 }
 
 // jwksTestServer holds an ephemeral RSA key and an httptest server that serves
-// the corresponding JWKS at <baseURL>/oauth2/jwks, mimicking AuthKit.
+// the corresponding JWKS at <baseURL>/oauth2/jwks.json, mimicking VibeXP's
+// embedded Authorization Server.
 type jwksTestServer struct {
 	key    *rsa.PrivateKey
 	server *httptest.Server
@@ -50,7 +51,7 @@ func newJWKSTestServer(t *testing.T) *jwksTestServer {
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/oauth2/jwks", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/oauth2/jwks.json", func(w http.ResponseWriter, _ *http.Request) {
 		n := base64.RawURLEncoding.EncodeToString(key.N.Bytes())
 		e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes())
 		jwks := map[string]any{
@@ -305,17 +306,17 @@ func TestJWKSURL(t *testing.T) {
 		{
 			"bare issuer host",
 			"https://idp.example.com",
-			"https://idp.example.com/oauth2/jwks",
+			"https://idp.example.com/oauth2/jwks.json",
 		},
 		{
 			"issuer with a path prefix",
 			"https://idp.example.com/realms/vibexp",
-			"https://idp.example.com/realms/vibexp/oauth2/jwks",
+			"https://idp.example.com/realms/vibexp/oauth2/jwks.json",
 		},
 		{
 			"issuer with a trailing slash",
 			"https://idp.example.com/",
-			"https://idp.example.com//oauth2/jwks",
+			"https://idp.example.com//oauth2/jwks.json",
 		},
 	}
 	for _, tt := range tests {

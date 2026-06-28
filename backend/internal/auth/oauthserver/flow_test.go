@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
+	"github.com/vibexp/vibexp/internal/auth/mcptoken"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -115,14 +116,14 @@ func testMux(svc *Service) *http.ServeMux {
 
 func (h *testHarness) close() { h.server.Close() }
 
-func pkceChallenge(verifier string) string {
-	sum := sha256.Sum256([]byte(verifier))
+func pkceChallenge() string {
+	sum := sha256.Sum256([]byte(testVerifier))
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 // runAuthorizeToCode drives authorize -> upstream callback -> consent and returns
-// the issued authorization code.
-func (h *testHarness) runAuthorizeToCode(t *testing.T, challengeMethod, challenge string) string {
+// the issued authorization code. PKCE uses S256 (the only method the AS allows).
+func (h *testHarness) runAuthorizeToCode(t *testing.T, challenge string) string {
 	t.Helper()
 	q := url.Values{
 		"response_type":         {"code"},
@@ -131,7 +132,7 @@ func (h *testHarness) runAuthorizeToCode(t *testing.T, challengeMethod, challeng
 		"state":                 {"state-abcdefgh"},
 		"resource":              {testResourceURI},
 		"code_challenge":        {challenge},
-		"code_challenge_method": {challengeMethod},
+		"code_challenge_method": {"S256"},
 	}
 	loginID := queryParam(t, h.requireRedirect(t, h.get(t, AuthorizePath+"?"+q.Encode())), "state")
 
@@ -173,7 +174,7 @@ func TestAuthorizationCodeFlow_IssuesAudienceBoundJWT(t *testing.T) {
 	h := newTestHarness(t)
 	defer h.close()
 
-	code := h.runAuthorizeToCode(t, "S256", pkceChallenge(testVerifier))
+	code := h.runAuthorizeToCode(t, pkceChallenge())
 	res := h.exchangeCode(t, code, testVerifier)
 
 	require.Equal(t, http.StatusOK, res.status, "token endpoint should succeed")
@@ -194,7 +195,7 @@ func TestAuthorizationCodeFlow_RejectsWrongPKCEVerifier(t *testing.T) {
 	h := newTestHarness(t)
 	defer h.close()
 
-	code := h.runAuthorizeToCode(t, "S256", pkceChallenge(testVerifier))
+	code := h.runAuthorizeToCode(t, pkceChallenge())
 	res := h.exchangeCode(t, code, "wrong-verifier-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
 	assert.Equal(t, http.StatusBadRequest, res.status)
@@ -236,7 +237,7 @@ func TestRefreshToken_RotatesAndDetectsReuse(t *testing.T) {
 	h := newTestHarness(t)
 	defer h.close()
 
-	code := h.runAuthorizeToCode(t, "S256", pkceChallenge(testVerifier))
+	code := h.runAuthorizeToCode(t, pkceChallenge())
 	firstRefresh, _ := jsonBody(t, h.exchangeCode(t, code, testVerifier))["refresh_token"].(string)
 	require.NotEmpty(t, firstRefresh)
 
@@ -269,6 +270,90 @@ func TestMetadata_AdvertisesS256AndEndpoints(t *testing.T) {
 	assert.Equal(t, testIssuer+TokenPath, md["token_endpoint"])
 	assert.Equal(t, testIssuer+RegisterPath, md["registration_endpoint"])
 	assert.Contains(t, audienceStrings(md["code_challenge_methods_supported"]), "S256")
+	// jwks_uri must be the path the verifier (authkit) fetches: <issuer>/oauth2/jwks.json.
+	assert.Equal(t, testIssuer+JWKSPath, md["jwks_uri"])
+	assert.Contains(t, audienceStrings(md["scopes_supported"]), ScopeMCP)
+}
+
+// mcpEchoResolver mimics the MCP resource server's user resolution: the embedded
+// AS mints sub = internal user ID, so resolving "by user ID" returns the subject
+// itself (as a found user's id would). It echoes the subject so the test can
+// assert which user an MCP call would run as.
+type mcpEchoResolver struct{}
+
+func (mcpEchoResolver) ResolveUserID(_ context.Context, _, subject string) (string, error) {
+	return subject, nil
+}
+
+// TestMCPVerifierAcceptsASMintedToken is the end-to-end proof of issue #32: a JWT
+// minted by the embedded Authorization Server (sub = internal user ID, aud = MCP
+// resource, iss = AS issuer) passes the MCP resource server's verifier
+// (mcptoken/authkit), which fetches JWKS from the AS's published
+// /oauth2/jwks.json, and resolves to the correct internal users.id. The AS issuer
+// must be the live server URL so the verifier's JWKS fetch and iss check both
+// resolve against it; handlers are registered after the server starts.
+func TestMCPVerifierAcceptsASMintedToken(t *testing.T) {
+	encKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes
+	clients := newMemClientRepo()
+	registry := idp.NewRegistry(&fakeProvider{
+		name:   idp.ProviderName("fake"),
+		claims: &idp.Claims{Subject: "upstream-sub", Email: "u@example.test", Name: "U"},
+	})
+
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	svc := NewService(
+		Config{
+			Issuer:              server.URL,
+			ResourceURI:         testResourceURI,
+			AccessTokenTTL:      15 * time.Minute,
+			RefreshTokenTTL:     24 * time.Hour,
+			AuthCodeTTL:         10 * time.Minute,
+			KeyRotationInterval: 720 * time.Hour,
+		},
+		encKey,
+		clients,
+		newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(),
+		newMemSigningKeyRepo(),
+		newMemLoginSessionRepo(),
+		registry,
+		&fakeProvisioner{user: &models.User{ID: "user-1"}},
+		slog.New(slog.DiscardHandler),
+	)
+	require.NoError(t, svc.keys.EnsureActiveKey(context.Background()))
+	mux.HandleFunc("GET "+AuthorizePath, svc.Authorize)
+	mux.HandleFunc("GET "+IDPCallbackPath, svc.IdPCallback)
+	mux.HandleFunc("GET "+ConsentPath, svc.ConsentForm)
+	mux.HandleFunc("POST "+ConsentPath, svc.ConsentSubmit)
+	mux.HandleFunc("POST "+TokenPath, svc.Token)
+	mux.HandleFunc("GET "+JWKSPath, svc.JWKS)
+
+	h := &testHarness{
+		svc:    svc,
+		server: server,
+		client: &http.Client{
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
+		clientID: registerTestClient(t, clients),
+	}
+
+	code := h.runAuthorizeToCode(t, pkceChallenge())
+	tokenRes := h.exchangeCode(t, code, testVerifier)
+	require.Equal(t, http.StatusOK, tokenRes.status)
+	accessToken, ok := jsonBody(t, tokenRes)["access_token"].(string)
+	require.True(t, ok)
+	require.NotEmpty(t, accessToken)
+
+	// Verify the token exactly as the MCP resource server does.
+	verifier, err := mcptoken.New(context.Background(), server.URL, testResourceURI, mcpEchoResolver{})
+	require.NoError(t, err)
+
+	info, err := verifier.Verify(context.Background(), accessToken,
+		httptest.NewRequest(http.MethodGet, "/mcp/v1/common", nil))
+	require.NoError(t, err, "an AS-minted token must pass the MCP resource server's verifier")
+	assert.Equal(t, "user-1", info.UserID, "the MCP call must run as the token's subject user (users.id)")
 }
 
 // --- HTTP + assertion helpers ---

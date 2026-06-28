@@ -17,6 +17,7 @@ type authorizationServerMetadata struct {
 	GrantTypesSupported               []string `json:"grant_types_supported"`
 	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported"`
 	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported"`
+	ScopesSupported                   []string `json:"scopes_supported"`
 	ResourceIndicatorsSupported       bool     `json:"resource_indicators_supported"`
 }
 
@@ -33,6 +34,7 @@ func (s *Service) Metadata(w http.ResponseWriter, r *http.Request) {
 		GrantTypesSupported:               []string{"authorization_code", "refresh_token"},
 		CodeChallengeMethodsSupported:     []string{"S256"},
 		TokenEndpointAuthMethodsSupported: []string{"none"},
+		ScopesSupported:                   []string{ScopeMCP},
 		ResourceIndicatorsSupported:       true,
 	})
 }

@@ -25,6 +25,14 @@ const (
 	randomIDBytes = 32
 )
 
+// ScopeMCP is the OAuth scope advertised for access to the VibeXP MCP resource.
+// It is advisory: the AS grants only the scopes a client requests (exact-match
+// strategy), and the MCP resource server does not require it on a token — any
+// valid, audience-bound token authorizes an MCP call. It is published in the AS
+// and protected-resource metadata and in the WWW-Authenticate challenge so
+// clients know which scope to request.
+const ScopeMCP = "mcp"
+
 // idpCallbackURI is the absolute redirect URI the AS registers with the upstream
 // IdP; operators must allow-list it in their IdP application configuration.
 func (s *Service) idpCallbackURI() string {
