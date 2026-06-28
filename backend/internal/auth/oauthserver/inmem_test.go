@@ -287,12 +287,28 @@ func (p *fakeProvider) Refresh(_ context.Context, _ string) (*idp.Tokens, error)
 }
 
 // fakeProvisioner returns a fixed user, standing in for AuthService provisioning.
+// devLoginCalls records dev-login provisioning so a test can assert the dev-login
+// leg was taken instead of the federated one.
 type fakeProvisioner struct {
-	user *models.User
+	user          *models.User
+	devLoginCalls int
+	devLoginErr   error
+	lastDevEmail  string
 }
 
 func (p *fakeProvisioner) ProvisionFromClaims(
 	_ context.Context, _ string, _ *idp.Claims,
 ) (*models.User, error) {
+	return p.user, nil
+}
+
+func (p *fakeProvisioner) HandleDevLogin(
+	_ context.Context, email, _ string,
+) (*models.User, error) {
+	p.devLoginCalls++
+	p.lastDevEmail = email
+	if p.devLoginErr != nil {
+		return nil, p.devLoginErr
+	}
 	return p.user, nil
 }

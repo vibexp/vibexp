@@ -21,13 +21,11 @@ func NewEnvironmentService(cfg *config.Config) *EnvironmentService {
 // IsDevelopment checks if the application is running in development mode
 // based on the FRONTEND_BASE_URL pointing at localhost or 127.0.0.1.
 // Empty FRONTEND_BASE_URL is treated as NOT development (fail-closed) so
-// misconfigured environments cannot accidentally enable dev-only paths.
+// misconfigured environments cannot accidentally enable dev-only paths. It
+// delegates to config.IsLocalDevelopment, the single source of truth for the dev
+// heuristic shared with the dev-only config derivation.
 func (s *EnvironmentService) IsDevelopment() bool {
-	url := strings.ToLower(s.config.FrontendBaseURL)
-	if url == "" {
-		return false
-	}
-	return strings.Contains(url, "localhost") || strings.Contains(url, "127.0.0.1")
+	return s.config.IsLocalDevelopment()
 }
 
 // IsProduction checks if the application is running in production mode

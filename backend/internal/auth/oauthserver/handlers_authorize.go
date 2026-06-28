@@ -18,6 +18,18 @@ import (
 // and the request did not name one. A provider picker UI is tracked in #33.
 var errProviderChoiceRequired = errors.New("multiple identity providers enabled; specify ?provider=")
 
+const (
+	// devLoginProvider tags the login session created by the AS development-login
+	// bypass. That path never federates to an upstream IdP, so the value is only a
+	// self-describing marker on the stashed session.
+	devLoginProvider = idp.ProviderName("dev")
+	// devLoginEmail and devLoginName identify the user provisioned by the AS
+	// development-login bypass, mirroring the /auth/dev/login default identity so a
+	// zero-config local MCP client authenticates as a stable dev user.
+	devLoginEmail = "dev@localhost"
+	devLoginName  = "Dev User"
+)
+
 // Authorize handles GET /oauth2/authorize. It validates the OAuth request, then
 // delegates user authentication to an upstream IdP, stashing the request until
 // the user returns and consents.
@@ -40,6 +52,14 @@ func (s *Service) Authorize(w http.ResponseWriter, r *http.Request) {
 	}
 	provider, perr := s.resolveLoginProvider(r)
 	if perr != nil {
+		// Development fallback: with no identity providers configured, authenticate
+		// the login leg via the dev-login bypass instead of an upstream IdP. Reached
+		// only when dev login is enabled (development env) AND no provider is enabled,
+		// so it is unreachable in production.
+		if s.cfg.DevLoginEnabled && len(s.registry.Enabled()) == 0 {
+			s.authorizeWithDevLogin(ctx, w, r, ar)
+			return
+		}
 		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrInvalidRequest.WithHint(perr.Error()))
 		return
 	}
@@ -52,6 +72,34 @@ func (s *Service) Authorize(w http.ResponseWriter, r *http.Request) {
 
 	p, _ := s.registry.Get(provider)
 	http.Redirect(w, r, p.AuthorizeURL(loginID, s.idpCallbackURI(), string(provider)), http.StatusFound)
+}
+
+// authorizeWithDevLogin completes the /authorize login leg using the
+// development-login bypass: it provisions/reuses the dev user (the same path as
+// /api/v1/auth/dev/login), stashes the authorize request attached to that user,
+// and sends the client straight to the consent screen — no upstream IdP redirect.
+// The caller guarantees this runs only when dev login is enabled and no identity
+// provider is configured, so it is never reachable in production.
+func (s *Service) authorizeWithDevLogin(
+	ctx context.Context, w http.ResponseWriter, r *http.Request, ar fosite.AuthorizeRequester,
+) {
+	user, err := s.provisioner.HandleDevLogin(ctx, devLoginEmail, devLoginName)
+	if err != nil {
+		s.logger.With("error", err).Error("oauth AS dev login provisioning failed")
+		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError)
+		return
+	}
+	loginID, err := s.startLogin(ctx, r, devLoginProvider)
+	if err != nil {
+		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError)
+		return
+	}
+	if aerr := s.loginSessions.AttachUser(ctx, loginID, user.ID); aerr != nil {
+		s.logger.With("error", aerr).Error("oauth AS dev login could not record user")
+		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError)
+		return
+	}
+	http.Redirect(w, r, s.consentRedirect(loginID), http.StatusFound)
 }
 
 // startLogin persists the federated-login stash and returns its id (also used as

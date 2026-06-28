@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -494,6 +495,49 @@ func validateEncryptionKey(cfg *Config) error {
 	return nil
 }
 
+// IsLocalDevelopment reports whether the process is running in local development,
+// detected from FRONTEND_BASE_URL pointing at localhost/127.0.0.1. An empty value
+// is treated as NOT development (fail-closed) so a misconfigured deployment never
+// enables dev-only paths. This is the single source of truth for the dev
+// heuristic, shared by services.EnvironmentService.IsDevelopment and the dev-only
+// config derivation (applyDevOAuthASDefaults); production never matches.
+func (c *Config) IsLocalDevelopment() bool {
+	u := strings.ToLower(c.FrontendBaseURL)
+	if u == "" {
+		return false
+	}
+	return strings.Contains(u, "localhost") || strings.Contains(u, "127.0.0.1")
+}
+
+// applyDevOAuthASDefaults auto-enables the embedded Authorization Server for local
+// development by deriving sane defaults when they are left unset, so a fresh
+// checkout — or a freshly copied .env that did not set them — boots a connectable
+// MCP endpoint with zero auth configuration. It runs ONLY in local development
+// (FRONTEND_BASE_URL points at localhost); production keeps the AS strictly opt-in
+// and never guesses a public issuer (a guessed issuer would not match the
+// client-facing URL behind a proxy). Explicit env always wins — a value already
+// set is never overwritten. The derived issuer is the server's own local base URL
+// (http://localhost:<PORT>) and the resource URI is <issuer>/mcp/v1/common, which
+// matches .env.example and satisfies validateOAuthASConfig's invariants.
+func applyDevOAuthASDefaults(cfg *Config) {
+	if !cfg.IsLocalDevelopment() {
+		return
+	}
+	// Respect an explicit opt-out: if the developer pointed the MCP resource server
+	// at their own external issuer (MCP_OAUTH_ISSUER set) without enabling the
+	// embedded AS, do not auto-enable it — that would force a conflicting issuer
+	// onto their setup. Only the truly-unconfigured local case is auto-enabled.
+	if cfg.OAuthASIssuerURL == "" && cfg.MCPOAuthIssuer != "" {
+		return
+	}
+	if cfg.OAuthASIssuerURL == "" {
+		cfg.OAuthASIssuerURL = "http://localhost:" + cfg.Port
+	}
+	if cfg.MCPResourceURI == "" {
+		cfg.MCPResourceURI = strings.TrimRight(cfg.OAuthASIssuerURL, "/") + "/mcp/v1/common"
+	}
+}
+
 // applyMCPIssuerDefault points the MCP resource server at the embedded
 // Authorization Server when the AS is enabled and no explicit MCP_OAUTH_ISSUER is
 // set, so the protected-resource metadata advertises VibeXP itself. An explicit
@@ -625,6 +669,11 @@ func Load() (*Config, error) {
 	if keyErr := validateEncryptionKey(&cfg); keyErr != nil {
 		return nil, keyErr
 	}
+
+	// Derive local-dev defaults that auto-enable the embedded AS BEFORE pointing
+	// the MCP issuer at it, so MCPOAuthIssuer picks up the derived issuer. No-op in
+	// production and whenever the values are set explicitly.
+	applyDevOAuthASDefaults(&cfg)
 
 	applyMCPIssuerDefault(&cfg)
 
