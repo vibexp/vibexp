@@ -313,6 +313,66 @@ func (_c *MockAuthServiceInterface_HandleDevLogin_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// ProvisionFromClaims provides a mock function with given fields: ctx, providerName, claims
+func (_m *MockAuthServiceInterface) ProvisionFromClaims(ctx context.Context, providerName string, claims *idp.Claims) (*models.User, error) {
+	ret := _m.Called(ctx, providerName, claims)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ProvisionFromClaims")
+	}
+
+	var r0 *models.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *idp.Claims) (*models.User, error)); ok {
+		return rf(ctx, providerName, claims)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, *idp.Claims) *models.User); ok {
+		r0 = rf(ctx, providerName, claims)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.User)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, *idp.Claims) error); ok {
+		r1 = rf(ctx, providerName, claims)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAuthServiceInterface_ProvisionFromClaims_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ProvisionFromClaims'
+type MockAuthServiceInterface_ProvisionFromClaims_Call struct {
+	*mock.Call
+}
+
+// ProvisionFromClaims is a helper method to define mock.On call
+//   - ctx context.Context
+//   - providerName string
+//   - claims *idp.Claims
+func (_e *MockAuthServiceInterface_Expecter) ProvisionFromClaims(ctx interface{}, providerName interface{}, claims interface{}) *MockAuthServiceInterface_ProvisionFromClaims_Call {
+	return &MockAuthServiceInterface_ProvisionFromClaims_Call{Call: _e.mock.On("ProvisionFromClaims", ctx, providerName, claims)}
+}
+
+func (_c *MockAuthServiceInterface_ProvisionFromClaims_Call) Run(run func(ctx context.Context, providerName string, claims *idp.Claims)) *MockAuthServiceInterface_ProvisionFromClaims_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(*idp.Claims))
+	})
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_ProvisionFromClaims_Call) Return(_a0 *models.User, _a1 error) *MockAuthServiceInterface_ProvisionFromClaims_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_ProvisionFromClaims_Call) RunAndReturn(run func(context.Context, string, *idp.Claims) (*models.User, error)) *MockAuthServiceInterface_ProvisionFromClaims_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RefreshTokens provides a mock function with given fields: ctx, provider, refreshToken
 func (_m *MockAuthServiceInterface) RefreshTokens(ctx context.Context, provider string, refreshToken string) (*idp.Tokens, error) {
 	ret := _m.Called(ctx, provider, refreshToken)

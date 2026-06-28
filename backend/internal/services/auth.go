@@ -147,6 +147,17 @@ func (as *AuthService) RefreshTokens(
 	return p.Refresh(ctx, refreshToken)
 }
 
+// ProvisionFromClaims resolves or creates the VibeXP user for the given upstream
+// IdP claims, reusing the same create-on-first-login logic as the web callback.
+// The embedded OAuth Authorization Server (issue #31) uses it after exchanging
+// the upstream code in its own /authorize flow.
+func (as *AuthService) ProvisionFromClaims(
+	ctx context.Context, providerName string, claims *idp.Claims,
+) (*models.User, error) {
+	user, _, err := as.createOrUpdateUserFromClaims(ctx, providerName, claims)
+	return user, err
+}
+
 // createOrUpdateUserFromClaims looks up an existing user via the
 // (idp_provider, idp_subject) tuple, falling back to legacy lookup by
 // google_id, then creates a new user if none is found. providerName is the
