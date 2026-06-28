@@ -27,6 +27,7 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 // MockAuthContainer implements Container interface for auth handler tests
@@ -196,6 +197,7 @@ func createTestAuthServer(container *MockAuthContainer) *Server {
 
 	// Register identity-provider auth routes
 	r.Route("/api/v1/auth", func(r chi.Router) {
+		r.Get("/providers", srv.handleListProviders)
 		r.Get("/login", srv.handleLogin)
 		r.Get("/callback", srv.handleCallback)
 		r.Post("/logout", srv.handleLogout)
@@ -208,6 +210,55 @@ func createTestAuthServer(container *MockAuthContainer) *Server {
 	})
 
 	return srv
+}
+
+// TestHandleListProviders_Mapping verifies the providers endpoint returns the
+// enabled providers (preserving the service's stable order) with their UI
+// display names, including the title-cased fallback for unknown names.
+func TestHandleListProviders_Mapping(t *testing.T) {
+	mockContainer := newMockAuthContainer(t)
+	mockContainer.authService.On("EnabledProviders").
+		Return([]string{"github", "google", "oidc", "okta"})
+
+	srv := createTestAuthServer(mockContainer)
+	req := httptest.NewRequest("GET", "/api/v1/auth/providers", nil)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response ProvidersResponse
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, []AuthProvider{
+		{Name: "github", DisplayName: "GitHub"},
+		{Name: "google", DisplayName: "Google"},
+		{Name: "oidc", DisplayName: "Single Sign-On"},
+		{Name: "okta", DisplayName: "Okta"}, // unknown -> title-cased fallback
+	}, response.Providers)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	mockContainer.authService.AssertExpectations(t)
+}
+
+// TestHandleListProviders_Empty verifies that with no provider configured the
+// endpoint returns 200 with an empty (non-null) providers array.
+func TestHandleListProviders_Empty(t *testing.T) {
+	mockContainer := newMockAuthContainer(t)
+	mockContainer.authService.On("EnabledProviders").Return([]string{})
+
+	srv := createTestAuthServer(mockContainer)
+	req := httptest.NewRequest("GET", "/api/v1/auth/providers", nil)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"providers":[]}`, w.Body.String())
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	mockContainer.authService.AssertExpectations(t)
 }
 
 // TestHandleLogin_Success tests successful login URL generation

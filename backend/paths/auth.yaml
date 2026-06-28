@@ -59,6 +59,34 @@ api-v1-auth-login:
     tags:
       - Authentication
 
+api-v1-auth-providers:
+  get:
+    summary: List enabled login providers
+    description: |
+      Returns the login providers enabled in this deployment's configuration,
+      each with a canonical `name` (the value to pass as `?provider=` to
+      `GET /api/v1/auth/login`) and a human-readable `display_name` for the
+      login UI. The login screen uses this to render a provider picker instead
+      of hardcoding the provider list. The list is stable-sorted and may be
+      empty when no provider is configured.
+    operationId: listAuthProviders
+    security: []  # No authentication required
+    responses:
+      '200':
+        description: Enabled providers listed successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ProvidersResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Authentication
+
 api-v1-auth-callback:
   get:
     summary: Handle the identity-provider OAuth callback

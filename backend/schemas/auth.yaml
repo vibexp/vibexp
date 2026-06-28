@@ -102,6 +102,39 @@ LogoutResponse:
   required:
     - message
 
+AuthProvider:
+  type: object
+  description: One enabled login provider, with display metadata for the login UI
+  properties:
+    name:
+      type: string
+      description: |
+        Canonical provider name, also the value to pass as the `provider`
+        query parameter to GET /api/v1/auth/login (e.g. `google`, `github`,
+        `oidc`).
+      example: "google"
+    display_name:
+      type: string
+      description: Human-readable label for the provider button in the login UI
+      example: "Google"
+  required:
+    - name
+    - display_name
+
+ProvidersResponse:
+  type: object
+  description: |
+    Response body returned by GET /api/v1/auth/providers listing the login
+    providers enabled in this deployment's configuration.
+  properties:
+    providers:
+      type: array
+      description: Enabled login providers, stable-sorted by canonical name
+      items:
+        $ref: '#/AuthProvider'
+  required:
+    - providers
+
 DevLoginRequest:
   type: object
   description: Request body for POST /api/v1/auth/dev/login (development environment only)
