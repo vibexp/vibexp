@@ -290,6 +290,10 @@ func (s *Service) issueCode(
 
 	resp, err := s.provider.NewAuthorizeResponse(ctx, ar, newIssuingSession(userID))
 	if err != nil {
+		// fosite returns a generic server_error to the client (debug messages are
+		// not exposed), so log the underlying cause to keep failures diagnosable.
+		s.logger.With("error", err, "debug", fosite.ErrorToRFC6749Error(err).DebugField).
+			Error("oauth AS failed to issue authorization code")
 		s.provider.WriteAuthorizeError(ctx, w, ar, err)
 		return
 	}
