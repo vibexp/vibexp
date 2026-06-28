@@ -509,6 +509,7 @@ func (s *Server) setupAuthRoutes() {
 		rateLimitByIP(r, s.config.AuthRateLimitPerMinute)
 
 		// Identity-provider OAuth login routes
+		r.Get("/providers", s.handleListProviders)
 		r.Get("/login", s.handleLogin)
 		r.Get("/callback", s.handleCallback)
 		r.Post("/logout", s.handleLogout)

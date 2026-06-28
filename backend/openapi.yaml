@@ -149,6 +149,10 @@ components:
       $ref: "./schemas/auth.yaml#/LoginResponse"
     LogoutResponse:
       $ref: "./schemas/auth.yaml#/LogoutResponse"
+    AuthProvider:
+      $ref: "./schemas/auth.yaml#/AuthProvider"
+    ProvidersResponse:
+      $ref: "./schemas/auth.yaml#/ProvidersResponse"
     DevLoginRequest:
       $ref: "./schemas/auth.yaml#/DevLoginRequest"
 
@@ -823,6 +827,8 @@ paths:
     $ref: "./paths/health.yaml#/health"
   /api/v1/auth/login:
     $ref: "./paths/auth.yaml#/api-v1-auth-login"
+  /api/v1/auth/providers:
+    $ref: "./paths/auth.yaml#/api-v1-auth-providers"
   /api/v1/auth/callback:
     $ref: "./paths/auth.yaml#/api-v1-auth-callback"
   /api/v1/auth/logout:
