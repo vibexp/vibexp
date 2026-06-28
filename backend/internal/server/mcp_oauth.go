@@ -168,6 +168,12 @@ func (w *challengeScopeWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+// Unwrap exposes the underlying ResponseWriter so http.ResponseController can
+// reach its optional interfaces through this wrapper — notably Flush, which the
+// MCP streamable handler uses for SSE on the success path that also passes
+// through here.
+func (w *challengeScopeWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 // unconfiguredMCPVerifier rejects every token. It is used when MCP OAuth is not
 // configured so the endpoint denies access with a 401 rather than 500.
 func unconfiguredMCPVerifier(_ context.Context, _ string, _ *http.Request) (*mcpauth.TokenInfo, error) {

@@ -365,6 +365,20 @@ func TestAdvertiseChallengeScope(t *testing.T) {
 		assert.Empty(t, rr.Header().Get("WWW-Authenticate"))
 	})
 
+	t.Run("preserves Flush for the streaming success path", func(t *testing.T) {
+		// The MCP streamable handler flushes via http.NewResponseController(w); the
+		// wrapper must Unwrap to the underlying writer or SSE silently stops working.
+		var flushErr error
+		next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			flushErr = http.NewResponseController(w).Flush()
+		})
+		rr := httptest.NewRecorder()
+		chain(next).ServeHTTP(rr, req())
+		require.NoError(t, flushErr, "Flush must reach the underlying writer through the wrapper")
+		assert.True(t, rr.Flushed)
+	})
+
 	t.Run("leaves a non-Bearer challenge untouched", func(t *testing.T) {
 		next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("WWW-Authenticate", `Basic realm="x"`)
