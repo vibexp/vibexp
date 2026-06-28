@@ -152,10 +152,7 @@ backend-run:
 	@COMPOSE_CMD=$$($(DETECT_COMPOSE)) && \
 	echo "✓ Using: $$COMPOSE_CMD" && \
 	echo "🔧 Loading environment variables from .env..." && \
-	if [ ! -f backend/.env ]; then \
-			echo "📋 backend/.env not found — copying from .env.example (dev defaults)"; \
-			cp backend/.env.example backend/.env; \
-		fi && \
+	bash scripts/sync-env.sh backend && \
 	echo "🐘 Starting PostgreSQL..." && \
 	cd backend && $$COMPOSE_CMD up postgres -d && \
 	echo "⏳ Waiting for PostgreSQL to be ready..." && \
@@ -187,10 +184,7 @@ backend-run-dev:
 	@COMPOSE_CMD=$$($(DETECT_COMPOSE)) && \
 	echo "✓ Using: $$COMPOSE_CMD" && \
 	echo "🔧 Loading environment variables from .env..." && \
-	if [ ! -f backend/.env ]; then \
-			echo "📋 backend/.env not found — copying from .env.example (dev defaults)"; \
-			cp backend/.env.example backend/.env; \
-		fi && \
+	bash scripts/sync-env.sh backend && \
 	echo "🐘 Starting PostgreSQL and Mailpit..." && \
 	cd backend && $$COMPOSE_CMD up postgres mailpit -d && \
 	echo "⏳ Waiting for PostgreSQL to be ready..." && \
@@ -228,10 +222,7 @@ frontend-build:
 
 # Run the frontend application in development mode
 frontend-run-dev:
-	@if [ ! -f frontend/.env ]; then \
-		echo "📋 frontend/.env not found — copying from .env.example (dev defaults)"; \
-		cp frontend/.env.example frontend/.env; \
-	fi
+	@bash scripts/sync-env.sh frontend
 	@if [ ! -d frontend/node_modules ]; then \
 		echo "📦 Installing frontend dependencies..."; \
 		cd frontend && npm install; \
