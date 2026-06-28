@@ -15,9 +15,11 @@ import (
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 
+	"github.com/vibexp/vibexp/internal/auth/oauthserver"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
@@ -54,6 +56,7 @@ func TestProtectedResourceMetadata_Public(t *testing.T) {
 	assert.Equal(t, "https://connect.vibexp.io/mcp/v1/common", meta.Resource)
 	assert.Equal(t, []string{"https://issuer.example"}, meta.AuthorizationServers)
 	assert.Equal(t, []string{"header"}, meta.BearerMethodsSupported)
+	assert.Equal(t, []string{oauthserver.ScopeMCP}, meta.ScopesSupported)
 }
 
 // TestProtectedResourceMetadata_CORSPreflight verifies the SDK handler answers
@@ -111,6 +114,8 @@ func TestMCPEndpoint_MissingTokenChallenge(t *testing.T) {
 	assert.Contains(t, challenge, "Bearer")
 	assert.Contains(t, challenge,
 		`resource_metadata="https://connect.vibexp.io/.well-known/oauth-protected-resource/mcp/v1/common"`)
+	assert.Contains(t, challenge, `scope="`+oauthserver.ScopeMCP+`"`,
+		"the challenge must advertise the MCP scope so clients know what to request")
 }
 
 // TestMCPEndpoint_InvalidTokenChallenge verifies that an invalid bearer token
@@ -124,7 +129,9 @@ func TestMCPEndpoint_InvalidTokenChallenge(t *testing.T) {
 	srv.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusUnauthorized, rr.Code)
-	assert.Contains(t, rr.Header().Get("WWW-Authenticate"), "resource_metadata=")
+	challenge := rr.Header().Get("WWW-Authenticate")
+	assert.Contains(t, challenge, "resource_metadata=")
+	assert.Contains(t, challenge, `scope="`+oauthserver.ScopeMCP+`"`)
 }
 
 // TestDeriveMCPMetadata covers the path/URL derivation and the neutral fallback
@@ -277,6 +284,95 @@ func TestUserResolverAdapter(t *testing.T) {
 
 		_, err := userResolverAdapter{users: repo}.ResolveUserID(ctx, "oidc", "sub-3")
 		require.Error(t, err)
+	})
+}
+
+// TestMCPUserResolverAdapter verifies the MCP resolver treats the token subject
+// as an internal user ID (the embedded AS mints sub = user ID) and resolves it
+// via GetByID — distinct from the IdP-subject adapter the web/API path uses.
+func TestMCPUserResolverAdapter(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("resolves internal id by user id", func(t *testing.T) {
+		repo := repomocks.NewMockUserRepository(t)
+		repo.EXPECT().GetByID(ctx, "internal-9").Return(&models.User{ID: "internal-9"}, nil)
+
+		id, err := mcpUserResolverAdapter{users: repo}.ResolveUserID(ctx, "", "internal-9")
+		require.NoError(t, err)
+		assert.Equal(t, "internal-9", id)
+	})
+
+	t.Run("propagates not-found (authkit maps it to an auth failure)", func(t *testing.T) {
+		repo := repomocks.NewMockUserRepository(t)
+		repo.EXPECT().GetByID(ctx, "ghost").Return(nil, repositories.ErrUserNotFound)
+
+		_, err := mcpUserResolverAdapter{users: repo}.ResolveUserID(ctx, "", "ghost")
+		require.ErrorIs(t, err, repositories.ErrUserNotFound)
+	})
+
+	t.Run("nil user yields empty id", func(t *testing.T) {
+		repo := repomocks.NewMockUserRepository(t)
+		repo.EXPECT().GetByID(ctx, "x").Return(nil, nil)
+
+		id, err := mcpUserResolverAdapter{users: repo}.ResolveUserID(ctx, "", "x")
+		require.NoError(t, err)
+		assert.Empty(t, id)
+	})
+}
+
+// TestAdvertiseChallengeScope verifies the challenge-scope wrapper annotates the
+// WWW-Authenticate Bearer challenge on 401/403 without enforcing the scope (it
+// never blocks a request or touches success responses), and leaves non-Bearer
+// challenges alone.
+func TestAdvertiseChallengeScope(t *testing.T) {
+	chain := func(next http.Handler) http.Handler { return advertiseChallengeScope("mcp")(next) }
+	req := func() *http.Request { return httptest.NewRequest(http.MethodGet, "/mcp/v1/common", nil) }
+
+	t.Run("appends scope to a 401 Bearer challenge", func(t *testing.T) {
+		next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="https://x/.well-known"`)
+			w.WriteHeader(http.StatusUnauthorized)
+		})
+		rr := httptest.NewRecorder()
+		chain(next).ServeHTTP(rr, req())
+
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Equal(t, `Bearer resource_metadata="https://x/.well-known", scope="mcp"`,
+			rr.Header().Get("WWW-Authenticate"))
+	})
+
+	t.Run("annotates a 403 Bearer challenge", func(t *testing.T) {
+		next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			w.WriteHeader(http.StatusForbidden)
+		})
+		rr := httptest.NewRecorder()
+		chain(next).ServeHTTP(rr, req())
+		assert.Equal(t, `Bearer, scope="mcp"`, rr.Header().Get("WWW-Authenticate"))
+	})
+
+	t.Run("does not block or annotate a 200 response", func(t *testing.T) {
+		next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte("ok"))
+			require.NoError(t, err)
+		})
+		rr := httptest.NewRecorder()
+		chain(next).ServeHTTP(rr, req())
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "ok", rr.Body.String())
+		assert.Empty(t, rr.Header().Get("WWW-Authenticate"))
+	})
+
+	t.Run("leaves a non-Bearer challenge untouched", func(t *testing.T) {
+		next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("WWW-Authenticate", `Basic realm="x"`)
+			w.WriteHeader(http.StatusUnauthorized)
+		})
+		rr := httptest.NewRecorder()
+		chain(next).ServeHTTP(rr, req())
+		assert.Equal(t, `Basic realm="x"`, rr.Header().Get("WWW-Authenticate"))
 	})
 }
 

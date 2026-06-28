@@ -14,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 
 	"github.com/vibexp/vibexp/internal/auth/mcptoken"
+	"github.com/vibexp/vibexp/internal/auth/oauthserver"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -70,6 +71,30 @@ func (a userResolverAdapter) ResolveUserID(ctx context.Context, provider, subjec
 	return user.ID, nil
 }
 
+// mcpUserResolverAdapter resolves the subject of an MCP access token to an
+// internal VibeXP user ID. VibeXP's embedded Authorization Server mints tokens
+// whose `sub` is already the internal user ID (see oauthserver.newIssuingSession),
+// so the subject is resolved directly via GetByID rather than as an IdP subject.
+// The provider argument from the authkit.UserResolver contract is unused here;
+// the IdP-subject path (web/API tokens) keeps userResolverAdapter unchanged.
+type mcpUserResolverAdapter struct {
+	users repositories.UserRepository
+}
+
+// ResolveUserID looks up the internal user by treating the token subject as the
+// VibeXP user ID. A missing user surfaces repositories.ErrUserNotFound, which
+// authkit maps to an unknown-subject auth failure (401).
+func (a mcpUserResolverAdapter) ResolveUserID(ctx context.Context, _, subject string) (string, error) {
+	user, err := a.users.GetByID(ctx, subject)
+	if err != nil {
+		return "", err
+	}
+	if user == nil {
+		return "", nil
+	}
+	return user.ID, nil
+}
+
 // setupMCPRoutes mounts the MCP endpoint as an OAuth 2.1 resource server. The
 // route is always mounted so unauthenticated requests get a spec-compliant 401
 // with a WWW-Authenticate challenge. When MCP OAuth is not configured (no issuer
@@ -95,10 +120,52 @@ func (s *Server) setupMCPRoutes() {
 	})
 
 	s.router.Group(func(r chi.Router) {
+		// advertiseChallengeScope runs outermost so it can append the advisory
+		// scope to the WWW-Authenticate challenge RequireBearerToken emits, without
+		// the SDK's opts.Scopes enforcement (which would 403 valid tokens that did
+		// not request the scope — the AS grants scopes exact-match).
+		r.Use(advertiseChallengeScope(oauthserver.ScopeMCP))
 		r.Use(requireToken)
 		r.Use(s.mcpTokenContextMiddleware)
 		r.Mount("/mcp/v1/common", s.createMCPHandlerCommon())
 	})
+}
+
+// advertiseChallengeScope augments the WWW-Authenticate Bearer challenge on 401
+// and 403 responses with a `scope` parameter, so a client knows which scope to
+// request (RFC 6750 §3). It is purely informational: unlike the MCP SDK's
+// opts.Scopes — which also rejects an otherwise-valid token that lacks the scope
+// — this never blocks a request, it only annotates the challenge the inner
+// RequireBearerToken middleware already produced.
+func advertiseChallengeScope(scope string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(&challengeScopeWriter{ResponseWriter: w, scope: scope}, r)
+		})
+	}
+}
+
+// challengeScopeWriter appends `scope="<scope>"` to an existing Bearer
+// WWW-Authenticate header when a 401/403 status is written. It only annotates a
+// header already set by the inner middleware (it never creates one) and acts at
+// most once.
+type challengeScopeWriter struct {
+	http.ResponseWriter
+	scope       string
+	wroteHeader bool
+}
+
+func (w *challengeScopeWriter) WriteHeader(code int) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+		if code == http.StatusUnauthorized || code == http.StatusForbidden {
+			if c := w.Header().Get("WWW-Authenticate"); strings.HasPrefix(c, "Bearer") &&
+				!strings.Contains(c, "scope=") {
+				w.Header().Set("WWW-Authenticate", fmt.Sprintf("%s, scope=%q", c, w.scope))
+			}
+		}
+	}
+	w.ResponseWriter.WriteHeader(code)
 }
 
 // unconfiguredMCPVerifier rejects every token. It is used when MCP OAuth is not
@@ -114,7 +181,7 @@ func (s *Server) newMCPTokenVerifier() (*mcptoken.Verifier, error) {
 	if s.config.MCPOAuthIssuer == "" {
 		return nil, nil
 	}
-	resolver := userResolverAdapter{users: s.container.UserRepository()}
+	resolver := mcpUserResolverAdapter{users: s.container.UserRepository()}
 	return mcptoken.New(
 		context.Background(),
 		s.config.MCPOAuthIssuer,
@@ -130,6 +197,7 @@ func (s *Server) mcpProtectedResourceMetadataHandler() http.Handler {
 		Resource:               s.config.MCPResourceURI,
 		AuthorizationServers:   []string{s.config.MCPOAuthIssuer},
 		BearerMethodsSupported: []string{"header"},
+		ScopesSupported:        []string{oauthserver.ScopeMCP},
 	}
 	return mcpauth.ProtectedResourceMetadataHandler(metadata)
 }

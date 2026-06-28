@@ -7,8 +7,9 @@
 // pre-extraction messages ("invalid token: <reason>", and a bare
 // "invalid token" for an unknown subject — never an enumeration oracle).
 //
-// The JWKS URL is derived from the configured issuer as <issuer>/oauth2/jwks
-// (see authkit.New).
+// The JWKS URL is derived from the configured issuer as
+// <issuer>/oauth2/jwks.json (see authkit.New), matching the jwks_uri published
+// by VibeXP's embedded Authorization Server.
 package mcptoken
 
 import (

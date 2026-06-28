@@ -43,8 +43,9 @@ func (s oauthStubResolver) ResolveUserID(_ context.Context, _, _ string) (string
 	return s.id, s.err
 }
 
-// oauthJWKSServer serves an ephemeral RSA JWKS at <baseURL>/oauth2/jwks and
-// signs RS256 test tokens, mimicking AuthKit for the middleware tests.
+// oauthJWKSServer serves an ephemeral RSA JWKS at <baseURL>/oauth2/jwks.json and
+// signs RS256 test tokens, mimicking VibeXP's embedded AS for the middleware
+// tests.
 type oauthJWKSServer struct {
 	key    *rsa.PrivateKey
 	server *httptest.Server
@@ -56,7 +57,7 @@ func newOAuthJWKSServer(t *testing.T) *oauthJWKSServer {
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/oauth2/jwks", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/oauth2/jwks.json", func(w http.ResponseWriter, _ *http.Request) {
 		n := base64.RawURLEncoding.EncodeToString(key.N.Bytes())
 		e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.E)).Bytes())
 		jwks := map[string]any{

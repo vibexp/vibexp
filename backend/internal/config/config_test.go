@@ -327,3 +327,59 @@ func TestLoad_EmbeddingChunkOverlapInvalid(t *testing.T) {
 	assert.Nil(t, cfg)
 	assert.Contains(t, err.Error(), "EMBEDDING_CHUNK_OVERLAP")
 }
+
+// TestLoad_MCPOAuthIssuer_DefaultsToAS verifies that enabling the embedded
+// Authorization Server points the MCP resource server at it by default, so PRM
+// advertises VibeXP itself without the operator setting MCP_OAUTH_ISSUER.
+func TestLoad_MCPOAuthIssuer_DefaultsToAS(t *testing.T) {
+	t.Setenv("OAUTH_AS_ISSUER_URL", "https://connect.vibexp.io")
+	t.Setenv("MCP_RESOURCE_URI", "https://connect.vibexp.io/mcp/v1/common")
+	// MCP_OAUTH_ISSUER intentionally left unset.
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://connect.vibexp.io", cfg.MCPOAuthIssuer,
+		"MCP_OAUTH_ISSUER must default to OAUTH_AS_ISSUER_URL when the embedded AS is enabled")
+}
+
+// TestLoad_MCPOAuthIssuer_ExplicitMatchAllowed verifies an explicit
+// MCP_OAUTH_ISSUER equal to the AS issuer is accepted (the agreement invariant
+// holds).
+func TestLoad_MCPOAuthIssuer_ExplicitMatchAllowed(t *testing.T) {
+	t.Setenv("OAUTH_AS_ISSUER_URL", "https://connect.vibexp.io")
+	t.Setenv("MCP_RESOURCE_URI", "https://connect.vibexp.io/mcp/v1/common")
+	t.Setenv("MCP_OAUTH_ISSUER", "https://connect.vibexp.io")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://connect.vibexp.io", cfg.MCPOAuthIssuer)
+}
+
+// TestLoad_MCPOAuthIssuer_DivergentRejected fails closed when an explicit
+// MCP_OAUTH_ISSUER disagrees with the embedded AS issuer — that would make the
+// AS mint tokens the resource server rejects.
+func TestLoad_MCPOAuthIssuer_DivergentRejected(t *testing.T) {
+	t.Setenv("OAUTH_AS_ISSUER_URL", "https://connect.vibexp.io")
+	t.Setenv("MCP_RESOURCE_URI", "https://connect.vibexp.io/mcp/v1/common")
+	t.Setenv("MCP_OAUTH_ISSUER", "https://evil.example")
+
+	cfg, err := Load()
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "MCP_OAUTH_ISSUER")
+}
+
+// TestLoad_MCPOAuthIssuer_PreservedWhenASDisabled verifies that with the
+// embedded AS disabled, an explicit MCP_OAUTH_ISSUER (e.g. an external issuer)
+// is left untouched — the derivation/agreement only applies to the embedded AS.
+func TestLoad_MCPOAuthIssuer_PreservedWhenASDisabled(t *testing.T) {
+	t.Setenv("MCP_OAUTH_ISSUER", "https://external-idp.example")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://external-idp.example", cfg.MCPOAuthIssuer)
+}

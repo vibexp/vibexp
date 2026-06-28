@@ -491,6 +491,17 @@ func validateEncryptionKey(cfg *Config) error {
 	return nil
 }
 
+// applyMCPIssuerDefault points the MCP resource server at the embedded
+// Authorization Server when the AS is enabled and no explicit MCP_OAUTH_ISSUER is
+// set, so the protected-resource metadata advertises VibeXP itself. An explicit
+// MCP_OAUTH_ISSUER still wins but must agree with the AS issuer (enforced by
+// validateOAuthASConfig).
+func applyMCPIssuerDefault(cfg *Config) {
+	if cfg.OAuthASIssuerURL != "" && cfg.MCPOAuthIssuer == "" {
+		cfg.MCPOAuthIssuer = cfg.OAuthASIssuerURL
+	}
+}
+
 // validateOAuthASConfig validates the embedded Authorization Server settings.
 // The AS is opt-in: when OAuthASIssuerURL is empty it is disabled and no other
 // field is checked. When enabled, a usable MCP resource URI (the token audience)
@@ -502,6 +513,15 @@ func validateOAuthASConfig(cfg *Config) error {
 	}
 	if cfg.MCPResourceURI == "" {
 		return fmt.Errorf("MCP_RESOURCE_URI is required when OAUTH_AS_ISSUER_URL is set (it is the issued token audience)")
+	}
+	// The MCP resource server must trust the embedded AS as its issuer; an
+	// explicit, divergent MCP_OAUTH_ISSUER would make the AS mint tokens the
+	// resource server rejects. Leaving MCP_OAUTH_ISSUER unset is the norm — Load
+	// defaults it to OAUTH_AS_ISSUER_URL.
+	if cfg.MCPOAuthIssuer != "" && cfg.MCPOAuthIssuer != cfg.OAuthASIssuerURL {
+		return fmt.Errorf(
+			"MCP_OAUTH_ISSUER (%q) must equal OAUTH_AS_ISSUER_URL (%q), or be left unset to default to it",
+			cfg.MCPOAuthIssuer, cfg.OAuthASIssuerURL)
 	}
 	if cfg.OAuthASAccessTokenTTL <= 0 {
 		return fmt.Errorf("OAUTH_AS_ACCESS_TOKEN_TTL must be positive, got %v", cfg.OAuthASAccessTokenTTL)
@@ -599,6 +619,8 @@ func Load() (*Config, error) {
 	if keyErr := validateEncryptionKey(&cfg); keyErr != nil {
 		return nil, keyErr
 	}
+
+	applyMCPIssuerDefault(&cfg)
 
 	if asErr := validateOAuthASConfig(&cfg); asErr != nil {
 		return nil, asErr

@@ -154,7 +154,7 @@ type Verifier struct {
 }
 
 // New constructs a Verifier. It creates a caching JWKS key set pointed at the
-// issuer's JWKS endpoint (<issuer>/oauth2/jwks). issuer must be non-empty;
+// issuer's JWKS endpoint (<issuer>/oauth2/jwks.json). issuer must be non-empty;
 // audience and resolver must be non-nil.
 func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver UserResolver) (*Verifier, error) {
 	if issuer == "" {
@@ -175,10 +175,12 @@ func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver U
 	}, nil
 }
 
-// jwksURL returns the JWKS endpoint for an issuer: OAuth 2.1 / OIDC issuers
-// serve their keys at <issuer>/oauth2/jwks.
+// jwksURL returns the JWKS endpoint for an issuer. VibeXP's embedded OAuth 2.1
+// Authorization Server publishes its keys at <issuer>/oauth2/jwks.json (the
+// jwks_uri advertised in its RFC 8414 metadata), so the verifier must request
+// that exact path.
 func jwksURL(issuer string) string {
-	return issuer + "/oauth2/jwks"
+	return issuer + "/oauth2/jwks.json"
 }
 
 // Verify validates the token signature and claims and resolves the subject to
