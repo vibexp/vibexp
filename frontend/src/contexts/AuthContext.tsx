@@ -17,7 +17,7 @@ import { isFirstTimeUser } from '../utils/userUtils'
 export interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
-  login: (providerSlug?: string) => Promise<void>
+  login: (provider?: string) => Promise<void>
   logout: () => void
   isLoading: boolean
   checkPendingInvitation: () => string | null
@@ -140,11 +140,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void checkAuth()
   }, [])
 
-  const login = async (providerSlug?: string) => {
+  const login = async (provider?: string) => {
     setIsLoading(true)
     try {
-      const loginUrl = await authService.getLoginUrl(providerSlug)
-      // Redirect to WorkOS OAuth flow
+      const loginUrl = await authService.getLoginUrl(provider)
+      // Redirect to the identity provider's OAuth flow
       window.location.href = loginUrl
     } catch (error) {
       setIsLoading(false)

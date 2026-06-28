@@ -1,4 +1,4 @@
-import type { LoginUrlResponse, User } from '../../types'
+import type { AuthProvider, LoginUrlResponse, User } from '../../types'
 import { ApiError, type APIErrorResponse } from '../../types/errors'
 
 // Mock apiClient
@@ -27,15 +27,44 @@ const mockUser: User = {
   onboarding_completed: true,
 }
 
-describe('AuthService (WorkOS cookie-based auth)', () => {
+describe('AuthService (cookie-based auth)', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
+  describe('getProviders', () => {
+    it('should return the enabled providers from the backend', async () => {
+      const providers: AuthProvider[] = [
+        { name: 'github', display_name: 'GitHub' },
+        { name: 'google', display_name: 'Google' },
+      ]
+      mockApiClient.get.mockResolvedValue({ providers })
+
+      const result = await authService.getProviders()
+
+      expect(mockApiClient.get).toHaveBeenCalledWith('/auth/providers')
+      expect(result).toEqual(providers)
+    })
+
+    it('should return an empty list when no provider is configured', async () => {
+      mockApiClient.get.mockResolvedValue({ providers: [] })
+
+      const result = await authService.getProviders()
+
+      expect(result).toEqual([])
+    })
+
+    it('should throw error when the request fails', async () => {
+      mockApiClient.get.mockRejectedValue(new Error('Network error'))
+
+      await expect(authService.getProviders()).rejects.toThrow('Network error')
+    })
+  })
+
   describe('getLoginUrl', () => {
-    it('should return the WorkOS login URL from the backend', async () => {
+    it('should return the login URL from the backend', async () => {
       const mockResponse: LoginUrlResponse = {
-        url: 'https://auth.workos.com/sso/authorize?...',
+        url: 'https://idp.example.com/authorize?...',
       }
       mockApiClient.get.mockResolvedValue(mockResponse)
 
@@ -47,34 +76,34 @@ describe('AuthService (WorkOS cookie-based auth)', () => {
 
     it('should append provider query param when provider is supplied', async () => {
       const mockResponse: LoginUrlResponse = {
-        url: 'https://auth.workos.com/sso/authorize?provider=GoogleOAuth',
+        url: 'https://idp.example.com/authorize?provider=google',
       }
       mockApiClient.get.mockResolvedValue(mockResponse)
 
-      const result = await authService.getLoginUrl('GoogleOAuth')
+      const result = await authService.getLoginUrl('google')
 
       expect(mockApiClient.get).toHaveBeenCalledWith(
-        '/auth/login?provider=GoogleOAuth'
+        '/auth/login?provider=google'
       )
       expect(result).toBe(mockResponse.url)
     })
 
-    it('should URL-encode the provider slug', async () => {
+    it('should URL-encode the provider name', async () => {
       const mockResponse: LoginUrlResponse = {
-        url: 'https://auth.workos.com/sso/authorize?provider=GitHub+OAuth',
+        url: 'https://idp.example.com/authorize?provider=acme+oidc',
       }
       mockApiClient.get.mockResolvedValue(mockResponse)
 
-      await authService.getLoginUrl('GitHub OAuth')
+      await authService.getLoginUrl('acme oidc')
 
       expect(mockApiClient.get).toHaveBeenCalledWith(
-        '/auth/login?provider=GitHub%20OAuth'
+        '/auth/login?provider=acme%20oidc'
       )
     })
 
     it('should not append query param when called with no args', async () => {
       const mockResponse: LoginUrlResponse = {
-        url: 'https://auth.workos.com/sso/authorize?...',
+        url: 'https://idp.example.com/authorize?...',
       }
       mockApiClient.get.mockResolvedValue(mockResponse)
 
@@ -221,7 +250,7 @@ describe('AuthService (WorkOS cookie-based auth)', () => {
     it('should handle complete cookie-based authentication flow', async () => {
       // Step 1: Get login URL
       const loginUrlResponse: LoginUrlResponse = {
-        url: 'https://auth.workos.com/sso/authorize?...',
+        url: 'https://idp.example.com/authorize?...',
       }
       mockApiClient.get.mockResolvedValueOnce(loginUrlResponse)
 
