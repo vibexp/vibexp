@@ -209,6 +209,12 @@ func TestMetrics_MCPMemoryOperations(t *testing.T) {
 		func(m *metrics.Metrics) { m.RecordMCPDateTime(context.Background()) })
 }
 
+// TestMetrics_MCPDeleteResource verifies the generic delete_resource metric.
+func TestMetrics_MCPDeleteResource(t *testing.T) {
+	testMCPMetric(t, "delete_resource", "vx_mcp_delete_resource",
+		func(m *metrics.Metrics) { m.RecordMCPDeleteResource(context.Background(), "memory") })
+}
+
 func testMCPMetric(t *testing.T, name, metricName string, recordFunc func(*metrics.Metrics)) {
 	t.Run(name, func(t *testing.T) {
 		reader := sdkmetric.NewManualReader()
@@ -351,6 +357,9 @@ func initMCPMetrics(m *metrics.Metrics, meter metric.Meter) error {
 		return err
 	}
 	var err error
+	if m.MCPDeleteResource, err = meter.Int64Counter("vx_mcp_delete_resource"); err != nil {
+		return err
+	}
 	if m.MCPDateTime, err = meter.Int64Counter("vx_mcp_datetime"); err != nil {
 		return err
 	}

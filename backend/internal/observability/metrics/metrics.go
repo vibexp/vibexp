@@ -76,6 +76,7 @@ type Metrics struct {
 	MCPUpdatePrompt    metric.Int64Counter
 	MCPCreateBlueprint metric.Int64Counter
 	MCPUpdateBlueprint metric.Int64Counter
+	MCPDeleteResource  metric.Int64Counter
 	MCPDateTime        metric.Int64Counter
 	MCPGetUser         metric.Int64Counter
 
@@ -458,6 +459,9 @@ func (m *Metrics) registerContentAndMCPInstruments(r *registrar) {
 	})
 	m.MCPUpdateBlueprint = r.int64Counter(instrumentSpec{
 		"vx_mcp_update_blueprint", "Total number of MCP update blueprint calls", "1",
+	})
+	m.MCPDeleteResource = r.int64Counter(instrumentSpec{
+		"vx_mcp_delete_resource", "Total number of MCP delete resource calls", "1",
 	})
 	m.MCPDateTime = r.int64Counter(instrumentSpec{"vx_mcp_datetime", "Total number of MCP datetime calls", "1"})
 	m.MCPGetUser = r.int64Counter(instrumentSpec{"vx_mcp_get_user", "Total number of MCP get user calls", "1"})
@@ -919,6 +923,17 @@ func (m *Metrics) RecordMCPUpdateBlueprint(ctx context.Context) {
 	}
 	m.MCPUpdateBlueprint.Add(ctx, 1)
 	m.emitEvent(ctx, "mcp.update_blueprint", eventCategoryMCP, nil)
+}
+
+// RecordMCPDeleteResource increments the MCP delete resource counter. The
+// resource type (memory/artifact/blueprint/prompt) is attached to the business
+// event so per-type deletes stay observable through the single generic tool.
+func (m *Metrics) RecordMCPDeleteResource(ctx context.Context, resourceType string) {
+	if m == nil || m.MCPDeleteResource == nil {
+		return
+	}
+	m.MCPDeleteResource.Add(ctx, 1)
+	m.emitEvent(ctx, "mcp.delete_resource", eventCategoryMCP, []any{"resource_type", resourceType})
 }
 
 // RecordMCPDateTime increments the MCP datetime counter
