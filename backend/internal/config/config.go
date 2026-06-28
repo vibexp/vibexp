@@ -45,10 +45,21 @@ type Config struct {
 	// Back-office admin API key for super admin access
 	BackofficeAdminAPIKey string `envconfig:"BACKOFFICE_ADMIN_API_KEY" default:""`
 
-	// AuthProvider selects the web-login identity provider. Valid values:
-	// "workos", "oidc", or "" (none). When empty, the provider is auto-detected
-	// from WorkOS credentials for backward compatibility, falling back to a
-	// no-op stub (dev login only). The value is matched case-insensitively.
+	// AuthProviders is the comma-separated list of web-login identity providers
+	// to enable simultaneously (e.g. "google,github,oidc"). When set it takes
+	// precedence over AuthProvider. Unknown names are ignored with a warning;
+	// enabled providers whose credentials are missing or whose discovery fails
+	// are skipped at startup (the server still boots). Values are matched
+	// case-insensitively against the canonical names "google", "github",
+	// "oidc", and "workos".
+	AuthProviders []string `envconfig:"AUTH_PROVIDERS"`
+
+	// AuthProvider selects a single web-login identity provider. Valid values:
+	// "workos", "oidc", or "" (none). It is the backward-compatible shim for
+	// deployments predating AUTH_PROVIDERS: it is used only when AUTH_PROVIDERS
+	// is empty. When both are empty the provider is auto-detected from WorkOS
+	// credentials, falling back to no providers (dev login only). The value is
+	// matched case-insensitively.
 	AuthProvider string `envconfig:"AUTH_PROVIDER" default:""`
 
 	// WorkOS AuthKit configuration (active identity provider)
@@ -57,9 +68,22 @@ type Config struct {
 	WorkOSCookiePassword string `envconfig:"WORKOS_COOKIE_PASSWORD" default:""`
 	WorkOSRedirectURI    string `envconfig:"WORKOS_REDIRECT_URI" default:"http://localhost:8080/api/v1/auth/callback"`
 
-	// Generic OIDC provider configuration (used when AUTH_PROVIDER=oidc). Works
+	// Google OIDC provider configuration (used when "google" is enabled).
+	// Google is reached directly via accounts.google.com discovery — not
+	// routed through WorkOS. GoogleClientID/Secret are an OAuth 2.0 Web client.
+	GoogleClientID     string `envconfig:"GOOGLE_CLIENT_ID" default:""`
+	GoogleClientSecret string `envconfig:"GOOGLE_CLIENT_SECRET" default:""`
+	GoogleRedirectURI  string `envconfig:"GOOGLE_REDIRECT_URI" default:"http://localhost:8080/api/v1/auth/callback"`
+
+	// GitHub login (OAuth2) redirect URI used when "github" is enabled. The
+	// client credentials are GitHubClientID/GitHubClientSecret (GITHUB_CLIENT_ID
+	// / GITHUB_CLIENT_SECRET), declared with the GitHub configuration below.
+	// GitHub is OAuth2, not OIDC; claims come from the GitHub REST API.
+	GitHubRedirectURI string `envconfig:"GITHUB_REDIRECT_URI" default:"http://localhost:8080/api/v1/auth/callback"`
+
+	// Generic OIDC provider configuration (used when "oidc" is enabled). Works
 	// with any OIDC-compliant issuer (Keycloak, Authentik, Zitadel, Auth0,
-	// Google). OIDCIssuerURL is used for OIDC discovery at startup.
+	// WorkOS, Clerk). OIDCIssuerURL is used for OIDC discovery at startup.
 	OIDCIssuerURL    string `envconfig:"OIDC_ISSUER_URL" default:""`
 	OIDCClientID     string `envconfig:"OIDC_CLIENT_ID" default:""`
 	OIDCClientSecret string `envconfig:"OIDC_CLIENT_SECRET" default:""`

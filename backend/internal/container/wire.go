@@ -20,7 +20,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideMetrics,
 
 	// External dependencies
-	providers.ProvideIdentityProvider,
+	providers.ProvideIdentityProviderRegistry,
 	providers.ProvideEmailProvider,
 	providers.ProvideSMTPClient,
 	providers.ProvideGitHubAppClient,

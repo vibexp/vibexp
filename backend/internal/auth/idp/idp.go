@@ -18,6 +18,16 @@ const (
 	// ProviderGoogle is the canonical name for the Google OIDC provider.
 	ProviderGoogle ProviderName = "google"
 
+	// ProviderGitHub is the canonical name for the GitHub OAuth2 provider.
+	// This value is persisted in users.idp_provider and must not change.
+	ProviderGitHub ProviderName = "github"
+
+	// ProviderOIDC is the canonical name for the generic OIDC provider used
+	// with any OIDC-compliant issuer (Keycloak, Authentik, Zitadel, Auth0,
+	// and — once WorkOS is removed — WorkOS/Clerk via discovery). It is
+	// persisted in users.idp_provider and must not change.
+	ProviderOIDC ProviderName = "oidc"
+
 	// ProviderWorkOS is the canonical name for the WorkOS AuthKit provider.
 	// This value is persisted in users.idp_provider and must not change.
 	ProviderWorkOS ProviderName = "workos"

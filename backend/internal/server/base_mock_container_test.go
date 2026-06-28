@@ -309,7 +309,7 @@ func (b *BaseMockContainer) EventManager() events.EventPublisher {
 }
 
 // External dependencies
-func (b *BaseMockContainer) IdentityProvider() idp.IdentityProvider {
+func (b *BaseMockContainer) IdentityProviderRegistry() *idp.Registry {
 	return nil
 }
 

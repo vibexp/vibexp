@@ -24,6 +24,53 @@ func (_m *MockAuthServiceInterface) EXPECT() *MockAuthServiceInterface_Expecter 
 	return &MockAuthServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// EnabledProviders provides a mock function with no fields
+func (_m *MockAuthServiceInterface) EnabledProviders() []string {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for EnabledProviders")
+	}
+
+	var r0 []string
+	if rf, ok := ret.Get(0).(func() []string); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]string)
+		}
+	}
+
+	return r0
+}
+
+// MockAuthServiceInterface_EnabledProviders_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'EnabledProviders'
+type MockAuthServiceInterface_EnabledProviders_Call struct {
+	*mock.Call
+}
+
+// EnabledProviders is a helper method to define mock.On call
+func (_e *MockAuthServiceInterface_Expecter) EnabledProviders() *MockAuthServiceInterface_EnabledProviders_Call {
+	return &MockAuthServiceInterface_EnabledProviders_Call{Call: _e.mock.On("EnabledProviders")}
+}
+
+func (_c *MockAuthServiceInterface_EnabledProviders_Call) Run(run func()) *MockAuthServiceInterface_EnabledProviders_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_EnabledProviders_Call) Return(_a0 []string) *MockAuthServiceInterface_EnabledProviders_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_EnabledProviders_Call) RunAndReturn(run func() []string) *MockAuthServiceInterface_EnabledProviders_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetLoginURL provides a mock function with given fields: state, provider
 func (_m *MockAuthServiceInterface) GetLoginURL(state string, provider string) string {
 	ret := _m.Called(state, provider)
@@ -130,9 +177,9 @@ func (_c *MockAuthServiceInterface_GetUserByID_Call) RunAndReturn(run func(conte
 	return _c
 }
 
-// HandleCallback provides a mock function with given fields: ctx, code
-func (_m *MockAuthServiceInterface) HandleCallback(ctx context.Context, code string) (*models.User, *idp.Tokens, bool, error) {
-	ret := _m.Called(ctx, code)
+// HandleCallback provides a mock function with given fields: ctx, code, provider
+func (_m *MockAuthServiceInterface) HandleCallback(ctx context.Context, code string, provider string) (*models.User, *idp.Tokens, bool, error) {
+	ret := _m.Called(ctx, code, provider)
 
 	if len(ret) == 0 {
 		panic("no return value specified for HandleCallback")
@@ -142,33 +189,33 @@ func (_m *MockAuthServiceInterface) HandleCallback(ctx context.Context, code str
 	var r1 *idp.Tokens
 	var r2 bool
 	var r3 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.User, *idp.Tokens, bool, error)); ok {
-		return rf(ctx, code)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*models.User, *idp.Tokens, bool, error)); ok {
+		return rf(ctx, code, provider)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *models.User); ok {
-		r0 = rf(ctx, code)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *models.User); ok {
+		r0 = rf(ctx, code, provider)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.User)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) *idp.Tokens); ok {
-		r1 = rf(ctx, code)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) *idp.Tokens); ok {
+		r1 = rf(ctx, code, provider)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*idp.Tokens)
 		}
 	}
 
-	if rf, ok := ret.Get(2).(func(context.Context, string) bool); ok {
-		r2 = rf(ctx, code)
+	if rf, ok := ret.Get(2).(func(context.Context, string, string) bool); ok {
+		r2 = rf(ctx, code, provider)
 	} else {
 		r2 = ret.Get(2).(bool)
 	}
 
-	if rf, ok := ret.Get(3).(func(context.Context, string) error); ok {
-		r3 = rf(ctx, code)
+	if rf, ok := ret.Get(3).(func(context.Context, string, string) error); ok {
+		r3 = rf(ctx, code, provider)
 	} else {
 		r3 = ret.Error(3)
 	}
@@ -184,13 +231,14 @@ type MockAuthServiceInterface_HandleCallback_Call struct {
 // HandleCallback is a helper method to define mock.On call
 //   - ctx context.Context
 //   - code string
-func (_e *MockAuthServiceInterface_Expecter) HandleCallback(ctx interface{}, code interface{}) *MockAuthServiceInterface_HandleCallback_Call {
-	return &MockAuthServiceInterface_HandleCallback_Call{Call: _e.mock.On("HandleCallback", ctx, code)}
+//   - provider string
+func (_e *MockAuthServiceInterface_Expecter) HandleCallback(ctx interface{}, code interface{}, provider interface{}) *MockAuthServiceInterface_HandleCallback_Call {
+	return &MockAuthServiceInterface_HandleCallback_Call{Call: _e.mock.On("HandleCallback", ctx, code, provider)}
 }
 
-func (_c *MockAuthServiceInterface_HandleCallback_Call) Run(run func(ctx context.Context, code string)) *MockAuthServiceInterface_HandleCallback_Call {
+func (_c *MockAuthServiceInterface_HandleCallback_Call) Run(run func(ctx context.Context, code string, provider string)) *MockAuthServiceInterface_HandleCallback_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
 	return _c
 }
@@ -200,7 +248,7 @@ func (_c *MockAuthServiceInterface_HandleCallback_Call) Return(_a0 *models.User,
 	return _c
 }
 
-func (_c *MockAuthServiceInterface_HandleCallback_Call) RunAndReturn(run func(context.Context, string) (*models.User, *idp.Tokens, bool, error)) *MockAuthServiceInterface_HandleCallback_Call {
+func (_c *MockAuthServiceInterface_HandleCallback_Call) RunAndReturn(run func(context.Context, string, string) (*models.User, *idp.Tokens, bool, error)) *MockAuthServiceInterface_HandleCallback_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -265,9 +313,9 @@ func (_c *MockAuthServiceInterface_HandleDevLogin_Call) RunAndReturn(run func(co
 	return _c
 }
 
-// RefreshTokens provides a mock function with given fields: ctx, refreshToken
-func (_m *MockAuthServiceInterface) RefreshTokens(ctx context.Context, refreshToken string) (*idp.Tokens, error) {
-	ret := _m.Called(ctx, refreshToken)
+// RefreshTokens provides a mock function with given fields: ctx, provider, refreshToken
+func (_m *MockAuthServiceInterface) RefreshTokens(ctx context.Context, provider string, refreshToken string) (*idp.Tokens, error) {
+	ret := _m.Called(ctx, provider, refreshToken)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RefreshTokens")
@@ -275,19 +323,19 @@ func (_m *MockAuthServiceInterface) RefreshTokens(ctx context.Context, refreshTo
 
 	var r0 *idp.Tokens
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*idp.Tokens, error)); ok {
-		return rf(ctx, refreshToken)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*idp.Tokens, error)); ok {
+		return rf(ctx, provider, refreshToken)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *idp.Tokens); ok {
-		r0 = rf(ctx, refreshToken)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *idp.Tokens); ok {
+		r0 = rf(ctx, provider, refreshToken)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*idp.Tokens)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, refreshToken)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, provider, refreshToken)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -302,14 +350,15 @@ type MockAuthServiceInterface_RefreshTokens_Call struct {
 
 // RefreshTokens is a helper method to define mock.On call
 //   - ctx context.Context
+//   - provider string
 //   - refreshToken string
-func (_e *MockAuthServiceInterface_Expecter) RefreshTokens(ctx interface{}, refreshToken interface{}) *MockAuthServiceInterface_RefreshTokens_Call {
-	return &MockAuthServiceInterface_RefreshTokens_Call{Call: _e.mock.On("RefreshTokens", ctx, refreshToken)}
+func (_e *MockAuthServiceInterface_Expecter) RefreshTokens(ctx interface{}, provider interface{}, refreshToken interface{}) *MockAuthServiceInterface_RefreshTokens_Call {
+	return &MockAuthServiceInterface_RefreshTokens_Call{Call: _e.mock.On("RefreshTokens", ctx, provider, refreshToken)}
 }
 
-func (_c *MockAuthServiceInterface_RefreshTokens_Call) Run(run func(ctx context.Context, refreshToken string)) *MockAuthServiceInterface_RefreshTokens_Call {
+func (_c *MockAuthServiceInterface_RefreshTokens_Call) Run(run func(ctx context.Context, provider string, refreshToken string)) *MockAuthServiceInterface_RefreshTokens_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
 	return _c
 }
@@ -319,7 +368,7 @@ func (_c *MockAuthServiceInterface_RefreshTokens_Call) Return(_a0 *idp.Tokens, _
 	return _c
 }
 
-func (_c *MockAuthServiceInterface_RefreshTokens_Call) RunAndReturn(run func(context.Context, string) (*idp.Tokens, error)) *MockAuthServiceInterface_RefreshTokens_Call {
+func (_c *MockAuthServiceInterface_RefreshTokens_Call) RunAndReturn(run func(context.Context, string, string) (*idp.Tokens, error)) *MockAuthServiceInterface_RefreshTokens_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -274,7 +274,7 @@ func TestStateSigningAndValidation(t *testing.T) {
 	server := srv
 
 	state := "test-state-value"
-	signed := server.signState(state)
+	signed := server.signState(state, "github")
 
 	if signed == "" {
 		t.Fatal("Expected non-empty signed state")
@@ -284,15 +284,19 @@ func TestStateSigningAndValidation(t *testing.T) {
 	req := httptest.NewRequest("GET", "/?state="+state, nil)
 	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: signed})
 
-	if err := server.validateStateCookie(req, state); err != nil {
+	provider, err := server.validateStateCookie(req, state)
+	if err != nil {
 		t.Errorf("Expected valid state, got error: %v", err)
+	}
+	if provider != "github" {
+		t.Errorf("Expected provider 'github' recovered from cookie, got %q", provider)
 	}
 
 	// Tampered state should fail
 	req2 := httptest.NewRequest("GET", "/?state=tampered", nil)
 	req2.AddCookie(&http.Cookie{Name: stateCookieName, Value: signed})
 
-	if err := server.validateStateCookie(req2, "tampered"); err == nil {
+	if _, err := server.validateStateCookie(req2, "tampered"); err == nil {
 		t.Error("Expected error for tampered state")
 	}
 }

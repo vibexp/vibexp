@@ -64,6 +64,11 @@ type Session struct {
 	IDPSubject string `json:"idp_subject"`
 	// UserID is the internal application user ID.
 	UserID string `json:"user_id"`
+	// Provider is the canonical name of the identity provider that issued the
+	// session (e.g. "google", "github"). It routes token refresh to the right
+	// provider. Empty for sessions created before multi-provider support and
+	// for dev login; the refresh path tolerates an empty value.
+	Provider string `json:"provider,omitempty"`
 }
 
 // IsExpired returns true when the access token has passed its expiry.

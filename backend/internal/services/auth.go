@@ -15,12 +15,14 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
-// AuthService handles authentication operations using WorkOS as the identity
-// provider. Tokens are delivered via AES-GCM encrypted httpOnly cookies managed
-// by the session package — HS256 JWT signing is removed in this release.
+// AuthService handles authentication operations. It dispatches web login to
+// one of the identity providers held in the registry, selected per-request by
+// the provider name carried through the login/callback flow. Tokens are
+// delivered via AES-GCM encrypted httpOnly cookies managed by the session
+// package — HS256 JWT signing is removed in this release.
 type AuthService struct {
 	userRepo       repositories.UserRepository
-	idp            idp.IdentityProvider
+	registry       *idp.Registry
 	redirectURL    string
 	featureFlagSvc feature_flags.FeatureFlagServiceInterface
 	eventManager   events.EventPublisher
@@ -31,13 +33,13 @@ type AuthService struct {
 var _ AuthServiceInterface = (*AuthService)(nil)
 
 func NewAuthService(
-	userRepo repositories.UserRepository, cfg *config.Config, identityProvider idp.IdentityProvider,
+	userRepo repositories.UserRepository, cfg *config.Config, registry *idp.Registry,
 	eventManager events.EventPublisher, logger *slog.Logger,
 	featureFlagSvc feature_flags.FeatureFlagServiceInterface,
 ) *AuthService {
 	return &AuthService{
 		userRepo:       userRepo,
-		idp:            identityProvider,
+		registry:       registry,
 		redirectURL:    cfg.WorkOSRedirectURI,
 		featureFlagSvc: featureFlagSvc,
 		eventManager:   eventManager,
@@ -45,21 +47,44 @@ func NewAuthService(
 	}
 }
 
-// GetLoginURL returns the WorkOS AuthKit authorization URL for the given state
-// and optional OAuth provider hint (e.g. "GitHubOAuth"). An empty provider
-// string causes the IDP to use its default (GoogleOAuth for WorkOS).
-func (as *AuthService) GetLoginURL(state, provider string) string {
-	return as.idp.AuthorizeURL(state, as.redirectURL, provider)
+// EnabledProviders returns the canonical names of the enabled login providers,
+// stable-sorted, for the HTTP layer to validate the ?provider= hint against
+// and to surface the available choices.
+func (as *AuthService) EnabledProviders() []string {
+	enabled := as.registry.Enabled()
+	names := make([]string, len(enabled))
+	for i, n := range enabled {
+		names[i] = string(n)
+	}
+	return names
 }
 
-// HandleCallback exchanges the authorization code for tokens, looks up or
-// creates the user, and returns the user, IDP tokens, and whether they are new.
-func (as *AuthService) HandleCallback(
-	ctx context.Context, code string,
-) (*models.User, *idp.Tokens, bool, error) {
-	as.logger.Info("Processing OAuth callback")
+// GetLoginURL returns the authorization URL for the named provider. It returns
+// an empty string when the provider is not enabled, so the caller can surface
+// a "provider unavailable" response.
+func (as *AuthService) GetLoginURL(state, provider string) string {
+	p, ok := as.registry.Get(idp.ProviderName(provider))
+	if !ok {
+		return ""
+	}
+	return p.AuthorizeURL(state, as.redirectURL, provider)
+}
 
-	tokens, claims, err := as.idp.ExchangeCode(ctx, code, as.redirectURL)
+// HandleCallback exchanges the authorization code for tokens using the named
+// provider, looks up or creates the user, and returns the user, IDP tokens,
+// and whether they are new. The provider name is resolved from the signed
+// state cookie by the HTTP layer.
+func (as *AuthService) HandleCallback(
+	ctx context.Context, code, provider string,
+) (*models.User, *idp.Tokens, bool, error) {
+	as.logger.With("provider", provider).Info("Processing OAuth callback")
+
+	p, ok := as.registry.Get(idp.ProviderName(provider))
+	if !ok {
+		return nil, nil, false, fmt.Errorf("unknown identity provider %q", provider)
+	}
+
+	tokens, claims, err := p.ExchangeCode(ctx, code, as.redirectURL)
 	if err != nil {
 		as.logger.With("error", err).Error("Failed to exchange OAuth token")
 		return nil, nil, false, fmt.Errorf("failed to exchange token: %w", err)
@@ -82,12 +107,12 @@ func (as *AuthService) HandleCallback(
 	// verification), gate sign-in here:
 	//   if !claims.EmailVerified { return ErrUnverifiedEmail }
 
-	user, isNewUser, err := as.createOrUpdateUserFromClaims(ctx, claims)
+	user, isNewUser, err := as.createOrUpdateUserFromClaims(ctx, string(p.Name()), claims)
 	if err != nil {
 		as.logger.With(
 			"email", claims.Email,
 			"error", fmt.Sprintf("%+v", err),
-			"idp", as.idp.Name(),
+			"idp", string(p.Name()),
 			"idp_subject", claims.Subject,
 		).Error("Failed to create or update user")
 		return nil, nil, false, fmt.Errorf("failed to create or update user: %w", err)
@@ -101,19 +126,27 @@ func (as *AuthService) HandleCallback(
 	return user, tokens, isNewUser, nil
 }
 
-// RefreshTokens refreshes the access token using the given refresh token.
-func (as *AuthService) RefreshTokens(ctx context.Context, refreshToken string) (*idp.Tokens, error) {
-	return as.idp.Refresh(ctx, refreshToken)
+// RefreshTokens refreshes the access token using the named provider. The
+// provider name is carried in the session so the right provider rotates the
+// token (different providers use different refresh endpoints; some, like
+// GitHub, do not support refresh at all).
+func (as *AuthService) RefreshTokens(
+	ctx context.Context, provider, refreshToken string,
+) (*idp.Tokens, error) {
+	p, ok := as.registry.Get(idp.ProviderName(provider))
+	if !ok {
+		return nil, fmt.Errorf("unknown identity provider %q", provider)
+	}
+	return p.Refresh(ctx, refreshToken)
 }
 
 // createOrUpdateUserFromClaims looks up an existing user via the
 // (idp_provider, idp_subject) tuple, falling back to legacy lookup by
-// google_id, then creates a new user if none is found.
+// google_id, then creates a new user if none is found. providerName is the
+// canonical name of the provider that produced the claims.
 func (as *AuthService) createOrUpdateUserFromClaims(
-	ctx context.Context, claims *idp.Claims,
+	ctx context.Context, providerName string, claims *idp.Claims,
 ) (*models.User, bool, error) {
-	providerName := string(as.idp.Name())
-
 	user, err := as.findUserForClaims(ctx, providerName, claims.Subject)
 	if err != nil {
 		return nil, false, err

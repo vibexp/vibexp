@@ -216,9 +216,11 @@ func TestHandleLogin_Success(t *testing.T) {
 
 	expectedLoginURL := "https://sso.workos.com/authorize?state=test-state&client_id=test"
 
+	// A single enabled provider lets the no-param login default to it.
+	mockContainer.authService.On("EnabledProviders").Return([]string{"workos"})
 	mockContainer.authService.On("GetLoginURL", mock.MatchedBy(func(state string) bool {
 		return state != ""
-	}), mock.AnythingOfType("string")).Return(expectedLoginURL)
+	}), "workos").Return(expectedLoginURL)
 
 	srv := createTestAuthServer(mockContainer)
 	req := httptest.NewRequest("GET", "/api/v1/auth/login", nil)
@@ -266,7 +268,7 @@ func TestHandleCallback_Success(t *testing.T) {
 		ExpiresAt:    time.Now().Add(time.Hour),
 	}
 
-	mockContainer.authService.On("HandleCallback", mock.Anything, "test-auth-code").
+	mockContainer.authService.On("HandleCallback", mock.Anything, "test-auth-code", "workos").
 		Return(expectedUser, expectedTokens, false, nil)
 	mockAuthActivityWorkOS(mockContainer, expectedUser.ID)
 
@@ -274,7 +276,7 @@ func TestHandleCallback_Success(t *testing.T) {
 	srv.metrics = testMetrics
 
 	// Build a request with valid state cookie
-	stateCookie := buildStateCookie(t, srv, "test-state")
+	stateCookie := buildStateCookie(t, srv, "test-state", "workos")
 	req := httptest.NewRequest("GET", "/api/v1/auth/callback?code=test-auth-code&state=test-state", nil)
 	req.AddCookie(stateCookie)
 	w := httptest.NewRecorder()
@@ -334,12 +336,12 @@ func TestHandleCallback_InvalidState(t *testing.T) {
 func TestHandleCallback_OAuthFailure(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
 
-	mockContainer.authService.On("HandleCallback", mock.Anything, "invalid-code").
+	mockContainer.authService.On("HandleCallback", mock.Anything, "invalid-code", "workos").
 		Return((*models.User)(nil), (*idp.Tokens)(nil), false, errors.New("exchange failed"))
 
 	srv := createTestAuthServer(mockContainer)
 
-	stateCookie := buildStateCookie(t, srv, "test-state")
+	stateCookie := buildStateCookie(t, srv, "test-state", "workos")
 	req := httptest.NewRequest("GET", "/api/v1/auth/callback?code=invalid-code&state=test-state", nil)
 	req.AddCookie(stateCookie)
 	w := httptest.NewRecorder()
@@ -577,10 +579,10 @@ func TestFlexibleAuthMiddleware_NoAuth_Returns401(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-// Helper: builds a signed state cookie for the test server
-func buildStateCookie(t *testing.T, srv *Server, state string) *http.Cookie {
+// Helper: builds a signed state cookie (state + provider) for the test server
+func buildStateCookie(t *testing.T, srv *Server, state, provider string) *http.Cookie {
 	t.Helper()
-	signedState := srv.signState(state)
+	signedState := srv.signState(state, provider)
 	return &http.Cookie{
 		Name:  stateCookieName,
 		Value: signedState,
@@ -663,61 +665,106 @@ func assertCounterValueForAuthHandler(t *testing.T, rm *metricdata.ResourceMetri
 	assert.True(t, found, "metric %s not found - handler did not record it!", metricName)
 }
 
-type providerQueryParamCase struct {
-	name             string
-	url              string
-	expectedProvider string
+// enabledForLoginTests is the multi-provider set used by the login
+// query-param tests below.
+var enabledForLoginTests = []string{"github", "google", "oidc"}
+
+// TestHandleLogin_ProviderQueryParam_Allowed asserts that a requested provider
+// in the enabled set is forwarded to GetLoginURL by its canonical name.
+func TestHandleLogin_ProviderQueryParam_Allowed(t *testing.T) {
+	cases := []struct {
+		name     string
+		url      string
+		provider string
+	}{
+		{"github selected", "/api/v1/auth/login?provider=github", "github"},
+		{"google selected", "/api/v1/auth/login?provider=google", "google"},
+		{"oidc selected", "/api/v1/auth/login?provider=oidc", "oidc"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			mockContainer := newMockAuthContainer(t)
+			expectedLoginURL := "https://idp.example.com/authorize?state=x"
+			mockContainer.authService.On("EnabledProviders").Return(enabledForLoginTests)
+			mockContainer.authService.On(
+				"GetLoginURL",
+				mock.MatchedBy(func(state string) bool { return state != "" }),
+				tt.provider,
+			).Return(expectedLoginURL)
+
+			srv := createTestAuthServer(mockContainer)
+			req := httptest.NewRequest("GET", tt.url, nil)
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			var response LoginResponse
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, expectedLoginURL, response.URL)
+			mockContainer.authService.AssertExpectations(t)
+		})
+	}
 }
 
-func runProviderQueryParamCase(t *testing.T, tt providerQueryParamCase) {
-	t.Helper()
+// TestHandleLogin_SingleProviderDefaults asserts that with exactly one enabled
+// provider and no ?provider= hint, that provider is used.
+func TestHandleLogin_SingleProviderDefaults(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
-	expectedLoginURL := "https://sso.workos.com/authorize?state=x"
-
+	mockContainer.authService.On("EnabledProviders").Return([]string{"google"})
 	mockContainer.authService.On(
 		"GetLoginURL",
 		mock.MatchedBy(func(state string) bool { return state != "" }),
-		tt.expectedProvider,
-	).Return(expectedLoginURL)
+		"google",
+	).Return("https://idp.example.com/authorize?state=x")
 
 	srv := createTestAuthServer(mockContainer)
-	req := httptest.NewRequest("GET", tt.url, nil)
+	req := httptest.NewRequest("GET", "/api/v1/auth/login", nil)
 	w := httptest.NewRecorder()
-
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-
-	var response LoginResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedLoginURL, response.URL)
-
 	mockContainer.authService.AssertExpectations(t)
 }
 
-// TestHandleLogin_ProviderQueryParam_Allowed asserts that known provider slugs
-// are forwarded to GetLoginURL unchanged.
-func TestHandleLogin_ProviderQueryParam_Allowed(t *testing.T) {
-	cases := []providerQueryParamCase{
-		{name: "GitHubOAuth forwarded", url: "/api/v1/auth/login?provider=GitHubOAuth", expectedProvider: "GitHubOAuth"},
-		{name: "GoogleOAuth forwarded", url: "/api/v1/auth/login?provider=GoogleOAuth", expectedProvider: "GoogleOAuth"},
-		{name: "missing param uses empty string", url: "/api/v1/auth/login", expectedProvider: ""},
-		{name: "empty param uses empty string", url: "/api/v1/auth/login?provider=", expectedProvider: ""},
+// TestHandleLogin_ProviderQueryParam_Rejected asserts that an unknown provider,
+// or a missing/empty hint when multiple providers are enabled, is rejected with
+// 400 and never reaches GetLoginURL (no silent default).
+func TestHandleLogin_ProviderQueryParam_Rejected(t *testing.T) {
+	cases := []struct {
+		name string
+		url  string
+	}{
+		{"unknown provider rejected", "/api/v1/auth/login?provider=okta-magic"},
+		{"malicious value rejected", "/api/v1/auth/login?provider=DROP_TABLE"},
+		{"missing hint with multiple providers", "/api/v1/auth/login"},
+		{"empty hint with multiple providers", "/api/v1/auth/login?provider="},
 	}
 	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) { runProviderQueryParamCase(t, tt) })
+		t.Run(tt.name, func(t *testing.T) {
+			mockContainer := newMockAuthContainer(t)
+			mockContainer.authService.On("EnabledProviders").Return(enabledForLoginTests)
+
+			srv := createTestAuthServer(mockContainer)
+			req := httptest.NewRequest("GET", tt.url, nil)
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			mockContainer.authService.AssertNotCalled(t, "GetLoginURL", mock.Anything, mock.Anything)
+		})
 	}
 }
 
-// TestHandleLogin_ProviderQueryParam_Rejected asserts that unknown provider
-// values are silently rejected (allowlist enforcement).
-func TestHandleLogin_ProviderQueryParam_Rejected(t *testing.T) {
-	cases := []providerQueryParamCase{
-		{name: "unknown provider rejected", url: "/api/v1/auth/login?provider=UnknownProvider", expectedProvider: ""},
-		{name: "malicious value rejected", url: "/api/v1/auth/login?provider=DROP_TABLE", expectedProvider: ""},
-	}
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) { runProviderQueryParamCase(t, tt) })
-	}
+// TestHandleLogin_NoProvidersEnabled asserts that with no providers enabled the
+// login endpoint returns 503 (web login unavailable).
+func TestHandleLogin_NoProvidersEnabled(t *testing.T) {
+	mockContainer := newMockAuthContainer(t)
+	mockContainer.authService.On("EnabledProviders").Return([]string{})
+
+	srv := createTestAuthServer(mockContainer)
+	req := httptest.NewRequest("GET", "/api/v1/auth/login", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }

@@ -4,22 +4,54 @@
 
 api-v1-auth-login:
   get:
-    summary: Initiate WorkOS login
+    summary: Initiate login with an identity provider
     description: |
-      Generates a CSRF state, stores it in a signed `vx_state` cookie, and returns the
-      WorkOS AuthKit authorization URL. The client should redirect the user to this URL
-      to begin the authentication flow.
+      Selects an enabled identity provider, generates a CSRF state, stores the
+      (state, provider) pair in a signed `vx_state` cookie, and returns the
+      provider's authorization URL. The client should redirect the user to this
+      URL to begin the authentication flow.
+
+      The provider is chosen with the `provider` query parameter, whose value is
+      one of the deployment's enabled providers (e.g. `google`, `github`,
+      `oidc`). When exactly one provider is enabled the parameter may be omitted
+      and that provider is used. When several are enabled the parameter is
+      required; an unknown or disabled value is rejected (no silent default).
     operationId: login
     security: []  # No authentication required
+    parameters:
+      - name: provider
+        in: query
+        required: false
+        description: |
+          Canonical name of the identity provider to use (e.g. `google`,
+          `github`, `oidc`). Optional when a single provider is enabled;
+          required when more than one is enabled.
+        schema:
+          type: string
+          example: "google"
     responses:
       '200':
-        description: WorkOS authorization URL generated successfully
+        description: Authorization URL generated successfully
         content:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/LoginResponse'
+      '400':
+        description: |
+          The `provider` value is unknown/disabled, or it was omitted while
+          multiple providers are enabled.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '503':
+        description: No identity provider is configured (web login unavailable)
         content:
           application/problem+json:
             schema:
@@ -29,12 +61,14 @@ api-v1-auth-login:
 
 api-v1-auth-callback:
   get:
-    summary: Handle WorkOS OAuth callback
+    summary: Handle the identity-provider OAuth callback
     description: |
-      Validates the CSRF `vx_state` cookie, exchanges the authorization code with WorkOS,
-      looks up or creates the user, writes a session cookie, and issues a 302 redirect
-      to the frontend home page. This endpoint is called by the browser after the user
-      authenticates with WorkOS — it does not return a JSON body on success.
+      Validates the CSRF `vx_state` cookie, recovers the provider bound to it,
+      exchanges the authorization code with that provider, looks up or creates
+      the user, writes a session cookie, and issues a 302 redirect to the
+      frontend home page. This endpoint is called by the browser after the user
+      authenticates with the upstream provider — it does not return a JSON body
+      on success.
     operationId: authCallback
     security: []  # No authentication required
     parameters:

@@ -93,7 +93,7 @@ type Container interface {
 	EventManager() events.EventPublisher
 
 	// External dependencies
-	IdentityProvider() idp.IdentityProvider
+	IdentityProviderRegistry() *idp.Registry
 	SMTPClient() external.SMTPClient
 	GitHubAppClient() external.GitHubAppClient
 
