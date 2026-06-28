@@ -103,7 +103,7 @@ func CreateTestAPIKeyWithName(userID, name string) (*models.APIKey, string, erro
 
 // AddAuthHeader adds authentication via a session cookie to an HTTP request.
 // The token parameter is treated as the vx_session cookie value.
-// NOTE: In the WorkOS cookie-based auth model, there is no Authorization Bearer header.
+// NOTE: In the cookie-based auth model, there is no Authorization Bearer header.
 // This function is kept for API compatibility; it now sets the session cookie.
 func AddAuthHeader(req *http.Request, token string) {
 	req.AddCookie(&http.Cookie{

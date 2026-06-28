@@ -135,7 +135,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 
 // Update updates an existing user. The WHERE clause uses the user's id (UUID)
 // and version for optimistic concurrency control. google_id is no longer used
-// in the WHERE clause because WorkOS users do not have a google_id.
+// in the WHERE clause because non-Google users do not have a google_id.
 func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	now := time.Now()
 	query := `

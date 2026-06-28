@@ -173,7 +173,7 @@ func createTestAuthServer(container *MockAuthContainer) *Server {
 	// Cookie password must be 32 hex-encoded bytes (64 chars)
 	cfg := &config.Config{
 		FrontendBaseURL:      "http://localhost:5173",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 	}
 	logger := slog.New(slog.DiscardHandler)
 
@@ -194,7 +194,7 @@ func createTestAuthServer(container *MockAuthContainer) *Server {
 		sessionManager: sessMgr,
 	}
 
-	// Register WorkOS auth routes
+	// Register identity-provider auth routes
 	r.Route("/api/v1/auth", func(r chi.Router) {
 		r.Get("/login", srv.handleLogin)
 		r.Get("/callback", srv.handleCallback)
@@ -214,13 +214,13 @@ func createTestAuthServer(container *MockAuthContainer) *Server {
 func TestHandleLogin_Success(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
 
-	expectedLoginURL := "https://sso.workos.com/authorize?state=test-state&client_id=test"
+	expectedLoginURL := "https://idp.example.com/authorize?state=test-state&client_id=test"
 
 	// A single enabled provider lets the no-param login default to it.
-	mockContainer.authService.On("EnabledProviders").Return([]string{"workos"})
+	mockContainer.authService.On("EnabledProviders").Return([]string{"oidc"})
 	mockContainer.authService.On("GetLoginURL", mock.MatchedBy(func(state string) bool {
 		return state != ""
-	}), "workos").Return(expectedLoginURL)
+	}), "oidc").Return(expectedLoginURL)
 
 	srv := createTestAuthServer(mockContainer)
 	req := httptest.NewRequest("GET", "/api/v1/auth/login", nil)
@@ -249,7 +249,7 @@ func TestHandleLogin_Success(t *testing.T) {
 	mockContainer.authService.AssertExpectations(t)
 }
 
-// TestHandleCallback_Success tests successful WorkOS callback with session cookie
+// TestHandleCallback_Success tests successful callback with session cookie
 func TestHandleCallback_Success(t *testing.T) {
 	mockContainer, testMetrics, reader := setupAuthTestWithMetrics(t)
 
@@ -257,8 +257,8 @@ func TestHandleCallback_Success(t *testing.T) {
 		ID:          "user-123",
 		Email:       "test@example.com",
 		Name:        "Test User",
-		IDPProvider: func() *string { s := "workos"; return &s }(),
-		IDPSubject:  func() *string { s := "workos-sub-123"; return &s }(),
+		IDPProvider: func() *string { s := "oidc"; return &s }(),
+		IDPSubject:  func() *string { s := "oidc-sub-123"; return &s }(),
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -268,15 +268,15 @@ func TestHandleCallback_Success(t *testing.T) {
 		ExpiresAt:    time.Now().Add(time.Hour),
 	}
 
-	mockContainer.authService.On("HandleCallback", mock.Anything, "test-auth-code", "workos").
+	mockContainer.authService.On("HandleCallback", mock.Anything, "test-auth-code", "oidc").
 		Return(expectedUser, expectedTokens, false, nil)
-	mockAuthActivityWorkOS(mockContainer, expectedUser.ID)
+	mockAuthActivityOIDC(mockContainer, expectedUser.ID)
 
 	srv := createTestAuthServer(mockContainer)
 	srv.metrics = testMetrics
 
 	// Build a request with valid state cookie
-	stateCookie := buildStateCookie(t, srv, "test-state", "workos")
+	stateCookie := buildStateCookie(t, srv, "test-state", "oidc")
 	req := httptest.NewRequest("GET", "/api/v1/auth/callback?code=test-auth-code&state=test-state", nil)
 	req.AddCookie(stateCookie)
 	w := httptest.NewRecorder()
@@ -336,12 +336,12 @@ func TestHandleCallback_InvalidState(t *testing.T) {
 func TestHandleCallback_OAuthFailure(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
 
-	mockContainer.authService.On("HandleCallback", mock.Anything, "invalid-code", "workos").
+	mockContainer.authService.On("HandleCallback", mock.Anything, "invalid-code", "oidc").
 		Return((*models.User)(nil), (*idp.Tokens)(nil), false, errors.New("exchange failed"))
 
 	srv := createTestAuthServer(mockContainer)
 
-	stateCookie := buildStateCookie(t, srv, "test-state", "workos")
+	stateCookie := buildStateCookie(t, srv, "test-state", "oidc")
 	req := httptest.NewRequest("GET", "/api/v1/auth/callback?code=invalid-code&state=test-state", nil)
 	req.AddCookie(stateCookie)
 	w := httptest.NewRecorder()
@@ -493,7 +493,7 @@ func TestHandleDevLogin_Success(t *testing.T) {
 func TestHandleDevLogin_NotAvailableInProduction(t *testing.T) {
 	cfg := &config.Config{
 		FrontendBaseURL:      "https://app.vibexp.io",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 	}
 	prodEnvSvc := services.NewEnvironmentService(cfg)
 	mockContainer := &MockAuthContainer{
@@ -540,7 +540,7 @@ func TestFlexibleAuthMiddleware_WithSessionCookie(t *testing.T) {
 		AccessToken:  "test-access-token",
 		RefreshToken: "",
 		ExpiresAt:    time.Now().Add(time.Hour),
-		IDPSubject:   "workos-sub-123",
+		IDPSubject:   "oidc-sub-123",
 		UserID:       "cookie-user-123",
 	}
 	rw := httptest.NewRecorder()
@@ -599,7 +599,7 @@ func setupAuthTestWithMetrics(t *testing.T) (*MockAuthContainer, *ometrics.Metri
 	return mockContainer, testMetrics, reader
 }
 
-func mockAuthActivityWorkOS(mockContainer *MockAuthContainer, userID string) {
+func mockAuthActivityOIDC(mockContainer *MockAuthContainer, userID string) {
 	mockContainer.activityService.On(
 		"RecordAuthActivity",
 		mock.Anything,
@@ -607,7 +607,7 @@ func mockAuthActivityWorkOS(mockContainer *MockAuthContainer, userID string) {
 		activities.ActivityTypeAuthLogin,
 		mock.AnythingOfType("*string"),
 		mock.MatchedBy(func(metadata map[string]interface{}) bool {
-			return metadata["provider"] == "workos"
+			return metadata["provider"] == "oidc"
 		}),
 		mock.AnythingOfType("*string"),
 		mock.AnythingOfType("*string"),

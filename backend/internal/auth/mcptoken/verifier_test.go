@@ -24,7 +24,7 @@ import (
 
 const (
 	testResourceURI = "https://connect.vibexp.io/mcp/v1/common"
-	testSubject     = "user_workos_abc"
+	testSubject     = "user_oidc_abc"
 	testInternalID  = "vibexp-user-42"
 	testKeyID       = "test-key-1"
 )
@@ -127,7 +127,7 @@ func TestVerify_ValidToken(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, info)
-	assert.Equal(t, testInternalID, info.UserID, "UserID must be the internal VibeXP user ID, not the WorkOS sub")
+	assert.Equal(t, testInternalID, info.UserID, "UserID must be the internal VibeXP user ID, not the token sub")
 	assert.Equal(t, []string{"openid", "mcp"}, info.Scopes)
 	assert.False(t, info.Expiration.IsZero())
 	assert.Equal(t, testSubject, info.Extra["sub"])

@@ -217,13 +217,13 @@ func TestIsTransientRefreshError(t *testing.T) {
 		transient bool
 	}{
 		{"nil error", nil, false},
-		{"WorkOS 500", errors.New("workos: authenticate endpoint returned 500: oops"), true},
-		{"WorkOS 503", errors.New("workos: authenticate endpoint returned 503: try later"), true},
-		{"WorkOS 400", errors.New("workos: authenticate endpoint returned 400: bad request"), false},
-		{"WorkOS 401 invalid_grant", errors.New("workos: authenticate endpoint returned 401: invalid_grant"), false},
+		{"provider 500", errors.New("oidc: token endpoint returned 500: oops"), true},
+		{"provider 503", errors.New("oidc: token endpoint returned 503: try later"), true},
+		{"provider 400", errors.New("oidc: token endpoint returned 400: bad request"), false},
+		{"provider 401 invalid_grant", errors.New("oidc: token endpoint returned 401: invalid_grant"), false},
 		{"context deadline", context.DeadlineExceeded, true},
 		{"context canceled", context.Canceled, true},
-		{"DNS lookup failure", errors.New("dial tcp: lookup api.workos.com: no such host"), true},
+		{"DNS lookup failure", errors.New("dial tcp: lookup idp.example.com: no such host"), true},
 		{"connection refused", errors.New("dial tcp: connection refused"), true},
 		{"unexpected EOF", errors.New("read tcp: EOF"), true},
 		{"plain unknown error", errors.New("something else"), false},

@@ -75,7 +75,7 @@ api-v1-auth-callback:
       - name: code
         in: query
         required: true
-        description: Authorization code returned by WorkOS after user authentication
+        description: Authorization code returned by the identity provider after user authentication
         schema:
           type: string
           example: "01ABCDEF1234567890"
@@ -96,7 +96,7 @@ api-v1-auth-callback:
               type: string
               format: uri
           Set-Cookie:
-            description: Encrypted session cookie (`vx_session`) containing the WorkOS access token
+            description: Encrypted session cookie (`vx_session`) containing the identity-provider access token
             schema:
               type: string
       '400':
@@ -112,7 +112,7 @@ api-v1-auth-callback:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
-        description: WorkOS authentication failed or session could not be created
+        description: Identity provider authentication failed or session could not be created
         content:
           application/problem+json:
             schema:
@@ -150,8 +150,8 @@ api-v1-auth-dev-login:
     summary: Dev login (development only)
     description: |
       Creates or retrieves a user by email address and sets a session cookie without
-      going through WorkOS. Only available when the server is running in development
-      mode (`DEV_LOGIN_ENABLED=true`). Returns 404 in all other environments.
+      going through an external identity provider. Only available when the server is
+      running in development mode (`DEV_LOGIN_ENABLED=true`). Returns 404 in all other environments.
     operationId: devLogin
     security: []  # No authentication required
     requestBody:
@@ -193,8 +193,8 @@ api-v1-auth-me:
     summary: Get current user information
     description: |
       Returns information about the currently authenticated user. Authentication is
-      verified via the encrypted session cookie (`vx_session`) set during the WorkOS
-      OAuth flow or dev login.
+      verified via the encrypted session cookie (`vx_session`) set during the
+      identity-provider OAuth flow or dev login.
     operationId: getMe
     responses:
       '200':

@@ -42,7 +42,7 @@ func newServerWithMockAuthSvc(
 		port:           "8080",
 		container:      ctr,
 		logger:         logger,
-		config:         &config.Config{WorkOSCookiePassword: testCookiePassword},
+		config:         &config.Config{SessionEncryptionKey: testCookiePassword},
 		sessionManager: sessMgr,
 		router:         chi.NewRouter(),
 	}
@@ -68,7 +68,7 @@ func buildTestSession(t *testing.T, userID string, expiresIn time.Duration) stri
 	sess := &sesslib.Session{
 		AccessToken: "test-access-token",
 		ExpiresAt:   time.Now().Add(expiresIn),
-		IDPSubject:  "workos-sub-" + userID,
+		IDPSubject:  "oidc-sub-" + userID,
 		UserID:      userID,
 	}
 

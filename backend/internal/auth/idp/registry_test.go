@@ -34,19 +34,19 @@ func TestRegistry_GetAndLen(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, ProviderGoogle, got.Name())
 
-	_, ok = reg.Get(ProviderWorkOS)
+	_, ok = reg.Get(ProviderOIDC)
 	assert.False(t, ok, "unregistered provider must not be found")
 }
 
 func TestRegistry_EnabledIsSorted(t *testing.T) {
 	// Insertion order deliberately not alphabetical.
 	reg := NewRegistry(
-		fakeProvider{name: ProviderWorkOS},
+		fakeProvider{name: ProviderOIDC},
 		fakeProvider{name: ProviderGitHub},
 		fakeProvider{name: ProviderGoogle},
 	)
 
-	assert.Equal(t, []ProviderName{ProviderGitHub, ProviderGoogle, ProviderWorkOS}, reg.Enabled())
+	assert.Equal(t, []ProviderName{ProviderGitHub, ProviderGoogle, ProviderOIDC}, reg.Enabled())
 }
 
 func TestRegistry_Empty(t *testing.T) {

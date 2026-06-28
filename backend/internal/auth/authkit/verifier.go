@@ -1,8 +1,8 @@
-// Package authkit verifies WorkOS AuthKit-issued JWT access tokens. It is the
+// Package authkit verifies OAuth 2.1 issuer-signed JWT access tokens. It is the
 // shared core behind both the MCP resource server (internal/auth/mcptoken) and
 // the /api/v1 bearer-token middleware: JWKS-backed signature verification, an
 // RS256 algorithm pin, registered-claim validation with clock-skew leeway, a
-// pluggable audience policy, and resolution of the WorkOS subject to an
+// pluggable audience policy, and resolution of the token subject to an
 // internal VibeXP user ID.
 package authkit
 
@@ -49,7 +49,7 @@ const ClockSkewLeeway = 60 * time.Second
 // HMAC alg verified against public key material).
 var allowedSigningAlgs = map[string]bool{"RS256": true}
 
-// UserResolver resolves a WorkOS subject to an internal VibeXP user. It is
+// UserResolver resolves a token subject to an internal VibeXP user. It is
 // satisfied by an adapter over repositories.UserRepository.GetByIDPSubject.
 type UserResolver interface {
 	ResolveUserID(ctx context.Context, provider, subject string) (string, error)
@@ -154,7 +154,7 @@ type Verifier struct {
 }
 
 // New constructs a Verifier. It creates a caching JWKS key set pointed at the
-// AuthKit JWKS endpoint (<issuer>/oauth2/jwks). issuer must be non-empty;
+// issuer's JWKS endpoint (<issuer>/oauth2/jwks). issuer must be non-empty;
 // audience and resolver must be non-nil.
 func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver UserResolver) (*Verifier, error) {
 	if issuer == "" {
@@ -175,22 +175,9 @@ func New(ctx context.Context, issuer string, audience AudiencePolicy, resolver U
 	}, nil
 }
 
-// workosUserManagementPrefix is the base of WorkOS's environment-scoped issuer
-// form (https://api.workos.com/user_management/<client_id>), carried by access
-// tokens minted via the user_management authorize/authenticate endpoints — the
-// flow native PKCE clients (mobile) use.
-const workosUserManagementPrefix = "https://api.workos.com/user_management/"
-
-// jwksURL returns the JWKS endpoint for a WorkOS issuer. AuthKit domains serve
-// keys at <issuer>/oauth2/jwks; the api.workos.com user_management issuer form
-// serves them at https://api.workos.com/sso/jwks/<client_id> instead (per its
-// OIDC discovery document). Deriving the URL here lets both issuer forms verify
-// without extra configuration.
+// jwksURL returns the JWKS endpoint for an issuer: OAuth 2.1 / OIDC issuers
+// serve their keys at <issuer>/oauth2/jwks.
 func jwksURL(issuer string) string {
-	clientID, ok := strings.CutPrefix(issuer, workosUserManagementPrefix)
-	if ok && clientID != "" && !strings.Contains(clientID, "/") {
-		return "https://api.workos.com/sso/jwks/" + clientID
-	}
 	return issuer + "/oauth2/jwks"
 }
 
@@ -257,7 +244,7 @@ func (v *Verifier) validateClaims(c *claims) error {
 // errors stay opaque; the subject and any underlying detail are kept out of the
 // returned message and surface only in the server logs.
 func (v *Verifier) resolveUserID(ctx context.Context, subject string) (string, error) {
-	userID, err := v.resolver.ResolveUserID(ctx, string(idp.ProviderWorkOS), subject)
+	userID, err := v.resolver.ResolveUserID(ctx, string(idp.ProviderOIDC), subject)
 	if err != nil {
 		if errors.Is(err, repositories.ErrUserNotFound) {
 			return "", ErrUnknownSubject

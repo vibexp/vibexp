@@ -238,19 +238,6 @@ func newDiscoverableIssuer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func TestProvideRegistry_WorkOSEmptyCreds_Skipped(t *testing.T) {
-	cfg := &config.Config{
-		AuthProvider:   "workos",
-		WorkOSClientID: "",
-		WorkOSAPIKey:   "",
-	}
-
-	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
-
-	require.NoError(t, err)
-	assert.Equal(t, 0, registry.Len(), "AUTH_PROVIDER=workos with empty creds enables no providers")
-}
-
 func TestProvideRegistry_OIDCDiscoverable_RegistersOIDCClient(t *testing.T) {
 	srv := newDiscoverableIssuer(t)
 	cfg := &config.Config{
@@ -299,7 +286,7 @@ func TestProvideRegistry_OIDCMissingConfig_NonFatalSkip(t *testing.T) {
 	assert.Equal(t, 0, registry.Len(), "missing OIDC config should skip the provider")
 }
 
-func TestProvideRegistry_EmptyProvider_NoWorkOS_Empty(t *testing.T) {
+func TestProvideRegistry_EmptyProvider_Empty(t *testing.T) {
 	cfg := &config.Config{
 		AuthProvider: "",
 	}
@@ -364,9 +351,7 @@ func TestProvideRegistry_MultipleProviders(t *testing.T) {
 func TestProvideRegistry_AuthProvidersOverridesAuthProvider(t *testing.T) {
 	cfg := &config.Config{
 		AuthProviders:      []string{"github"},
-		AuthProvider:       "workos",
-		WorkOSClientID:     "wos-id",
-		WorkOSAPIKey:       "wos-key",
+		AuthProvider:       "oidc",
 		GitHubClientID:     "gh-client-id",
 		GitHubClientSecret: "gh-client-secret",
 	}
@@ -375,5 +360,5 @@ func TestProvideRegistry_AuthProvidersOverridesAuthProvider(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []idp.ProviderName{idp.ProviderGitHub}, registry.Enabled(),
-		"AUTH_PROVIDERS must take precedence; WorkOS shim ignored")
+		"AUTH_PROVIDERS must take precedence; AUTH_PROVIDER shim ignored")
 }

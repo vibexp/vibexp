@@ -61,7 +61,7 @@ func TestWriteAndRead_RoundTrip(t *testing.T) {
 		AccessToken:  "access-token-value",
 		RefreshToken: "refresh-token-value",
 		ExpiresAt:    time.Now().Add(time.Hour),
-		IDPSubject:   "workos-sub-123",
+		IDPSubject:   "oidc-sub-123",
 		UserID:       "user-abc",
 	}
 

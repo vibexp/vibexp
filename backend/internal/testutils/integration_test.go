@@ -41,8 +41,8 @@ func TestIntegrationWithServer(t *testing.T) {
 
 func setupTestServer() http.Handler {
 	cfg := &config.Config{
-		// Use the test session cookie password so session manager is initialised
-		WorkOSCookiePassword: TestSessionCookiePassword,
+		// Use the test session encryption key so session manager is initialised
+		SessionEncryptionKey: TestSessionCookiePassword,
 		FrontendBaseURL:      "http://localhost:5173",
 	}
 

@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	oauthTestSubject    = "user_workos_mobile"
+	oauthTestSubject    = "user_oidc_mobile"
 	oauthTestInternalID = "vibexp-user-77"
 	oauthTestKeyID      = "mw-test-key-1"
 )
@@ -95,7 +95,7 @@ func validOAuthClaims(issuer string) jwt.MapClaims {
 
 func newOAuthJWTTestServer(t *testing.T, cookiePassword string) *Server {
 	t.Helper()
-	cfg := &config.Config{WorkOSCookiePassword: cookiePassword}
+	cfg := &config.Config{SessionEncryptionKey: cookiePassword}
 	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)
 }
@@ -140,7 +140,7 @@ func TestFlexibleAuth_OAuthJWT_Valid(t *testing.T) {
 	rr, called, userID, authType := doFlexibleAuth(srv, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.True(t, called)
-	assert.Equal(t, oauthTestInternalID, userID, "context must carry the internal user ID, not the WorkOS sub")
+	assert.Equal(t, oauthTestInternalID, userID, "context must carry the internal user ID, not the token sub")
 	assert.Equal(t, "oauth", authType)
 }
 

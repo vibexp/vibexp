@@ -90,7 +90,7 @@ func (c *Client) Name() idp.ProviderName { return c.name }
 // non-empty it overrides the default RedirectURL configured at construction.
 // The provider parameter is accepted for interface compliance but ignored by
 // the generic OIDC client — provider routing is handled by wrapper
-// implementations (e.g. the WorkOS provider).
+// implementations (e.g. the Google provider).
 func (c *Client) AuthorizeURL(state, redirectURI, _ string) string {
 	cfg := *c.oauth2Config
 	if redirectURI != "" {

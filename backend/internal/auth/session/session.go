@@ -48,7 +48,7 @@ var ErrCookieTooLarge = errors.New("session: encoded session exceeds maximum coo
 // maxCookieValueBytes is the largest acceptable encoded cookie value.
 // Browsers enforce a per-cookie limit around 4096 bytes (name + value +
 // attributes). Reserving ~600 bytes for name and attributes leaves ~3500
-// for the value. If WorkOS access tokens grow large, we surface a
+// for the value. If provider access tokens grow large, we surface a
 // concrete error instead of silently dropping the cookie.
 const maxCookieValueBytes = 3500
 
@@ -107,7 +107,7 @@ func NewManager(cookiePassword string, isLocal bool) (*Manager, error) {
 // key for the OAuth state cookie. Mixing this label into the derived key
 // ensures the AES-GCM session key and the state HMAC key are different,
 // satisfying NIST SP 800-108 key-separation guidance even though both
-// derive from the same WORKOS_COOKIE_PASSWORD secret.
+// derive from the same SESSION_ENCRYPTION_KEY secret.
 const stateMACDomain = "vx-state-mac-v1"
 
 // DeriveStateMACKey returns a 32-byte key derived from the manager's

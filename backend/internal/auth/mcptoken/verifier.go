@@ -7,9 +7,8 @@
 // pre-extraction messages ("invalid token: <reason>", and a bare
 // "invalid token" for an unknown subject — never an enumeration oracle).
 //
-// One deliberate behavior note vs the pre-extraction code: the JWKS URL is now
-// derived per WorkOS issuer form (see authkit.New); for the AuthKit-domain
-// issuers this endpoint uses, the URL is unchanged.
+// The JWKS URL is derived from the configured issuer as <issuer>/oauth2/jwks
+// (see authkit.New).
 package mcptoken
 
 import (
@@ -35,7 +34,7 @@ var errUserResolution = errors.New("mcptoken: user resolution failed")
 // minor clock drift between AuthKit and this server.
 const clockSkewLeeway = authkit.ClockSkewLeeway
 
-// UserResolver resolves a WorkOS subject to an internal VibeXP user. It is
+// UserResolver resolves a token subject to an internal VibeXP user. It is
 // satisfied by an adapter over repositories.UserRepository.GetByIDPSubject.
 type UserResolver = authkit.UserResolver
 

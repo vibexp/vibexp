@@ -12,10 +12,10 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 )
 
-func TestWorkOSAuthLogin_Endpoints(t *testing.T) {
+func TestAuthLogin_Endpoints(t *testing.T) {
 	cfg := &config.Config{
 		FrontendBaseURL:      "http://localhost:5173",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -26,7 +26,7 @@ func TestWorkOSAuthLogin_Endpoints(t *testing.T) {
 		path     string
 		expected int
 	}{
-		// WorkOS login returns 503 (Service Unavailable) when identity provider not configured (stub/local dev)
+		// Login returns 503 (Service Unavailable) when identity provider not configured (stub/local dev)
 		{"Login - GET returns 503 when IDP not configured", "GET", "/api/v1/auth/login", http.StatusServiceUnavailable},
 		// POST to login should return method not allowed
 		{"Login - Method Not Allowed", "POST", "/api/v1/auth/login", http.StatusMethodNotAllowed},
@@ -58,7 +58,7 @@ func TestWorkOSAuthLogin_Endpoints(t *testing.T) {
 func TestDevLogin_BadRequest(t *testing.T) {
 	cfg := &config.Config{
 		FrontendBaseURL:      "http://localhost:5173",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 		DevLoginEnabled:      true,
 	}
 	logger := slog.New(slog.DiscardHandler)
@@ -117,7 +117,7 @@ func TestDevLogin_BadRequest(t *testing.T) {
 func TestFlexibleAuthMiddleware_MissingAuth(t *testing.T) {
 	cfg := &config.Config{
 		FrontendBaseURL:      "http://localhost:5173",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -152,7 +152,7 @@ func TestFlexibleAuthMiddleware_MissingAuth(t *testing.T) {
 func TestFlexibleAuthMiddleware_InvalidHeader(t *testing.T) {
 	cfg := &config.Config{
 		FrontendBaseURL:      "http://localhost:5173",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -192,7 +192,7 @@ func TestFlexibleAuthMiddleware_InvalidHeader(t *testing.T) {
 func TestAuthHandlers_InvalidPaths(t *testing.T) {
 	cfg := &config.Config{
 		FrontendBaseURL:      "http://localhost:5173",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -228,7 +228,7 @@ func TestAuthHandlers_InvalidPaths(t *testing.T) {
 func TestLogout_ClearsSessionCookie(t *testing.T) {
 	cfg := &config.Config{
 		FrontendBaseURL:      "http://localhost:5173",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -265,7 +265,7 @@ func TestLogout_ClearsSessionCookie(t *testing.T) {
 func TestStateSigningAndValidation(t *testing.T) {
 	cfg := &config.Config{
 		FrontendBaseURL:      "http://localhost:5173",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -305,7 +305,7 @@ func TestStateSigningAndValidation(t *testing.T) {
 func TestSessionCookieAuth_EndToEnd(t *testing.T) {
 	cfg := &config.Config{
 		FrontendBaseURL:      "http://localhost:5173",
-		WorkOSCookiePassword: testCookiePassword,
+		SessionEncryptionKey: testCookiePassword,
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -319,7 +319,7 @@ func TestSessionCookieAuth_EndToEnd(t *testing.T) {
 	sess := &sesslib.Session{
 		AccessToken: "valid-access-token",
 		ExpiresAt:   time.Now().Add(time.Hour),
-		IDPSubject:  "workos-sub-123",
+		IDPSubject:  "oidc-sub-123",
 		UserID:      "test-user-123",
 	}
 	rw := httptest.NewRecorder()

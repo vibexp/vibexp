@@ -51,6 +51,17 @@ jobs:
       - name: Test
         run: make backend-test
 
+      # Guard against reintroducing WorkOS-specific coupling (removed in #30).
+      # WorkOS may return only as generic OIDC_* configuration, never as
+      # special-case code. Scoped to Go source so doc/config examples are unaffected.
+      - name: Guard against WorkOS coupling
+        run: |
+          if grep -rniE 'workos' backend --include='*.go'; then
+            echo "::error::WorkOS references found in backend Go source. The WorkOS provider was removed; re-add WorkOS only as generic OIDC_* configuration."
+            exit 1
+          fi
+          echo "OK: no WorkOS coupling in backend Go source."
+
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest

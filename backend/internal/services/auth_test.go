@@ -40,16 +40,16 @@ func createTestAuthServiceNew(
 }
 
 // newTestRegistry wraps a mock identity provider in a registry. It defaults the
-// provider's Name() to WorkOS (the registry keys by Name() at build time) when
-// the test has not already stubbed it.
+// provider's Name() to the generic OIDC provider (the registry keys by Name()
+// at build time) when the test has not already stubbed it.
 func newTestRegistry(p *idpmocks.MockIdentityProvider) *idp.Registry {
-	p.On("Name").Return(idp.ProviderWorkOS).Maybe()
+	p.On("Name").Return(idp.ProviderOIDC).Maybe()
 	return idp.NewRegistry(p)
 }
 
 func createTestClaims() *idp.Claims {
 	return &idp.Claims{
-		Subject: "workos-sub-123",
+		Subject: "oidc-sub-123",
 		Email:   "test@example.com",
 		Name:    "Test User",
 		Picture: "https://example.com/avatar.jpg",
@@ -125,14 +125,14 @@ func TestAuthService_GetUserByID_New(t *testing.T) {
 //nolint:funlen,gocyclo // Test function requires comprehensive setup and assertions
 func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 	claims := createTestClaims()
-	workosProvider := string(idp.ProviderWorkOS)
+	testProvider := string(idp.ProviderOIDC)
 	existingUser := &models.User{
 		ID:                 "user-123",
-		GoogleID:           nil, // WorkOS users have no google_id
+		GoogleID:           nil, // non-Google users have no google_id
 		Email:              "old@example.com",
 		Name:               "Old Name",
-		IDPProvider:        strPtr(workosProvider),
-		IDPSubject:         strPtr("workos-sub-123"),
+		IDPProvider:        strPtr(testProvider),
+		IDPSubject:         strPtr("oidc-sub-123"),
 		SubscriptionStatus: "free",
 		SubscriptionPlan:   func() *string { s := "free"; return &s }(),
 		CreatedAt:          time.Now().Add(-time.Hour),
@@ -146,21 +146,18 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 		validateUser func(*testing.T, *models.User)
 	}{
 		{
-			name: "create new WorkOS user when not found",
+			name: "create new user when not found",
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository) {
-				mockRepo.On("GetByIDPSubject", context.Background(), workosProvider, "workos-sub-123").
+				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(nil, repositories.ErrUserNotFound)
-				// WorkOS provider does NOT fall back to GetByGoogleID
-				// Email-fallback for legacy Google-row migration: also returns "not found" here
-				mockRepo.On("GetByEmail", context.Background(), "test@example.com").
-					Return(nil, repositories.ErrUserNotFound)
+				// A non-Google provider does NOT fall back to GetByGoogleID.
 
 				mockRepo.On("Create", context.Background(), mock.MatchedBy(func(user *models.User) bool {
-					return user.GoogleID == nil && // WorkOS: no google_id
+					return user.GoogleID == nil && // non-Google: no google_id
 						user.Email == "test@example.com" &&
 						user.Name == "Test User" &&
-						user.IDPProvider != nil && *user.IDPProvider == workosProvider &&
-						user.IDPSubject != nil && *user.IDPSubject == "workos-sub-123"
+						user.IDPProvider != nil && *user.IDPProvider == testProvider &&
+						user.IDPSubject != nil && *user.IDPSubject == "oidc-sub-123"
 				})).Return(nil).Run(func(args mock.Arguments) {
 					user := args.Get(1).(*models.User)
 					user.ID = "user-new-123"
@@ -171,62 +168,23 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 			expectError: false,
 			validateUser: func(t *testing.T, user *models.User) {
 				assert.Equal(t, "user-new-123", user.ID)
-				assert.Nil(t, user.GoogleID, "WorkOS users should not have google_id")
+				assert.Nil(t, user.GoogleID, "non-Google users should not have google_id")
 				assert.Equal(t, "test@example.com", user.Email)
 				assert.Equal(t, "Test User", user.Name)
 				assert.NotNil(t, user.IDPProvider)
-				assert.Equal(t, workosProvider, *user.IDPProvider)
-			},
-		},
-		{
-			name: "adopt legacy Google user via email match on first WorkOS sign-in",
-			setupMocks: func(mockRepo *repo_mocks.MockUserRepository) {
-				// IDP-tuple lookup misses (no row with idp_provider='workos' yet)
-				mockRepo.On("GetByIDPSubject", context.Background(), workosProvider, "workos-sub-123").
-					Return(nil, repositories.ErrUserNotFound)
-
-				// Email fallback finds the legacy Google row
-				googleStr := "google"
-				googleSubStr := "google-sub-old"
-				googleIDStr := "google-sub-old"
-				legacy := &models.User{
-					ID:          "user-legacy-1",
-					Email:       "test@example.com",
-					Name:        "Old Name",
-					IDPProvider: &googleStr,
-					IDPSubject:  &googleSubStr,
-					GoogleID:    &googleIDStr,
-				}
-				mockRepo.On("GetByEmail", context.Background(), "test@example.com").
-					Return(legacy, nil)
-
-				// Update is called: idp_provider/idp_subject overwritten to WorkOS
-				mockRepo.On("Update", context.Background(), mock.MatchedBy(func(user *models.User) bool {
-					return user.ID == "user-legacy-1" &&
-						user.Email == "test@example.com" &&
-						user.IDPProvider != nil && *user.IDPProvider == workosProvider &&
-						user.IDPSubject != nil && *user.IDPSubject == "workos-sub-123"
-				})).Return(nil)
-			},
-			expectError: false,
-			validateUser: func(t *testing.T, user *models.User) {
-				assert.Equal(t, "user-legacy-1", user.ID, "should adopt legacy row, not create new")
-				assert.NotNil(t, user.IDPProvider)
-				assert.Equal(t, workosProvider, *user.IDPProvider)
-				assert.NotNil(t, user.IDPSubject)
-				assert.Equal(t, "workos-sub-123", *user.IDPSubject)
+				assert.Equal(t, testProvider, *user.IDPProvider)
 			},
 		},
 		{
 			name: "update user matched via IDP subject tuple",
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository) {
-				mockRepo.On("GetByIDPSubject", context.Background(), workosProvider, "workos-sub-123").
+				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(existingUser, nil)
 				mockRepo.On("Update", context.Background(), mock.MatchedBy(func(user *models.User) bool {
 					return user.ID == "user-123" &&
 						user.Email == "test@example.com" &&
 						user.Name == "Test User" &&
-						user.IDPProvider != nil && *user.IDPProvider == workosProvider
+						user.IDPProvider != nil && *user.IDPProvider == testProvider
 				})).Return(nil)
 			},
 			expectError: false,
@@ -241,12 +199,12 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &repo_mocks.MockUserRepository{}
 			mockIDP := &idpmocks.MockIdentityProvider{}
-			mockIDP.On("Name").Return(idp.ProviderWorkOS)
+			mockIDP.On("Name").Return(idp.ProviderOIDC)
 			service := createTestAuthServiceNew(mockRepo, mockIDP, []string{"test@example.com"})
 			tt.setupMocks(mockRepo)
 
 			ctx := context.Background()
-			user, _, err := service.createOrUpdateUserFromClaims(ctx, workosProvider, claims)
+			user, _, err := service.createOrUpdateUserFromClaims(ctx, testProvider, claims)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -269,13 +227,13 @@ func TestAuthService_GetLoginURL(t *testing.T) {
 	mockIDP := &idpmocks.MockIdentityProvider{}
 	service := createTestAuthServiceNew(mockRepo, mockIDP, []string{"test@example.com"})
 
-	expectedURL := "https://sso.workos.com/authorize?state=test-state&client_id=" + testOAuthClientID
-	// The registry keys the mock under "workos"; GetLoginURL resolves it and
+	expectedURL := "https://idp.example.com/authorize?state=test-state&client_id=" + testOAuthClientID
+	// The registry keys the mock under "oidc"; GetLoginURL resolves it and
 	// forwards the provider name to AuthorizeURL. The redirect override is empty
 	// so the provider uses its own configured redirect URI.
-	mockIDP.On("AuthorizeURL", "test-state", "", "workos").Return(expectedURL)
+	mockIDP.On("AuthorizeURL", "test-state", "", "oidc").Return(expectedURL)
 
-	url := service.GetLoginURL("test-state", "workos")
+	url := service.GetLoginURL("test-state", "oidc")
 	assert.NotEmpty(t, url)
 	assert.Equal(t, expectedURL, url)
 
@@ -287,7 +245,7 @@ func TestAuthService_GetLoginURL_UnknownProvider_ReturnsEmpty(t *testing.T) {
 	mockIDP := &idpmocks.MockIdentityProvider{}
 	service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
 
-	// "github" is not in the registry (only "workos" is) → empty URL, and
+	// "github" is not in the registry (only "oidc" is) → empty URL, and
 	// AuthorizeURL is never called.
 	got := service.GetLoginURL("some-state", "github")
 	assert.Empty(t, got)
@@ -299,7 +257,7 @@ func TestAuthService_EnabledProviders(t *testing.T) {
 	mockIDP := &idpmocks.MockIdentityProvider{}
 	service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
 
-	assert.Equal(t, []string{"workos"}, service.EnabledProviders())
+	assert.Equal(t, []string{"oidc"}, service.EnabledProviders())
 }
 
 func TestAuthService_RefreshTokens(t *testing.T) {
@@ -311,7 +269,7 @@ func TestAuthService_RefreshTokens(t *testing.T) {
 		service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
 		mockIDP.On("Refresh", context.Background(), "old-refresh").Return(refreshed, nil)
 
-		got, err := service.RefreshTokens(context.Background(), "workos", "old-refresh")
+		got, err := service.RefreshTokens(context.Background(), "oidc", "old-refresh")
 		assert.NoError(t, err)
 		assert.Equal(t, refreshed, got)
 		mockIDP.AssertExpectations(t)
@@ -349,7 +307,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 		ExpiresAt:    time.Now().Add(time.Hour),
 	}
 	testClaims := createTestClaims()
-	workosProvider := string(idp.ProviderWorkOS)
+	testProvider := string(idp.ProviderOIDC)
 
 	tests := []struct {
 		name           string
@@ -364,14 +322,11 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			code:          "test-auth-code",
 			allowedEmails: []string{"test@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
-				mockIDP.On("Name").Return(idp.ProviderWorkOS)
+				mockIDP.On("Name").Return(idp.ProviderOIDC)
 				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
 					Return(testTokens, testClaims, nil)
 
-				mockRepo.On("GetByIDPSubject", context.Background(), workosProvider, "workos-sub-123").
-					Return(nil, repositories.ErrUserNotFound)
-				// Email-fallback also misses for a brand-new user
-				mockRepo.On("GetByEmail", context.Background(), "test@example.com").
+				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(nil, repositories.ErrUserNotFound)
 
 				mockRepo.On("Create", context.Background(), mock.MatchedBy(func(user *models.User) bool {
@@ -400,8 +355,8 @@ func TestAuthService_HandleCallback(t *testing.T) {
 				existingUser := &models.User{
 					ID:                 "user-existing-123",
 					GoogleID:           nil,
-					IDPProvider:        strPtr(workosProvider),
-					IDPSubject:         strPtr("workos-sub-123"),
+					IDPProvider:        strPtr(testProvider),
+					IDPSubject:         strPtr("oidc-sub-123"),
 					Email:              "old@example.com",
 					Name:               "Old Name",
 					SubscriptionStatus: "premium",
@@ -409,11 +364,11 @@ func TestAuthService_HandleCallback(t *testing.T) {
 					UpdatedAt:          time.Now().Add(-time.Hour),
 				}
 
-				mockIDP.On("Name").Return(idp.ProviderWorkOS)
+				mockIDP.On("Name").Return(idp.ProviderOIDC)
 				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
 					Return(testTokens, testClaims, nil)
 
-				mockRepo.On("GetByIDPSubject", context.Background(), workosProvider, "workos-sub-123").
+				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(existingUser, nil)
 
 				mockRepo.On("Update", context.Background(), mock.MatchedBy(func(user *models.User) bool {
@@ -442,13 +397,11 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			code:          "test-auth-code",
 			allowedEmails: []string{"test@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
-				mockIDP.On("Name").Return(idp.ProviderWorkOS)
+				mockIDP.On("Name").Return(idp.ProviderOIDC)
 				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
 					Return(testTokens, testClaims, nil)
 
-				mockRepo.On("GetByIDPSubject", context.Background(), workosProvider, "workos-sub-123").
-					Return(nil, repositories.ErrUserNotFound)
-				mockRepo.On("GetByEmail", context.Background(), "test@example.com").
+				mockRepo.On("GetByIDPSubject", context.Background(), testProvider, "oidc-sub-123").
 					Return(nil, repositories.ErrUserNotFound)
 				mockRepo.On("Create", context.Background(), mock.AnythingOfType("*models.User")).
 					Return(fmt.Errorf("database error"))
@@ -466,7 +419,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			tt.setupMocks(mockRepo, mockIDP)
 
 			ctx := context.Background()
-			user, tokens, _, err := service.HandleCallback(ctx, tt.code, string(idp.ProviderWorkOS))
+			user, tokens, _, err := service.HandleCallback(ctx, tt.code, string(idp.ProviderOIDC))
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -503,7 +456,7 @@ func TestAuthService_HandleDevLogin(t *testing.T) {
 				mockRepo.On("GetByEmail", context.Background(), "dev@example.com").
 					Return(nil, repositories.ErrUserNotFound)
 				mockRepo.On("Create", context.Background(), mock.MatchedBy(func(user *models.User) bool {
-					// WorkOS dev users have no google_id
+					// dev users have no google_id
 					return user.GoogleID == nil &&
 						user.Email == "dev@example.com" &&
 						user.Name == "Dev User"
@@ -516,7 +469,7 @@ func TestAuthService_HandleDevLogin(t *testing.T) {
 			expectError: false,
 			validateResult: func(t *testing.T, user *models.User) {
 				assert.Equal(t, "user-dev-123", user.ID)
-				assert.Nil(t, user.GoogleID, "Dev users (WorkOS) should not have google_id")
+				assert.Nil(t, user.GoogleID, "dev users should not have google_id")
 				assert.Equal(t, "dev@example.com", user.Email)
 			},
 		},
@@ -596,12 +549,12 @@ func TestAuthService_HandleDevLogin(t *testing.T) {
 //nolint:funlen // Test function requires comprehensive setup and assertions
 func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 	testClaims := &idp.Claims{
-		Subject: "workos-sub-123",
+		Subject: "oidc-sub-123",
 		Email:   "test@example.com",
 		Name:    "Test User",
 		Picture: "https://example.com/avatar.jpg",
 	}
-	workosProvider := string(idp.ProviderWorkOS)
+	testProvider := string(idp.ProviderOIDC)
 
 	tests := []struct {
 		name             string
@@ -613,9 +566,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 			name:        "publishes event when creating new user via OIDC callback",
 			runScenario: "callback",
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockEventManager *event_mocks.MockEventPublisher) {
-				mockRepo.On("GetByIDPSubject", mock.Anything, workosProvider, "workos-sub-123").
-					Return(nil, repositories.ErrUserNotFound)
-				mockRepo.On("GetByEmail", mock.Anything, "test@example.com").
+				mockRepo.On("GetByIDPSubject", mock.Anything, testProvider, "oidc-sub-123").
 					Return(nil, repositories.ErrUserNotFound)
 
 				mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(user *models.User) bool {
@@ -656,12 +607,12 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 				existingUser := &models.User{
 					ID:          "user-existing-123",
 					GoogleID:    nil,
-					IDPProvider: strPtr(workosProvider),
-					IDPSubject:  strPtr("workos-sub-123"),
+					IDPProvider: strPtr(testProvider),
+					IDPSubject:  strPtr("oidc-sub-123"),
 					Email:       "old@example.com",
 					Name:        "Old Name",
 				}
-				mockRepo.On("GetByIDPSubject", mock.Anything, workosProvider, "workos-sub-123").
+				mockRepo.On("GetByIDPSubject", mock.Anything, testProvider, "oidc-sub-123").
 					Return(existingUser, nil)
 				mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.User")).
 					Return(nil)
@@ -674,7 +625,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := &repo_mocks.MockUserRepository{}
 			mockIDP := &idpmocks.MockIdentityProvider{}
-			mockIDP.On("Name").Return(idp.ProviderWorkOS).Maybe()
+			mockIDP.On("Name").Return(idp.ProviderOIDC).Maybe()
 			mockEventManager := &event_mocks.MockEventPublisher{}
 
 			logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
@@ -694,7 +645,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 				_, err := service.HandleDevLogin(ctx, "dev@example.com", "Dev User")
 				assert.NoError(t, err)
 			} else {
-				_, _, err := service.createOrUpdateUserFromClaims(ctx, workosProvider, testClaims)
+				_, _, err := service.createOrUpdateUserFromClaims(ctx, testProvider, testClaims)
 				assert.NoError(t, err)
 			}
 
