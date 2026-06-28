@@ -2,6 +2,7 @@ package oauthserver
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -117,4 +118,17 @@ func TestDevLoginAuthorize_DisabledWithoutFlag(t *testing.T) {
 
 	prov := h.svc.provisioner.(*fakeProvisioner)
 	assert.Equal(t, 0, prov.devLoginCalls, "no dev user may be provisioned when dev login is off")
+}
+
+// TestDevLoginAuthorize_ProvisioningError asserts the dev-login leg fails closed:
+// when provisioning the dev user errors, /authorize surfaces an OAuth server_error
+// and never reaches consent (no authorization code is issued).
+func TestDevLoginAuthorize_ProvisioningError(t *testing.T) {
+	h := newDevLoginHarness(t, true)
+	defer h.close()
+	h.svc.provisioner.(*fakeProvisioner).devLoginErr = errors.New("boom")
+
+	loc := h.requireRedirect(t, h.get(t, AuthorizePath+"?"+h.devAuthorizeQuery().Encode()))
+	assert.Contains(t, loc, "error=server_error", "provisioning failure must surface server_error")
+	assert.NotContains(t, loc, ConsentPath, "a failed dev login must not reach consent")
 }
