@@ -175,7 +175,76 @@ var (
 	// ErrContentVersionNotFound is returned by ContentVersionRepository.GetByVersionNumber
 	// when no version row matches the given (resource_type, resource_id, version_number).
 	ErrContentVersionNotFound = errors.New("content version not found")
+
+	// ErrOAuthClientNotFound is returned by OAuthClientRepository.GetByID when no
+	// OAuth client row matches the given client_id.
+	ErrOAuthClientNotFound = errors.New("oauth client not found")
+
+	// ErrOAuthRequestNotFound is returned by OAuthRequestRepository.Get when no
+	// row matches the given token/code signature.
+	ErrOAuthRequestNotFound = errors.New("oauth request not found")
+
+	// ErrOAuthSigningKeyNotFound is returned by OAuthSigningKeyRepository lookups
+	// when no signing key matches (e.g. there is no active key yet).
+	ErrOAuthSigningKeyNotFound = errors.New("oauth signing key not found")
+
+	// ErrOAuthLoginSessionNotFound is returned by OAuthLoginSessionRepository.Get
+	// when no (or an expired) login session matches the given id.
+	ErrOAuthLoginSessionNotFound = errors.New("oauth login session not found")
 )
+
+// OAuthClientRepository persists dynamically-registered OAuth 2.1 clients
+// (RFC 7591) for the embedded Authorization Server (issue #31).
+type OAuthClientRepository interface {
+	Create(ctx context.Context, client *models.OAuthClient) error
+	// GetByID returns the client or ErrOAuthClientNotFound.
+	GetByID(ctx context.Context, clientID string) (*models.OAuthClient, error)
+}
+
+// OAuthRequestRepository persists fosite request sessions (authorization codes,
+// access tokens, refresh tokens, or PKCE sessions). One implementation is bound
+// to each backing table. Get returns the row even when inactive so the caller
+// can distinguish invalidated/rotated tokens from missing ones; a missing row
+// yields ErrOAuthRequestNotFound.
+type OAuthRequestRepository interface {
+	Create(ctx context.Context, req *models.OAuthRequest) error
+	Get(ctx context.Context, signature string) (*models.OAuthRequest, error)
+	Delete(ctx context.Context, signature string) error
+	// Deactivate marks a single row inactive (authorization-code invalidation and
+	// refresh-token rotation). Missing rows are a no-op.
+	Deactivate(ctx context.Context, signature string) error
+	// DeactivateByRequestID marks every row sharing a request id inactive
+	// (refresh-token family revocation). Missing rows are a no-op.
+	DeactivateByRequestID(ctx context.Context, requestID string) error
+	// DeleteByRequestID removes every row sharing a request id (access-token
+	// revocation). Missing rows are a no-op.
+	DeleteByRequestID(ctx context.Context, requestID string) error
+}
+
+// OAuthSigningKeyRepository persists the DB-backed JWT signing keys served via
+// the JWKS endpoint, with at most one active key at a time.
+type OAuthSigningKeyRepository interface {
+	Create(ctx context.Context, key *models.OAuthSigningKey) error
+	// GetActive returns the single active key or ErrOAuthSigningKeyNotFound.
+	GetActive(ctx context.Context) (*models.OAuthSigningKey, error)
+	// ListAll returns every key (active and retired) for building the JWKS.
+	ListAll(ctx context.Context) ([]*models.OAuthSigningKey, error)
+	// Activate atomically clears the active flag on all keys and sets it on kid,
+	// stamping the previously-active key's rotated_at.
+	Activate(ctx context.Context, kid string) error
+}
+
+// OAuthLoginSessionRepository persists the short-lived federated-login stash.
+type OAuthLoginSessionRepository interface {
+	Create(ctx context.Context, session *models.OAuthLoginSession) error
+	// Get returns a non-expired session or ErrOAuthLoginSessionNotFound.
+	Get(ctx context.Context, id string) (*models.OAuthLoginSession, error)
+	// AttachUser records the resolved user id after the IdP callback succeeds.
+	AttachUser(ctx context.Context, id, userID string) error
+	Delete(ctx context.Context, id string) error
+	// DeleteExpired purges sessions past their expiry; returns rows removed.
+	DeleteExpired(ctx context.Context) (int64, error)
+}
 
 // UserRepository defines the interface for user data access operations
 type UserRepository interface {

@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/vibexp/vibexp/internal/auth/authkit"
+	"github.com/vibexp/vibexp/internal/auth/oauthserver"
 	"github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container"
@@ -24,6 +25,7 @@ import (
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/observability/metrics"
 	"github.com/vibexp/vibexp/internal/observability/tracing"
+	"github.com/vibexp/vibexp/internal/repositories/postgres"
 	"github.com/vibexp/vibexp/internal/server/gen"
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
 	"github.com/vibexp/vibexp/internal/services"
@@ -101,6 +103,9 @@ type Server struct {
 	// owning resource's existing access boundary; adding a new attachable
 	// resource type is exactly one Register call (see setupAttachmentAuthorizers).
 	attachmentAuthorizers *services.AttachmentAuthorizerRegistry
+	// oauthAS is the embedded OAuth 2.1 Authorization Server (issue #31). Nil when
+	// OAUTH_AS_ISSUER_URL is unset, which leaves its routes unmounted.
+	oauthAS *oauthserver.Service
 	// refreshLocks serializes concurrent refresh-token rotations per user.
 	// Many identity providers invalidate a refresh token on use; without this,
 	// parallel requests from the same user with an expired access token would all
@@ -278,10 +283,46 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 		sessionManager:        sessMgr,
 		apiTokenVerifier:      newAPITokenVerifier(cfg, c, logger),
 		attachmentAuthorizers: setupAttachmentAuthorizers(c),
+		oauthAS:               newOAuthAuthorizationServer(cfg, db, c, logger),
 	}
 
 	s.setupRoutes()
 	return s
+}
+
+// newOAuthAuthorizationServer builds the embedded OAuth 2.1 Authorization Server
+// (issue #31). It returns nil when OAUTH_AS_ISSUER_URL is unset, leaving the AS
+// disabled and its routes unmounted. The login leg reuses the configured
+// identity-provider registry and the AuthService user-provisioning logic.
+func newOAuthAuthorizationServer(
+	cfg *config.Config, db *database.DB, c container.Container, logger *slog.Logger,
+) *oauthserver.Service {
+	if cfg.OAuthASIssuerURL == "" {
+		return nil
+	}
+	svc := oauthserver.NewService(
+		oauthserver.Config{
+			Issuer:              cfg.OAuthASIssuerURL,
+			ResourceURI:         cfg.MCPResourceURI,
+			AccessTokenTTL:      cfg.OAuthASAccessTokenTTL,
+			RefreshTokenTTL:     cfg.OAuthASRefreshTokenTTL,
+			AuthCodeTTL:         cfg.OAuthASAuthCodeTTL,
+			KeyRotationInterval: cfg.OAuthASKeyRotationInterval,
+		},
+		[]byte(cfg.EncryptionKey),
+		postgres.NewOAuthClientRepository(db),
+		postgres.NewOAuthCodeRepository(db),
+		postgres.NewOAuthAccessTokenRepository(db),
+		postgres.NewOAuthRefreshTokenRepository(db),
+		postgres.NewOAuthPKCERepository(db),
+		postgres.NewOAuthSigningKeyRepository(db),
+		postgres.NewOAuthLoginSessionRepository(db),
+		c.IdentityProviderRegistry(),
+		c.AuthService(),
+		logger,
+	)
+	logger.Info("Embedded OAuth 2.1 Authorization Server enabled", "issuer", cfg.OAuthASIssuerURL)
+	return svc
 }
 
 // setupAttachmentAuthorizers builds the owner-authorizer registry for the
@@ -405,6 +446,29 @@ func (s *Server) setupPublicRoutes() {
 	s.router.With(s.pubSubOIDCMiddleware).Post("/internal/jobs/notifications/digest", s.handleNotificationDigestJob)
 	s.router.With(s.pubSubOIDCMiddleware).Post("/internal/jobs/activities/retention", s.handleActivityRetentionJob)
 	s.router.With(s.pubSubOIDCMiddleware).Post("/internal/jobs/access-events/retention", s.handleAccessEventsRetentionJob)
+	s.setupOAuthASRoutes()
+}
+
+// setupOAuthASRoutes mounts the embedded OAuth 2.1 Authorization Server endpoints
+// (issue #31) when it is enabled. They are public: OAuth clients reach them before
+// they hold a VibeXP token, and the protocol enforces its own authentication
+// (PKCE, client/redirect validation, the consent CSRF token, and the upstream IdP
+// login). Rate-limited per IP like the auth routes.
+func (s *Server) setupOAuthASRoutes() {
+	if s.oauthAS == nil {
+		return
+	}
+	s.router.Get(oauthserver.MetadataPath, s.oauthAS.Metadata)
+	s.router.Group(func(r chi.Router) {
+		rateLimitByIP(r, s.config.AuthRateLimitPerMinute)
+		r.Get(oauthserver.AuthorizePath, s.oauthAS.Authorize)
+		r.Get(oauthserver.IDPCallbackPath, s.oauthAS.IdPCallback)
+		r.Get(oauthserver.ConsentPath, s.oauthAS.ConsentForm)
+		r.Post(oauthserver.ConsentPath, s.oauthAS.ConsentSubmit)
+		r.Post(oauthserver.TokenPath, s.oauthAS.Token)
+		r.Post(oauthserver.RegisterPath, s.oauthAS.Register)
+		r.Get(oauthserver.JWKSPath, s.oauthAS.JWKS)
+	})
 }
 
 func (s *Server) setupContactRoutes() {
@@ -1009,6 +1073,14 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	// Ensure an active OAuth AS signing key exists and start periodic rotation,
+	// tied to the server's shutdown context.
+	if s.oauthAS != nil {
+		if err := s.oauthAS.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start OAuth authorization server: %w", err)
+		}
+	}
+
 	srv := &http.Server{
 		Addr:              ":" + s.port,
 		Handler:           s.router,

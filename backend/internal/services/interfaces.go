@@ -28,6 +28,9 @@ type AuthServiceInterface interface {
 	// RefreshTokens exchanges a refresh token for new access/refresh tokens
 	// using the named provider.
 	RefreshTokens(ctx context.Context, provider, refreshToken string) (*idp.Tokens, error)
+	// ProvisionFromClaims resolves or creates a user from upstream IdP claims,
+	// used by the embedded OAuth Authorization Server's login leg (issue #31).
+	ProvisionFromClaims(ctx context.Context, providerName string, claims *idp.Claims) (*models.User, error)
 	// HandleDevLogin creates or retrieves a dev user by email (dev env only).
 	// The caller is responsible for creating the session cookie.
 	HandleDevLogin(ctx context.Context, email, name string) (*models.User, error)

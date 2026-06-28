@@ -112,6 +112,23 @@ type Config struct {
 	APIOAuthIssuer    string   `envconfig:"API_OAUTH_ISSUER" default:""`
 	APIOAuthAudiences []string `envconfig:"API_OAUTH_AUDIENCES"`
 
+	// Embedded OAuth 2.1 Authorization Server (issue #31). When OAuthASIssuerURL
+	// is set, VibeXP mounts its own AS (/oauth2/authorize, /oauth2/token,
+	// /oauth2/register, /oauth2/jwks.json, /.well-known/oauth-authorization-server)
+	// on ory/fosite, federating the login leg to the AUTH_PROVIDERS registry and
+	// minting JWT access tokens bound to MCPResourceURI (RFC 8707). Empty disables
+	// the AS entirely. OAuthASIssuerURL is the public base URL of this server and
+	// becomes the token `iss` and the metadata `issuer`; it must be HTTPS in
+	// production. Access tokens are short-lived; refresh tokens rotate with reuse
+	// detection. Signing keys live in the DB and rotate every
+	// OAuthASKeyRotationInterval; rotated keys stay published in the JWKS until
+	// their tokens expire.
+	OAuthASIssuerURL           string        `envconfig:"OAUTH_AS_ISSUER_URL" default:""`
+	OAuthASAccessTokenTTL      time.Duration `envconfig:"OAUTH_AS_ACCESS_TOKEN_TTL" default:"15m"`
+	OAuthASRefreshTokenTTL     time.Duration `envconfig:"OAUTH_AS_REFRESH_TOKEN_TTL" default:"720h"`
+	OAuthASAuthCodeTTL         time.Duration `envconfig:"OAUTH_AS_AUTH_CODE_TTL" default:"10m"`
+	OAuthASKeyRotationInterval time.Duration `envconfig:"OAUTH_AS_KEY_ROTATION_INTERVAL" default:"720h"`
+
 	// DevLoginEnabled gates the /api/v1/auth/dev/login endpoint.
 	// Defaults to false (off) so misconfigured environments cannot
 	// accidentally expose unauthenticated user impersonation. Must be
@@ -474,6 +491,34 @@ func validateEncryptionKey(cfg *Config) error {
 	return nil
 }
 
+// validateOAuthASConfig validates the embedded Authorization Server settings.
+// The AS is opt-in: when OAuthASIssuerURL is empty it is disabled and no other
+// field is checked. When enabled, a usable MCP resource URI (the token audience)
+// and sane, ordered token lifespans are required so the server fails closed at
+// startup rather than minting unbound or never-expiring tokens.
+func validateOAuthASConfig(cfg *Config) error {
+	if cfg.OAuthASIssuerURL == "" {
+		return nil
+	}
+	if cfg.MCPResourceURI == "" {
+		return fmt.Errorf("MCP_RESOURCE_URI is required when OAUTH_AS_ISSUER_URL is set (it is the issued token audience)")
+	}
+	if cfg.OAuthASAccessTokenTTL <= 0 {
+		return fmt.Errorf("OAUTH_AS_ACCESS_TOKEN_TTL must be positive, got %v", cfg.OAuthASAccessTokenTTL)
+	}
+	if cfg.OAuthASAuthCodeTTL <= 0 {
+		return fmt.Errorf("OAUTH_AS_AUTH_CODE_TTL must be positive, got %v", cfg.OAuthASAuthCodeTTL)
+	}
+	if cfg.OAuthASRefreshTokenTTL <= cfg.OAuthASAccessTokenTTL {
+		return fmt.Errorf("OAUTH_AS_REFRESH_TOKEN_TTL (%v) must exceed OAUTH_AS_ACCESS_TOKEN_TTL (%v)",
+			cfg.OAuthASRefreshTokenTTL, cfg.OAuthASAccessTokenTTL)
+	}
+	if cfg.OAuthASKeyRotationInterval <= 0 {
+		return fmt.Errorf("OAUTH_AS_KEY_ROTATION_INTERVAL must be positive, got %v", cfg.OAuthASKeyRotationInterval)
+	}
+	return nil
+}
+
 // validateRetentionDays enforces the shared 1..3650-day window (1 day to 10 years)
 // for a retention setting. Rejecting 0/negatives prevents deleting all rows; the
 // upper bound prevents silently violating the retention intent.
@@ -553,6 +598,10 @@ func Load() (*Config, error) {
 
 	if keyErr := validateEncryptionKey(&cfg); keyErr != nil {
 		return nil, keyErr
+	}
+
+	if asErr := validateOAuthASConfig(&cfg); asErr != nil {
+		return nil, asErr
 	}
 
 	// Set default CORS allowed origins if not provided. Only localhost dev
