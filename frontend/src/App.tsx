@@ -17,6 +17,7 @@ import { usePageTracking } from '@/hooks'
 import { ThemeProvider } from '@/lib/theme'
 import { AcceptInvitation } from '@/pages/auth/AcceptInvitation'
 import { AuthCallback } from '@/pages/auth/AuthCallback'
+import { OAuthConsentPage } from '@/pages/auth/OAuthConsentPage'
 import { SharedPrompt } from '@/pages/prompts/SharedPrompt'
 import { AppRoutes } from '@/routes'
 
@@ -92,6 +93,14 @@ function App() {
                     element={
                       <BareLayout>
                         <AcceptInvitation />
+                      </BareLayout>
+                    }
+                  />
+                  <Route
+                    path="/oauth/consent"
+                    element={
+                      <BareLayout>
+                        <OAuthConsentPage />
                       </BareLayout>
                     }
                   />

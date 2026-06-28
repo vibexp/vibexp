@@ -24,8 +24,12 @@ const (
 
 // Config holds the Authorization Server settings derived from app config.
 type Config struct {
-	Issuer              string // public base URL; token `iss` and metadata `issuer`
-	ResourceURI         string // MCP resource URI; issued-token audience (RFC 8707)
+	Issuer      string // public base URL; token `iss` and metadata `issuer`
+	ResourceURI string // MCP resource URI; issued-token audience (RFC 8707)
+	// FrontendBaseURL is the SPA origin the post-login browser is redirected to
+	// for the consent screen (`<FrontendBaseURL>/oauth/consent`). The page then
+	// drives the JSON consent API; it is not the OAuth issuer origin.
+	FrontendBaseURL     string
 	AccessTokenTTL      time.Duration
 	RefreshTokenTTL     time.Duration
 	AuthCodeTTL         time.Duration

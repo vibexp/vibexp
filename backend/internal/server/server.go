@@ -304,6 +304,7 @@ func newOAuthAuthorizationServer(
 		oauthserver.Config{
 			Issuer:              cfg.OAuthASIssuerURL,
 			ResourceURI:         cfg.MCPResourceURI,
+			FrontendBaseURL:     cfg.FrontendBaseURL,
 			AccessTokenTTL:      cfg.OAuthASAccessTokenTTL,
 			RefreshTokenTTL:     cfg.OAuthASRefreshTokenTTL,
 			AuthCodeTTL:         cfg.OAuthASAuthCodeTTL,
@@ -472,6 +473,13 @@ func (s *Server) setupPublicRoutes() {
 // they hold a VibeXP token, and the protocol enforces its own authentication
 // (PKCE, client/redirect validation, the consent CSRF token, and the upstream IdP
 // login). Rate-limited per IP like the auth routes.
+//
+// The consent step is served as JSON under /api/v1/oauth/consent (issue #52): the
+// post-login browser is redirected to the SPA consent page, which renders it with
+// the design system and calls these endpoints (same-origin in prod via the
+// frontend /api proxy). All issuance/CSRF/redirect-validation stays server-side.
+// Like the rest of the AS, these routes are mounted only when the AS is enabled,
+// so they are absent (and thus undocumented-by-design) when it is off.
 func (s *Server) setupOAuthASRoutes() {
 	if s.oauthAS == nil {
 		return
@@ -481,8 +489,8 @@ func (s *Server) setupOAuthASRoutes() {
 		rateLimitByIP(r, s.config.AuthRateLimitPerMinute)
 		r.Get(oauthserver.AuthorizePath, s.oauthAS.Authorize)
 		r.Get(oauthserver.IDPCallbackPath, s.oauthAS.IdPCallback)
-		r.Get(oauthserver.ConsentPath, s.oauthAS.ConsentForm)
-		r.Post(oauthserver.ConsentPath, s.oauthAS.ConsentSubmit)
+		r.Get(oauthserver.ConsentAPIPath, s.oauthAS.ConsentDetails)
+		r.Post(oauthserver.ConsentAPIPath, s.oauthAS.ConsentDecision)
 		r.Post(oauthserver.TokenPath, s.oauthAS.Token)
 		r.Post(oauthserver.RegisterPath, s.oauthAS.Register)
 		r.Get(oauthserver.JWKSPath, s.oauthAS.JWKS)
