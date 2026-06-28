@@ -23,7 +23,7 @@ const mockAuthService = authService as jest.Mocked<typeof authService>
 // Mock console.error to test error handling but allow calls through
 const consoleSpy = jest.spyOn(console, 'error')
 
-describe('AuthContext (WorkOS cookie-based auth)', () => {
+describe('AuthContext (cookie-based auth)', () => {
   const mockUser: User = {
     id: 'user-123',
     google_id: 'google-456',
@@ -242,7 +242,7 @@ describe('AuthContext (WorkOS cookie-based auth)', () => {
           new Error('Unauthorized')
         )
         mockAuthService.getLoginUrl.mockResolvedValue(
-          'https://auth.workos.com/sso/authorize?...'
+          'https://idp.example.com/authorize?...'
         )
 
         const TestComponent = () => {
@@ -846,7 +846,7 @@ describe('AuthContext (WorkOS cookie-based auth)', () => {
         new Error('Unauthorized')
       )
       mockAuthService.getLoginUrl.mockResolvedValue(
-        'https://auth.workos.com/sso/authorize'
+        'https://idp.example.com/authorize'
       )
 
       const TestComponent = () => {
@@ -897,7 +897,7 @@ describe('AuthContext (WorkOS cookie-based auth)', () => {
       // Cleanup first render
       unmount()
 
-      // Second part: simulate return from WorkOS with a valid session cookie
+      // Second part: simulate return from the identity provider with a valid session cookie
       mockAuthService.getCurrentUser.mockResolvedValue(mockUser)
       mockAuthService.logout.mockResolvedValue(undefined)
 

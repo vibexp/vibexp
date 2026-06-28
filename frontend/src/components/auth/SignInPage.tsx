@@ -1,4 +1,4 @@
-import { Moon, Shield, Sun, Users, Zap } from 'lucide-react'
+import { KeyRound, Moon, Shield, Sun, Users, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { CookieConsentBanner } from '@/components/CookieConsentBanner'
@@ -15,10 +15,11 @@ import {
   SUPPORT_EMAIL,
   TERMS_URL,
 } from '../../config/siteConfig'
-import { OAUTH_PROVIDERS } from '../../constants/oauthProviders'
 import { STORAGE_KEYS } from '../../constants/storageKeys'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAnalytics } from '../../hooks/useAnalytics'
+import { authService } from '../../services/authService'
+import type { AuthProvider } from '../../types'
 import { sessionStore } from '../../utils/storage'
 import { DevLogin } from './DevLogin'
 
@@ -51,6 +52,29 @@ function GoogleIcon({ className }: { className?: string }) {
       />
     </svg>
   )
+}
+
+function GitHubIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="18"
+      height="18"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  )
+}
+
+// ProviderIcon renders a recognizable mark per known provider, falling back to
+// a generic key icon so a newly-added or generic (OIDC) provider still renders.
+function ProviderIcon({ name }: { name: string }) {
+  if (name === 'google') return <GoogleIcon />
+  if (name === 'github') return <GitHubIcon />
+  return <KeyRound className="h-4 w-4" />
 }
 
 function VibeXPMark() {
@@ -167,10 +191,7 @@ function PitchPanel() {
         <span>
           © {CURRENT_YEAR} {SITE_LEGAL_NAME}
         </span>
-        <a
-          href={SITE_URL}
-          className="hover:text-foreground transition-colors"
-        >
+        <a href={SITE_URL} className="hover:text-foreground transition-colors">
           {SITE_DOMAIN}
         </a>
         <a
@@ -185,7 +206,12 @@ function PitchPanel() {
 }
 
 export function SignInPage() {
-  const [isLoading, setIsLoading] = useState(false)
+  // providers === null means "still loading the enabled-providers list".
+  const [providers, setProviders] = useState<AuthProvider[] | null>(null)
+  const [providersError, setProvidersError] = useState<string>('')
+  // signingIn holds the canonical name of the provider whose redirect is in
+  // flight, so we can show a per-button spinner and disable the others.
+  const [signingIn, setSigningIn] = useState<string | null>(null)
   const [error, setError] = useState<string>('')
 
   const { login } = useAuth()
@@ -202,19 +228,43 @@ export function SignInPage() {
     }
   }, [trackAuth])
 
-  const handleGoogleSignIn = async () => {
+  // Fetch the deployment's enabled login providers so the picker reflects the
+  // actual configuration rather than a hardcoded list.
+  useEffect(() => {
+    let active = true
+    authService
+      .getProviders()
+      .then(fetched => {
+        if (active) setProviders(fetched)
+      })
+      .catch((err: unknown) => {
+        if (!active) return
+        setProviders([])
+        setProvidersError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to load sign-in options. Please try again.'
+        )
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleSignIn = async (provider: AuthProvider) => {
     setError('')
-    setIsLoading(true)
+    setSigningIn(provider.name)
 
     try {
-      const provider = OAUTH_PROVIDERS.google
-      sessionStore.set(STORAGE_KEYS.LOGIN_METHOD, provider.displayName)
-      await login(provider.slug)
+      sessionStore.set(STORAGE_KEYS.LOGIN_METHOD, provider.display_name)
+      await login(provider.name)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Failed to sign in with Google'
+        err instanceof Error
+          ? err.message
+          : `Failed to sign in with ${provider.display_name}`
       )
-      setIsLoading(false)
+      setSigningIn(null)
     }
   }
 
@@ -257,33 +307,49 @@ export function SignInPage() {
               Your personal AI command center. Pick up where you left off.
             </p>
 
-            {error && (
+            {(error || providersError) && (
               <Alert variant="destructive" className="mt-5">
                 <AlertTitle>Sign in error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{error || providersError}</AlertDescription>
               </Alert>
             )}
 
             <div className="mt-6 flex flex-col gap-2">
-              <Button
-                onClick={() => {
-                  void handleGoogleSignIn()
-                }}
-                disabled={isLoading}
-                className="w-full"
-              >
-                {isLoading ? (
-                  <>
-                    <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
-                    <span>Signing you in…</span>
-                  </>
-                ) : (
-                  <>
-                    <GoogleIcon />
-                    <span>Continue with Google</span>
-                  </>
-                )}
-              </Button>
+              {providers === null ? (
+                <Button disabled className="w-full">
+                  <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
+                  <span>Loading sign-in options…</span>
+                </Button>
+              ) : providers.length === 0 ? (
+                !providersError && (
+                  <p className="text-muted-foreground text-sm">
+                    No login providers are configured for this deployment.
+                  </p>
+                )
+              ) : (
+                providers.map(provider => (
+                  <Button
+                    key={provider.name}
+                    onClick={() => {
+                      void handleSignIn(provider)
+                    }}
+                    disabled={signingIn !== null}
+                    className="w-full"
+                  >
+                    {signingIn === provider.name ? (
+                      <>
+                        <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
+                        <span>Signing you in…</span>
+                      </>
+                    ) : (
+                      <>
+                        <ProviderIcon name={provider.name} />
+                        <span>Continue with {provider.display_name}</span>
+                      </>
+                    )}
+                  </Button>
+                ))
+              )}
             </div>
 
             {/* Divider */}

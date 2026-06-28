@@ -10,12 +10,13 @@ import { getApiBaseUrl } from '@/utils/environment'
 /**
  * AuthCallback
  *
- * WorkOS redirects to the BACKEND /api/v1/auth/callback, which sets the
- * httpOnly session cookie and then 302-redirects the browser to the frontend
- * root ("/"). This component is therefore NOT part of the normal sign-in path.
+ * The identity provider redirects to the BACKEND /api/v1/auth/callback, which
+ * sets the httpOnly session cookie and then 302-redirects the browser to the
+ * frontend root ("/"). This component is therefore NOT part of the normal
+ * sign-in path.
  *
  * It exists as a safety net for two scenarios:
- *   1. An `error` query param is present — WorkOS itself reported an error.
+ *   1. An `error` query param is present — the identity provider reported an error.
  *   2. The route is hit directly with code/state params (misconfigured redirect
  *      URI pointing here instead of the backend) — we redirect to the backend
  *      callback endpoint so it can complete the exchange.

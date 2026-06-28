@@ -16,7 +16,7 @@ export interface AuthState {
   isAuthenticated: boolean
 }
 
-// WorkOS login URL response
+// Identity-provider login URL response
 export interface LoginUrlResponse {
   url: string
 }
@@ -24,6 +24,20 @@ export interface LoginUrlResponse {
 // Logout response
 export interface LogoutResponse {
   message: string
+}
+
+// One enabled login provider, as returned by GET /api/v1/auth/providers.
+// `name` is the canonical provider id passed back as the ?provider= hint;
+// `display_name` is the human label rendered in the provider picker.
+export interface AuthProvider {
+  name: string
+  display_name: string
+}
+
+// Response body of GET /api/v1/auth/providers — the deployment's enabled
+// login providers, stable-sorted by canonical name.
+export interface ProvidersResponse {
+  providers: AuthProvider[]
 }
 
 // Legacy Google OAuth types (kept for backward compatibility during migration)

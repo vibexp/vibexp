@@ -1,12 +1,29 @@
 import { apiClient } from '../lib/apiClient'
-import type { LoginUrlResponse, LogoutResponse, User } from '../types'
+import type {
+  AuthProvider,
+  LoginUrlResponse,
+  LogoutResponse,
+  ProvidersResponse,
+  User,
+} from '../types'
 
 class AuthService {
   /**
-   * Get the WorkOS login URL from the backend.
-   * An optional provider slug can be passed to pre-select the OAuth provider
-   * (e.g. 'GoogleOAuth', 'GitHubOAuth'). When omitted the backend uses its default.
-   * The caller should redirect the browser to the returned URL.
+   * List the login providers enabled in this deployment, so the sign-in screen
+   * can render a provider picker instead of hardcoding the list. Each provider
+   * carries a canonical `name` (passed back to getLoginUrl) and a `display_name`
+   * label. The list may be empty when no provider is configured.
+   */
+  async getProviders(): Promise<AuthProvider[]> {
+    const response = await apiClient.get<ProvidersResponse>('/auth/providers')
+    return response.providers
+  }
+
+  /**
+   * Get the identity-provider login URL from the backend.
+   * An optional provider name can be passed to select the provider (e.g.
+   * 'google', 'github', 'oidc'). When omitted the backend uses its sole enabled
+   * provider. The caller should redirect the browser to the returned URL.
    */
   async getLoginUrl(provider?: string): Promise<string> {
     const endpoint = provider

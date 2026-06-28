@@ -14,7 +14,7 @@ initSentry()
 
 // One-time cleanup: remove any legacy JWT auth tokens from localStorage.
 // Returning users may still have `auth_token` or `vx_auth_token` from the
-// pre-WorkOS auth flow. The app now uses httpOnly session cookies exclusively,
+// legacy token-based auth flow. The app now uses httpOnly session cookies exclusively,
 // so any local token is invalid — migrateStorageKeys() wipes it on init.
 storageUtils.migrateStorageKeys()
 
