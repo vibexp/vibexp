@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -261,54 +260,4 @@ func (r *memLoginSessionRepo) Delete(_ context.Context, id string) error {
 
 func (r *memLoginSessionRepo) DeleteExpired(_ context.Context) (int64, error) {
 	return 0, nil
-}
-
-// fakeProvider is a stub idp.IdentityProvider whose callback URL echoes a fixed
-// authorization code, and whose ExchangeCode yields fixed claims.
-type fakeProvider struct {
-	name   idp.ProviderName
-	claims *idp.Claims
-}
-
-func (p *fakeProvider) Name() idp.ProviderName { return p.name }
-
-func (p *fakeProvider) AuthorizeURL(state, redirectURI, _ string) string {
-	return redirectURI + "?code=upstream-code&state=" + state
-}
-
-func (p *fakeProvider) ExchangeCode(
-	_ context.Context, _, _ string,
-) (*idp.Tokens, *idp.Claims, error) {
-	return &idp.Tokens{AccessToken: "upstream-at"}, p.claims, nil
-}
-
-func (p *fakeProvider) Refresh(_ context.Context, _ string) (*idp.Tokens, error) {
-	return &idp.Tokens{}, nil
-}
-
-// fakeProvisioner returns a fixed user, standing in for AuthService provisioning.
-// devLoginCalls records dev-login provisioning so a test can assert the dev-login
-// leg was taken instead of the federated one.
-type fakeProvisioner struct {
-	user          *models.User
-	devLoginCalls int
-	devLoginErr   error
-	lastDevEmail  string
-}
-
-func (p *fakeProvisioner) ProvisionFromClaims(
-	_ context.Context, _ string, _ *idp.Claims,
-) (*models.User, error) {
-	return p.user, nil
-}
-
-func (p *fakeProvisioner) HandleDevLogin(
-	_ context.Context, email, _ string,
-) (*models.User, error) {
-	p.devLoginCalls++
-	p.lastDevEmail = email
-	if p.devLoginErr != nil {
-		return nil, p.devLoginErr
-	}
-	return p.user, nil
 }

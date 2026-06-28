@@ -20,8 +20,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/auth/mcptoken"
+	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -52,10 +52,6 @@ func newTestHarness(t *testing.T) *testHarness {
 	t.Helper()
 	encKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes
 	clients := newMemClientRepo()
-	registry := idp.NewRegistry(&fakeProvider{
-		name:   idp.ProviderName("fake"),
-		claims: &idp.Claims{Subject: "upstream-sub", Email: "u@example.test", Name: "U"},
-	})
 	svc := NewService(
 		Config{
 			Issuer:              testIssuer,
@@ -71,8 +67,6 @@ func newTestHarness(t *testing.T) *testHarness {
 		newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(),
 		newMemSigningKeyRepo(),
 		newMemLoginSessionRepo(),
-		registry,
-		&fakeProvisioner{user: &models.User{ID: "user-1"}},
 		slog.New(slog.DiscardHandler),
 	)
 	require.NoError(t, svc.keys.EnsureActiveKey(context.Background()))
@@ -86,6 +80,27 @@ func newTestHarness(t *testing.T) *testHarness {
 		},
 		clientID: clientID,
 	}
+}
+
+// testUserID is the app user the test attach middleware binds to a login session.
+const testUserID = "user-1"
+
+// testUserHeader carries the simulated authenticated user id into the test attach
+// handler (see injectTestUser).
+const testUserHeader = "X-Test-User"
+
+// injectTestUser simulates the standard /api auth middleware for the consent
+// attach endpoint: when an X-Test-User header is present it puts that user id in
+// the context (as flexibleAuthMiddleware does after authenticating a vx_session);
+// otherwise it leaves the context unauthenticated so ConsentAttach's own 401 guard
+// is exercised.
+func injectTestUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if uid := r.Header.Get(testUserHeader); uid != "" {
+			r = r.WithContext(context.WithValue(r.Context(), contextkeys.UserID, uid))
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func registerTestClient(t *testing.T, clients *memClientRepo) string {
@@ -107,9 +122,9 @@ func registerTestClient(t *testing.T, clients *memClientRepo) string {
 func testMux(svc *Service) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+AuthorizePath, svc.Authorize)
-	mux.HandleFunc("GET "+IDPCallbackPath, svc.IdPCallback)
 	mux.HandleFunc("GET "+ConsentAPIPath, svc.ConsentDetails)
 	mux.HandleFunc("POST "+ConsentAPIPath, svc.ConsentDecision)
+	mux.Handle("POST "+ConsentAttachPath, injectTestUser(http.HandlerFunc(svc.ConsentAttach)))
 	mux.HandleFunc("POST "+TokenPath, svc.Token)
 	mux.HandleFunc("POST "+RegisterPath, svc.Register)
 	mux.HandleFunc("GET "+JWKSPath, svc.JWKS)
@@ -124,10 +139,10 @@ func pkceChallenge() string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-// authorizeToConsent drives authorize -> upstream callback and returns the login
-// id presented at the SPA consent page (the user is now authenticated, awaiting a
-// decision). PKCE uses S256 (the only method the AS allows).
-func (h *testHarness) authorizeToConsent(t *testing.T, challenge string) string {
+// startAuthorize drives GET /authorize and returns the login id presented at the
+// SPA consent page. The login session is USER-LESS at this point: the AS never
+// authenticates anyone itself. PKCE uses S256 (the only method the AS allows).
+func (h *testHarness) startAuthorize(t *testing.T, challenge string) string {
 	t.Helper()
 	q := url.Values{
 		"response_type":         {"code"},
@@ -138,12 +153,47 @@ func (h *testHarness) authorizeToConsent(t *testing.T, challenge string) string 
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
 	}
-	loginID := queryParam(t, h.requireRedirect(t, h.get(t, AuthorizePath+"?"+q.Encode())), "state")
-
-	cb := IDPCallbackPath + "?code=upstream-code&state=" + url.QueryEscape(loginID)
-	consentLoc := h.requireRedirect(t, h.get(t, cb))
-	require.Contains(t, consentLoc, ConsentPagePath, "post-login redirect must target the SPA consent page")
+	consentLoc := h.requireRedirect(t, h.get(t, AuthorizePath+"?"+q.Encode()))
+	require.Contains(t, consentLoc, ConsentPagePath, "authorize must redirect to the SPA consent page")
 	return queryParam(t, consentLoc, "login")
+}
+
+// attachUser binds an app user to the login session via the authenticated attach
+// endpoint, signing the CSRF token bound to the login id. An empty userID omits
+// the simulated session so the endpoint's 401 path can be exercised.
+func (h *testHarness) attachUser(t *testing.T, loginID, userID string) httpResult {
+	t.Helper()
+	return h.attachWithCSRF(t, loginID, userID, h.svc.signConsent(loginID))
+}
+
+// attachWithCSRF posts to the attach endpoint with an explicit CSRF token so a
+// tampered token can be exercised.
+func (h *testHarness) attachWithCSRF(t *testing.T, loginID, userID, csrf string) httpResult {
+	t.Helper()
+	payload, err := json.Marshal(map[string]string{"login": loginID})
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, h.server.URL+ConsentAttachPath, bytes.NewReader(payload))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", csrf)
+	if userID != "" {
+		req.Header.Set(testUserHeader, userID)
+	}
+	resp, err := h.client.Do(req)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, resp.Body.Close()) }()
+	return readResult(t, resp)
+}
+
+// authorizeToConsent drives authorize -> SPA consent redirect -> app-user attach,
+// returning the login id ready for a consent decision (mirrors the SPA: the user
+// is logged into the app and now bound to the user-less login session).
+func (h *testHarness) authorizeToConsent(t *testing.T, challenge string) string {
+	t.Helper()
+	loginID := h.startAuthorize(t, challenge)
+	res := h.attachUser(t, loginID, testUserID)
+	require.Equal(t, http.StatusOK, res.status, "attaching the app user must succeed")
+	return loginID
 }
 
 // runAuthorizeToCode drives authorize -> upstream callback -> consent approval and
@@ -317,10 +367,6 @@ func (mcpEchoResolver) ResolveUserID(_ context.Context, _, subject string) (stri
 func TestMCPVerifierAcceptsASMintedToken(t *testing.T) {
 	encKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes
 	clients := newMemClientRepo()
-	registry := idp.NewRegistry(&fakeProvider{
-		name:   idp.ProviderName("fake"),
-		claims: &idp.Claims{Subject: "upstream-sub", Email: "u@example.test", Name: "U"},
-	})
 
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)
@@ -341,15 +387,13 @@ func TestMCPVerifierAcceptsASMintedToken(t *testing.T) {
 		newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(),
 		newMemSigningKeyRepo(),
 		newMemLoginSessionRepo(),
-		registry,
-		&fakeProvisioner{user: &models.User{ID: "user-1"}},
 		slog.New(slog.DiscardHandler),
 	)
 	require.NoError(t, svc.keys.EnsureActiveKey(context.Background()))
 	mux.HandleFunc("GET "+AuthorizePath, svc.Authorize)
-	mux.HandleFunc("GET "+IDPCallbackPath, svc.IdPCallback)
 	mux.HandleFunc("GET "+ConsentAPIPath, svc.ConsentDetails)
 	mux.HandleFunc("POST "+ConsentAPIPath, svc.ConsentDecision)
+	mux.Handle("POST "+ConsentAttachPath, injectTestUser(http.HandlerFunc(svc.ConsentAttach)))
 	mux.HandleFunc("POST "+TokenPath, svc.Token)
 	mux.HandleFunc("GET "+JWKSPath, svc.JWKS)
 
