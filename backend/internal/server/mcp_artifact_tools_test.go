@@ -683,6 +683,7 @@ type TestContainer struct {
 	SearchServiceMock         services.SearchServiceInterface
 	ResourceAccessServiceMock resourceaccess.ResourceAccessService
 	AttachmentServiceMock     services.AttachmentServiceInterface
+	EmbeddingServiceMock      services.EmbeddingServiceInterface
 }
 
 func (tc *TestContainer) ResourceAccessService() resourceaccess.ResourceAccessService {
@@ -781,4 +782,8 @@ func (tc *TestContainer) TypeService() services.TypeServiceInterface { return ni
 
 func (tc *TestContainer) AttachmentService() services.AttachmentServiceInterface {
 	return tc.AttachmentServiceMock
+}
+
+func (tc *TestContainer) EmbeddingService() services.EmbeddingServiceInterface {
+	return tc.EmbeddingServiceMock
 }

@@ -38,6 +38,7 @@ func (m *MCPToolsManager) AddAllTools(mcpServer *mcp.Server, userID string) {
 	m.addFeedTools(mcpServer, userID)
 	m.addSearchTools(mcpServer, userID)
 	m.addAttachmentTools(mcpServer, userID)
+	m.addDeleteTools(mcpServer, userID)
 
 	slog.With(
 		"user_id", userID,
@@ -131,6 +132,20 @@ func (m *MCPToolsManager) addAttachmentTools(mcpServer *mcp.Server, userID strin
 		ctx context.Context, req *mcp.CallToolRequest, params *DeleteAttachmentParams,
 	) (*mcp.CallToolResult, any, error) {
 		return m.server.deleteAttachment(ctx, req, params, userID)
+	})
+}
+
+// addDeleteTools adds the single generic resource-deletion tool. One tool covers
+// memory, artifact, blueprint, and prompt (keyed by resource_type) so the tool
+// list stays compact instead of adding a delete tool per resource type.
+func (m *MCPToolsManager) addDeleteTools(mcpServer *mcp.Server, userID string) {
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        deleteResourceToolName,
+		Description: deleteResourceToolDescription,
+	}, func(
+		ctx context.Context, req *mcp.CallToolRequest, params *DeleteResourceParams,
+	) (*mcp.CallToolResult, any, error) {
+		return m.server.deleteResource(ctx, req, params, userID)
 	})
 }
 
