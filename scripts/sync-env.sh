@@ -54,7 +54,8 @@ echo "   $(printf '%s\n' "$missing" | tr '\n' ' ')"
 	while IFS= read -r key; do
 		[ -n "$key" ] || continue
 		# Append the first matching definition line from .env.example verbatim.
-		grep -E "^${key}=" "$example" | head -n 1
+		# grep -m1 (not `grep | head`) avoids a SIGPIPE abort under pipefail.
+		grep -m1 -E "^${key}=" "$example"
 	done <<< "$missing"
 } >> "$env_file"
 
