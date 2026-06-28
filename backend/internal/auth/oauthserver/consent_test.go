@@ -20,6 +20,8 @@ func TestConsentDetails_ReturnsApprovalScreenJSON(t *testing.T) {
 
 	res := h.get(t, ConsentAPIPath+"?login="+url.QueryEscape(loginID))
 	require.Equal(t, http.StatusOK, res.status)
+	assert.Equal(t, "no-store", res.header.Get("Cache-Control"),
+		"the CSRF-bearing details response must not be cached")
 	body := jsonBody(t, res)
 	assert.Equal(t, h.clientID, body["client_name"], "falls back to client id when no display name is set")
 	assert.Equal(t, "client.example.test", body["redirect_host"])

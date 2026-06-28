@@ -235,6 +235,8 @@ func (s *Service) ConsentDetails(w http.ResponseWriter, r *http.Request) {
 		s.writeJSONError(w, http.StatusBadRequest, "invalid authorization request")
 		return
 	}
+	// The body carries the consent CSRF token; keep it out of any cache.
+	w.Header().Set("Cache-Control", "no-store")
 	s.writeJSON(w, http.StatusOK, consentDetailsResponse{
 		ClientName:   s.clientDisplayName(ctx, ar.GetClient().GetID()),
 		RedirectHost: hostOf(ar.GetRedirectURI()),
@@ -286,6 +288,8 @@ func (s *Service) ConsentDecision(w http.ResponseWriter, r *http.Request) {
 		s.writeJSONError(w, http.StatusInternalServerError, "failed to complete authorization")
 		return
 	}
+	// redirect_to embeds the single-use authorization code; never cache it.
+	w.Header().Set("Cache-Control", "no-store")
 	s.writeJSON(w, http.StatusOK, consentDecisionResponse{RedirectTo: redirectTo})
 }
 

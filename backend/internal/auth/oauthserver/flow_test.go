@@ -165,6 +165,8 @@ func (h *testHarness) decideConsent(t *testing.T, loginID, action string) string
 		"action": action,
 	})
 	require.Equal(t, http.StatusOK, res.status, "consent decision must return 200 JSON")
+	assert.Equal(t, "no-store", res.header.Get("Cache-Control"),
+		"the code-bearing decision response must not be cached")
 	redirectTo, _ := jsonBody(t, res)["redirect_to"].(string)
 	require.NotEmpty(t, redirectTo, "consent decision must return a redirect_to")
 	return redirectTo
