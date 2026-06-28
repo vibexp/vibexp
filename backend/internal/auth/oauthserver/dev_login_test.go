@@ -28,6 +28,7 @@ func newDevLoginHarness(t *testing.T, devEnabled bool) *testHarness {
 		Config{
 			Issuer:              testIssuer,
 			ResourceURI:         testResourceURI,
+			FrontendBaseURL:     testFrontendBaseURL,
 			AccessTokenTTL:      15 * time.Minute,
 			RefreshTokenTTL:     24 * time.Hour,
 			AuthCodeTTL:         10 * time.Minute,
@@ -77,17 +78,12 @@ func TestDevLoginAuthorizeFlow_IssuesTokenAsDevUser(t *testing.T) {
 
 	// /authorize redirects straight to the consent screen, not to an upstream IdP.
 	consentLoc := h.requireRedirect(t, h.get(t, AuthorizePath+"?"+h.devAuthorizeQuery().Encode()))
-	require.Contains(t, consentLoc, ConsentPath, "dev login must go to consent without an upstream IdP")
+	require.Contains(t, consentLoc, ConsentPagePath, "dev login must go to consent without an upstream IdP")
 	loginID := queryParam(t, consentLoc, "login")
 	require.NotEmpty(t, loginID)
 
 	// Approve consent → authorization code → token.
-	form := url.Values{
-		"login":  {loginID},
-		"csrf":   {h.svc.signConsent(loginID)},
-		"action": {"approve"},
-	}
-	clientRedirect := h.requireRedirect(t, h.postForm(t, ConsentPath, form))
+	clientRedirect := h.decideConsent(t, loginID, "approve")
 	code := queryParam(t, clientRedirect, "code")
 	require.NotEmpty(t, code, "consent approval must issue an authorization code")
 
@@ -114,7 +110,7 @@ func TestDevLoginAuthorize_DisabledWithoutFlag(t *testing.T) {
 
 	loc := h.requireRedirect(t, h.get(t, AuthorizePath+"?"+h.devAuthorizeQuery().Encode()))
 	assert.Contains(t, loc, "error=", "no provider + dev login off must reject the request")
-	assert.NotContains(t, loc, ConsentPath, "dev login must not be offered when disabled")
+	assert.NotContains(t, loc, ConsentPagePath, "dev login must not be offered when disabled")
 
 	prov := h.svc.provisioner.(*fakeProvisioner)
 	assert.Equal(t, 0, prov.devLoginCalls, "no dev user may be provisioned when dev login is off")
@@ -130,5 +126,5 @@ func TestDevLoginAuthorize_ProvisioningError(t *testing.T) {
 
 	loc := h.requireRedirect(t, h.get(t, AuthorizePath+"?"+h.devAuthorizeQuery().Encode()))
 	assert.Contains(t, loc, "error=server_error", "provisioning failure must surface server_error")
-	assert.NotContains(t, loc, ConsentPath, "a failed dev login must not reach consent")
+	assert.NotContains(t, loc, ConsentPagePath, "a failed dev login must not reach consent")
 }

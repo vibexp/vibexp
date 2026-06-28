@@ -19,8 +19,16 @@ const (
 	RegisterPath    = "/oauth2/register"
 	JWKSPath        = "/oauth2/jwks.json"
 	IDPCallbackPath = "/oauth2/idp/callback"
-	ConsentPath     = "/oauth2/consent"
 	MetadataPath    = "/.well-known/oauth-authorization-server"
+
+	// ConsentPagePath is the frontend SPA route the post-login browser is
+	// redirected to (on FrontendBaseURL) to render the consent screen (issue #52).
+	ConsentPagePath = "/oauth/consent"
+	// ConsentAPIPath is the JSON consent endpoint the SPA calls. It lives in the
+	// /api/v1 namespace so it rides the frontend's nginx /api proxy (same-origin in
+	// prod), unlike the /oauth2/* protocol routes. It replaces the former
+	// server-rendered /oauth2/consent HTML page.
+	ConsentAPIPath = "/api/v1/oauth/consent"
 
 	randomIDBytes = 32
 )
@@ -39,8 +47,11 @@ func (s *Service) idpCallbackURI() string {
 	return strings.TrimRight(s.cfg.Issuer, "/") + IDPCallbackPath
 }
 
+// consentRedirect builds the SPA consent-page URL the browser is sent to after
+// login: it targets the frontend origin (not the OAuth issuer), so the consent UI
+// is served by the SPA and matches the design system (issue #52).
 func (s *Service) consentRedirect(loginID string) string {
-	return strings.TrimRight(s.cfg.Issuer, "/") + ConsentPath + "?login=" + url.QueryEscape(loginID)
+	return strings.TrimRight(s.cfg.FrontendBaseURL, "/") + ConsentPagePath + "?login=" + url.QueryEscape(loginID)
 }
 
 // randomID returns an unguessable URL-safe identifier.
@@ -91,12 +102,15 @@ func (s *Service) writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-// maxJSONBody bounds the registration request body; maxFormBody bounds the
-// consent form POST.
-const (
-	maxJSONBody = 64 * 1024
-	maxFormBody = 16 * 1024
-)
+// writeJSONError writes a non-leaking JSON error body for the consent API. The
+// SPA shows its own friendly wording, so only a short, safe message is exposed
+// (no stack/HTML, no internal detail).
+func (s *Service) writeJSONError(w http.ResponseWriter, status int, msg string) {
+	s.writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// maxJSONBody bounds JSON request bodies (registration metadata, consent decision).
+const maxJSONBody = 64 * 1024
 
 // decodeJSONBody strictly decodes a bounded JSON request body.
 func decodeJSONBody(r *http.Request, v any) error {

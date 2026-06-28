@@ -1,6 +1,7 @@
 package oauthserver
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -25,10 +26,11 @@ import (
 )
 
 const (
-	testIssuer      = "https://as.example.test"
-	testResourceURI = "https://mcp.example.test/mcp"
-	testRedirectURI = "https://client.example.test/callback"
-	testVerifier    = "verifier-abcdefghijklmnopqrstuvwxyz-0123456789-XYZ"
+	testIssuer          = "https://as.example.test"
+	testResourceURI     = "https://mcp.example.test/mcp"
+	testRedirectURI     = "https://client.example.test/callback"
+	testFrontendBaseURL = "https://app.example.test"
+	testVerifier        = "verifier-abcdefghijklmnopqrstuvwxyz-0123456789-XYZ"
 )
 
 // httpResult is a fully-consumed HTTP response: the body is read and closed by
@@ -58,6 +60,7 @@ func newTestHarness(t *testing.T) *testHarness {
 		Config{
 			Issuer:              testIssuer,
 			ResourceURI:         testResourceURI,
+			FrontendBaseURL:     testFrontendBaseURL,
 			AccessTokenTTL:      15 * time.Minute,
 			RefreshTokenTTL:     24 * time.Hour,
 			AuthCodeTTL:         10 * time.Minute,
@@ -105,8 +108,8 @@ func testMux(svc *Service) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+AuthorizePath, svc.Authorize)
 	mux.HandleFunc("GET "+IDPCallbackPath, svc.IdPCallback)
-	mux.HandleFunc("GET "+ConsentPath, svc.ConsentForm)
-	mux.HandleFunc("POST "+ConsentPath, svc.ConsentSubmit)
+	mux.HandleFunc("GET "+ConsentAPIPath, svc.ConsentDetails)
+	mux.HandleFunc("POST "+ConsentAPIPath, svc.ConsentDecision)
 	mux.HandleFunc("POST "+TokenPath, svc.Token)
 	mux.HandleFunc("POST "+RegisterPath, svc.Register)
 	mux.HandleFunc("GET "+JWKSPath, svc.JWKS)
@@ -121,9 +124,10 @@ func pkceChallenge() string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-// runAuthorizeToCode drives authorize -> upstream callback -> consent and returns
-// the issued authorization code. PKCE uses S256 (the only method the AS allows).
-func (h *testHarness) runAuthorizeToCode(t *testing.T, challenge string) string {
+// authorizeToConsent drives authorize -> upstream callback and returns the login
+// id presented at the SPA consent page (the user is now authenticated, awaiting a
+// decision). PKCE uses S256 (the only method the AS allows).
+func (h *testHarness) authorizeToConsent(t *testing.T, challenge string) string {
 	t.Helper()
 	q := url.Values{
 		"response_type":         {"code"},
@@ -138,16 +142,32 @@ func (h *testHarness) runAuthorizeToCode(t *testing.T, challenge string) string 
 
 	cb := IDPCallbackPath + "?code=upstream-code&state=" + url.QueryEscape(loginID)
 	consentLoc := h.requireRedirect(t, h.get(t, cb))
-	require.Contains(t, consentLoc, ConsentPath)
-	loginFromConsent := queryParam(t, consentLoc, "login")
+	require.Contains(t, consentLoc, ConsentPagePath, "post-login redirect must target the SPA consent page")
+	return queryParam(t, consentLoc, "login")
+}
 
-	form := url.Values{
-		"login":  {loginFromConsent},
-		"csrf":   {h.svc.signConsent(loginFromConsent)},
-		"action": {"approve"},
-	}
-	clientRedirect := h.requireRedirect(t, h.postForm(t, ConsentPath, form))
+// runAuthorizeToCode drives authorize -> upstream callback -> consent approval and
+// returns the issued authorization code.
+func (h *testHarness) runAuthorizeToCode(t *testing.T, challenge string) string {
+	t.Helper()
+	loginID := h.authorizeToConsent(t, challenge)
+	clientRedirect := h.decideConsent(t, loginID, "approve")
 	return queryParam(t, clientRedirect, "code")
+}
+
+// decideConsent posts an approve/deny decision to the JSON consent API and
+// returns the captured client redirect URL (redirect_to).
+func (h *testHarness) decideConsent(t *testing.T, loginID, action string) string {
+	t.Helper()
+	res := h.postConsentJSON(t, map[string]string{
+		"login":  loginID,
+		"csrf":   h.svc.signConsent(loginID),
+		"action": action,
+	})
+	require.Equal(t, http.StatusOK, res.status, "consent decision must return 200 JSON")
+	redirectTo, _ := jsonBody(t, res)["redirect_to"].(string)
+	require.NotEmpty(t, redirectTo, "consent decision must return a redirect_to")
+	return redirectTo
 }
 
 func (h *testHarness) exchangeCode(t *testing.T, code, verifier string) httpResult {
@@ -308,6 +328,7 @@ func TestMCPVerifierAcceptsASMintedToken(t *testing.T) {
 		Config{
 			Issuer:              server.URL,
 			ResourceURI:         testResourceURI,
+			FrontendBaseURL:     testFrontendBaseURL,
 			AccessTokenTTL:      15 * time.Minute,
 			RefreshTokenTTL:     24 * time.Hour,
 			AuthCodeTTL:         10 * time.Minute,
@@ -325,8 +346,8 @@ func TestMCPVerifierAcceptsASMintedToken(t *testing.T) {
 	require.NoError(t, svc.keys.EnsureActiveKey(context.Background()))
 	mux.HandleFunc("GET "+AuthorizePath, svc.Authorize)
 	mux.HandleFunc("GET "+IDPCallbackPath, svc.IdPCallback)
-	mux.HandleFunc("GET "+ConsentPath, svc.ConsentForm)
-	mux.HandleFunc("POST "+ConsentPath, svc.ConsentSubmit)
+	mux.HandleFunc("GET "+ConsentAPIPath, svc.ConsentDetails)
+	mux.HandleFunc("POST "+ConsentAPIPath, svc.ConsentDecision)
 	mux.HandleFunc("POST "+TokenPath, svc.Token)
 	mux.HandleFunc("GET "+JWKSPath, svc.JWKS)
 
@@ -369,6 +390,17 @@ func (h *testHarness) get(t *testing.T, path string) httpResult {
 func (h *testHarness) postForm(t *testing.T, path string, form url.Values) httpResult {
 	t.Helper()
 	resp, err := h.client.PostForm(h.server.URL+path, form)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, resp.Body.Close()) }()
+	return readResult(t, resp)
+}
+
+// postConsentJSON posts a JSON body to the consent decision endpoint.
+func (h *testHarness) postConsentJSON(t *testing.T, payload any) httpResult {
+	t.Helper()
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+	resp, err := h.client.Post(h.server.URL+ConsentAPIPath, "application/json", bytes.NewReader(data))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, resp.Body.Close()) }()
 	return readResult(t, resp)

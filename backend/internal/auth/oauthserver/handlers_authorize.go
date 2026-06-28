@@ -3,8 +3,8 @@ package oauthserver
 import (
 	"context"
 	"errors"
-	"html/template"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"time"
 
@@ -217,65 +217,97 @@ func (s *Service) authenticateUpstream(ctx context.Context, provider, code strin
 	return user, nil
 }
 
-// ConsentForm handles GET /oauth2/consent, rendering the approval screen.
-func (s *Service) ConsentForm(w http.ResponseWriter, r *http.Request) {
+// ConsentDetails handles GET /api/v1/oauth/consent?login=ID. It returns the
+// consent-screen contents as JSON so the frontend SPA can render the approval
+// page with the design system. The opaque `login` id is the bearer of the
+// consent session (single-use, short-lived); the CSRF token is echoed back by the
+// SPA on the decision POST.
+func (s *Service) ConsentDetails(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	loginID := r.URL.Query().Get("login")
 	ls, err := s.loginSessions.Get(ctx, loginID)
 	if err != nil || ls.UserID == nil {
-		s.renderError(w, http.StatusBadRequest, "invalid or expired consent session")
+		s.writeJSONError(w, http.StatusBadRequest, "invalid or expired consent session")
 		return
 	}
 	ar, err := s.reconstructAuthorizeRequest(ctx, ls)
 	if err != nil {
-		s.renderError(w, http.StatusBadRequest, "invalid authorization request")
+		s.writeJSONError(w, http.StatusBadRequest, "invalid authorization request")
 		return
 	}
-	s.renderConsent(w, consentView{
+	s.writeJSON(w, http.StatusOK, consentDetailsResponse{
 		ClientName:   s.clientDisplayName(ctx, ar.GetClient().GetID()),
 		RedirectHost: hostOf(ar.GetRedirectURI()),
 		Scopes:       ar.GetRequestedScopes(),
-		LoginID:      loginID,
 		CSRF:         s.signConsent(loginID),
 	})
 }
 
-// ConsentSubmit handles POST /oauth2/consent. On approval it issues the
-// authorization code; on denial it returns access_denied to the client.
-func (s *Service) ConsentSubmit(w http.ResponseWriter, r *http.Request) {
+// ConsentDecision handles POST /api/v1/oauth/consent. On approve it issues the
+// authorization code; on deny it returns access_denied. Either way it captures
+// the OAuth redirect the protocol would emit and returns it as JSON
+// ({redirect_to}) so the fetch-based SPA can navigate the browser there — the MCP
+// client then receives the code (or error) at its callback.
+func (s *Service) ConsentDecision(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	r.Body = http.MaxBytesReader(w, r.Body, maxFormBody)
-	if err := r.ParseForm(); err != nil {
-		s.renderError(w, http.StatusBadRequest, "malformed form")
+	var body consentDecisionRequest
+	if err := decodeJSONBody(r, &body); err != nil {
+		s.writeJSONError(w, http.StatusBadRequest, "malformed request body")
 		return
 	}
-	loginID := r.PostForm.Get("login")
-	if !s.verifyConsent(loginID, r.PostForm.Get("csrf")) {
-		s.renderError(w, http.StatusBadRequest, "invalid consent token")
+	if body.Action != consentApprove && body.Action != consentDeny {
+		s.writeJSONError(w, http.StatusBadRequest, "action must be approve or deny")
 		return
 	}
-	ls, err := s.loginSessions.Get(ctx, loginID)
+	if !s.verifyConsent(body.Login, body.CSRF) {
+		s.writeJSONError(w, http.StatusBadRequest, "invalid consent token")
+		return
+	}
+	ls, err := s.loginSessions.Get(ctx, body.Login)
 	if err != nil || ls.UserID == nil {
-		s.renderError(w, http.StatusBadRequest, "invalid or expired consent session")
+		s.writeJSONError(w, http.StatusBadRequest, "invalid or expired consent session")
 		return
 	}
 	ar, err := s.reconstructAuthorizeRequest(ctx, ls)
 	if err != nil {
-		s.renderError(w, http.StatusBadRequest, "invalid authorization request")
+		s.writeJSONError(w, http.StatusBadRequest, "invalid authorization request")
 		return
 	}
 	// The login session is single-use regardless of the decision.
 	defer func() {
-		if derr := s.loginSessions.Delete(ctx, loginID); derr != nil {
+		if derr := s.loginSessions.Delete(ctx, body.Login); derr != nil {
 			s.logger.With("error", derr).Warn("oauth AS failed to delete login session")
 		}
 	}()
 
-	if r.PostForm.Get("action") != "approve" {
-		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrAccessDenied)
+	redirectTo, err := s.captureClientRedirect(ctx, ar, body.Action, *ls.UserID)
+	if err != nil {
+		s.logger.With("error", err).Error("oauth AS failed to capture consent redirect")
+		s.writeJSONError(w, http.StatusInternalServerError, "failed to complete authorization")
 		return
 	}
-	s.issueCode(ctx, w, ar, *ls.UserID)
+	s.writeJSON(w, http.StatusOK, consentDecisionResponse{RedirectTo: redirectTo})
+}
+
+// captureClientRedirect runs the fosite authorize-response (approve) or
+// access-denied (deny) writer against an in-memory recorder and extracts the
+// resulting client redirect URL. fosite always writes the outcome as a 302 to the
+// client's redirect_uri; capturing the Location lets the JSON API hand that URL to
+// a fetch() client instead of emitting the redirect itself.
+func (s *Service) captureClientRedirect(
+	ctx context.Context, ar fosite.AuthorizeRequester, action, userID string,
+) (string, error) {
+	rec := httptest.NewRecorder()
+	if action == consentApprove {
+		s.issueCode(ctx, rec, ar, userID)
+	} else {
+		s.provider.WriteAuthorizeError(ctx, rec, ar, fosite.ErrAccessDenied)
+	}
+	loc := rec.Header().Get("Location")
+	if loc == "" {
+		return "", errors.New("oauthserver: consent decision produced no redirect")
+	}
+	return loc, nil
 }
 
 // issueCode grants the requested scopes plus the resource audience and writes the
@@ -324,34 +356,31 @@ func (s *Service) clientDisplayName(ctx context.Context, clientID string) string
 	return c.ClientName
 }
 
-type consentView struct {
-	ClientName   string
-	RedirectHost string
-	Scopes       []string
-	LoginID      string
-	CSRF         string
+// consentApprove and consentDeny are the accepted values of the consent decision
+// POST body's `action` field.
+const (
+	consentApprove = "approve"
+	consentDeny    = "deny"
+)
+
+// consentDetailsResponse is the JSON body of GET /api/v1/oauth/consent: what the
+// SPA needs to render the approval screen, plus the CSRF token to echo back.
+type consentDetailsResponse struct {
+	ClientName   string   `json:"client_name"`
+	RedirectHost string   `json:"redirect_host"`
+	Scopes       []string `json:"scopes"`
+	CSRF         string   `json:"csrf"`
 }
 
-var consentTemplate = template.Must(template.New("consent").Parse(`<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Authorize access</title></head>
-<body>
-<h1>Authorize access</h1>
-<p><strong>{{.ClientName}}</strong> is requesting access to your VibeXP account.</p>
-{{if .RedirectHost}}<p>It will redirect to <code>{{.RedirectHost}}</code>.</p>{{end}}
-{{if .Scopes}}<p>Requested scopes:</p><ul>{{range .Scopes}}<li>{{.}}</li>{{end}}</ul>{{end}}
-<form method="post" action="` + ConsentPath + `">
-  <input type="hidden" name="login" value="{{.LoginID}}">
-  <input type="hidden" name="csrf" value="{{.CSRF}}">
-  <button type="submit" name="action" value="approve">Approve</button>
-  <button type="submit" name="action" value="deny">Deny</button>
-</form>
-</body></html>`))
+// consentDecisionRequest is the JSON body of POST /api/v1/oauth/consent.
+type consentDecisionRequest struct {
+	Login  string `json:"login"`
+	CSRF   string `json:"csrf"`
+	Action string `json:"action"`
+}
 
-// renderConsent renders the consent HTML page.
-func (s *Service) renderConsent(w http.ResponseWriter, view consentView) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if err := consentTemplate.Execute(w, view); err != nil {
-		s.logger.With("error", err).Error("oauth AS failed to render consent page")
-	}
+// consentDecisionResponse is the JSON body returned for a consent decision: the
+// URL the SPA must navigate the browser to so the client receives the outcome.
+type consentDecisionResponse struct {
+	RedirectTo string `json:"redirect_to"`
 }
