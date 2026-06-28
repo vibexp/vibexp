@@ -26,13 +26,12 @@ import (
 // ProvideAuthService creates a new AuthService
 func ProvideAuthService(
 	userRepo repositories.UserRepository,
-	cfg *config.Config,
 	registry *idp.Registry,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	featureFlagSvc *feature_flags.FeatureFlagService,
 ) services.AuthServiceInterface {
-	return services.NewAuthService(userRepo, cfg, registry, eventManager, logger, featureFlagSvc)
+	return services.NewAuthService(userRepo, registry, eventManager, logger, featureFlagSvc)
 }
 
 // ProvideAPIKeyService creates a new APIKeyService

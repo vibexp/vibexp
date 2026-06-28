@@ -62,7 +62,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	metrics := providers.ProvideMetrics(cfg, logger)
 	eventManager := providers.ProvideEventManager(cfg, logger, metrics)
 	featureFlagService := providers.ProvideFeatureFlagService(cfg, logger)
-	authServiceInterface := providers.ProvideAuthService(userRepository, cfg, registry, eventManager, logger, featureFlagService)
+	authServiceInterface := providers.ProvideAuthService(userRepository, registry, eventManager, logger, featureFlagService)
 	apiKeyServiceInterface := providers.ProvideAPIKeyService(apiKeyRepository, logger)
 	teamServiceInterface := providers.ProvideTeamService(teamRepository, teamMemberRepository, userRepository, logger)
 	contentVersionRepository := providers.ProvideContentVersionRepository(db)

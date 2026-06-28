@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services/feature_flags"
@@ -23,7 +22,6 @@ import (
 type AuthService struct {
 	userRepo       repositories.UserRepository
 	registry       *idp.Registry
-	redirectURL    string
 	featureFlagSvc feature_flags.FeatureFlagServiceInterface
 	eventManager   events.EventPublisher
 	logger         *slog.Logger
@@ -33,14 +31,13 @@ type AuthService struct {
 var _ AuthServiceInterface = (*AuthService)(nil)
 
 func NewAuthService(
-	userRepo repositories.UserRepository, cfg *config.Config, registry *idp.Registry,
+	userRepo repositories.UserRepository, registry *idp.Registry,
 	eventManager events.EventPublisher, logger *slog.Logger,
 	featureFlagSvc feature_flags.FeatureFlagServiceInterface,
 ) *AuthService {
 	return &AuthService{
 		userRepo:       userRepo,
 		registry:       registry,
-		redirectURL:    cfg.WorkOSRedirectURI,
 		featureFlagSvc: featureFlagSvc,
 		eventManager:   eventManager,
 		logger:         logger,
@@ -61,13 +58,14 @@ func (as *AuthService) EnabledProviders() []string {
 
 // GetLoginURL returns the authorization URL for the named provider. It returns
 // an empty string when the provider is not enabled, so the caller can surface
-// a "provider unavailable" response.
+// a "provider unavailable" response. Each provider uses its own configured
+// redirect URI (the empty override here means "use the provider's default").
 func (as *AuthService) GetLoginURL(state, provider string) string {
 	p, ok := as.registry.Get(idp.ProviderName(provider))
 	if !ok {
 		return ""
 	}
-	return p.AuthorizeURL(state, as.redirectURL, provider)
+	return p.AuthorizeURL(state, "", provider)
 }
 
 // HandleCallback exchanges the authorization code for tokens using the named
@@ -84,7 +82,7 @@ func (as *AuthService) HandleCallback(
 		return nil, nil, false, fmt.Errorf("unknown identity provider %q", provider)
 	}
 
-	tokens, claims, err := p.ExchangeCode(ctx, code, as.redirectURL)
+	tokens, claims, err := p.ExchangeCode(ctx, code, "")
 	if err != nil {
 		as.logger.With("error", err).Error("Failed to exchange OAuth token")
 		return nil, nil, false, fmt.Errorf("failed to exchange token: %w", err)
@@ -133,7 +131,16 @@ func (as *AuthService) HandleCallback(
 func (as *AuthService) RefreshTokens(
 	ctx context.Context, provider, refreshToken string,
 ) (*idp.Tokens, error) {
-	p, ok := as.registry.Get(idp.ProviderName(provider))
+	name := idp.ProviderName(provider)
+	if provider == "" {
+		// Back-compat: sessions issued before multi-provider support carry no
+		// provider name. When the deployment runs a single provider, route to
+		// it so those sessions keep refreshing across the upgrade.
+		if enabled := as.registry.Enabled(); len(enabled) == 1 {
+			name = enabled[0]
+		}
+	}
+	p, ok := as.registry.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("unknown identity provider %q", provider)
 	}
