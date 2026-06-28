@@ -17,6 +17,9 @@ const (
 	// HMAC domain-separation tags (constant labels, not credentials).
 	globalSecretTag = "vx-oauth-as-global-hmac-v1" // #nosec G101 -- domain-separation tag, not a credential
 	consentMACTag   = "vx-oauth-as-consent-mac-v1"
+
+	// defaultCleanupInterval is used when no retention interval is configured.
+	defaultCleanupInterval = time.Hour
 )
 
 // Config holds the Authorization Server settings derived from app config.
@@ -27,6 +30,7 @@ type Config struct {
 	RefreshTokenTTL     time.Duration
 	AuthCodeTTL         time.Duration
 	KeyRotationInterval time.Duration
+	CleanupInterval     time.Duration // how often expired rows/retired keys are pruned
 }
 
 // UserProvisioner resolves and provisions a VibeXP user from upstream IdP claims,
@@ -124,7 +128,50 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 	go s.rotateLoop(ctx)
+	go s.cleanupLoop(ctx)
 	return nil
+}
+
+// cleanupLoop periodically prunes expired authorization codes, tokens, PKCE and
+// login sessions plus retired signing keys, until the context is cancelled. It
+// runs one sweep immediately so a fresh instance does not wait a full interval.
+// Individual failures are logged and never stop the loop.
+func (s *Service) cleanupLoop(ctx context.Context) {
+	interval := s.cfg.CleanupInterval
+	if interval <= 0 {
+		interval = defaultCleanupInterval
+	}
+	s.cleanupOnce(ctx)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.cleanupOnce(ctx)
+		}
+	}
+}
+
+// cleanupOnce runs a single retention sweep across all OAuth AS storage.
+func (s *Service) cleanupOnce(ctx context.Context) {
+	if n, err := s.store.DeleteExpired(ctx); err != nil {
+		s.logger.With("error", err).Error("oauth AS expired token cleanup failed")
+	} else if n > 0 {
+		s.logger.With("removed", n).Info("oauth AS pruned expired token rows")
+	}
+	if n, err := s.loginSessions.DeleteExpired(ctx); err != nil {
+		s.logger.With("error", err).Error("oauth AS expired login-session cleanup failed")
+	} else if n > 0 {
+		s.logger.With("removed", n).Info("oauth AS pruned expired login sessions")
+	}
+	if n, err := s.keys.PruneRetired(ctx, s.cfg.RefreshTokenTTL); err != nil {
+		s.logger.With("error", err).Error("oauth AS retired signing-key pruning failed")
+	} else if n > 0 {
+		s.logger.With("removed", n).Info("oauth AS pruned retired signing keys")
+	}
 }
 
 func (s *Service) rotateLoop(ctx context.Context) {

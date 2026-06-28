@@ -68,7 +68,7 @@ func (s *Store) SetClientAssertionJWT(_ context.Context, _ string, _ time.Time) 
 // --- oauth2.AuthorizeCodeStorage ---
 
 func (s *Store) CreateAuthorizeCodeSession(ctx context.Context, code string, req fosite.Requester) error {
-	row, err := toRow(code, "", req)
+	row, err := toRow(code, "", fosite.AuthorizeCode, req)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (s *Store) InvalidateAuthorizeCodeSession(ctx context.Context, code string)
 // --- oauth2.AccessTokenStorage ---
 
 func (s *Store) CreateAccessTokenSession(ctx context.Context, sig string, req fosite.Requester) error {
-	row, err := toRow(sig, "", req)
+	row, err := toRow(sig, "", fosite.AccessToken, req)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (s *Store) DeleteAccessTokenSession(ctx context.Context, sig string) error 
 func (s *Store) CreateRefreshTokenSession(
 	ctx context.Context, sig, accessSig string, req fosite.Requester,
 ) error {
-	row, err := toRow(sig, accessSig, req)
+	row, err := toRow(sig, accessSig, fosite.RefreshToken, req)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,9 @@ func (s *Store) RevokeAccessToken(ctx context.Context, requestID string) error {
 // --- pkce.PKCERequestStorage ---
 
 func (s *Store) CreatePKCERequestSession(ctx context.Context, sig string, req fosite.Requester) error {
-	row, err := toRow(sig, "", req)
+	// A PKCE session is created alongside the authorization code and lives for the
+	// same lifespan, so it expires with the authorization code.
+	row, err := toRow(sig, "", fosite.AuthorizeCode, req)
 	if err != nil {
 		return err
 	}
@@ -219,8 +221,12 @@ func mapGetErr(err error) error {
 }
 
 // toRow serializes a fosite requester into the persistence-neutral model. Rows
-// are always created active; invalidation/rotation flips Active later.
-func toRow(signature, accessSignature string, req fosite.Requester) (*models.OAuthRequest, error) {
+// are always created active; invalidation/rotation flips Active later. The row's
+// ExpiresAt is taken from the session for the given token type so the retention
+// job can prune it; fosite sets this expiry before the create call.
+func toRow(
+	signature, accessSignature string, tokenType fosite.TokenType, req fosite.Requester,
+) (*models.OAuthRequest, error) {
 	sessionData, err := json.Marshal(req.GetSession())
 	if err != nil {
 		return nil, fmt.Errorf("oauthserver: marshal session: %w", err)
@@ -243,7 +249,25 @@ func toRow(signature, accessSignature string, req fosite.Requester) (*models.OAu
 		FormData:          formData,
 		SessionData:       sessionData,
 		Active:            true,
+		ExpiresAt:         req.GetSession().GetExpiresAt(tokenType),
 	}, nil
+}
+
+// DeleteExpired purges expired authorization-code, access-token, refresh-token,
+// and PKCE rows across all four backing tables, returning the total removed. A
+// failure on any table is returned after attempting the rest so one unhealthy
+// table does not block cleanup of the others.
+func (s *Store) DeleteExpired(ctx context.Context) (int64, error) {
+	var total int64
+	var errs error
+	for _, repo := range []repositories.OAuthRequestRepository{s.codes, s.access, s.refresh, s.pkce} {
+		n, err := repo.DeleteExpired(ctx)
+		total += n
+		if err != nil {
+			errs = errors.Join(errs, err)
+		}
+	}
+	return total, errs
 }
 
 // toRequester rehydrates a fosite requester from a stored row, unmarshalling the

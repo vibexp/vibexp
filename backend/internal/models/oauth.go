@@ -39,6 +39,10 @@ type OAuthRequest struct {
 	FormData          []byte
 	SessionData       []byte
 	Active            bool
+	// ExpiresAt is when the persisted token/code/session expires, copied from the
+	// fosite session at creation so the retention job can prune by an indexed
+	// column. Zero means unknown (stored as NULL) and is never swept.
+	ExpiresAt time.Time
 }
 
 // OAuthSigningKey is a DB-backed JWT signing key. The active key signs new access

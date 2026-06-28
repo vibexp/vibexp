@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/database"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
@@ -140,6 +141,113 @@ func TestOAuthLoginSessionRepository_AttachUserMissing(t *testing.T) {
 
 	err := repo.AttachUser(context.Background(), "missing", "user-1")
 	assert.ErrorIs(t, err, repositories.ErrOAuthLoginSessionNotFound)
+}
+
+func TestOAuthRequestRepository_CreatePersistsExpiresAt(t *testing.T) {
+	db, dbMock, cleanup := newMockDB(t)
+	defer cleanup()
+	repo := NewOAuthAccessTokenRepository(db)
+
+	exp := nowForTest().Add(15 * time.Minute)
+	dbMock.ExpectExec(`INSERT INTO oauth_access_tokens`).
+		WithArgs(
+			"sig-1", "req-1", "client-1", "user-1",
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			nowForTest(), []byte(`{}`), []byte(`{}`), true, sql.NullTime{Time: exp, Valid: true},
+		).WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repo.Create(context.Background(), &models.OAuthRequest{
+		Signature: "sig-1", RequestID: "req-1", ClientID: "client-1", Subject: "user-1",
+		RequestedAt: nowForTest(), FormData: []byte(`{}`), SessionData: []byte(`{}`),
+		Active: true, ExpiresAt: exp,
+	})
+	require.NoError(t, err)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestOAuthRequestRepository_CreateZeroExpiresAtIsNull(t *testing.T) {
+	db, dbMock, cleanup := newMockDB(t)
+	defer cleanup()
+	repo := NewOAuthCodeRepository(db)
+
+	dbMock.ExpectExec(`INSERT INTO oauth_authorization_codes`).
+		WithArgs(
+			"sig-2", "req-2", "client-1", "",
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			nowForTest(), []byte(`{}`), []byte(`{}`), true, sql.NullTime{},
+		).WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := repo.Create(context.Background(), &models.OAuthRequest{
+		Signature: "sig-2", RequestID: "req-2", ClientID: "client-1",
+		RequestedAt: nowForTest(), FormData: []byte(`{}`), SessionData: []byte(`{}`), Active: true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestOAuthRequestRepository_DeleteExpired(t *testing.T) {
+	db, dbMock, cleanup := newMockDB(t)
+	defer cleanup()
+	repo := NewOAuthPKCERepository(db)
+
+	dbMock.ExpectExec(`DELETE FROM oauth_pkce_sessions WHERE expires_at <= CURRENT_TIMESTAMP`).
+		WillReturnResult(sqlmock.NewResult(0, 3))
+
+	n, err := repo.DeleteExpired(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), n)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestOAuthSigningKeyRepository_DeleteRetiredBefore(t *testing.T) {
+	db, dbMock, cleanup := newMockDB(t)
+	defer cleanup()
+	repo := NewOAuthSigningKeyRepository(db)
+
+	cutoff := nowForTest()
+	dbMock.ExpectExec(`DELETE FROM oauth_signing_keys WHERE active = false AND rotated_at IS NOT NULL AND rotated_at <= \$1`).
+		WithArgs(cutoff).WillReturnResult(sqlmock.NewResult(0, 2))
+
+	n, err := repo.DeleteRetiredBefore(context.Background(), cutoff)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), n)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestOAuthSigningKeyRepository_TryAdvisoryLock(t *testing.T) {
+	db, dbMock, cleanup := newMockDB(t)
+	defer cleanup()
+	repo := NewOAuthSigningKeyRepository(db)
+
+	// Acquired: lock returns true, release unlocks.
+	dbMock.ExpectQuery(`SELECT pg_try_advisory_lock\(\$1\)`).
+		WithArgs(signingKeyRotationLockID).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(true))
+	dbMock.ExpectExec(`SELECT pg_advisory_unlock\(\$1\)`).
+		WithArgs(signingKeyRotationLockID).WillReturnResult(sqlmock.NewResult(0, 1))
+
+	acquired, release, err := repo.TryAdvisoryLock(context.Background())
+	require.NoError(t, err)
+	require.True(t, acquired)
+	require.NoError(t, release())
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestOAuthSigningKeyRepository_TryAdvisoryLockContended(t *testing.T) {
+	db, dbMock, cleanup := newMockDB(t)
+	defer cleanup()
+	repo := NewOAuthSigningKeyRepository(db)
+
+	// Contended: lock returns false; no unlock issued, release is a no-op.
+	dbMock.ExpectQuery(`SELECT pg_try_advisory_lock\(\$1\)`).
+		WithArgs(signingKeyRotationLockID).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(false))
+
+	acquired, release, err := repo.TryAdvisoryLock(context.Background())
+	require.NoError(t, err)
+	assert.False(t, acquired)
+	require.NoError(t, release())
+	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func errNoRows() error {

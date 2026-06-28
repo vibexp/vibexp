@@ -128,6 +128,9 @@ type Config struct {
 	OAuthASRefreshTokenTTL     time.Duration `envconfig:"OAUTH_AS_REFRESH_TOKEN_TTL" default:"720h"`
 	OAuthASAuthCodeTTL         time.Duration `envconfig:"OAUTH_AS_AUTH_CODE_TTL" default:"10m"`
 	OAuthASKeyRotationInterval time.Duration `envconfig:"OAUTH_AS_KEY_ROTATION_INTERVAL" default:"720h"`
+	// OAuthASCleanupInterval is how often the AS prunes expired authorization
+	// codes, tokens, PKCE and login sessions, and retired signing keys.
+	OAuthASCleanupInterval time.Duration `envconfig:"OAUTH_AS_CLEANUP_INTERVAL" default:"1h"`
 
 	// DevLoginEnabled gates the /api/v1/auth/dev/login endpoint.
 	// Defaults to false (off) so misconfigured environments cannot
@@ -515,6 +518,9 @@ func validateOAuthASConfig(cfg *Config) error {
 	}
 	if cfg.OAuthASKeyRotationInterval <= 0 {
 		return fmt.Errorf("OAUTH_AS_KEY_ROTATION_INTERVAL must be positive, got %v", cfg.OAuthASKeyRotationInterval)
+	}
+	if cfg.OAuthASCleanupInterval <= 0 {
+		return fmt.Errorf("OAUTH_AS_CLEANUP_INTERVAL must be positive, got %v", cfg.OAuthASCleanupInterval)
 	}
 	return nil
 }

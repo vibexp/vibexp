@@ -308,6 +308,7 @@ func newOAuthAuthorizationServer(
 			RefreshTokenTTL:     cfg.OAuthASRefreshTokenTTL,
 			AuthCodeTTL:         cfg.OAuthASAuthCodeTTL,
 			KeyRotationInterval: cfg.OAuthASKeyRotationInterval,
+			CleanupInterval:     cfg.OAuthASCleanupInterval,
 		},
 		[]byte(cfg.EncryptionKey),
 		postgres.NewOAuthClientRepository(db),

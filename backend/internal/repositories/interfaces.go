@@ -219,6 +219,9 @@ type OAuthRequestRepository interface {
 	// DeleteByRequestID removes every row sharing a request id (access-token
 	// revocation). Missing rows are a no-op.
 	DeleteByRequestID(ctx context.Context, requestID string) error
+	// DeleteExpired purges rows whose expires_at is in the past (rows with a NULL
+	// expires_at are left untouched); returns the number of rows removed.
+	DeleteExpired(ctx context.Context) (int64, error)
 }
 
 // OAuthSigningKeyRepository persists the DB-backed JWT signing keys served via
@@ -232,6 +235,16 @@ type OAuthSigningKeyRepository interface {
 	// Activate atomically clears the active flag on all keys and sets it on kid,
 	// stamping the previously-active key's rotated_at.
 	Activate(ctx context.Context, kid string) error
+	// DeleteRetiredBefore removes retired (inactive) keys whose rotated_at is at or
+	// before cutoff. The active key is never removed. Callers pass a cutoff no
+	// later than now minus the refresh-token TTL so no live token can still
+	// reference a pruned key. Returns the number of keys removed.
+	DeleteRetiredBefore(ctx context.Context, cutoff time.Time) (int64, error)
+	// TryAdvisoryLock attempts a non-blocking, session-scoped Postgres advisory
+	// lock that serializes signing-key rotation across instances. When acquired is
+	// true the caller holds the lock and MUST call release exactly once to free it;
+	// when false another instance holds it and release is a no-op.
+	TryAdvisoryLock(ctx context.Context) (acquired bool, release func() error, err error)
 }
 
 // OAuthLoginSessionRepository persists the short-lived federated-login stash.
