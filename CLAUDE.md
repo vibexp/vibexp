@@ -6,7 +6,7 @@ Guidance for AI agents working in this repo.
 
 **VibeXP**: open-source, self-hostable AI command center (prompts, memories, artifacts, agents, MCP integrations for Claude Code, Cursor, VS Code, etc.). Monorepo with two independently deployable components:
 
-- **`backend/`**: Go REST API (module `github.com/vibexp/vibexp`). Spec-first OpenAPI, PostgreSQL + pgvector, MCP endpoint, WorkOS auth.
+- **`backend/`**: Go REST API (module `github.com/vibexp/vibexp`). Spec-first OpenAPI, PostgreSQL + pgvector, MCP endpoint, pluggable identity-provider auth (Google/GitHub/generic OIDC).
 - **`frontend/`**: Vite + React + TypeScript SPA, served by nginx in production.
 
 The frontend consumes two npm packages that are NOT in this repo: `@vibexp/api-client` (typed client generated from `backend/openapi.yaml`) and `@vibexp/design-system` (shared UI).

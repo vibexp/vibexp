@@ -1,8 +1,7 @@
 // Package testutils provides helper utilities for tests.
 // JWT-based authentication has been replaced by AES-GCM encrypted session
-// cookies (WorkOS AuthKit cutover). This file retains helper function
-// names for backwards compatibility but now generates dev session cookies
-// instead of HS256 JWTs.
+// cookies. This file retains helper function names for backwards
+// compatibility but now generates dev session cookies instead of HS256 JWTs.
 package testutils
 
 import (

@@ -63,12 +63,17 @@ services:
 
       # --- Authentication -------------------------------------------------
       # Local evaluation uses the dev-login bypass (only works with a localhost
-      # FRONTEND_BASE_URL). Replace with WorkOS AuthKit for any real deployment.
+      # FRONTEND_BASE_URL). Configure an identity provider (Google/GitHub/OIDC)
+      # for any real deployment.
       DEV_LOGIN_ENABLED: "true"
-      WORKOS_COOKIE_PASSWORD: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      # WORKOS_API_KEY: "sk_..."
-      # WORKOS_CLIENT_ID: "client_..."
-      # WORKOS_REDIRECT_URI: "http://localhost:8080/api/v1/auth/callback"
+      # 64 hex chars = 32 bytes. Throwaway local value; generate your own for
+      # production: openssl rand -hex 32
+      SESSION_ENCRYPTION_KEY: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+      # AUTH_PROVIDERS: "oidc"
+      # OIDC_ISSUER_URL: "https://idp.example.com"
+      # OIDC_CLIENT_ID: "client_..."
+      # OIDC_CLIENT_SECRET: "secret_..."
+      # OIDC_REDIRECT_URI: "http://localhost:8080/api/v1/auth/callback"
 
       # --- Attachments (optional) -----------------------------------------
       # File uploads need GCS-compatible object storage. Enable the `gcs` service

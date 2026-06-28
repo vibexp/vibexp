@@ -246,36 +246,36 @@ func TestMCPTokenContextBridge_SetsUserID(t *testing.T) {
 	assert.Equal(t, "oauth", gotAuthType)
 }
 
-// TestUserResolverAdapter resolves a WorkOS subject to the internal user ID and
+// TestUserResolverAdapter resolves a token subject to the internal user ID and
 // surfaces both the not-found and error paths.
 func TestUserResolverAdapter(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("resolves internal id", func(t *testing.T) {
 		repo := repomocks.NewMockUserRepository(t)
-		repo.EXPECT().GetByIDPSubject(ctx, "workos", "sub-1").
+		repo.EXPECT().GetByIDPSubject(ctx, "oidc", "sub-1").
 			Return(&models.User{ID: "internal-9"}, nil)
 
-		id, err := userResolverAdapter{users: repo}.ResolveUserID(ctx, "workos", "sub-1")
+		id, err := userResolverAdapter{users: repo}.ResolveUserID(ctx, "oidc", "sub-1")
 		require.NoError(t, err)
 		assert.Equal(t, "internal-9", id)
 	})
 
 	t.Run("nil user yields empty id", func(t *testing.T) {
 		repo := repomocks.NewMockUserRepository(t)
-		repo.EXPECT().GetByIDPSubject(ctx, "workos", "sub-2").Return(nil, nil)
+		repo.EXPECT().GetByIDPSubject(ctx, "oidc", "sub-2").Return(nil, nil)
 
-		id, err := userResolverAdapter{users: repo}.ResolveUserID(ctx, "workos", "sub-2")
+		id, err := userResolverAdapter{users: repo}.ResolveUserID(ctx, "oidc", "sub-2")
 		require.NoError(t, err)
 		assert.Empty(t, id)
 	})
 
 	t.Run("propagates repository error", func(t *testing.T) {
 		repo := repomocks.NewMockUserRepository(t)
-		repo.EXPECT().GetByIDPSubject(ctx, "workos", "sub-3").
+		repo.EXPECT().GetByIDPSubject(ctx, "oidc", "sub-3").
 			Return(nil, assert.AnError)
 
-		_, err := userResolverAdapter{users: repo}.ResolveUserID(ctx, "workos", "sub-3")
+		_, err := userResolverAdapter{users: repo}.ResolveUserID(ctx, "oidc", "sub-3")
 		require.Error(t, err)
 	})
 }

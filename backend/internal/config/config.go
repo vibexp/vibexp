@@ -50,27 +50,26 @@ type Config struct {
 	// precedence over AuthProvider. Unknown names are ignored with a warning;
 	// enabled providers whose credentials are missing or whose discovery fails
 	// are skipped at startup (the server still boots). Values are matched
-	// case-insensitively against the canonical names "google", "github",
-	// "oidc", and "workos".
+	// case-insensitively against the canonical names "google", "github", and
+	// "oidc".
 	AuthProviders []string `envconfig:"AUTH_PROVIDERS"`
 
 	// AuthProvider selects a single web-login identity provider. Valid values:
-	// "workos", "oidc", or "" (none). It is the backward-compatible shim for
-	// deployments predating AUTH_PROVIDERS: it is used only when AUTH_PROVIDERS
-	// is empty. When both are empty the provider is auto-detected from WorkOS
-	// credentials, falling back to no providers (dev login only). The value is
-	// matched case-insensitively.
+	// "google", "github", "oidc", or "" (none). It is the backward-compatible
+	// shim for deployments predating AUTH_PROVIDERS: it is used only when
+	// AUTH_PROVIDERS is empty. When both are empty no providers are enabled
+	// (dev login only). The value is matched case-insensitively.
 	AuthProvider string `envconfig:"AUTH_PROVIDER" default:""`
 
-	// WorkOS AuthKit configuration (active identity provider)
-	WorkOSAPIKey         string `envconfig:"WORKOS_API_KEY" default:""`
-	WorkOSClientID       string `envconfig:"WORKOS_CLIENT_ID" default:""`
-	WorkOSCookiePassword string `envconfig:"WORKOS_COOKIE_PASSWORD" default:""`
-	WorkOSRedirectURI    string `envconfig:"WORKOS_REDIRECT_URI" default:"http://localhost:8080/api/v1/auth/callback"`
+	// SessionEncryptionKey is the hex-encoded secret backing the AES-256-GCM
+	// session cookie (and, via domain separation, the OAuth state HMAC). It must
+	// decode to exactly 32 bytes (64 hex chars). When empty, cookie session auth
+	// is disabled (stub/test mode).
+	SessionEncryptionKey string `envconfig:"SESSION_ENCRYPTION_KEY" default:""`
 
 	// Google OIDC provider configuration (used when "google" is enabled).
-	// Google is reached directly via accounts.google.com discovery — not
-	// routed through WorkOS. GoogleClientID/Secret are an OAuth 2.0 Web client.
+	// Google is reached directly via accounts.google.com discovery.
+	// GoogleClientID/Secret are an OAuth 2.0 Web client.
 	GoogleClientID     string `envconfig:"GOOGLE_CLIENT_ID" default:""`
 	GoogleClientSecret string `envconfig:"GOOGLE_CLIENT_SECRET" default:""`
 	GoogleRedirectURI  string `envconfig:"GOOGLE_REDIRECT_URI" default:"http://localhost:8080/api/v1/auth/callback"`
@@ -83,16 +82,16 @@ type Config struct {
 
 	// Generic OIDC provider configuration (used when "oidc" is enabled). Works
 	// with any OIDC-compliant issuer (Keycloak, Authentik, Zitadel, Auth0,
-	// WorkOS, Clerk). OIDCIssuerURL is used for OIDC discovery at startup.
+	// Clerk). OIDCIssuerURL is used for OIDC discovery at startup.
 	OIDCIssuerURL    string `envconfig:"OIDC_ISSUER_URL" default:""`
 	OIDCClientID     string `envconfig:"OIDC_CLIENT_ID" default:""`
 	OIDCClientSecret string `envconfig:"OIDC_CLIENT_SECRET" default:""`
 	OIDCRedirectURI  string `envconfig:"OIDC_REDIRECT_URI" default:"http://localhost:8080/api/v1/auth/callback"`
 
 	// MCP OAuth 2.1 resource-server configuration. The MCP endpoint delegates
-	// authorization to WorkOS AuthKit (the authorization server) and validates
+	// authorization to the configured OAuth 2.1 authorization server and validates
 	// bearer JWTs minted for the MCPResourceURI audience. MCPOAuthIssuer differs
-	// per environment (prod vs staging AuthKit domain) and must never be hardcoded.
+	// per environment (prod vs staging issuer) and must never be hardcoded.
 	MCPOAuthIssuer string `envconfig:"MCP_OAUTH_ISSUER" default:""`
 	MCPResourceURI string `envconfig:"MCP_RESOURCE_URI" default:""`
 

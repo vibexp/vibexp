@@ -102,8 +102,8 @@ type Server struct {
 	// resource type is exactly one Register call (see setupAttachmentAuthorizers).
 	attachmentAuthorizers *services.AttachmentAuthorizerRegistry
 	// refreshLocks serializes concurrent refresh-token rotations per user.
-	// WorkOS invalidates a refresh token on use; without this, parallel
-	// requests from the same user with an expired access token would all
+	// Many identity providers invalidate a refresh token on use; without this,
+	// parallel requests from the same user with an expired access token would all
 	// race on RefreshTokens and most would 401. See middleware.go:authenticateWithSession.
 	refreshLocks sync.Map // map[string]*sync.Mutex keyed by user_id
 }
@@ -245,13 +245,13 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 	}
 
 	// Build the session manager. IsDevelopment uses FrontendBaseURL heuristic;
-	// when WORKOS_COOKIE_PASSWORD is empty (test/stub environments) the manager
+	// when SESSION_ENCRYPTION_KEY is empty (test/stub environments) the manager
 	// is left nil and the handlers degrade gracefully.
 	var sessMgr *session.Manager
-	if cfg.WorkOSCookiePassword != "" {
+	if cfg.SessionEncryptionKey != "" {
 		envSvc := c.EnvironmentService()
 		isLocal := envSvc != nil && envSvc.IsDevelopment()
-		sessMgr, err = session.NewManager(cfg.WorkOSCookiePassword, isLocal)
+		sessMgr, err = session.NewManager(cfg.SessionEncryptionKey, isLocal)
 		if err != nil {
 			logger.With(
 				"service", "vibexp-api",
@@ -261,7 +261,7 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 		}
 		logger.Info("Session manager initialized")
 	} else {
-		logger.Warn("WORKOS_COOKIE_PASSWORD not set; session cookie auth disabled (stub/test mode)")
+		logger.Warn("SESSION_ENCRYPTION_KEY not set; session cookie auth disabled (stub/test mode)")
 	}
 
 	s := &Server{
@@ -444,7 +444,7 @@ func (s *Server) setupAuthRoutes() {
 		// Strict per-IP rate limit: these are unauthenticated, abuse-prone endpoints.
 		rateLimitByIP(r, s.config.AuthRateLimitPerMinute)
 
-		// WorkOS AuthKit routes
+		// Identity-provider OAuth login routes
 		r.Get("/login", s.handleLogin)
 		r.Get("/callback", s.handleCallback)
 		r.Post("/logout", s.handleLogout)

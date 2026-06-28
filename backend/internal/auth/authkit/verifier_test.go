@@ -22,7 +22,7 @@ import (
 
 const (
 	testResource   = "https://connect.vibexp.io/mcp/v1/common"
-	testSubject    = "user_workos_abc"
+	testSubject    = "user_oidc_abc"
 	testInternalID = "vibexp-user-42"
 	testKeyID      = "test-key-1"
 )
@@ -126,7 +126,7 @@ func TestVerify_ValidToken(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, info)
-	assert.Equal(t, testInternalID, info.UserID, "UserID must be the internal VibeXP user ID, not the WorkOS sub")
+	assert.Equal(t, testInternalID, info.UserID, "UserID must be the internal VibeXP user ID, not the token sub")
 	assert.Equal(t, testSubject, info.Subject)
 	assert.Equal(t, []string{"openid", "mcp"}, info.Scopes)
 	assert.False(t, info.Expiration.IsZero())
@@ -303,24 +303,19 @@ func TestJWKSURL(t *testing.T) {
 		want   string
 	}{
 		{
-			"authkit domain",
-			"https://crisp-affection-18.authkit.app",
-			"https://crisp-affection-18.authkit.app/oauth2/jwks",
+			"bare issuer host",
+			"https://idp.example.com",
+			"https://idp.example.com/oauth2/jwks",
 		},
 		{
-			"user_management issuer form",
-			"https://api.workos.com/user_management/client_01ABC",
-			"https://api.workos.com/sso/jwks/client_01ABC",
+			"issuer with a path prefix",
+			"https://idp.example.com/realms/vibexp",
+			"https://idp.example.com/realms/vibexp/oauth2/jwks",
 		},
 		{
-			"user_management base without client id",
-			"https://api.workos.com/user_management/",
-			"https://api.workos.com/user_management//oauth2/jwks",
-		},
-		{
-			"user_management with extra path segment",
-			"https://api.workos.com/user_management/client_01ABC/extra",
-			"https://api.workos.com/user_management/client_01ABC/extra/oauth2/jwks",
+			"issuer with a trailing slash",
+			"https://idp.example.com/",
+			"https://idp.example.com//oauth2/jwks",
 		},
 	}
 	for _, tt := range tests {

@@ -10,7 +10,7 @@ import (
 )
 
 // ProviderName uniquely identifies an identity provider implementation
-// (e.g. "google", "workos"). It is persisted in users.idp_provider so it
+// (e.g. "google", "oidc"). It is persisted in users.idp_provider so it
 // must remain stable across releases.
 type ProviderName string
 
@@ -24,13 +24,9 @@ const (
 
 	// ProviderOIDC is the canonical name for the generic OIDC provider used
 	// with any OIDC-compliant issuer (Keycloak, Authentik, Zitadel, Auth0,
-	// and — once WorkOS is removed — WorkOS/Clerk via discovery). It is
-	// persisted in users.idp_provider and must not change.
+	// Clerk via discovery). It is persisted in users.idp_provider and must
+	// not change.
 	ProviderOIDC ProviderName = "oidc"
-
-	// ProviderWorkOS is the canonical name for the WorkOS AuthKit provider.
-	// This value is persisted in users.idp_provider and must not change.
-	ProviderWorkOS ProviderName = "workos"
 )
 
 // ErrTokenInvalid is returned when an access or ID token cannot be validated.

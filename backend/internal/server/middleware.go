@@ -18,8 +18,8 @@ import (
 )
 
 // refreshLockFor returns a per-user mutex used to serialize refresh-token
-// rotations. WorkOS invalidates a refresh token on use, so concurrent
-// refreshes for the same user would all race and most would 401.
+// rotations. Many identity providers invalidate a refresh token on use, so
+// concurrent refreshes for the same user would all race and most would 401.
 // The mutex is created lazily and stored in s.refreshLocks (sync.Map).
 func (s *Server) refreshLockFor(userID string) *sync.Mutex {
 	m, _ := s.refreshLocks.LoadOrStore(userID, &sync.Mutex{})
@@ -35,7 +35,7 @@ func isTransientRefreshError(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	// WorkOS surfaces non-2xx status codes as "endpoint returned %d: ...".
+	// The provider client surfaces non-2xx status codes as "endpoint returned %d: ...".
 	// 4xx => permanent; 5xx => transient. Network/timeout has no status.
 	if strings.Contains(msg, "returned 5") {
 		return true
@@ -252,7 +252,7 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 	}
 
 	// If the access token is expired, attempt a refresh — serialized per
-	// user to avoid racing on WorkOS's single-use refresh tokens (H1).
+	// user to avoid racing on the provider's single-use refresh tokens (H1).
 	if sess.IsExpired() {
 		if sess.RefreshToken == "" {
 			logger.With(
@@ -290,7 +290,7 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// refreshSession runs the WorkOS refresh-token rotation and rewrites the
+// refreshSession runs the provider's refresh-token rotation and rewrites the
 // vx_session cookie. Returns the refreshed session and true on success.
 // On permanent failures (revoked token, invalid_grant) it writes 401 +
 // clears the cookie. On transient failures (5xx, network) it writes 503
@@ -330,7 +330,7 @@ func (s *Server) refreshSession(
 	}
 
 	if newTokens.RefreshToken == "" {
-		// WorkOS always returns a new refresh token on rotation. Empty
+		// A rotating provider returns a new refresh token on rotation. Empty
 		// here means upstream behaviour changed; the cached refresh token
 		// has been invalidated and the next refresh will fail.
 		logger.With(

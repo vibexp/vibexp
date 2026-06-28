@@ -78,7 +78,7 @@ The defaults in `docker-compose.yml` are for local evaluation only. For any real
 
 - **`ENCRYPTION_KEY`** exactly 32 bytes. Generate one: `openssl rand -base64 24 | cut -c1-32`
 - **`DB_PASSWORD`** change it from the default.
-- **`DEV_LOGIN_ENABLED`** set to `false` and configure [WorkOS AuthKit](https://workos.com) (`WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `WORKOS_REDIRECT_URI`).
+- **`DEV_LOGIN_ENABLED`** set to `false`, set a `SESSION_ENCRYPTION_KEY` (`openssl rand -hex 32`), and configure an identity provider via `AUTH_PROVIDERS` (e.g. `google`, `github`, or a generic `oidc` issuer) with the matching `*_CLIENT_ID` / `*_CLIENT_SECRET` / `*_REDIRECT_URI`.
 - **`FRONTEND_BASE_URL` / `CORS_ALLOWED_ORIGINS`** set to your real public URLs.
 - **Semantic search & file attachments** are optional, opt-in services. See the comments in `docker-compose.yml` and the [docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=self_host).
 
@@ -104,7 +104,7 @@ Swap `localhost:8080` for your deployment's public URL. Full per-tool instructio
 
 VibeXP is a monorepo with two independently deployable components:
 
-- **`backend/`** Go REST API. Spec-first OpenAPI, PostgreSQL + pgvector, MCP endpoint, WorkOS auth.
+- **`backend/`** Go REST API. Spec-first OpenAPI, PostgreSQL + pgvector, MCP endpoint, pluggable identity-provider auth (Google/GitHub/generic OIDC).
 - **`frontend/`** Vite + React + TypeScript SPA, served by nginx in production.
 
 <details>

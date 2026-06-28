@@ -98,9 +98,9 @@ func (as *AuthService) HandleCallback(
 	).
 		Info("Retrieved user info from identity provider")
 
-	// L2: We do not currently reject !EmailVerified. WorkOS's Google
-	// connection enforces email verification at the provider level, so
-	// every claim arriving here has already been verified. If we add
+	// L2: We do not currently reject !EmailVerified. The enabled providers
+	// (Google/GitHub/generic OIDC) enforce email verification at the provider
+	// level, so every claim arriving here has already been verified. If we add
 	// connections where this is not true (e.g., magic link without
 	// verification), gate sign-in here:
 	//   if !claims.EmailVerified { return ErrUnverifiedEmail }
@@ -157,26 +157,6 @@ func (as *AuthService) createOrUpdateUserFromClaims(
 	user, err := as.findUserForClaims(ctx, providerName, claims.Subject)
 	if err != nil {
 		return nil, false, err
-	}
-
-	// Email fallback: when a WorkOS sign-in does not match by IDP tuple,
-	// look up the legacy row by email and adopt it. This is the migration
-	// path for users created under the old Google OAuth flow whose
-	// idp_provider is currently "google" — first WorkOS login claims the
-	// row and updates idp_provider/idp_subject below.
-	if user == nil && providerName == string(idp.ProviderWorkOS) && claims.Email != "" {
-		legacyByEmail, lerr := as.userRepo.GetByEmail(ctx, claims.Email)
-		if lerr != nil && !isUserNotFoundErr(lerr) {
-			return nil, false, fmt.Errorf("failed to query user by email: %w", lerr)
-		}
-		if legacyByEmail != nil {
-			as.logger.With(
-				"email", claims.Email,
-				"user_id", legacyByEmail.ID,
-			).
-				Info("Adopting legacy user row for WorkOS sign-in via email match")
-			user = legacyByEmail
-		}
 	}
 
 	var avatarURL *string
@@ -259,7 +239,7 @@ func (as *AuthService) createUserFromClaims(
 		UpdatedAt:   now,
 	}
 	// Maintain google_id for Google users (legacy compatibility).
-	// WorkOS users do not receive a google_id.
+	// Non-Google providers do not receive a google_id.
 	if providerName == string(idp.ProviderGoogle) {
 		subject := claims.Subject
 		newUser.GoogleID = &subject
@@ -292,8 +272,14 @@ func (as *AuthService) GetUserByID(ctx context.Context, userID string) (*models.
 	return as.userRepo.GetByID(ctx, userID)
 }
 
+// devIDPProvider is the idp_provider tag stored on users provisioned through
+// the development-only login bypass. Dev users are resolved by email (never by
+// the (idp_provider, idp_subject) tuple or the bearer-token verifier), so this
+// value is purely a stable, self-describing marker.
+const devIDPProvider = "dev"
+
 func (as *AuthService) createDevUser(ctx context.Context, email, name string) (*models.User, error) {
-	devProvider := string(idp.ProviderWorkOS)
+	devProvider := devIDPProvider
 	devSubject := fmt.Sprintf("dev_%s", email)
 	now := time.Now()
 	newUser := &models.User{

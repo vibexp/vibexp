@@ -7,8 +7,8 @@ info:
 
     ## Authentication
     The API supports multiple authentication mechanisms:
-    - **Session Cookie** (`vx_session`, httpOnly): how the web app authenticates after the WorkOS AuthKit OAuth flow (see `CookieAuth`)
-    - **Bearer JWT**: WorkOS AuthKit access token sent as `Authorization: Bearer <token>` (see `BearerAuth`)
+    - **Session Cookie** (`vx_session`, httpOnly): how the web app authenticates after the identity-provider OAuth flow (see `CookieAuth`)
+    - **Bearer JWT**: identity-provider access token sent as `Authorization: Bearer <token>` (see `BearerAuth`)
     - **API Key**: long-lived key sent as a bearer token, used by the CLI and Claude Code hooks (see `ApiKeyAuth`)
     - **Back office API Key**: admin-only key for `/bo/v1` endpoints (see `BackofficeAuth`)
     - **Public Endpoints**: no authentication required for health checks, contact forms, and auth flows
@@ -59,10 +59,10 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: |
-        WorkOS AuthKit access token (RS256 JWT) sent as `Authorization: Bearer <token>`.
-        Used by native clients (mobile) that authenticate via AuthKit OAuth + PKCE.
+        Identity-provider access token (RS256 JWT) sent as `Authorization: Bearer <token>`.
+        Used by native clients (mobile) that authenticate via OAuth 2.1 + PKCE.
         Access tokens expire after ~1 hour; clients refresh them directly against
-        AuthKit with the rotated refresh token (`offline_access` scope). Only
+        the issuer with the rotated refresh token (`offline_access` scope). Only
         accepted when the server is configured with `API_OAUTH_ISSUER`.
     ApiKeyAuth:
       type: http
@@ -76,7 +76,7 @@ components:
       type: apiKey
       in: cookie
       name: vx_session
-      description: Encrypted httpOnly session cookie set by the WorkOS AuthKit OAuth callback — how the web app authenticates
+      description: Encrypted httpOnly session cookie set by the identity-provider OAuth callback — how the web app authenticates
 
   schemas:
     # Import common schemas

@@ -110,7 +110,7 @@ func NewGoogleAuthError(detail string) *APIError {
 }
 
 // NewIDPAuthError creates a 401 error for identity-provider authentication
-// failures (WorkOS exchange failure, invalid OIDC response, etc.).
+// failures (token exchange failure, invalid OIDC response, etc.).
 // Provider-agnostic — use this for any new IDP integration.
 func NewIDPAuthError(detail string) *APIError {
 	return NewAPIError(CodeIDPAuthFailed, GetErrorTitle(CodeIDPAuthFailed), detail, http.StatusUnauthorized)

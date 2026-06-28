@@ -12,7 +12,6 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/idp/github"
 	"github.com/vibexp/vibexp/internal/auth/idp/google"
 	"github.com/vibexp/vibexp/internal/auth/idp/oidc"
-	"github.com/vibexp/vibexp/internal/auth/idp/workos"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/external/implementations"
@@ -25,7 +24,7 @@ import (
 // Provider selection (see resolveEnabledProviderNames):
 //   - AUTH_PROVIDERS (comma list) when set — the multi-provider path.
 //   - else AUTH_PROVIDER (single value) — the backward-compatible shim.
-//   - else auto-detect WorkOS from its credentials — legacy default.
+//   - else no providers (dev login only).
 //
 // Construction is resilient: an enabled provider whose credentials are absent
 // or whose OIDC discovery fails is logged and skipped rather than crashing
@@ -53,8 +52,8 @@ func ProvideIdentityProviderRegistry(cfg *config.Config, logger *slog.Logger) (*
 }
 
 // resolveEnabledProviderNames computes the ordered, de-duplicated list of
-// provider names to enable, applying the AUTH_PROVIDERS → AUTH_PROVIDER →
-// auto-detect precedence.
+// provider names to enable, applying the AUTH_PROVIDERS → AUTH_PROVIDER
+// precedence.
 func resolveEnabledProviderNames(cfg *config.Config) []idp.ProviderName {
 	normalize := func(raw string) idp.ProviderName {
 		return idp.ProviderName(strings.ToLower(strings.TrimSpace(raw)))
@@ -66,9 +65,6 @@ func resolveEnabledProviderNames(cfg *config.Config) []idp.ProviderName {
 		raw = cfg.AuthProviders
 	case strings.TrimSpace(cfg.AuthProvider) != "":
 		raw = []string{cfg.AuthProvider}
-	case cfg.WorkOSClientID != "" && cfg.WorkOSAPIKey != "":
-		// Legacy auto-detect: WorkOS when its credentials are present.
-		raw = []string{string(idp.ProviderWorkOS)}
 	}
 
 	seen := make(map[idp.ProviderName]struct{}, len(raw))
@@ -101,8 +97,6 @@ func buildIdentityProvider(
 		return buildGitHubProvider(cfg, logger)
 	case idp.ProviderOIDC:
 		return buildOIDCProvider(cfg, logger)
-	case idp.ProviderWorkOS:
-		return buildWorkOSProvider(cfg, logger)
 	default:
 		logger.With("provider", string(name)).
 			Warn("Unrecognized identity provider in AUTH_PROVIDERS; skipping")
@@ -164,26 +158,6 @@ func buildOIDCProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityPro
 		return nil, false
 	}
 	logger.With("provider", "oidc", "issuer_url", cfg.OIDCIssuerURL).Info("Identity provider enabled")
-	return provider, true
-}
-
-func buildWorkOSProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
-	if cfg.WorkOSClientID == "" || cfg.WorkOSAPIKey == "" {
-		logger.With("provider", "workos").
-			Warn("WorkOS enabled but WorkOS credentials are absent; skipping")
-		return nil, false
-	}
-	provider, err := workos.New(context.Background(), workos.Config{
-		ClientID:    cfg.WorkOSClientID,
-		APIKey:      cfg.WorkOSAPIKey,
-		RedirectURI: cfg.WorkOSRedirectURI,
-	})
-	if err != nil {
-		logger.With("provider", "workos", "error", err).
-			Warn("WorkOS provider initialization failed; skipping")
-		return nil, false
-	}
-	logger.With("provider", "workos").Info("Identity provider enabled")
 	return provider, true
 }
 

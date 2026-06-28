@@ -24,7 +24,7 @@ const (
 	stateCookieName = "vx_state"
 
 	// stateCookieMaxAge is 10 minutes — enough for a human to complete the
-	// WorkOS login flow and be redirected back to the callback.
+	// identity-provider login flow and be redirected back to the callback.
 	stateCookieMaxAge = 10 * 60 // 10 minutes in seconds
 )
 
@@ -203,13 +203,13 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 		"handler", "handleCallback",
 		"error", fmt.Sprintf("%+v", err),
 		"state", state,
-	).Error("Failed to handle WorkOS callback")
+	).Error("Failed to handle OAuth callback")
 
 	if s.metrics != nil {
-		s.metrics.RecordUserLoginFailed(r.Context(), "workos_auth_failed")
+		s.metrics.RecordUserLoginFailed(r.Context(), "idp_auth_failed")
 	}
 
-	apiErr := errors.NewIDPAuthError("WorkOS authentication failed")
+	apiErr := errors.NewIDPAuthError("Identity provider authentication failed")
 	errors.WriteJSONError(w, r, apiErr)
 }
 
@@ -396,9 +396,9 @@ func (s *Server) handleDevLoginSuccess(w http.ResponseWriter, r *http.Request, u
 	ar.RecordAuthActivity(r.Context(), user.ID, activities.ActivityTypeAuthLogin, nil, metadata, r)
 
 	// Build and write session cookie for dev login. The access token is
-	// a non-validating marker — middleware never sends it to WorkOS, and
-	// RefreshToken is empty so the refresh path short-circuits on the
-	// "no refresh token available" branch when the session expires.
+	// a non-validating marker — middleware never sends it to an identity
+	// provider, and RefreshToken is empty so the refresh path short-circuits
+	// on the "no refresh token available" branch when the session expires.
 	if s.sessionManager != nil {
 		devSubject := fmt.Sprintf("dev_%s", user.Email)
 		sess := &sesslib.Session{
@@ -450,7 +450,7 @@ func (s *Server) stateMACKey() []byte {
 	if s.sessionManager != nil {
 		return s.sessionManager.DeriveStateMACKey()
 	}
-	return []byte(s.config.WorkOSCookiePassword)
+	return []byte(s.config.SessionEncryptionKey)
 }
 
 // validateStateCookie verifies the vx_state cookie: the HMAC signature must

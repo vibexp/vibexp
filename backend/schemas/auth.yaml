@@ -9,13 +9,13 @@ User:
     google_id:
       type: string
       nullable: true
-      description: Legacy Google OAuth subject identifier (may be null for WorkOS-only accounts)
+      description: Legacy Google OAuth subject identifier (may be null for non-Google accounts)
       example: "google_456"
     idp_provider:
       type: string
       nullable: true
-      description: Identity provider name (e.g. "workos")
-      example: "workos"
+      description: Identity provider name (e.g. "google", "oidc")
+      example: "oidc"
     idp_subject:
       type: string
       nullable: true
@@ -81,13 +81,13 @@ User:
 
 LoginResponse:
   type: object
-  description: Response body returned by GET /api/v1/auth/login containing the WorkOS authorization URL
+  description: Response body returned by GET /api/v1/auth/login containing the authorization URL
   properties:
     url:
       type: string
       format: uri
-      description: WorkOS authorization URL to redirect the user to for authentication
-      example: "https://api.workos.com/user_management/authorize?client_id=...&redirect_uri=...&state=...&provider=GoogleOAuth"
+      description: Identity-provider authorization URL to redirect the user to for authentication
+      example: "https://idp.example.com/authorize?client_id=...&redirect_uri=...&state=..."
   required:
     - url
 
