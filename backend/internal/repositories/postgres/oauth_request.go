@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/lib/pq"
 
@@ -55,19 +57,41 @@ func (r *oauthRequestRepository) Create(ctx context.Context, req *models.OAuthRe
 	query := fmt.Sprintf(`
 		INSERT INTO %s
 			(signature, request_id, client_id, subject, requested_scope, granted_scope,
-			 requested_audience, granted_audience, requested_at, form_data, session_data, active)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`, r.table)
+			 requested_audience, granted_audience, requested_at, form_data, session_data, active, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`, r.table)
 
 	_, err := r.db.ExecContext(ctx, query,
 		req.Signature, req.RequestID, req.ClientID, req.Subject,
 		pq.Array(req.RequestedScope), pq.Array(req.GrantedScope),
 		pq.Array(req.RequestedAudience), pq.Array(req.GrantedAudience),
-		req.RequestedAt, req.FormData, req.SessionData, req.Active,
+		req.RequestedAt, req.FormData, req.SessionData, req.Active, nullableTime(req.ExpiresAt),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create oauth request in %s: %w", r.table, err)
 	}
 	return nil
+}
+
+// nullableTime maps a zero time to a SQL NULL so an unknown expiry is stored as
+// NULL (and thus never matched by the retention sweep) rather than the epoch.
+func nullableTime(t time.Time) sql.NullTime {
+	return sql.NullTime{Time: t, Valid: !t.IsZero()}
+}
+
+// DeleteExpired removes rows whose expiry has passed. Rows with a NULL expires_at
+// (e.g. created before the column existed) are excluded by the comparison.
+func (r *oauthRequestRepository) DeleteExpired(ctx context.Context) (int64, error) {
+	// #nosec G201 -- r.table is an internal constant, not user input.
+	res, err := r.db.ExecContext(ctx,
+		fmt.Sprintf("DELETE FROM %s WHERE expires_at <= CURRENT_TIMESTAMP", r.table))
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete expired oauth requests in %s: %w", r.table, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read affected rows deleting expired requests in %s: %w", r.table, err)
+	}
+	return n, nil
 }
 
 // Get returns the request session for a signature, including inactive rows so

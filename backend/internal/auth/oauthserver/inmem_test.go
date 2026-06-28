@@ -3,6 +3,7 @@ package oauthserver
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/models"
@@ -106,9 +107,26 @@ func (r *memRequestRepo) DeleteByRequestID(_ context.Context, requestID string) 
 	return nil
 }
 
+func (r *memRequestRepo) DeleteExpired(_ context.Context) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	var n int64
+	for sig, row := range r.rows {
+		if !row.ExpiresAt.IsZero() && !row.ExpiresAt.After(now) {
+			delete(r.rows, sig)
+			n++
+		}
+	}
+	return n, nil
+}
+
 type memSigningKeyRepo struct {
-	mu   sync.Mutex
-	keys []*models.OAuthSigningKey
+	mu sync.Mutex
+	// lockContended makes TryAdvisoryLock report the lock as held elsewhere,
+	// simulating another instance rotating concurrently.
+	lockContended bool
+	keys          []*models.OAuthSigningKey
 }
 
 func newMemSigningKeyRepo() *memSigningKeyRepo {
@@ -150,6 +168,7 @@ func (r *memSigningKeyRepo) Activate(_ context.Context, kid string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	found := false
+	now := time.Now()
 	for _, k := range r.keys {
 		switch {
 		case k.KID == kid:
@@ -157,12 +176,41 @@ func (r *memSigningKeyRepo) Activate(_ context.Context, kid string) error {
 			found = true
 		case k.Active:
 			k.Active = false
+			k.RotatedAt = &now
 		}
 	}
 	if !found {
 		return repositories.ErrOAuthSigningKeyNotFound
 	}
 	return nil
+}
+
+func (r *memSigningKeyRepo) DeleteRetiredBefore(_ context.Context, cutoff time.Time) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	kept := r.keys[:0]
+	var n int64
+	for _, k := range r.keys {
+		if !k.Active && k.RotatedAt != nil && !k.RotatedAt.After(cutoff) {
+			n++
+			continue
+		}
+		kept = append(kept, k)
+	}
+	r.keys = kept
+	return n, nil
+}
+
+// TryAdvisoryLock grants the lock unless lockContended is set, simulating a peer
+// instance holding it.
+func (r *memSigningKeyRepo) TryAdvisoryLock(_ context.Context) (bool, func() error, error) {
+	r.mu.Lock()
+	contended := r.lockContended
+	r.mu.Unlock()
+	if contended {
+		return false, func() error { return nil }, nil
+	}
+	return true, func() error { return nil }, nil
 }
 
 type memLoginSessionRepo struct {

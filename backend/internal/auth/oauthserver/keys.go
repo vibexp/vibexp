@@ -96,10 +96,13 @@ func (m *KeyManager) PublicJWKS(ctx context.Context) (*gojose.JSONWebKeySet, err
 	return set, nil
 }
 
-// MaybeRotate rotates the active key when it is older than the rotation
-// interval. It is a no-op when rotation is not yet due.
-func (m *KeyManager) MaybeRotate(ctx context.Context) error {
-	if _, err := m.loadActive(ctx); err != nil {
+// MaybeRotate rotates the active key when it is older than the rotation interval.
+// It is a no-op when rotation is not yet due. Rotation is coordinated across
+// instances with a Postgres advisory lock so only one instance mints a new key
+// per interval; instances that lose the race drop their cache and pick up the
+// winner's key on the next sign.
+func (m *KeyManager) MaybeRotate(ctx context.Context) (err error) {
+	if _, err = m.loadActive(ctx); err != nil {
 		return err
 	}
 	m.mu.RLock()
@@ -108,7 +111,61 @@ func (m *KeyManager) MaybeRotate(ctx context.Context) error {
 	if time.Since(age) < m.rotationInterval-rotationLeeway {
 		return nil
 	}
+
+	acquired, release, lockErr := m.repo.TryAdvisoryLock(ctx)
+	if lockErr != nil {
+		return lockErr
+	}
+	if !acquired {
+		// A peer is rotating; drop our cache so the next loadActive reads the new
+		// active key from the DB rather than signing with a soon-to-retire key.
+		m.invalidateCache()
+		return nil
+	}
+	defer func() {
+		if rerr := release(); rerr != nil {
+			err = errors.Join(err, rerr)
+		}
+	}()
+
+	// Re-check against the DB under the lock: a peer may have rotated between our
+	// cached check and acquiring the lock.
+	row, getErr := m.repo.GetActive(ctx)
+	if getErr != nil {
+		return getErr
+	}
+	if time.Since(row.CreatedAt) < m.rotationInterval-rotationLeeway {
+		return m.cacheActive(row)
+	}
 	return m.generateAndActivate(ctx)
+}
+
+// PruneRetired removes retired signing keys old enough that no live token can
+// still reference them: a key retired more than the refresh-token TTL ago cannot
+// have signed any token that is still valid. Returns the number of keys removed.
+func (m *KeyManager) PruneRetired(ctx context.Context, refreshTokenTTL time.Duration) (int64, error) {
+	return m.repo.DeleteRetiredBefore(ctx, time.Now().Add(-refreshTokenTTL))
+}
+
+// invalidateCache forgets the cached active key so the next loadActive re-reads
+// it from the DB.
+func (m *KeyManager) invalidateCache() {
+	m.mu.Lock()
+	m.activeJWK = nil
+	m.mu.Unlock()
+}
+
+// cacheActive refreshes the cached active key from a freshly-read row.
+func (m *KeyManager) cacheActive(row *models.OAuthSigningKey) error {
+	jwk, err := m.privateJWKFromRow(row)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.activeJWK = jwk
+	m.activeAge = row.CreatedAt
+	m.mu.Unlock()
+	return nil
 }
 
 // loadActive returns the cached active private JWK, loading and decrypting it
