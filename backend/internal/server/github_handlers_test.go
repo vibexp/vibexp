@@ -231,7 +231,7 @@ func (c *GitHubTestContainer) FeedItemReplyService() services.FeedItemReplyServi
 }
 
 // External and infrastructure stubs
-func (c *GitHubTestContainer) IdentityProvider() idp.IdentityProvider { return nil }
+func (c *GitHubTestContainer) IdentityProviderRegistry() *idp.Registry { return nil }
 func (c *GitHubTestContainer) NotificationDeliveryRepository() repositories.NotificationDeliveryRepository {
 	return nil
 }

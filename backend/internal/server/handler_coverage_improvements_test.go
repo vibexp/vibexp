@@ -175,8 +175,8 @@ func (c *CoverageTestContainer) FeedItemReplyService() services.FeedItemReplySer
 }
 
 // External and infrastructure stubs
-func (c *CoverageTestContainer) IdentityProvider() idp.IdentityProvider { return nil }
-func (c *CoverageTestContainer) Close() error                           { return nil }
+func (c *CoverageTestContainer) IdentityProviderRegistry() *idp.Registry { return nil }
+func (c *CoverageTestContainer) Close() error                            { return nil }
 
 func (c *CoverageTestContainer) NotificationRepository() repositories.NotificationRepository {
 	return nil

@@ -130,7 +130,7 @@ func (m *MockContainerForBackoffice) ResourceUsageService() services.ResourceUsa
 	return nil
 }
 func (m *MockContainerForBackoffice) EmailService() services.EmailServiceInterface { return nil }
-func (m *MockContainerForBackoffice) IdentityProvider() idp.IdentityProvider       { return nil }
+func (m *MockContainerForBackoffice) IdentityProviderRegistry() *idp.Registry      { return nil }
 func (m *MockContainerForBackoffice) BlueprintService() services.BlueprintServiceInterface {
 	return nil
 }

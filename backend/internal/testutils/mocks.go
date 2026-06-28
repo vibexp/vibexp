@@ -345,12 +345,12 @@ func (m *MockAppContainer) ResourceUsageService() services.ResourceUsageServiceI
 }
 
 // External methods
-func (m *MockAppContainer) IdentityProvider() idp.IdentityProvider {
+func (m *MockAppContainer) IdentityProviderRegistry() *idp.Registry {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(idp.IdentityProvider)
+	return args.Get(0).(*idp.Registry)
 }
 
 func (m *MockAppContainer) SMTPClient() external.SMTPClient {

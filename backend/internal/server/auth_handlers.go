@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
@@ -27,17 +28,6 @@ const (
 	stateCookieMaxAge = 10 * 60 // 10 minutes in seconds
 )
 
-// allowedProviders is the allowlist of WorkOS provider slugs accepted by the
-// login endpoint. Unknown values are silently dropped to the empty string so
-// the WorkOS wrapper falls back to its default (GoogleOAuth).
-var allowedProviders = map[string]struct{}{
-	"GoogleOAuth":    {},
-	"GitHubOAuth":    {},
-	"MicrosoftOAuth": {},
-	"AppleOAuth":     {},
-	"authkit":        {},
-}
-
 // LoginResponse is the JSON body returned by GET /api/v1/auth/login.
 type LoginResponse struct {
 	URL string `json:"url"`
@@ -48,10 +38,11 @@ type LogoutResponse struct {
 	Message string `json:"message"`
 }
 
-// handleLogin generates a CSRF state, stores it in a signed cookie, and
-// returns the WorkOS AuthKit authorization URL.
+// handleLogin selects the requested identity provider, generates a CSRF
+// state, stores the (state, provider) pair in a signed cookie, and returns
+// the provider's authorization URL.
 //
-// GET /api/v1/auth/login
+// GET /api/v1/auth/login[?provider=<name>]
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.logger.With(
 		"service", "vibexp-api",
@@ -59,6 +50,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		"user_agent", r.Header.Get("User-Agent"),
 		"remote_ip", r.RemoteAddr,
 	).Info("Login request received")
+
+	requested := r.URL.Query().Get("provider")
+	provider, apiErr := s.resolveLoginProvider(requested)
+	if apiErr != nil {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleLogin",
+			"requested_provider", requested,
+		).Warn("Login provider rejected")
+		errors.WriteJSONError(w, r, apiErr)
+		return
+	}
 
 	state, err := generateRandomState()
 	if err != nil {
@@ -73,29 +76,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sign the state to create a tamper-evident cookie value.
-	signedState := s.signState(state)
-	secure := !s.container.EnvironmentService().IsDevelopment()
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     stateCookieName,
-		Value:    signedState,
-		Path:     "/",
-		MaxAge:   stateCookieMaxAge,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
-
-	provider := r.URL.Query().Get("provider")
-	if _, ok := allowedProviders[provider]; !ok {
-		provider = ""
-	}
 	authURL := s.container.AuthService().GetLoginURL(state, provider)
 	if authURL == "" {
 		s.logger.With(
 			"service", "vibexp-api",
 			"handler", "handleLogin",
+			"provider", provider,
 		).
 			Warn("Identity provider not configured; login unavailable")
 		apiErr := errors.NewServiceUnavailableError(
@@ -105,22 +91,71 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sign the (state, provider) pair to create a tamper-evident cookie value.
+	// Binding the provider into the signature stops a caller from completing
+	// the callback under a different provider than it started with.
+	s.writeStateCookie(w, s.signState(state, provider))
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleLogin",
 		"state", state,
-	).Info("Generated WorkOS login URL")
+		"provider", provider,
+	).Info("Generated login URL")
 
 	writeOK(w, LoginResponse{URL: authURL}, s.logger)
 }
 
-// handleCallback validates the CSRF state cookie, exchanges the authorization
-// code via WorkOS, looks up or creates the user, writes the session cookie,
-// and redirects the browser to the frontend home page.
+// writeStateCookie sets the short-lived, signed CSRF state cookie.
+func (s *Server) writeStateCookie(w http.ResponseWriter, value string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     stateCookieName,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   stateCookieMaxAge,
+		HttpOnly: true,
+		Secure:   !s.container.EnvironmentService().IsDevelopment(),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// resolveLoginProvider validates the requested provider against the enabled
+// set and returns the provider to use, or an APIError to return to the client.
+//
+//   - No providers enabled  → 503 (web login unavailable).
+//   - Empty request, exactly one enabled provider → that provider.
+//   - Empty request, multiple enabled providers → 400 (must choose; no
+//     silent default).
+//   - Unknown/disabled provider → 400 (rejected, not silently defaulted).
+func (s *Server) resolveLoginProvider(requested string) (string, *errors.APIError) {
+	enabled := s.container.AuthService().EnabledProviders()
+	if len(enabled) == 0 {
+		return "", errors.NewServiceUnavailableError(
+			"Authentication provider not configured. Use /auth/dev/login in local development.",
+		)
+	}
+	if requested == "" {
+		if len(enabled) == 1 {
+			return enabled[0], nil
+		}
+		return "", errors.NewBadRequestError("provider query parameter is required")
+	}
+	for _, p := range enabled {
+		if p == requested {
+			return requested, nil
+		}
+	}
+	return "", errors.NewBadRequestError(fmt.Sprintf("unknown or disabled provider %q", requested))
+}
+
+// handleCallback validates the CSRF state cookie, recovers the provider bound
+// to it, exchanges the authorization code via that provider, looks up or
+// creates the user, writes the session cookie, and redirects the browser to
+// the frontend home page.
 //
 // GET /api/v1/auth/callback
 func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
-	s.logAuthRequest("handleCallback", "WorkOS callback", r)
+	s.logAuthRequest("handleCallback", "OAuth callback", r)
 
 	code := r.URL.Query().Get("code")
 	stateParam := r.URL.Query().Get("state")
@@ -132,8 +167,9 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate CSRF state cookie
-	if err := s.validateStateCookie(r, stateParam); err != nil {
+	// Validate CSRF state cookie and recover the provider bound to it.
+	provider, err := s.validateStateCookie(r, stateParam)
+	if err != nil {
 		s.logAuthError("handleCallback", "State validation failed", err)
 		apiErr := errors.NewAuthInvalidError("Invalid or expired state parameter")
 		errors.WriteJSONError(w, r, apiErr)
@@ -152,13 +188,13 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	user, idpTokens, isNewUser, err := s.container.AuthService().HandleCallback(r.Context(), code)
+	user, idpTokens, isNewUser, err := s.container.AuthService().HandleCallback(r.Context(), code, provider)
 	if err != nil {
 		s.handleCallbackFailure(w, r, stateParam, err)
 		return
 	}
 
-	s.handleCallbackSuccess(w, r, user, idpTokens, stateParam, isNewUser)
+	s.handleCallbackSuccess(w, r, user, idpTokens, stateParam, provider, isNewUser)
 }
 
 func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, state string, err error) {
@@ -183,6 +219,7 @@ func (s *Server) handleCallbackSuccess(
 	user *models.User,
 	tokens *idp.Tokens,
 	state string,
+	provider string,
 	isNewUser bool,
 ) {
 	s.logger.With(
@@ -190,8 +227,9 @@ func (s *Server) handleCallbackSuccess(
 		"handler", "handleCallback",
 		"user_id", user.ID,
 		"email", user.Email,
+		"provider", provider,
 		"is_new_user", isNewUser,
-	).Info("WorkOS authentication successful")
+	).Info("OAuth authentication successful")
 
 	if s.metrics != nil {
 		if isNewUser {
@@ -212,6 +250,7 @@ func (s *Server) handleCallbackSuccess(
 			ExpiresAt:    tokens.ExpiresAt,
 			IDPSubject:   idpSubject,
 			UserID:       user.ID,
+			Provider:     provider,
 		}
 		if err := s.sessionManager.Write(w, sess); err != nil {
 			s.logger.With("error", err).Error("Failed to write session cookie")
@@ -224,7 +263,7 @@ func (s *Server) handleCallbackSuccess(
 	ar := NewActivityRecorder(s.container.ActivityService())
 	sessionID := state
 	metadata := map[string]interface{}{
-		"provider": "workos",
+		"provider": provider,
 		"email":    user.Email,
 	}
 	ar.RecordAuthActivity(r.Context(), user.ID, activities.ActivityTypeAuthLogin, &sessionID, metadata, r)
@@ -388,18 +427,20 @@ func generateRandomState() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// signState produces an HMAC-SHA256 signature of the state value and returns
-// "state.signature" — both hex-encoded. The signing key is derived from the
-// session manager's master key with a domain-separation tag, ensuring it
-// is independent of the AES-GCM session-encryption key (per NIST SP 800-108
-// key-separation guidance).
-func (s *Server) signState(state string) string {
-	key := s.stateMACKey()
-	mac := hmac.New(sha256.New, key)
+// signState binds the CSRF state and the chosen provider into a single
+// tamper-evident cookie value of the form "<state>:<provider>.<signature>".
+// The signature is an HMAC-SHA256 over the "<state>:<provider>" payload, so
+// neither the state nor the provider can be altered without detection. The
+// signing key is derived from the session manager's master key with a
+// domain-separation tag, ensuring it is independent of the AES-GCM
+// session-encryption key (per NIST SP 800-108 key-separation guidance).
+func (s *Server) signState(state, provider string) string {
+	payload := state + ":" + provider
+	mac := hmac.New(sha256.New, s.stateMACKey())
 	// hmac.Hash.Write never returns an error.
-	_, _ = mac.Write([]byte(state))
+	_, _ = mac.Write([]byte(payload))
 	sig := hex.EncodeToString(mac.Sum(nil))
-	return state + "." + sig
+	return payload + "." + sig
 }
 
 // stateMACKey returns the per-session-manager derived HMAC key. Falls back
@@ -412,19 +453,35 @@ func (s *Server) stateMACKey() []byte {
 	return []byte(s.config.WorkOSCookiePassword)
 }
 
-// validateStateCookie checks that the vx_state cookie carries the expected
-// state and its HMAC signature is valid.
-func (s *Server) validateStateCookie(r *http.Request, state string) error {
+// validateStateCookie verifies the vx_state cookie: the HMAC signature must
+// be valid and the embedded state must equal the state echoed back by the
+// identity provider. On success it returns the provider name bound to the
+// cookie at login time.
+func (s *Server) validateStateCookie(r *http.Request, state string) (string, error) {
 	cookie, err := r.Cookie(stateCookieName)
 	if err != nil {
-		return fmt.Errorf("state cookie missing: %w", err)
+		return "", fmt.Errorf("state cookie missing: %w", err)
 	}
 
-	expected := s.signState(state)
-	if !hmac.Equal([]byte(cookie.Value), []byte(expected)) {
-		return fmt.Errorf("state cookie mismatch")
+	dot := strings.LastIndex(cookie.Value, ".")
+	if dot < 0 {
+		return "", fmt.Errorf("state cookie malformed")
 	}
-	return nil
+	payload, gotSig := cookie.Value[:dot], cookie.Value[dot+1:]
+
+	mac := hmac.New(sha256.New, s.stateMACKey())
+	// hmac.Hash.Write never returns an error.
+	_, _ = mac.Write([]byte(payload))
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(gotSig), []byte(expectedSig)) {
+		return "", fmt.Errorf("state cookie signature mismatch")
+	}
+
+	gotState, provider, found := strings.Cut(payload, ":")
+	if !found || gotState != state {
+		return "", fmt.Errorf("state cookie mismatch")
+	}
+	return provider, nil
 }
 
 func (s *Server) logAuthRequest(handler, description string, r *http.Request) {

@@ -218,7 +218,7 @@ func (m *MockContainerForHandlers) EnvironmentService() *services.EnvironmentSer
 }
 
 // External dependencies
-func (m *MockContainerForHandlers) IdentityProvider() idp.IdentityProvider {
+func (m *MockContainerForHandlers) IdentityProviderRegistry() *idp.Registry {
 	return nil
 }
 

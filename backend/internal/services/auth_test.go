@@ -12,7 +12,6 @@ import (
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	idpmocks "github.com/vibexp/vibexp/internal/auth/idp/mocks"
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -23,22 +22,13 @@ import (
 )
 
 // Test configuration constants
-const (
-	testOAuthClientID    = "test-client-id"
-	testOAuthSecret      = "test-oauth-secret" //nolint:gosec // Test credential, not a real secret
-	testOAuthRedirectURL = "http://localhost:8080/auth/callback"
-)
+const testOAuthClientID = "test-client-id"
 
 func createTestAuthServiceNew(
 	userRepo *repo_mocks.MockUserRepository,
 	identityProvider *idpmocks.MockIdentityProvider,
 	allowedEmails []string,
 ) *AuthService {
-	cfg := &config.Config{
-		WorkOSClientID:    testOAuthClientID,
-		WorkOSAPIKey:      testOAuthSecret,
-		WorkOSRedirectURI: testOAuthRedirectURL,
-	}
 	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 
 	featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
@@ -46,7 +36,15 @@ func createTestAuthServiceNew(
 	userSignInAllowlist := feature_flags.NewUserSignInAllowlistFlag(logger, allowedEmails)
 	featureFlagSvc.RegisterFlag(userSignInAllowlist)
 
-	return NewAuthService(userRepo, cfg, identityProvider, nil, logger, featureFlagSvc)
+	return NewAuthService(userRepo, newTestRegistry(identityProvider), nil, logger, featureFlagSvc)
+}
+
+// newTestRegistry wraps a mock identity provider in a registry. It defaults the
+// provider's Name() to WorkOS (the registry keys by Name() at build time) when
+// the test has not already stubbed it.
+func newTestRegistry(p *idpmocks.MockIdentityProvider) *idp.Registry {
+	p.On("Name").Return(idp.ProviderWorkOS).Maybe()
+	return idp.NewRegistry(p)
 }
 
 func createTestClaims() *idp.Claims {
@@ -248,7 +246,7 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 			tt.setupMocks(mockRepo)
 
 			ctx := context.Background()
-			user, _, err := service.createOrUpdateUserFromClaims(ctx, claims)
+			user, _, err := service.createOrUpdateUserFromClaims(ctx, workosProvider, claims)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -272,52 +270,75 @@ func TestAuthService_GetLoginURL(t *testing.T) {
 	service := createTestAuthServiceNew(mockRepo, mockIDP, []string{"test@example.com"})
 
 	expectedURL := "https://sso.workos.com/authorize?state=test-state&client_id=" + testOAuthClientID
-	mockIDP.On("AuthorizeURL", "test-state", testOAuthRedirectURL, "").Return(expectedURL)
+	// The registry keys the mock under "workos"; GetLoginURL resolves it and
+	// forwards the provider name to AuthorizeURL. The redirect override is empty
+	// so the provider uses its own configured redirect URI.
+	mockIDP.On("AuthorizeURL", "test-state", "", "workos").Return(expectedURL)
 
-	url := service.GetLoginURL("test-state", "")
+	url := service.GetLoginURL("test-state", "workos")
 	assert.NotEmpty(t, url)
 	assert.Equal(t, expectedURL, url)
 
 	mockIDP.AssertExpectations(t)
 }
 
-func TestAuthService_GetLoginURL_WithProvider(t *testing.T) {
-	tests := []struct {
-		name         string
-		state        string
-		provider     string
-		expectedCall []interface{}
-	}{
-		{
-			name:         "forwards GitHubOAuth hint to IDP",
-			state:        "some-state",
-			provider:     "GitHubOAuth",
-			expectedCall: []interface{}{"some-state", testOAuthRedirectURL, "GitHubOAuth"},
-		},
-		{
-			name:         "forwards empty provider hint to IDP",
-			state:        "other-state",
-			provider:     "",
-			expectedCall: []interface{}{"other-state", testOAuthRedirectURL, ""},
-		},
-	}
+func TestAuthService_GetLoginURL_UnknownProvider_ReturnsEmpty(t *testing.T) {
+	mockRepo := &repo_mocks.MockUserRepository{}
+	mockIDP := &idpmocks.MockIdentityProvider{}
+	service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := &repo_mocks.MockUserRepository{}
-			mockIDP := &idpmocks.MockIdentityProvider{}
-			service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
+	// "github" is not in the registry (only "workos" is) → empty URL, and
+	// AuthorizeURL is never called.
+	got := service.GetLoginURL("some-state", "github")
+	assert.Empty(t, got)
+	mockIDP.AssertNotCalled(t, "AuthorizeURL", mock.Anything, mock.Anything, mock.Anything)
+}
 
-			returnURL := "https://sso.workos.com/authorize?state=" + tt.state
-			mockIDP.On("AuthorizeURL", tt.expectedCall[0], tt.expectedCall[1], tt.expectedCall[2]).
-				Return(returnURL)
+func TestAuthService_EnabledProviders(t *testing.T) {
+	mockRepo := &repo_mocks.MockUserRepository{}
+	mockIDP := &idpmocks.MockIdentityProvider{}
+	service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
 
-			got := service.GetLoginURL(tt.state, tt.provider)
-			assert.Equal(t, returnURL, got)
+	assert.Equal(t, []string{"workos"}, service.EnabledProviders())
+}
 
-			mockIDP.AssertExpectations(t)
-		})
-	}
+func TestAuthService_RefreshTokens(t *testing.T) {
+	refreshed := &idp.Tokens{AccessToken: "new-access", RefreshToken: "new-refresh"}
+
+	t.Run("routes to the named provider", func(t *testing.T) {
+		mockRepo := &repo_mocks.MockUserRepository{}
+		mockIDP := &idpmocks.MockIdentityProvider{}
+		service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
+		mockIDP.On("Refresh", context.Background(), "old-refresh").Return(refreshed, nil)
+
+		got, err := service.RefreshTokens(context.Background(), "workos", "old-refresh")
+		assert.NoError(t, err)
+		assert.Equal(t, refreshed, got)
+		mockIDP.AssertExpectations(t)
+	})
+
+	t.Run("empty provider falls back to the sole enabled provider", func(t *testing.T) {
+		mockRepo := &repo_mocks.MockUserRepository{}
+		mockIDP := &idpmocks.MockIdentityProvider{}
+		service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
+		mockIDP.On("Refresh", context.Background(), "legacy-refresh").Return(refreshed, nil)
+
+		// Legacy session with no provider name: single-provider deployment routes to it.
+		got, err := service.RefreshTokens(context.Background(), "", "legacy-refresh")
+		assert.NoError(t, err)
+		assert.Equal(t, refreshed, got)
+		mockIDP.AssertExpectations(t)
+	})
+
+	t.Run("unknown provider errors", func(t *testing.T) {
+		mockRepo := &repo_mocks.MockUserRepository{}
+		mockIDP := &idpmocks.MockIdentityProvider{}
+		service := createTestAuthServiceNew(mockRepo, mockIDP, []string{})
+
+		_, err := service.RefreshTokens(context.Background(), "github", "tok")
+		assert.Error(t, err)
+		mockIDP.AssertNotCalled(t, "Refresh", mock.Anything, mock.Anything)
+	})
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions
@@ -344,7 +365,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			allowedEmails: []string{"test@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
 				mockIDP.On("Name").Return(idp.ProviderWorkOS)
-				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", testOAuthRedirectURL).
+				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
 					Return(testTokens, testClaims, nil)
 
 				mockRepo.On("GetByIDPSubject", context.Background(), workosProvider, "workos-sub-123").
@@ -389,7 +410,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 				}
 
 				mockIDP.On("Name").Return(idp.ProviderWorkOS)
-				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", testOAuthRedirectURL).
+				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
 					Return(testTokens, testClaims, nil)
 
 				mockRepo.On("GetByIDPSubject", context.Background(), workosProvider, "workos-sub-123").
@@ -411,7 +432,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			code:          "invalid-code",
 			allowedEmails: []string{"test@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
-				mockIDP.On("ExchangeCode", context.Background(), "invalid-code", testOAuthRedirectURL).
+				mockIDP.On("ExchangeCode", context.Background(), "invalid-code", "").
 					Return(nil, nil, fmt.Errorf("invalid authorization code"))
 			},
 			expectError: true,
@@ -422,7 +443,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			allowedEmails: []string{"test@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
 				mockIDP.On("Name").Return(idp.ProviderWorkOS)
-				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", testOAuthRedirectURL).
+				mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
 					Return(testTokens, testClaims, nil)
 
 				mockRepo.On("GetByIDPSubject", context.Background(), workosProvider, "workos-sub-123").
@@ -445,7 +466,7 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			tt.setupMocks(mockRepo, mockIDP)
 
 			ctx := context.Background()
-			user, tokens, _, err := service.HandleCallback(ctx, tt.code)
+			user, tokens, _, err := service.HandleCallback(ctx, tt.code, string(idp.ProviderWorkOS))
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -656,11 +677,6 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 			mockIDP.On("Name").Return(idp.ProviderWorkOS).Maybe()
 			mockEventManager := &event_mocks.MockEventPublisher{}
 
-			cfg := &config.Config{
-				WorkOSClientID:    testOAuthClientID,
-				WorkOSAPIKey:      testOAuthSecret,
-				WorkOSRedirectURI: testOAuthRedirectURL,
-			}
 			logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 
 			featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
@@ -668,7 +684,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 				logger, []string{"test@example.com", "dev@example.com"})
 			featureFlagSvc.RegisterFlag(userSignInAllowlist)
 
-			service := NewAuthService(mockRepo, cfg, mockIDP, mockEventManager, logger, featureFlagSvc)
+			service := NewAuthService(mockRepo, idp.NewRegistry(mockIDP), mockEventManager, logger, featureFlagSvc)
 
 			tt.setupMocks(mockRepo, mockEventManager)
 
@@ -678,7 +694,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 				_, err := service.HandleDevLogin(ctx, "dev@example.com", "Dev User")
 				assert.NoError(t, err)
 			} else {
-				_, _, err := service.createOrUpdateUserFromClaims(ctx, testClaims)
+				_, _, err := service.createOrUpdateUserFromClaims(ctx, workosProvider, testClaims)
 				assert.NoError(t, err)
 			}
 
@@ -723,13 +739,12 @@ func TestAuthService_GoogleLegacyFallback(t *testing.T) {
 		return u.ID == "legacy-1"
 	})).Return(nil)
 
-	cfg := &config.Config{WorkOSRedirectURI: testOAuthRedirectURL}
 	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
 	featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
 
-	service := NewAuthService(mockRepo, cfg, mockIDP, nil, logger, featureFlagSvc)
+	service := NewAuthService(mockRepo, idp.NewRegistry(mockIDP), nil, logger, featureFlagSvc)
 
-	user, _, err := service.createOrUpdateUserFromClaims(context.Background(), testClaims)
+	user, _, err := service.createOrUpdateUserFromClaims(context.Background(), googleProvider, testClaims)
 	assert.NoError(t, err)
 	assert.Equal(t, "legacy-1", user.ID)
 

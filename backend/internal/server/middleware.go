@@ -308,7 +308,7 @@ func (s *Server) refreshSession(
 		"user_id", sess.UserID,
 	).Debug("Access token expired, attempting refresh")
 
-	newTokens, refreshErr := s.container.AuthService().RefreshTokens(r.Context(), sess.RefreshToken)
+	newTokens, refreshErr := s.container.AuthService().RefreshTokens(r.Context(), sess.Provider, sess.RefreshToken)
 	if refreshErr != nil {
 		fields := []any{
 			"middleware", "authenticateWithSession",

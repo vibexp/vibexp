@@ -238,21 +238,20 @@ func newDiscoverableIssuer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func TestProvideIdentityProvider_WorkOSEmptyCreds_ReturnsStub(t *testing.T) {
+func TestProvideRegistry_WorkOSEmptyCreds_Skipped(t *testing.T) {
 	cfg := &config.Config{
 		AuthProvider:   "workos",
 		WorkOSClientID: "",
 		WorkOSAPIKey:   "",
 	}
 
-	provider, err := ProvideIdentityProvider(cfg, testLogger())
+	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
 
 	require.NoError(t, err)
-	_, ok := provider.(*stubIdentityProvider)
-	assert.True(t, ok, "AUTH_PROVIDER=workos with empty creds should return stub")
+	assert.Equal(t, 0, registry.Len(), "AUTH_PROVIDER=workos with empty creds enables no providers")
 }
 
-func TestProvideIdentityProvider_OIDCDiscoverable_ReturnsOIDCClient(t *testing.T) {
+func TestProvideRegistry_OIDCDiscoverable_RegistersOIDCClient(t *testing.T) {
 	srv := newDiscoverableIssuer(t)
 	cfg := &config.Config{
 		AuthProvider:     "oidc",
@@ -262,15 +261,18 @@ func TestProvideIdentityProvider_OIDCDiscoverable_ReturnsOIDCClient(t *testing.T
 		OIDCRedirectURI:  "http://localhost:8080/api/v1/auth/callback",
 	}
 
-	provider, err := ProvideIdentityProvider(cfg, testLogger())
+	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
 
 	require.NoError(t, err)
-	_, ok := provider.(*oidc.Client)
-	assert.True(t, ok, "AUTH_PROVIDER=oidc with a discoverable issuer should return *oidc.Client")
-	assert.Equal(t, idp.ProviderName("oidc"), provider.Name())
+	assert.Equal(t, []idp.ProviderName{idp.ProviderOIDC}, registry.Enabled())
+	provider, ok := registry.Get(idp.ProviderOIDC)
+	require.True(t, ok)
+	_, isClient := provider.(*oidc.Client)
+	assert.True(t, isClient, "AUTH_PROVIDER=oidc with a discoverable issuer should register *oidc.Client")
+	assert.Equal(t, idp.ProviderOIDC, provider.Name())
 }
 
-func TestProvideIdentityProvider_OIDCDiscoveryFailure_NonFatalStub(t *testing.T) {
+func TestProvideRegistry_OIDCDiscoveryFailure_NonFatalSkip(t *testing.T) {
 	cfg := &config.Config{
 		AuthProvider:     "oidc",
 		OIDCIssuerURL:    "https://oidc.invalid.example.com",
@@ -279,51 +281,47 @@ func TestProvideIdentityProvider_OIDCDiscoveryFailure_NonFatalStub(t *testing.T)
 		OIDCRedirectURI:  "http://localhost:8080/api/v1/auth/callback",
 	}
 
-	provider, err := ProvideIdentityProvider(cfg, testLogger())
+	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
 
 	require.NoError(t, err, "OIDC discovery failure must be non-fatal")
-	_, ok := provider.(*stubIdentityProvider)
-	assert.True(t, ok, "OIDC discovery failure should fall back to the no-op stub")
+	assert.Equal(t, 0, registry.Len(), "OIDC discovery failure should skip the provider")
 }
 
-func TestProvideIdentityProvider_OIDCMissingConfig_NonFatalStub(t *testing.T) {
+func TestProvideRegistry_OIDCMissingConfig_NonFatalSkip(t *testing.T) {
 	cfg := &config.Config{
 		AuthProvider: "oidc",
-		// no OIDC_* fields set -> oidc.Config.Validate fails -> stub
+		// no OIDC_* fields set -> oidc.Config.Validate fails -> skipped
 	}
 
-	provider, err := ProvideIdentityProvider(cfg, testLogger())
+	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
 
 	require.NoError(t, err, "invalid OIDC config must be non-fatal")
-	_, ok := provider.(*stubIdentityProvider)
-	assert.True(t, ok, "missing OIDC config should fall back to the no-op stub")
+	assert.Equal(t, 0, registry.Len(), "missing OIDC config should skip the provider")
 }
 
-func TestProvideIdentityProvider_EmptyProvider_NoWorkOS_ReturnsStub(t *testing.T) {
+func TestProvideRegistry_EmptyProvider_NoWorkOS_Empty(t *testing.T) {
 	cfg := &config.Config{
 		AuthProvider: "",
 	}
 
-	provider, err := ProvideIdentityProvider(cfg, testLogger())
+	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
 
 	require.NoError(t, err)
-	_, ok := provider.(*stubIdentityProvider)
-	assert.True(t, ok, "empty AUTH_PROVIDER with no WorkOS creds should return stub (dev-login path)")
+	assert.Equal(t, 0, registry.Len(), "no config means no providers (dev-login path)")
 }
 
-func TestProvideIdentityProvider_UnrecognizedProvider_ReturnsStub(t *testing.T) {
+func TestProvideRegistry_UnrecognizedProvider_Skipped(t *testing.T) {
 	cfg := &config.Config{
-		AuthProvider: "okta-magic",
+		AuthProviders: []string{"okta-magic"},
 	}
 
-	provider, err := ProvideIdentityProvider(cfg, testLogger())
+	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
 
-	require.NoError(t, err, "unrecognized AUTH_PROVIDER must not be fatal")
-	_, ok := provider.(*stubIdentityProvider)
-	assert.True(t, ok, "unrecognized AUTH_PROVIDER should fall back to the no-op stub")
+	require.NoError(t, err, "unrecognized provider must not be fatal")
+	assert.Equal(t, 0, registry.Len(), "unrecognized provider name should be skipped")
 }
 
-func TestProvideIdentityProvider_CaseInsensitive_OIDC(t *testing.T) {
+func TestProvideRegistry_CaseInsensitive_OIDC(t *testing.T) {
 	srv := newDiscoverableIssuer(t)
 	cfg := &config.Config{
 		AuthProvider:     "  OIDC  ",
@@ -333,9 +331,49 @@ func TestProvideIdentityProvider_CaseInsensitive_OIDC(t *testing.T) {
 		OIDCRedirectURI:  "http://localhost:8080/api/v1/auth/callback",
 	}
 
-	provider, err := ProvideIdentityProvider(cfg, testLogger())
+	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
 
 	require.NoError(t, err)
-	_, ok := provider.(*oidc.Client)
+	_, ok := registry.Get(idp.ProviderOIDC)
 	assert.True(t, ok, "AUTH_PROVIDER should be matched case-insensitively and trimmed")
+}
+
+// TestProvideRegistry_MultipleProviders covers the AUTH_PROVIDERS multi-provider
+// path: GitHub (no network) plus a discoverable OIDC issuer enable two providers
+// at once, and Enabled() is stable-sorted.
+func TestProvideRegistry_MultipleProviders(t *testing.T) {
+	srv := newDiscoverableIssuer(t)
+	cfg := &config.Config{
+		AuthProviders:      []string{"github", "oidc"},
+		GitHubClientID:     "gh-client-id",
+		GitHubClientSecret: "gh-client-secret",
+		OIDCIssuerURL:      srv.URL,
+		OIDCClientID:       "client-id",
+		OIDCClientSecret:   "client-secret",
+		OIDCRedirectURI:    "http://localhost:8080/api/v1/auth/callback",
+	}
+
+	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
+
+	require.NoError(t, err)
+	assert.Equal(t, []idp.ProviderName{idp.ProviderGitHub, idp.ProviderOIDC}, registry.Enabled())
+}
+
+// TestProvideRegistry_AuthProvidersOverridesAuthProvider confirms AUTH_PROVIDERS
+// takes precedence over the legacy single AUTH_PROVIDER shim.
+func TestProvideRegistry_AuthProvidersOverridesAuthProvider(t *testing.T) {
+	cfg := &config.Config{
+		AuthProviders:      []string{"github"},
+		AuthProvider:       "workos",
+		WorkOSClientID:     "wos-id",
+		WorkOSAPIKey:       "wos-key",
+		GitHubClientID:     "gh-client-id",
+		GitHubClientSecret: "gh-client-secret",
+	}
+
+	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
+
+	require.NoError(t, err)
+	assert.Equal(t, []idp.ProviderName{idp.ProviderGitHub}, registry.Enabled(),
+		"AUTH_PROVIDERS must take precedence; WorkOS shim ignored")
 }

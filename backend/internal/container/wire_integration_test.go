@@ -168,7 +168,7 @@ func TestInitializeContainer_AllExternalDependenciesNonNil(t *testing.T) {
 	}()
 
 	// Assert - Verify all external dependencies are non-nil
-	assert.NotNil(t, c.IdentityProvider(), "IdentityProvider should not be nil")
+	assert.NotNil(t, c.IdentityProviderRegistry(), "IdentityProviderRegistry should not be nil")
 	assert.NotNil(t, c.SMTPClient(), "SMTPClient should not be nil")
 }
 
@@ -405,7 +405,7 @@ func TestInitializeContainer_NoCircularDependencies(t *testing.T) {
 	assert.NotNil(t, c.UserRepository(), "Repository layer initialized")
 	assert.NotNil(t, c.AuthService(), "Service layer initialized")
 	assert.NotNil(t, c.EventManager(), "Event system initialized")
-	assert.NotNil(t, c.IdentityProvider(), "External dependencies initialized")
+	assert.NotNil(t, c.IdentityProviderRegistry(), "External dependencies initialized")
 }
 
 // TestInitializeContainer_ResourceUsageService tests resource usage service with nil handling

@@ -9,6 +9,8 @@ import (
 	"github.com/darkrockmountain/gomail"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
+	"github.com/vibexp/vibexp/internal/auth/idp/github"
+	"github.com/vibexp/vibexp/internal/auth/idp/google"
 	"github.com/vibexp/vibexp/internal/auth/idp/oidc"
 	"github.com/vibexp/vibexp/internal/auth/idp/workos"
 	"github.com/vibexp/vibexp/internal/config"
@@ -16,109 +18,173 @@ import (
 	"github.com/vibexp/vibexp/internal/external/implementations"
 )
 
-// ProvideIdentityProvider creates a provider-agnostic IdentityProvider based
-// on the AUTH_PROVIDER config value. Supported providers: "workos", "oidc",
-// and "" (none / auto-detect). The value is matched case-insensitively.
+// ProvideIdentityProviderRegistry builds the set of web-login identity
+// providers enabled for this deployment. A deployment may enable one or
+// several providers at once (e.g. Google + GitHub) via AUTH_PROVIDERS.
 //
-//   - "workos": WorkOS AuthKit. When credentials are absent a no-op stub is
-//     returned so the container can still be wired up (CI / dev-login).
-//   - "oidc": a generic OIDC provider (Keycloak, Authentik, Zitadel, Auth0,
-//     Google). OIDC discovery runs at startup; on discovery failure (bad or
-//     unreachable issuer) a WARNING is logged and a no-op stub is returned so
-//     the server still boots (web login disabled; dev login unaffected).
-//   - "" / "none" / unrecognized: backward-compatible auto-detect — WorkOS if
-//     its credentials are present, otherwise the no-op stub.
+// Provider selection (see resolveEnabledProviderNames):
+//   - AUTH_PROVIDERS (comma list) when set — the multi-provider path.
+//   - else AUTH_PROVIDER (single value) — the backward-compatible shim.
+//   - else auto-detect WorkOS from its credentials — legacy default.
 //
-// No branch returns a fatal error on misconfiguration: a misconfigured
-// provider degrades to the stub rather than crashing startup.
-func ProvideIdentityProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, error) {
-	switch strings.ToLower(strings.TrimSpace(cfg.AuthProvider)) {
-	case "workos":
-		return provideWorkOSIdentityProvider(cfg, logger)
-	case "oidc":
-		return provideOIDCIdentityProvider(cfg, logger)
-	case "", "none":
-		if cfg.WorkOSClientID != "" && cfg.WorkOSAPIKey != "" {
-			return provideWorkOSIdentityProvider(cfg, logger)
+// Construction is resilient: an enabled provider whose credentials are absent
+// or whose OIDC discovery fails is logged and skipped rather than crashing
+// startup, so the server always boots (web login is simply limited to the
+// providers that built successfully; dev login is unaffected). An empty
+// registry means web login is disabled.
+func ProvideIdentityProviderRegistry(cfg *config.Config, logger *slog.Logger) (*idp.Registry, error) {
+	names := resolveEnabledProviderNames(cfg)
+
+	built := make([]idp.IdentityProvider, 0, len(names))
+	for _, name := range names {
+		if provider, ok := buildIdentityProvider(name, cfg, logger); ok {
+			built = append(built, provider)
 		}
-		logger.With("auth_provider", "stub").Info("Identity provider initialized")
-		return &stubIdentityProvider{}, nil
+	}
+
+	registry := idp.NewRegistry(built...)
+	enabled := registry.Enabled()
+	enabledStrs := make([]string, len(enabled))
+	for i, n := range enabled {
+		enabledStrs[i] = string(n)
+	}
+	logger.With("providers", enabledStrs).Info("Identity provider registry initialized")
+	return registry, nil
+}
+
+// resolveEnabledProviderNames computes the ordered, de-duplicated list of
+// provider names to enable, applying the AUTH_PROVIDERS → AUTH_PROVIDER →
+// auto-detect precedence.
+func resolveEnabledProviderNames(cfg *config.Config) []idp.ProviderName {
+	normalize := func(raw string) idp.ProviderName {
+		return idp.ProviderName(strings.ToLower(strings.TrimSpace(raw)))
+	}
+
+	var raw []string
+	switch {
+	case len(cfg.AuthProviders) > 0:
+		raw = cfg.AuthProviders
+	case strings.TrimSpace(cfg.AuthProvider) != "":
+		raw = []string{cfg.AuthProvider}
+	case cfg.WorkOSClientID != "" && cfg.WorkOSAPIKey != "":
+		// Legacy auto-detect: WorkOS when its credentials are present.
+		raw = []string{string(idp.ProviderWorkOS)}
+	}
+
+	seen := make(map[idp.ProviderName]struct{}, len(raw))
+	names := make([]idp.ProviderName, 0, len(raw))
+	for _, r := range raw {
+		name := normalize(r)
+		if name == "" || name == "none" {
+			continue
+		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	return names
+}
+
+// buildIdentityProvider constructs a single provider by name, returning
+// (provider, true) on success or (nil, false) when it is unrecognized,
+// missing credentials, or fails to initialize. Failures are logged, never
+// fatal.
+func buildIdentityProvider(
+	name idp.ProviderName, cfg *config.Config, logger *slog.Logger,
+) (idp.IdentityProvider, bool) {
+	switch name {
+	case idp.ProviderGoogle:
+		return buildGoogleProvider(cfg, logger)
+	case idp.ProviderGitHub:
+		return buildGitHubProvider(cfg, logger)
+	case idp.ProviderOIDC:
+		return buildOIDCProvider(cfg, logger)
+	case idp.ProviderWorkOS:
+		return buildWorkOSProvider(cfg, logger)
 	default:
-		logger.With("auth_provider", cfg.AuthProvider).
-			Warn("Unrecognized AUTH_PROVIDER; web login disabled (using no-op stub)")
-		return &stubIdentityProvider{}, nil
+		logger.With("provider", string(name)).
+			Warn("Unrecognized identity provider in AUTH_PROVIDERS; skipping")
+		return nil, false
 	}
 }
 
-// provideWorkOSIdentityProvider constructs the WorkOS provider, falling back to
-// the no-op stub when credentials are absent.
-func provideWorkOSIdentityProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, error) {
-	if cfg.WorkOSClientID == "" || cfg.WorkOSAPIKey == "" {
-		logger.With("auth_provider", "stub").
-			Warn("AUTH_PROVIDER=workos but WorkOS credentials are absent; web login disabled (using no-op stub)")
-		return &stubIdentityProvider{}, nil
+func buildGoogleProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
+	if cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" {
+		logger.With("provider", "google").
+			Warn("Google enabled but GOOGLE_CLIENT_ID/SECRET are absent; skipping")
+		return nil, false
 	}
-
-	provider, err := workos.New(context.Background(), workos.Config{
-		ClientID:    cfg.WorkOSClientID,
-		APIKey:      cfg.WorkOSAPIKey,
-		RedirectURI: cfg.WorkOSRedirectURI,
+	provider, err := google.New(context.Background(), google.Config{
+		ClientID:     cfg.GoogleClientID,
+		ClientSecret: cfg.GoogleClientSecret,
+		RedirectURL:  cfg.GoogleRedirectURI,
 	})
 	if err != nil {
-		return nil, err
+		logger.With("provider", "google", "error", err).
+			Warn("Google provider initialization failed; skipping")
+		return nil, false
 	}
-	logger.With("auth_provider", "workos").Info("Identity provider initialized")
-	return provider, nil
+	logger.With("provider", "google").Info("Identity provider enabled")
+	return provider, true
 }
 
-// provideOIDCIdentityProvider constructs the generic OIDC provider. OIDC
-// discovery failure is non-fatal: a WARNING is logged and the no-op stub is
-// returned so the server still boots with web login disabled.
-func provideOIDCIdentityProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, error) {
+func buildGitHubProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
+	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" {
+		logger.With("provider", "github").
+			Warn("GitHub enabled but GITHUB_CLIENT_ID/SECRET are absent; skipping")
+		return nil, false
+	}
+	provider, err := github.New(github.Config{
+		ClientID:     cfg.GitHubClientID,
+		ClientSecret: cfg.GitHubClientSecret,
+		RedirectURL:  cfg.GitHubRedirectURI,
+	})
+	if err != nil {
+		logger.With("provider", "github", "error", err).
+			Warn("GitHub provider initialization failed; skipping")
+		return nil, false
+	}
+	logger.With("provider", "github").Info("Identity provider enabled")
+	return provider, true
+}
+
+func buildOIDCProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
 	provider, err := oidc.New(context.Background(), oidc.Config{
-		Name:         idp.ProviderName("oidc"),
+		Name:         idp.ProviderOIDC,
 		IssuerURL:    cfg.OIDCIssuerURL,
 		ClientID:     cfg.OIDCClientID,
 		ClientSecret: cfg.OIDCClientSecret,
 		RedirectURL:  cfg.OIDCRedirectURI,
 	})
 	if err != nil {
-		logger.With(
-			"error", err,
-			"issuer_url", cfg.OIDCIssuerURL,
-		).
-			Warn("OIDC provider initialization failed; web login disabled (using no-op stub)")
-		return &stubIdentityProvider{}, nil
+		logger.With("provider", "oidc", "issuer_url", cfg.OIDCIssuerURL, "error", err).
+			Warn("OIDC provider initialization failed; skipping")
+		return nil, false
 	}
-	logger.Info(
-		"Identity provider initialized",
-		"auth_provider", "oidc",
-		"issuer_url", cfg.OIDCIssuerURL,
-	)
-	return provider, nil
+	logger.With("provider", "oidc", "issuer_url", cfg.OIDCIssuerURL).Info("Identity provider enabled")
+	return provider, true
 }
 
-// stubIdentityProvider is a no-op implementation used when OAuth credentials
-// are absent (typically test environments). All methods return errors to make
-// accidental production use loudly fail.
-type stubIdentityProvider struct{}
-
-func (s *stubIdentityProvider) Name() idp.ProviderName {
-	return idp.ProviderWorkOS
-}
-
-func (s *stubIdentityProvider) AuthorizeURL(state, redirectURI, provider string) string {
-	return ""
-}
-
-func (s *stubIdentityProvider) ExchangeCode(
-	ctx context.Context, code, redirectURI string,
-) (*idp.Tokens, *idp.Claims, error) {
-	return nil, nil, fmt.Errorf("idp: identity provider not configured")
-}
-
-func (s *stubIdentityProvider) Refresh(ctx context.Context, refreshToken string) (*idp.Tokens, error) {
-	return nil, fmt.Errorf("idp: identity provider not configured")
+func buildWorkOSProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
+	if cfg.WorkOSClientID == "" || cfg.WorkOSAPIKey == "" {
+		logger.With("provider", "workos").
+			Warn("WorkOS enabled but WorkOS credentials are absent; skipping")
+		return nil, false
+	}
+	provider, err := workos.New(context.Background(), workos.Config{
+		ClientID:    cfg.WorkOSClientID,
+		APIKey:      cfg.WorkOSAPIKey,
+		RedirectURI: cfg.WorkOSRedirectURI,
+	})
+	if err != nil {
+		logger.With("provider", "workos", "error", err).
+			Warn("WorkOS provider initialization failed; skipping")
+		return nil, false
+	}
+	logger.With("provider", "workos").Info("Identity provider enabled")
+	return provider, true
 }
 
 // ProvideEmailProvider creates an EmailProvider based on the EMAIL_PROVIDER config value.

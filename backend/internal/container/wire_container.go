@@ -99,7 +99,7 @@ type WireContainer struct {
 	digestRunner             *notifications.DigestRunner
 
 	// External dependencies
-	identityProvider idp.IdentityProvider
+	identityRegistry *idp.Registry
 	smtpClient       external.SMTPClient
 	githubAppClient  external.GitHubAppClient
 
@@ -190,7 +190,7 @@ func NewWireContainer(
 	notificationService notifications.NotificationServiceInterface,
 	digestRunner *notifications.DigestRunner,
 	// External dependencies
-	identityProvider idp.IdentityProvider,
+	identityRegistry *idp.Registry,
 	smtpClient external.SMTPClient,
 	githubAppClient external.GitHubAppClient,
 	// Event system
@@ -275,7 +275,7 @@ func NewWireContainer(
 		notificationService:      notificationService,
 		digestRunner:             digestRunner,
 		// External dependencies
-		identityProvider: identityProvider,
+		identityRegistry: identityRegistry,
 		smtpClient:       smtpClient,
 		githubAppClient:  githubAppClient,
 		// Event system
@@ -559,8 +559,8 @@ func (c *WireContainer) FeedItemReplyService() services.FeedItemReplyServiceInte
 }
 
 // External dependencies
-func (c *WireContainer) IdentityProvider() idp.IdentityProvider {
-	return c.identityProvider
+func (c *WireContainer) IdentityProviderRegistry() *idp.Registry {
+	return c.identityRegistry
 }
 
 func (c *WireContainer) SMTPClient() external.SMTPClient {
