@@ -16,9 +16,13 @@ export const DEFAULT_RETURN_TO = '/'
  */
 export function sanitizeReturnTo(raw: string | null | undefined): string {
   if (typeof raw !== 'string') return DEFAULT_RETURN_TO
-  if (!raw.startsWith('/')) return DEFAULT_RETURN_TO
-  if (raw.startsWith('//') || raw.startsWith('/\\')) return DEFAULT_RETURN_TO
-  return raw
+  // Browsers strip tab/newline/CR from a URL before parsing (WHATWG URL spec),
+  // so e.g. "/\t/\tevil.com" would collapse to a protocol-relative "//evil.com"
+  // after the checks below. Strip them first and validate the resolved value.
+  const path = raw.replace(/[\t\n\r]/g, '')
+  if (!path.startsWith('/')) return DEFAULT_RETURN_TO
+  if (path.startsWith('//') || path.startsWith('/\\')) return DEFAULT_RETURN_TO
+  return path
 }
 
 /**

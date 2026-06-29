@@ -33,6 +33,16 @@ describe('sanitizeReturnTo', () => {
     expect(sanitizeReturnTo('evil.com')).toBe(DEFAULT_RETURN_TO)
     expect(sanitizeReturnTo('')).toBe(DEFAULT_RETURN_TO)
   })
+
+  it('rejects tab/newline that would unmask a protocol-relative target', () => {
+    // Browsers strip \t \n \r before parsing, collapsing these to "//evil.com".
+    expect(sanitizeReturnTo('/\t/\tevil.com')).toBe(DEFAULT_RETURN_TO)
+    expect(sanitizeReturnTo('/\n/evil.com')).toBe(DEFAULT_RETURN_TO)
+    expect(sanitizeReturnTo('/\r/\\evil.com')).toBe(DEFAULT_RETURN_TO)
+    // A benign embedded newline in an otherwise same-origin path is stripped,
+    // leaving a safe same-origin path.
+    expect(sanitizeReturnTo('/set\ntings')).toBe('/settings')
+  })
 })
 
 describe('stashReturnTo / consumeReturnTo', () => {
