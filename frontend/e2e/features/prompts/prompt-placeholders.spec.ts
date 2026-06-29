@@ -66,7 +66,10 @@ test.describe('Prompt Placeholder Variables', () => {
       }
     }
 
-    // The prompt persisted and we stayed on its detail page.
+    // The prompt persisted: we're on its detail page and it shows by name.
     await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/)
+    await expect(
+      authenticatedPage.locator(`text=${promptName}`).first()
+    ).toBeVisible({ timeout: 10000 })
   })
 })

@@ -66,8 +66,12 @@ test.describe('Prompt Inclusions (@mentions)', () => {
       timeout: 10000,
     })
 
-    // The saved prompt carries the @mention.
-    const promptContent = await authenticatedPage.textContent('body')
-    expect(promptContent).toContain(`@${baseSlug}`)
+    // The saved prompt carries the @mention. Use the auto-retrying assertion
+    // (not a one-shot textContent read) so we don't race the detail page's
+    // "Loading prompt…" state.
+    await expect(authenticatedPage.locator('body')).toContainText(
+      `@${baseSlug}`,
+      { timeout: 10000 }
+    )
   })
 })
