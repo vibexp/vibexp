@@ -57,13 +57,11 @@ jest.mock('@/lib/toast', () => ({
   toast: mockToast,
 }))
 
-// Mock the handled Sentry capture helper so we can assert error reporting
-// without hitting the real Sentry SDK.
-const mockCaptureException = jest.fn()
-
-jest.mock('@/utils/sentry', () => ({
-  captureException: mockCaptureException,
-}))
+// fcm.ts logs failures via console.error now that no telemetry is bundled.
+// Spy on it so we can assert error logging without noisy test output.
+const consoleErrorSpy = jest
+  .spyOn(console, 'error')
+  .mockImplementation(() => {})
 
 import { fcmService } from '../fcm'
 
@@ -236,7 +234,7 @@ describe('FCMService', () => {
       } as unknown as typeof Notification
     })
 
-    it('resolves to false and reports to Sentry when getToken throws AbortError', async () => {
+    it('resolves to false and logs the error when getToken throws AbortError', async () => {
       Object.defineProperty(global.navigator, 'serviceWorker', {
         value: {
           register: jest.fn().mockResolvedValue(mockSWRegistration),
@@ -254,11 +252,9 @@ describe('FCMService', () => {
 
       expect(result).toBe(false)
       expect(mockApiClient.post).not.toHaveBeenCalled()
-      expect(mockCaptureException).toHaveBeenCalledWith(
-        abortError,
-        expect.objectContaining({
-          operation: 'requestPermissionAndRegister',
-        })
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[FCM] requestPermissionAndRegister failed:',
+        abortError
       )
     })
 
@@ -277,7 +273,7 @@ describe('FCMService', () => {
       expect(result).toBe(false)
       expect(mockGetToken).not.toHaveBeenCalled()
       expect(mockApiClient.post).not.toHaveBeenCalled()
-      expect(mockCaptureException).toHaveBeenCalled()
+      expect(consoleErrorSpy).toHaveBeenCalled()
     })
 
     it('resolves to false when navigator.serviceWorker is unavailable', async () => {
@@ -292,7 +288,7 @@ describe('FCMService', () => {
       expect(result).toBe(false)
       expect(mockGetToken).not.toHaveBeenCalled()
       expect(mockApiClient.post).not.toHaveBeenCalled()
-      expect(mockCaptureException).toHaveBeenCalled()
+      expect(consoleErrorSpy).toHaveBeenCalled()
     })
   })
 

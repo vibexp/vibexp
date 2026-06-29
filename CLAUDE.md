@@ -57,6 +57,7 @@ The root `docker-compose.yml` runs the published images (self-host), not for dev
 - **API change flow.** Update `backend/openapi.yaml` -> release a new `@vibexp/api-client` (from `api-client-js`) -> bump the frontend dep.
 - **Frontend is deployment-agnostic.** Built with relative `VITE_API_BASE_URL=/api/v1`; nginx proxies `/api/` to `BACKEND_ORIGIN` (default `http://backend:8080`). Don't hardcode a backend origin.
 - **No service worker.** No PWA/precaching SW (only on-demand `firebase-messaging-sw.js` for push). `src/utils/serviceWorker.ts` + `public/{sw,dev-sw}.js` evict legacy workers. Don't reintroduce a precaching SW without a cleanup story.
+- **No frontend telemetry.** The frontend bundles no error-tracking/maintainer telemetry (Sentry was removed in #58). `ErrorBoundary` and other error paths log via `console.error` only, and the build emits no source maps (`vite.config.ts` `build.sourcemap: false`). A self-hoster wanting error tracking can wire their own.
 - **Secrets.** `.env` is gitignored, never commit it; only `.env.example` is tracked, with neutral values (e.g. `example.com`) since this is public and self-hosted.
 
 ## CI & releases

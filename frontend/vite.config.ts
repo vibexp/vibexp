@@ -2,38 +2,9 @@ import path from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/postcss'
-import { sentryVitePlugin } from '@sentry/vite-plugin'
 
 export default defineConfig({
-  plugins: [
-    react(),
-    // Sentry plugin for source map upload (only in production builds with
-    // SENTRY_AUTH_TOKEN). Org/project are env-driven so the build works when
-    // unset (the plugin is disabled without an auth token regardless).
-    sentryVitePlugin({
-      org: process.env.SENTRY_ORG,
-      project: process.env.SENTRY_PROJECT,
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-      // Only upload source maps if auth token + org/project are all provided.
-      disable:
-        !process.env.SENTRY_AUTH_TOKEN ||
-        !process.env.SENTRY_ORG ||
-        !process.env.SENTRY_PROJECT,
-      // Disable telemetry to work offline
-      telemetry: false,
-      // Upload source maps during build
-      sourcemaps: {
-        assets: './dist/**',
-      },
-      // Release configuration
-      release: {
-        name:
-          process.env.VITE_APP_VERSION ||
-          process.env.GITHUB_SHA ||
-          'development',
-      },
-    }),
-  ],
+  plugins: [react()],
   // Build-time replacements for environment variables
   // These values are baked into the bundle during build, preventing runtime issues
   define: {
@@ -58,10 +29,9 @@ export default defineConfig({
     },
   },
   build: {
-    // 'hidden' generates source maps (uploaded to Sentry via the plugin above)
-    // but omits the `//# sourceMappingURL` comment, so the CDN never serves the
-    // un-minified source to end users.
-    sourcemap: 'hidden',
+    // No telemetry is shipped, so source maps are never uploaded anywhere —
+    // don't generate them (keeps them out of the embedded single-binary image).
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks(id: string) {

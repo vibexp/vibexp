@@ -74,7 +74,7 @@ function MainApp() {
 
 function App() {
   return (
-    <ErrorBoundary showDialog={true}>
+    <ErrorBoundary>
       <HelmetProvider>
         <AuthProvider>
           <AlertProvider>
