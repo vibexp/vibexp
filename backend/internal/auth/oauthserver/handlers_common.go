@@ -14,12 +14,11 @@ import (
 
 // Endpoint paths for the Authorization Server, mounted by the HTTP server.
 const (
-	AuthorizePath   = "/oauth2/authorize"
-	TokenPath       = "/oauth2/token" // #nosec G101 -- OAuth token endpoint path, not a credential
-	RegisterPath    = "/oauth2/register"
-	JWKSPath        = "/oauth2/jwks.json"
-	IDPCallbackPath = "/oauth2/idp/callback"
-	MetadataPath    = "/.well-known/oauth-authorization-server"
+	AuthorizePath = "/oauth2/authorize"
+	TokenPath     = "/oauth2/token" // #nosec G101 -- OAuth token endpoint path, not a credential
+	RegisterPath  = "/oauth2/register"
+	JWKSPath      = "/oauth2/jwks.json"
+	MetadataPath  = "/.well-known/oauth-authorization-server"
 
 	// ConsentPagePath is the frontend SPA route the post-login browser is
 	// redirected to (on FrontendBaseURL) to render the consent screen (issue #52).
@@ -29,6 +28,10 @@ const (
 	// prod), unlike the /oauth2/* protocol routes. It replaces the former
 	// server-rendered /oauth2/consent HTML page.
 	ConsentAPIPath = "/api/v1/oauth/consent"
+	// ConsentAttachPath binds the authenticated app user to a user-less login
+	// session (issue #54). Unlike ConsentAPIPath it is mounted behind the standard
+	// /api auth middleware: the AS itself never authenticates anyone.
+	ConsentAttachPath = "/api/v1/oauth/consent/attach"
 
 	randomIDBytes = 32
 )
@@ -40,12 +43,6 @@ const (
 // and protected-resource metadata and in the WWW-Authenticate challenge so
 // clients know which scope to request.
 const ScopeMCP = "mcp"
-
-// idpCallbackURI is the absolute redirect URI the AS registers with the upstream
-// IdP; operators must allow-list it in their IdP application configuration.
-func (s *Service) idpCallbackURI() string {
-	return strings.TrimRight(s.cfg.Issuer, "/") + IDPCallbackPath
-}
 
 // consentRedirect builds the SPA consent-page URL the browser is sent to after
 // login: it targets the frontend origin (not the OAuth issuer), so the consent UI
@@ -76,13 +73,13 @@ func (s *Service) verifyConsent(loginID, token string) bool {
 	return hmac.Equal([]byte(expected), []byte(token))
 }
 
-// renderError writes a minimal, non-leaking error page. It is used only for
-// failures outside an OAuth redirect context (login/consent plumbing); protocol
-// errors with a valid client redirect go through fosite's error writers.
-func (s *Service) renderError(w http.ResponseWriter, status int, msg string) {
+// renderError writes a minimal, non-leaking 500 error page for internal failures
+// outside an OAuth redirect context (JWKS/registration/JSON-encoding plumbing);
+// protocol errors with a valid client redirect go through fosite's error writers.
+func (s *Service) renderError(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusInternalServerError)
 	if _, err := w.Write([]byte(msg)); err != nil {
 		s.logger.With("error", err).Error("oauth AS failed to write error response")
 	}
@@ -92,7 +89,7 @@ func (s *Service) renderError(w http.ResponseWriter, status int, msg string) {
 func (s *Service) writeJSON(w http.ResponseWriter, status int, v any) {
 	body, err := json.Marshal(v)
 	if err != nil {
-		s.renderError(w, http.StatusInternalServerError, "internal error")
+		s.renderError(w, "internal error")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

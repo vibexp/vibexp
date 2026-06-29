@@ -44,12 +44,12 @@ func (s *Service) JWKS(w http.ResponseWriter, r *http.Request) {
 	set, err := s.keys.PublicJWKS(r.Context())
 	if err != nil {
 		s.logger.With("error", err).Error("oauth AS failed to load JWKS")
-		s.renderError(w, http.StatusInternalServerError, "could not load signing keys")
+		s.renderError(w, "could not load signing keys")
 		return
 	}
 	data, err := publicJWKSJSON(set)
 	if err != nil {
-		s.renderError(w, http.StatusInternalServerError, "could not encode signing keys")
+		s.renderError(w, "could not encode signing keys")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

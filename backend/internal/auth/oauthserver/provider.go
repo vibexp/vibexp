@@ -8,8 +8,6 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
-	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
@@ -35,22 +33,6 @@ type Config struct {
 	AuthCodeTTL         time.Duration
 	KeyRotationInterval time.Duration
 	CleanupInterval     time.Duration // how often expired rows/retired keys are pruned
-	// DevLoginEnabled allows the /authorize flow to authenticate via the
-	// development-login bypass (no upstream IdP) when no identity providers are
-	// configured. It MUST be the same hard dev gate as the /auth/dev/login endpoint
-	// (development environment AND DEV_LOGIN_ENABLED); it is never set in
-	// production, so the dev-login authenticator is unreachable there.
-	DevLoginEnabled bool
-}
-
-// UserProvisioner resolves and provisions a VibeXP user. ProvisionFromClaims runs
-// the same create-on-first-login logic as the web login flow (federated leg);
-// HandleDevLogin provisions/reuses the development user, mirroring the
-// /auth/dev/login endpoint, for the dev-login authorize bypass. AuthService
-// satisfies it.
-type UserProvisioner interface {
-	ProvisionFromClaims(ctx context.Context, providerName string, claims *idp.Claims) (*models.User, error)
-	HandleDevLogin(ctx context.Context, email, name string) (*models.User, error)
 }
 
 // Service is the embedded OAuth 2.1 Authorization Server.
@@ -60,8 +42,6 @@ type Service struct {
 	store         *Store
 	clients       repositories.OAuthClientRepository
 	loginSessions repositories.OAuthLoginSessionRepository
-	registry      *idp.Registry
-	provisioner   UserProvisioner
 	cfg           Config
 	consentMACKey []byte
 	logger        *slog.Logger
@@ -76,8 +56,6 @@ func NewService(
 	codes, access, refresh, pkce repositories.OAuthRequestRepository,
 	signingKeys repositories.OAuthSigningKeyRepository,
 	loginSessions repositories.OAuthLoginSessionRepository,
-	registry *idp.Registry,
-	provisioner UserProvisioner,
 	logger *slog.Logger,
 ) *Service {
 	store := NewStore(clients, codes, access, refresh, pkce)
@@ -90,8 +68,6 @@ func NewService(
 		store:         store,
 		clients:       clients,
 		loginSessions: loginSessions,
-		registry:      registry,
-		provisioner:   provisioner,
 		cfg:           cfg,
 		consentMACKey: deriveSecret(encKey, consentMACTag),
 		logger:        logger,

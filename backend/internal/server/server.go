@@ -283,7 +283,7 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 		sessionManager:        sessMgr,
 		apiTokenVerifier:      newAPITokenVerifier(cfg, c, logger),
 		attachmentAuthorizers: setupAttachmentAuthorizers(c),
-		oauthAS:               newOAuthAuthorizationServer(cfg, db, c, logger),
+		oauthAS:               newOAuthAuthorizationServer(cfg, db, logger),
 	}
 
 	s.setupRoutes()
@@ -292,10 +292,12 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 
 // newOAuthAuthorizationServer builds the embedded OAuth 2.1 Authorization Server
 // (issue #31). It returns nil when OAUTH_AS_ISSUER_URL is unset, leaving the AS
-// disabled and its routes unmounted. The login leg reuses the configured
-// identity-provider registry and the AuthService user-provisioning logic.
+// disabled and its routes unmounted. The AS never authenticates anyone itself: it
+// stashes the authorize request as a user-less login session and the SPA binds the
+// logged-in app user via the authenticated /api/v1/oauth/consent/attach endpoint
+// (issue #54).
 func newOAuthAuthorizationServer(
-	cfg *config.Config, db *database.DB, c container.Container, logger *slog.Logger,
+	cfg *config.Config, db *database.DB, logger *slog.Logger,
 ) *oauthserver.Service {
 	if cfg.OAuthASIssuerURL == "" {
 		return nil
@@ -310,11 +312,6 @@ func newOAuthAuthorizationServer(
 			AuthCodeTTL:         cfg.OAuthASAuthCodeTTL,
 			KeyRotationInterval: cfg.OAuthASKeyRotationInterval,
 			CleanupInterval:     cfg.OAuthASCleanupInterval,
-			// Hard dev gate (development env AND DEV_LOGIN_ENABLED): lets the AS
-			// authorize flow fall back to dev login when no IdP is configured. Always
-			// false in production, so the dev-login authenticator is never registered
-			// there.
-			DevLoginEnabled: c.EnvironmentService().IsDevLoginEnabled(),
 		},
 		[]byte(cfg.EncryptionKey),
 		postgres.NewOAuthClientRepository(db),
@@ -324,8 +321,6 @@ func newOAuthAuthorizationServer(
 		postgres.NewOAuthPKCERepository(db),
 		postgres.NewOAuthSigningKeyRepository(db),
 		postgres.NewOAuthLoginSessionRepository(db),
-		c.IdentityProviderRegistry(),
-		c.AuthService(),
 		logger,
 	)
 	logger.Info("Embedded OAuth 2.1 Authorization Server enabled", "issuer", cfg.OAuthASIssuerURL)
@@ -469,17 +464,24 @@ func (s *Server) setupPublicRoutes() {
 }
 
 // setupOAuthASRoutes mounts the embedded OAuth 2.1 Authorization Server endpoints
-// (issue #31) when it is enabled. They are public: OAuth clients reach them before
+// (issue #31) when it is enabled. Most are public: OAuth clients reach them before
 // they hold a VibeXP token, and the protocol enforces its own authentication
-// (PKCE, client/redirect validation, the consent CSRF token, and the upstream IdP
-// login). Rate-limited per IP like the auth routes.
+// (PKCE, client/redirect validation, the consent CSRF token). Rate-limited per IP
+// like the auth routes.
 //
 // The consent step is served as JSON under /api/v1/oauth/consent (issue #52): the
-// post-login browser is redirected to the SPA consent page, which renders it with
-// the design system and calls these endpoints (same-origin in prod via the
-// frontend /api proxy). All issuance/CSRF/redirect-validation stays server-side.
+// browser is redirected to the SPA consent page, which renders it with the design
+// system and calls these endpoints (same-origin in prod via the frontend /api
+// proxy). All issuance/CSRF/redirect-validation stays server-side.
+//
+// The AS never authenticates anyone itself (issue #54): /authorize creates a
+// user-less login session, and the SPA binds the logged-in app user via
+// /api/v1/oauth/consent/attach — the ONE AS route behind the standard /api auth
+// middleware (vx_session), so signing out gates MCP auth.
+//
 // Like the rest of the AS, these routes are mounted only when the AS is enabled,
-// so they are absent (and thus undocumented-by-design) when it is off.
+// so they are absent (and thus undocumented-by-design, invisible to the OpenAPI
+// drift/payload-coverage gates) when it is off.
 func (s *Server) setupOAuthASRoutes() {
 	if s.oauthAS == nil {
 		return
@@ -488,9 +490,12 @@ func (s *Server) setupOAuthASRoutes() {
 	s.router.Group(func(r chi.Router) {
 		rateLimitByIP(r, s.config.AuthRateLimitPerMinute)
 		r.Get(oauthserver.AuthorizePath, s.oauthAS.Authorize)
-		r.Get(oauthserver.IDPCallbackPath, s.oauthAS.IdPCallback)
 		r.Get(oauthserver.ConsentAPIPath, s.oauthAS.ConsentDetails)
 		r.Post(oauthserver.ConsentAPIPath, s.oauthAS.ConsentDecision)
+		// The attach endpoint binds the authenticated app user to the login session;
+		// it requires a vx_session (standard /api auth middleware), unlike the rest
+		// of the protocol-authenticated AS routes.
+		r.With(s.flexibleAuthMiddleware).Post(oauthserver.ConsentAttachPath, s.oauthAS.ConsentAttach)
 		r.Post(oauthserver.TokenPath, s.oauthAS.Token)
 		r.Post(oauthserver.RegisterPath, s.oauthAS.Register)
 		r.Get(oauthserver.JWKSPath, s.oauthAS.JWKS)

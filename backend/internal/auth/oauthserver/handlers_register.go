@@ -58,7 +58,7 @@ func (s *Service) Register(w http.ResponseWriter, r *http.Request) {
 
 	client, err := s.persistClient(r.Context(), &req)
 	if err != nil {
-		s.renderError(w, http.StatusInternalServerError, "could not register client")
+		s.renderError(w, "could not register client")
 		return
 	}
 	s.writeJSON(w, http.StatusCreated, dcrResponse{

@@ -10,29 +10,15 @@ import (
 
 	"github.com/ory/fosite"
 
-	"github.com/vibexp/vibexp/internal/auth/idp"
+	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// errProviderChoiceRequired is returned when several login providers are enabled
-// and the request did not name one. A provider picker UI is tracked in #33.
-var errProviderChoiceRequired = errors.New("multiple identity providers enabled; specify ?provider=")
-
-const (
-	// devLoginProvider tags the login session created by the AS development-login
-	// bypass. That path never federates to an upstream IdP, so the value is only a
-	// self-describing marker on the stashed session.
-	devLoginProvider = idp.ProviderName("dev")
-	// devLoginEmail and devLoginName identify the user provisioned by the AS
-	// development-login bypass, mirroring the /auth/dev/login default identity so a
-	// zero-config local MCP client authenticates as a stable dev user.
-	devLoginEmail = "dev@localhost"
-	devLoginName  = "Dev User"
-)
-
-// Authorize handles GET /oauth2/authorize. It validates the OAuth request, then
-// delegates user authentication to an upstream IdP, stashing the request until
-// the user returns and consents.
+// Authorize handles GET /oauth2/authorize. It validates the OAuth request and
+// PKCE, stashes it as a USER-LESS login session, and redirects the browser to the
+// SPA consent gate. The Authorization Server never authenticates anyone itself:
+// the SPA reuses the logged-in app user (or requires an explicit login) and binds
+// that user to the session via POST /api/v1/oauth/consent/attach before consent.
 func (s *Service) Authorize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	ar, err := s.provider.NewAuthorizeRequest(ctx, r)
@@ -44,67 +30,25 @@ func (s *Service) Authorize(w http.ResponseWriter, r *http.Request) {
 		s.provider.WriteAuthorizeError(ctx, w, ar, rerr)
 		return
 	}
-	// Fail fast on PKCE before sending the user through upstream login. fosite
-	// re-enforces S256 when the code is issued (defense in depth).
+	// Fail fast on PKCE before sending the user to login. fosite re-enforces S256
+	// when the code is issued (defense in depth).
 	if perr := validatePKCE(r); perr != nil {
 		s.provider.WriteAuthorizeError(ctx, w, ar, perr)
 		return
 	}
-	provider, perr := s.resolveLoginProvider(r)
-	if perr != nil {
-		// Development fallback: with no identity providers configured, authenticate
-		// the login leg via the dev-login bypass instead of an upstream IdP. Reached
-		// only when dev login is enabled (development env) AND no provider is enabled,
-		// so it is unreachable in production.
-		if s.cfg.DevLoginEnabled && len(s.registry.Enabled()) == 0 {
-			s.authorizeWithDevLogin(ctx, w, r, ar)
-			return
-		}
-		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrInvalidRequest.WithHint(perr.Error()))
-		return
-	}
-
-	loginID, err := s.startLogin(ctx, r, provider)
+	loginID, err := s.startLogin(ctx, r)
 	if err != nil {
-		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError)
-		return
-	}
-
-	p, _ := s.registry.Get(provider)
-	http.Redirect(w, r, p.AuthorizeURL(loginID, s.idpCallbackURI(), string(provider)), http.StatusFound)
-}
-
-// authorizeWithDevLogin completes the /authorize login leg using the
-// development-login bypass: it provisions/reuses the dev user (the same path as
-// /api/v1/auth/dev/login), stashes the authorize request attached to that user,
-// and sends the client straight to the consent screen — no upstream IdP redirect.
-// The caller guarantees this runs only when dev login is enabled and no identity
-// provider is configured, so it is never reachable in production.
-func (s *Service) authorizeWithDevLogin(
-	ctx context.Context, w http.ResponseWriter, r *http.Request, ar fosite.AuthorizeRequester,
-) {
-	user, err := s.provisioner.HandleDevLogin(ctx, devLoginEmail, devLoginName)
-	if err != nil {
-		s.logger.With("error", err).Error("oauth AS dev login provisioning failed")
-		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError)
-		return
-	}
-	loginID, err := s.startLogin(ctx, r, devLoginProvider)
-	if err != nil {
-		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError)
-		return
-	}
-	if aerr := s.loginSessions.AttachUser(ctx, loginID, user.ID); aerr != nil {
-		s.logger.With("error", aerr).Error("oauth AS dev login could not record user")
 		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError)
 		return
 	}
 	http.Redirect(w, r, s.consentRedirect(loginID), http.StatusFound)
 }
 
-// startLogin persists the federated-login stash and returns its id (also used as
-// the upstream `state`).
-func (s *Service) startLogin(ctx context.Context, r *http.Request, provider idp.ProviderName) (string, error) {
+// startLogin persists the authorize request as a user-less login session and
+// returns its opaque, single-use id (the bearer of the consent flow). No user is
+// attached here: that happens only via ConsentAttach once the app login is
+// confirmed, so the AS never authenticates anyone on its own.
+func (s *Service) startLogin(ctx context.Context, r *http.Request) (string, error) {
 	loginID, err := randomID()
 	if err != nil {
 		return "", err
@@ -112,8 +56,6 @@ func (s *Service) startLogin(ctx context.Context, r *http.Request, provider idp.
 	ls := &models.OAuthLoginSession{
 		ID:             loginID,
 		AuthorizeQuery: r.URL.RawQuery,
-		Provider:       string(provider),
-		IDPState:       loginID,
 		ExpiresAt:      time.Now().Add(s.cfg.AuthCodeTTL),
 	}
 	if cerr := s.loginSessions.Create(ctx, ls); cerr != nil {
@@ -148,86 +90,29 @@ func validatePKCE(r *http.Request) error {
 	return nil
 }
 
-// resolveLoginProvider picks the IdP for the login leg: an explicit ?provider=
-// when valid, else the sole enabled provider.
-func (s *Service) resolveLoginProvider(r *http.Request) (idp.ProviderName, error) {
-	requested := r.URL.Query().Get("provider")
-	if requested != "" {
-		if _, ok := s.registry.Get(idp.ProviderName(requested)); ok {
-			return idp.ProviderName(requested), nil
-		}
-		return "", errors.New("unknown or disabled identity provider")
-	}
-	enabled := s.registry.Enabled()
-	switch len(enabled) {
-	case 0:
-		return "", errors.New("no identity providers are enabled")
-	case 1:
-		return enabled[0], nil
-	default:
-		return "", errProviderChoiceRequired
-	}
-}
-
-// IdPCallback handles GET /oauth2/idp/callback: the upstream IdP redirect. It
-// exchanges the upstream code, provisions the user, records it on the login
-// session, and sends the user to the consent screen.
-func (s *Service) IdPCallback(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	code := r.URL.Query().Get("code")
-	state := r.URL.Query().Get("state")
-	if code == "" || state == "" {
-		s.renderError(w, http.StatusBadRequest, "missing code or state")
-		return
-	}
-	ls, err := s.loginSessions.Get(ctx, state)
-	if err != nil {
-		s.renderError(w, http.StatusBadRequest, "invalid or expired login session")
-		return
-	}
-	user, err := s.authenticateUpstream(ctx, ls.Provider, code)
-	if err != nil {
-		s.renderError(w, http.StatusBadGateway, "upstream login failed")
-		return
-	}
-	if aerr := s.loginSessions.AttachUser(ctx, ls.ID, user.ID); aerr != nil {
-		s.renderError(w, http.StatusInternalServerError, "could not record login")
-		return
-	}
-	http.Redirect(w, r, s.consentRedirect(ls.ID), http.StatusFound)
-}
-
-// authenticateUpstream exchanges the IdP code (using the AS callback URI) and
-// provisions the resulting user.
-func (s *Service) authenticateUpstream(ctx context.Context, provider, code string) (*models.User, error) {
-	p, ok := s.registry.Get(idp.ProviderName(provider))
-	if !ok {
-		return nil, errors.New("provider no longer available")
-	}
-	_, claims, err := p.ExchangeCode(ctx, code, s.idpCallbackURI())
-	if err != nil {
-		s.logger.With("error", err, "provider", provider).Warn("oauth AS upstream code exchange failed")
-		return nil, err
-	}
-	user, err := s.provisioner.ProvisionFromClaims(ctx, string(p.Name()), claims)
-	if err != nil {
-		s.logger.With("error", err).Error("oauth AS failed to provision user")
-		return nil, err
-	}
-	return user, nil
-}
-
-// ConsentDetails handles GET /api/v1/oauth/consent?login=ID. It returns the
-// consent-screen contents as JSON so the frontend SPA can render the approval
-// page with the design system. The opaque `login` id is the bearer of the
-// consent session (single-use, short-lived); the CSRF token is echoed back by the
-// SPA on the decision POST.
+// ConsentDetails handles GET /api/v1/oauth/consent?login=ID. The opaque `login`
+// id is the bearer of the consent session (single-use, short-lived). Until an app
+// user is bound to it (via ConsentAttach), it returns {authenticated:false} so the
+// SPA gates on an app login; once bound, it returns the approval-screen contents.
+// The CSRF token is echoed back by the SPA on the attach and decision POSTs.
 func (s *Service) ConsentDetails(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	loginID := r.URL.Query().Get("login")
 	ls, err := s.loginSessions.Get(ctx, loginID)
-	if err != nil || ls.UserID == nil {
+	if err != nil {
 		s.writeJSONError(w, http.StatusBadRequest, "invalid or expired consent session")
+		return
+	}
+	// The body carries the consent CSRF token; keep it out of any cache.
+	w.Header().Set("Cache-Control", "no-store")
+	// No user bound yet: the AS never logs anyone in itself. Signal the SPA to
+	// complete an app login and bind the user via /consent/attach; the CSRF token
+	// authorizes that call.
+	if ls.UserID == nil {
+		s.writeJSON(w, http.StatusOK, consentDetailsResponse{
+			Authenticated: false,
+			CSRF:          s.signConsent(loginID),
+		})
 		return
 	}
 	ar, err := s.reconstructAuthorizeRequest(ctx, ls)
@@ -235,14 +120,54 @@ func (s *Service) ConsentDetails(w http.ResponseWriter, r *http.Request) {
 		s.writeJSONError(w, http.StatusBadRequest, "invalid authorization request")
 		return
 	}
-	// The body carries the consent CSRF token; keep it out of any cache.
-	w.Header().Set("Cache-Control", "no-store")
 	s.writeJSON(w, http.StatusOK, consentDetailsResponse{
-		ClientName:   s.clientDisplayName(ctx, ar.GetClient().GetID()),
-		RedirectHost: hostOf(ar.GetRedirectURI()),
-		Scopes:       ar.GetRequestedScopes(),
-		CSRF:         s.signConsent(loginID),
+		Authenticated: true,
+		ClientName:    s.clientDisplayName(ctx, ar.GetClient().GetID()),
+		RedirectHost:  hostOf(ar.GetRedirectURI()),
+		Scopes:        ar.GetRequestedScopes(),
+		CSRF:          s.signConsent(loginID),
 	})
+}
+
+// ConsentAttach handles POST /api/v1/oauth/consent/attach. It binds the
+// authenticated app user — resolved from the vx_session by the standard /api auth
+// middleware — to the user-less AS login session, so consent can proceed. This is
+// the ONLY way a user becomes attached: /oauth2/authorize never authenticates. The
+// request is CSRF-protected by the X-CSRF-Token bound to the login id and requires
+// a logged-in caller (401 otherwise), so signing out of the app gates MCP auth.
+func (s *Service) ConsentAttach(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, ok := ctx.Value(contextkeys.UserID).(string)
+	if !ok || userID == "" {
+		s.writeJSONError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var body consentAttachRequest
+	if derr := decodeJSONBody(r, &body); derr != nil {
+		s.writeJSONError(w, http.StatusBadRequest, "malformed request body")
+		return
+	}
+	if !s.verifyConsent(body.Login, r.Header.Get("X-CSRF-Token")) {
+		s.writeJSONError(w, http.StatusBadRequest, "invalid consent token")
+		return
+	}
+	ls, err := s.loginSessions.Get(ctx, body.Login)
+	if err != nil {
+		s.writeJSONError(w, http.StatusBadRequest, "invalid or expired consent session")
+		return
+	}
+	// Idempotent for the same user; never let one user rebind another's session.
+	if ls.UserID != nil && *ls.UserID != userID {
+		s.writeJSONError(w, http.StatusConflict, "consent session already bound to another user")
+		return
+	}
+	if aerr := s.loginSessions.AttachUser(ctx, body.Login, userID); aerr != nil {
+		s.logger.With("error", aerr).Error("oauth AS failed to attach consent user")
+		s.writeJSONError(w, http.StatusInternalServerError, "failed to record login")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	s.writeJSON(w, http.StatusOK, consentAttachResponse{Authenticated: true})
 }
 
 // ConsentDecision handles POST /api/v1/oauth/consent. On approve it issues the
@@ -367,13 +292,15 @@ const (
 	consentDeny    = "deny"
 )
 
-// consentDetailsResponse is the JSON body of GET /api/v1/oauth/consent: what the
-// SPA needs to render the approval screen, plus the CSRF token to echo back.
+// consentDetailsResponse is the JSON body of GET /api/v1/oauth/consent. When no
+// app user is bound yet it carries only {authenticated:false, csrf} so the SPA
+// gates on login; once bound it carries the approval-screen contents.
 type consentDetailsResponse struct {
-	ClientName   string   `json:"client_name"`
-	RedirectHost string   `json:"redirect_host"`
-	Scopes       []string `json:"scopes"`
-	CSRF         string   `json:"csrf"`
+	Authenticated bool     `json:"authenticated"`
+	ClientName    string   `json:"client_name,omitempty"`
+	RedirectHost  string   `json:"redirect_host,omitempty"`
+	Scopes        []string `json:"scopes,omitempty"`
+	CSRF          string   `json:"csrf"`
 }
 
 // consentDecisionRequest is the JSON body of POST /api/v1/oauth/consent.
@@ -387,4 +314,15 @@ type consentDecisionRequest struct {
 // URL the SPA must navigate the browser to so the client receives the outcome.
 type consentDecisionResponse struct {
 	RedirectTo string `json:"redirect_to"`
+}
+
+// consentAttachRequest is the JSON body of POST /api/v1/oauth/consent/attach: the
+// opaque login id whose session the authenticated caller is bound to.
+type consentAttachRequest struct {
+	Login string `json:"login"`
+}
+
+// consentAttachResponse confirms the caller is now bound to the login session.
+type consentAttachResponse struct {
+	Authenticated bool `json:"authenticated"`
 }
