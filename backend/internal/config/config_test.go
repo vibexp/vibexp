@@ -264,9 +264,8 @@ func TestLoad_AbuseHardeningDefaults(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(10<<20), cfg.MaxBodySizeBytes, "MaxBodySizeBytes defaults to 10MiB")
-	assert.Equal(t, 10, cfg.AuthRateLimitPerMinute)
-	assert.Equal(t, 5, cfg.ContactRateLimitPerMinute)
-	assert.Equal(t, 100, cfg.APIRateLimitPerMinute)
+	assert.Equal(t, 100, cfg.AuthRateLimitPerMinute)
+	assert.Equal(t, 1000, cfg.APIRateLimitPerMinute)
 }
 
 func TestLoad_MaxBodySizeBytes_NonPositive_ReturnsError(t *testing.T) {
@@ -289,7 +288,6 @@ func TestLoad_RateLimits_NonPositive_ReturnsError(t *testing.T) {
 		envVar string
 	}{
 		{"auth", "AUTH_RATE_LIMIT_PER_MINUTE"},
-		{"contact", "CONTACT_RATE_LIMIT_PER_MINUTE"},
 		{"api", "API_RATE_LIMIT_PER_MINUTE"},
 	}
 	for _, tc := range tests {

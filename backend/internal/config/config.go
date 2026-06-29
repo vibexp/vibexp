@@ -279,15 +279,14 @@ type Config struct {
 	// exhaust memory. Defaults to 10MiB: this is a memory-exhaustion backstop, not
 	// a functional limit, so it is set generously above the size of legitimate
 	// payloads (artifact/memory/prompt content is unbounded TEXT and can be large).
-	// Abuse-prone endpoints apply their own much tighter caps (contact form and
-	// webhooks cap at 64KiB), so the global value only guards against absurd bodies.
+	// Abuse-prone endpoints apply their own much tighter caps (webhooks cap at
+	// 64KiB), so the global value only guards against absurd bodies.
 	MaxBodySizeBytes int64 `envconfig:"MAX_BODY_SIZE_BYTES" default:"10485760"`
 
 	// Per-IP rate limits (requests per minute), applied per route group by the
 	// httprate middleware. middleware.RealIP runs first so the limiter keys on the
 	// client IP. Each must be >= 1.
 	//   - AuthRateLimitPerMinute: unauthenticated auth endpoints (login/callback/logout).
-	//   - ContactRateLimitPerMinute: contact form (fans out to the email provider).
 	//   - APIRateLimitPerMinute: the authenticated API surface (web app + CLI).
 	//
 	// Known limitations (intentional for this defense-in-depth pass; tracked for
@@ -299,9 +298,8 @@ type Config struct {
 	// roughly N x the configured value and resets on cold start. A trusted-proxy
 	// client-IP derivation and a shared (e.g. Redis-backed) counter are the
 	// hardening follow-ups if real abuse is observed.
-	AuthRateLimitPerMinute    int `envconfig:"AUTH_RATE_LIMIT_PER_MINUTE" default:"10"`
-	ContactRateLimitPerMinute int `envconfig:"CONTACT_RATE_LIMIT_PER_MINUTE" default:"5"`
-	APIRateLimitPerMinute     int `envconfig:"API_RATE_LIMIT_PER_MINUTE" default:"100"`
+	AuthRateLimitPerMinute int `envconfig:"AUTH_RATE_LIMIT_PER_MINUTE" default:"100"`
+	APIRateLimitPerMinute  int `envconfig:"API_RATE_LIMIT_PER_MINUTE" default:"1000"`
 
 	// ActivityRetentionDays is the number of days to retain activity records.
 	// Activities older than this value are deleted by the daily retention job.
@@ -674,9 +672,6 @@ func validateEmbeddingConfig(cfg *Config) error {
 func validateRateLimits(cfg *Config) error {
 	if cfg.AuthRateLimitPerMinute < 1 {
 		return fmt.Errorf("AUTH_RATE_LIMIT_PER_MINUTE must be >= 1, got %d", cfg.AuthRateLimitPerMinute)
-	}
-	if cfg.ContactRateLimitPerMinute < 1 {
-		return fmt.Errorf("CONTACT_RATE_LIMIT_PER_MINUTE must be >= 1, got %d", cfg.ContactRateLimitPerMinute)
 	}
 	if cfg.APIRateLimitPerMinute < 1 {
 		return fmt.Errorf("API_RATE_LIMIT_PER_MINUTE must be >= 1, got %d", cfg.APIRateLimitPerMinute)

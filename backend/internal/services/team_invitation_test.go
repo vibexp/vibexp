@@ -25,11 +25,6 @@ func (m *MockEmailService) SendTeamInvitation(invitation *models.TeamInvitation,
 	return args.Error(0)
 }
 
-func (m *MockEmailService) SendContactMessage(req *models.ContactFormRequest) error {
-	args := m.Called(req)
-	return args.Error(0)
-}
-
 func (m *MockEmailService) SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error {
 	args := m.Called(userName, userEmail, req)
 	return args.Error(0)

@@ -220,7 +220,6 @@ type EmbeddingProviderServiceInterface interface {
 
 // EmailServiceInterface defines the interface for email operations
 type EmailServiceInterface interface {
-	SendContactMessage(req *models.ContactFormRequest) error
 	SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error
 	SendTeamInvitation(invitation *models.TeamInvitation, teamName, inviterName string) error
 	// SendNotificationEmail sends a transactional notification email to the given address

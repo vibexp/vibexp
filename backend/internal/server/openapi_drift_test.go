@@ -46,10 +46,7 @@ var undocumentedPrefixAllowlist = map[string]string{
 // purely to serve explicit 404s for legacy probes; chi.Walk reports them for
 // every REST verb.
 var notFoundStubRoutes = map[string]string{
-	"/api/v1/website/contact":      "registered 404 stub (setupTestRoutes)",
-	"/api/v1/website/contact/send": "registered 404 stub (setupTestRoutes)",
-	"/api/v1/contact/send-message": "registered 404 stub (setupTestRoutes)",
-	"/api/v1/prompts-invalid":      "registered 404 stub (setupTestRoutes)",
+	"/api/v1/prompts-invalid": "registered 404 stub (setupTestRoutes)",
 }
 
 // undocumentedRouteAllowlist exempts individual operations, keyed

@@ -11,7 +11,7 @@ info:
     - **Bearer JWT**: identity-provider access token sent as `Authorization: Bearer <token>` (see `BearerAuth`)
     - **API Key**: long-lived key sent as a bearer token, used by the CLI and Claude Code hooks (see `ApiKeyAuth`)
     - **Back office API Key**: admin-only key for `/bo/v1` endpoints (see `BackofficeAuth`)
-    - **Public Endpoints**: no authentication required for health checks, contact forms, and auth flows
+    - **Public Endpoints**: no authentication required for health checks and auth flows
 
     ## Documentation scope policy
     This specification MUST document every operation under `/api/v1` and `/bo/v1`,
@@ -255,12 +255,6 @@ components:
       $ref: "./schemas/resource-usage.yaml#/ResourceUsageItem"
     ResourceUsageResponse:
       $ref: "./schemas/resource-usage.yaml#/ResourceUsageResponse"
-
-    # Import contact schemas
-    ContactFormRequest:
-      $ref: "./schemas/contact.yaml#/ContactFormRequest"
-    ContactFormResponse:
-      $ref: "./schemas/contact.yaml#/ContactFormResponse"
 
     # Import support schemas
     SupportRequest:
@@ -1099,8 +1093,6 @@ paths:
     $ref: "./paths/user.yaml#/api-v1-device-tokens"
   /api/v1/user/onboarding/complete:
     $ref: "./paths/user.yaml#/api-v1-user-onboarding-complete"
-  /api/v1/website/contact/send-message:
-    $ref: "./paths/contact.yaml#/api-v1-website-contact-send-message"
   /api/v1/{team_id}/feed-items/{item_id}/replies:
     $ref: "./paths/feeds.yaml#/api-v1-team_id-feed-items-item_id-replies"
 
@@ -1127,8 +1119,6 @@ tags:
     description: Embedding provider configuration endpoints
   - name: Subscriptions
     description: Subscription and billing endpoints
-  - name: Contact
-    description: Contact form endpoints
   - name: Support
     description: Support request endpoints for authenticated users
   - name: Claude Code Hooks

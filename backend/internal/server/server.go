@@ -67,7 +67,7 @@ const defaultMaxBodyBytes int64 = 1 << 20
 // maxBodySize returns a middleware that caps every request body at limit bytes by
 // wrapping r.Body with http.MaxBytesReader. Reads beyond the limit fail with
 // "http: request body too large", which handlers surface as 413. This is a
-// defense-in-depth backstop; webhook and contact handlers apply their own tighter
+// defense-in-depth backstop; webhook handlers apply their own tighter
 // per-route caps.
 func maxBodySize(limit int64) func(http.Handler) http.Handler {
 	if limit < 1 {
@@ -461,7 +461,6 @@ func (s *Server) setupPublicRoutes() {
 			"protected-resource metadata not advertised and the MCP endpoint rejects all tokens")
 	}
 	s.router.Get(mcpAuthorizationServerMetadataPath, s.handleMCPAuthorizationServerMetadata)
-	s.setupContactRoutes()
 	s.setupTestRoutes()
 	s.router.Post("/api/v1/webhooks/github", s.handleGitHubWebhook)
 	// Redirect legacy/misconfigured webhook path to the correct public endpoint.
@@ -516,17 +515,6 @@ func (s *Server) setupOAuthASRoutes() {
 	})
 }
 
-func (s *Server) setupContactRoutes() {
-	s.router.Route("/api/v1/website/contact/send-message", func(r chi.Router) {
-		// Very strict per-IP rate limit: this endpoint fans out to the email provider.
-		rateLimitByIP(r, s.config.ContactRateLimitPerMinute)
-		r.Post("/", s.handleContactSendMessage)
-		r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		})
-	})
-}
-
 func (s *Server) setupSupportRoutes(r chi.Router) {
 	r.Route("/api/v1/support", func(r chi.Router) {
 		r.Post("/message", s.handleSupportMessage)
@@ -534,15 +522,6 @@ func (s *Server) setupSupportRoutes(r chi.Router) {
 }
 
 func (s *Server) setupTestRoutes() {
-	s.router.HandleFunc("/api/v1/website/contact", func(w http.ResponseWriter, r *http.Request) {
-		http.NotFound(w, r)
-	})
-	s.router.HandleFunc("/api/v1/website/contact/send", func(w http.ResponseWriter, r *http.Request) {
-		http.NotFound(w, r)
-	})
-	s.router.HandleFunc("/api/v1/contact/send-message", func(w http.ResponseWriter, r *http.Request) {
-		http.NotFound(w, r)
-	})
 	s.router.HandleFunc("/api/v1/prompts-invalid", func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	})
@@ -1020,7 +999,7 @@ func (s *Server) setupAIToolsRoutes(r chi.Router) {
 // authenticated automation clients: IDE hook endpoints (claude-code / cursor-ide)
 // fire once per tool invocation during an active coding session, and the MCP mount
 // opens a long-lived SSE stream plus rapid tool calls. A per-IP request-count limit
-// tuned for the human-facing API (100/min) would throttle this legitimate traffic.
+// tuned for the human-facing API (1000/min) would throttle this legitimate traffic.
 // Abuse here is bounded by authentication (a valid API key or session is required)
 // rather than by IP rate limiting.
 func (s *Server) setupFlexibleAuthRoutes() {

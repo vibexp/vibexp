@@ -20,52 +20,6 @@ func (_m *MockEmailServiceInterface) EXPECT() *MockEmailServiceInterface_Expecte
 	return &MockEmailServiceInterface_Expecter{mock: &_m.Mock}
 }
 
-// SendContactMessage provides a mock function with given fields: req
-func (_m *MockEmailServiceInterface) SendContactMessage(req *models.ContactFormRequest) error {
-	ret := _m.Called(req)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SendContactMessage")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(*models.ContactFormRequest) error); ok {
-		r0 = rf(req)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// MockEmailServiceInterface_SendContactMessage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendContactMessage'
-type MockEmailServiceInterface_SendContactMessage_Call struct {
-	*mock.Call
-}
-
-// SendContactMessage is a helper method to define mock.On call
-//   - req *models.ContactFormRequest
-func (_e *MockEmailServiceInterface_Expecter) SendContactMessage(req interface{}) *MockEmailServiceInterface_SendContactMessage_Call {
-	return &MockEmailServiceInterface_SendContactMessage_Call{Call: _e.mock.On("SendContactMessage", req)}
-}
-
-func (_c *MockEmailServiceInterface_SendContactMessage_Call) Run(run func(req *models.ContactFormRequest)) *MockEmailServiceInterface_SendContactMessage_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*models.ContactFormRequest))
-	})
-	return _c
-}
-
-func (_c *MockEmailServiceInterface_SendContactMessage_Call) Return(_a0 error) *MockEmailServiceInterface_SendContactMessage_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockEmailServiceInterface_SendContactMessage_Call) RunAndReturn(run func(*models.ContactFormRequest) error) *MockEmailServiceInterface_SendContactMessage_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // SendNotificationEmail provides a mock function with given fields: to, subject, htmlBody
 func (_m *MockEmailServiceInterface) SendNotificationEmail(to string, subject string, htmlBody string) error {
 	ret := _m.Called(to, subject, htmlBody)

@@ -12,43 +12,6 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 )
 
-// TestMaxBodySize_GlobalCap verifies the global maxBodySize middleware rejects an
-// oversized request body with 413 on the contact route, which surfaces the
-// MaxBytesError as Request Entity Too Large.
-func TestMaxBodySize_ContactRoute_RejectsOversizedBody(t *testing.T) {
-	srv := testServer()
-
-	// contactMaxBodyBytes is 64KiB; build a body comfortably over it.
-	oversized := `{"name":"John Doe","email":"john@example.com","message":"` +
-		strings.Repeat("a", 70*1024) + `"}`
-
-	rr := makeRequest(t, srv, testRequest{
-		Method: "POST",
-		Path:   "/api/v1/website/contact/send-message",
-		Body:   oversized,
-	})
-
-	assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code,
-		"oversized contact body must be rejected with 413")
-}
-
-// TestMaxBodySize_WithinLimit confirms a normal-sized body is accepted (not throttled
-// by the body cap).
-func TestMaxBodySize_ContactRoute_WithinLimit(t *testing.T) {
-	srv := testServer()
-
-	body := `{"name":"John Doe","email":"john@example.com",` +
-		`"message":"This is a normal contact message well within the size cap."}`
-
-	rr := makeRequest(t, srv, testRequest{
-		Method: "POST",
-		Path:   "/api/v1/website/contact/send-message",
-		Body:   body,
-	})
-
-	assert.Equal(t, http.StatusOK, rr.Code, "a within-limit body must be accepted")
-}
-
 // TestMaxBodySizeMiddleware_DefaultFallback verifies that a non-positive limit falls
 // back to the 1MiB default rather than rejecting every request.
 func TestMaxBodySizeMiddleware_DefaultFallback(t *testing.T) {
@@ -66,22 +29,15 @@ func TestMaxBodySizeMiddleware_DefaultFallback(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
-// TestRateLimit_ContactRoute_Returns429AfterThreshold builds a server with a strict
-// contact rate limit and confirms requests beyond the per-IP threshold get 429.
-func TestRateLimit_ContactRoute_Returns429AfterThreshold(t *testing.T) {
+// TestRateLimit_AuthRoute_Returns429AfterThreshold builds a server with a strict
+// auth rate limit and confirms requests beyond the per-IP threshold get 429.
+func TestRateLimit_AuthRoute_Returns429AfterThreshold(t *testing.T) {
 	const limit = 3
-	srv := testServerWithConfig(&config.Config{ContactRateLimitPerMinute: limit})
-
-	body := `{"name":"John Doe","email":"john@example.com",` +
-		`"message":"This is a normal contact message within the size cap."}`
+	srv := testServerWithConfig(&config.Config{AuthRateLimitPerMinute: limit})
 
 	var sawTooMany bool
-	// Fire more than the limit from the same client IP (httptest uses a fixed
-	// RemoteAddr, so RealIP keys them together).
 	for i := 0; i < limit+2; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/website/contact/send-message",
-			strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/providers", nil)
 		rr := httptest.NewRecorder()
 		srv.ServeHTTP(rr, req)
 		if rr.Code == http.StatusTooManyRequests {
@@ -89,21 +45,16 @@ func TestRateLimit_ContactRoute_Returns429AfterThreshold(t *testing.T) {
 		}
 	}
 
-	assert.True(t, sawTooMany, "requests beyond the contact rate limit must return 429")
+	assert.True(t, sawTooMany, "requests beyond the auth rate limit must return 429")
 }
 
 // TestRateLimit_Disabled_WhenLimitZero confirms a zero limit disables the limiter so
 // many requests from one IP are never throttled.
 func TestRateLimit_Disabled_WhenLimitZero(t *testing.T) {
-	srv := testServerWithConfig(&config.Config{ContactRateLimitPerMinute: 0})
-
-	body := `{"name":"John Doe","email":"john@example.com",` +
-		`"message":"This is a normal contact message within the size cap."}`
+	srv := testServerWithConfig(&config.Config{AuthRateLimitPerMinute: 0})
 
 	for i := 0; i < 20; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/website/contact/send-message",
-			strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/providers", nil)
 		rr := httptest.NewRecorder()
 		srv.ServeHTTP(rr, req)
 		require.NotEqual(t, http.StatusTooManyRequests, rr.Code,
