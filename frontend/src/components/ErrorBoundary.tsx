@@ -2,12 +2,11 @@
  * Error Boundary Component
  *
  * Catches JavaScript errors anywhere in the child component tree,
- * logs those errors, and displays a fallback UI.
+ * logs them to the console, and displays a fallback UI.
  *
- * Integrated with Sentry for automatic error tracking.
+ * No telemetry is bundled — errors are logged locally only.
  */
 
-import * as Sentry from '@sentry/react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { Component } from 'react'
 
@@ -15,19 +14,14 @@ interface Props {
   children: ReactNode
   fallback?: ReactNode
   onError?: (error: Error, errorInfo: ErrorInfo) => void
-  showDialog?: boolean // Whether to show Sentry user feedback dialog
 }
 
 interface State {
   hasError: boolean
   error: Error | null
   errorInfo: ErrorInfo | null
-  eventId: string | null
 }
 
-/**
- * Error Boundary with Sentry Integration
- */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
@@ -35,7 +29,6 @@ export class ErrorBoundary extends Component<Props, State> {
       hasError: false,
       error: null,
       errorInfo: null,
-      eventId: null,
     }
   }
 
@@ -53,17 +46,9 @@ export class ErrorBoundary extends Component<Props, State> {
       errorInfo,
     })
 
-    // Capture the error with Sentry
-    const eventId = Sentry.captureException(error, {
-      contexts: {
-        react: {
-          componentStack: errorInfo.componentStack,
-          errorBoundary: this.constructor.name,
-        },
-      },
-    })
-
-    this.setState({ eventId })
+    // No error-tracking service is shipped — log to the console so the error
+    // stays visible in dev tools and self-host logs.
+    console.error('[ErrorBoundary] React error caught:', error, errorInfo)
 
     // Call custom error handler if provided
     if (this.props.onError) {
@@ -74,18 +59,7 @@ export class ErrorBoundary extends Component<Props, State> {
           '[ErrorBoundary] Error in custom error handler:',
           handlerError
         )
-        Sentry.captureException(handlerError)
       }
-    }
-
-    // Log error to console in development
-    if (import.meta.env.DEV) {
-      console.group('[ErrorBoundary] React Error Caught')
-      console.error('Error:', error)
-      console.error('Error Info:', errorInfo)
-      console.error('Component Stack:', errorInfo.componentStack)
-      console.error('Sentry Event ID:', eventId)
-      console.groupEnd()
     }
   }
 
@@ -94,22 +68,7 @@ export class ErrorBoundary extends Component<Props, State> {
       hasError: false,
       error: null,
       errorInfo: null,
-      eventId: null,
     })
-  }
-
-  handleReportFeedback = () => {
-    if (this.state.eventId) {
-      Sentry.showReportDialog({
-        eventId: this.state.eventId,
-        title: 'Help us improve',
-        subtitle: 'Please describe what happened before the error occurred',
-        subtitle2: '',
-        labelComments: 'What happened?',
-        labelClose: 'Cancel',
-        labelSubmit: 'Submit',
-      })
-    }
   }
 
   render() {
@@ -128,8 +87,8 @@ export class ErrorBoundary extends Component<Props, State> {
               Something went wrong
             </h3>
             <p className="text-muted-foreground mb-6">
-              We&apos;ve encountered an unexpected error. Our team has been
-              notified and we&apos;re looking into it.
+              An unexpected error occurred. You can try again or reload the
+              page.
             </p>
 
             <div className="flex items-center justify-center gap-3">
@@ -139,15 +98,6 @@ export class ErrorBoundary extends Component<Props, State> {
               >
                 Try Again
               </button>
-
-              {this.props.showDialog && this.state.eventId && (
-                <button
-                  onClick={this.handleReportFeedback}
-                  className="px-6 py-2.5 bg-background text-destructive border border-destructive/40 rounded-md hover:bg-destructive/10 focus:outline-none focus:ring-2 focus:ring-destructive focus:ring-offset-2 transition-colors font-medium"
-                >
-                  Report Issue
-                </button>
-              )}
             </div>
 
             {import.meta.env.DEV && this.state.error && (
@@ -168,12 +118,6 @@ export class ErrorBoundary extends Component<Props, State> {
                         {this.state.errorInfo.componentStack}
                       </pre>
                     </>
-                  )}
-
-                  {this.state.eventId && (
-                    <div className="mt-4 text-xs text-muted-foreground">
-                      Sentry Event ID: {this.state.eventId}
-                    </div>
                   )}
                 </div>
               </details>

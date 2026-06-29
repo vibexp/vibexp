@@ -10,7 +10,6 @@ interface ImportMetaEnv {
   readonly VITE_GTM_ENABLED: string
   readonly VITE_GA4_MEASUREMENT_ID: string
   readonly VITE_API_BASE_URL: string
-  readonly VITE_SENTRY_DSN: string
   readonly VITE_SITE_NAME: string
   readonly VITE_SITE_LEGAL_NAME: string
   readonly VITE_SITE_URL: string

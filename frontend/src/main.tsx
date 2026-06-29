@@ -5,12 +5,8 @@ import { createRoot } from 'react-dom/client'
 
 import App from './App.tsx'
 import { GTM_ENABLED, initializeGTM } from './utils/gtm'
-import { initSentry } from './utils/sentry'
 import { cleanupLegacyServiceWorkers } from './utils/serviceWorker'
 import { storageUtils } from './utils/storage'
-
-// Initialize Sentry for error tracking (must be first)
-initSentry()
 
 // One-time cleanup: remove any legacy JWT auth tokens from localStorage.
 // Returning users may still have `auth_token` or `vx_auth_token` from the

@@ -5,7 +5,7 @@
  * Jest runs ts-jest output as CommonJS, where `import.meta` is a syntax error
  * (TS1343 at compile time, "Cannot use 'import.meta' outside a module" at
  * runtime). The Vite app legitimately reads `import.meta.env` in several
- * modules (siteConfig, sentry, analytics, …) and in some test files. Rather
+ * modules (siteConfig, analytics, …) and in some test files. Rather
  * than mock each offender individually, rewrite every `import.meta` to read the
  * `import.meta` object that jest.config.js injects via `globals['import.meta']`.
  *

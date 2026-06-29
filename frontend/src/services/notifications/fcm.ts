@@ -14,7 +14,6 @@ import {
   isFirebaseConfigured,
 } from '@/lib/firebaseEnv'
 import { toast } from '@/lib/toast'
-import { captureException } from '@/utils/sentry'
 
 class FCMService {
   private messagingInstance: Messaging | null = null
@@ -75,9 +74,9 @@ class FCMService {
 
       return true
     } catch (error) {
-      captureException(
-        error instanceof Error ? error : new Error(String(error)),
-        { feature: 'fcm', operation: 'requestPermissionAndRegister' }
+      console.error(
+        '[FCM] requestPermissionAndRegister failed:',
+        error instanceof Error ? error : new Error(String(error))
       )
       return false
     }
