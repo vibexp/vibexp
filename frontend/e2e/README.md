@@ -12,50 +12,70 @@ npx playwright install
 
 ## Running Tests
 
-### Local Development (with Vite dev server)
+### Production-like stack via `make` (recommended)
+
+The supported way to run the suite — locally and in CI — is the `make e2e`
+target. It builds the **combined image from source** (the Go backend serving the
+embedded SPA + API on one port) alongside Postgres and a `fake-gcs-server`
+emulator (so attachment uploads work without real GCS), runs the whole suite,
+then tears the stack down:
 
 ```bash
-# Run all e2e tests in headless mode
-npm run test:e2e
-
-# Run tests with UI (interactive mode)
-npm run test:e2e:ui
-
-# Run tests in headed mode (see browser)
-npm run test:e2e:headed
-
-# Debug tests
-npm run test:e2e:debug
-
-# View test report after running tests
-npm run test:e2e:report
+# From the repo root. Installs the Playwright browser, builds + boots the stack
+# (docker-compose.e2e.yml), runs the suite against http://localhost:8080, then
+# always tears the stack down and propagates the suite's exit code.
+make e2e
 ```
 
-### Local E2E with Docker Compose (Production-like)
-
-Run tests against production builds using docker-compose (same as CI):
+Granular targets (useful for iterating — bring the stack up once, run repeatedly):
 
 ```bash
-# From project root directory
-cd /path/to/vibexp.io
-
-# Start all services (postgres, backend, frontend)
-docker compose -f docker-compose.e2e.yml up -d
-
-# Wait for services to be healthy (check with: docker compose -f docker-compose.e2e.yml ps)
-# Once all are healthy, run tests from frontend directory with CI flag
-cd frontend
-CI=true npm run test:e2e
-
-# View logs if needed
-cd ..
-docker compose -f docker-compose.e2e.yml logs
-
-# Stop and clean up
-docker compose -f docker-compose.e2e.yml down -v
+make e2e-up        # build + start the stack, wait until healthy
+make e2e-test      # run the suite against the running stack (re-runnable)
+make e2e-down      # stop the stack and wipe its volumes
+make e2e-browsers  # install the Playwright chromium browser only
 ```
 
-**Important:** Always use `CI=true` when running E2E tests with Docker Compose. This prevents Playwright from trying to start a local dev server which would conflict with the Docker containers.
+Why a combined image + emulator: the suite runs against the artifact we actually
+ship, the `fake-gcs-server` gives the backend a credential-free object store so
+attachment tests pass, and the stack raises the per-IP auth rate limiter so a
+whole suite logging in from one IP is never throttled (429). All of these values
+are throwaway/test-only — never reuse `docker-compose.e2e.yml` for a real deploy.
+
+**Always use `CI=true`** (the make targets set it) when running against the
+stack: it stops Playwright from trying to start its own Vite dev server, which
+would conflict with the container. The base URL is `http://localhost:8080`
+(override with `PLAYWRIGHT_BASE_URL` / `E2E_BASE_URL`).
+
+### On demand in CI (`workflow_dispatch`)
+
+The suite is **not** wired to every PR/push (it builds an image and boots a full
+stack — too heavy to gate every PR). Run it manually from the **Actions → CI /
+E2E** workflow (`.github/workflows/ci-e2e.yml`), which takes a `branch` input so
+you can run it against any branch from anywhere:
+
+```bash
+gh workflow run ci-e2e.yml -f branch=<your-branch>
+```
+
+It delegates entirely to `make e2e`, so a green run there means the same
+`make e2e` is green locally. The Playwright HTML report + traces/videos are
+uploaded as a build artifact.
+
+### Quick iteration against the Vite dev server
+
+For fast local iteration you can also run the suite against `make
+frontend-run-dev` (Vite on :5173). Playwright auto-starts the dev server when
+`CI` is unset. Note: attachment tests need the object store, and the dev backend
+must have the auth rate limiter raised — prefer `make e2e` for a faithful run.
+
+```bash
+npm run test:e2e          # headless
+npm run test:e2e:ui       # interactive UI mode
+npm run test:e2e:headed   # see the browser
+npm run test:e2e:debug    # step-through debugger
+npm run test:e2e:report   # open the last HTML report
+```
 
 ## Test Structure
 

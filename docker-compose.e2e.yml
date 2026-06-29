@@ -1,0 +1,123 @@
+# VibeXP — production-like end-to-end (Playwright) test stack.
+#
+#   docker compose -f docker-compose.e2e.yml up -d --build --wait
+#   cd frontend && CI=true PLAYWRIGHT_BASE_URL=http://localhost:8080 npm run test:e2e
+#   docker compose -f docker-compose.e2e.yml down -v
+#
+# Prefer `make e2e` / `make e2e-test` (Makefile), which wraps exactly this.
+#
+# Unlike the root docker-compose.yml (which pulls the *published* image for
+# self-hosting), this builds the combined image FROM SOURCE (backend/Dockerfile,
+# repo-root context → Go backend embeds the built SPA and serves it + the API
+# from one port) so the suite runs against the artifact we actually ship. It
+# adds a fake-gcs-server so attachment uploads work without real GCS, and tunes
+# the auth rate limiter so a whole suite from one IP isn't throttled.
+#
+# Everything here is throwaway/test-only: fixed test keys, wide-open rate limits,
+# dev login on. NEVER reuse this file or its values for a real deployment.
+
+name: vibexp-e2e
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: vibexp
+      POSTGRES_USER: vibexp
+      POSTGRES_PASSWORD: e2e-postgres-password
+    networks: [vibexp-e2e]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d vibexp -U vibexp']
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  # GCS-compatible object storage emulator for attachment uploads. The Go GCS
+  # client honors STORAGE_EMULATOR_HOST automatically (no credentials).
+  gcs:
+    image: fsouza/fake-gcs-server:1.52.2
+    command:
+      [
+        '-scheme',
+        'http',
+        '-host',
+        '0.0.0.0',
+        '-port',
+        '4443',
+        '-external-url',
+        'http://gcs:4443',
+        '-backend',
+        'memory',
+      ]
+    networks: [vibexp-e2e]
+
+  # One-shot: create the attachments bucket once the emulator is up. The backend
+  # (NewGCSStore) never creates the bucket, so it must exist before uploads.
+  gcs-init:
+    image: curlimages/curl:8.11.1
+    depends_on: [gcs]
+    networks: [vibexp-e2e]
+    command:
+      - sh
+      - -c
+      - |
+        for i in $$(seq 1 30); do
+          if curl -fsS -X POST -H 'Content-Type: application/json' \
+              -d '{"name":"vibexp-attachments"}' \
+              'http://gcs:4443/storage/v1/b?project=vibexp-e2e'; then
+            echo "bucket created"; exit 0
+          fi
+          echo "waiting for gcs ($$i)…"; sleep 1
+        done
+        echo "fake-gcs never became ready" >&2; exit 1
+
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - '8080:8080'
+    environment:
+      PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: vibexp
+      DB_PASSWORD: e2e-postgres-password
+      DB_NAME: vibexp
+
+      # Throwaway test keys (32-byte ENCRYPTION_KEY, 64-hex session key).
+      ENCRYPTION_KEY: 'e2eencryptionkeye2eencryptionkey'
+      SESSION_ENCRYPTION_KEY: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+      EMBEDDING_MODEL: 'gemini-embedding-001'
+
+      # localhost origin → IsLocalDevelopment() true → dev login enabled, so the
+      # Playwright auth fixture (/auth/dev/login) works. SPA + API are same-origin
+      # from this combined image, so the suite targets this one port (:8080).
+      FRONTEND_BASE_URL: 'http://localhost:8080'
+      DEV_LOGIN_ENABLED: 'true'
+      LOG_LEVEL: warn
+
+      # The whole suite logs in from a single IP; keep the per-IP limiters far
+      # above what one runner can hit so dev-login never returns 429. Test-only.
+      AUTH_RATE_LIMIT_PER_MINUTE: '100000'
+      API_RATE_LIMIT_PER_MINUTE: '100000'
+
+      # Attachments via the fake-gcs emulator (no real GCS / no credentials).
+      STORAGE_EMULATOR_HOST: 'http://gcs:4443'
+      GCS_RESOURCE_ATTACHMENTS_BUCKET: 'vibexp-attachments'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      gcs-init:
+        condition: service_completed_successfully
+    networks: [vibexp-e2e]
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:8080/ping']
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+networks:
+  vibexp-e2e:
+    driver: bridge

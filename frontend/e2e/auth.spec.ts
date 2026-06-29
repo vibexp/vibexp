@@ -51,8 +51,13 @@ test.describe('Dev Login', () => {
     // Verify dev login form is NOT visible
     await expect(page.getByText('Development Login')).not.toBeVisible()
 
-    // Verify Google login is still visible
-    await expect(page.getByText('Continue with Google')).toBeVisible()
+    // Verify the sign-in page itself still renders. We assert the page heading
+    // rather than a specific identity provider ("Continue with Google"): the
+    // open-source default config has no AUTH_PROVIDERS configured, so no
+    // provider button renders — the sign-in page must not depend on one.
+    await expect(
+      page.getByRole('heading', { name: /sign in to/i })
+    ).toBeVisible()
   })
 
   test('should show dev login by default in development', async ({ page }) => {
@@ -124,9 +129,11 @@ test.describe('Home Page Access', () => {
     // Try to access home without authentication
     await page.goto('/')
 
-    // Verify login page is shown by checking for auth options
-    await expect(page.getByText('Continue with Google')).toBeVisible({
-      timeout: 5000,
-    })
+    // Verify the login page is shown. We assert the sign-in heading rather than
+    // a specific provider button — the default open-source config configures no
+    // AUTH_PROVIDERS, so the page must be provider-agnostic.
+    await expect(
+      page.getByRole('heading', { name: /sign in to/i })
+    ).toBeVisible({ timeout: 5000 })
   })
 })
