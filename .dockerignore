@@ -1,0 +1,29 @@
+# Build context for the combined image is the REPO ROOT (backend/Dockerfile,
+# issue #61). Keep that context small and deterministic: the image installs its
+# own deps (npm ci) and builds the SPA itself, so host build artifacts must never
+# leak in — they slow the build and can clobber image dirs (e.g. a host
+# node_modules symlink replacing the image's node_modules directory).
+
+# Dependencies (the image runs `npm ci` / `go mod download` itself).
+**/node_modules
+
+# Frontend & backend build outputs (regenerated inside the image).
+frontend/dist
+backend/bin
+backend/internal/server/dist
+
+# VCS / CI / local tooling.
+.git
+.github
+**/.DS_Store
+
+# Test + tooling outputs.
+**/test-results
+**/playwright-report
+**/coverage
+**/*.log
+
+# Local env files (the image is configured via compose/runtime env, never these).
+**/.env
+**/.env.*
+!**/.env.example

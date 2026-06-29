@@ -1,4 +1,4 @@
-.PHONY: backend-test backend-test-coverage backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-server backend-wire-gen backend-wire-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-build frontend-run-dev build-combined
+.PHONY: backend-test backend-test-coverage backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-server backend-wire-gen backend-wire-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
@@ -248,3 +248,41 @@ build-combined: frontend-build
 	@echo "🔨 Building combined binary (backend/bin/vibexp)..."
 	cd backend && go build -tags embedfrontend -ldflags "-X github.com/vibexp/vibexp/cmd.buildSHA=$(shell git rev-parse --short HEAD)" -o bin/vibexp .
 	@echo "✅ Combined binary built: backend/bin/vibexp"
+
+# ============================================
+# End-to-end tests (Playwright) — issue #66
+# ============================================
+#
+# Production-like e2e: docker-compose.e2e.yml builds the combined image from
+# source (backend serves the SPA + API on one port) alongside Postgres and a
+# fake-gcs-server, so the Playwright suite runs against the artifact we ship.
+# CI (.github/workflows/ci-e2e.yml, workflow_dispatch) runs the SAME `make e2e`,
+# so local and CI stay identical.
+E2E_COMPOSE := docker compose -f docker-compose.e2e.yml
+E2E_BASE_URL ?= http://localhost:8080
+
+# Build + start the e2e stack and block until every service is healthy.
+e2e-up:
+	@echo "🐳 Building and starting the e2e stack (postgres + fake-gcs + combined app)..."
+	$(E2E_COMPOSE) up -d --build --wait --wait-timeout 600
+
+# Tear the stack down and wipe its volumes/network.
+e2e-down:
+	$(E2E_COMPOSE) down -v --remove-orphans
+
+# Install the Playwright browser(s) the suite needs (chromium only).
+e2e-browsers:
+	cd frontend && npx playwright install --with-deps chromium
+
+# Run the Playwright suite against an already-running stack.
+e2e-test:
+	cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) npm run test:e2e
+
+# One-shot: install browsers, bring the stack up, run the suite, always tear the
+# stack down, and propagate the suite's exit code. This is what CI runs.
+e2e: e2e-browsers e2e-up
+	@cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) npm run test:e2e; \
+	status=$$?; \
+	echo "🧹 Tearing down the e2e stack..."; \
+	$(E2E_COMPOSE) down -v --remove-orphans; \
+	exit $$status
