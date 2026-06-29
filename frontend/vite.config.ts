@@ -6,13 +6,11 @@ import tailwindcss from '@tailwindcss/postcss'
 export default defineConfig({
   plugins: [react()],
   // Build-time replacements for environment variables
-  // These values are baked into the bundle during build, preventing runtime issues
+  // These values are baked into the bundle during build, preventing runtime issues.
+  // GTM/GA4 config moved to runtime injection (issue #57): the backend serves it
+  // via /config.js and gtm.ts reads it through getEnv(), so it is no longer
+  // define-d here.
   define: {
-    __VITE_GTM_ID__: JSON.stringify(process.env.VITE_GTM_ID || ''),
-    __VITE_GTM_ENABLED__: process.env.VITE_GTM_ENABLED !== 'false',
-    __VITE_GA4_MEASUREMENT_ID__: JSON.stringify(
-      process.env.VITE_GA4_MEASUREMENT_ID || ''
-    ),
     __VITE_RELEASE_SHA__: JSON.stringify(process.env.VITE_RELEASE_SHA || 'dev'),
     __VITE_RELEASE_DATE__: JSON.stringify(
       process.env.VITE_RELEASE_DATE || 'unknown'

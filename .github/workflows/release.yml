@@ -1,11 +1,15 @@
-name: Release / Frontend
+name: Release
 
-# Builds and pushes the frontend Docker image to GitHub Container Registry when a
-# GitHub Release is published with a `frontend-v*` tag (e.g. frontend-v0.1.0).
+# Builds and pushes the single combined VibeXP image (issue #61) to GitHub
+# Container Registry when a GitHub Release is published with a `v*` tag
+# (e.g. v0.1.0). The image (ghcr.io/vibexp/vibexp) embeds the built frontend SPA
+# into the Go backend and serves both from one port — the one-command self-host
+# model (`docker run ghcr.io/vibexp/vibexp`).
 #
-# Backend and frontend are versioned independently from this monorepo via tag
-# prefixes. Pushes ghcr.io/vibexp/frontend:<version> and, for non-prereleases,
-# :latest (which docker-compose.yml tracks).
+# This replaces the previous split backend/frontend release workflows: the
+# frontend is no longer published as a separate image. Pushes
+# ghcr.io/vibexp/vibexp:<version> and, for non-prereleases, :latest (which
+# docker-compose.yml tracks).
 #
 # workflow_dispatch is a manual escape hatch: provide `version` to build/push
 # from the current ref without a release.
@@ -24,14 +28,14 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/vibexp/frontend
+  IMAGE_NAME: ghcr.io/vibexp/vibexp
 
 jobs:
   release:
-    name: Build & push frontend image
+    name: Build & push combined image
     runs-on: ubuntu-latest
-    # On a release, only run for frontend-prefixed tags; always run on dispatch.
-    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'frontend-v') }}
+    # On a release, only run for v-prefixed tags; always run on dispatch.
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v') }}
 
     steps:
       - name: Checkout
@@ -43,7 +47,7 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
           INPUT: ${{ inputs.version }}
         run: |
-          version="${INPUT:-${TAG#frontend-v}}"
+          version="${INPUT:-${TAG#v}}"
           if [ -z "$version" ]; then
             echo "::error::Could not resolve a version (tag '$TAG', input '$INPUT')."
             exit 1
@@ -70,11 +74,13 @@ jobs:
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
 
+      # Build context is the repo root so the Dockerfile can build the frontend
+      # SPA and embed it into the Go backend (see backend/Dockerfile).
       - name: Build & push
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf  # v7.2.0
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
+          context: .
+          file: ./backend/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

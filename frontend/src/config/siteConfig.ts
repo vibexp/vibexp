@@ -6,27 +6,27 @@
  * rebrand the app entirely through `VITE_*` environment variables without
  * editing component code. Every value has a neutral placeholder default so the
  * app builds and runs out of the box.
+ *
+ * Values are read through `getEnv` (issue #57): in the combined image the
+ * backend injects them at runtime via `/config.js`, so rebranding is a deploy-
+ * time env var + restart, not a rebuild; the build-time `import.meta.env` stays
+ * the fallback for local dev.
  */
+import { getEnv } from '@/lib/runtimeEnv'
 
 /** Returns `value` when it is a non-empty string, otherwise `fallback`. */
 function or(value: string | undefined, fallback: string): string {
   return value !== undefined && value !== '' ? value : fallback
 }
 
-// `import.meta.env` is absent under some test runners; default to an empty bag
-// so every lookup below falls back to its neutral placeholder.
-const env: Partial<ImportMetaEnv> =
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  import.meta?.env ?? {}
-
 /** Display name of the product/brand. */
-export const SITE_NAME = or(env.VITE_SITE_NAME, 'VibeXP')
+export const SITE_NAME = or(getEnv('VITE_SITE_NAME'), 'VibeXP')
 
 /** Legal entity name shown in copyright notices. */
-export const SITE_LEGAL_NAME = or(env.VITE_SITE_LEGAL_NAME, SITE_NAME)
+export const SITE_LEGAL_NAME = or(getEnv('VITE_SITE_LEGAL_NAME'), SITE_NAME)
 
 /** Public marketing/home site URL (used for brand links). */
-export const SITE_URL = or(env.VITE_SITE_URL, 'https://example.com')
+export const SITE_URL = or(getEnv('VITE_SITE_URL'), 'https://example.com')
 
 /** Hostname portion of SITE_URL, for display as a link label. */
 export const SITE_DOMAIN = SITE_URL.replace(/^https?:\/\//, '').replace(
@@ -35,17 +35,26 @@ export const SITE_DOMAIN = SITE_URL.replace(/^https?:\/\//, '').replace(
 )
 
 /** Terms & Conditions page URL. */
-export const TERMS_URL = or(env.VITE_TERMS_URL, `${SITE_URL}/terms-and-conditions`)
+export const TERMS_URL = or(
+  getEnv('VITE_TERMS_URL'),
+  `${SITE_URL}/terms-and-conditions`
+)
 
 /** Privacy Policy page URL. */
-export const PRIVACY_URL = or(env.VITE_PRIVACY_URL, `${SITE_URL}/privacy-policy`)
+export const PRIVACY_URL = or(
+  getEnv('VITE_PRIVACY_URL'),
+  `${SITE_URL}/privacy-policy`
+)
 
 /** Support contact email address. */
-export const SUPPORT_EMAIL = or(env.VITE_SUPPORT_EMAIL, 'support@example.com')
+export const SUPPORT_EMAIL = or(
+  getEnv('VITE_SUPPORT_EMAIL'),
+  'support@example.com'
+)
 
 /** Absolute URL to the brand logo (used in shared-page OpenGraph tags). */
 export const BRAND_LOGO_URL = or(
-  env.VITE_BRAND_LOGO_URL,
+  getEnv('VITE_BRAND_LOGO_URL'),
   `${SITE_URL}/logo_rounded.png`
 )
 
@@ -54,7 +63,7 @@ export const BRAND_LOGO_URL = or(
  * Self-hosters point this at their own backend's MCP route.
  */
 export const MCP_ENDPOINT = or(
-  env.VITE_MCP_ENDPOINT,
+  getEnv('VITE_MCP_ENDPOINT'),
   'https://connect.example.com/mcp/v1/common'
 )
 
@@ -64,7 +73,7 @@ export const MCP_ENDPOINT = or(
  * generated types are `<base>/errors/<CODE>`; otherwise the RFC 9457 sentinel
  * `about:blank` is used. Not user-facing.
  */
-const ERROR_TYPE_BASE_URI = or(env.VITE_ERROR_TYPE_BASE_URI, '')
+const ERROR_TYPE_BASE_URI = or(getEnv('VITE_ERROR_TYPE_BASE_URI'), '')
 
 /** Builds the RFC 9457 `type` URI for a client-side fallback problem detail. */
 export const errorTypeUri = (code: string): string =>
