@@ -5,7 +5,6 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	htmltemplate "html/template"
 	"log/slog"
 	"strings"
 	"text/template"
@@ -36,7 +35,7 @@ func NewEmailService(provider external.EmailProvider, cfg *config.Config) *Email
 	}
 }
 
-// adminRecipient resolves the destination for contact-form and support
+// adminRecipient resolves the destination for support
 // notification emails. It prefers the explicitly configured
 // ContactRecipientAddress, falling back to the sender address
 // (EmailFromAddress, then SMTPUsername) so a single-mailbox deployment works
@@ -58,16 +57,6 @@ func (es *EmailService) appBaseURL() string {
 	return strings.TrimRight(es.cfg.FrontendBaseURL, "/")
 }
 
-func (es *EmailService) SendContactMessage(req *models.ContactFormRequest) error {
-	// Send notification email to the configured admin recipient.
-	if err := es.sendAdminNotification(req); err != nil {
-		slog.With("error", err).Error("Failed to send admin notification email")
-		return fmt.Errorf("failed to send admin notification: %w", err)
-	}
-
-	return nil
-}
-
 // SendSupportRequest sends a support request from an authenticated user
 func (es *EmailService) SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error {
 	// Send notification email to the configured admin recipient.
@@ -84,44 +73,6 @@ func (es *EmailService) SendSupportRequest(userName, userEmail string, req *mode
 	}
 
 	return nil
-}
-
-func (es *EmailService) sendAdminNotification(req *models.ContactFormRequest) error {
-	subject := fmt.Sprintf("New Contact Form Message from %s", req.Name)
-
-	tmpl := `
-	<h2>New Contact Form Submission</h2>
-	<p><strong>Name:</strong> {{.Name}}</p>
-	<p><strong>Email:</strong> {{.Email}}</p>
-	{{if .PhoneNumber}}<p><strong>Phone:</strong> {{.PhoneNumber}}</p>{{end}}
-	<p><strong>Message:</strong></p>
-	<div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #007cba; margin: 10px 0;">
-		{{.Message}}
-	</div>
-	<hr>
-	<p><em>This message was sent via the contact form.</em></p>
-	`
-
-	body, err := es.renderHTMLTemplate(tmpl, req)
-	if err != nil {
-		return err
-	}
-
-	return es.sendEmail(es.adminRecipient(), subject, body, "")
-}
-
-func (es *EmailService) renderHTMLTemplate(tmplStr string, data interface{}) (string, error) {
-	tmpl, err := htmltemplate.New("email").Parse(tmplStr)
-	if err != nil {
-		return "", err
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
 }
 
 func (es *EmailService) sendEmail(to, subject, htmlBody, textBody string) error {

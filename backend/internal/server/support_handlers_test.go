@@ -31,11 +31,6 @@ type MockEmailServiceForSupport struct {
 	mock.Mock
 }
 
-func (m *MockEmailServiceForSupport) SendContactMessage(req *models.ContactFormRequest) error {
-	args := m.Called(req)
-	return args.Error(0)
-}
-
 func (m *MockEmailServiceForSupport) SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error {
 	args := m.Called(userName, userEmail, req)
 	return args.Error(0)

@@ -4,7 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+
+	"github.com/go-playground/validator/v10"
 )
+
+// validate is the shared struct validator used across request handlers
+// (support, search, agent, MCP). It lives here, not in any one feature's
+// handler file, so removing a single feature never strands the shared singleton.
+var validate = validator.New()
 
 // getUserDefaultTeamID retrieves the user's default team ID for resource creation
 // All user-created resources are linked to their default team for future team collaboration features

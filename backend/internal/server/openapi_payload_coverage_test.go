@@ -196,7 +196,6 @@ var payloadCoverageLedger = map[string]string{
 	"POST /api/v1/teams":                                                               "TODO(#1714): uncovered",
 	"POST /api/v1/user/onboarding/complete":                                            "TODO(#1714): uncovered",
 	"POST /api/v1/webhooks/github":                                                     "TODO(#1714): uncovered",
-	"POST /api/v1/website/contact/send-message":                                        "TODO(#1714): uncovered",
 	"POST /bo/v1/embeddings/backfill":                                                  "TODO(#1714): uncovered",
 	"PUT /api/v1/embedding-providers/{id}":                                             "TODO(#1714): uncovered",
 	"PUT /api/v1/preferences":                                                          "TODO(#1714): uncovered",
