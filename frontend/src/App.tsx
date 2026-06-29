@@ -2,6 +2,7 @@ import { HelmetProvider } from 'react-helmet-async'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'
 
 import { AlertContainer } from '@/components/AlertContainer'
+import { ReturnToResumeAfterAuth } from '@/components/auth/ReturnToResumeAfterAuth'
 import { SignInPage } from '@/components/auth/SignInPage'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { InvitationAcceptHandshake } from '@/components/invitations/InvitationAcceptHandshake'
@@ -57,6 +58,7 @@ function MainApp() {
   return (
     <Root>
       <AuthGate>
+        <ReturnToResumeAfterAuth />
         <InvitationResumeAfterAuth />
         <TeamProvider>
           <InvitationAcceptHandshake />
@@ -80,6 +82,14 @@ function App() {
               <Router>
                 <PageTracker />
                 <Routes>
+                  <Route
+                    path="/login"
+                    element={
+                      <BareLayout>
+                        <SignInPage />
+                      </BareLayout>
+                    }
+                  />
                   <Route
                     path="/auth/callback"
                     element={

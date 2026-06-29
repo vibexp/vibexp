@@ -14,12 +14,19 @@ import { cn } from '@/lib/utils'
 
 import { authService } from '../../services/authService'
 import { environmentService } from '../../services/environmentService'
+import { hardRedirect } from '../../utils/navigation'
+import { sanitizeReturnTo } from '../../utils/returnTo'
 
 interface DevLoginProps {
   onError?: (error: string) => void
+  /**
+   * Same-origin path to land on after a successful dev login (e.g. an OAuth
+   * consent page). Validated; defaults to "/".
+   */
+  returnTo?: string
 }
 
-export function DevLogin({ onError }: DevLoginProps) {
+export function DevLogin({ onError, returnTo }: DevLoginProps) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -58,8 +65,10 @@ export function DevLogin({ onError }: DevLoginProps) {
 
     try {
       await authService.devLogin(email, name || undefined)
-      // Force a reload to update auth context, similar to Google OAuth callback
-      window.location.href = '/'
+      // Hard navigation (full reload) so the auth context re-hydrates from the
+      // freshly-set session cookie, similar to the OAuth callback. Land on the
+      // requested return path (e.g. back on the OAuth consent page) or "/".
+      hardRedirect(sanitizeReturnTo(returnTo))
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : 'Dev login failed'

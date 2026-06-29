@@ -5,14 +5,30 @@
 
 // OAuthConsentDetails is returned by GET /api/v1/oauth/consent?login=ID.
 export interface OAuthConsentDetails {
+  /**
+   * Whether an app user is bound to this login session. When false, the AS has
+   * no user yet (issue #54): the SPA must complete an app login and bind the
+   * user via /oauth/consent/attach before the approval screen can render, so
+   * the client_name/redirect_host/scopes fields are omitted.
+   */
+  authenticated: boolean
   /** Human label for the requesting OAuth client (falls back to its client id). */
-  client_name: string
+  client_name?: string
   /** Host of the client's redirect URI, shown so the user knows where they go. */
-  redirect_host: string
+  redirect_host?: string
   /** Scopes the client requested. */
-  scopes: string[]
-  /** CSRF token bound to the login session; echoed back on the decision POST. */
+  scopes?: string[]
+  /**
+   * CSRF token bound to the login session; echoed back on the attach
+   * (X-CSRF-Token header) and decision (body) POSTs. Always present.
+   */
   csrf: string
+}
+
+// OAuthConsentAttachResponse is returned by POST /api/v1/oauth/consent/attach
+// once the authenticated app user is bound to the login session.
+export interface OAuthConsentAttachResponse {
+  authenticated: boolean
 }
 
 // OAuthConsentAction is the user's decision on the consent screen.

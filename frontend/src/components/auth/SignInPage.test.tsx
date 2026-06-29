@@ -88,6 +88,7 @@ jest.mock('@/components/ui/alert', () => ({
 }))
 
 const STORAGE_KEY = 'vx_login_method'
+const RETURN_TO_KEY = 'vx_return_to'
 
 const PROVIDERS: AuthProvider[] = [
   { name: 'google', display_name: 'Google' },
@@ -98,9 +99,9 @@ const PROVIDERS: AuthProvider[] = [
 // Helpers
 // ---------------------------------------------------------------------------
 
-function renderSignInPage() {
+function renderSignInPage(initialEntry = '/login') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <SignInPage />
     </MemoryRouter>
   )
@@ -187,5 +188,56 @@ describe('SignInPage — config-driven provider picker', () => {
     renderSignInPage()
 
     expect(await screen.findByText(/boom/i)).toBeInTheDocument()
+  })
+})
+
+describe('SignInPage — return_to plumbing', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    window.sessionStorage.clear()
+    mockLogin.mockResolvedValue(undefined)
+    mockGetProviders.mockResolvedValue(PROVIDERS)
+  })
+
+  it('stashes a same-origin return_to before the provider redirect', async () => {
+    renderSignInPage(
+      '/login?return_to=' + encodeURIComponent('/oauth/consent?login=abc')
+    )
+
+    const btn = await screen.findByRole('button', {
+      name: /continue with google/i,
+    })
+    fireEvent.click(btn)
+
+    // Stash happens synchronously before the async login() call.
+    expect(window.sessionStorage.getItem(RETURN_TO_KEY)).toBe(
+      '/oauth/consent?login=abc'
+    )
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith('google')
+    })
+  })
+
+  it('rejects an open-redirect return_to, stashing "/" instead', async () => {
+    renderSignInPage('/login?return_to=' + encodeURIComponent('//evil.com'))
+
+    const btn = await screen.findByRole('button', {
+      name: /continue with google/i,
+    })
+    fireEvent.click(btn)
+
+    expect(window.sessionStorage.getItem(RETURN_TO_KEY)).toBe('/')
+  })
+
+  it('defaults to "/" when no return_to is present', async () => {
+    renderSignInPage('/login')
+
+    const btn = await screen.findByRole('button', {
+      name: /continue with google/i,
+    })
+    fireEvent.click(btn)
+
+    expect(window.sessionStorage.getItem(RETURN_TO_KEY)).toBe('/')
   })
 })

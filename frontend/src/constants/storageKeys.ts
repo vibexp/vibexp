@@ -64,6 +64,15 @@ export const STORAGE_KEYS = {
   /** Provider used in the current sign-in flow (e.g. 'Google', 'GitHub') - session scoped */
   LOGIN_METHOD: 'vx_login_method',
 
+  // Login redirect
+  /**
+   * Same-origin path to return to after a login round-trip (e.g. the OAuth
+   * consent page that bounced a signed-out visitor to sign-in). Stashed before
+   * the provider redirect so it survives the IdP round-trip; read-and-cleared
+   * once the user lands back authenticated. Session scoped.
+   */
+  RETURN_TO: 'vx_return_to',
+
   // Cookie Consent
   /** User's cookie consent decision (granted/denied) with timestamp */
   COOKIE_CONSENT: 'vx_cookie_consent',
@@ -109,4 +118,5 @@ export const SESSION_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.ANALYTICS_REFERRER,
   STORAGE_KEYS.PURCHASE_TRACKED,
   STORAGE_KEYS.LOGIN_METHOD,
+  STORAGE_KEYS.RETURN_TO,
 ])

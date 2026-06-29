@@ -1,5 +1,6 @@
 import { KeyRound, Moon, Shield, Sun, Users, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { CookieConsentBanner } from '@/components/CookieConsentBanner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -20,6 +21,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useAnalytics } from '../../hooks/useAnalytics'
 import { authService } from '../../services/authService'
 import type { AuthProvider } from '../../types'
+import { sanitizeReturnTo, stashReturnTo } from '../../utils/returnTo'
 import { sessionStore } from '../../utils/storage'
 import { DevLogin } from './DevLogin'
 
@@ -216,6 +218,10 @@ export function SignInPage() {
 
   const { login } = useAuth()
   const { trackAuth } = useAnalytics()
+  const [searchParams] = useSearchParams()
+  // Where to send the user after login (e.g. back to an OAuth consent page).
+  // Validated to a same-origin path; defaults to "/" when absent/unsafe.
+  const returnTo = sanitizeReturnTo(searchParams.get('return_to'))
 
   // Track signin page view when component mounts
   useEffect(() => {
@@ -257,6 +263,8 @@ export function SignInPage() {
 
     try {
       sessionStore.set(STORAGE_KEYS.LOGIN_METHOD, provider.display_name)
+      // Persist across the IdP round-trip; honored when the user lands back.
+      stashReturnTo(returnTo)
       await login(provider.name)
     } catch (err) {
       setError(
@@ -359,7 +367,7 @@ export function SignInPage() {
               <div className="bg-border h-px flex-1" />
             </div>
 
-            <DevLogin onError={setError} />
+            <DevLogin returnTo={returnTo} onError={setError} />
 
             <p className="text-muted-foreground mt-6 text-center text-xs leading-relaxed">
               By continuing, you agree to our{' '}
