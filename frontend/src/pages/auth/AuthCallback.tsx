@@ -6,6 +6,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { getApiBaseUrl } from '@/utils/environment'
+import { hardRedirect } from '@/utils/navigation'
+import { consumeReturnTo } from '@/utils/returnTo'
 
 /**
  * AuthCallback
@@ -51,8 +53,10 @@ export function AuthCallback() {
       return
     }
 
-    // Nothing to do — send the user home
-    window.location.href = '/'
+    // Nothing to do — send the user to their stashed return path, or home.
+    // (In the normal flow the backend redirects to "/" and the in-app resume
+    // handles return_to; this covers a direct/stale hit of this route.)
+    hardRedirect(consumeReturnTo())
   }, [searchParams])
 
   if (isLoading) {

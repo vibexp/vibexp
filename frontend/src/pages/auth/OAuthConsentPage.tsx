@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { oauthService } from '@/services/oauthService'
+import { ApiError } from '@/types/errors'
 import type { OAuthConsentAction, OAuthConsentDetails } from '@/types/oauth'
 import { hardRedirect } from '@/utils/navigation'
 
@@ -25,9 +26,16 @@ const DECISION_ERROR =
 
 /**
  * OAuthConsentPage renders the embedded Authorization Server's consent screen
- * (issue #52). It is a public route (outside AuthGate): the user has already
- * authenticated against the AS and is returned here with an opaque `login` id. The
- * page fetches the request details, then approve/deny posts the decision and
+ * (issue #52). It is a public route (outside AuthGate), reached with an opaque
+ * `login` id after /oauth2/authorize.
+ *
+ * The AS never authenticates anyone itself (issue #54): the login session has no
+ * user until the SPA binds the logged-in app user. So this page gates on login
+ * (#55): it fetches the request details and, when no user is bound yet
+ * (`authenticated: false`), tries to attach the current app session. If that
+ * succeeds the approval screen renders; if it fails with 401 the visitor is sent
+ * to the app login page with a `return_to` back here, so after logging in they
+ * land on the same consent URL. Approve/deny then posts the decision and
  * navigates the browser to the URL the backend returns so the OAuth client (e.g.
  * Claude Code) receives the code. No OAuth secret ever reaches the SPA.
  */
@@ -51,13 +59,35 @@ export function OAuthConsentPage() {
       }
       try {
         setLoading(true)
-        const data = await oauthService.getConsent(login)
-        if (!cancelled) setDetails(data)
+        let data = await oauthService.getConsent(login)
+        // No app user bound to the AS login session yet: bind the current
+        // session, or send the visitor to log in and return here.
+        if (!data.authenticated) {
+          try {
+            await oauthService.attach(login, data.csrf)
+          } catch (attachErr) {
+            if (attachErr instanceof ApiError && attachErr.status === 401) {
+              // Signed out: go to the login page and come back to this exact
+              // consent URL. Keep the spinner up while the browser navigates.
+              const consentUrl = `/oauth/consent?login=${encodeURIComponent(login)}`
+              hardRedirect(`/login?return_to=${encodeURIComponent(consentUrl)}`)
+              return
+            }
+            throw attachErr
+          }
+          // Now bound — re-fetch the (now authenticated) approval details.
+          data = await oauthService.getConsent(login)
+        }
+        if (!cancelled) {
+          setDetails(data)
+          setLoading(false)
+        }
       } catch (err) {
         console.error('Failed to load consent request:', err)
-        if (!cancelled) setError(LOAD_ERROR)
-      } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setError(LOAD_ERROR)
+          setLoading(false)
+        }
       }
     }
 
@@ -144,7 +174,7 @@ export function OAuthConsentPage() {
                 </InfoRow>
               </>
             )}
-            {details.scopes.length > 0 && (
+            {details.scopes && details.scopes.length > 0 && (
               <>
                 <Separator />
                 <InfoRow label="Requested access">
