@@ -22,8 +22,7 @@ export default {
     '^firebase/messaging$': '<rootDir>/tests/mocks/firebase-messaging.ts',
     // Generated API client is ESM only; stub it for jest/CJS. Type-only
     // imports are erased — tests mock @/lib/apiClientGenerated for behavior.
-    '^@vibexp/api-client$':
-      '<rootDir>/tests/mocks/vibexpApiClient.ts',
+    '^@vibexp/api-client$': '<rootDir>/tests/mocks/vibexpApiClient.ts',
   },
   transform: {
     '^.+\\.tsx?$': [
@@ -73,10 +72,5 @@ export default {
         VITE_FIREBASE_VAPID_KEY: '',
       },
     },
-    // Vite-defined constants (from vite.config.ts define section)
-    // In Jest, these default to disabled/empty for testing
-    __VITE_GTM_ID__: '',
-    __VITE_GTM_ENABLED__: false,
-    __VITE_GA4_MEASUREMENT_ID__: '',
   },
 }

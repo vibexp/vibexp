@@ -1,5 +1,7 @@
 // Google Analytics gtag function type definitions
 // gtag and dataLayer are always defined in index.html before any other scripts load
+import { getEnv } from '@/lib/runtimeEnv'
+
 declare global {
   interface Window {
     dataLayer: Record<string, unknown>[]
@@ -7,22 +9,13 @@ declare global {
   }
 }
 
-// Vite-defined constants (baked in at build time via vite.config.ts)
-// These are replaced with literal values during the build process
-declare const __VITE_GTM_ID__: string
-declare const __VITE_GTM_ENABLED__: boolean
-declare const __VITE_GA4_MEASUREMENT_ID__: string
-
-// Export the constants for use in the application
-// Fallback values are for test environments where the declares are undefined
-export const GTM_ID =
-  typeof __VITE_GTM_ID__ !== 'undefined' ? __VITE_GTM_ID__ : ''
-export const GTM_ENABLED =
-  typeof __VITE_GTM_ENABLED__ !== 'undefined' ? __VITE_GTM_ENABLED__ : false
-export const GA4_MEASUREMENT_ID =
-  typeof __VITE_GA4_MEASUREMENT_ID__ !== 'undefined'
-    ? __VITE_GA4_MEASUREMENT_ID__
-    : ''
+// Analytics config is read at runtime (issue #57): the backend injects
+// VITE_GTM_* via /config.js, with the build-time import.meta.env as fallback.
+// GTM is opt-in — enabled only when VITE_GTM_ENABLED is exactly "true" — so the
+// neutral default (unset) keeps analytics off.
+export const GTM_ID = getEnv('VITE_GTM_ID') ?? ''
+export const GTM_ENABLED = getEnv('VITE_GTM_ENABLED') === 'true'
+export const GA4_MEASUREMENT_ID = getEnv('VITE_GA4_MEASUREMENT_ID') ?? ''
 
 export const initializeGTM = () => {
   if (!GTM_ENABLED || !GTM_ID) {

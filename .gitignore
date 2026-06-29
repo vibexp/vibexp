@@ -23,6 +23,9 @@ go.work.sum
 /bin/
 backend/bin/
 backend/dist/
+# Frontend SPA copied into the backend for the combined-image embed (issue #61);
+# populated by the release build / `make build-combined`, never committed.
+backend/internal/server/dist/
 vibexp
 vibexp.io
 

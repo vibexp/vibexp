@@ -355,6 +355,57 @@ type Config struct {
 	// Cloud Run specific configuration (automatically set by Cloud Run)
 	KService  string `envconfig:"K_SERVICE" default:""`
 	KRevision string `envconfig:"K_REVISION" default:""`
+
+	// Runtime frontend configuration (issue #57). In the single combined image
+	// (#61) the backend embeds and serves the SPA, so these deploy-time values are
+	// rendered into /config.js as window.__VIBEXP_ENV__ and read by the frontend
+	// via getEnv() — letting a self-hoster rebrand and (optionally) enable
+	// analytics with an env var + restart, no rebuild. Each mirrors a VITE_* the
+	// frontend otherwise bakes in at build time; an empty value is omitted from
+	// config.js so the frontend's neutral build-time default remains the fallback.
+	// SECURITY: config.js is world-readable — only non-secret, deploy-time values
+	// belong here. Never add secrets (tokens, client secrets, DSNs with secrets).
+	FrontendSiteName         string `envconfig:"VITE_SITE_NAME" default:""`
+	FrontendSiteLegalName    string `envconfig:"VITE_SITE_LEGAL_NAME" default:""`
+	FrontendSiteURL          string `envconfig:"VITE_SITE_URL" default:""`
+	FrontendTermsURL         string `envconfig:"VITE_TERMS_URL" default:""`
+	FrontendPrivacyURL       string `envconfig:"VITE_PRIVACY_URL" default:""`
+	FrontendSupportEmail     string `envconfig:"VITE_SUPPORT_EMAIL" default:""`
+	FrontendBrandLogoURL     string `envconfig:"VITE_BRAND_LOGO_URL" default:""`
+	FrontendMCPEndpoint      string `envconfig:"VITE_MCP_ENDPOINT" default:""`
+	FrontendErrorTypeBaseURI string `envconfig:"VITE_ERROR_TYPE_BASE_URI" default:""`
+	FrontendGTMID            string `envconfig:"VITE_GTM_ID" default:""`
+	FrontendGTMEnabled       string `envconfig:"VITE_GTM_ENABLED" default:""`
+	FrontendGA4MeasurementID string `envconfig:"VITE_GA4_MEASUREMENT_ID" default:""`
+}
+
+// RuntimeFrontendEnv returns the deploy-time frontend configuration served to
+// the SPA via /config.js (window.__VIBEXP_ENV__). Keys are the VITE_* names the
+// frontend reads through getEnv(); only non-empty values are included so the
+// frontend's build-time defaults remain the fallback for anything unset. The
+// result is served publicly and MUST contain only non-secret values.
+func (c *Config) RuntimeFrontendEnv() map[string]string {
+	pairs := []struct{ key, val string }{
+		{"VITE_SITE_NAME", c.FrontendSiteName},
+		{"VITE_SITE_LEGAL_NAME", c.FrontendSiteLegalName},
+		{"VITE_SITE_URL", c.FrontendSiteURL},
+		{"VITE_TERMS_URL", c.FrontendTermsURL},
+		{"VITE_PRIVACY_URL", c.FrontendPrivacyURL},
+		{"VITE_SUPPORT_EMAIL", c.FrontendSupportEmail},
+		{"VITE_BRAND_LOGO_URL", c.FrontendBrandLogoURL},
+		{"VITE_MCP_ENDPOINT", c.FrontendMCPEndpoint},
+		{"VITE_ERROR_TYPE_BASE_URI", c.FrontendErrorTypeBaseURI},
+		{"VITE_GTM_ID", c.FrontendGTMID},
+		{"VITE_GTM_ENABLED", c.FrontendGTMEnabled},
+		{"VITE_GA4_MEASUREMENT_ID", c.FrontendGA4MeasurementID},
+	}
+	out := make(map[string]string, len(pairs))
+	for _, p := range pairs {
+		if p.val != "" {
+			out[p.key] = p.val
+		}
+	}
+	return out
 }
 
 // GitHubAppConfig holds parsed GitHub App configuration

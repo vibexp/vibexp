@@ -1,4 +1,4 @@
-.PHONY: backend-test backend-test-coverage backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-server backend-wire-gen backend-wire-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-build frontend-run-dev
+.PHONY: backend-test backend-test-coverage backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-server backend-wire-gen backend-wire-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-build frontend-run-dev build-combined
 
 # ============================================
 # Toolchain Pinning
@@ -230,3 +230,21 @@ frontend-run-dev:
 	@echo "🚀 Starting frontend dev server (http://localhost:5173)..."
 	@echo "Press Ctrl+C to stop"
 	@cd frontend && npm run dev
+
+# ============================================
+# Combined image / binary (issue #61)
+# ============================================
+
+# Build the single combined binary: build the frontend SPA, embed it into the Go
+# backend (the embedfrontend build tag → spa_embed.go), and produce one binary
+# that serves the SPA AND the API from one port. This mirrors what the release
+# image does (backend/Dockerfile). Local development does NOT need this — run
+# `make backend-run-dev` and `make frontend-run-dev` as two independent
+# processes; the backend builds and runs fine with no embedded frontend.
+build-combined: frontend-build
+	@echo "📦 Embedding frontend build into the backend (internal/server/dist)..."
+	rm -rf backend/internal/server/dist
+	cp -r frontend/dist backend/internal/server/dist
+	@echo "🔨 Building combined binary (backend/bin/vibexp)..."
+	cd backend && go build -tags embedfrontend -ldflags "-X github.com/vibexp/vibexp/cmd.buildSHA=$(shell git rev-parse --short HEAD)" -o bin/vibexp .
+	@echo "✅ Combined binary built: backend/bin/vibexp"

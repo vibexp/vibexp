@@ -24,9 +24,9 @@ const (
 	// redirected to (on FrontendBaseURL) to render the consent screen (issue #52).
 	ConsentPagePath = "/oauth/consent"
 	// ConsentAPIPath is the JSON consent endpoint the SPA calls. It lives in the
-	// /api/v1 namespace so it rides the frontend's nginx /api proxy (same-origin in
-	// prod), unlike the /oauth2/* protocol routes. It replaces the former
-	// server-rendered /oauth2/consent HTML page.
+	// /api/v1 namespace, served same-origin alongside the SPA from the combined
+	// image (issue #61), unlike the /oauth2/* protocol routes. It replaces the
+	// former server-rendered /oauth2/consent HTML page.
 	ConsentAPIPath = "/api/v1/oauth/consent"
 	// ConsentAttachPath binds the authenticated app user to a user-less login
 	// session (issue #54). Unlike ConsentAPIPath it is mounted behind the standard

@@ -56,7 +56,7 @@ VibeXP is one place for everything your AI relies on, connected to your tools ov
 
 ## Quick start (self-host) 🚀
 
-You need [Docker](https://docs.docker.com/get-docker/) with Compose. This runs the published images plus PostgreSQL (pgvector).
+You need [Docker](https://docs.docker.com/get-docker/) with Compose. This runs the published combined image (the SPA and API are served from one port) plus PostgreSQL (pgvector).
 
 ```sh
 git clone https://github.com/vibexp/vibexp.git
@@ -66,7 +66,7 @@ docker compose up -d
 
 Then open:
 
-- 🖥️ **App:** http://localhost:5173
+- 🖥️ **App:** http://localhost:8080
 - ⚙️ **API health:** http://localhost:8080/health
 
 Local evaluation uses a dev-login bypass, so there is nothing to configure to start clicking around.
@@ -74,12 +74,13 @@ Local evaluation uses a dev-login bypass, so there is nothing to configure to st
 <details>
 <summary><strong>⚠️ Before exposing it to the internet (required config)</strong></summary>
 
-The defaults in `docker-compose.yml` are for local evaluation only. For any real deployment, edit the `backend` service environment:
+The defaults in `docker-compose.yml` are for local evaluation only. For any real deployment, edit the `app` service environment:
 
 - **`ENCRYPTION_KEY`** exactly 32 bytes. Generate one: `openssl rand -base64 24 | cut -c1-32`
 - **`DB_PASSWORD`** change it from the default.
 - **`DEV_LOGIN_ENABLED`** set to `false`, set a `SESSION_ENCRYPTION_KEY` (`openssl rand -hex 32`), and configure an identity provider via `AUTH_PROVIDERS` (e.g. `google`, `github`, or a generic `oidc` issuer) with the matching `*_CLIENT_ID` / `*_CLIENT_SECRET` / `*_REDIRECT_URI`.
-- **`FRONTEND_BASE_URL` / `CORS_ALLOWED_ORIGINS`** set to your real public URLs.
+- **`FRONTEND_BASE_URL`** set to your real public URL (the single origin that serves both the SPA and the API — same-origin, so there is no separate frontend URL and no CORS to configure).
+- **Branding / analytics (optional)** rebrand the SPA at deploy time with `VITE_*` env vars (served via `/config.js`, no rebuild) — see the `app` service comments in `docker-compose.yml`.
 - **Semantic search & file attachments** are optional, opt-in services. See the comments in `docker-compose.yml` and the [docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=self_host).
 
 Data persists in the `pgdata` volume.
@@ -102,10 +103,10 @@ Swap `localhost:8080` for your deployment's public URL. Full per-tool instructio
 
 ## For developers 🛠️
 
-VibeXP is a monorepo with two independently deployable components:
+VibeXP is a monorepo shipped as a single combined Docker image (the backend embeds and serves the frontend SPA + API from one port):
 
-- **`backend/`** Go REST API. Spec-first OpenAPI, PostgreSQL + pgvector, MCP endpoint, pluggable identity-provider auth (Google/GitHub/generic OIDC).
-- **`frontend/`** Vite + React + TypeScript SPA, served by nginx in production.
+- **`backend/`** Go REST API. Spec-first OpenAPI, PostgreSQL + pgvector, MCP endpoint, pluggable identity-provider auth (Google/GitHub/generic OIDC). Also embeds and serves the built SPA.
+- **`frontend/`** Vite + React + TypeScript SPA. Served by the Vite dev server in development; built and embedded into the backend for release.
 
 <details>
 <summary><strong>Local development</strong></summary>

@@ -5,17 +5,18 @@
 // Make this file a module for TypeScript
 export {}
 
+// Pull in the `window.__VIBEXP_ENV__` global augmentation (issue #57).
+import '@/lib/runtimeEnv'
+
 // Extend Window type for tests
-// Note: dataLayer and gtag are always defined in index.html, but we declare the Vite constants here
+// dataLayer and gtag are always defined in index.html; gtm.ts now reads its
+// config at runtime via getEnv(), which prefers window.__VIBEXP_ENV__ (issue
+// #57), so the enabled-GTM suite below sets that instead of build-time globals.
 declare global {
   interface Window {
     dataLayer: Record<string, unknown>[]
     gtag: (...args: unknown[]) => void
   }
-  // Vite-defined constants for testing
-  var __VITE_GTM_ID__: string
-  var __VITE_GTM_ENABLED__: boolean
-  var __VITE_GA4_MEASUREMENT_ID__: string
 }
 
 // Mock console methods
@@ -124,17 +125,17 @@ describe('GTM Utilities (GTM Enabled)', () => {
     const existingNoscripts = document.querySelectorAll('noscript')
     existingNoscripts.forEach(noscript => noscript.remove())
 
-    // Set GTM globals for these tests
-    global.__VITE_GTM_ID__ = 'GTM-TEST123'
-    global.__VITE_GTM_ENABLED__ = true
-    global.__VITE_GA4_MEASUREMENT_ID__ = 'G-TEST123'
+    // Enable GTM at runtime for these tests (gtm.ts reads getEnv()).
+    window.__VIBEXP_ENV__ = {
+      VITE_GTM_ID: 'GTM-TEST123',
+      VITE_GTM_ENABLED: 'true',
+      VITE_GA4_MEASUREMENT_ID: 'G-TEST123',
+    }
   })
 
   afterEach(() => {
-    // Reset globals
-    global.__VITE_GTM_ID__ = ''
-    global.__VITE_GTM_ENABLED__ = false
-    global.__VITE_GA4_MEASUREMENT_ID__ = ''
+    // Clear runtime config
+    delete window.__VIBEXP_ENV__
 
     // Restore console methods
     console.log = originalConsoleLog

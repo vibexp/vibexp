@@ -46,6 +46,14 @@
         // Ignore errors from localStorage or JSON parsing
       }
     </script>
+    <!--
+      Runtime configuration (issue #57). In the combined image the backend
+      serves /config.js, setting window.__VIBEXP_ENV__ before the module bundle
+      below runs, so getEnv() sees deploy-time values without a rebuild. In local
+      dev there is no backend-rendered /config.js (this 404s harmlessly) and the
+      app falls back to build-time import.meta.env.
+    -->
+    <script src="/config.js"></script>
   </head>
   <body>
     <div id="root"></div>

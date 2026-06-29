@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -111,6 +112,12 @@ type Server struct {
 	// parallel requests from the same user with an expired access token would all
 	// race on RefreshTokens and most would 401. See middleware.go:authenticateWithSession.
 	refreshLocks sync.Map // map[string]*sync.Mutex keyed by user_id
+	// spaFS is the embedded frontend build (contents of frontend/dist), served by
+	// the SPA catch-all (handleSPA). It is nil in the default dev/CI build (the
+	// frontend is NOT embedded, so the backend compiles and runs without a built
+	// frontend/dist); release builds set it via the `embedfrontend` build tag.
+	// See spa.go / spa_embed.go / spa_noembed.go.
+	spaFS fs.FS
 }
 
 // initializeMetrics sets up OpenTelemetry metrics with the provided configuration
@@ -284,6 +291,7 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 		apiTokenVerifier:      newAPITokenVerifier(cfg, c, logger),
 		attachmentAuthorizers: setupAttachmentAuthorizers(c),
 		oauthAS:               newOAuthAuthorizationServer(cfg, db, logger),
+		spaFS:                 embeddedSPAFS(),
 	}
 
 	s.setupRoutes()
@@ -413,6 +421,12 @@ func (s *Server) setupRoutes() {
 	s.setupAuthRoutes()
 	s.setupProtectedRoutes()
 	s.setupFlexibleAuthRoutes()
+	// The SPA catch-all is registered LAST as the router's NotFound handler so it
+	// can never shadow an API/MCP/OAuth route: chi only falls through to NotFound
+	// when no route matched. Registering it via NotFound (rather than a GET "/*"
+	// route) also keeps it out of the OpenAPI drift/payload-coverage gates, which
+	// walk only the route tree. See spa.go.
+	s.router.NotFound(s.handleSPA)
 }
 
 func (s *Server) setupBackofficeRoutes() {

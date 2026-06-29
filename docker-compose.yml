@@ -1,13 +1,15 @@
-# VibeXP — run the published stack with Docker Compose.
+# VibeXP — run the published image with Docker Compose.
 #
 #   docker compose up -d
 #
-# Pulls the released backend + frontend images from GitHub Container Registry and
-# runs them alongside PostgreSQL (pgvector). Data persists in named volumes, so
+# Pulls the released combined VibeXP image (the Go backend embeds and serves the
+# frontend SPA + API from one port — issue #61) from GitHub Container Registry
+# and runs it alongside PostgreSQL (pgvector). Data persists in named volumes, so
 # it survives `docker compose down` (use `down -v` to wipe).
 #
 # This file is for *running* VibeXP. Local development uses `make` (see the
-# Makefile), which builds from source instead.
+# Makefile), which builds from source and runs the backend + Vite dev server as
+# two processes.
 #
 # Before any real/shared use, change every "change-me"/dummy value below.
 
@@ -30,9 +32,10 @@ services:
       timeout: 5s
       retries: 10
 
-  backend:
-    image: ghcr.io/vibexp/backend:latest
+  app:
+    image: ghcr.io/vibexp/vibexp:latest
     restart: unless-stopped
+    # One port serves both the SPA (/) and the API (/api/v1). No nginx, no CORS.
     ports:
       - "8080:8080"
     environment:
@@ -56,9 +59,11 @@ services:
       # app; without one, embedding is skipped and entities still save.
       EMBEDDING_MODEL: "gemini-embedding-001"
 
-      # YOUR deployment's public URLs — change these for a remote deploy.
-      FRONTEND_BASE_URL: "http://localhost:5173"
-      CORS_ALLOWED_ORIGINS: "http://localhost:5173"
+      # YOUR deployment's public URL — the single origin that serves both the SPA
+      # and the API. Change it for a remote deploy (e.g. https://vibexp.example.com).
+      # Same-origin serving means there is no separate frontend URL, no
+      # BACKEND_ORIGIN, and no CORS to configure.
+      FRONTEND_BASE_URL: "http://localhost:8080"
       LOG_LEVEL: info
 
       # --- Authentication -------------------------------------------------
@@ -74,6 +79,18 @@ services:
       # OIDC_CLIENT_ID: "client_..."
       # OIDC_CLIENT_SECRET: "secret_..."
       # OIDC_REDIRECT_URI: "http://localhost:8080/api/v1/auth/callback"
+
+      # --- Frontend runtime config (served via /config.js, issue #57) -----
+      # Rebrand / configure the bundled SPA at deploy time (env var + restart, no
+      # rebuild). Empty/unset values keep the neutral built-in defaults.
+      # VITE_SITE_NAME: "VibeXP"
+      # VITE_SITE_URL: "https://example.com"
+      # VITE_SUPPORT_EMAIL: "support@example.com"
+      # VITE_MCP_ENDPOINT: "https://vibexp.example.com/mcp/v1/common"
+      # Optional analytics (off unless VITE_GTM_ENABLED is exactly "true"):
+      # VITE_GTM_ENABLED: "true"
+      # VITE_GTM_ID: "GTM-XXXXXXX"
+      # VITE_GA4_MEASUREMENT_ID: "G-XXXXXXXXXX"
 
       # --- Attachments (optional) -----------------------------------------
       # File uploads need GCS-compatible object storage. Enable the `gcs` service
@@ -91,22 +108,9 @@ services:
       retries: 10
       start_period: 15s
 
-  frontend:
-    image: ghcr.io/vibexp/frontend:latest
-    restart: unless-stopped
-    ports:
-      - "5173:80"
-    environment:
-      # The SPA calls a relative /api base; nginx reverse-proxies it here.
-      BACKEND_ORIGIN: "http://backend:8080"
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks: [vibexp]
-
   # --- Optional: GCS emulator for persistent file attachments ---------------
   # Uncomment this service AND the STORAGE_EMULATOR_HOST /
-  # GCS_RESOURCE_ATTACHMENTS_BUCKET vars on `backend` above to enable uploads.
+  # GCS_RESOURCE_ATTACHMENTS_BUCKET vars on `app` above to enable uploads.
   # gcs:
   #   image: fsouza/fake-gcs-server:latest
   #   restart: unless-stopped
