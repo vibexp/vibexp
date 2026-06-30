@@ -7,6 +7,14 @@
 # and runs it alongside PostgreSQL (pgvector). Data persists in named volumes, so
 # it survives `docker compose down` (use `down -v` to wipe).
 #
+# Configuration model (issue #68): the image ships a baked /app/config.yaml whose
+# values are ${VAR:-default} references, so the `environment:` block below
+# configures the container with plain env vars — no config file to author. The
+# block carries the deployment's SECRETS plus the few non-secret knobs that
+# differ from the defaults. To take full control of every setting instead, mount
+# your own config.yaml over the baked path (see the commented `volumes:` on the
+# `app` service) — start from backend/config.example.yaml.
+#
 # This file is for *running* VibeXP. Local development uses `make` (see the
 # Makefile), which builds from source and runs the backend + Vite dev server as
 # two processes.
@@ -38,17 +46,25 @@ services:
     # One port serves both the SPA (/) and the API (/api/v1). No nginx, no CORS.
     ports:
       - "8080:8080"
+    # These env vars feed the ${VAR} references in the image's baked
+    # /app/config.yaml. Only secrets + non-default knobs need to be set; anything
+    # omitted falls back to the baked default.
     environment:
-      PORT: 8080
+      # --- Database ------------------------------------------------------
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: vibexp
+      # REQUIRED secret. Must match POSTGRES_PASSWORD above.
       DB_PASSWORD: change-me-postgres-password
       DB_NAME: vibexp
 
+      # --- Core secrets --------------------------------------------------
       # REQUIRED. Exactly 32 bytes (AES-256). Generate your own:
       #   openssl rand -base64 24 | cut -c1-32
       ENCRYPTION_KEY: "changemechangemechangeme32bytes!"
+      # 64 hex chars = 32 bytes. Throwaway local value; generate your own for
+      # production: openssl rand -hex 32
+      SESSION_ENCRYPTION_KEY: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 
       # The embedding vector width is fixed at 1024 in code (locked to the pgvector
       # column) — pick a model that outputs 1024 dims (Titan V2, Cohere v3, Mistral,
@@ -60,25 +76,33 @@ services:
       EMBEDDING_MODEL: "gemini-embedding-001"
 
       # YOUR deployment's public URL — the single origin that serves both the SPA
-      # and the API. Change it for a remote deploy (e.g. https://vibexp.example.com).
-      # Same-origin serving means there is no separate frontend URL, no
-      # BACKEND_ORIGIN, and no CORS to configure.
+      # and the API. Same-origin serving means there is no separate frontend URL,
+      # no BACKEND_ORIGIN, and no CORS to configure.
+      #
+      # IMPORTANT: this URL also gates "local mode". While it points at localhost,
+      # the dev-login bypass is ON and the embedded MCP OAuth server auto-enables —
+      # convenient for evaluation. For ANY internet-facing deployment, set this to
+      # your real public URL (e.g. https://vibexp.example.com); that alone turns
+      # the dev-login bypass off and requires a configured identity provider.
       FRONTEND_BASE_URL: "http://localhost:8080"
       LOG_LEVEL: info
 
-      # --- Authentication -------------------------------------------------
-      # Local evaluation uses the dev-login bypass (only works with a localhost
-      # FRONTEND_BASE_URL). Configure an identity provider (Google/GitHub/OIDC)
-      # for any real deployment.
-      DEV_LOGIN_ENABLED: "true"
-      # 64 hex chars = 32 bytes. Throwaway local value; generate your own for
-      # production: openssl rand -hex 32
-      SESSION_ENCRYPTION_KEY: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-      # AUTH_PROVIDERS: "oidc"
+      # --- Authentication (production) -----------------------------------
+      # With a non-localhost FRONTEND_BASE_URL, configure a web-login provider.
+      # AUTH_PROVIDER selects one of google | github | oidc; set its client id +
+      # secret (and redirect_uri if it differs from the default
+      # <FRONTEND_BASE_URL>/api/v1/auth/callback). For several providers at once,
+      # mount a config.yaml with `auth.providers: [...]` (see volumes below).
+      # AUTH_PROVIDER: "oidc"
       # OIDC_ISSUER_URL: "https://idp.example.com"
       # OIDC_CLIENT_ID: "client_..."
       # OIDC_CLIENT_SECRET: "secret_..."
-      # OIDC_REDIRECT_URI: "http://localhost:8080/api/v1/auth/callback"
+      # OIDC_REDIRECT_URI: "https://vibexp.example.com/api/v1/auth/callback"
+      #
+      # Enable the embedded MCP OAuth server in production. Set BOTH the HTTPS
+      # issuer URL and the public MCP resource URI (the token audience, RFC 8707):
+      # OAUTH_AS_ISSUER_URL: "https://vibexp.example.com"
+      # MCP_RESOURCE_URI: "https://vibexp.example.com/mcp/v1/common"
 
       # --- Frontend runtime config (served via /config.js, issue #57) -----
       # Rebrand / configure the bundled SPA at deploy time (env var + restart, no
@@ -97,6 +121,12 @@ services:
       # below, then uncomment these two lines:
       # STORAGE_EMULATOR_HOST: "http://gcs:4443"
       # GCS_RESOURCE_ATTACHMENTS_BUCKET: "vibexp-attachments"
+    # --- Full-config override (optional) ----------------------------------
+    # The env vars above cover the common knobs. To control EVERY setting, mount
+    # your own config.yaml over the baked one and set only secrets via env. Copy
+    # backend/config.example.yaml, edit it, and uncomment:
+    # volumes:
+    #   - ./config.yaml:/app/config.yaml:ro
     depends_on:
       postgres:
         condition: service_healthy

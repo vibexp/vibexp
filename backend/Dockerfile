@@ -65,6 +65,14 @@ WORKDIR /root/
 COPY --from=backend /app/main .
 COPY --from=backend /app/migrations ./migrations
 
+# Bake the production-neutral default config (config.docker.yaml) and point the
+# binary at it. Every operator knob inside is a ${VAR:-default} reference, so the
+# container is configured with environment variables alone — preserving the
+# one-command `docker run` experience. Mount your own file over /app/config.yaml
+# to replace it: `docker run -v $PWD/config.yaml:/app/config.yaml ...`.
+COPY --from=backend /app/config.docker.yaml /app/config.yaml
+ENV VIBEXP_CONFIG_FILE=/app/config.yaml
+
 EXPOSE 8080
 
 CMD ["./main"]
