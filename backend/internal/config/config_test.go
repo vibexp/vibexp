@@ -203,6 +203,29 @@ func TestLoad_MissingFile_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "config.example.yaml", "error must point at config.example.yaml")
 }
 
+// TestLoad_EmptyPath_UsesEnvFile verifies the path-resolution precedence: an empty
+// path (no --config flag) falls back to VIBEXP_CONFIG_FILE.
+func TestLoad_EmptyPath_UsesEnvFile(t *testing.T) {
+	path := writeConfig(t, baseValidYAML+"server:\n  port: \"7777\"\n")
+	t.Setenv("VIBEXP_CONFIG_FILE", path)
+
+	cfg, err := Load("")
+	require.NoError(t, err)
+	assert.Equal(t, "7777", cfg.Server.Port, "Load(\"\") must read the file named by VIBEXP_CONFIG_FILE")
+}
+
+// TestLoad_EmptyPath_DefaultsToConfigYAML verifies that with no path and no
+// VIBEXP_CONFIG_FILE, Load falls back to ./config.yaml (absent here → the
+// required-file error naming that default path).
+func TestLoad_EmptyPath_DefaultsToConfigYAML(t *testing.T) {
+	require.NoError(t, os.Unsetenv("VIBEXP_CONFIG_FILE"))
+
+	cfg, err := Load("")
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "config.yaml", "the default path must be ./config.yaml")
+}
+
 func TestLoad_Defaults(t *testing.T) {
 	cfg, err := loadYAML(t, baseValidYAML)
 	require.NoError(t, err)
