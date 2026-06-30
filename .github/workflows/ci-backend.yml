@@ -48,6 +48,12 @@ jobs:
       - name: Build
         run: make backend-build
 
+      # Regenerate config.schema.json from the Config struct and fail if it
+      # drifts from the committed file (same gate as the other generated
+      # artifacts) — keeps editor validation for config.yaml honest.
+      - name: Check config schema drift
+        run: make backend-config-schema-check
+
       - name: Test
         run: make backend-test
 

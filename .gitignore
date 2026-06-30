@@ -45,6 +45,10 @@ frontend/test-results/
 .env.local
 .env.*.local
 
+# Local runtime config (bootstrapped from config.example.yaml by sync-env.sh).
+# config.example.yaml and config.schema.json ARE committed; config.yaml is not.
+config.yaml
+
 # Logs
 *.log
 

@@ -25,6 +25,18 @@ if [ ! -f "$example" ]; then
 	exit 1
 fi
 
+# Bootstrap config.yaml from config.example.yaml when present and missing. The
+# YAML file is the primary configuration surface (.env now holds only the
+# secrets it references via ${VAR}); like .env, this is copy-if-missing — an
+# existing config.yaml is never modified. The guard skips components (e.g. the
+# frontend) that ship no config.example.yaml.
+config_example="$dir/config.example.yaml"
+config_file="$dir/config.yaml"
+if [ -f "$config_example" ] && [ ! -f "$config_file" ]; then
+	echo "📋 $config_file not found — copying from config.example.yaml (dev defaults)"
+	cp "$config_example" "$config_file"
+fi
+
 if [ ! -f "$env_file" ]; then
 	echo "📋 $env_file not found — copying from .env.example (dev defaults)"
 	cp "$example" "$env_file"
