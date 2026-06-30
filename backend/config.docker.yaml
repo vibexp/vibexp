@@ -1,0 +1,139 @@
+# yaml-language-server: $schema=./config.schema.json
+#
+# VibeXP combined-image DEFAULT configuration.
+# ===========================================================================
+# This file is baked into the published Docker image at /app/config.yaml and the
+# image points VIBEXP_CONFIG_FILE at it, so `docker run ghcr.io/vibexp/vibexp`
+# boots with zero extra files — you configure it with environment variables.
+#
+# It differs from config.example.yaml on purpose:
+#   - config.example.yaml is the DEV-TUNED documented surface for `make`-based
+#     local development (Vite on :5173, Mailpit, every field spelled out).
+#   - THIS file is PRODUCTION-NEUTRAL: every operator knob is a ${VAR:-default}
+#     reference so `docker run -e ENCRYPTION_KEY=... -e DB_HOST=...` configures a
+#     container with environment variables alone. Fields not listed here inherit
+#     the code defaults (see internal/config defaults()), which are production
+#     tuned (rate limits, retention, event bus, OTel, search ranking, …).
+#
+# To take FULL control, mount your own file over the baked path instead:
+#   docker run -v $PWD/config.yaml:/app/config.yaml ghcr.io/vibexp/vibexp
+# Start from config.example.yaml for the complete, commented field list.
+#
+# Interpolation (string values only):
+#   ${VAR}            → value of environment variable VAR (empty + warning if unset)
+#   ${VAR:-default}   → VAR when set and non-empty, otherwise "default"
+#   $${literal}       → a literal "${literal}"
+
+server:
+  port: "${PORT:-8080}"
+  log_level: "${LOG_LEVEL:-info}"
+  log_format: "${LOG_FORMAT:-json}"
+
+# PostgreSQL connection. The defaults match docker-compose.yml's bundled
+# Postgres; for `docker run` point DB_HOST at your database.
+database:
+  host: "${DB_HOST:-localhost}"
+  port: "${DB_PORT:-5432}"
+  user: "${DB_USER:-vibexp}"
+  password: "${DB_PASSWORD}"
+  name: "${DB_NAME:-vibexp}"
+
+security:
+  # REQUIRED. Exactly 32 bytes (AES-256); the service fails to start otherwise.
+  # Generate one: openssl rand -hex 16
+  encryption_key: "${ENCRYPTION_KEY}"
+  api_key_common: "${API_KEY_COMMON:-}"
+  backoffice_admin_api_key: "${BACKOFFICE_ADMIN_API_KEY:-}"
+
+auth:
+  # Single web-login provider (google | github | oidc). For more than one
+  # provider at once, mount a config.yaml with `auth.providers: [...]`.
+  provider: "${AUTH_PROVIDER:-}"
+  # 64 hex chars (32 bytes) backing the session cookie + OAuth state HMAC.
+  # Empty disables cookie session auth. Generate: openssl rand -hex 32
+  session_encryption_key: "${SESSION_ENCRYPTION_KEY:-}"
+  # Dev-login bypass. Effective ONLY when this is true AND the deployment is
+  # detected as local (frontend.base_url points at localhost/127.0.0.1). Set a
+  # real public FRONTEND_BASE_URL below for any internet-facing deployment and
+  # this is automatically inert — but if you leave FRONTEND_BASE_URL at the
+  # localhost default while exposing the app, dev login stays OPEN. See README.
+  dev_login_enabled: true
+
+  google:
+    client_id: "${GOOGLE_CLIENT_ID:-}"
+    client_secret: "${GOOGLE_CLIENT_SECRET:-}"
+    redirect_uri: "${GOOGLE_REDIRECT_URI:-http://localhost:8080/api/v1/auth/callback}"
+  github:
+    client_id: "${GITHUB_CLIENT_ID:-}"
+    client_secret: "${GITHUB_CLIENT_SECRET:-}"
+    redirect_uri: "${GITHUB_REDIRECT_URI:-http://localhost:8080/api/v1/auth/callback}"
+  oidc:
+    issuer_url: "${OIDC_ISSUER_URL:-}"
+    client_id: "${OIDC_CLIENT_ID:-}"
+    client_secret: "${OIDC_CLIENT_SECRET:-}"
+    redirect_uri: "${OIDC_REDIRECT_URI:-http://localhost:8080/api/v1/auth/callback}"
+
+  # Embedded OAuth 2.1 Authorization Server (mints MCP tokens). Empty disables
+  # it, EXCEPT in local development (localhost frontend.base_url) where it is
+  # auto-enabled at http://localhost:<port>. In production set this to your
+  # public HTTPS URL to enable MCP auth.
+  oauth_as:
+    issuer_url: "${OAUTH_AS_ISSUER_URL:-}"
+
+# MCP OAuth 2.1 resource server (/mcp/v1/common). Auto-derived from the embedded
+# AS in local development; in production set these to your AS issuer and the
+# public MCP URL (the required token audience, RFC 8707).
+mcp:
+  oauth_issuer: "${MCP_OAUTH_ISSUER:-}"
+  resource_uri: "${MCP_RESOURCE_URI:-}"
+
+# Email delivery (optional; used for invitations/notifications). provider:
+# smtp | mailgun | postmark | sendgrid. Set the secret for the one you pick.
+email:
+  provider: "${EMAIL_PROVIDER:-smtp}"
+  from_address: "${EMAIL_FROM_ADDRESS:-}"
+  smtp:
+    host: "${SMTP_HOST:-smtp.gmail.com}"
+    port: "${SMTP_PORT:-587}"
+    username: "${SMTP_USERNAME:-}"
+    password: "${SMTP_PASSWORD:-}"
+  mailgun:
+    base_url: "${MAILGUN_BASE_URL:-}"
+    domain: "${MAILGUN_DOMAIN:-}"
+    sending_key: "${MAILGUN_SENDING_KEY:-}"
+  postmark:
+    server_token: "${POSTMARK_SERVER_TOKEN:-}"
+  sendgrid:
+    api_key: "${SENDGRID_API_KEY:-}"
+
+# Frontend values served to the SPA via /config.js (rebrand at deploy time, no
+# rebuild — issue #57). NEVER secrets (/config.js is world-readable). The public
+# base_url is the SINGLE origin serving both the SPA and the API.
+frontend:
+  base_url: "${FRONTEND_BASE_URL:-http://localhost:8080}"
+  site_name: "${VITE_SITE_NAME:-}"
+  site_url: "${VITE_SITE_URL:-}"
+  support_email: "${VITE_SUPPORT_EMAIL:-}"
+  brand_logo_url: "${VITE_BRAND_LOGO_URL:-}"
+  mcp_endpoint: "${VITE_MCP_ENDPOINT:-}"
+  gtm_id: "${VITE_GTM_ID:-}"
+  gtm_enabled: "${VITE_GTM_ENABLED:-}"
+  ga4_measurement_id: "${VITE_GA4_MEASUREMENT_ID:-}"
+
+# Embedding model id (the tag written on every row and the search filter). The
+# vector width is fixed at 1024 in code — pick a model that outputs 1024 dims.
+embedding:
+  model: "${EMBEDDING_MODEL:-gemini-embedding-001}"
+
+# GitHub App integration (optional; distinct from the github web-login client).
+github:
+  app_id: "${GITHUB_APP_ID:-}"
+  app_slug: "${GITHUB_APP_SLUG:-}"
+  app_private_key: "${GITHUB_APP_PRIVATE_KEY:-}"
+  webhook_url: "${GITHUB_WEBHOOK_URL:-}"
+  webhook_secret: "${GITHUB_WEBHOOK_SECRET:-}"
+
+# Resource-attachment storage. Empty disables attachments. Set to your GCS
+# bucket name (and STORAGE_EMULATOR_HOST for an emulator) to enable uploads.
+storage:
+  attachments_bucket: "${GCS_RESOURCE_ATTACHMENTS_BUCKET:-}"

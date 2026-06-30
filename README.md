@@ -76,14 +76,85 @@ Local evaluation uses a dev-login bypass, so there is nothing to configure to st
 
 The defaults in `docker-compose.yml` are for local evaluation only. For any real deployment, edit the `app` service environment:
 
-- **`ENCRYPTION_KEY`** exactly 32 bytes. Generate one: `openssl rand -base64 24 | cut -c1-32`
-- **`DB_PASSWORD`** change it from the default.
-- **`DEV_LOGIN_ENABLED`** set to `false`, set a `SESSION_ENCRYPTION_KEY` (`openssl rand -hex 32`), and configure an identity provider via `AUTH_PROVIDERS` (e.g. `google`, `github`, or a generic `oidc` issuer) with the matching `*_CLIENT_ID` / `*_CLIENT_SECRET` / `*_REDIRECT_URI`.
-- **`FRONTEND_BASE_URL`** set to your real public URL (the single origin that serves both the SPA and the API — same-origin, so there is no separate frontend URL and no CORS to configure).
+- **`FRONTEND_BASE_URL`** — set this to your real public URL (e.g. `https://vibexp.example.com`) **first**. It is the single origin serving both the SPA and the API (same-origin: no separate frontend URL, no CORS), and pointing it away from `localhost` is what **turns off the local-eval dev-login bypass** and the auto-enabled local MCP server. Leave it at `localhost` while exposing the app and anyone can sign in as any user.
+- **`ENCRYPTION_KEY`** — required, exactly 32 bytes. Generate one: `openssl rand -base64 24 | cut -c1-32`
+- **`DB_PASSWORD`** — change it from the default (and keep `POSTGRES_PASSWORD` in sync).
+- **`SESSION_ENCRYPTION_KEY`** (`openssl rand -hex 32`) and an **identity provider**: set `AUTH_PROVIDER` to `google`, `github`, or `oidc` with the matching `*_CLIENT_ID` / `*_CLIENT_SECRET` (and `*_REDIRECT_URI` if it differs from `<FRONTEND_BASE_URL>/api/v1/auth/callback`). For several providers at once, mount a `config.yaml` with `auth.providers: [...]`.
+- **MCP in production (optional)** — set `OAUTH_AS_ISSUER_URL` (your public HTTPS URL) **and** `MCP_RESOURCE_URI` (`<url>/mcp/v1/common`) to enable the embedded OAuth server that issues MCP tokens.
 - **Branding / analytics (optional)** rebrand the SPA at deploy time with `VITE_*` env vars (served via `/config.js`, no rebuild) — see the `app` service comments in `docker-compose.yml`.
 - **Semantic search & file attachments** are optional, opt-in services. See the comments in `docker-compose.yml` and the [docs](https://docs.vibexp.io?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=self_host).
 
 Data persists in the `pgdata` volume.
+
+</details>
+
+---
+
+## Deploy anywhere 🌍
+
+VibeXP is one self-contained binary in one image — **no hosting-platform assumptions**. It reads a single `config.yaml`; the published image bakes a default ([`backend/config.docker.yaml`](backend/config.docker.yaml)) whose every value is a `${VAR:-default}` reference, so **environment variables alone configure a container**. To control every setting instead, mount your own file over `/app/config.yaml` — start from [`backend/config.example.yaml`](backend/config.example.yaml).
+
+**Every deployment needs:** a reachable PostgreSQL with [pgvector](https://github.com/pgvector/pgvector), plus `DB_PASSWORD` and a 32-byte `ENCRYPTION_KEY`. For internet-facing use, also set `FRONTEND_BASE_URL` (your public origin), `SESSION_ENCRYPTION_KEY`, and an identity provider (see the section above).
+
+<details>
+<summary><strong>🐳 <code>docker run</code> (single container)</strong></summary>
+
+```sh
+docker run -p 8080:8080 \
+  -e DB_HOST=your-db-host -e DB_PASSWORD=secret \
+  -e ENCRYPTION_KEY="$(openssl rand -base64 24 | cut -c1-32)" \
+  -e FRONTEND_BASE_URL=https://vibexp.example.com \
+  ghcr.io/vibexp/vibexp:latest
+```
+
+To replace the baked config entirely, mount your own and pass only secrets via env:
+
+```sh
+docker run -p 8080:8080 -v "$PWD/config.yaml:/app/config.yaml:ro" \
+  -e DB_PASSWORD=secret -e ENCRYPTION_KEY=... ghcr.io/vibexp/vibexp:latest
+```
+
+</details>
+
+<details>
+<summary><strong>🧩 Docker Compose</strong></summary>
+
+The bundled [`docker-compose.yml`](docker-compose.yml) runs the image alongside Postgres. Set your secrets in the `app` service `environment:` (or supply them via a `.env` file that Compose substitutes), then:
+
+```sh
+docker compose up -d
+```
+
+</details>
+
+<details>
+<summary><strong>☸️ Kubernetes</strong></summary>
+
+Put secrets in a `Secret` exposed as env (consumed by the baked config's `${VAR}` references), and — when you want full control — mount a `config.yaml` from a `ConfigMap` over `/app/config.yaml`:
+
+```yaml
+env:
+  - name: DB_HOST
+    value: postgres
+  - name: FRONTEND_BASE_URL
+    value: https://vibexp.example.com
+  - name: DB_PASSWORD
+    valueFrom: { secretKeyRef: { name: vibexp, key: db-password } }
+  - name: ENCRYPTION_KEY
+    valueFrom: { secretKeyRef: { name: vibexp, key: encryption-key } }
+# optional full-config override:
+volumeMounts:
+  - { name: config, mountPath: /app/config.yaml, subPath: config.yaml }
+volumes:
+  - { name: config, configMap: { name: vibexp-config } }
+```
+
+</details>
+
+<details>
+<summary><strong>📦 Bare binary</strong></summary>
+
+`make build-combined` produces a single self-contained `backend/bin/vibexp` (frontend embedded). It loads `./config.yaml` by default; override with `--config /path/to/config.yaml` or `VIBEXP_CONFIG_FILE=...`. Copy [`backend/config.example.yaml`](backend/config.example.yaml) to `config.yaml` and edit it.
 
 </details>
 
