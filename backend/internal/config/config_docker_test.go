@@ -44,9 +44,26 @@ func TestConfigDockerYAML_LoadsWithSecretEnvOnly(t *testing.T) {
 	// The required secret resolved from the environment.
 	require.Equal(t, "change_me_to_a_32_byte_secret_ok", cfg.Security.EncryptionKey)
 
-	// The default FRONTEND_BASE_URL is localhost, so the deployment is detected as
-	// local: dev login is on and the embedded OAuth AS auto-enables (zero-config
-	// local MCP), exactly like the published image's out-of-the-box evaluation.
+	// FRONTEND_BASE_URL defaults to EMPTY (fail-closed): a bare `docker run` that
+	// forgets to set it is NOT treated as local development, so the dev-login
+	// bypass is gated off and the embedded OAuth AS does not auto-enable on a
+	// possibly-public surface. (docker-compose.yml sets FRONTEND_BASE_URL=localhost
+	// explicitly for local evaluation — see the next test.)
+	require.False(t, cfg.IsLocalDevelopment())
+	require.Empty(t, cfg.Auth.OAuthAS.IssuerURL)
+}
+
+// TestConfigDockerYAML_LocalEvalEnablesDevLoginAndAS mirrors how docker-compose
+// runs the published image for local evaluation: FRONTEND_BASE_URL points at
+// localhost, which flips the deployment into local mode so the dev-login bypass
+// is effective and the embedded OAuth AS auto-enables (zero-config local MCP).
+func TestConfigDockerYAML_LocalEvalEnablesDevLoginAndAS(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("FRONTEND_BASE_URL", "http://localhost:8080")
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
 	require.True(t, cfg.IsLocalDevelopment())
 	require.True(t, cfg.Auth.DevLoginEnabled)
 	require.Equal(t, "http://localhost:8080", cfg.Auth.OAuthAS.IssuerURL)

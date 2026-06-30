@@ -110,7 +110,12 @@ email:
 # rebuild — issue #57). NEVER secrets (/config.js is world-readable). The public
 # base_url is the SINGLE origin serving both the SPA and the API.
 frontend:
-  base_url: "${FRONTEND_BASE_URL:-http://localhost:8080}"
+  # The public base URL. Deliberately defaults to EMPTY (fail-closed): empty is
+  # treated as "not local development", so the dev-login bypass and the
+  # auto-enabled local OAuth AS stay OFF unless you opt in. Set it to your public
+  # URL in production, or to http://localhost:8080 for local evaluation
+  # (docker-compose.yml already does the latter for you).
+  base_url: "${FRONTEND_BASE_URL:-}"
   site_name: "${VITE_SITE_NAME:-}"
   site_url: "${VITE_SITE_URL:-}"
   support_email: "${VITE_SUPPORT_EMAIL:-}"

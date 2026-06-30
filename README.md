@@ -114,6 +114,11 @@ docker run -p 8080:8080 -v "$PWD/config.yaml:/app/config.yaml:ro" \
   -e DB_PASSWORD=secret -e ENCRYPTION_KEY=... ghcr.io/vibexp/vibexp:latest
 ```
 
+The baked `FRONTEND_BASE_URL` defaults to empty (fail-closed: no dev-login bypass).
+To evaluate locally with the dev-login shortcut via a bare `docker run`, add
+`-e FRONTEND_BASE_URL=http://localhost:8080` — or just use `docker compose up`,
+which sets it for you.
+
 </details>
 
 <details>
