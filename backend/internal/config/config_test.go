@@ -26,6 +26,159 @@ security:
   encryption_key: "` + validTestEncryptionKey + `"
 `
 
+// parityYAML is a representative, fully-populated config.yaml for the parity
+// test. Values deliberately differ from the code defaults so the test proves the
+// file overrides them, and it exercises every section, both slice spellings
+// (comma string and YAML list), and duration/int/float/bool coercion. It is an
+// inline constant rather than a testdata/ fixture because the repo .gitignore
+// excludes all testdata/ directories.
+const parityYAML = `
+server:
+  port: "9090"
+  log_level: debug
+  log_format: text
+  service_version: "1.2.3"
+  release_sha: "abc1234"
+  release_date: "2026-06-30"
+  max_body_size_bytes: 2097152
+  cors_allowed_origins: "https://a.example.com,https://b.example.com"
+  error_type_base_uri: "https://errors.example.com"
+database:
+  host: db.example.com
+  port: "6543"
+  user: appuser
+  password: "s3cret"
+  name: appdb
+security:
+  encryption_key: "` + validTestEncryptionKey + `"
+  api_key_common: "common-key"
+  backoffice_admin_api_key: "admin-key"
+auth:
+  providers: "google,github"
+  provider: google
+  session_encryption_key: "sessionkey"
+  dev_login_enabled: true
+  signin_allowed_emails:
+    - alice@example.com
+    - bob@example.com
+  google:
+    client_id: g-id
+    client_secret: g-secret
+    redirect_uri: https://app.example.com/cb/google
+  github:
+    client_id: gh-id
+    client_secret: gh-secret
+    redirect_uri: https://app.example.com/cb/github
+  oidc:
+    issuer_url: https://oidc.example.com
+    client_id: o-id
+    client_secret: o-secret
+    redirect_uri: https://app.example.com/cb/oidc
+  oauth_as:
+    issuer_url: https://connect.example.com
+    access_token_ttl: 30m
+    refresh_token_ttl: 1000h
+    auth_code_ttl: 5m
+    key_rotation_interval: 168h
+    cleanup_interval: 2h
+  api_oauth:
+    issuer: https://api-oauth.example.com
+    audiences: "aud1,aud2"
+mcp:
+  oauth_issuer: https://connect.example.com
+  resource_uri: https://connect.example.com/mcp/v1/common
+email:
+  provider: mailgun
+  from_address: noreply@example.com
+  contact_recipient_address: support@example.com
+  privacy_policy_url: https://example.com/privacy-policy
+  smtp:
+    host: smtp.example.com
+    port: "2525"
+    username: smtpuser
+    password: smtppass
+  mailgun:
+    base_url: https://api.mailgun.net
+    domain: mg.example.com
+    sending_key: mg-key
+  postmark:
+    server_token: pm-token
+    message_stream: broadcast
+  sendgrid:
+    api_key: sg-key
+frontend:
+  base_url: https://app.example.com
+  site_name: VibeXP
+  site_legal_name: VibeXP Inc
+  site_url: https://app.example.com
+  terms_url: https://example.com/terms
+  privacy_url: https://example.com/privacy
+  support_email: help@example.com
+  brand_logo_url: https://example.com/logo.png
+  mcp_endpoint: https://connect.example.com/mcp/v1/common
+  error_type_base_uri: https://errors.example.com
+  gtm_id: GTM-XXXX
+  gtm_enabled: "true"
+  ga4_measurement_id: G-XXXX
+search:
+  recency_ranking_enabled: true
+  rank_weight_relevance: 0.6
+  rank_weight_created: 0.25
+  rank_weight_updated: 0.15
+  rank_half_life_days: 45
+  rank_candidate_cap: 300
+embedding:
+  model: text-embedding-3-large
+  chunk_size: 800
+  chunk_overlap: 100
+github:
+  app_id: "123456"
+  app_slug: vibexp-app
+  app_private_key: "PEMDATA"
+  webhook_url: https://app.example.com/webhook
+  webhook_secret: wh-secret
+storage:
+  attachments_bucket: my-bucket
+gcp:
+  project_id: my-project
+  pubsub_push_audience: https://app.example.com
+  pubsub_push_service_account_suffix: "@my-project.iam.gserviceaccount.com"
+rate_limit:
+  auth_per_minute: 50
+  api_per_minute: 500
+retention:
+  activity_days: 30
+  access_event_days: 60
+  content_version_limit: 10
+a2a:
+  default_timeout: 10s
+fcm:
+  enabled: true
+deployment:
+  otel_environment: staging
+  environment: stg
+  env: s
+  deployment_environment: staging-env
+  kubernetes_service_host: 10.0.0.1
+  google_cloud_project: gcp-proj
+  gcp_project: gcp-proj2
+  aws_region: us-east-1
+  aws_default_region: us-west-2
+  k_service: vibexp-svc
+  k_revision: rev-1
+event_bus:
+  worker_count: 10
+  buffer_size: 250
+  max_retries: 5
+  retry_backoff: 500ms
+  retry_jitter: false
+otel:
+  endpoint: otel.example.com:4317
+  export_interval: 30s
+  trace_sample_ratio: 0.5
+  tracing_enabled: true
+`
+
 // writeConfig writes body to a temp config.yaml and returns its path.
 func writeConfig(t *testing.T, body string) string {
 	t.Helper()
@@ -109,7 +262,7 @@ func TestLoad_Defaults(t *testing.T) {
 // produces an identically-populated nested *Config (covering every section, both
 // slice spellings, and duration/int/float/bool coercion).
 func TestLoad_ParityFixture(t *testing.T) {
-	cfg, err := Load(filepath.Join("testdata", "config.yaml"))
+	cfg, err := loadYAML(t, parityYAML)
 	require.NoError(t, err)
 
 	// Server.
