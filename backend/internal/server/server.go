@@ -499,8 +499,13 @@ func (s *Server) setupOAuthASRoutes() {
 	if s.oauthAS == nil {
 		return
 	}
-	s.router.Get(oauthserver.MetadataPath, s.oauthAS.Metadata)
+	// HTTPS is a MUST for the Authorization Server (issue #34). Enforce it on
+	// every AS endpoint, exempting only local development (where the dev loop
+	// and e2e stack serve plain HTTP on localhost).
+	httpsOnly := requireHTTPSMiddleware(s.config.IsLocalDevelopment())
+	s.router.With(httpsOnly).Get(oauthserver.MetadataPath, s.oauthAS.Metadata)
 	s.router.Group(func(r chi.Router) {
+		r.Use(httpsOnly)
 		rateLimitByIP(r, s.config.AuthRateLimitPerMinute)
 		r.Get(oauthserver.AuthorizePath, s.oauthAS.Authorize)
 		r.Get(oauthserver.ConsentAPIPath, s.oauthAS.ConsentDetails)

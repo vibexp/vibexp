@@ -224,7 +224,7 @@ func (h *testHarness) decideConsent(t *testing.T, loginID, action string) string
 
 func (h *testHarness) exchangeCode(t *testing.T, code, verifier string) httpResult {
 	t.Helper()
-	return h.postForm(t, TokenPath, url.Values{
+	return h.postForm(t, url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
 		"redirect_uri":  {testRedirectURI},
@@ -235,7 +235,7 @@ func (h *testHarness) exchangeCode(t *testing.T, code, verifier string) httpResu
 
 func (h *testHarness) refresh(t *testing.T, refreshToken string) httpResult {
 	t.Helper()
-	return h.postForm(t, TokenPath, url.Values{
+	return h.postForm(t, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {refreshToken},
 		"client_id":     {h.clientID},
@@ -433,9 +433,11 @@ func (h *testHarness) get(t *testing.T, path string) httpResult {
 	return readResult(t, resp)
 }
 
-func (h *testHarness) postForm(t *testing.T, path string, form url.Values) httpResult {
+// postForm posts a form-encoded body to the token endpoint (the only form
+// endpoint the AS exposes).
+func (h *testHarness) postForm(t *testing.T, form url.Values) httpResult {
 	t.Helper()
-	resp, err := h.client.PostForm(h.server.URL+path, form)
+	resp, err := h.client.PostForm(h.server.URL+TokenPath, form)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, resp.Body.Close()) }()
 	return readResult(t, resp)
