@@ -36,7 +36,7 @@ func (s *EnvironmentService) IsProduction() bool {
 // IsStaging checks if the application is running in staging mode
 // It checks if FRONTEND_BASE_URL contains "staging"
 func (s *EnvironmentService) IsStaging() bool {
-	url := strings.ToLower(s.config.FrontendBaseURL)
+	url := strings.ToLower(s.config.Frontend.BaseURL)
 	return strings.Contains(url, "staging")
 }
 
@@ -60,5 +60,5 @@ func (s *EnvironmentService) GetEnvironmentName() string {
 // FRONTEND_BASE_URL accidentally containing "localhost") from exposing
 // unauthenticated user impersonation in production.
 func (s *EnvironmentService) IsDevLoginEnabled() bool {
-	return s.config.DevLoginEnabled && s.IsDevelopment()
+	return s.config.Auth.DevLoginEnabled && s.IsDevelopment()
 }

@@ -129,9 +129,11 @@ func TestHandleSPA_NoEmbeddedFrontendReturns404(t *testing.T) {
 
 func TestHandleConfigJS_RendersWindowEnv(t *testing.T) {
 	cfg := &config.Config{
-		FrontendSiteName:   "Acme",
-		FrontendGTMEnabled: "true",
-		FrontendGTMID:      "GTM-XYZ",
+		Frontend: config.FrontendConfig{
+			SiteName:   "Acme",
+			GTMEnabled: "true",
+			GTMID:      "GTM-XYZ",
+		},
 	}
 	// config.js is served regardless of whether the frontend is embedded.
 	srv := New("8080", nil, "test-api-key", cfg, slog.New(slog.DiscardHandler))

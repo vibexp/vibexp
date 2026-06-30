@@ -180,7 +180,7 @@ func (s *Server) createArtifact(
 	result := &artifactWriteResponse{
 		ID:      artifact.ID,
 		Slug:    artifact.Slug,
-		FullURL: buildArtifactURL(s.config.FrontendBaseURL, artifact.ProjectID, artifact.Slug),
+		FullURL: buildArtifactURL(s.config.Frontend.BaseURL, artifact.ProjectID, artifact.Slug),
 	}
 
 	jsonData, err := json.MarshalIndent(result, "", "  ")
@@ -452,7 +452,7 @@ func (s *Server) updateArtifact(
 	result := &artifactWriteResponse{
 		ID:      artifact.ID,
 		Slug:    artifact.Slug,
-		FullURL: buildArtifactURL(s.config.FrontendBaseURL, artifact.ProjectID, artifact.Slug),
+		FullURL: buildArtifactURL(s.config.Frontend.BaseURL, artifact.ProjectID, artifact.Slug),
 	}
 
 	jsonData, err := json.MarshalIndent(result, "", "  ")

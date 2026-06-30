@@ -119,7 +119,7 @@ func (s *Server) createBlueprint(
 		s.metrics.RecordMCPCreateBlueprint(context.Background())
 	}
 
-	return marshalBlueprintWriteResult(s.config.FrontendBaseURL, blueprint)
+	return marshalBlueprintWriteResult(s.config.Frontend.BaseURL, blueprint)
 }
 
 // buildBlueprintUpdateRequest builds an UpdateBlueprintRequest from non-empty params fields.
@@ -198,7 +198,7 @@ func (s *Server) updateBlueprint(
 		s.metrics.RecordMCPUpdateBlueprint(context.Background())
 	}
 
-	return marshalBlueprintWriteResult(s.config.FrontendBaseURL, blueprint)
+	return marshalBlueprintWriteResult(s.config.Frontend.BaseURL, blueprint)
 }
 
 // marshalBlueprintWriteResult builds the slim create/update response and marshals it

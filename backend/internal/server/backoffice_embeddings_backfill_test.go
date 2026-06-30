@@ -24,7 +24,7 @@ func createBackfillTestServer(backfill services.EmbeddingBackfillServiceInterfac
 	return &Server{
 		port:   "8080",
 		apiKey: "test-api-key",
-		config: &config.Config{BackofficeAdminAPIKey: "test-backoffice-key"},
+		config: &config.Config{Security: config.SecurityConfig{BackofficeAdminAPIKey: "test-backoffice-key"}},
 		container: &MockContainerForBackoffice{
 			embeddingBackfillService: backfill,
 		},

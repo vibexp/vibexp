@@ -1,174 +1,448 @@
 package config
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Note: t.Setenv and t.Parallel are mutually exclusive.
-// These tests modify env vars and must not be parallelised.
+// Note: tests that use t.Setenv must not be parallelised.
 
-// validTestEncryptionKey is a 32-byte key used so Load() passes encryption-key
-// validation; tests that specifically exercise ENCRYPTION_KEY override it.
+// validTestEncryptionKey is a 32-byte key so Load() passes encryption-key
+// validation; tests exercising the key specifically override it.
 const validTestEncryptionKey = "12345678901234567890123456789012"
 
-// TestMain sets a valid ENCRYPTION_KEY for the whole package so existing Load()
-// tests (which assert on unrelated config) are not tripped by the new fail-closed
-// encryption-key validation.
-func TestMain(m *testing.M) {
-	if err := os.Setenv("ENCRYPTION_KEY", validTestEncryptionKey); err != nil {
-		panic(err)
-	}
-	os.Exit(m.Run())
+// baseValidYAML is the minimal config.yaml that loads successfully: it supplies
+// the only field without a default and validate hook (the encryption key); the
+// rest come from defaults().
+const baseValidYAML = `
+security:
+  encryption_key: "` + validTestEncryptionKey + `"
+`
+
+// writeConfig writes body to a temp config.yaml and returns its path.
+func writeConfig(t *testing.T, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	return path
 }
 
-func TestLoad_ActivityRetentionDays_Default(t *testing.T) {
-	// Ensure the env var is absent so envconfig falls back to the default tag.
-	// t.Setenv("ACTIVITY_RETENTION_DAYS", "") would set it to empty string and
-	// cause envconfig to fail to parse it as int; we must use Unsetenv instead.
-	prev, exists := os.LookupEnv("ACTIVITY_RETENTION_DAYS")
-	require.NoError(t, os.Unsetenv("ACTIVITY_RETENTION_DAYS"))
-	if exists {
-		t.Cleanup(func() {
-			require.NoError(t, os.Setenv("ACTIVITY_RETENTION_DAYS", prev))
-		})
-	}
-
-	cfg, err := Load()
-
-	require.NoError(t, err)
-	assert.Equal(t, 90, cfg.ActivityRetentionDays)
+// loadYAML writes body to a temp file and loads it.
+func loadYAML(t *testing.T, body string) (*Config, error) {
+	t.Helper()
+	return Load(writeConfig(t, body))
 }
 
-func TestLoad_EmbeddingDefaults(t *testing.T) {
-	prev, exists := os.LookupEnv("EMBEDDING_MODEL")
-	require.NoError(t, os.Unsetenv("EMBEDDING_MODEL"))
-	if exists {
-		t.Cleanup(func() { require.NoError(t, os.Setenv("EMBEDDING_MODEL", prev)) })
-	}
-
-	cfg, err := Load()
-
-	require.NoError(t, err)
-	assert.Equal(t, "gemini-embedding-001", cfg.EmbeddingModel)
-}
-
-func TestLoad_EmbeddingModel_Empty_ReturnsError(t *testing.T) {
-	t.Setenv("EMBEDDING_MODEL", "")
-
-	cfg, err := Load()
+func TestLoad_MissingFile_ReturnsError(t *testing.T) {
+	cfg, err := Load(filepath.Join(t.TempDir(), "does-not-exist.yaml"))
 
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "EMBEDDING_MODEL")
+	assert.Contains(t, err.Error(), "does-not-exist.yaml", "error must name the expected path")
+	assert.Contains(t, err.Error(), "config.example.yaml", "error must point at config.example.yaml")
 }
 
-func TestLoad_ActivityRetentionDays_ValidValue(t *testing.T) {
-	t.Setenv("ACTIVITY_RETENTION_DAYS", "30")
-
-	cfg, err := Load()
-
+func TestLoad_Defaults(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML)
 	require.NoError(t, err)
-	assert.Equal(t, 30, cfg.ActivityRetentionDays)
+
+	// Server / logging / build metadata defaults.
+	assert.Equal(t, "8080", cfg.Server.Port)
+	assert.Equal(t, "info", cfg.Server.LogLevel)
+	assert.Equal(t, "json", cfg.Server.LogFormat)
+	assert.Equal(t, int64(10<<20), cfg.Server.MaxBodySizeBytes)
+	assert.Equal(t, "about:blank", cfg.Server.ErrorTypeBaseURI)
+
+	// Database defaults.
+	assert.Equal(t, "localhost", cfg.Database.Host)
+	assert.Equal(t, "5432", cfg.Database.Port)
+	assert.Equal(t, "postgres", cfg.Database.User)
+	assert.Equal(t, "vibexp_io", cfg.Database.Name)
+
+	// Email defaults.
+	assert.Equal(t, "smtp", cfg.Email.Provider)
+	assert.Equal(t, "smtp.gmail.com", cfg.Email.SMTP.Host)
+	assert.Equal(t, "587", cfg.Email.SMTP.Port)
+	assert.Equal(t, "outbound", cfg.Email.Postmark.MessageStream)
+
+	// Search / embedding defaults.
+	assert.False(t, cfg.Search.RecencyRankingEnabled)
+	assert.InDelta(t, 0.5, cfg.Search.RankWeightRelevance, 1e-9)
+	assert.InDelta(t, 0.3, cfg.Search.RankWeightCreated, 1e-9)
+	assert.InDelta(t, 0.2, cfg.Search.RankWeightUpdated, 1e-9)
+	assert.InDelta(t, 90, cfg.Search.RankHalfLifeDays, 1e-9)
+	assert.Equal(t, 200, cfg.Search.RankCandidateCap)
+	assert.Equal(t, "gemini-embedding-001", cfg.Embedding.Model)
+	assert.Equal(t, 1000, cfg.Embedding.ChunkSize)
+	assert.Equal(t, 200, cfg.Embedding.ChunkOverlap)
+
+	// Rate limits / retention defaults.
+	assert.Equal(t, 100, cfg.RateLimit.AuthPerMinute)
+	assert.Equal(t, 1000, cfg.RateLimit.APIPerMinute)
+	assert.Equal(t, 90, cfg.Retention.ActivityDays)
+	assert.Equal(t, 90, cfg.Retention.AccessEventDays)
+	assert.Equal(t, 20, cfg.Retention.ContentVersionLimit)
+
+	// Embedded sub-config defaults.
+	assert.Equal(t, 20, cfg.EventBus.WorkerCount)
+	assert.Equal(t, 200*time.Millisecond, cfg.EventBus.RetryBackoff)
+	assert.True(t, cfg.EventBus.RetryJitter)
+	assert.Equal(t, "localhost:4317", cfg.OTel.Endpoint)
+	assert.Equal(t, 60*time.Second, cfg.OTel.ExportInterval)
+
+	// A2A duration default.
+	assert.Equal(t, 5*time.Minute, cfg.A2A.DefaultTimeout)
+
+	// CORS is defaulted to the localhost dev origins when unset.
+	assert.Equal(t, []string{"http://localhost:5173", "http://localhost:5174"}, cfg.Server.CORSAllowedOrigins)
 }
 
-func TestLoad_ActivityRetentionDays_Zero_ReturnsError(t *testing.T) {
-	t.Setenv("ACTIVITY_RETENTION_DAYS", "0")
-
-	cfg, err := Load()
-
-	assert.Error(t, err)
-	assert.Nil(t, cfg)
-}
-
-func TestLoad_ActivityRetentionDays_Negative_ReturnsError(t *testing.T) {
-	t.Setenv("ACTIVITY_RETENTION_DAYS", "-1")
-
-	cfg, err := Load()
-
-	assert.Error(t, err)
-	assert.Nil(t, cfg)
-}
-
-func TestLoad_ActivityRetentionDays_ExceedsMax_ReturnsError(t *testing.T) {
-	t.Setenv("ACTIVITY_RETENTION_DAYS", "3651")
-
-	cfg, err := Load()
-
-	assert.Error(t, err)
-	assert.Nil(t, cfg)
-}
-
-func TestLoad_ActivityRetentionDays_AtMaxBoundary_Succeeds(t *testing.T) {
-	t.Setenv("ACTIVITY_RETENTION_DAYS", "3650")
-
-	cfg, err := Load()
-
+// TestLoad_ParityFixture is the parity criterion: a fully-populated YAML file
+// produces an identically-populated nested *Config (covering every section, both
+// slice spellings, and duration/int/float/bool coercion).
+func TestLoad_ParityFixture(t *testing.T) {
+	cfg, err := Load(filepath.Join("testdata", "config.yaml"))
 	require.NoError(t, err)
-	assert.Equal(t, 3650, cfg.ActivityRetentionDays)
+
+	// Server.
+	assert.Equal(t, "9090", cfg.Server.Port)
+	assert.Equal(t, "debug", cfg.Server.LogLevel)
+	assert.Equal(t, "text", cfg.Server.LogFormat)
+	assert.Equal(t, "1.2.3", cfg.Server.ServiceVersion)
+	assert.Equal(t, int64(2097152), cfg.Server.MaxBodySizeBytes)
+	assert.Equal(t, []string{"https://a.example.com", "https://b.example.com"}, cfg.Server.CORSAllowedOrigins)
+	assert.Equal(t, "https://errors.example.com", cfg.Server.ErrorTypeBaseURI)
+
+	// Database.
+	assert.Equal(t, "db.example.com", cfg.Database.Host)
+	assert.Equal(t, "6543", cfg.Database.Port)
+	assert.Equal(t, "appuser", cfg.Database.User)
+	assert.Equal(t, "s3cret", cfg.Database.Password)
+	assert.Equal(t, "appdb", cfg.Database.Name)
+
+	// Security.
+	assert.Equal(t, validTestEncryptionKey, cfg.Security.EncryptionKey)
+	assert.Equal(t, "common-key", cfg.Security.APIKeyCommon)
+	assert.Equal(t, "admin-key", cfg.Security.BackofficeAdminAPIKey)
+
+	// Auth + sub-structs. providers is a comma string; signin emails a YAML list.
+	assert.Equal(t, []string{"google", "github"}, cfg.Auth.Providers)
+	assert.Equal(t, "google", cfg.Auth.Provider)
+	assert.Equal(t, "sessionkey", cfg.Auth.SessionEncryptionKey)
+	assert.True(t, cfg.Auth.DevLoginEnabled)
+	assert.Equal(t, []string{"alice@example.com", "bob@example.com"}, cfg.Auth.SignInAllowedEmails)
+	assert.Equal(t, "g-id", cfg.Auth.Google.ClientID)
+	assert.Equal(t, "g-secret", cfg.Auth.Google.ClientSecret)
+	assert.Equal(t, "https://app.example.com/cb/google", cfg.Auth.Google.RedirectURI)
+	assert.Equal(t, "gh-id", cfg.Auth.GitHub.ClientID)
+	assert.Equal(t, "https://app.example.com/cb/github", cfg.Auth.GitHub.RedirectURI)
+	assert.Equal(t, "https://oidc.example.com", cfg.Auth.OIDC.IssuerURL)
+	assert.Equal(t, "o-secret", cfg.Auth.OIDC.ClientSecret)
+	assert.Equal(t, "https://connect.example.com", cfg.Auth.OAuthAS.IssuerURL)
+	assert.Equal(t, 30*time.Minute, cfg.Auth.OAuthAS.AccessTokenTTL)
+	assert.Equal(t, 1000*time.Hour, cfg.Auth.OAuthAS.RefreshTokenTTL)
+	assert.Equal(t, 5*time.Minute, cfg.Auth.OAuthAS.AuthCodeTTL)
+	assert.Equal(t, 168*time.Hour, cfg.Auth.OAuthAS.KeyRotationInterval)
+	assert.Equal(t, 2*time.Hour, cfg.Auth.OAuthAS.CleanupInterval)
+	assert.Equal(t, "https://api-oauth.example.com", cfg.Auth.APIAuth.Issuer)
+	assert.Equal(t, []string{"aud1", "aud2"}, cfg.Auth.APIAuth.Audiences)
+
+	// MCP.
+	assert.Equal(t, "https://connect.example.com", cfg.MCP.OAuthIssuer)
+	assert.Equal(t, "https://connect.example.com/mcp/v1/common", cfg.MCP.ResourceURI)
+
+	// Email + sub-structs.
+	assert.Equal(t, "mailgun", cfg.Email.Provider)
+	assert.Equal(t, "noreply@example.com", cfg.Email.FromAddress)
+	assert.Equal(t, "support@example.com", cfg.Email.ContactRecipientAddress)
+	assert.Equal(t, "https://example.com/privacy-policy", cfg.Email.PrivacyPolicyURL)
+	assert.Equal(t, "smtp.example.com", cfg.Email.SMTP.Host)
+	assert.Equal(t, "2525", cfg.Email.SMTP.Port)
+	assert.Equal(t, "smtppass", cfg.Email.SMTP.Password)
+	assert.Equal(t, "mg.example.com", cfg.Email.Mailgun.Domain)
+	assert.Equal(t, "mg-key", cfg.Email.Mailgun.SendingKey)
+	assert.Equal(t, "pm-token", cfg.Email.Postmark.ServerToken)
+	assert.Equal(t, "broadcast", cfg.Email.Postmark.MessageStream)
+	assert.Equal(t, "sg-key", cfg.Email.SendGrid.APIKey)
+
+	// Frontend.
+	assert.Equal(t, "https://app.example.com", cfg.Frontend.BaseURL)
+	assert.Equal(t, "VibeXP", cfg.Frontend.SiteName)
+	assert.Equal(t, "VibeXP Inc", cfg.Frontend.SiteLegalName)
+	assert.Equal(t, "true", cfg.Frontend.GTMEnabled)
+	assert.Equal(t, "G-XXXX", cfg.Frontend.GA4MeasurementID)
+
+	// Search / embedding.
+	assert.True(t, cfg.Search.RecencyRankingEnabled)
+	assert.InDelta(t, 0.6, cfg.Search.RankWeightRelevance, 1e-9)
+	assert.InDelta(t, 45, cfg.Search.RankHalfLifeDays, 1e-9)
+	assert.Equal(t, 300, cfg.Search.RankCandidateCap)
+	assert.Equal(t, "text-embedding-3-large", cfg.Embedding.Model)
+	assert.Equal(t, 800, cfg.Embedding.ChunkSize)
+	assert.Equal(t, 100, cfg.Embedding.ChunkOverlap)
+
+	// GitHub app, storage, gcp.
+	assert.Equal(t, "123456", cfg.GitHub.AppID)
+	assert.Equal(t, "vibexp-app", cfg.GitHub.AppSlug)
+	assert.Equal(t, "wh-secret", cfg.GitHub.WebhookSecret)
+	assert.Equal(t, "my-bucket", cfg.Storage.AttachmentsBucket)
+	assert.Equal(t, "my-project", cfg.GCP.ProjectID)
+	assert.Equal(t, "@my-project.iam.gserviceaccount.com", cfg.GCP.PubSubPushServiceAccountSuffix)
+
+	// Rate limit / retention / a2a / fcm.
+	assert.Equal(t, 50, cfg.RateLimit.AuthPerMinute)
+	assert.Equal(t, 500, cfg.RateLimit.APIPerMinute)
+	assert.Equal(t, 30, cfg.Retention.ActivityDays)
+	assert.Equal(t, 60, cfg.Retention.AccessEventDays)
+	assert.Equal(t, 10, cfg.Retention.ContentVersionLimit)
+	assert.Equal(t, 10*time.Second, cfg.A2A.DefaultTimeout)
+	assert.True(t, cfg.FCM.Enabled)
+
+	// Deployment.
+	assert.Equal(t, "staging", cfg.Deployment.OTelEnvironment)
+	assert.Equal(t, "us-east-1", cfg.Deployment.AWSRegion)
+	assert.Equal(t, "vibexp-svc", cfg.Deployment.KService)
+
+	// Embedded sub-configs.
+	assert.Equal(t, 10, cfg.EventBus.WorkerCount)
+	assert.Equal(t, 250, cfg.EventBus.BufferSize)
+	assert.Equal(t, 5, cfg.EventBus.MaxRetries)
+	assert.Equal(t, 500*time.Millisecond, cfg.EventBus.RetryBackoff)
+	assert.False(t, cfg.EventBus.RetryJitter)
+	assert.Equal(t, "otel.example.com:4317", cfg.OTel.Endpoint)
+	assert.Equal(t, 30*time.Second, cfg.OTel.ExportInterval)
+	assert.InDelta(t, 0.5, cfg.OTel.TraceSampleRatio, 1e-9)
+	assert.True(t, cfg.OTel.TracingEnabled)
+
+	// GetDeploymentEnvironment derives from the otel_environment field.
+	assert.Equal(t, "staging", cfg.GetDeploymentEnvironment())
 }
 
-func TestLoad_ContentVersionRetentionLimit_Default(t *testing.T) {
-	// Absent env var → envconfig falls back to the default tag (20). Unset rather
-	// than set to "" so envconfig can parse the int default.
-	prev, exists := os.LookupEnv("CONTENT_VERSION_RETENTION_LIMIT")
-	require.NoError(t, os.Unsetenv("CONTENT_VERSION_RETENTION_LIMIT"))
-	if exists {
-		t.Cleanup(func() {
-			require.NoError(t, os.Setenv("CONTENT_VERSION_RETENTION_LIMIT", prev))
+// --- Interpolation -------------------------------------------------------
+
+func TestInterpolateString(t *testing.T) {
+	t.Setenv("VX_TEST_SET", "resolved")
+	t.Setenv("VX_TEST_EMPTY", "")
+	require.NoError(t, os.Unsetenv("VX_TEST_UNSET"))
+
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain text", "no vars here", "no vars here"},
+		{"simple var", "${VX_TEST_SET}", "resolved"},
+		{"var in context", "prefix-${VX_TEST_SET}-suffix", "prefix-resolved-suffix"},
+		{"default used when unset", "${VX_TEST_UNSET:-fallback}", "fallback"},
+		{"default used when empty", "${VX_TEST_EMPTY:-fallback}", "fallback"},
+		{"set value wins over default", "${VX_TEST_SET:-fallback}", "resolved"},
+		{"unset no default is empty", "x${VX_TEST_UNSET}y", "xy"},
+		{"escaped literal", "$${VX_TEST_SET}", "${VX_TEST_SET}"},
+		{"empty default", "${VX_TEST_UNSET:-}", ""},
+		{"lone dollar", "cost is $5", "cost is $5"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, interpolateString(tc.in))
 		})
 	}
-
-	cfg, err := Load()
-
-	require.NoError(t, err)
-	assert.Equal(t, 20, cfg.ContentVersionRetentionLimit)
 }
 
-func TestLoad_ContentVersionRetentionLimit_Override(t *testing.T) {
-	t.Setenv("CONTENT_VERSION_RETENTION_LIMIT", "50")
+func TestLoad_Interpolation_EndToEnd(t *testing.T) {
+	t.Setenv("VX_DB_HOST", "db.from.env")
+	t.Setenv("VX_CHUNK", "750")
 
-	cfg, err := Load()
-
+	cfg, err := loadYAML(t, baseValidYAML+`
+database:
+  host: ${VX_DB_HOST}
+  name: ${VX_DB_NAME:-defaultdb}
+embedding:
+  chunk_size: ${VX_CHUNK}
+frontend:
+  base_url: $${LITERAL}
+`)
 	require.NoError(t, err)
-	assert.Equal(t, 50, cfg.ContentVersionRetentionLimit)
+	assert.Equal(t, "db.from.env", cfg.Database.Host)
+	assert.Equal(t, "defaultdb", cfg.Database.Name, "unset var falls back to :- default")
+	assert.Equal(t, 750, cfg.Embedding.ChunkSize, "interpolated string coerces to int")
+	assert.Equal(t, "${LITERAL}", cfg.Frontend.BaseURL, "$$ escapes to a literal ${...}")
 }
 
-func TestLoad_ContentVersionRetentionLimit_Zero_KeepsAll(t *testing.T) {
-	// 0 is a valid value meaning "disable pruning / keep all versions"; it must
-	// not error (unlike the validated *RetentionDays fields).
-	t.Setenv("CONTENT_VERSION_RETENTION_LIMIT", "0")
+func TestLoad_Interpolation_UnsetNoDefault_WarnsAndEmpties(t *testing.T) {
+	require.NoError(t, os.Unsetenv("VX_DEFINITELY_UNSET"))
 
-	cfg, err := Load()
+	// Capture the bootstrap logger so we can assert the warning fires.
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
 
+	cfg, err := loadYAML(t, baseValidYAML+`
+email:
+  from_address: ${VX_DEFINITELY_UNSET}
+`)
 	require.NoError(t, err)
-	assert.Equal(t, 0, cfg.ContentVersionRetentionLimit)
+	assert.Empty(t, cfg.Email.FromAddress, "an unset var with no default resolves to empty")
+	assert.Contains(t, buf.String(), "VX_DEFINITELY_UNSET", "a warning must name the unresolved variable")
 }
 
-func TestLoad_SearchRankingDefaults(t *testing.T) {
-	cfg, err := Load()
+// TestLoad_TypeCoercion locks in decoding of every scalar kind plus both slice
+// spellings, including values that arrive as strings via interpolation.
+func TestLoad_TypeCoercion(t *testing.T) {
+	t.Setenv("VX_JITTER", "false")
 
+	cfg, err := loadYAML(t, baseValidYAML+`
+server:
+  max_body_size_bytes: 1048576
+auth:
+  oauth_as:
+    issuer_url: https://connect.example.com
+    access_token_ttl: 720h
+    refresh_token_ttl: 2000h
+  providers: "google,oidc"
+mcp:
+  resource_uri: https://connect.example.com/mcp/v1/common
+search:
+  rank_weight_relevance: 0.75
+  recency_ranking_enabled: true
+event_bus:
+  retry_jitter: ${VX_JITTER}
+  retry_backoff: 1s
+`)
 	require.NoError(t, err)
-	assert.False(t, cfg.SearchRecencyRankingEnabled, "recency ranking is off by default")
-	assert.InDelta(t, 0.5, cfg.SearchRankWeightRelevance, 1e-9)
-	assert.InDelta(t, 0.3, cfg.SearchRankWeightCreated, 1e-9)
-	assert.InDelta(t, 0.2, cfg.SearchRankWeightUpdated, 1e-9)
-	assert.InDelta(t, 90, cfg.SearchRankHalfLifeDays, 1e-9)
-	assert.Equal(t, 200, cfg.SearchRankCandidateCap)
+	assert.Equal(t, int64(1048576), cfg.Server.MaxBodySizeBytes)    // int64
+	assert.Equal(t, 720*time.Hour, cfg.Auth.OAuthAS.AccessTokenTTL) // duration
+	assert.InDelta(t, 0.75, cfg.Search.RankWeightRelevance, 1e-9)   // float
+	assert.True(t, cfg.Search.RecencyRankingEnabled)                // bool (native)
+	assert.False(t, cfg.EventBus.RetryJitter)                       // bool via interpolated string
+	assert.Equal(t, time.Second, cfg.EventBus.RetryBackoff)         // duration
+	assert.Equal(t, []string{"google", "oidc"}, cfg.Auth.Providers) // comma slice
+}
+
+// --- Validators ----------------------------------------------------------
+
+func TestLoad_MissingEncryptionKey_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, "server:\n  port: \"8080\"\n")
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "security.encryption_key")
+}
+
+func TestLoad_ShortEncryptionKey_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, "security:\n  encryption_key: \"tooshort\"\n")
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "security.encryption_key")
+}
+
+func TestLoad_ActivityRetentionDays(t *testing.T) {
+	cases := []struct {
+		name    string
+		value   string
+		wantErr bool
+		want    int
+	}{
+		{"valid", "30", false, 30},
+		{"at max boundary", "3650", false, 3650},
+		{"zero", "0", true, 0},
+		{"negative", "-1", true, 0},
+		{"exceeds max", "3651", true, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := loadYAML(t, baseValidYAML+"retention:\n  activity_days: "+tc.value+"\n")
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, cfg)
+				assert.Contains(t, err.Error(), "retention.activity_days")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, cfg.Retention.ActivityDays)
+		})
+	}
+}
+
+func TestLoad_AccessEventRetentionDays_Invalid_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+"retention:\n  access_event_days: 0\n")
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "retention.access_event_days")
+}
+
+func TestLoad_ContentVersionRetentionLimit_ZeroKeepsAll(t *testing.T) {
+	// 0 means "disable pruning / keep all versions"; it must NOT error.
+	cfg, err := loadYAML(t, baseValidYAML+"retention:\n  content_version_limit: 0\n")
+	require.NoError(t, err)
+	assert.Equal(t, 0, cfg.Retention.ContentVersionLimit)
+}
+
+func TestLoad_MaxBodySize_NonPositive_ReturnsError(t *testing.T) {
+	for _, v := range []string{"0", "-1"} {
+		t.Run(v, func(t *testing.T) {
+			cfg, err := loadYAML(t, baseValidYAML+"server:\n  max_body_size_bytes: "+v+"\n")
+			require.Error(t, err)
+			assert.Nil(t, cfg)
+			assert.Contains(t, err.Error(), "server.max_body_size_bytes")
+		})
+	}
+}
+
+func TestLoad_RateLimits_NonPositive_ReturnsError(t *testing.T) {
+	cases := []struct{ name, body, want string }{
+		{"auth", "rate_limit:\n  auth_per_minute: 0\n", "rate_limit.auth_per_minute"},
+		{"api", "rate_limit:\n  api_per_minute: 0\n", "rate_limit.api_per_minute"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := loadYAML(t, baseValidYAML+tc.body)
+			require.Error(t, err)
+			assert.Nil(t, cfg)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
+}
+
+func TestLoad_SearchRankWeightNegative_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+"search:\n  rank_weight_relevance: -0.5\n")
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "search.rank_weight")
+}
+
+func TestLoad_EmbeddingModelEmpty_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+"embedding:\n  model: \"\"\n")
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "embedding.model")
+}
+
+func TestLoad_EmbeddingChunkOverlapInvalid_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+"embedding:\n  chunk_size: 500\n  chunk_overlap: 500\n")
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "embedding.chunk_overlap")
 }
 
 func TestValidateSearchRankingConfig(t *testing.T) {
 	base := func() *Config {
-		return &Config{
-			SearchRankWeightRelevance: 0.5,
-			SearchRankWeightCreated:   0.3,
-			SearchRankWeightUpdated:   0.2,
-			SearchRankHalfLifeDays:    90,
-			SearchRankCandidateCap:    200,
-		}
+		return &Config{Search: SearchConfig{
+			RankWeightRelevance: 0.5,
+			RankWeightCreated:   0.3,
+			RankWeightUpdated:   0.2,
+			RankHalfLifeDays:    90,
+			RankCandidateCap:    200,
+		}}
 	}
 
 	tests := []struct {
@@ -177,19 +451,18 @@ func TestValidateSearchRankingConfig(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid defaults", func(*Config) {}, false},
-		{"negative relevance weight", func(c *Config) { c.SearchRankWeightRelevance = -0.1 }, true},
+		{"negative relevance weight", func(c *Config) { c.Search.RankWeightRelevance = -0.1 }, true},
 		{"all weights zero", func(c *Config) {
-			c.SearchRankWeightRelevance = 0
-			c.SearchRankWeightCreated = 0
-			c.SearchRankWeightUpdated = 0
+			c.Search.RankWeightRelevance = 0
+			c.Search.RankWeightCreated = 0
+			c.Search.RankWeightUpdated = 0
 		}, true},
-		{"zero half-life", func(c *Config) { c.SearchRankHalfLifeDays = 0 }, true},
-		{"negative half-life", func(c *Config) { c.SearchRankHalfLifeDays = -1 }, true},
-		{"half-life above ceiling", func(c *Config) { c.SearchRankHalfLifeDays = maxSearchRankHalfLifeDays + 1 }, true},
-		{"half-life at ceiling", func(c *Config) { c.SearchRankHalfLifeDays = maxSearchRankHalfLifeDays }, false},
-		{"zero candidate cap", func(c *Config) { c.SearchRankCandidateCap = 0 }, true},
-		{"candidate cap above ceiling", func(c *Config) { c.SearchRankCandidateCap = maxSearchRankCandidateCap + 1 }, true},
-		{"candidate cap at ceiling", func(c *Config) { c.SearchRankCandidateCap = maxSearchRankCandidateCap }, false},
+		{"zero half-life", func(c *Config) { c.Search.RankHalfLifeDays = 0 }, true},
+		{"half-life above ceiling", func(c *Config) { c.Search.RankHalfLifeDays = maxSearchRankHalfLifeDays + 1 }, true},
+		{"half-life at ceiling", func(c *Config) { c.Search.RankHalfLifeDays = maxSearchRankHalfLifeDays }, false},
+		{"zero candidate cap", func(c *Config) { c.Search.RankCandidateCap = 0 }, true},
+		{"candidate cap above ceiling", func(c *Config) { c.Search.RankCandidateCap = maxSearchRankCandidateCap + 1 }, true},
+		{"candidate cap at ceiling", func(c *Config) { c.Search.RankCandidateCap = maxSearchRankCandidateCap }, false},
 	}
 
 	for _, tt := range tests {
@@ -206,15 +479,6 @@ func TestValidateSearchRankingConfig(t *testing.T) {
 	}
 }
 
-func TestLoad_SearchRankWeightNegative_ReturnsError(t *testing.T) {
-	t.Setenv("SEARCH_RANK_WEIGHT_RELEVANCE", "-0.5")
-
-	cfg, err := Load()
-
-	assert.Error(t, err)
-	assert.Nil(t, cfg)
-}
-
 func TestValidateEncryptionKey(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -229,7 +493,7 @@ func TestValidateEncryptionKey(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateEncryptionKey(&Config{EncryptionKey: tc.key})
+			err := validateEncryptionKey(&Config{Security: SecurityConfig{EncryptionKey: tc.key}})
 			if tc.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -239,145 +503,87 @@ func TestValidateEncryptionKey(t *testing.T) {
 	}
 }
 
-func TestLoad_MissingEncryptionKey_ReturnsError(t *testing.T) {
-	t.Setenv("ENCRYPTION_KEY", "")
+// --- MCP issuer defaulting / OAuth AS agreement --------------------------
 
-	cfg, err := Load()
-
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "ENCRYPTION_KEY")
-}
-
-func TestLoad_ShortEncryptionKey_ReturnsError(t *testing.T) {
-	t.Setenv("ENCRYPTION_KEY", "tooshort")
-
-	cfg, err := Load()
-
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "ENCRYPTION_KEY")
-}
-
-func TestLoad_AbuseHardeningDefaults(t *testing.T) {
-	cfg, err := Load()
-
-	require.NoError(t, err)
-	assert.Equal(t, int64(10<<20), cfg.MaxBodySizeBytes, "MaxBodySizeBytes defaults to 10MiB")
-	assert.Equal(t, 100, cfg.AuthRateLimitPerMinute)
-	assert.Equal(t, 1000, cfg.APIRateLimitPerMinute)
-}
-
-func TestLoad_MaxBodySizeBytes_NonPositive_ReturnsError(t *testing.T) {
-	for _, v := range []string{"0", "-1"} {
-		t.Run(v, func(t *testing.T) {
-			t.Setenv("MAX_BODY_SIZE_BYTES", v)
-
-			cfg, err := Load()
-
-			require.Error(t, err)
-			assert.Nil(t, cfg)
-			assert.Contains(t, err.Error(), "MAX_BODY_SIZE_BYTES")
-		})
+// asYAML returns a config.yaml enabling the embedded AS with the given explicit
+// mcp.oauth_issuer (omitted when empty), in a production (non-localhost) frontend
+// so the dev auto-derivation does not interfere.
+func asYAML(issuer string) string {
+	body := baseValidYAML + `
+frontend:
+  base_url: https://app.example.com
+auth:
+  oauth_as:
+    issuer_url: https://connect.vibexp.io
+mcp:
+  resource_uri: https://connect.vibexp.io/mcp/v1/common
+`
+	if issuer != "" {
+		body += "  oauth_issuer: " + issuer + "\n"
 	}
+	return body
 }
 
-func TestLoad_RateLimits_NonPositive_ReturnsError(t *testing.T) {
-	tests := []struct {
-		name   string
-		envVar string
-	}{
-		{"auth", "AUTH_RATE_LIMIT_PER_MINUTE"},
-		{"api", "API_RATE_LIMIT_PER_MINUTE"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(tc.envVar, "0")
-
-			cfg, err := Load()
-
-			require.Error(t, err)
-			assert.Nil(t, cfg)
-			assert.Contains(t, err.Error(), tc.envVar)
-		})
-	}
-}
-
-// TestLoad_EmbeddingChunkDefaults locks in the in-Go chunker defaults so a fresh
-// self-host gets a sane sliding window without extra configuration.
-func TestLoad_EmbeddingChunkDefaults(t *testing.T) {
-	cfg, err := Load()
-
-	require.NoError(t, err)
-	assert.Equal(t, 1000, cfg.EmbeddingChunkSize)
-	assert.Equal(t, 200, cfg.EmbeddingChunkOverlap)
-}
-
-// TestLoad_EmbeddingChunkOverlapInvalid fails closed when the overlap is not
-// smaller than the chunk size, which would stall the chunker.
-func TestLoad_EmbeddingChunkOverlapInvalid(t *testing.T) {
-	t.Setenv("EMBEDDING_CHUNK_SIZE", "500")
-	t.Setenv("EMBEDDING_CHUNK_OVERLAP", "500")
-
-	cfg, err := Load()
-
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "EMBEDDING_CHUNK_OVERLAP")
-}
-
-// TestLoad_MCPOAuthIssuer_DefaultsToAS verifies that enabling the embedded
-// Authorization Server points the MCP resource server at it by default, so PRM
-// advertises VibeXP itself without the operator setting MCP_OAUTH_ISSUER.
 func TestLoad_MCPOAuthIssuer_DefaultsToAS(t *testing.T) {
-	t.Setenv("OAUTH_AS_ISSUER_URL", "https://connect.vibexp.io")
-	t.Setenv("MCP_RESOURCE_URI", "https://connect.vibexp.io/mcp/v1/common")
-	// MCP_OAUTH_ISSUER intentionally left unset.
-
-	cfg, err := Load()
-
+	cfg, err := loadYAML(t, asYAML(""))
 	require.NoError(t, err)
-	assert.Equal(t, "https://connect.vibexp.io", cfg.MCPOAuthIssuer,
-		"MCP_OAUTH_ISSUER must default to OAUTH_AS_ISSUER_URL when the embedded AS is enabled")
+	assert.Equal(t, "https://connect.vibexp.io", cfg.MCP.OAuthIssuer,
+		"mcp.oauth_issuer must default to auth.oauth_as.issuer_url when the embedded AS is enabled")
 }
 
-// TestLoad_MCPOAuthIssuer_ExplicitMatchAllowed verifies an explicit
-// MCP_OAUTH_ISSUER equal to the AS issuer is accepted (the agreement invariant
-// holds).
 func TestLoad_MCPOAuthIssuer_ExplicitMatchAllowed(t *testing.T) {
-	t.Setenv("OAUTH_AS_ISSUER_URL", "https://connect.vibexp.io")
-	t.Setenv("MCP_RESOURCE_URI", "https://connect.vibexp.io/mcp/v1/common")
-	t.Setenv("MCP_OAUTH_ISSUER", "https://connect.vibexp.io")
-
-	cfg, err := Load()
-
+	cfg, err := loadYAML(t, asYAML("https://connect.vibexp.io"))
 	require.NoError(t, err)
-	assert.Equal(t, "https://connect.vibexp.io", cfg.MCPOAuthIssuer)
+	assert.Equal(t, "https://connect.vibexp.io", cfg.MCP.OAuthIssuer)
 }
 
-// TestLoad_MCPOAuthIssuer_DivergentRejected fails closed when an explicit
-// MCP_OAUTH_ISSUER disagrees with the embedded AS issuer — that would make the
-// AS mint tokens the resource server rejects.
 func TestLoad_MCPOAuthIssuer_DivergentRejected(t *testing.T) {
-	t.Setenv("OAUTH_AS_ISSUER_URL", "https://connect.vibexp.io")
-	t.Setenv("MCP_RESOURCE_URI", "https://connect.vibexp.io/mcp/v1/common")
-	t.Setenv("MCP_OAUTH_ISSUER", "https://evil.example")
-
-	cfg, err := Load()
-
+	cfg, err := loadYAML(t, asYAML("https://evil.example"))
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "MCP_OAUTH_ISSUER")
+	assert.Contains(t, err.Error(), "mcp.oauth_issuer")
 }
 
-// TestLoad_MCPOAuthIssuer_PreservedWhenASDisabled verifies that with the
-// embedded AS disabled, an explicit MCP_OAUTH_ISSUER (e.g. an external issuer)
-// is left untouched — the derivation/agreement only applies to the embedded AS.
+// TestLoad_MCPOAuthIssuer_PreservedWhenASDisabled: with the AS disabled, an
+// explicit external mcp.oauth_issuer is left untouched (production frontend so
+// the dev derivation never fires).
 func TestLoad_MCPOAuthIssuer_PreservedWhenASDisabled(t *testing.T) {
-	t.Setenv("MCP_OAUTH_ISSUER", "https://external-idp.example")
-
-	cfg, err := Load()
-
+	cfg, err := loadYAML(t, baseValidYAML+`
+frontend:
+  base_url: https://app.example.com
+mcp:
+  oauth_issuer: https://external-idp.example
+`)
 	require.NoError(t, err)
-	assert.Equal(t, "https://external-idp.example", cfg.MCPOAuthIssuer)
+	assert.Equal(t, "https://external-idp.example", cfg.MCP.OAuthIssuer)
+}
+
+func TestLoad_OAuthAS_RefreshTTLNotAboveAccessTTL_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+frontend:
+  base_url: https://app.example.com
+auth:
+  oauth_as:
+    issuer_url: https://connect.vibexp.io
+    access_token_ttl: 1h
+    refresh_token_ttl: 30m
+mcp:
+  resource_uri: https://connect.vibexp.io/mcp/v1/common
+`)
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "auth.oauth_as.refresh_token_ttl")
+}
+
+func TestLoad_OAuthAS_MissingResourceURI_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+frontend:
+  base_url: https://app.example.com
+auth:
+  oauth_as:
+    issuer_url: https://connect.vibexp.io
+`)
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "mcp.resource_uri")
 }

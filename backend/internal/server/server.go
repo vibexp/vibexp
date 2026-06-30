@@ -124,7 +124,7 @@ type Server struct {
 func initializeMetrics(cfg *config.Config, logger *slog.Logger) *metrics.Metrics {
 	// Service version should be set via build-time variable: -ldflags "-X main.version=1.0.0"
 	serviceVersion := "dev"
-	if v := cfg.ServiceVersion; v != "" {
+	if v := cfg.Server.ServiceVersion; v != "" {
 		serviceVersion = v
 	}
 
@@ -163,7 +163,7 @@ func initializeTracing(cfg *config.Config, logger *slog.Logger) *tracing.Tracer 
 
 	// Service version should be set via build-time variable: -ldflags "-X main.version=1.0.0"
 	serviceVersion := "dev"
-	if v := cfg.ServiceVersion; v != "" {
+	if v := cfg.Server.ServiceVersion; v != "" {
 		serviceVersion = v
 	}
 
@@ -207,7 +207,7 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 
 	// CORS middleware
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   cfg.CORSAllowedOrigins,
+		AllowedOrigins:   cfg.Server.CORSAllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
@@ -245,7 +245,7 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 	// trusted reverse proxy (chi deprecation GHSA-3fxj-6jh8-hvhx).
 	r.Use(middleware.RealIP) //nolint:staticcheck // safe only behind a trusted proxy
 	r.Use(middleware.Timeout(60 * time.Second))
-	r.Use(maxBodySize(cfg.MaxBodySizeBytes)) // Global request-body cap (configurable, 1MiB default)
+	r.Use(maxBodySize(cfg.Server.MaxBodySizeBytes)) // Global request-body cap (configurable, 1MiB default)
 
 	c, err := container.InitializeContainer(db, cfg, logger)
 	if err != nil {
@@ -260,10 +260,10 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 	// when SESSION_ENCRYPTION_KEY is empty (test/stub environments) the manager
 	// is left nil and the handlers degrade gracefully.
 	var sessMgr *session.Manager
-	if cfg.SessionEncryptionKey != "" {
+	if cfg.Auth.SessionEncryptionKey != "" {
 		envSvc := c.EnvironmentService()
 		isLocal := envSvc != nil && envSvc.IsDevelopment()
-		sessMgr, err = session.NewManager(cfg.SessionEncryptionKey, isLocal)
+		sessMgr, err = session.NewManager(cfg.Auth.SessionEncryptionKey, isLocal)
 		if err != nil {
 			logger.With(
 				"service", "vibexp-api",
@@ -307,21 +307,21 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 func newOAuthAuthorizationServer(
 	cfg *config.Config, db *database.DB, logger *slog.Logger,
 ) *oauthserver.Service {
-	if cfg.OAuthASIssuerURL == "" {
+	if cfg.Auth.OAuthAS.IssuerURL == "" {
 		return nil
 	}
 	svc := oauthserver.NewService(
 		oauthserver.Config{
-			Issuer:              cfg.OAuthASIssuerURL,
-			ResourceURI:         cfg.MCPResourceURI,
-			FrontendBaseURL:     cfg.FrontendBaseURL,
-			AccessTokenTTL:      cfg.OAuthASAccessTokenTTL,
-			RefreshTokenTTL:     cfg.OAuthASRefreshTokenTTL,
-			AuthCodeTTL:         cfg.OAuthASAuthCodeTTL,
-			KeyRotationInterval: cfg.OAuthASKeyRotationInterval,
-			CleanupInterval:     cfg.OAuthASCleanupInterval,
+			Issuer:              cfg.Auth.OAuthAS.IssuerURL,
+			ResourceURI:         cfg.MCP.ResourceURI,
+			FrontendBaseURL:     cfg.Frontend.BaseURL,
+			AccessTokenTTL:      cfg.Auth.OAuthAS.AccessTokenTTL,
+			RefreshTokenTTL:     cfg.Auth.OAuthAS.RefreshTokenTTL,
+			AuthCodeTTL:         cfg.Auth.OAuthAS.AuthCodeTTL,
+			KeyRotationInterval: cfg.Auth.OAuthAS.KeyRotationInterval,
+			CleanupInterval:     cfg.Auth.OAuthAS.CleanupInterval,
 		},
-		[]byte(cfg.EncryptionKey),
+		[]byte(cfg.Security.EncryptionKey),
 		postgres.NewOAuthClientRepository(db),
 		postgres.NewOAuthCodeRepository(db),
 		postgres.NewOAuthAccessTokenRepository(db),
@@ -331,7 +331,7 @@ func newOAuthAuthorizationServer(
 		postgres.NewOAuthLoginSessionRepository(db),
 		logger,
 	)
-	logger.Info("Embedded OAuth 2.1 Authorization Server enabled", "issuer", cfg.OAuthASIssuerURL)
+	logger.Info("Embedded OAuth 2.1 Authorization Server enabled", "issuer", cfg.Auth.OAuthAS.IssuerURL)
 	return svc
 }
 
@@ -351,14 +351,14 @@ func setupAttachmentAuthorizers(c container.Container) *services.AttachmentAutho
 // API_OAUTH_ISSUER is empty it returns nil and the auth middleware keeps
 // rejecting non-API-key bearer tokens, preserving pre-mobile behavior.
 func newAPITokenVerifier(cfg *config.Config, c container.Container, logger *slog.Logger) *authkit.Verifier {
-	if cfg.APIOAuthIssuer == "" {
+	if cfg.Auth.APIAuth.Issuer == "" {
 		return nil
 	}
 
 	verifier, err := authkit.New(
 		context.Background(),
-		cfg.APIOAuthIssuer,
-		apiAudiencePolicy(cfg.APIOAuthAudiences, cfg.MCPResourceURI),
+		cfg.Auth.APIAuth.Issuer,
+		apiAudiencePolicy(cfg.Auth.APIAuth.Audiences, cfg.MCP.ResourceURI),
 		userResolverAdapter{users: c.UserRepository()},
 	)
 	if err != nil {
@@ -453,8 +453,8 @@ func (s *Server) setupPublicRoutes() {
 	// fail with an opaque "Invalid OAuth error response" instead of a clear signal,
 	// so the route is left unregistered and discovery 404s — the honest answer when
 	// MCP auth is off. The AS-metadata probe path already 404s when unconfigured.
-	if s.config.MCPResourceURI != "" {
-		mcpMetadataPath, _ := deriveMCPMetadata(s.config.MCPResourceURI)
+	if s.config.MCP.ResourceURI != "" {
+		mcpMetadataPath, _ := deriveMCPMetadata(s.config.MCP.ResourceURI)
 		s.router.Handle(mcpMetadataPath, s.mcpProtectedResourceMetadataHandler())
 	} else {
 		s.logger.Warn("MCP auth not configured (MCP_RESOURCE_URI empty); " +
@@ -506,7 +506,7 @@ func (s *Server) setupOAuthASRoutes() {
 	s.router.With(httpsOnly).Get(oauthserver.MetadataPath, s.oauthAS.Metadata)
 	s.router.Group(func(r chi.Router) {
 		r.Use(httpsOnly)
-		rateLimitByIP(r, s.config.AuthRateLimitPerMinute)
+		rateLimitByIP(r, s.config.RateLimit.AuthPerMinute)
 		r.Get(oauthserver.AuthorizePath, s.oauthAS.Authorize)
 		r.Get(oauthserver.ConsentAPIPath, s.oauthAS.ConsentDetails)
 		r.Post(oauthserver.ConsentAPIPath, s.oauthAS.ConsentDecision)
@@ -535,7 +535,7 @@ func (s *Server) setupTestRoutes() {
 func (s *Server) setupAuthRoutes() {
 	s.router.Route("/api/v1/auth", func(r chi.Router) {
 		// Strict per-IP rate limit: these are unauthenticated, abuse-prone endpoints.
-		rateLimitByIP(r, s.config.AuthRateLimitPerMinute)
+		rateLimitByIP(r, s.config.RateLimit.AuthPerMinute)
 
 		// Identity-provider OAuth login routes
 		r.Get("/providers", s.handleListProviders)
@@ -560,7 +560,7 @@ func (s *Server) setupProtectedRoutes() {
 		// Moderate per-IP rate limit on the authenticated API surface. Applied here
 		// (not globally) so webhooks, Pub/Sub job routes, and health/ping probes in
 		// setupPublicRoutes are never throttled.
-		rateLimitByIP(r, s.config.APIRateLimitPerMinute)
+		rateLimitByIP(r, s.config.RateLimit.APIPerMinute)
 		r.Use(s.flexibleAuthMiddleware)
 		s.setupAPIKeysRoutes(r)
 		s.setupUserRoutes(r)
@@ -1089,7 +1089,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"remote_ip", r.RemoteAddr,
 	).Info("Health endpoint accessed")
 
-	sha := s.config.ReleaseSHA
+	sha := s.config.Server.ReleaseSHA
 	if len(sha) > 8 {
 		sha = sha[:8]
 	}

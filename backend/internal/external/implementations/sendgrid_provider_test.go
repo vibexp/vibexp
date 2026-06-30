@@ -39,7 +39,11 @@ func okResponse() *rest.Response {
 
 func TestNewSendGridEmailProvider_EmptyAPIKey(t *testing.T) {
 	cfg := &config.Config{
-		SendGridAPIKey: "",
+		Email: config.EmailConfig{
+			SendGrid: config.SendGridConfig{
+				APIKey: "",
+			},
+		},
 	}
 
 	provider, err := NewSendGridEmailProvider(cfg)
@@ -51,7 +55,11 @@ func TestNewSendGridEmailProvider_EmptyAPIKey(t *testing.T) {
 
 func TestNewSendGridEmailProvider_ValidConfig(t *testing.T) {
 	cfg := &config.Config{
-		SendGridAPIKey: "test-sendgrid-key",
+		Email: config.EmailConfig{
+			SendGrid: config.SendGridConfig{
+				APIKey: "test-sendgrid-key",
+			},
+		},
 	}
 
 	provider, err := NewSendGridEmailProvider(cfg)

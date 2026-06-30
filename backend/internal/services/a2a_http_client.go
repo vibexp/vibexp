@@ -77,8 +77,8 @@ func NewA2AHTTPClient(authenticator *AgentAuthenticator, cfg *config.Config) *A2
 	timeout := DefaultA2ATimeout
 
 	// Use timeout from config if set (defaults to 5m)
-	if cfg != nil && cfg.A2ADefaultTimeout > 0 {
-		timeout = cfg.A2ADefaultTimeout
+	if cfg != nil && cfg.A2A.DefaultTimeout > 0 {
+		timeout = cfg.A2A.DefaultTimeout
 	}
 
 	// The transport uses an SSRF-safe dialer that rejects connections to reserved IP

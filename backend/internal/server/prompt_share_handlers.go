@@ -188,7 +188,7 @@ func (s *Server) handleGetSharedPrompt(w http.ResponseWriter, r *http.Request) {
 		shareURL := fmt.Sprintf("%s://%s/shared/prompts/%s", scheme, host, shareToken)
 
 		// Use frontend base URL for static assets like logo
-		imageURL := fmt.Sprintf("%s/logo_rounded.png", s.config.FrontendBaseURL)
+		imageURL := fmt.Sprintf("%s/logo_rounded.png", s.config.Frontend.BaseURL)
 
 		description := sharedPrompt.Prompt.Description
 		if description == "" {

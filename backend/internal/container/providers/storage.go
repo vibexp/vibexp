@@ -16,19 +16,19 @@ import (
 // cannot be initialized, so credential-less local/CI environments start cleanly
 // and the attachment service degrades to 503 rather than crashing the server.
 func ProvideObjectStore(cfg *config.Config, logger *slog.Logger) storage.ObjectStore {
-	if cfg.AttachmentsBucket == "" {
+	if cfg.Storage.AttachmentsBucket == "" {
 		logger.Info("GCS_RESOURCE_ATTACHMENTS_BUCKET is empty; attachment storage disabled")
 		return nil
 	}
-	store, err := storage.NewGCSStore(context.Background(), cfg.AttachmentsBucket)
+	store, err := storage.NewGCSStore(context.Background(), cfg.Storage.AttachmentsBucket)
 	if err != nil {
 		logger.Warn(
 			"Failed to initialize GCS attachment store; attachments disabled",
-			"bucket", cfg.AttachmentsBucket,
+			"bucket", cfg.Storage.AttachmentsBucket,
 			"error", err.Error(),
 		)
 		return nil
 	}
-	logger.With("bucket", cfg.AttachmentsBucket).Info("GCS attachment store initialized")
+	logger.With("bucket", cfg.Storage.AttachmentsBucket).Info("GCS attachment store initialized")
 	return store
 }

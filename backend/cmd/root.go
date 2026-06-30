@@ -22,11 +22,20 @@ import (
 // go build -ldflags "-X github.com/vibexp/vibexp/cmd.buildSHA=abc1234"
 var buildSHA = ""
 
+// configPath is the --config flag value: the path to the config.yaml to load.
+// Empty falls back to VIBEXP_CONFIG_FILE, then ./config.yaml (handled by config.Load).
+var configPath string
+
 var rootCmd = &cobra.Command{
 	Use:   "vibexp",
 	Short: "Vibexp.io - Web application with server endpoints",
 	Long:  `Vibexp.io application that provides web server functionality with various endpoints.`,
 	Run:   runServer,
+}
+
+func init() {
+	rootCmd.PersistentFlags().StringVar(&configPath, "config", "",
+		"path to the config.yaml file (default: $VIBEXP_CONFIG_FILE or ./config.yaml)")
 }
 
 func Execute() {
@@ -43,7 +52,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	defer closeDatabase(db, logger)
 
 	runMigrations(db, logger)
-	srv := server.New(cfg.Port, db, cfg.APIKeyCommon, cfg, logger)
+	srv := server.New(cfg.Server.Port, db, cfg.Security.APIKeyCommon, cfg, logger)
 
 	ctx, cancel := setupShutdownContext(logger)
 	defer cancel()
@@ -53,21 +62,21 @@ func runServer(cmd *cobra.Command, args []string) {
 }
 
 func loadConfiguration() *config.Config {
-	cfg, err := config.Load()
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		// Use the default slog logger for bootstrap errors (config not yet available)
 		slog.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
 	}
 
-	// Precedence: env var RELEASE_SHA → ldflags buildSHA → runtime/debug VCS → "unknown"
-	if cfg.ReleaseSHA == "" || cfg.ReleaseSHA == "dev" {
+	// Precedence: config server.release_sha → ldflags buildSHA → runtime/debug VCS → "dev"
+	if cfg.Server.ReleaseSHA == "" || cfg.Server.ReleaseSHA == "dev" {
 		if buildSHA != "" {
-			cfg.ReleaseSHA = buildSHA
+			cfg.Server.ReleaseSHA = buildSHA
 		} else if info, ok := debug.ReadBuildInfo(); ok {
 			for _, s := range info.Settings {
 				if s.Key == "vcs.revision" && s.Value != "" {
-					cfg.ReleaseSHA = s.Value
+					cfg.Server.ReleaseSHA = s.Value
 					break
 				}
 			}
@@ -79,19 +88,19 @@ func loadConfiguration() *config.Config {
 
 func configureLogger(cfg *config.Config) *slog.Logger {
 	logger := logging.New(logging.Config{
-		Format: cfg.LogFormat,
-		Level:  cfg.LogLevel,
+		Format: cfg.Server.LogFormat,
+		Level:  cfg.Server.LogLevel,
 	})
 	// Make this the process-wide default so code logging via slog's package-level
 	// functions (and the context-logger fallback) shares the same configuration.
 	slog.SetDefault(logger)
 
 	logger.Info("Starting server",
-		"port", cfg.Port,
-		"log_level", cfg.LogLevel,
-		"log_format", cfg.LogFormat,
-		"release_sha", cfg.ReleaseSHA,
-		"release_date", cfg.ReleaseDate,
+		"port", cfg.Server.Port,
+		"log_level", cfg.Server.LogLevel,
+		"log_format", cfg.Server.LogFormat,
+		"release_sha", cfg.Server.ReleaseSHA,
+		"release_date", cfg.Server.ReleaseDate,
 	)
 
 	return logger

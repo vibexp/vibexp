@@ -42,7 +42,7 @@ func newServerWithMockAuthSvc(
 		port:           "8080",
 		container:      ctr,
 		logger:         logger,
-		config:         &config.Config{SessionEncryptionKey: testCookiePassword},
+		config:         &config.Config{Auth: config.AuthConfig{SessionEncryptionKey: testCookiePassword}},
 		sessionManager: sessMgr,
 		router:         chi.NewRouter(),
 	}

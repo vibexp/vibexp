@@ -112,7 +112,7 @@ func (s *Server) handleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 
 // verifyGitHubWebhookSignature verifies the HMAC signature of a GitHub webhook
 func (s *Server) verifyGitHubWebhookSignature(payload []byte, signature string) bool {
-	if s.config.GitHubWebhookSecret == "" {
+	if s.config.GitHub.WebhookSecret == "" {
 		s.logger.Warn("GitHub webhook secret not configured")
 		return false
 	}
@@ -124,7 +124,7 @@ func (s *Server) verifyGitHubWebhookSignature(payload []byte, signature string) 
 	signature = signature[7:]
 
 	// Compute HMAC
-	mac := hmac.New(sha256.New, []byte(s.config.GitHubWebhookSecret))
+	mac := hmac.New(sha256.New, []byte(s.config.GitHub.WebhookSecret))
 	// #nosec G104 - Write to hash never fails
 	mac.Write(payload)
 	expectedMAC := hex.EncodeToString(mac.Sum(nil))

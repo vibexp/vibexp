@@ -111,7 +111,7 @@ func (s *Server) createPrompt(
 		s.metrics.RecordMCPCreatePrompt(context.Background())
 	}
 
-	return marshalPromptWriteResult(s.config.FrontendBaseURL, prompt)
+	return marshalPromptWriteResult(s.config.Frontend.BaseURL, prompt)
 }
 
 // buildPromptUpdateRequest builds an UpdatePromptRequest from non-empty params fields.
@@ -172,7 +172,7 @@ func (s *Server) updatePrompt(
 		s.metrics.RecordMCPUpdatePrompt(context.Background())
 	}
 
-	return marshalPromptWriteResult(s.config.FrontendBaseURL, prompt)
+	return marshalPromptWriteResult(s.config.Frontend.BaseURL, prompt)
 }
 
 // marshalPromptWriteResult builds the slim create/update response and marshals it

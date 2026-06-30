@@ -14,8 +14,8 @@ import (
 
 func TestAuthLogin_Endpoints(t *testing.T) {
 	cfg := &config.Config{
-		FrontendBaseURL:      "http://localhost:5173",
-		SessionEncryptionKey: testCookiePassword,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -57,9 +57,8 @@ func TestAuthLogin_Endpoints(t *testing.T) {
 
 func TestDevLogin_BadRequest(t *testing.T) {
 	cfg := &config.Config{
-		FrontendBaseURL:      "http://localhost:5173",
-		SessionEncryptionKey: testCookiePassword,
-		DevLoginEnabled:      true,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword, DevLoginEnabled: true},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -116,8 +115,8 @@ func TestDevLogin_BadRequest(t *testing.T) {
 
 func TestFlexibleAuthMiddleware_MissingAuth(t *testing.T) {
 	cfg := &config.Config{
-		FrontendBaseURL:      "http://localhost:5173",
-		SessionEncryptionKey: testCookiePassword,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -151,8 +150,8 @@ func TestFlexibleAuthMiddleware_MissingAuth(t *testing.T) {
 
 func TestFlexibleAuthMiddleware_InvalidHeader(t *testing.T) {
 	cfg := &config.Config{
-		FrontendBaseURL:      "http://localhost:5173",
-		SessionEncryptionKey: testCookiePassword,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -191,8 +190,8 @@ func TestFlexibleAuthMiddleware_InvalidHeader(t *testing.T) {
 
 func TestAuthHandlers_InvalidPaths(t *testing.T) {
 	cfg := &config.Config{
-		FrontendBaseURL:      "http://localhost:5173",
-		SessionEncryptionKey: testCookiePassword,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -227,8 +226,8 @@ func TestAuthHandlers_InvalidPaths(t *testing.T) {
 
 func TestLogout_ClearsSessionCookie(t *testing.T) {
 	cfg := &config.Config{
-		FrontendBaseURL:      "http://localhost:5173",
-		SessionEncryptionKey: testCookiePassword,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -264,8 +263,8 @@ func TestLogout_ClearsSessionCookie(t *testing.T) {
 
 func TestStateSigningAndValidation(t *testing.T) {
 	cfg := &config.Config{
-		FrontendBaseURL:      "http://localhost:5173",
-		SessionEncryptionKey: testCookiePassword,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
@@ -304,8 +303,8 @@ func TestStateSigningAndValidation(t *testing.T) {
 // TestSessionCookieAuth_EndToEnd verifies session cookie authentication end-to-end
 func TestSessionCookieAuth_EndToEnd(t *testing.T) {
 	cfg := &config.Config{
-		FrontendBaseURL:      "http://localhost:5173",
-		SessionEncryptionKey: testCookiePassword,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)

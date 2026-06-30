@@ -36,11 +36,11 @@ type PostmarkEmailProvider struct {
 // Optional: PostmarkMessageStream — the Postmark message stream to send on
 // (defaults to "outbound", the default transactional stream).
 func NewPostmarkEmailProvider(cfg *config.Config) (external.EmailProvider, error) {
-	if cfg.PostmarkServerToken == "" {
+	if cfg.Email.Postmark.ServerToken == "" {
 		return nil, fmt.Errorf("postmark provider: POSTMARK_SERVER_TOKEN is required")
 	}
 
-	stream := strings.TrimSpace(cfg.PostmarkMessageStream)
+	stream := strings.TrimSpace(cfg.Email.Postmark.MessageStream)
 	if stream == "" {
 		stream = defaultPostmarkMessageStream
 	}
@@ -48,7 +48,7 @@ func NewPostmarkEmailProvider(cfg *config.Config) (external.EmailProvider, error
 	// Postmark separates the server token (used for sending) from the optional
 	// account token (used for account-level APIs); only the server token is
 	// needed to deliver email.
-	client := postmark.NewClient(cfg.PostmarkServerToken, "")
+	client := postmark.NewClient(cfg.Email.Postmark.ServerToken, "")
 
 	return &PostmarkEmailProvider{sender: client, messageStream: stream}, nil
 }

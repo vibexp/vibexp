@@ -470,7 +470,7 @@ func (s *Server) backofficeAuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Validate the token against the back office admin API key
-		if s.config.BackofficeAdminAPIKey == "" {
+		if s.config.Security.BackofficeAdminAPIKey == "" {
 			logger.With(
 				"middleware", "backofficeAuthMiddleware",
 			).Error("Back office admin API key not configured")
@@ -484,7 +484,7 @@ func (s *Server) backofficeAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if subtle.ConstantTimeCompare([]byte(token), []byte(s.config.BackofficeAdminAPIKey)) != 1 {
+		if subtle.ConstantTimeCompare([]byte(token), []byte(s.config.Security.BackofficeAdminAPIKey)) != 1 {
 			logger.With(
 				"middleware", "backofficeAuthMiddleware",
 			).Warn("Invalid back office admin API key")

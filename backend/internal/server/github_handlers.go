@@ -28,7 +28,7 @@ func (s *Server) signGitHubState(teamID string) string {
 	timestamp := time.Now().Unix()
 	message := fmt.Sprintf("%s:%d", teamID, timestamp)
 
-	mac := hmac.New(sha256.New, []byte(s.config.GitHubWebhookSecret))
+	mac := hmac.New(sha256.New, []byte(s.config.GitHub.WebhookSecret))
 	mac.Write([]byte(message))
 	signature := base64.URLEncoding.EncodeToString(mac.Sum(nil))
 
@@ -60,7 +60,7 @@ func (s *Server) verifyGitHubState(state string) (string, bool) {
 
 	// Verify signature
 	message := fmt.Sprintf("%s:%d", teamID, timestamp)
-	mac := hmac.New(sha256.New, []byte(s.config.GitHubWebhookSecret))
+	mac := hmac.New(sha256.New, []byte(s.config.GitHub.WebhookSecret))
 	mac.Write([]byte(message))
 	expectedSignature := base64.URLEncoding.EncodeToString(mac.Sum(nil))
 
@@ -96,7 +96,7 @@ func (s *Server) handleGitHubInstallURL(w http.ResponseWriter, r *http.Request) 
 	state := s.signGitHubState(teamID)
 
 	installURL := fmt.Sprintf("https://github.com/apps/%s/installations/new?state=%s",
-		s.config.GitHubAppSlug, url.QueryEscape(state))
+		s.config.GitHub.AppSlug, url.QueryEscape(state))
 
 	response := map[string]string{
 		"install_url": installURL,

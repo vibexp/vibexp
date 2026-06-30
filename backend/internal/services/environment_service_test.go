@@ -54,7 +54,9 @@ func TestEnvironmentService_IsDevelopment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				FrontendBaseURL: tt.frontendBaseURL,
+				Frontend: config.FrontendConfig{
+					BaseURL: tt.frontendBaseURL,
+				},
 			}
 			service := NewEnvironmentService(cfg)
 			result := service.IsDevelopment()
@@ -99,7 +101,9 @@ func TestEnvironmentService_IsStaging(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				FrontendBaseURL: tt.frontendBaseURL,
+				Frontend: config.FrontendConfig{
+					BaseURL: tt.frontendBaseURL,
+				},
 			}
 			service := NewEnvironmentService(cfg)
 			result := service.IsStaging()
@@ -139,7 +143,9 @@ func TestEnvironmentService_IsProduction(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				FrontendBaseURL: tt.frontendBaseURL,
+				Frontend: config.FrontendConfig{
+					BaseURL: tt.frontendBaseURL,
+				},
 			}
 			service := NewEnvironmentService(cfg)
 			result := service.IsProduction()
@@ -179,7 +185,9 @@ func TestEnvironmentService_GetEnvironmentName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				FrontendBaseURL: tt.frontendBaseURL,
+				Frontend: config.FrontendConfig{
+					BaseURL: tt.frontendBaseURL,
+				},
 			}
 			service := NewEnvironmentService(cfg)
 			result := service.GetEnvironmentName()
@@ -206,7 +214,7 @@ func TestEnvironmentService_IsDevLoginEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{FrontendBaseURL: tt.url, DevLoginEnabled: tt.flag}
+			cfg := &config.Config{Frontend: config.FrontendConfig{BaseURL: tt.url}, Auth: config.AuthConfig{DevLoginEnabled: tt.flag}}
 			service := NewEnvironmentService(cfg)
 			assert.Equal(t, tt.expected, service.IsDevLoginEnabled())
 		})

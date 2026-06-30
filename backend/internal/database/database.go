@@ -25,14 +25,14 @@ func NewConnection(cfg *config.Config) (*DB, error) {
 	var dsn string
 
 	// Handle Cloud SQL connection (Unix socket) vs local connection
-	if cfg.DBHost[0] == '/' {
+	if cfg.Database.Host[0] == '/' {
 		// Unix socket connection (Cloud SQL)
 		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable",
-			cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName)
+			cfg.Database.Host, cfg.Database.User, cfg.Database.Password, cfg.Database.Name)
 	} else {
 		// TCP connection (local development)
 		dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-			cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
+			cfg.Database.Host, cfg.Database.Port, cfg.Database.User, cfg.Database.Password, cfg.Database.Name)
 	}
 
 	// Use otelsql to wrap the postgres driver so that every SQL query produces

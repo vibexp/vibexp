@@ -170,7 +170,7 @@ var _ container.Container = (*MockContainerForBackoffice)(nil)
 // Test helper to create test server with mock container
 func createBackofficeTestServer(backofficeService *MockBackofficeService, backofficeAPIKey string) *Server {
 	cfg := &config.Config{
-		BackofficeAdminAPIKey: backofficeAPIKey,
+		Security: config.SecurityConfig{BackofficeAdminAPIKey: backofficeAPIKey},
 	}
 	mockContainer := &MockContainerForBackoffice{
 		backofficeService: backofficeService,

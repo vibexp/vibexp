@@ -4,377 +4,357 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/kelseyhightower/envconfig"
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/confmap"
+	"github.com/knadh/koanf/v2"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/observability"
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
+// Config is the fully-resolved, validated application configuration. It is
+// loaded from a hierarchical config.yaml (see Load): code defaults are merged
+// with the file, ${VAR} references in the file are interpolated against the
+// process environment, and the result is unmarshalled into this nested struct.
+// The koanf tags name each YAML section/key.
 type Config struct {
-	Port     string `envconfig:"PORT" default:"8080"`
-	LogLevel string `envconfig:"LOG_LEVEL" default:"info"`
-	// LogFormat selects the log output format: "json" (default) or "text".
-	LogFormat string `envconfig:"LOG_FORMAT" default:"json"`
+	Server     ServerConfig     `koanf:"server"`
+	Database   DatabaseConfig   `koanf:"database"`
+	Security   SecurityConfig   `koanf:"security"`
+	Auth       AuthConfig       `koanf:"auth"`
+	MCP        MCPConfig        `koanf:"mcp"`
+	Email      EmailConfig      `koanf:"email"`
+	Frontend   FrontendConfig   `koanf:"frontend"`
+	Search     SearchConfig     `koanf:"search"`
+	Embedding  EmbeddingConfig  `koanf:"embedding"`
+	GitHub     GitHubConfig     `koanf:"github"`
+	Storage    StorageConfig    `koanf:"storage"`
+	GCP        GCPConfig        `koanf:"gcp"`
+	RateLimit  RateLimitConfig  `koanf:"rate_limit"`
+	Retention  RetentionConfig  `koanf:"retention"`
+	A2A        A2AConfig        `koanf:"a2a"`
+	FCM        FCMConfig        `koanf:"fcm"`
+	Deployment DeploymentConfig `koanf:"deployment"`
 
-	// Service version for metrics and observability
-	ServiceVersion string `envconfig:"SERVICE_VERSION" default:"dev"`
+	// EventBus holds in-memory event-bus tuning (see pkg/events).
+	EventBus events.Config `koanf:"event_bus"`
+	// OTel holds OpenTelemetry export configuration (see internal/observability).
+	OTel observability.Config `koanf:"otel"`
+}
 
-	// Release metadata for production observability
-	ReleaseSHA  string `envconfig:"RELEASE_SHA" default:"dev"`
-	ReleaseDate string `envconfig:"RELEASE_DATE" default:"unknown"`
+// ServerConfig holds HTTP server, logging, and build-metadata settings.
+type ServerConfig struct {
+	Port           string `koanf:"port"`
+	LogLevel       string `koanf:"log_level"`
+	LogFormat      string `koanf:"log_format"`
+	ServiceVersion string `koanf:"service_version"`
+	ReleaseSHA     string `koanf:"release_sha"`
+	ReleaseDate    string `koanf:"release_date"`
 
-	// Database configuration
-	DBHost     string `envconfig:"DB_HOST" default:"localhost"`
-	DBPort     string `envconfig:"DB_PORT" default:"5432"`
-	DBUser     string `envconfig:"DB_USER" default:"postgres"`
-	DBPassword string `envconfig:"DB_PASSWORD" default:""`
-	DBName     string `envconfig:"DB_NAME" default:"vibexp_io"`
+	// MaxBodySizeBytes caps the size of request bodies the server will read for
+	// general API routes (memory-exhaustion backstop). Defaults to 10MiB.
+	MaxBodySizeBytes int64 `koanf:"max_body_size_bytes"`
 
-	// API Key configuration
-	APIKeyCommon string `envconfig:"API_KEY_COMMON" default:""`
+	// CORSAllowedOrigins lists permitted CORS origins. When empty, only the
+	// localhost dev origins are allowed (defaulted in Load); production frontend
+	// origins must be supplied so no tenant-specific domains are hardcoded.
+	CORSAllowedOrigins []string `koanf:"cors_allowed_origins"`
 
-	// Encryption key for sensitive data (API keys, etc.). Required; must be exactly
-	// 32 bytes for AES-256. No default — the service fails to start if it is unset
-	// or the wrong length (see validateEncryptionKey).
-	EncryptionKey string `envconfig:"ENCRYPTION_KEY"`
+	// ErrorTypeBaseURI is the base URI used to build the RFC 9457 "type" member
+	// of error responses (joined as <base>/<error-code>). Defaults to the
+	// neutral "about:blank".
+	ErrorTypeBaseURI string `koanf:"error_type_base_uri"`
+}
 
-	// Back-office admin API key for super admin access
-	BackofficeAdminAPIKey string `envconfig:"BACKOFFICE_ADMIN_API_KEY" default:""`
+// DatabaseConfig holds PostgreSQL connection settings. Host may be a Unix
+// socket path (Cloud SQL) when it begins with '/'.
+type DatabaseConfig struct {
+	Host     string `koanf:"host"`
+	Port     string `koanf:"port"`
+	User     string `koanf:"user"`
+	Password string `koanf:"password"`
+	Name     string `koanf:"name"`
+}
 
-	// AuthProviders is the comma-separated list of web-login identity providers
-	// to enable simultaneously (e.g. "google,github,oidc"). When set it takes
-	// precedence over AuthProvider. Unknown names are ignored with a warning;
-	// enabled providers whose credentials are missing or whose discovery fails
-	// are skipped at startup (the server still boots). Values are matched
-	// case-insensitively against the canonical names "google", "github", and
-	// "oidc".
-	AuthProviders []string `envconfig:"AUTH_PROVIDERS"`
+// SecurityConfig holds process-wide secrets and admin keys.
+type SecurityConfig struct {
+	// EncryptionKey encrypts sensitive data (API keys, OAuth-AS signing keys).
+	// Required; must be exactly 32 bytes for AES-256 (see validateEncryptionKey).
+	EncryptionKey string `koanf:"encryption_key"`
+	// APIKeyCommon is the global API key for the common API surface.
+	APIKeyCommon string `koanf:"api_key_common"`
+	// BackofficeAdminAPIKey grants super-admin access to back-office endpoints.
+	BackofficeAdminAPIKey string `koanf:"backoffice_admin_api_key"`
+}
 
-	// AuthProvider selects a single web-login identity provider. Valid values:
-	// "google", "github", "oidc", or "" (none). It is the backward-compatible
-	// shim for deployments predating AUTH_PROVIDERS: it is used only when
-	// AUTH_PROVIDERS is empty. When both are empty no providers are enabled
-	// (dev login only). The value is matched case-insensitively.
-	AuthProvider string `envconfig:"AUTH_PROVIDER" default:""`
+// AuthConfig holds web-login identity-provider settings and the embedded
+// OAuth 2.1 Authorization Server configuration.
+type AuthConfig struct {
+	// Providers is the comma-separated (or YAML list) set of web-login identity
+	// providers to enable simultaneously (e.g. "google,github,oidc"). When set it
+	// takes precedence over Provider. Unknown names are ignored with a warning;
+	// providers with missing credentials are skipped at startup. Matched
+	// case-insensitively against "google", "github", and "oidc".
+	Providers []string `koanf:"providers"`
+	// Provider selects a single web-login provider; the backward-compatible shim
+	// used only when Providers is empty.
+	Provider string `koanf:"provider"`
 
 	// SessionEncryptionKey is the hex-encoded secret backing the AES-256-GCM
 	// session cookie (and, via domain separation, the OAuth state HMAC). It must
 	// decode to exactly 32 bytes (64 hex chars). When empty, cookie session auth
 	// is disabled (stub/test mode).
-	SessionEncryptionKey string `envconfig:"SESSION_ENCRYPTION_KEY" default:""`
+	SessionEncryptionKey string `koanf:"session_encryption_key"`
 
-	// Google OIDC provider configuration (used when "google" is enabled).
-	// Google is reached directly via accounts.google.com discovery.
-	// GoogleClientID/Secret are an OAuth 2.0 Web client.
-	GoogleClientID     string `envconfig:"GOOGLE_CLIENT_ID" default:""`
-	GoogleClientSecret string `envconfig:"GOOGLE_CLIENT_SECRET" default:""`
-	GoogleRedirectURI  string `envconfig:"GOOGLE_REDIRECT_URI" default:"http://localhost:8080/api/v1/auth/callback"`
+	// DevLoginEnabled gates the /api/v1/auth/dev/login endpoint. It must be
+	// explicitly true AND the environment detected as development
+	// (frontend.base_url points at localhost) for the endpoint to respond.
+	DevLoginEnabled bool `koanf:"dev_login_enabled"`
 
-	// GitHub login (OAuth2) redirect URI used when "github" is enabled. The
-	// client credentials are GitHubClientID/GitHubClientSecret (GITHUB_CLIENT_ID
-	// / GITHUB_CLIENT_SECRET), declared with the GitHub configuration below.
-	// GitHub is OAuth2, not OIDC; claims come from the GitHub REST API.
-	GitHubRedirectURI string `envconfig:"GITHUB_REDIRECT_URI" default:"http://localhost:8080/api/v1/auth/callback"`
+	// SignInAllowedEmails restricts which email addresses may sign in. Empty
+	// (default) means open registration; non-empty is an allow-list.
+	SignInAllowedEmails []string `koanf:"signin_allowed_emails"`
 
-	// Generic OIDC provider configuration (used when "oidc" is enabled). Works
-	// with any OIDC-compliant issuer (Keycloak, Authentik, Zitadel, Auth0,
-	// Clerk). OIDCIssuerURL is used for OIDC discovery at startup.
-	OIDCIssuerURL    string `envconfig:"OIDC_ISSUER_URL" default:""`
-	OIDCClientID     string `envconfig:"OIDC_CLIENT_ID" default:""`
-	OIDCClientSecret string `envconfig:"OIDC_CLIENT_SECRET" default:""`
-	OIDCRedirectURI  string `envconfig:"OIDC_REDIRECT_URI" default:"http://localhost:8080/api/v1/auth/callback"`
+	Google  GoogleAuthConfig `koanf:"google"`
+	GitHub  GitHubAuthConfig `koanf:"github"`
+	OIDC    OIDCAuthConfig   `koanf:"oidc"`
+	OAuthAS OAuthASConfig    `koanf:"oauth_as"`
+	APIAuth APIOAuthConfig   `koanf:"api_oauth"`
+}
 
-	// MCP OAuth 2.1 resource-server configuration. The MCP endpoint delegates
-	// authorization to the configured OAuth 2.1 authorization server and validates
-	// bearer JWTs minted for the MCPResourceURI audience. MCPOAuthIssuer differs
-	// per environment (prod vs staging issuer) and must never be hardcoded.
-	MCPOAuthIssuer string `envconfig:"MCP_OAUTH_ISSUER" default:""`
-	MCPResourceURI string `envconfig:"MCP_RESOURCE_URI" default:""`
+// GoogleAuthConfig is the Google OIDC web-login client (used when "google" is
+// enabled). Google is reached directly via accounts.google.com discovery.
+type GoogleAuthConfig struct {
+	ClientID     string `koanf:"client_id"`
+	ClientSecret string `koanf:"client_secret"`
+	RedirectURI  string `koanf:"redirect_uri"`
+}
 
-	// API-surface OAuth configuration. When APIOAuthIssuer is set, /api/v1/*
-	// accepts AuthKit bearer JWTs (mobile and other native OAuth clients)
-	// alongside session cookies and API keys; empty disables the JWT branch
-	// and non-API-key bearer tokens keep getting 401. APIOAuthAudiences
-	// optionally pins the JWT aud claim to an allow-list. Plain AuthKit PKCE
-	// access tokens carry no aud claim (no RFC 8707 resource indicator), so
-	// the default accepts any audience EXCEPT the MCP resource URI (an MCP
-	// client's narrow grant must not double as an API credential); issuer,
-	// signature, expiry, and subject-to-user binding are always enforced.
-	// Note the accepted-token surface this implies: ANY AuthKit access token
-	// from this issuer for a provisioned user is an API credential — including
-	// the access token inside every web session — so such tokens must never be
-	// logged or forwarded. Distinct from the MCP resource-server config above,
-	// which requires RFC 8707 audience binding.
-	APIOAuthIssuer    string   `envconfig:"API_OAUTH_ISSUER" default:""`
-	APIOAuthAudiences []string `envconfig:"API_OAUTH_AUDIENCES"`
+// GitHubAuthConfig is the GitHub OAuth2 web-login client (used when "github" is
+// enabled). GitHub is OAuth2, not OIDC; claims come from the GitHub REST API.
+type GitHubAuthConfig struct {
+	ClientID     string `koanf:"client_id"`
+	ClientSecret string `koanf:"client_secret"`
+	RedirectURI  string `koanf:"redirect_uri"`
+}
 
-	// Embedded OAuth 2.1 Authorization Server (issue #31). When OAuthASIssuerURL
-	// is set, VibeXP mounts its own AS (/oauth2/authorize, /oauth2/token,
-	// /oauth2/register, /oauth2/jwks.json, /.well-known/oauth-authorization-server)
-	// on ory/fosite, federating the login leg to the AUTH_PROVIDERS registry and
-	// minting JWT access tokens bound to MCPResourceURI (RFC 8707). Empty disables
-	// the AS entirely. OAuthASIssuerURL is the public base URL of this server and
-	// becomes the token `iss` and the metadata `issuer`; it must be HTTPS in
-	// production. Access tokens are short-lived; refresh tokens rotate with reuse
-	// detection. Signing keys live in the DB and rotate every
-	// OAuthASKeyRotationInterval; rotated keys stay published in the JWKS until
-	// their tokens expire.
-	OAuthASIssuerURL           string        `envconfig:"OAUTH_AS_ISSUER_URL" default:""`
-	OAuthASAccessTokenTTL      time.Duration `envconfig:"OAUTH_AS_ACCESS_TOKEN_TTL" default:"15m"`
-	OAuthASRefreshTokenTTL     time.Duration `envconfig:"OAUTH_AS_REFRESH_TOKEN_TTL" default:"720h"`
-	OAuthASAuthCodeTTL         time.Duration `envconfig:"OAUTH_AS_AUTH_CODE_TTL" default:"10m"`
-	OAuthASKeyRotationInterval time.Duration `envconfig:"OAUTH_AS_KEY_ROTATION_INTERVAL" default:"720h"`
-	// OAuthASCleanupInterval is how often the AS prunes expired authorization
-	// codes, tokens, PKCE and login sessions, and retired signing keys.
-	OAuthASCleanupInterval time.Duration `envconfig:"OAUTH_AS_CLEANUP_INTERVAL" default:"1h"`
+// OIDCAuthConfig is the generic OIDC web-login client (used when "oidc" is
+// enabled). Works with any OIDC-compliant issuer; IssuerURL drives discovery.
+type OIDCAuthConfig struct {
+	IssuerURL    string `koanf:"issuer_url"`
+	ClientID     string `koanf:"client_id"`
+	ClientSecret string `koanf:"client_secret"`
+	RedirectURI  string `koanf:"redirect_uri"`
+}
 
-	// DevLoginEnabled gates the /api/v1/auth/dev/login endpoint.
-	// Defaults to false (off) so misconfigured environments cannot
-	// accidentally expose unauthenticated user impersonation. Must be
-	// explicitly set AND the environment must be detected as development
-	// (FRONTEND_BASE_URL points at localhost) for the endpoint to respond.
-	DevLoginEnabled bool `envconfig:"DEV_LOGIN_ENABLED" default:"false"`
+// OAuthASConfig holds the embedded OAuth 2.1 Authorization Server (issue #31).
+// When IssuerURL is set the AS is mounted; empty disables it. IssuerURL is the
+// public base URL and becomes the token `iss` and the metadata `issuer`; it
+// must be HTTPS in production. Token lifespans must be positive and ordered.
+type OAuthASConfig struct {
+	IssuerURL           string        `koanf:"issuer_url"`
+	AccessTokenTTL      time.Duration `koanf:"access_token_ttl"`
+	RefreshTokenTTL     time.Duration `koanf:"refresh_token_ttl"`
+	AuthCodeTTL         time.Duration `koanf:"auth_code_ttl"`
+	KeyRotationInterval time.Duration `koanf:"key_rotation_interval"`
+	// CleanupInterval is how often the AS prunes expired authorization codes,
+	// tokens, PKCE and login sessions, and retired signing keys.
+	CleanupInterval time.Duration `koanf:"cleanup_interval"`
+}
 
-	// SignInAllowedEmails restricts which email addresses may sign in. When
-	// empty (the default), registration is open and anyone may sign in. When
-	// non-empty, only the listed addresses are permitted. Provide a
-	// comma-separated list, e.g. "alice@example.com,bob@example.com".
-	SignInAllowedEmails []string `envconfig:"SIGNIN_ALLOWED_EMAILS"`
+// APIOAuthConfig configures the /api/v1 bearer-JWT path. When Issuer is set,
+// /api/v1/* accepts AuthKit bearer JWTs (native OAuth clients) alongside
+// session cookies and API keys; empty disables the JWT branch. Audiences
+// optionally pins the JWT aud claim to an allow-list.
+type APIOAuthConfig struct {
+	Issuer    string   `koanf:"issuer"`
+	Audiences []string `koanf:"audiences"`
+}
 
-	// SMTP configuration
-	SMTPHost     string `envconfig:"SMTP_HOST" default:"smtp.gmail.com"`
-	SMTPPort     string `envconfig:"SMTP_PORT" default:"587"`
-	SMTPUsername string `envconfig:"SMTP_USERNAME" default:""`
-	SMTPPassword string `envconfig:"SMTP_PASSWORD" default:""`
+// MCPConfig configures the MCP OAuth 2.1 resource server. The MCP endpoint
+// delegates authorization to the configured issuer and validates bearer JWTs
+// minted for ResourceURI (the audience, RFC 8707).
+type MCPConfig struct {
+	OAuthIssuer string `koanf:"oauth_issuer"`
+	ResourceURI string `koanf:"resource_uri"`
+}
 
-	// Email provider selection
-	// EmailProvider selects the email delivery backend. Valid values: smtp, mailgun.
-	// Defaults to "smtp" for backwards compatibility.
-	EmailProvider string `envconfig:"EMAIL_PROVIDER" default:"smtp"`
-	// EmailFromAddress is the sender address used by all email providers.
-	// When empty, falls back to SMTPUsername for backwards compatibility.
-	EmailFromAddress string `envconfig:"EMAIL_FROM_ADDRESS" default:""`
+// EmailConfig holds email delivery settings: the selected provider, shared
+// sender/recipient addresses, and per-provider sub-structs.
+type EmailConfig struct {
+	// Provider selects the delivery backend: smtp (default), mailgun, postmark,
+	// or sendgrid.
+	Provider string `koanf:"provider"`
+	// FromAddress is the sender address used by all providers; when empty it
+	// falls back to SMTP.Username.
+	FromAddress string `koanf:"from_address"`
+	// ContactRecipientAddress is the destination for contact/support notification
+	// emails; when empty it falls back to FromAddress, then SMTP.Username.
+	ContactRecipientAddress string `koanf:"contact_recipient_address"`
+	// PrivacyPolicyURL is the privacy-policy link in transactional email footers.
+	PrivacyPolicyURL string `koanf:"privacy_policy_url"`
 
-	// ContactRecipientAddress is the destination for contact-form and support
-	// notification emails (the "admin" inbox). When empty it falls back to
-	// EmailFromAddress, then SMTPUsername. No tenant-specific address is baked in.
-	ContactRecipientAddress string `envconfig:"CONTACT_RECIPIENT_ADDRESS" default:""`
+	SMTP     SMTPConfig     `koanf:"smtp"`
+	Mailgun  MailgunConfig  `koanf:"mailgun"`
+	Postmark PostmarkConfig `koanf:"postmark"`
+	SendGrid SendGridConfig `koanf:"sendgrid"`
+}
 
-	// Mailgun configuration
-	MailgunBaseURL string `envconfig:"MAILGUN_BASE_URL" default:""`
-	// MailgunDomain is the Mailgun sending domain (e.g. mg.example.com).
-	// Required when EMAIL_PROVIDER=mailgun.
-	MailgunDomain     string `envconfig:"MAILGUN_DOMAIN" default:""`
-	MailgunSendingKey string `envconfig:"MAILGUN_SENDING_KEY" default:""`
+// SMTPConfig holds SMTP delivery settings (the default provider). When the host
+// or port is absent the SMTP provider falls back to a no-op stub.
+type SMTPConfig struct {
+	Host     string `koanf:"host"`
+	Port     string `koanf:"port"`
+	Username string `koanf:"username"`
+	Password string `koanf:"password"`
+}
 
-	// Postmark configuration
-	// PostmarkServerToken is the Postmark Server API token used for sending.
-	// Required when EMAIL_PROVIDER=postmark.
-	PostmarkServerToken string `envconfig:"POSTMARK_SERVER_TOKEN" default:""`
-	// PostmarkMessageStream selects the Postmark message stream to send on.
-	// Defaults to "outbound" (the default transactional stream).
-	PostmarkMessageStream string `envconfig:"POSTMARK_MESSAGE_STREAM" default:"outbound"`
+// MailgunConfig holds Mailgun settings; Domain and SendingKey are required when
+// email.provider is "mailgun".
+type MailgunConfig struct {
+	BaseURL    string `koanf:"base_url"`
+	Domain     string `koanf:"domain"`
+	SendingKey string `koanf:"sending_key"`
+}
 
-	// SendGrid configuration
-	// SendGridAPIKey is the SendGrid API key (needs "Mail Send" permission).
-	// Required when EMAIL_PROVIDER=sendgrid.
-	SendGridAPIKey string `envconfig:"SENDGRID_API_KEY" default:""`
+// PostmarkConfig holds Postmark settings; ServerToken is required when
+// email.provider is "postmark".
+type PostmarkConfig struct {
+	ServerToken   string `koanf:"server_token"`
+	MessageStream string `koanf:"message_stream"`
+}
 
-	// Frontend URL configuration for redirects
-	FrontendBaseURL string `envconfig:"FRONTEND_BASE_URL" default:"http://localhost:5173"`
+// SendGridConfig holds SendGrid settings; APIKey is required when
+// email.provider is "sendgrid".
+type SendGridConfig struct {
+	APIKey string `koanf:"api_key"`
+}
 
-	// PrivacyPolicyURL is the public URL of the privacy policy, linked from the
-	// footer of transactional emails. Defaults to a neutral placeholder; set
-	// PRIVACY_POLICY_URL to your deployment's privacy policy page. No
-	// tenant-specific domain is baked in.
-	PrivacyPolicyURL string `envconfig:"PRIVACY_POLICY_URL" default:"https://example.com/privacy-policy"`
+// FrontendConfig holds the SPA base URL plus the deploy-time, non-secret
+// frontend values served to the SPA via /config.js (window.__VIBEXP_ENV__).
+// Each Site*/Brand*/GTM*/GA4 field mirrors a VITE_* the frontend otherwise
+// bakes in at build time. SECURITY: /config.js is world-readable — only
+// non-secret values belong here.
+type FrontendConfig struct {
+	// BaseURL is the frontend SPA base URL; used for redirects, email links, and
+	// the IsLocalDevelopment heuristic.
+	BaseURL string `koanf:"base_url"`
 
-	// CORS configuration. When empty, only the localhost dev origins are
-	// allowed; set CORS_ALLOWED_ORIGINS (comma-separated) to permit your
-	// production frontend origins. No production origins are baked in.
-	CORSAllowedOrigins []string `envconfig:"CORS_ALLOWED_ORIGINS"`
+	SiteName         string `koanf:"site_name"`
+	SiteLegalName    string `koanf:"site_legal_name"`
+	SiteURL          string `koanf:"site_url"`
+	TermsURL         string `koanf:"terms_url"`
+	PrivacyURL       string `koanf:"privacy_url"`
+	SupportEmail     string `koanf:"support_email"`
+	BrandLogoURL     string `koanf:"brand_logo_url"`
+	MCPEndpoint      string `koanf:"mcp_endpoint"`
+	ErrorTypeBaseURI string `koanf:"error_type_base_uri"`
+	GTMID            string `koanf:"gtm_id"`
+	GTMEnabled       string `koanf:"gtm_enabled"`
+	GA4MeasurementID string `koanf:"ga4_measurement_id"`
+}
 
-	// ErrorTypeBaseURI is the base URI used to build the RFC 9457 "type" member
-	// of error responses (joined as <base>/<error-code>). Defaults to the
-	// neutral "about:blank"; set it to a public URL that documents your error
-	// codes (e.g. https://example.com/errors) to point clients at human-readable
-	// docs.
-	ErrorTypeBaseURI string `envconfig:"ERROR_TYPE_BASE_URI" default:"about:blank"`
+// SearchConfig holds search ranking parameters. When RecencyRankingEnabled is
+// false (default) results keep relevance-only ordering; when true a weighted
+// blend of relevance and freshness is used.
+type SearchConfig struct {
+	RecencyRankingEnabled bool    `koanf:"recency_ranking_enabled"`
+	RankWeightRelevance   float64 `koanf:"rank_weight_relevance"`
+	RankWeightCreated     float64 `koanf:"rank_weight_created"`
+	RankWeightUpdated     float64 `koanf:"rank_weight_updated"`
+	RankHalfLifeDays      float64 `koanf:"rank_half_life_days"`
+	RankCandidateCap      int     `koanf:"rank_candidate_cap"`
+}
 
-	// Resource attachments (GCS) configuration. AttachmentsBucket is the GCS
-	// bucket backing artifact (and future resource) file attachments, accessed
-	// via Workload Identity / Application Default Credentials — no service
-	// account JSON key. When empty (the default), or when the GCS client cannot
-	// be initialized (e.g. a credential-less local/CI environment), the
-	// attachments subsystem is disabled and upload/download/delete return 503
-	// rather than crashing startup. Set it to your GCS bucket name to enable
-	// attachments.
-	AttachmentsBucket string `envconfig:"GCS_RESOURCE_ATTACHMENTS_BUCKET" default:""`
+// EmbeddingConfig holds the embedding model id and the in-Go chunker sizing.
+type EmbeddingConfig struct {
+	Model        string `koanf:"model"`
+	ChunkSize    int    `koanf:"chunk_size"`
+	ChunkOverlap int    `koanf:"chunk_overlap"`
+}
 
-	// GCPProjectID is the Google Cloud project id used for observability
-	// (trace/log correlation in the tracing exporter and request logger). It is
-	// optional and empty by default; it is NOT required for embedding generation,
-	// which is broker-free and runs in-process.
-	GCPProjectID string `envconfig:"GCP_PROJECT_ID" default:""`
+// GitHubConfig holds GitHub App / integration settings (distinct from the
+// GitHub web-login client in auth.github).
+type GitHubConfig struct {
+	AppID         string `koanf:"app_id"`
+	AppSlug       string `koanf:"app_slug"`
+	AppPrivateKey string `koanf:"app_private_key"`
+	WebhookURL    string `koanf:"webhook_url"`
+	WebhookSecret string `koanf:"webhook_secret"`
+}
 
-	// PubSubPushAudience is the OIDC token audience Cloud Scheduler (and any other
-	// Google OIDC push caller) mints its bearer token for; the internal job
-	// endpoints under /internal/jobs/* validate the incoming ID token against this
-	// value. It must equal the public base URL the caller targets. No default.
-	PubSubPushAudience string `envconfig:"PUBSUB_PUSH_AUDIENCE" default:""`
+// StorageConfig holds resource-attachment storage settings.
+type StorageConfig struct {
+	// AttachmentsBucket is the GCS bucket backing artifact (and future resource)
+	// file attachments. Empty (or an uninitialisable client) disables attachments
+	// (upload/download/delete return 503).
+	AttachmentsBucket string `koanf:"attachments_bucket"`
+}
 
+// GCPConfig holds Google Cloud settings used for observability and the internal
+// job (Pub/Sub push) authentication.
+type GCPConfig struct {
+	// ProjectID is the GCP project id used for trace/log correlation. Optional.
+	ProjectID string `koanf:"project_id"`
+	// PubSubPushAudience is the OIDC token audience Cloud Scheduler mints for the
+	// internal job endpoints; it must equal the public base URL the caller targets.
+	PubSubPushAudience string `koanf:"pubsub_push_audience"`
 	// PubSubPushServiceAccountSuffix restricts which service-account identities the
-	// OIDC middleware accepts for the internal job endpoints: the token's email
-	// claim must end with this suffix (e.g. "@my-project.iam.gserviceaccount.com").
-	// When empty, the service-account-domain check is skipped (issuer, signature
-	// and audience are still enforced).
-	PubSubPushServiceAccountSuffix string `envconfig:"PUBSUB_PUSH_SERVICE_ACCOUNT_SUFFIX" default:""`
+	// OIDC middleware accepts (the token email must end with this suffix). Empty
+	// skips the service-account-domain check.
+	PubSubPushServiceAccountSuffix string `koanf:"pubsub_push_service_account_suffix"`
+}
 
-	// EmbeddingModel is the model identifier used to embed both documents and search
-	// queries; it is the model_id tag written on every embedding row and the filter
-	// search uses to keep query and document vectors comparable. Operators set it to
-	// match the model their configured provider serves.
-	//
-	// The embedding vector width is NOT configured here — it is the fixed constant
-	// services.EmbeddingVectorDimensions (locked to the vector(N) migration). The
-	// active provider (base URL, API key, type) lives in the embedding_providers table.
-	EmbeddingModel string `envconfig:"EMBEDDING_MODEL" default:"gemini-embedding-001"`
+// RateLimitConfig holds per-IP request rate limits (requests per minute),
+// applied per route group. Each must be >= 1.
+type RateLimitConfig struct {
+	AuthPerMinute int `koanf:"auth_per_minute"`
+	APIPerMinute  int `koanf:"api_per_minute"`
+}
 
-	// EmbeddingChunkSize and EmbeddingChunkOverlap configure the in-Go document
-	// chunker (rune-based sliding window). Overlap preserves context across chunk
-	// boundaries and must be smaller than the chunk size.
-	EmbeddingChunkSize    int `envconfig:"EMBEDDING_CHUNK_SIZE" default:"1000"`
-	EmbeddingChunkOverlap int `envconfig:"EMBEDDING_CHUNK_OVERLAP" default:"200"`
+// RetentionConfig holds data-retention windows and limits.
+type RetentionConfig struct {
+	// ActivityDays / AccessEventDays must be in 1..3650.
+	ActivityDays    int `koanf:"activity_days"`
+	AccessEventDays int `koanf:"access_event_days"`
+	// ContentVersionLimit bounds content-version snapshots per resource. 0 (or
+	// negative) disables pruning, keeping every version.
+	ContentVersionLimit int `koanf:"content_version_limit"`
+}
 
-	// GitHub App configuration
-	GitHubAppID         string `envconfig:"GITHUB_APP_ID" default:""`
-	GitHubAppSlug       string `envconfig:"GITHUB_APP_SLUG" default:""`
-	GitHubAppPrivateKey string `envconfig:"GITHUB_APP_PRIVATE_KEY" default:""`
-	GitHubClientID      string `envconfig:"GITHUB_CLIENT_ID" default:""`
-	GitHubClientSecret  string `envconfig:"GITHUB_CLIENT_SECRET" default:""`
-	GitHubWebhookURL    string `envconfig:"GITHUB_WEBHOOK_URL" default:""`
-	GitHubWebhookSecret string `envconfig:"GITHUB_WEBHOOK_SECRET" default:""`
+// A2AConfig holds Agent-to-Agent client settings.
+type A2AConfig struct {
+	DefaultTimeout time.Duration `koanf:"default_timeout"`
+}
 
-	// Event Bus configuration
-	EventBus events.Config
+// FCMConfig gates the Firebase Cloud Messaging web push channel.
+type FCMConfig struct {
+	Enabled bool `koanf:"enabled"`
+}
 
-	// OpenTelemetry configuration
-	OTel observability.Config
-
-	// FCMEnabled gates the Firebase Cloud Messaging web push channel.
-	// When true, the Firebase Admin SDK uses Application Default Credentials
-	// (Workload Identity on Cloud Run, gcloud user creds for local dev) — no
-	// service account JSON key is ever required. When false, the WebPushChannel
-	// is omitted from the channel list and notifications fall back to other channels.
-	FCMEnabled bool `envconfig:"FCM_ENABLED" default:"false"`
-
-	// MaxBodySizeBytes caps the size of request bodies the server will read for
-	// general API routes. The maxBodySize middleware wraps r.Body with
-	// http.MaxBytesReader using this value so a single oversized request cannot
-	// exhaust memory. Defaults to 10MiB: this is a memory-exhaustion backstop, not
-	// a functional limit, so it is set generously above the size of legitimate
-	// payloads (artifact/memory/prompt content is unbounded TEXT and can be large).
-	// Abuse-prone endpoints apply their own much tighter caps (webhooks cap at
-	// 64KiB), so the global value only guards against absurd bodies.
-	MaxBodySizeBytes int64 `envconfig:"MAX_BODY_SIZE_BYTES" default:"10485760"`
-
-	// Per-IP rate limits (requests per minute), applied per route group by the
-	// httprate middleware. middleware.RealIP runs first so the limiter keys on the
-	// client IP. Each must be >= 1.
-	//   - AuthRateLimitPerMinute: unauthenticated auth endpoints (login/callback/logout).
-	//   - APIRateLimitPerMinute: the authenticated API surface (web app + CLI).
-	//
-	// Known limitations (intentional for this defense-in-depth pass; tracked for
-	// follow-up): (1) the limiter keys on middleware.RealIP, which trusts the
-	// leftmost X-Forwarded-For entry — an attacker who can forge that header gets a
-	// fresh bucket per request, so this is a best-effort backstop against naive
-	// abuse, not a spoof-proof control. (2) httprate uses an in-memory per-instance
-	// counter, so on a multi-instance Cloud Run deployment the effective limit is
-	// roughly N x the configured value and resets on cold start. A trusted-proxy
-	// client-IP derivation and a shared (e.g. Redis-backed) counter are the
-	// hardening follow-ups if real abuse is observed.
-	AuthRateLimitPerMinute int `envconfig:"AUTH_RATE_LIMIT_PER_MINUTE" default:"100"`
-	APIRateLimitPerMinute  int `envconfig:"API_RATE_LIMIT_PER_MINUTE" default:"1000"`
-
-	// ActivityRetentionDays is the number of days to retain activity records.
-	// Activities older than this value are deleted by the daily retention job.
-	// Must be >= 1.
-	ActivityRetentionDays int `envconfig:"ACTIVITY_RETENTION_DAYS" default:"90"`
-
-	// AccessEventRetentionDays is the number of days to retain resource detail-access events.
-	// Events older than this value are deleted by the daily retention job.
-	// Must be >= 1.
-	AccessEventRetentionDays int `envconfig:"ACCESS_EVENT_RETENTION_DAYS" default:"90"`
-
-	// ContentVersionRetentionLimit bounds how many content-version snapshots are
-	// kept per resource (artifact, blueprint, memory, prompt). On each change the
-	// oldest snapshots beyond this many are pruned. A value of 0 (or negative)
-	// disables pruning entirely, keeping every version.
-	ContentVersionRetentionLimit int `envconfig:"CONTENT_VERSION_RETENTION_LIMIT" default:"20"`
-
-	// Search ranking configuration. When SearchRecencyRankingEnabled is false
-	// (the default), search results keep the historical relevance-only ordering.
-	// When true, the service re-ranks a candidate pool by a weighted blend of
-	// semantic relevance and two freshness signals (created_at, updated_at), with
-	// relevance dominant. The three weights are expected to satisfy
-	// relevance >= created >= updated; they are normalized by their sum at
-	// ranking time so they need not pre-sum to 1.
-	SearchRecencyRankingEnabled bool    `envconfig:"SEARCH_RECENCY_RANKING_ENABLED" default:"false"`
-	SearchRankWeightRelevance   float64 `envconfig:"SEARCH_RANK_WEIGHT_RELEVANCE" default:"0.5"`
-	SearchRankWeightCreated     float64 `envconfig:"SEARCH_RANK_WEIGHT_CREATED" default:"0.3"`
-	SearchRankWeightUpdated     float64 `envconfig:"SEARCH_RANK_WEIGHT_UPDATED" default:"0.2"`
-	// SearchRankHalfLifeDays is the single shared half-life (in days) for the
-	// exponential recency decay applied to both created_at and updated_at.
-	SearchRankHalfLifeDays float64 `envconfig:"SEARCH_RANK_HALF_LIFE_DAYS" default:"90"`
-	// SearchRankCandidateCap bounds how many top-by-distance candidates are pulled
-	// for in-memory re-ranking before pagination. Re-ranking cannot use the HNSW
-	// index, so this caps the work per query.
-	SearchRankCandidateCap int `envconfig:"SEARCH_RANK_CANDIDATE_CAP" default:"200"`
-
-	// A2A (Agent-to-Agent) configuration
-	A2ADefaultTimeout time.Duration `envconfig:"A2A_DEFAULT_TIMEOUT" default:"5m"`
-
-	// Deployment environment configuration
-	OTelEnvironment       string `envconfig:"OTEL_ENVIRONMENT" default:""`
-	Environment           string `envconfig:"ENVIRONMENT" default:""`
-	Env                   string `envconfig:"ENV" default:""`
-	DeploymentEnvironment string `envconfig:"DEPLOYMENT_ENVIRONMENT" default:""`
-	KubernetesServiceHost string `envconfig:"KUBERNETES_SERVICE_HOST" default:""`
-	GoogleCloudProject    string `envconfig:"GOOGLE_CLOUD_PROJECT" default:""`
-	GCPProject            string `envconfig:"GCP_PROJECT" default:""`
-	AWSRegion             string `envconfig:"AWS_REGION" default:""`
-	AWSDefaultRegion      string `envconfig:"AWS_DEFAULT_REGION" default:""`
-
-	// Cloud Run specific configuration (automatically set by Cloud Run)
-	KService  string `envconfig:"K_SERVICE" default:""`
-	KRevision string `envconfig:"K_REVISION" default:""`
-
-	// Runtime frontend configuration (issue #57). In the single combined image
-	// (#61) the backend embeds and serves the SPA, so these deploy-time values are
-	// rendered into /config.js as window.__VIBEXP_ENV__ and read by the frontend
-	// via getEnv() — letting a self-hoster rebrand and (optionally) enable
-	// analytics with an env var + restart, no rebuild. Each mirrors a VITE_* the
-	// frontend otherwise bakes in at build time; an empty value is omitted from
-	// config.js so the frontend's neutral build-time default remains the fallback.
-	// SECURITY: config.js is world-readable — only non-secret, deploy-time values
-	// belong here. Never add secrets (tokens, client secrets, DSNs with secrets).
-	FrontendSiteName         string `envconfig:"VITE_SITE_NAME" default:""`
-	FrontendSiteLegalName    string `envconfig:"VITE_SITE_LEGAL_NAME" default:""`
-	FrontendSiteURL          string `envconfig:"VITE_SITE_URL" default:""`
-	FrontendTermsURL         string `envconfig:"VITE_TERMS_URL" default:""`
-	FrontendPrivacyURL       string `envconfig:"VITE_PRIVACY_URL" default:""`
-	FrontendSupportEmail     string `envconfig:"VITE_SUPPORT_EMAIL" default:""`
-	FrontendBrandLogoURL     string `envconfig:"VITE_BRAND_LOGO_URL" default:""`
-	FrontendMCPEndpoint      string `envconfig:"VITE_MCP_ENDPOINT" default:""`
-	FrontendErrorTypeBaseURI string `envconfig:"VITE_ERROR_TYPE_BASE_URI" default:""`
-	FrontendGTMID            string `envconfig:"VITE_GTM_ID" default:""`
-	FrontendGTMEnabled       string `envconfig:"VITE_GTM_ENABLED" default:""`
-	FrontendGA4MeasurementID string `envconfig:"VITE_GA4_MEASUREMENT_ID" default:""`
+// DeploymentConfig holds environment-detection indicators (see
+// GetDeploymentEnvironment). Most are auto-populated by the hosting platform
+// and surfaced into the YAML via ${VAR} interpolation.
+type DeploymentConfig struct {
+	OTelEnvironment       string `koanf:"otel_environment"`
+	Environment           string `koanf:"environment"`
+	Env                   string `koanf:"env"`
+	DeploymentEnvironment string `koanf:"deployment_environment"`
+	KubernetesServiceHost string `koanf:"kubernetes_service_host"`
+	GoogleCloudProject    string `koanf:"google_cloud_project"`
+	GCPProject            string `koanf:"gcp_project"`
+	AWSRegion             string `koanf:"aws_region"`
+	AWSDefaultRegion      string `koanf:"aws_default_region"`
+	KService              string `koanf:"k_service"`
+	KRevision             string `koanf:"k_revision"`
 }
 
 // RuntimeFrontendEnv returns the deploy-time frontend configuration served to
@@ -384,18 +364,18 @@ type Config struct {
 // result is served publicly and MUST contain only non-secret values.
 func (c *Config) RuntimeFrontendEnv() map[string]string {
 	pairs := []struct{ key, val string }{
-		{"VITE_SITE_NAME", c.FrontendSiteName},
-		{"VITE_SITE_LEGAL_NAME", c.FrontendSiteLegalName},
-		{"VITE_SITE_URL", c.FrontendSiteURL},
-		{"VITE_TERMS_URL", c.FrontendTermsURL},
-		{"VITE_PRIVACY_URL", c.FrontendPrivacyURL},
-		{"VITE_SUPPORT_EMAIL", c.FrontendSupportEmail},
-		{"VITE_BRAND_LOGO_URL", c.FrontendBrandLogoURL},
-		{"VITE_MCP_ENDPOINT", c.FrontendMCPEndpoint},
-		{"VITE_ERROR_TYPE_BASE_URI", c.FrontendErrorTypeBaseURI},
-		{"VITE_GTM_ID", c.FrontendGTMID},
-		{"VITE_GTM_ENABLED", c.FrontendGTMEnabled},
-		{"VITE_GA4_MEASUREMENT_ID", c.FrontendGA4MeasurementID},
+		{"VITE_SITE_NAME", c.Frontend.SiteName},
+		{"VITE_SITE_LEGAL_NAME", c.Frontend.SiteLegalName},
+		{"VITE_SITE_URL", c.Frontend.SiteURL},
+		{"VITE_TERMS_URL", c.Frontend.TermsURL},
+		{"VITE_PRIVACY_URL", c.Frontend.PrivacyURL},
+		{"VITE_SUPPORT_EMAIL", c.Frontend.SupportEmail},
+		{"VITE_BRAND_LOGO_URL", c.Frontend.BrandLogoURL},
+		{"VITE_MCP_ENDPOINT", c.Frontend.MCPEndpoint},
+		{"VITE_ERROR_TYPE_BASE_URI", c.Frontend.ErrorTypeBaseURI},
+		{"VITE_GTM_ID", c.Frontend.GTMID},
+		{"VITE_GTM_ENABLED", c.Frontend.GTMEnabled},
+		{"VITE_GA4_MEASUREMENT_ID", c.Frontend.GA4MeasurementID},
 	}
 	out := make(map[string]string, len(pairs))
 	for _, p := range pairs {
@@ -416,16 +396,16 @@ type GitHubAppConfig struct {
 
 // GetGitHubAppConfig returns the GitHub App configuration with parsed private key
 func (c *Config) GetGitHubAppConfig() (*GitHubAppConfig, error) {
-	if c.GitHubAppID == "" || c.GitHubAppPrivateKey == "" {
+	if c.GitHub.AppID == "" || c.GitHub.AppPrivateKey == "" {
 		return nil, nil // No GitHub App configured
 	}
 
-	// Try to decode from base64 first (for easier .env management)
+	// Try to decode from base64 first (for easier config management).
 	// If decoding fails, treat it as raw PEM.
 	// This automatic fallback allows keys to be stored in either format.
-	privateKeyBytes := []byte(c.GitHubAppPrivateKey)
+	privateKeyBytes := []byte(c.GitHub.AppPrivateKey)
 	isBase64Encoded := false
-	if decoded, err := base64.StdEncoding.DecodeString(c.GitHubAppPrivateKey); err == nil {
+	if decoded, err := base64.StdEncoding.DecodeString(c.GitHub.AppPrivateKey); err == nil {
 		// Successfully decoded from base64
 		privateKeyBytes = decoded
 		isBase64Encoded = true
@@ -433,9 +413,9 @@ func (c *Config) GetGitHubAppConfig() (*GitHubAppConfig, error) {
 
 	// Log which format was detected (visible during startup)
 	if isBase64Encoded {
-		fmt.Println("GitHub App private key loaded from base64-encoded format")
+		slog.Info("GitHub App private key loaded from base64-encoded format")
 	} else {
-		fmt.Println("GitHub App private key loaded from raw PEM format")
+		slog.Info("GitHub App private key loaded from raw PEM format")
 	}
 
 	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(privateKeyBytes)
@@ -444,40 +424,42 @@ func (c *Config) GetGitHubAppConfig() (*GitHubAppConfig, error) {
 	}
 
 	return &GitHubAppConfig{
-		AppID:         c.GitHubAppID,
+		AppID:         c.GitHub.AppID,
 		PrivateKey:    privateKey,
 		PrivateKeyPEM: privateKeyBytes, // Store PEM bytes for ghinstallation
-		WebhookSecret: c.GitHubWebhookSecret,
+		WebhookSecret: c.GitHub.WebhookSecret,
 	}, nil
 }
 
-// GetDeploymentEnvironment determines the deployment environment from config
-// It checks OTEL_ENVIRONMENT first, then standard env vars, then cloud indicators, then defaults
+// GetDeploymentEnvironment determines the deployment environment from config.
+// It checks otel_environment first, then standard env-derived vars, then cloud
+// indicators, then defaults to production.
 func (c *Config) GetDeploymentEnvironment() string {
+	d := c.Deployment
 	// Check OpenTelemetry standard env var
-	if c.OTelEnvironment != "" {
-		return c.OTelEnvironment
+	if d.OTelEnvironment != "" {
+		return d.OTelEnvironment
 	}
 
 	// Check common deployment environment variables
-	if c.Environment != "" {
-		return c.Environment
+	if d.Environment != "" {
+		return d.Environment
 	}
-	if c.Env != "" {
-		return c.Env
+	if d.Env != "" {
+		return d.Env
 	}
-	if c.DeploymentEnvironment != "" {
-		return c.DeploymentEnvironment
+	if d.DeploymentEnvironment != "" {
+		return d.DeploymentEnvironment
 	}
 
 	// Check common cloud provider environment indicators
-	if c.KubernetesServiceHost != "" {
+	if d.KubernetesServiceHost != "" {
 		return "kubernetes"
 	}
-	if c.GoogleCloudProject != "" || c.GCPProject != "" {
+	if d.GoogleCloudProject != "" || d.GCPProject != "" {
 		return "gcp-cloud-run"
 	}
-	if c.AWSRegion != "" || c.AWSDefaultRegion != "" {
+	if d.AWSRegion != "" || d.AWSDefaultRegion != "" {
 		return "aws"
 	}
 
@@ -501,30 +483,31 @@ const maxSearchRankCandidateCap = 5000
 // garbage ordering. Weights must be non-negative (and not all zero); the
 // half-life and candidate cap must each be positive and within a sane ceiling.
 func validateSearchRankingConfig(cfg *Config) error {
-	weights := []float64{cfg.SearchRankWeightRelevance, cfg.SearchRankWeightCreated, cfg.SearchRankWeightUpdated}
+	s := cfg.Search
+	weights := []float64{s.RankWeightRelevance, s.RankWeightCreated, s.RankWeightUpdated}
 	var sum float64
 	for _, w := range weights {
 		if w < 0 {
-			return fmt.Errorf("search rank weights must be non-negative, got %v", weights)
+			return fmt.Errorf("search.rank_weight_* must be non-negative, got %v", weights)
 		}
 		sum += w
 	}
 	if sum == 0 {
-		return fmt.Errorf("search rank weights must not all be zero")
+		return fmt.Errorf("search.rank_weight_* must not all be zero")
 	}
-	if cfg.SearchRankHalfLifeDays <= 0 {
-		return fmt.Errorf("SEARCH_RANK_HALF_LIFE_DAYS must be positive, got %v", cfg.SearchRankHalfLifeDays)
+	if s.RankHalfLifeDays <= 0 {
+		return fmt.Errorf("search.rank_half_life_days must be positive, got %v", s.RankHalfLifeDays)
 	}
-	if cfg.SearchRankHalfLifeDays > maxSearchRankHalfLifeDays {
-		return fmt.Errorf("SEARCH_RANK_HALF_LIFE_DAYS must be <= %d, got %v",
-			maxSearchRankHalfLifeDays, cfg.SearchRankHalfLifeDays)
+	if s.RankHalfLifeDays > maxSearchRankHalfLifeDays {
+		return fmt.Errorf("search.rank_half_life_days must be <= %d, got %v",
+			maxSearchRankHalfLifeDays, s.RankHalfLifeDays)
 	}
-	if cfg.SearchRankCandidateCap < 1 {
-		return fmt.Errorf("SEARCH_RANK_CANDIDATE_CAP must be >= 1, got %d", cfg.SearchRankCandidateCap)
+	if s.RankCandidateCap < 1 {
+		return fmt.Errorf("search.rank_candidate_cap must be >= 1, got %d", s.RankCandidateCap)
 	}
-	if cfg.SearchRankCandidateCap > maxSearchRankCandidateCap {
-		return fmt.Errorf("SEARCH_RANK_CANDIDATE_CAP must be <= %d, got %d",
-			maxSearchRankCandidateCap, cfg.SearchRankCandidateCap)
+	if s.RankCandidateCap > maxSearchRankCandidateCap {
+		return fmt.Errorf("search.rank_candidate_cap must be <= %d, got %d",
+			maxSearchRankCandidateCap, s.RankCandidateCap)
 	}
 	return nil
 }
@@ -532,26 +515,28 @@ func validateSearchRankingConfig(cfg *Config) error {
 // encryptionKeyLength is the required AES-256 key length in bytes.
 const encryptionKeyLength = 32
 
-// validateEncryptionKey enforces that ENCRYPTION_KEY is present and exactly 32 bytes
-// so the service fails closed at startup rather than running with a weak/default key.
+// validateEncryptionKey enforces that security.encryption_key is present and
+// exactly 32 bytes so the service fails closed at startup rather than running
+// with a weak/default key.
 func validateEncryptionKey(cfg *Config) error {
-	if cfg.EncryptionKey == "" {
-		return fmt.Errorf("ENCRYPTION_KEY is required and must be exactly %d bytes", encryptionKeyLength)
+	if cfg.Security.EncryptionKey == "" {
+		return fmt.Errorf("security.encryption_key is required and must be exactly %d bytes", encryptionKeyLength)
 	}
-	if len(cfg.EncryptionKey) != encryptionKeyLength {
-		return fmt.Errorf("ENCRYPTION_KEY must be exactly %d bytes, got %d", encryptionKeyLength, len(cfg.EncryptionKey))
+	if len(cfg.Security.EncryptionKey) != encryptionKeyLength {
+		return fmt.Errorf("security.encryption_key must be exactly %d bytes, got %d",
+			encryptionKeyLength, len(cfg.Security.EncryptionKey))
 	}
 	return nil
 }
 
 // IsLocalDevelopment reports whether the process is running in local development,
-// detected from FRONTEND_BASE_URL pointing at localhost/127.0.0.1. An empty value
+// detected from frontend.base_url pointing at localhost/127.0.0.1. An empty value
 // is treated as NOT development (fail-closed) so a misconfigured deployment never
 // enables dev-only paths. This is the single source of truth for the dev
 // heuristic, shared by services.EnvironmentService.IsDevelopment and the dev-only
 // config derivation (applyDevOAuthASDefaults); production never matches.
 func (c *Config) IsLocalDevelopment() bool {
-	u := strings.ToLower(c.FrontendBaseURL)
+	u := strings.ToLower(c.Frontend.BaseURL)
 	if u == "" {
 		return false
 	}
@@ -560,80 +545,80 @@ func (c *Config) IsLocalDevelopment() bool {
 
 // applyDevOAuthASDefaults auto-enables the embedded Authorization Server for local
 // development by deriving sane defaults when they are left unset, so a fresh
-// checkout — or a freshly copied .env that did not set them — boots a connectable
-// MCP endpoint with zero auth configuration. It runs ONLY in local development
-// (FRONTEND_BASE_URL points at localhost); production keeps the AS strictly opt-in
-// and never guesses a public issuer (a guessed issuer would not match the
-// client-facing URL behind a proxy). Explicit env always wins — a value already
-// set is never overwritten. The derived issuer is the server's own local base URL
-// (http://localhost:<PORT>) and the resource URI is <issuer>/mcp/v1/common, which
-// matches .env.example and satisfies validateOAuthASConfig's invariants.
+// checkout boots a connectable MCP endpoint with zero auth configuration. It runs
+// ONLY in local development (frontend.base_url points at localhost); production
+// keeps the AS strictly opt-in and never guesses a public issuer. Explicit config
+// always wins — a value already set is never overwritten. The derived issuer is
+// the server's own local base URL (http://localhost:<PORT>) and the resource URI
+// is <issuer>/mcp/v1/common.
 func applyDevOAuthASDefaults(cfg *Config) {
 	if !cfg.IsLocalDevelopment() {
 		return
 	}
 	// Respect an explicit opt-out: if the developer pointed the MCP resource server
-	// at their own external issuer (MCP_OAUTH_ISSUER set) without enabling the
+	// at their own external issuer (mcp.oauth_issuer set) without enabling the
 	// embedded AS, do not auto-enable it — that would force a conflicting issuer
 	// onto their setup. Only the truly-unconfigured local case is auto-enabled.
-	if cfg.OAuthASIssuerURL == "" && cfg.MCPOAuthIssuer != "" {
+	if cfg.Auth.OAuthAS.IssuerURL == "" && cfg.MCP.OAuthIssuer != "" {
 		return
 	}
-	if cfg.OAuthASIssuerURL == "" {
-		cfg.OAuthASIssuerURL = "http://localhost:" + cfg.Port
+	if cfg.Auth.OAuthAS.IssuerURL == "" {
+		cfg.Auth.OAuthAS.IssuerURL = "http://localhost:" + cfg.Server.Port
 	}
-	if cfg.MCPResourceURI == "" {
-		cfg.MCPResourceURI = strings.TrimRight(cfg.OAuthASIssuerURL, "/") + "/mcp/v1/common"
+	if cfg.MCP.ResourceURI == "" {
+		cfg.MCP.ResourceURI = strings.TrimRight(cfg.Auth.OAuthAS.IssuerURL, "/") + "/mcp/v1/common"
 	}
 }
 
 // applyMCPIssuerDefault points the MCP resource server at the embedded
-// Authorization Server when the AS is enabled and no explicit MCP_OAUTH_ISSUER is
+// Authorization Server when the AS is enabled and no explicit mcp.oauth_issuer is
 // set, so the protected-resource metadata advertises VibeXP itself. An explicit
-// MCP_OAUTH_ISSUER still wins but must agree with the AS issuer (enforced by
+// mcp.oauth_issuer still wins but must agree with the AS issuer (enforced by
 // validateOAuthASConfig).
 func applyMCPIssuerDefault(cfg *Config) {
-	if cfg.OAuthASIssuerURL != "" && cfg.MCPOAuthIssuer == "" {
-		cfg.MCPOAuthIssuer = cfg.OAuthASIssuerURL
+	if cfg.Auth.OAuthAS.IssuerURL != "" && cfg.MCP.OAuthIssuer == "" {
+		cfg.MCP.OAuthIssuer = cfg.Auth.OAuthAS.IssuerURL
 	}
 }
 
 // validateOAuthASConfig validates the embedded Authorization Server settings.
-// The AS is opt-in: when OAuthASIssuerURL is empty it is disabled and no other
-// field is checked. When enabled, a usable MCP resource URI (the token audience)
-// and sane, ordered token lifespans are required so the server fails closed at
-// startup rather than minting unbound or never-expiring tokens.
+// The AS is opt-in: when auth.oauth_as.issuer_url is empty it is disabled and no
+// other field is checked. When enabled, a usable MCP resource URI (the token
+// audience) and sane, ordered token lifespans are required so the server fails
+// closed at startup rather than minting unbound or never-expiring tokens.
 func validateOAuthASConfig(cfg *Config) error {
-	if cfg.OAuthASIssuerURL == "" {
+	as := cfg.Auth.OAuthAS
+	if as.IssuerURL == "" {
 		return nil
 	}
-	if cfg.MCPResourceURI == "" {
-		return fmt.Errorf("MCP_RESOURCE_URI is required when OAUTH_AS_ISSUER_URL is set (it is the issued token audience)")
+	if cfg.MCP.ResourceURI == "" {
+		return fmt.Errorf(
+			"mcp.resource_uri is required when auth.oauth_as.issuer_url is set (it is the issued token audience)")
 	}
 	// The MCP resource server must trust the embedded AS as its issuer; an
-	// explicit, divergent MCP_OAUTH_ISSUER would make the AS mint tokens the
-	// resource server rejects. Leaving MCP_OAUTH_ISSUER unset is the norm — Load
-	// defaults it to OAUTH_AS_ISSUER_URL.
-	if cfg.MCPOAuthIssuer != "" && cfg.MCPOAuthIssuer != cfg.OAuthASIssuerURL {
+	// explicit, divergent mcp.oauth_issuer would make the AS mint tokens the
+	// resource server rejects. Leaving mcp.oauth_issuer unset is the norm — Load
+	// defaults it to auth.oauth_as.issuer_url.
+	if cfg.MCP.OAuthIssuer != "" && cfg.MCP.OAuthIssuer != as.IssuerURL {
 		return fmt.Errorf(
-			"MCP_OAUTH_ISSUER (%q) must equal OAUTH_AS_ISSUER_URL (%q), or be left unset to default to it",
-			cfg.MCPOAuthIssuer, cfg.OAuthASIssuerURL)
+			"mcp.oauth_issuer (%q) must equal auth.oauth_as.issuer_url (%q), or be left unset to default to it",
+			cfg.MCP.OAuthIssuer, as.IssuerURL)
 	}
-	if cfg.OAuthASAccessTokenTTL <= 0 {
-		return fmt.Errorf("OAUTH_AS_ACCESS_TOKEN_TTL must be positive, got %v", cfg.OAuthASAccessTokenTTL)
+	if as.AccessTokenTTL <= 0 {
+		return fmt.Errorf("auth.oauth_as.access_token_ttl must be positive, got %v", as.AccessTokenTTL)
 	}
-	if cfg.OAuthASAuthCodeTTL <= 0 {
-		return fmt.Errorf("OAUTH_AS_AUTH_CODE_TTL must be positive, got %v", cfg.OAuthASAuthCodeTTL)
+	if as.AuthCodeTTL <= 0 {
+		return fmt.Errorf("auth.oauth_as.auth_code_ttl must be positive, got %v", as.AuthCodeTTL)
 	}
-	if cfg.OAuthASRefreshTokenTTL <= cfg.OAuthASAccessTokenTTL {
-		return fmt.Errorf("OAUTH_AS_REFRESH_TOKEN_TTL (%v) must exceed OAUTH_AS_ACCESS_TOKEN_TTL (%v)",
-			cfg.OAuthASRefreshTokenTTL, cfg.OAuthASAccessTokenTTL)
+	if as.RefreshTokenTTL <= as.AccessTokenTTL {
+		return fmt.Errorf("auth.oauth_as.refresh_token_ttl (%v) must exceed auth.oauth_as.access_token_ttl (%v)",
+			as.RefreshTokenTTL, as.AccessTokenTTL)
 	}
-	if cfg.OAuthASKeyRotationInterval <= 0 {
-		return fmt.Errorf("OAUTH_AS_KEY_ROTATION_INTERVAL must be positive, got %v", cfg.OAuthASKeyRotationInterval)
+	if as.KeyRotationInterval <= 0 {
+		return fmt.Errorf("auth.oauth_as.key_rotation_interval must be positive, got %v", as.KeyRotationInterval)
 	}
-	if cfg.OAuthASCleanupInterval <= 0 {
-		return fmt.Errorf("OAUTH_AS_CLEANUP_INTERVAL must be positive, got %v", cfg.OAuthASCleanupInterval)
+	if as.CleanupInterval <= 0 {
+		return fmt.Errorf("auth.oauth_as.cleanup_interval must be positive, got %v", as.CleanupInterval)
 	}
 	return nil
 }
@@ -641,9 +626,9 @@ func validateOAuthASConfig(cfg *Config) error {
 // validateRetentionDays enforces the shared 1..3650-day window (1 day to 10 years)
 // for a retention setting. Rejecting 0/negatives prevents deleting all rows; the
 // upper bound prevents silently violating the retention intent.
-func validateRetentionDays(envName string, value int) error {
+func validateRetentionDays(yamlPath string, value int) error {
 	if value < 1 || value > 3650 {
-		return fmt.Errorf("%s must be between 1 and 3650, got %d", envName, value)
+		return fmt.Errorf("%s must be between 1 and 3650, got %d", yamlPath, value)
 	}
 	return nil
 }
@@ -652,16 +637,17 @@ func validateRetentionDays(envName string, value int) error {
 // chunker sizing is sane, so the service fails closed at startup rather than
 // embedding/searching with an empty model_id or a stalled chunker.
 func validateEmbeddingConfig(cfg *Config) error {
-	if cfg.EmbeddingModel == "" {
-		return fmt.Errorf("EMBEDDING_MODEL is required and must be non-empty")
+	e := cfg.Embedding
+	if e.Model == "" {
+		return fmt.Errorf("embedding.model is required and must be non-empty")
 	}
-	if cfg.EmbeddingChunkSize < 1 {
-		return fmt.Errorf("EMBEDDING_CHUNK_SIZE must be >= 1, got %d", cfg.EmbeddingChunkSize)
+	if e.ChunkSize < 1 {
+		return fmt.Errorf("embedding.chunk_size must be >= 1, got %d", e.ChunkSize)
 	}
-	if cfg.EmbeddingChunkOverlap < 0 || cfg.EmbeddingChunkOverlap >= cfg.EmbeddingChunkSize {
+	if e.ChunkOverlap < 0 || e.ChunkOverlap >= e.ChunkSize {
 		return fmt.Errorf(
-			"EMBEDDING_CHUNK_OVERLAP must be in [0, EMBEDDING_CHUNK_SIZE), got %d (chunk size %d)",
-			cfg.EmbeddingChunkOverlap, cfg.EmbeddingChunkSize,
+			"embedding.chunk_overlap must be in [0, embedding.chunk_size), got %d (chunk size %d)",
+			e.ChunkOverlap, e.ChunkSize,
 		)
 	}
 	return nil
@@ -670,81 +656,275 @@ func validateEmbeddingConfig(cfg *Config) error {
 // validateRateLimits enforces that every per-IP rate limit is positive; a
 // non-positive value would reject every request to the guarded route group.
 func validateRateLimits(cfg *Config) error {
-	if cfg.AuthRateLimitPerMinute < 1 {
-		return fmt.Errorf("AUTH_RATE_LIMIT_PER_MINUTE must be >= 1, got %d", cfg.AuthRateLimitPerMinute)
+	if cfg.RateLimit.AuthPerMinute < 1 {
+		return fmt.Errorf("rate_limit.auth_per_minute must be >= 1, got %d", cfg.RateLimit.AuthPerMinute)
 	}
-	if cfg.APIRateLimitPerMinute < 1 {
-		return fmt.Errorf("API_RATE_LIMIT_PER_MINUTE must be >= 1, got %d", cfg.APIRateLimitPerMinute)
+	if cfg.RateLimit.APIPerMinute < 1 {
+		return fmt.Errorf("rate_limit.api_per_minute must be >= 1, got %d", cfg.RateLimit.APIPerMinute)
 	}
 	return nil
 }
 
-func Load() (*Config, error) {
+// validateBodyAndRetention runs the simple positivity/range checks that do not
+// warrant their own function. MaxBodySizeBytes must be positive (a zero/negative
+// cap would reject every request body), and the retention windows must be in range.
+func validateBodyAndRetention(cfg *Config) error {
+	if cfg.Server.MaxBodySizeBytes < 1 {
+		return fmt.Errorf("server.max_body_size_bytes must be >= 1, got %d", cfg.Server.MaxBodySizeBytes)
+	}
+	if err := validateRetentionDays("retention.activity_days", cfg.Retention.ActivityDays); err != nil {
+		return err
+	}
+	return validateRetentionDays("retention.access_event_days", cfg.Retention.AccessEventDays)
+}
+
+// validateAll runs every config invariant in order, returning the first failure
+// so the service fails closed at startup. applyDevOAuthASDefaults /
+// applyMCPIssuerDefault must already have run (validateOAuthASConfig depends on
+// the derived MCP issuer).
+func validateAll(cfg *Config) error {
+	checks := []func(*Config) error{
+		validateBodyAndRetention,
+		validateRateLimits,
+		validateSearchRankingConfig,
+		validateEmbeddingConfig,
+		validateEncryptionKey,
+		validateOAuthASConfig,
+	}
+	for _, check := range checks {
+		if err := check(cfg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// configFileDefaultPath is the config file path used when neither --config nor
+// VIBEXP_CONFIG_FILE is provided.
+const configFileDefaultPath = "./config.yaml"
+
+// defaults returns the code-level configuration defaults as flat, dot-delimited
+// keys. They are merged first (lowest precedence); the config.yaml file overrides
+// any of them. Duration defaults are expressed as strings ("15m") and decoded by
+// the time.Duration hook, matching how the YAML file expresses them.
+func defaults() map[string]any {
+	return map[string]any{
+		"server.port":                         "8080",
+		"server.log_level":                    "info",
+		"server.log_format":                   "json",
+		"server.service_version":              "dev",
+		"server.release_sha":                  "dev",
+		"server.release_date":                 "unknown",
+		"server.max_body_size_bytes":          int64(10 << 20),
+		"server.error_type_base_uri":          "about:blank",
+		"database.host":                       "localhost",
+		"database.port":                       "5432",
+		"database.user":                       "postgres",
+		"database.name":                       "vibexp_io",
+		"auth.google.redirect_uri":            "http://localhost:8080/api/v1/auth/callback",
+		"auth.github.redirect_uri":            "http://localhost:8080/api/v1/auth/callback",
+		"auth.oidc.redirect_uri":              "http://localhost:8080/api/v1/auth/callback",
+		"auth.oauth_as.access_token_ttl":      "15m",
+		"auth.oauth_as.refresh_token_ttl":     "720h",
+		"auth.oauth_as.auth_code_ttl":         "10m",
+		"auth.oauth_as.key_rotation_interval": "720h",
+		"auth.oauth_as.cleanup_interval":      "1h",
+		"email.provider":                      "smtp",
+		"email.privacy_policy_url":            "https://example.com/privacy-policy",
+		"email.smtp.host":                     "smtp.gmail.com",
+		"email.smtp.port":                     "587",
+		"email.postmark.message_stream":       "outbound",
+		"frontend.base_url":                   "http://localhost:5173",
+		"embedding.model":                     "gemini-embedding-001",
+		"embedding.chunk_size":                1000,
+		"embedding.chunk_overlap":             200,
+		"search.rank_weight_relevance":        0.5,
+		"search.rank_weight_created":          0.3,
+		"search.rank_weight_updated":          0.2,
+		"search.rank_half_life_days":          90.0,
+		"search.rank_candidate_cap":           200,
+		"rate_limit.auth_per_minute":          100,
+		"rate_limit.api_per_minute":           1000,
+		"retention.activity_days":             90,
+		"retention.access_event_days":         90,
+		"retention.content_version_limit":     20,
+		"a2a.default_timeout":                 "5m",
+		"event_bus.worker_count":              20,
+		"event_bus.buffer_size":               500,
+		"event_bus.max_retries":               3,
+		"event_bus.retry_backoff":             "200ms",
+		"event_bus.retry_jitter":              true,
+		"otel.endpoint":                       "localhost:4317",
+		"otel.export_interval":                "60s",
+		"otel.trace_sample_ratio":             0.1,
+	}
+}
+
+// resolveExpr resolves a single ${...} expression body (without the braces).
+// Grammar: "VAR" resolves to the environment value of VAR (empty + a warning when
+// unset); "VAR:-default" resolves to the environment value of VAR when set and
+// non-empty, otherwise to default.
+func resolveExpr(expr string) string {
+	if idx := strings.Index(expr, ":-"); idx >= 0 {
+		name := expr[:idx]
+		def := expr[idx+2:]
+		if v, ok := os.LookupEnv(name); ok && v != "" {
+			return v
+		}
+		return def
+	}
+	if v, ok := os.LookupEnv(expr); ok {
+		return v
+	}
+	slog.Warn("config: environment variable referenced in config file is not set; using empty value",
+		"variable", expr)
+	return ""
+}
+
+// interpolateString expands ${VAR} and ${VAR:-default} references in s against
+// the process environment. A literal "${...}" is written as "$${...}": the "$$"
+// escape collapses to a single "$" and the following "{...}" is left untouched.
+func interpolateString(s string) string {
+	if !strings.Contains(s, "$") {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] != '$' {
+			b.WriteByte(s[i])
+			i++
+			continue
+		}
+		// "$$" → literal "$" (escapes a following "${...}" to "${...}").
+		if i+1 < len(s) && s[i+1] == '$' {
+			b.WriteByte('$')
+			i += 2
+			continue
+		}
+		// "${...}" → resolved value.
+		if i+1 < len(s) && s[i+1] == '{' {
+			if end := strings.IndexByte(s[i+2:], '}'); end >= 0 {
+				b.WriteString(resolveExpr(s[i+2 : i+2+end]))
+				i += 2 + end + 1
+				continue
+			}
+		}
+		// A lone "$" not starting a valid token.
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
+}
+
+// interpolateNode recursively interpolates ${VAR} references in every string
+// scalar of a parsed config tree (maps and slices are walked; non-string scalars
+// are returned unchanged). Operating on the parsed structure — not the raw bytes —
+// keeps interpolation from ever corrupting YAML syntax.
+func interpolateNode(node any) any {
+	switch v := node.(type) {
+	case string:
+		return interpolateString(v)
+	case map[string]any:
+		for key, val := range v {
+			v[key] = interpolateNode(val)
+		}
+		return v
+	case []any:
+		for i, val := range v {
+			v[i] = interpolateNode(val)
+		}
+		return v
+	default:
+		return node
+	}
+}
+
+// decode builds the nested Config from defaults + the config.yaml at path, with
+// ${VAR} interpolation applied to the file's string scalars. The required file is
+// read first so a missing config produces a clear, actionable error.
+func decode(path string) (*Config, error) {
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is an operator-provided config file, not user input
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf(
+				"config file %q not found: a config.yaml is required (copy config.example.yaml and edit it, "+
+					"or pass --config / set VIBEXP_CONFIG_FILE)", path)
+		}
+		return nil, fmt.Errorf("failed to read config file %q: %w", path, err)
+	}
+
+	parsed, err := yaml.Parser().Unmarshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse config file %q: %w", path, err)
+	}
+	interpolateNode(parsed)
+
+	k := koanf.New(".")
+	if err := k.Load(confmap.Provider(defaults(), "."), nil); err != nil {
+		return nil, fmt.Errorf("failed to load config defaults: %w", err)
+	}
+	if err := k.Load(confmap.Provider(parsed, "."), nil); err != nil {
+		return nil, fmt.Errorf("failed to load config file %q: %w", path, err)
+	}
+
 	var cfg Config
-	err := envconfig.Process("", &cfg)
+	unmarshalConf := koanf.UnmarshalConf{
+		Tag: "koanf",
+		DecoderConfig: &mapstructure.DecoderConfig{
+			WeaklyTypedInput: true,
+			DecodeHook: mapstructure.ComposeDecodeHookFunc(
+				mapstructure.StringToTimeDurationHookFunc(),
+				mapstructure.StringToSliceHookFunc(","),
+			),
+		},
+	}
+	if err := k.UnmarshalWithConf("", &cfg, unmarshalConf); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+	return &cfg, nil
+}
+
+// Load reads, interpolates, validates, and returns the application configuration
+// from the config.yaml at path. An empty path falls back to VIBEXP_CONFIG_FILE,
+// then ./config.yaml. The file is required: a missing file fails fast with a
+// message naming the expected path and config.example.yaml.
+func Load(path string) (*Config, error) {
+	if path == "" {
+		if env, ok := os.LookupEnv("VIBEXP_CONFIG_FILE"); ok && env != "" {
+			path = env
+		} else {
+			path = configFileDefaultPath
+		}
+	}
+
+	cfg, err := decode(path)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = validateRetentionDays("ACTIVITY_RETENTION_DAYS", cfg.ActivityRetentionDays); err != nil {
-		return nil, err
-	}
-
-	if err = validateRetentionDays("ACCESS_EVENT_RETENTION_DAYS", cfg.AccessEventRetentionDays); err != nil {
-		return nil, err
-	}
-
-	// MaxBodySizeBytes must be positive; a zero/negative cap would reject every
-	// request body once the maxBodySize middleware is applied.
-	if cfg.MaxBodySizeBytes < 1 {
-		return nil, fmt.Errorf("MAX_BODY_SIZE_BYTES must be >= 1, got %d", cfg.MaxBodySizeBytes)
-	}
-
-	if rateErr := validateRateLimits(&cfg); rateErr != nil {
-		return nil, rateErr
-	}
-
-	if rankErr := validateSearchRankingConfig(&cfg); rankErr != nil {
-		return nil, rankErr
-	}
-
-	if embErr := validateEmbeddingConfig(&cfg); embErr != nil {
-		return nil, embErr
-	}
-
-	if keyErr := validateEncryptionKey(&cfg); keyErr != nil {
-		return nil, keyErr
-	}
-
 	// Derive local-dev defaults that auto-enable the embedded AS BEFORE pointing
-	// the MCP issuer at it, so MCPOAuthIssuer picks up the derived issuer. No-op in
-	// production and whenever the values are set explicitly.
-	applyDevOAuthASDefaults(&cfg)
+	// the MCP issuer at it, so mcp.oauth_issuer picks up the derived issuer. No-op
+	// in production and whenever the values are set explicitly.
+	applyDevOAuthASDefaults(cfg)
+	applyMCPIssuerDefault(cfg)
 
-	applyMCPIssuerDefault(&cfg)
-
-	if asErr := validateOAuthASConfig(&cfg); asErr != nil {
-		return nil, asErr
+	if err := validateAll(cfg); err != nil {
+		return nil, err
 	}
 
-	// Set default CORS allowed origins if not provided. Only localhost dev
-	// origins are defaulted; production frontend origins must be supplied via
-	// CORS_ALLOWED_ORIGINS so no tenant-specific domains are hardcoded.
-	if len(cfg.CORSAllowedOrigins) == 0 {
-		cfg.CORSAllowedOrigins = []string{
+	// Default CORS allowed origins when not provided. Only localhost dev origins
+	// are defaulted; production frontend origins must be supplied via
+	// server.cors_allowed_origins so no tenant-specific domains are hardcoded.
+	if len(cfg.Server.CORSAllowedOrigins) == 0 {
+		cfg.Server.CORSAllowedOrigins = []string{
 			"http://localhost:5173",
 			"http://localhost:5174",
 		}
 	}
 
 	// Propagate the configured error-type base URI to the errors package so
-	// RFC 9457 "type" URIs are built from it. Done here (rather than at each
-	// call site) to keep the package-level error constructors dependency-free.
-	apierrors.SetTypeBaseURI(cfg.ErrorTypeBaseURI)
+	// RFC 9457 "type" URIs are built from it.
+	apierrors.SetTypeBaseURI(cfg.Server.ErrorTypeBaseURI)
 
-	// The application logger (level + format) is constructed from cfg.LogLevel /
-	// cfg.LogFormat by configureLogger at startup; no global logger state is set
-	// here.
-
-	return &cfg, nil
+	return cfg, nil
 }

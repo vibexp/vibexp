@@ -54,7 +54,7 @@ func TestBackofficeAuthMiddleware(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			srv := &Server{config: &config.Config{BackofficeAdminAPIKey: tc.configuredKey}}
+			srv := &Server{config: &config.Config{Security: config.SecurityConfig{BackofficeAdminAPIKey: tc.configuredKey}}}
 
 			nextCalled := false
 			handler := srv.backofficeAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

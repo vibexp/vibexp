@@ -147,7 +147,7 @@ func (s *Server) storeMemory(
 		s.metrics.RecordMCPCreateMemory(ctx)
 	}
 
-	result := buildMemoryWriteResponse(s.config.FrontendBaseURL, memory.ID)
+	result := buildMemoryWriteResponse(s.config.Frontend.BaseURL, memory.ID)
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)
@@ -413,7 +413,7 @@ func (s *Server) updateMemory(
 		s.metrics.RecordMCPUpdateMemory(ctx)
 	}
 
-	result := buildMemoryWriteResponse(s.config.FrontendBaseURL, memory.ID)
+	result := buildMemoryWriteResponse(s.config.Frontend.BaseURL, memory.ID)
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)

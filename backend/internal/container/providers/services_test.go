@@ -14,7 +14,7 @@ import (
 )
 
 // TestProvideContentVersionService_RetentionCapFromConfig verifies that the
-// retention cap configured via cfg.ContentVersionRetentionLimit flows through
+// retention cap configured via cfg.Retention.ContentVersionLimit flows through
 // the provider into the prune call for every versioned resource type — i.e. the
 // cap is no longer the old hardcoded 5.
 func TestProvideContentVersionService_RetentionCapFromConfig(t *testing.T) {
@@ -30,7 +30,7 @@ func TestProvideContentVersionService_RetentionCapFromConfig(t *testing.T) {
 				Return(nil).
 				Once()
 
-			cfg := &config.Config{ContentVersionRetentionLimit: configuredCap}
+			cfg := &config.Config{Retention: config.RetentionConfig{ContentVersionLimit: configuredCap}}
 			svc := ProvideContentVersionService(repo, nil, cfg, testLogger())
 
 			err := svc.SnapshotIfChanged(context.Background(), services.SnapshotRequest{
@@ -53,7 +53,7 @@ func TestProvideContentVersionService_ZeroCapKeepsAll(t *testing.T) {
 	})).Return(nil).Once()
 	repo.EXPECT().PruneToCap(mock.Anything, "memory", "res-1", 0).Return(nil).Once()
 
-	cfg := &config.Config{ContentVersionRetentionLimit: 0}
+	cfg := &config.Config{Retention: config.RetentionConfig{ContentVersionLimit: 0}}
 	svc := ProvideContentVersionService(repo, nil, cfg, testLogger())
 
 	err := svc.SnapshotIfChanged(context.Background(), services.SnapshotRequest{

@@ -22,7 +22,7 @@ import (
 func newSearchServer(t *testing.T) (*Server, *mocks.MockSearchServiceInterface) {
 	t.Helper()
 	srv := newServerWithNullLogger(t)
-	srv.config.FrontendBaseURL = "https://app.vibexp.io"
+	srv.config.Frontend.BaseURL = "https://app.vibexp.io"
 	mockSearchSvc := mocks.NewMockSearchServiceInterface(t)
 	mockTeamService := mocks.NewMockTeamServiceInterface(t)
 	srv.container = &TestContainer{

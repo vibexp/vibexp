@@ -61,10 +61,10 @@ func resolveEnabledProviderNames(cfg *config.Config) []idp.ProviderName {
 
 	var raw []string
 	switch {
-	case len(cfg.AuthProviders) > 0:
-		raw = cfg.AuthProviders
-	case strings.TrimSpace(cfg.AuthProvider) != "":
-		raw = []string{cfg.AuthProvider}
+	case len(cfg.Auth.Providers) > 0:
+		raw = cfg.Auth.Providers
+	case strings.TrimSpace(cfg.Auth.Provider) != "":
+		raw = []string{cfg.Auth.Provider}
 	}
 
 	seen := make(map[idp.ProviderName]struct{}, len(raw))
@@ -105,15 +105,15 @@ func buildIdentityProvider(
 }
 
 func buildGoogleProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
-	if cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" {
+	if cfg.Auth.Google.ClientID == "" || cfg.Auth.Google.ClientSecret == "" {
 		logger.With("provider", "google").
 			Warn("Google enabled but GOOGLE_CLIENT_ID/SECRET are absent; skipping")
 		return nil, false
 	}
 	provider, err := google.New(context.Background(), google.Config{
-		ClientID:     cfg.GoogleClientID,
-		ClientSecret: cfg.GoogleClientSecret,
-		RedirectURL:  cfg.GoogleRedirectURI,
+		ClientID:     cfg.Auth.Google.ClientID,
+		ClientSecret: cfg.Auth.Google.ClientSecret,
+		RedirectURL:  cfg.Auth.Google.RedirectURI,
 	})
 	if err != nil {
 		logger.With("provider", "google", "error", err).
@@ -125,15 +125,15 @@ func buildGoogleProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityP
 }
 
 func buildGitHubProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
-	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" {
+	if cfg.Auth.GitHub.ClientID == "" || cfg.Auth.GitHub.ClientSecret == "" {
 		logger.With("provider", "github").
 			Warn("GitHub enabled but GITHUB_CLIENT_ID/SECRET are absent; skipping")
 		return nil, false
 	}
 	provider, err := github.New(github.Config{
-		ClientID:     cfg.GitHubClientID,
-		ClientSecret: cfg.GitHubClientSecret,
-		RedirectURL:  cfg.GitHubRedirectURI,
+		ClientID:     cfg.Auth.GitHub.ClientID,
+		ClientSecret: cfg.Auth.GitHub.ClientSecret,
+		RedirectURL:  cfg.Auth.GitHub.RedirectURI,
 	})
 	if err != nil {
 		logger.With("provider", "github", "error", err).
@@ -147,17 +147,17 @@ func buildGitHubProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityP
 func buildOIDCProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityProvider, bool) {
 	provider, err := oidc.New(context.Background(), oidc.Config{
 		Name:         idp.ProviderOIDC,
-		IssuerURL:    cfg.OIDCIssuerURL,
-		ClientID:     cfg.OIDCClientID,
-		ClientSecret: cfg.OIDCClientSecret,
-		RedirectURL:  cfg.OIDCRedirectURI,
+		IssuerURL:    cfg.Auth.OIDC.IssuerURL,
+		ClientID:     cfg.Auth.OIDC.ClientID,
+		ClientSecret: cfg.Auth.OIDC.ClientSecret,
+		RedirectURL:  cfg.Auth.OIDC.RedirectURI,
 	})
 	if err != nil {
-		logger.With("provider", "oidc", "issuer_url", cfg.OIDCIssuerURL, "error", err).
+		logger.With("provider", "oidc", "issuer_url", cfg.Auth.OIDC.IssuerURL, "error", err).
 			Warn("OIDC provider initialization failed; skipping")
 		return nil, false
 	}
-	logger.With("provider", "oidc", "issuer_url", cfg.OIDCIssuerURL).Info("Identity provider enabled")
+	logger.With("provider", "oidc", "issuer_url", cfg.Auth.OIDC.IssuerURL).Info("Identity provider enabled")
 	return provider, true
 }
 
@@ -167,7 +167,7 @@ func buildOIDCProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityPro
 // correctly. When EMAIL_PROVIDER is empty or "smtp" and no SMTP host/port are configured,
 // a no-op stub is returned so the container can wire up without email credentials.
 func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.EmailProvider, error) {
-	switch strings.ToLower(strings.TrimSpace(cfg.EmailProvider)) {
+	switch strings.ToLower(strings.TrimSpace(cfg.Email.Provider)) {
 	case "mailgun":
 		provider, err := implementations.NewMailgunEmailProvider(cfg)
 		if err != nil {
@@ -190,7 +190,7 @@ func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.Ema
 		logger.With("email_provider", "sendgrid").Info("Email provider initialized")
 		return provider, nil
 	case "smtp", "":
-		if cfg.SMTPHost == "" || cfg.SMTPPort == "" {
+		if cfg.Email.SMTP.Host == "" || cfg.Email.SMTP.Port == "" {
 			logger.With("email_provider", "stub").Info("Email provider initialized")
 			return &stubEmailProvider{}, nil
 		}
@@ -201,7 +201,7 @@ func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.Ema
 		logger.With("email_provider", "smtp").Info("Email provider initialized")
 		return provider, nil
 	default:
-		return nil, fmt.Errorf("email provider factory: unknown email provider %q", cfg.EmailProvider)
+		return nil, fmt.Errorf("email provider factory: unknown email provider %q", cfg.Email.Provider)
 	}
 }
 

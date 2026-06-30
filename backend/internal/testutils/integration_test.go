@@ -42,8 +42,12 @@ func TestIntegrationWithServer(t *testing.T) {
 func setupTestServer() http.Handler {
 	cfg := &config.Config{
 		// Use the test session encryption key so session manager is initialised
-		SessionEncryptionKey: TestSessionCookiePassword,
-		FrontendBaseURL:      "http://localhost:5173",
+		Auth: config.AuthConfig{
+			SessionEncryptionKey: TestSessionCookiePassword,
+		},
+		Frontend: config.FrontendConfig{
+			BaseURL: "http://localhost:5173",
+		},
 	}
 
 	logger := slog.New(slog.DiscardHandler)

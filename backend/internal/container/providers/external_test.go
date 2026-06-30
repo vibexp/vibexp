@@ -22,11 +22,15 @@ func testLogger() *slog.Logger {
 
 func TestProvideEmailProvider_SMTPWithConfig(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider: "smtp",
-		SMTPHost:      "smtp.example.com",
-		SMTPPort:      "587",
-		SMTPUsername:  "test@example.com",
-		SMTPPassword:  "password",
+		Email: config.EmailConfig{
+			Provider: "smtp",
+			SMTP: config.SMTPConfig{
+				Host:     "smtp.example.com",
+				Port:     "587",
+				Username: "test@example.com",
+				Password: "password",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -40,9 +44,13 @@ func TestProvideEmailProvider_SMTPWithConfig(t *testing.T) {
 
 func TestProvideEmailProvider_SMTPWithEmptyConfig_ReturnsStub(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider: "smtp",
-		SMTPHost:      "",
-		SMTPPort:      "",
+		Email: config.EmailConfig{
+			Provider: "smtp",
+			SMTP: config.SMTPConfig{
+				Host: "",
+				Port: "",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -56,11 +64,15 @@ func TestProvideEmailProvider_SMTPWithEmptyConfig_ReturnsStub(t *testing.T) {
 
 func TestProvideEmailProvider_EmptyProvider_FallsToSMTP(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider: "",
-		SMTPHost:      "smtp.example.com",
-		SMTPPort:      "587",
-		SMTPUsername:  "test@example.com",
-		SMTPPassword:  "password",
+		Email: config.EmailConfig{
+			Provider: "",
+			SMTP: config.SMTPConfig{
+				Host:     "smtp.example.com",
+				Port:     "587",
+				Username: "test@example.com",
+				Password: "password",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -74,9 +86,13 @@ func TestProvideEmailProvider_EmptyProvider_FallsToSMTP(t *testing.T) {
 
 func TestProvideEmailProvider_EmptyProvider_NoSMTPConfig_ReturnsStub(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider: "",
-		SMTPHost:      "",
-		SMTPPort:      "",
+		Email: config.EmailConfig{
+			Provider: "",
+			SMTP: config.SMTPConfig{
+				Host: "",
+				Port: "",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -90,9 +106,13 @@ func TestProvideEmailProvider_EmptyProvider_NoSMTPConfig_ReturnsStub(t *testing.
 
 func TestProvideEmailProvider_MailgunWithValidKey(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider:     "mailgun",
-		MailgunDomain:     "mg.example.com",
-		MailgunSendingKey: "key-abc123",
+		Email: config.EmailConfig{
+			Provider: "mailgun",
+			Mailgun: config.MailgunConfig{
+				Domain:     "mg.example.com",
+				SendingKey: "key-abc123",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -106,9 +126,13 @@ func TestProvideEmailProvider_MailgunWithValidKey(t *testing.T) {
 
 func TestProvideEmailProvider_MailgunWithEmptyKey_ReturnsError(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider:     "mailgun",
-		MailgunDomain:     "mg.example.com",
-		MailgunSendingKey: "",
+		Email: config.EmailConfig{
+			Provider: "mailgun",
+			Mailgun: config.MailgunConfig{
+				Domain:     "mg.example.com",
+				SendingKey: "",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -120,8 +144,12 @@ func TestProvideEmailProvider_MailgunWithEmptyKey_ReturnsError(t *testing.T) {
 
 func TestProvideEmailProvider_PostmarkWithValidToken(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider:       "postmark",
-		PostmarkServerToken: "token-abc123",
+		Email: config.EmailConfig{
+			Provider: "postmark",
+			Postmark: config.PostmarkConfig{
+				ServerToken: "token-abc123",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -135,8 +163,12 @@ func TestProvideEmailProvider_PostmarkWithValidToken(t *testing.T) {
 
 func TestProvideEmailProvider_PostmarkWithEmptyToken_ReturnsError(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider:       "postmark",
-		PostmarkServerToken: "",
+		Email: config.EmailConfig{
+			Provider: "postmark",
+			Postmark: config.PostmarkConfig{
+				ServerToken: "",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -148,8 +180,12 @@ func TestProvideEmailProvider_PostmarkWithEmptyToken_ReturnsError(t *testing.T) 
 
 func TestProvideEmailProvider_SendGridWithValidKey(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider:  "sendgrid",
-		SendGridAPIKey: "test-sendgrid-key",
+		Email: config.EmailConfig{
+			Provider: "sendgrid",
+			SendGrid: config.SendGridConfig{
+				APIKey: "test-sendgrid-key",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -163,8 +199,12 @@ func TestProvideEmailProvider_SendGridWithValidKey(t *testing.T) {
 
 func TestProvideEmailProvider_SendGridWithEmptyKey_ReturnsError(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider:  "sendgrid",
-		SendGridAPIKey: "",
+		Email: config.EmailConfig{
+			Provider: "sendgrid",
+			SendGrid: config.SendGridConfig{
+				APIKey: "",
+			},
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -176,7 +216,9 @@ func TestProvideEmailProvider_SendGridWithEmptyKey_ReturnsError(t *testing.T) {
 
 func TestProvideEmailProvider_UnknownProvider_ReturnsError(t *testing.T) {
 	cfg := &config.Config{
-		EmailProvider: "ses",
+		Email: config.EmailConfig{
+			Provider: "ses",
+		},
 	}
 
 	provider, err := ProvideEmailProvider(cfg, testLogger())
@@ -199,13 +241,19 @@ func TestProvideEmailProvider_CaseInsensitive(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := &config.Config{
-				EmailProvider:     tc.emailProvider,
-				MailgunDomain:     "mg.example.com",
-				MailgunSendingKey: "key-abc123",
-				SMTPHost:          "smtp.example.com",
-				SMTPPort:          "587",
-				SMTPUsername:      "test@example.com",
-				SMTPPassword:      "password",
+				Email: config.EmailConfig{
+					Provider: tc.emailProvider,
+					Mailgun: config.MailgunConfig{
+						Domain:     "mg.example.com",
+						SendingKey: "key-abc123",
+					},
+					SMTP: config.SMTPConfig{
+						Host:     "smtp.example.com",
+						Port:     "587",
+						Username: "test@example.com",
+						Password: "password",
+					},
+				},
 			}
 			provider, err := ProvideEmailProvider(cfg, testLogger())
 			require.NoError(t, err)
@@ -241,11 +289,15 @@ func newDiscoverableIssuer(t *testing.T) *httptest.Server {
 func TestProvideRegistry_OIDCDiscoverable_RegistersOIDCClient(t *testing.T) {
 	srv := newDiscoverableIssuer(t)
 	cfg := &config.Config{
-		AuthProvider:     "oidc",
-		OIDCIssuerURL:    srv.URL,
-		OIDCClientID:     "client-id",
-		OIDCClientSecret: "client-secret",
-		OIDCRedirectURI:  "http://localhost:8080/api/v1/auth/callback",
+		Auth: config.AuthConfig{
+			Provider: "oidc",
+			OIDC: config.OIDCAuthConfig{
+				IssuerURL:    srv.URL,
+				ClientID:     "client-id",
+				ClientSecret: "client-secret",
+				RedirectURI:  "http://localhost:8080/api/v1/auth/callback",
+			},
+		},
 	}
 
 	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
@@ -261,11 +313,15 @@ func TestProvideRegistry_OIDCDiscoverable_RegistersOIDCClient(t *testing.T) {
 
 func TestProvideRegistry_OIDCDiscoveryFailure_NonFatalSkip(t *testing.T) {
 	cfg := &config.Config{
-		AuthProvider:     "oidc",
-		OIDCIssuerURL:    "https://oidc.invalid.example.com",
-		OIDCClientID:     "client-id",
-		OIDCClientSecret: "client-secret",
-		OIDCRedirectURI:  "http://localhost:8080/api/v1/auth/callback",
+		Auth: config.AuthConfig{
+			Provider: "oidc",
+			OIDC: config.OIDCAuthConfig{
+				IssuerURL:    "https://oidc.invalid.example.com",
+				ClientID:     "client-id",
+				ClientSecret: "client-secret",
+				RedirectURI:  "http://localhost:8080/api/v1/auth/callback",
+			},
+		},
 	}
 
 	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
@@ -276,8 +332,10 @@ func TestProvideRegistry_OIDCDiscoveryFailure_NonFatalSkip(t *testing.T) {
 
 func TestProvideRegistry_OIDCMissingConfig_NonFatalSkip(t *testing.T) {
 	cfg := &config.Config{
-		AuthProvider: "oidc",
-		// no OIDC_* fields set -> oidc.Config.Validate fails -> skipped
+		Auth: config.AuthConfig{
+			Provider: "oidc",
+			// no OIDC_* fields set -> oidc.Config.Validate fails -> skipped
+		},
 	}
 
 	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
@@ -288,7 +346,9 @@ func TestProvideRegistry_OIDCMissingConfig_NonFatalSkip(t *testing.T) {
 
 func TestProvideRegistry_EmptyProvider_Empty(t *testing.T) {
 	cfg := &config.Config{
-		AuthProvider: "",
+		Auth: config.AuthConfig{
+			Provider: "",
+		},
 	}
 
 	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
@@ -299,7 +359,9 @@ func TestProvideRegistry_EmptyProvider_Empty(t *testing.T) {
 
 func TestProvideRegistry_UnrecognizedProvider_Skipped(t *testing.T) {
 	cfg := &config.Config{
-		AuthProviders: []string{"okta-magic"},
+		Auth: config.AuthConfig{
+			Providers: []string{"okta-magic"},
+		},
 	}
 
 	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
@@ -311,11 +373,15 @@ func TestProvideRegistry_UnrecognizedProvider_Skipped(t *testing.T) {
 func TestProvideRegistry_CaseInsensitive_OIDC(t *testing.T) {
 	srv := newDiscoverableIssuer(t)
 	cfg := &config.Config{
-		AuthProvider:     "  OIDC  ",
-		OIDCIssuerURL:    srv.URL,
-		OIDCClientID:     "client-id",
-		OIDCClientSecret: "client-secret",
-		OIDCRedirectURI:  "http://localhost:8080/api/v1/auth/callback",
+		Auth: config.AuthConfig{
+			Provider: "  OIDC  ",
+			OIDC: config.OIDCAuthConfig{
+				IssuerURL:    srv.URL,
+				ClientID:     "client-id",
+				ClientSecret: "client-secret",
+				RedirectURI:  "http://localhost:8080/api/v1/auth/callback",
+			},
+		},
 	}
 
 	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
@@ -331,13 +397,19 @@ func TestProvideRegistry_CaseInsensitive_OIDC(t *testing.T) {
 func TestProvideRegistry_MultipleProviders(t *testing.T) {
 	srv := newDiscoverableIssuer(t)
 	cfg := &config.Config{
-		AuthProviders:      []string{"github", "oidc"},
-		GitHubClientID:     "gh-client-id",
-		GitHubClientSecret: "gh-client-secret",
-		OIDCIssuerURL:      srv.URL,
-		OIDCClientID:       "client-id",
-		OIDCClientSecret:   "client-secret",
-		OIDCRedirectURI:    "http://localhost:8080/api/v1/auth/callback",
+		Auth: config.AuthConfig{
+			Providers: []string{"github", "oidc"},
+			GitHub: config.GitHubAuthConfig{
+				ClientID:     "gh-client-id",
+				ClientSecret: "gh-client-secret",
+			},
+			OIDC: config.OIDCAuthConfig{
+				IssuerURL:    srv.URL,
+				ClientID:     "client-id",
+				ClientSecret: "client-secret",
+				RedirectURI:  "http://localhost:8080/api/v1/auth/callback",
+			},
+		},
 	}
 
 	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())
@@ -350,10 +422,14 @@ func TestProvideRegistry_MultipleProviders(t *testing.T) {
 // takes precedence over the legacy single AUTH_PROVIDER shim.
 func TestProvideRegistry_AuthProvidersOverridesAuthProvider(t *testing.T) {
 	cfg := &config.Config{
-		AuthProviders:      []string{"github"},
-		AuthProvider:       "oidc",
-		GitHubClientID:     "gh-client-id",
-		GitHubClientSecret: "gh-client-secret",
+		Auth: config.AuthConfig{
+			Providers: []string{"github"},
+			Provider:  "oidc",
+			GitHub: config.GitHubAuthConfig{
+				ClientID:     "gh-client-id",
+				ClientSecret: "gh-client-secret",
+			},
+		},
 	}
 
 	registry, err := ProvideIdentityProviderRegistry(cfg, testLogger())

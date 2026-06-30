@@ -26,7 +26,9 @@ func CreateTestServer(t TestingT, services container.Container) *httptest.Server
 	t.Helper()
 
 	cfg := &config.Config{
-		CORSAllowedOrigins: []string{"*"},
+		Server: config.ServerConfig{
+			CORSAllowedOrigins: []string{"*"},
+		},
 	}
 
 	// Create a test logger with minimal output
@@ -52,7 +54,9 @@ func CreateTestServerWithDB(t TestingT, db *database.DB) *httptest.Server {
 	t.Helper()
 
 	cfg := &config.Config{
-		CORSAllowedOrigins: []string{"*"},
+		Server: config.ServerConfig{
+			CORSAllowedOrigins: []string{"*"},
+		},
 	}
 
 	// Create a test logger with minimal output

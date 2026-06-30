@@ -31,7 +31,11 @@ func (f *fakePostmarkSender) SendEmail(ctx context.Context, email postmark.Email
 
 func TestNewPostmarkEmailProvider_EmptyServerToken(t *testing.T) {
 	cfg := &config.Config{
-		PostmarkServerToken: "",
+		Email: config.EmailConfig{
+			Postmark: config.PostmarkConfig{
+				ServerToken: "",
+			},
+		},
 	}
 
 	provider, err := NewPostmarkEmailProvider(cfg)
@@ -43,7 +47,11 @@ func TestNewPostmarkEmailProvider_EmptyServerToken(t *testing.T) {
 
 func TestNewPostmarkEmailProvider_ValidConfig(t *testing.T) {
 	cfg := &config.Config{
-		PostmarkServerToken: "token-abc123",
+		Email: config.EmailConfig{
+			Postmark: config.PostmarkConfig{
+				ServerToken: "token-abc123",
+			},
+		},
 	}
 
 	provider, err := NewPostmarkEmailProvider(cfg)
@@ -57,8 +65,12 @@ func TestNewPostmarkEmailProvider_ValidConfig(t *testing.T) {
 
 func TestNewPostmarkEmailProvider_DefaultsMessageStream(t *testing.T) {
 	cfg := &config.Config{
-		PostmarkServerToken:   "token-abc123",
-		PostmarkMessageStream: "",
+		Email: config.EmailConfig{
+			Postmark: config.PostmarkConfig{
+				ServerToken:   "token-abc123",
+				MessageStream: "",
+			},
+		},
 	}
 
 	provider, err := NewPostmarkEmailProvider(cfg)
@@ -71,8 +83,12 @@ func TestNewPostmarkEmailProvider_DefaultsMessageStream(t *testing.T) {
 
 func TestNewPostmarkEmailProvider_CustomMessageStream(t *testing.T) {
 	cfg := &config.Config{
-		PostmarkServerToken:   "token-abc123",
-		PostmarkMessageStream: "broadcast",
+		Email: config.EmailConfig{
+			Postmark: config.PostmarkConfig{
+				ServerToken:   "token-abc123",
+				MessageStream: "broadcast",
+			},
+		},
 	}
 
 	provider, err := NewPostmarkEmailProvider(cfg)

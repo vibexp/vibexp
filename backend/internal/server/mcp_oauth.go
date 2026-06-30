@@ -114,7 +114,7 @@ func (s *Server) setupMCPRoutes() {
 		s.logger.Warn("MCP_OAUTH_ISSUER not set; MCP endpoint will reject all tokens (stub/test mode)")
 	}
 
-	_, metadataURL := deriveMCPMetadata(s.config.MCPResourceURI)
+	_, metadataURL := deriveMCPMetadata(s.config.MCP.ResourceURI)
 	requireToken := mcpauth.RequireBearerToken(verify, &mcpauth.RequireBearerTokenOptions{
 		ResourceMetadataURL: metadataURL,
 	})
@@ -184,14 +184,14 @@ func unconfiguredMCPVerifier(_ context.Context, _ string, _ *http.Request) (*mcp
 // returns nil when MCP OAuth is not configured (no issuer), which the caller
 // treats as "MCP OAuth disabled".
 func (s *Server) newMCPTokenVerifier() (*mcptoken.Verifier, error) {
-	if s.config.MCPOAuthIssuer == "" {
+	if s.config.MCP.OAuthIssuer == "" {
 		return nil, nil
 	}
 	resolver := mcpUserResolverAdapter{users: s.container.UserRepository()}
 	return mcptoken.New(
 		context.Background(),
-		s.config.MCPOAuthIssuer,
-		s.config.MCPResourceURI,
+		s.config.MCP.OAuthIssuer,
+		s.config.MCP.ResourceURI,
 		resolver,
 	)
 }
@@ -200,8 +200,8 @@ func (s *Server) newMCPTokenVerifier() (*mcptoken.Verifier, error) {
 // metadata document for the MCP resource. It is a public, no-auth endpoint.
 func (s *Server) mcpProtectedResourceMetadataHandler() http.Handler {
 	metadata := &oauthex.ProtectedResourceMetadata{
-		Resource:               s.config.MCPResourceURI,
-		AuthorizationServers:   []string{s.config.MCPOAuthIssuer},
+		Resource:               s.config.MCP.ResourceURI,
+		AuthorizationServers:   []string{s.config.MCP.OAuthIssuer},
 		BearerMethodsSupported: []string{"header"},
 		ScopesSupported:        []string{oauthserver.ScopeMCP},
 	}
@@ -212,7 +212,7 @@ func (s *Server) mcpProtectedResourceMetadataHandler() http.Handler {
 // server metadata document. Older MCP clients probe the resource server for AS
 // metadata; AuthKit is the source of truth, so we 302 to it rather than proxy.
 func (s *Server) handleMCPAuthorizationServerMetadata(w http.ResponseWriter, r *http.Request) {
-	if s.config.MCPOAuthIssuer == "" {
+	if s.config.MCP.OAuthIssuer == "" {
 		apiErr := apierrors.NewAPIError(
 			"NOT_FOUND",
 			"Not Found",
@@ -222,7 +222,7 @@ func (s *Server) handleMCPAuthorizationServerMetadata(w http.ResponseWriter, r *
 		apierrors.WriteJSONError(w, r, apiErr)
 		return
 	}
-	target := s.config.MCPOAuthIssuer + "/.well-known/oauth-authorization-server"
+	target := s.config.MCP.OAuthIssuer + "/.well-known/oauth-authorization-server"
 	http.Redirect(w, r, target, http.StatusFound)
 }
 
