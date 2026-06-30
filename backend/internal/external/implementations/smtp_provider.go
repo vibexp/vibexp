@@ -21,16 +21,16 @@ type SMTPEmailProvider struct {
 
 // NewSMTPEmailProvider creates a new SMTP email provider using gomail library
 func NewSMTPEmailProvider(cfg *config.Config) (external.EmailProvider, error) {
-	port, err := strconv.Atoi(cfg.SMTPPort)
+	port, err := strconv.Atoi(cfg.Email.SMTP.Port)
 	if err != nil {
 		return nil, fmt.Errorf("invalid SMTP port: %w", err)
 	}
 
 	sender, err := gomailsmtp.NewSmtpEmailSender(
-		cfg.SMTPHost,
+		cfg.Email.SMTP.Host,
 		port,
-		cfg.SMTPUsername,
-		cfg.SMTPPassword,
+		cfg.Email.SMTP.Username,
+		cfg.Email.SMTP.Password,
 		gomailsmtp.AUTH_PLAIN,
 	)
 	if err != nil {

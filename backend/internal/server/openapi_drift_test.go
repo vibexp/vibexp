@@ -78,7 +78,7 @@ func normalizeRoutePath(p string) string {
 func newDriftTestServer(t *testing.T) *Server {
 	t.Helper()
 	cfg := &config.Config{
-		MCPResourceURI: "https://connect.vibexp.io/mcp/v1/common",
+		MCP: config.MCPConfig{ResourceURI: "https://connect.vibexp.io/mcp/v1/common"},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)

@@ -70,7 +70,7 @@ func (s *Server) extractPubSubToken(r *http.Request) (string, error) {
 }
 
 func (s *Server) validateOIDCToken(r *http.Request, token string) (*idtoken.Payload, error) {
-	audience := s.config.PubSubPushAudience
+	audience := s.config.GCP.PubSubPushAudience
 	payload, err := idtoken.Validate(context.Background(), token, audience)
 	if err != nil {
 		s.logger.With(
@@ -113,7 +113,7 @@ func (s *Server) verifyServiceAccount(r *http.Request, payload *idtoken.Payload)
 	// accepted: it would admit any Google-issued identity, not just the project's
 	// Pub/Sub push SA. When the suffix is empty, this check is skipped (issuer,
 	// signature and audience are still enforced upstream).
-	if suffix := s.config.PubSubPushServiceAccountSuffix; suffix != "" && !strings.HasSuffix(email, suffix) {
+	if suffix := s.config.GCP.PubSubPushServiceAccountSuffix; suffix != "" && !strings.HasSuffix(email, suffix) {
 		s.logger.With(
 			"service", "vibexp-api",
 			"middleware", "pubsub-oidc",

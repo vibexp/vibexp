@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +20,7 @@ func TestIsLocalDevelopment(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := &Config{FrontendBaseURL: tc.frontendURL}
+			cfg := &Config{Frontend: FrontendConfig{BaseURL: tc.frontendURL}}
 			assert.Equal(t, tc.want, cfg.IsLocalDevelopment())
 		})
 	}
@@ -29,97 +28,95 @@ func TestIsLocalDevelopment(t *testing.T) {
 
 func TestApplyDevOAuthASDefaults(t *testing.T) {
 	t.Run("derives issuer and resource in dev when both unset", func(t *testing.T) {
-		cfg := &Config{FrontendBaseURL: "http://localhost:5173", Port: "8080"}
+		cfg := &Config{
+			Frontend: FrontendConfig{BaseURL: "http://localhost:5173"},
+			Server:   ServerConfig{Port: "8080"},
+		}
 		applyDevOAuthASDefaults(cfg)
-		assert.Equal(t, "http://localhost:8080", cfg.OAuthASIssuerURL)
-		assert.Equal(t, "http://localhost:8080/mcp/v1/common", cfg.MCPResourceURI)
+		assert.Equal(t, "http://localhost:8080", cfg.Auth.OAuthAS.IssuerURL)
+		assert.Equal(t, "http://localhost:8080/mcp/v1/common", cfg.MCP.ResourceURI)
 	})
 
 	t.Run("honours a custom port", func(t *testing.T) {
-		cfg := &Config{FrontendBaseURL: "http://localhost:5173", Port: "9090"}
+		cfg := &Config{
+			Frontend: FrontendConfig{BaseURL: "http://localhost:5173"},
+			Server:   ServerConfig{Port: "9090"},
+		}
 		applyDevOAuthASDefaults(cfg)
-		assert.Equal(t, "http://localhost:9090", cfg.OAuthASIssuerURL)
-		assert.Equal(t, "http://localhost:9090/mcp/v1/common", cfg.MCPResourceURI)
+		assert.Equal(t, "http://localhost:9090", cfg.Auth.OAuthAS.IssuerURL)
+		assert.Equal(t, "http://localhost:9090/mcp/v1/common", cfg.MCP.ResourceURI)
 	})
 
 	t.Run("derives resource from an explicitly set issuer", func(t *testing.T) {
 		cfg := &Config{
-			FrontendBaseURL:  "http://localhost:5173",
-			Port:             "8080",
-			OAuthASIssuerURL: "http://localhost:3000",
+			Frontend: FrontendConfig{BaseURL: "http://localhost:5173"},
+			Server:   ServerConfig{Port: "8080"},
+			Auth:     AuthConfig{OAuthAS: OAuthASConfig{IssuerURL: "http://localhost:3000"}},
 		}
 		applyDevOAuthASDefaults(cfg)
-		assert.Equal(t, "http://localhost:3000", cfg.OAuthASIssuerURL, "explicit issuer must win")
-		assert.Equal(t, "http://localhost:3000/mcp/v1/common", cfg.MCPResourceURI)
+		assert.Equal(t, "http://localhost:3000", cfg.Auth.OAuthAS.IssuerURL, "explicit issuer must win")
+		assert.Equal(t, "http://localhost:3000/mcp/v1/common", cfg.MCP.ResourceURI)
 	})
 
 	t.Run("never overwrites explicit values", func(t *testing.T) {
 		cfg := &Config{
-			FrontendBaseURL:  "http://localhost:5173",
-			Port:             "8080",
-			OAuthASIssuerURL: "https://custom.test",
-			MCPResourceURI:   "https://custom.test/mcp",
+			Frontend: FrontendConfig{BaseURL: "http://localhost:5173"},
+			Server:   ServerConfig{Port: "8080"},
+			Auth:     AuthConfig{OAuthAS: OAuthASConfig{IssuerURL: "https://custom.test"}},
+			MCP:      MCPConfig{ResourceURI: "https://custom.test/mcp"},
 		}
 		applyDevOAuthASDefaults(cfg)
-		assert.Equal(t, "https://custom.test", cfg.OAuthASIssuerURL)
-		assert.Equal(t, "https://custom.test/mcp", cfg.MCPResourceURI)
+		assert.Equal(t, "https://custom.test", cfg.Auth.OAuthAS.IssuerURL)
+		assert.Equal(t, "https://custom.test/mcp", cfg.MCP.ResourceURI)
 	})
 
 	t.Run("respects an explicit external MCP issuer opt-out", func(t *testing.T) {
 		cfg := &Config{
-			FrontendBaseURL: "http://localhost:5173",
-			Port:            "8080",
-			MCPOAuthIssuer:  "https://external-idp.example",
+			Frontend: FrontendConfig{BaseURL: "http://localhost:5173"},
+			Server:   ServerConfig{Port: "8080"},
+			MCP:      MCPConfig{OAuthIssuer: "https://external-idp.example"},
 		}
 		applyDevOAuthASDefaults(cfg)
-		assert.Empty(t, cfg.OAuthASIssuerURL, "must not auto-enable the AS when pointed at an external issuer")
-		assert.Empty(t, cfg.MCPResourceURI)
+		assert.Empty(t, cfg.Auth.OAuthAS.IssuerURL, "must not auto-enable the AS when pointed at an external issuer")
+		assert.Empty(t, cfg.MCP.ResourceURI)
 	})
 
 	t.Run("production never derives an issuer", func(t *testing.T) {
-		cfg := &Config{FrontendBaseURL: "https://app.example.com", Port: "8080"}
+		cfg := &Config{
+			Frontend: FrontendConfig{BaseURL: "https://app.example.com"},
+			Server:   ServerConfig{Port: "8080"},
+		}
 		applyDevOAuthASDefaults(cfg)
-		assert.Empty(t, cfg.OAuthASIssuerURL, "the AS must stay opt-in in production")
-		assert.Empty(t, cfg.MCPResourceURI)
+		assert.Empty(t, cfg.Auth.OAuthAS.IssuerURL, "the AS must stay opt-in in production")
+		assert.Empty(t, cfg.MCP.ResourceURI)
 	})
 }
 
 // TestLoad_DevAutoEnablesEmbeddedAS proves the zero-config local path end-to-end:
-// with a localhost FRONTEND_BASE_URL and no OAuth/MCP env set, Load derives the
-// issuer, points the MCP resource server at it, and passes validateOAuthASConfig.
+// with a localhost frontend.base_url (the default) and no oauth_as/mcp config,
+// Load derives the issuer, points the MCP resource server at it, and passes
+// validateOAuthASConfig.
 func TestLoad_DevAutoEnablesEmbeddedAS(t *testing.T) {
-	clearOAuthEnv(t)
-	t.Setenv("FRONTEND_BASE_URL", "http://localhost:5173")
-
-	cfg, err := Load()
+	cfg, err := loadYAML(t, baseValidYAML+`
+frontend:
+  base_url: http://localhost:5173
+`)
 	require.NoError(t, err)
-	assert.Equal(t, "http://localhost:8080", cfg.OAuthASIssuerURL)
-	assert.Equal(t, "http://localhost:8080/mcp/v1/common", cfg.MCPResourceURI)
-	assert.Equal(t, cfg.OAuthASIssuerURL, cfg.MCPOAuthIssuer,
+	assert.Equal(t, "http://localhost:8080", cfg.Auth.OAuthAS.IssuerURL)
+	assert.Equal(t, "http://localhost:8080/mcp/v1/common", cfg.MCP.ResourceURI)
+	assert.Equal(t, cfg.Auth.OAuthAS.IssuerURL, cfg.MCP.OAuthIssuer,
 		"the MCP resource server must trust the embedded AS by default")
 }
 
 // TestLoad_ProductionDoesNotAutoEnableAS guards the production safety criterion:
-// a non-localhost FRONTEND_BASE_URL must leave the AS disabled (no guessed issuer).
+// a non-localhost frontend.base_url must leave the AS disabled (no guessed issuer).
 func TestLoad_ProductionDoesNotAutoEnableAS(t *testing.T) {
-	clearOAuthEnv(t)
-	t.Setenv("FRONTEND_BASE_URL", "https://app.example.com")
-
-	cfg, err := Load()
+	cfg, err := loadYAML(t, baseValidYAML+`
+frontend:
+  base_url: https://app.example.com
+`)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.OAuthASIssuerURL)
-	assert.Empty(t, cfg.MCPResourceURI)
-	assert.Empty(t, cfg.MCPOAuthIssuer)
-}
-
-// clearOAuthEnv unsets the OAuth/MCP env vars for the duration of a test so the
-// derivation path is exercised from a clean slate, restoring them afterwards.
-func clearOAuthEnv(t *testing.T) {
-	t.Helper()
-	for _, key := range []string{"OAUTH_AS_ISSUER_URL", "MCP_RESOURCE_URI", "MCP_OAUTH_ISSUER"} {
-		if prev, ok := os.LookupEnv(key); ok {
-			require.NoError(t, os.Unsetenv(key))
-			t.Cleanup(func() { require.NoError(t, os.Setenv(key, prev)) })
-		}
-	}
+	assert.Empty(t, cfg.Auth.OAuthAS.IssuerURL)
+	assert.Empty(t, cfg.MCP.ResourceURI)
+	assert.Empty(t, cfg.MCP.OAuthIssuer)
 }

@@ -11,7 +11,7 @@ import (
 // ProvideMetrics creates and initializes the application metrics
 func ProvideMetrics(cfg *config.Config, logger *slog.Logger) *metrics.Metrics {
 	serviceVersion := "dev"
-	if v := cfg.ServiceVersion; v != "" {
+	if v := cfg.Server.ServiceVersion; v != "" {
 		serviceVersion = v
 	}
 

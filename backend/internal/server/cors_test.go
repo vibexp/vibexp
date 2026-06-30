@@ -29,7 +29,7 @@ var restVerbs = map[string]struct{}{
 
 func newCORSTestServer(t *testing.T) *Server {
 	t.Helper()
-	cfg := &config.Config{CORSAllowedOrigins: []string{corsTestOrigin}}
+	cfg := &config.Config{Server: config.ServerConfig{CORSAllowedOrigins: []string{corsTestOrigin}}}
 	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)
 }

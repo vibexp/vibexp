@@ -116,14 +116,14 @@ func createResource(ctx context.Context, serviceVersion string, cfg *config.Conf
 
 	// Add Cloud Run specific attributes if available
 	if cfg != nil {
-		if cfg.KService != "" {
-			attrs = append(attrs, attribute.String("cloud.run.service", cfg.KService))
+		if cfg.Deployment.KService != "" {
+			attrs = append(attrs, attribute.String("cloud.run.service", cfg.Deployment.KService))
 		}
-		if cfg.KRevision != "" {
-			attrs = append(attrs, attribute.String("cloud.run.revision", cfg.KRevision))
+		if cfg.Deployment.KRevision != "" {
+			attrs = append(attrs, attribute.String("cloud.run.revision", cfg.Deployment.KRevision))
 		}
-		if cfg.GCPProjectID != "" {
-			attrs = append(attrs, semconv.CloudAccountID(cfg.GCPProjectID))
+		if cfg.GCP.ProjectID != "" {
+			attrs = append(attrs, semconv.CloudAccountID(cfg.GCP.ProjectID))
 			attrs = append(attrs, semconv.CloudProviderGCP)
 			attrs = append(attrs, semconv.CloudPlatformGCPCloudRun)
 		}

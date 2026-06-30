@@ -17,7 +17,7 @@ import (
 // "@accounts.google.com" suffix must be rejected.
 func TestVerifyServiceAccount(t *testing.T) {
 	srv := testServerWithConfig(&config.Config{
-		PubSubPushServiceAccountSuffix: "@example-project.iam.gserviceaccount.com",
+		GCP: config.GCPConfig{PubSubPushServiceAccountSuffix: "@example-project.iam.gserviceaccount.com"},
 	})
 	r := httptest.NewRequest("POST", "/api/v1/events/pubsub", nil)
 

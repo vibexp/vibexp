@@ -96,7 +96,7 @@ func validOAuthClaims(issuer string) jwt.MapClaims {
 
 func newOAuthJWTTestServer(t *testing.T, cookiePassword string) *Server {
 	t.Helper()
-	cfg := &config.Config{SessionEncryptionKey: cookiePassword}
+	cfg := &config.Config{Auth: config.AuthConfig{SessionEncryptionKey: cookiePassword}}
 	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)
 }
@@ -401,7 +401,7 @@ func TestNewAPITokenVerifier_Activation(t *testing.T) {
 	})
 
 	t.Run("issuer set: verifier constructed", func(t *testing.T) {
-		cfg := &config.Config{APIOAuthIssuer: "https://issuer.example"}
+		cfg := &config.Config{Auth: config.AuthConfig{APIAuth: config.APIOAuthConfig{Issuer: "https://issuer.example"}}}
 		v := newAPITokenVerifier(cfg, &teamsAPIKeyContainer{}, logger)
 		assert.NotNil(t, v)
 	})

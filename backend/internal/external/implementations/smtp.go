@@ -116,12 +116,12 @@ func (s *SMTPClientImpl) buildTextBody(buffer *bytes.Buffer, req *external.Email
 func (s *SMTPClientImpl) sendMail(req *external.EmailRequest, message []byte) error {
 	auth := smtp.PlainAuth(
 		"",
-		s.config.SMTPUsername,
-		s.config.SMTPPassword,
-		s.config.SMTPHost,
+		s.config.Email.SMTP.Username,
+		s.config.Email.SMTP.Password,
+		s.config.Email.SMTP.Host,
 	)
 
-	smtpAddr := s.config.SMTPHost + ":" + s.config.SMTPPort
+	smtpAddr := s.config.Email.SMTP.Host + ":" + s.config.Email.SMTP.Port
 	err := smtp.SendMail(smtpAddr, auth, req.From, req.To, message)
 	if err != nil {
 		return fmt.Errorf("failed to send email: %w", err)

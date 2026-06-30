@@ -269,7 +269,7 @@ func (s *Server) handleCallbackSuccess(
 	ar.RecordAuthActivity(r.Context(), user.ID, activities.ActivityTypeAuthLogin, &sessionID, metadata, r)
 
 	// Redirect to frontend home after successful authentication
-	http.Redirect(w, r, s.config.FrontendBaseURL+"/", http.StatusFound)
+	http.Redirect(w, r, s.config.Frontend.BaseURL+"/", http.StatusFound)
 }
 
 // handleLogout clears the session cookie and returns a JSON confirmation.
@@ -450,7 +450,7 @@ func (s *Server) stateMACKey() []byte {
 	if s.sessionManager != nil {
 		return s.sessionManager.DeriveStateMACKey()
 	}
-	return []byte(s.config.SessionEncryptionKey)
+	return []byte(s.config.Auth.SessionEncryptionKey)
 }
 
 // validateStateCookie verifies the vx_state cookie: the HMAC signature must

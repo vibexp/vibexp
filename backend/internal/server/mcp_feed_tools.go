@@ -298,7 +298,7 @@ func (s *Server) postToFeed(
 		}, nil, nil
 	}
 
-	baseURL := strings.TrimRight(s.config.FrontendBaseURL, "/")
+	baseURL := strings.TrimRight(s.config.Frontend.BaseURL, "/")
 	result := &postToFeedResponse{
 		ID:      item.ID,
 		FullURL: fmt.Sprintf("%s/feed-items/%s", baseURL, item.ID),
@@ -394,7 +394,7 @@ func (s *Server) replyToFeedItem(
 		}, nil, nil
 	}
 
-	baseURL := strings.TrimRight(s.config.FrontendBaseURL, "/")
+	baseURL := strings.TrimRight(s.config.Frontend.BaseURL, "/")
 	result := &replyToFeedItemResponse{
 		ID:      reply.ID,
 		FullURL: fmt.Sprintf("%s/feed-items/%s", baseURL, params.FeedItemID),

@@ -28,12 +28,18 @@ func (m *MockEmailProvider) SendEmail(ctx context.Context, message *gomail.Email
 
 func createTestEmailService() *EmailService {
 	cfg := &config.Config{
-		SMTPHost:         "smtp.example.com",
-		SMTPPort:         "587",
-		SMTPUsername:     "test@example.com",
-		SMTPPassword:     "password123",
-		FrontendBaseURL:  "https://app.example.com",
-		PrivacyPolicyURL: "https://example.com/privacy-policy",
+		Email: config.EmailConfig{
+			PrivacyPolicyURL: "https://example.com/privacy-policy",
+			SMTP: config.SMTPConfig{
+				Host:     "smtp.example.com",
+				Port:     "587",
+				Username: "test@example.com",
+				Password: "password123",
+			},
+		},
+		Frontend: config.FrontendConfig{
+			BaseURL: "https://app.example.com",
+		},
 	}
 	mockProvider := new(MockEmailProvider)
 	mockProvider.On("SendEmail", mock.Anything, mock.Anything).Return(nil)
@@ -42,10 +48,14 @@ func createTestEmailService() *EmailService {
 
 func TestNewEmailService(t *testing.T) {
 	cfg := &config.Config{
-		SMTPHost:     "smtp.test.com",
-		SMTPPort:     "587",
-		SMTPUsername: "user@test.com",
-		SMTPPassword: "pass123",
+		Email: config.EmailConfig{
+			SMTP: config.SMTPConfig{
+				Host:     "smtp.test.com",
+				Port:     "587",
+				Username: "user@test.com",
+				Password: "pass123",
+			},
+		},
 	}
 
 	mockProvider := new(MockEmailProvider)
@@ -100,10 +110,14 @@ func TestEmailService_sendEmail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				SMTPHost:     "smtp.example.com",
-				SMTPPort:     "587",
-				SMTPUsername: "test@example.com",
-				SMTPPassword: "password123",
+				Email: config.EmailConfig{
+					SMTP: config.SMTPConfig{
+						Host:     "smtp.example.com",
+						Port:     "587",
+						Username: "test@example.com",
+						Password: "password123",
+					},
+				},
 			}
 			mockProvider := tt.setupMock()
 			service := NewEmailService(mockProvider, cfg)
@@ -299,11 +313,17 @@ func TestEmailService_SendSupportRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				SMTPHost:        "smtp.example.com",
-				SMTPPort:        "587",
-				SMTPUsername:    "support@vibexp.io",
-				SMTPPassword:    "password123",
-				FrontendBaseURL: "https://app.vibexp.io",
+				Email: config.EmailConfig{
+					SMTP: config.SMTPConfig{
+						Host:     "smtp.example.com",
+						Port:     "587",
+						Username: "support@vibexp.io",
+						Password: "password123",
+					},
+				},
+				Frontend: config.FrontendConfig{
+					BaseURL: "https://app.vibexp.io",
+				},
 			}
 			mockProvider := tt.setupMock()
 			service := NewEmailService(mockProvider, cfg)
@@ -399,11 +419,17 @@ func TestEmailService_SendTeamInvitation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				SMTPHost:        "smtp.example.com",
-				SMTPPort:        "587",
-				SMTPUsername:    "noreply@vibexp.io",
-				SMTPPassword:    "password123",
-				FrontendBaseURL: "https://app.vibexp.io",
+				Email: config.EmailConfig{
+					SMTP: config.SMTPConfig{
+						Host:     "smtp.example.com",
+						Port:     "587",
+						Username: "noreply@vibexp.io",
+						Password: "password123",
+					},
+				},
+				Frontend: config.FrontendConfig{
+					BaseURL: "https://app.vibexp.io",
+				},
 			}
 			mockProvider := tt.setupMock()
 			service := NewEmailService(mockProvider, cfg)
@@ -520,7 +546,7 @@ func TestEmailService_ExtractFirstName(t *testing.T) {
 }
 
 // TestEmailService_SendEmail_UsesEmailFromAddress verifies that sendEmail prefers
-// cfg.EmailFromAddress over cfg.SMTPUsername when EmailFromAddress is set.
+// cfg.Email.FromAddress over cfg.Email.SMTP.Username when FromAddress is set.
 func TestEmailService_SendEmail_UsesEmailFromAddress(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -558,8 +584,12 @@ func TestEmailService_SendEmail_UsesEmailFromAddress(t *testing.T) {
 			})).Return(nil)
 
 			cfg := &config.Config{
-				EmailFromAddress: tt.emailFromAddress,
-				SMTPUsername:     tt.smtpUsername,
+				Email: config.EmailConfig{
+					FromAddress: tt.emailFromAddress,
+					SMTP: config.SMTPConfig{
+						Username: tt.smtpUsername,
+					},
+				},
 			}
 			service := NewEmailService(mockProvider, cfg)
 

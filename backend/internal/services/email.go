@@ -41,20 +41,20 @@ func NewEmailService(provider external.EmailProvider, cfg *config.Config) *Email
 // (EmailFromAddress, then SMTPUsername) so a single-mailbox deployment works
 // without extra wiring.
 func (es *EmailService) adminRecipient() string {
-	if es.cfg.ContactRecipientAddress != "" {
-		return es.cfg.ContactRecipientAddress
+	if es.cfg.Email.ContactRecipientAddress != "" {
+		return es.cfg.Email.ContactRecipientAddress
 	}
-	if es.cfg.EmailFromAddress != "" {
-		return es.cfg.EmailFromAddress
+	if es.cfg.Email.FromAddress != "" {
+		return es.cfg.Email.FromAddress
 	}
-	return es.cfg.SMTPUsername
+	return es.cfg.Email.SMTP.Username
 }
 
 // appBaseURL returns the configured frontend base URL with any trailing slash
 // removed so it can be safely concatenated with template paths
 // (e.g. "<base>/settings/notifications").
 func (es *EmailService) appBaseURL() string {
-	return strings.TrimRight(es.cfg.FrontendBaseURL, "/")
+	return strings.TrimRight(es.cfg.Frontend.BaseURL, "/")
 }
 
 // SendSupportRequest sends a support request from an authenticated user
@@ -78,9 +78,9 @@ func (es *EmailService) SendSupportRequest(userName, userEmail string, req *mode
 func (es *EmailService) sendEmail(to, subject, htmlBody, textBody string) error {
 	// Resolve the from address: prefer EmailFromAddress, fall back to SMTPUsername
 	// for backwards compatibility when EMAIL_PROVIDER=smtp.
-	from := es.cfg.EmailFromAddress
+	from := es.cfg.Email.FromAddress
 	if from == "" {
-		from = es.cfg.SMTPUsername
+		from = es.cfg.Email.SMTP.Username
 	}
 
 	// Build gomail EmailMessage
@@ -113,7 +113,7 @@ func (es *EmailService) logEmailSent(to, subject, htmlBody, textBody string) {
 	slog.With(
 		"to", to,
 		"subject", subject,
-		"email_backend", es.cfg.EmailProvider,
+		"email_backend", es.cfg.Email.Provider,
 		"text_body", textBody != "",
 		"html_body", htmlBody != "",
 		"multipart", textBody != "" && htmlBody != "",
@@ -146,7 +146,7 @@ func (es *EmailService) sendSupportNotificationToAdmin(userName, userEmail strin
 		AdditionalInfoText: additionalInfoText,
 		Year:               2025,
 		AppBaseURL:         es.appBaseURL(),
-		PrivacyPolicyURL:   es.cfg.PrivacyPolicyURL,
+		PrivacyPolicyURL:   es.cfg.Email.PrivacyPolicyURL,
 	}
 
 	// Render HTML template
@@ -189,7 +189,7 @@ func (es *EmailService) sendSupportAcknowledgement(userName, userEmail string, r
 		Text:             req.Text,
 		Year:             2025,
 		AppBaseURL:       es.appBaseURL(),
-		PrivacyPolicyURL: es.cfg.PrivacyPolicyURL,
+		PrivacyPolicyURL: es.cfg.Email.PrivacyPolicyURL,
 	}
 
 	// Render HTML template
@@ -224,7 +224,7 @@ func (es *EmailService) SendTeamInvitation(invitation *models.TeamInvitation, te
 	subject := fmt.Sprintf("You have been invited to join %s on VibeXP", teamName)
 
 	// Build accept URL
-	acceptURL := fmt.Sprintf("%s/invitations/accept/%s", es.cfg.FrontendBaseURL, invitation.Token)
+	acceptURL := fmt.Sprintf("%s/invitations/accept/%s", es.cfg.Frontend.BaseURL, invitation.Token)
 
 	// Prepare template data
 	data := struct {
@@ -244,7 +244,7 @@ func (es *EmailService) SendTeamInvitation(invitation *models.TeamInvitation, te
 		ExpiryDate:       invitation.ExpiresAt.Format("January 2, 2006"),
 		Year:             time.Now().Year(),
 		AppBaseURL:       es.appBaseURL(),
-		PrivacyPolicyURL: es.cfg.PrivacyPolicyURL,
+		PrivacyPolicyURL: es.cfg.Email.PrivacyPolicyURL,
 	}
 
 	// Render HTML template

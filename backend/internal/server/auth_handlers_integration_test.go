@@ -160,8 +160,8 @@ const testCookiePassword = "0102030405060708090a0b0c0d0e0f101112131415161718191a
 
 func newMockAuthContainer(t *testing.T) *MockAuthContainer {
 	cfg := &config.Config{
-		FrontendBaseURL: "http://localhost:5173",
-		DevLoginEnabled: true,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{DevLoginEnabled: true},
 	}
 	return &MockAuthContainer{
 		authService:        svcmocks.NewMockAuthServiceInterface(t),
@@ -173,8 +173,8 @@ func newMockAuthContainer(t *testing.T) *MockAuthContainer {
 func createTestAuthServer(container *MockAuthContainer) *Server {
 	// Cookie password must be 32 hex-encoded bytes (64 chars)
 	cfg := &config.Config{
-		FrontendBaseURL:      "http://localhost:5173",
-		SessionEncryptionKey: testCookiePassword,
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
 	}
 	logger := slog.New(slog.DiscardHandler)
 
@@ -543,8 +543,8 @@ func TestHandleDevLogin_Success(t *testing.T) {
 // TestHandleDevLogin_NotAvailableInProduction tests dev login is blocked in production
 func TestHandleDevLogin_NotAvailableInProduction(t *testing.T) {
 	cfg := &config.Config{
-		FrontendBaseURL:      "https://app.vibexp.io",
-		SessionEncryptionKey: testCookiePassword,
+		Frontend: config.FrontendConfig{BaseURL: "https://app.vibexp.io"},
+		Auth:     config.AuthConfig{SessionEncryptionKey: testCookiePassword},
 	}
 	prodEnvSvc := services.NewEnvironmentService(cfg)
 	mockContainer := &MockAuthContainer{

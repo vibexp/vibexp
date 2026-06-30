@@ -86,14 +86,14 @@ func ProvidePromptShareService(
 // ProvideContentVersionService creates a new ContentVersionService with the artifact adapter
 // registered. New resource types are added by registering further adapters here. The user
 // repository resolves version authors for read responses. The retention cap for every
-// resource type comes from cfg.ContentVersionRetentionLimit (default 20, 0 = keep all).
+// resource type comes from cfg.Retention.ContentVersionLimit (default 20, 0 = keep all).
 func ProvideContentVersionService(
 	repo repositories.ContentVersionRepository,
 	users repositories.UserRepository,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) services.ContentVersionServiceInterface {
-	retentionCap := cfg.ContentVersionRetentionLimit
+	retentionCap := cfg.Retention.ContentVersionLimit
 	return services.NewContentVersionService(
 		repo,
 		users,
@@ -168,7 +168,7 @@ func ProvideEmbeddingProviderService(
 	repo repositories.EmbeddingProviderRepository,
 	cfg *config.Config,
 ) services.EmbeddingProviderServiceInterface {
-	return services.NewEmbeddingProviderService(repo, cfg.EncryptionKey)
+	return services.NewEmbeddingProviderService(repo, cfg.Security.EncryptionKey)
 }
 
 // ProvideEmailService creates a new EmailService
@@ -195,7 +195,7 @@ func ProvideActivityService(
 	return activities.NewService(
 		repo, projectRepo, promptRepo, artifactRepo, userRepo,
 		agentRepo, blueprintRepo, apiKeyRepo, memoryRepo,
-		cfg.ActivityRetentionDays,
+		cfg.Retention.ActivityDays,
 	)
 }
 
@@ -225,16 +225,16 @@ func ProvideResourceAccessService(
 	logger *slog.Logger,
 	cfg *config.Config,
 ) resourceaccess.ResourceAccessService {
-	return resourceaccess.NewService(repo, pool, logger, cfg.AccessEventRetentionDays)
+	return resourceaccess.NewService(repo, pool, logger, cfg.Retention.AccessEventDays)
 }
 
 // ProvideEncryptionService creates a new EncryptionService
 func ProvideEncryptionService(cfg *config.Config) (services.EncryptionServiceInterface, error) {
-	if cfg.EncryptionKey == "" {
+	if cfg.Security.EncryptionKey == "" {
 		// Return nil for tests and environments without encryption key
 		return nil, nil
 	}
-	return services.NewEncryptionService(cfg.EncryptionKey)
+	return services.NewEncryptionService(cfg.Security.EncryptionKey)
 }
 
 // ProvideAgentService creates a new AgentService
@@ -325,7 +325,7 @@ func ProvideQueryEmbedder(
 	logger *slog.Logger,
 ) services.QueryEmbedder {
 	return services.NewProviderQueryEmbedder(
-		providerSvc, cfg.EmbeddingModel, services.EmbeddingVectorDimensions, logger,
+		providerSvc, cfg.Embedding.Model, services.EmbeddingVectorDimensions, logger,
 	)
 }
 
@@ -338,9 +338,9 @@ func ProvideEmbeddingProcessor(
 	cfg *config.Config,
 	logger *slog.Logger,
 ) events.EmbeddingProcessor {
-	chunker := services.NewTextChunker(cfg.EmbeddingChunkSize, cfg.EmbeddingChunkOverlap)
+	chunker := services.NewTextChunker(cfg.Embedding.ChunkSize, cfg.Embedding.ChunkOverlap)
 	return services.NewEmbeddingGenerationProcessor(
-		providerSvc, chunker, embeddingService, cfg.EmbeddingModel, services.EmbeddingVectorDimensions, logger,
+		providerSvc, chunker, embeddingService, cfg.Embedding.Model, services.EmbeddingVectorDimensions, logger,
 	)
 }
 
@@ -353,14 +353,14 @@ func ProvideSearchService(
 	cfg *config.Config,
 ) services.SearchServiceInterface {
 	ranking := services.SearchRankingConfig{
-		Enabled:         cfg.SearchRecencyRankingEnabled,
-		WeightRelevance: cfg.SearchRankWeightRelevance,
-		WeightCreated:   cfg.SearchRankWeightCreated,
-		WeightUpdated:   cfg.SearchRankWeightUpdated,
-		HalfLife:        time.Duration(cfg.SearchRankHalfLifeDays * float64(24*time.Hour)),
-		CandidateCap:    cfg.SearchRankCandidateCap,
+		Enabled:         cfg.Search.RecencyRankingEnabled,
+		WeightRelevance: cfg.Search.RankWeightRelevance,
+		WeightCreated:   cfg.Search.RankWeightCreated,
+		WeightUpdated:   cfg.Search.RankWeightUpdated,
+		HalfLife:        time.Duration(cfg.Search.RankHalfLifeDays * float64(24*time.Hour)),
+		CandidateCap:    cfg.Search.RankCandidateCap,
 	}
-	return services.NewSearchService(repo, embedder, logger, ranking, cfg.EmbeddingModel)
+	return services.NewSearchService(repo, embedder, logger, ranking, cfg.Embedding.Model)
 }
 
 // ProvideEnvironmentService creates a new EnvironmentService
@@ -409,12 +409,12 @@ func ProvideResourceUsageService(
 
 // ProvideFeatureFlagService creates a new FeatureFlagService and registers all feature flags.
 //
-// The sign-in allowlist is configured from cfg.SignInAllowedEmails
+// The sign-in allowlist is configured from cfg.Auth.SignInAllowedEmails
 // (SIGNIN_ALLOWED_EMAILS). An empty list means open registration.
 func ProvideFeatureFlagService(cfg *config.Config, logger *slog.Logger) *feature_flags.FeatureFlagService {
 	service := feature_flags.NewFeatureFlagService(logger)
 
-	service.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(logger, cfg.SignInAllowedEmails))
+	service.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(logger, cfg.Auth.SignInAllowedEmails))
 
 	return service
 }
@@ -435,7 +435,7 @@ func ProvideEmbeddingBackfillService(
 	cfg *config.Config,
 	logger *slog.Logger,
 ) services.EmbeddingBackfillServiceInterface {
-	return services.NewEmbeddingBackfillService(repo, publisher, promptService, cfg.EmbeddingModel, logger)
+	return services.NewEmbeddingBackfillService(repo, publisher, promptService, cfg.Embedding.Model, logger)
 }
 
 // ProvideUserPreferencesService creates a new UserPreferencesService
@@ -588,7 +588,7 @@ func ProvideDigestRunner(
 	appMetrics *metrics.Metrics,
 	logger *slog.Logger,
 ) *notificationsvc.DigestRunner {
-	renderer := notificationsvc.NewTemplateRenderer(cfg.FrontendBaseURL)
+	renderer := notificationsvc.NewTemplateRenderer(cfg.Frontend.BaseURL)
 	return notificationsvc.NewDigestRunner(
 		digestRepo,
 		notifRepo,

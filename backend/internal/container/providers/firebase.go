@@ -27,7 +27,7 @@ func ProvideFirebaseMessagingClient(
 	cfg *config.Config,
 	logger *slog.Logger,
 ) (*fcmmessaging.Client, error) {
-	if !cfg.FCMEnabled {
+	if !cfg.FCM.Enabled {
 		logger.Info("FCM_ENABLED=false, web push notifications disabled")
 		return nil, nil
 	}

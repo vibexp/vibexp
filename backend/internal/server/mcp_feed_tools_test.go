@@ -28,7 +28,7 @@ func newMCPFeedTestServer(
 ) *Server {
 	t.Helper()
 	srv := newServerWithNullLogger(t)
-	srv.config.FrontendBaseURL = "https://app.vibexp.io"
+	srv.config.Frontend.BaseURL = "https://app.vibexp.io"
 	mockTeamService := mocks.NewMockTeamServiceInterface(t)
 	stubUserTeams(mockTeamService, []models.Team{memberTeam()})
 	srv.container = &TestContainer{

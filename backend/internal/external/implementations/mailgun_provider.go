@@ -35,23 +35,23 @@ type MailgunEmailProvider struct {
 // is appended automatically.
 // MailgunDomain must be a bare domain (e.g. mg.example.com), not a URL.
 func NewMailgunEmailProvider(cfg *config.Config) (external.EmailProvider, error) {
-	if cfg.MailgunSendingKey == "" {
+	if cfg.Email.Mailgun.SendingKey == "" {
 		return nil, fmt.Errorf("mailgun provider: MAILGUN_SENDING_KEY is required")
 	}
 
-	if cfg.MailgunDomain == "" {
+	if cfg.Email.Mailgun.Domain == "" {
 		return nil, fmt.Errorf("mailgun provider: MAILGUN_DOMAIN is required")
 	}
 
-	if strings.Contains(cfg.MailgunDomain, "://") || strings.HasSuffix(cfg.MailgunDomain, "/") {
+	if strings.Contains(cfg.Email.Mailgun.Domain, "://") || strings.HasSuffix(cfg.Email.Mailgun.Domain, "/") {
 		return nil, fmt.Errorf(
 			"mailgun provider: MAILGUN_DOMAIN must be a bare domain (e.g. mg.example.com), not a URL; got %q",
-			cfg.MailgunDomain,
+			cfg.Email.Mailgun.Domain,
 		)
 	}
 
-	mg := mailgun.NewMailgun(cfg.MailgunDomain, cfg.MailgunSendingKey)
-	if base := normalizeMailgunBaseURL(cfg.MailgunBaseURL); base != "" {
+	mg := mailgun.NewMailgun(cfg.Email.Mailgun.Domain, cfg.Email.Mailgun.SendingKey)
+	if base := normalizeMailgunBaseURL(cfg.Email.Mailgun.BaseURL); base != "" {
 		mg.SetAPIBase(base)
 	}
 

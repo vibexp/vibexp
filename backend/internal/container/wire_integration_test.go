@@ -21,19 +21,29 @@ import (
 func setupTestConfig() *config.Config {
 	return &config.Config{
 		// SMTP configuration
-		SMTPHost:     "smtp.example.com",
-		SMTPPort:     "587",
-		SMTPUsername: "test@example.com",
-		SMTPPassword: "password",
+		Email: config.EmailConfig{
+			SMTP: config.SMTPConfig{
+				Host:     "smtp.example.com",
+				Port:     "587",
+				Username: "test@example.com",
+				Password: "password",
+			},
+		},
 
 		// Application configuration
-		FrontendBaseURL: "http://localhost:3000",
+		Frontend: config.FrontendConfig{
+			BaseURL: "http://localhost:3000",
+		},
 
 		// Encryption configuration (optional)
-		EncryptionKey: "", // Empty to skip encryption service
+		Security: config.SecurityConfig{
+			EncryptionKey: "", // Empty to skip encryption service
+		},
 
 		// GCP project id (observability only; empty for tests)
-		GCPProjectID: "",
+		GCP: config.GCPConfig{
+			ProjectID: "",
+		},
 	}
 }
 
@@ -240,7 +250,7 @@ func TestInitializeContainer_WithEncryptionService(t *testing.T) {
 	// Arrange
 	db := setupTestDB(t)
 	cfg := setupTestConfig()
-	cfg.EncryptionKey = "testtesttesttesttesttesttesttest" // 32 bytes hex key
+	cfg.Security.EncryptionKey = "testtesttesttesttesttesttesttest" // 32 bytes hex key
 	logger := setupTestLogger()
 
 	// Act
@@ -309,7 +319,7 @@ func runConditionalServiceTest(
 func TestInitializeContainer_ConditionalServices(t *testing.T) {
 	runConditionalServiceTest(t, "Without encryption key",
 		func(cfg *config.Config) {
-			cfg.EncryptionKey = ""
+			cfg.Security.EncryptionKey = ""
 		},
 		func(t *testing.T, c container.Container) {
 			assert.NotNil(t, c.AgentService(), "AgentService should be initialized without encryption")
@@ -317,7 +327,7 @@ func TestInitializeContainer_ConditionalServices(t *testing.T) {
 
 	runConditionalServiceTest(t, "With encryption key",
 		func(cfg *config.Config) {
-			cfg.EncryptionKey = "testtesttesttesttesttesttesttest"
+			cfg.Security.EncryptionKey = "testtesttesttesttesttesttesttest"
 		},
 		func(t *testing.T, c container.Container) {
 			assert.NotNil(t, c.AgentService(), "AgentService should be initialized with encryption")

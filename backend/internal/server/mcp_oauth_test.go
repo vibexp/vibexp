@@ -31,8 +31,10 @@ func newMCPOAuthTestServer(t *testing.T, issuer string) *Server {
 func newMCPOAuthTestServerWithResource(t *testing.T, issuer, resourceURI string) *Server {
 	t.Helper()
 	cfg := &config.Config{
-		MCPOAuthIssuer: issuer,
-		MCPResourceURI: resourceURI,
+		MCP: config.MCPConfig{
+			OAuthIssuer: issuer,
+			ResourceURI: resourceURI,
+		},
 	}
 	logger := slog.New(slog.DiscardHandler)
 	return New("8080", nil, "test-api-key", cfg, logger)

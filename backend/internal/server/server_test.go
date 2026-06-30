@@ -42,7 +42,7 @@ type healthResponse struct {
 
 func callHealthEndpoint(t *testing.T, releaseSHA string) (int, healthResponse) {
 	t.Helper()
-	cfg := &config.Config{ReleaseSHA: releaseSHA}
+	cfg := &config.Config{Server: config.ServerConfig{ReleaseSHA: releaseSHA}}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 

@@ -33,7 +33,7 @@ func TestMaxBodySizeMiddleware_DefaultFallback(t *testing.T) {
 // auth rate limit and confirms requests beyond the per-IP threshold get 429.
 func TestRateLimit_AuthRoute_Returns429AfterThreshold(t *testing.T) {
 	const limit = 3
-	srv := testServerWithConfig(&config.Config{AuthRateLimitPerMinute: limit})
+	srv := testServerWithConfig(&config.Config{RateLimit: config.RateLimitConfig{AuthPerMinute: limit}})
 
 	var sawTooMany bool
 	for i := 0; i < limit+2; i++ {
@@ -51,7 +51,7 @@ func TestRateLimit_AuthRoute_Returns429AfterThreshold(t *testing.T) {
 // TestRateLimit_Disabled_WhenLimitZero confirms a zero limit disables the limiter so
 // many requests from one IP are never throttled.
 func TestRateLimit_Disabled_WhenLimitZero(t *testing.T) {
-	srv := testServerWithConfig(&config.Config{AuthRateLimitPerMinute: 0})
+	srv := testServerWithConfig(&config.Config{RateLimit: config.RateLimitConfig{AuthPerMinute: 0}})
 
 	for i := 0; i < 20; i++ {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/providers", nil)

@@ -31,11 +31,11 @@ type SendGridEmailProvider struct {
 // NewSendGridEmailProvider creates a new SendGrid email provider.
 // Required config: SendGridAPIKey (an API key with "Mail Send" permission).
 func NewSendGridEmailProvider(cfg *config.Config) (external.EmailProvider, error) {
-	if cfg.SendGridAPIKey == "" {
+	if cfg.Email.SendGrid.APIKey == "" {
 		return nil, fmt.Errorf("sendgrid provider: SENDGRID_API_KEY is required")
 	}
 
-	return &SendGridEmailProvider{sender: sendgrid.NewSendClient(cfg.SendGridAPIKey)}, nil
+	return &SendGridEmailProvider{sender: sendgrid.NewSendClient(cfg.Email.SendGrid.APIKey)}, nil
 }
 
 // SendEmail sends an email via the SendGrid v3 Mail Send API. The caller's ctx

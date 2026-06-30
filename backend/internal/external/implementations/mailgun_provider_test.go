@@ -34,8 +34,12 @@ func (f *fakeMailgunSender) Send(ctx context.Context, m *mailgun.Message) (strin
 
 func TestNewMailgunEmailProvider_EmptySendingKey(t *testing.T) {
 	cfg := &config.Config{
-		MailgunDomain:     "mg.example.com",
-		MailgunSendingKey: "",
+		Email: config.EmailConfig{
+			Mailgun: config.MailgunConfig{
+				Domain:     "mg.example.com",
+				SendingKey: "",
+			},
+		},
 	}
 
 	provider, err := NewMailgunEmailProvider(cfg)
@@ -47,8 +51,12 @@ func TestNewMailgunEmailProvider_EmptySendingKey(t *testing.T) {
 
 func TestNewMailgunEmailProvider_EmptyDomain(t *testing.T) {
 	cfg := &config.Config{
-		MailgunDomain:     "",
-		MailgunSendingKey: "key-abc123",
+		Email: config.EmailConfig{
+			Mailgun: config.MailgunConfig{
+				Domain:     "",
+				SendingKey: "key-abc123",
+			},
+		},
 	}
 
 	provider, err := NewMailgunEmailProvider(cfg)
@@ -69,8 +77,12 @@ func TestNewMailgunEmailProvider_DomainIsURL(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := &config.Config{
-				MailgunDomain:     tc.domain,
-				MailgunSendingKey: "key-abc123",
+				Email: config.EmailConfig{
+					Mailgun: config.MailgunConfig{
+						Domain:     tc.domain,
+						SendingKey: "key-abc123",
+					},
+				},
 			}
 			provider, err := NewMailgunEmailProvider(cfg)
 			assert.Error(t, err)
@@ -82,8 +94,12 @@ func TestNewMailgunEmailProvider_DomainIsURL(t *testing.T) {
 
 func TestNewMailgunEmailProvider_ValidConfig(t *testing.T) {
 	cfg := &config.Config{
-		MailgunDomain:     "mg.example.com",
-		MailgunSendingKey: "key-abc123",
+		Email: config.EmailConfig{
+			Mailgun: config.MailgunConfig{
+				Domain:     "mg.example.com",
+				SendingKey: "key-abc123",
+			},
+		},
 	}
 
 	provider, err := NewMailgunEmailProvider(cfg)
@@ -98,9 +114,13 @@ func TestNewMailgunEmailProvider_ValidConfig(t *testing.T) {
 func TestNewMailgunEmailProvider_WithBaseURL(t *testing.T) {
 	// Setting MAILGUN_BASE_URL to the EU endpoint should not error during construction.
 	cfg := &config.Config{
-		MailgunDomain:     "mg.example.com",
-		MailgunSendingKey: "key-abc123",
-		MailgunBaseURL:    "https://api.eu.mailgun.net/v3",
+		Email: config.EmailConfig{
+			Mailgun: config.MailgunConfig{
+				Domain:     "mg.example.com",
+				SendingKey: "key-abc123",
+				BaseURL:    "https://api.eu.mailgun.net/v3",
+			},
+		},
 	}
 
 	provider, err := NewMailgunEmailProvider(cfg)
@@ -136,9 +156,13 @@ func TestNewMailgunEmailProvider_NormalizesBaseURL(t *testing.T) {
 	// (no /v3 suffix), causing mailgun-go to fail at send time. The provider must
 	// accept this value and normalize it rather than failing or passing it through.
 	cfg := &config.Config{
-		MailgunDomain:     "mg.example.com",
-		MailgunSendingKey: "key-abc123",
-		MailgunBaseURL:    "https://api.eu.mailgun.net",
+		Email: config.EmailConfig{
+			Mailgun: config.MailgunConfig{
+				Domain:     "mg.example.com",
+				SendingKey: "key-abc123",
+				BaseURL:    "https://api.eu.mailgun.net",
+			},
+		},
 	}
 
 	provider, err := NewMailgunEmailProvider(cfg)

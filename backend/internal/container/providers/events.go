@@ -100,7 +100,7 @@ func registerEventListeners(
 	registerTeamCreationListener(eventManager, teamService, projectService, logger)
 	registerNotificationEventListener(
 		eventManager, notifSvc, teamMemberRepo,
-		userRepo, feedItemRepo, cfg.FrontendBaseURL, appMetrics, logger,
+		userRepo, feedItemRepo, cfg.Frontend.BaseURL, appMetrics, logger,
 	)
 	registerEmbeddingWorker(eventManager, embeddingProcessor, logger)
 }

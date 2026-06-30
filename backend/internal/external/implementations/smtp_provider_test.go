@@ -20,20 +20,28 @@ func TestNewSMTPEmailProvider(t *testing.T) {
 		{
 			name: "Valid SMTP configuration",
 			config: &config.Config{
-				SMTPHost:     "smtp.example.com",
-				SMTPPort:     "587",
-				SMTPUsername: "test@example.com",
-				SMTPPassword: "password123",
+				Email: config.EmailConfig{
+					SMTP: config.SMTPConfig{
+						Host:     "smtp.example.com",
+						Port:     "587",
+						Username: "test@example.com",
+						Password: "password123",
+					},
+				},
 			},
 			expectError: false,
 		},
 		{
 			name: "Invalid SMTP port - non-numeric",
 			config: &config.Config{
-				SMTPHost:     "smtp.example.com",
-				SMTPPort:     "invalid",
-				SMTPUsername: "test@example.com",
-				SMTPPassword: "password123",
+				Email: config.EmailConfig{
+					SMTP: config.SMTPConfig{
+						Host:     "smtp.example.com",
+						Port:     "invalid",
+						Username: "test@example.com",
+						Password: "password123",
+					},
+				},
 			},
 			expectError: true,
 			errorMsg:    "invalid SMTP port",
@@ -41,10 +49,14 @@ func TestNewSMTPEmailProvider(t *testing.T) {
 		{
 			name: "Empty SMTP port",
 			config: &config.Config{
-				SMTPHost:     "smtp.example.com",
-				SMTPPort:     "",
-				SMTPUsername: "test@example.com",
-				SMTPPassword: "password123",
+				Email: config.EmailConfig{
+					SMTP: config.SMTPConfig{
+						Host:     "smtp.example.com",
+						Port:     "",
+						Username: "test@example.com",
+						Password: "password123",
+					},
+				},
 			},
 			expectError: true,
 			errorMsg:    "invalid SMTP port",
@@ -78,10 +90,14 @@ func TestSMTPEmailProvider_SendEmail(t *testing.T) {
 	// Actual SMTP sending requires live SMTP server or mocking at network level
 
 	cfg := &config.Config{
-		SMTPHost:     "smtp.example.com",
-		SMTPPort:     "587",
-		SMTPUsername: "test@example.com",
-		SMTPPassword: "password123",
+		Email: config.EmailConfig{
+			SMTP: config.SMTPConfig{
+				Host:     "smtp.example.com",
+				Port:     "587",
+				Username: "test@example.com",
+				Password: "password123",
+			},
+		},
 	}
 
 	provider, err := NewSMTPEmailProvider(cfg)
@@ -112,10 +128,14 @@ func TestSMTPEmailProvider_SendEmail(t *testing.T) {
 func TestSMTPEmailProvider_InterfaceCompliance(t *testing.T) {
 	// Verify that SMTPEmailProvider implements the EmailProvider interface
 	cfg := &config.Config{
-		SMTPHost:     "smtp.example.com",
-		SMTPPort:     "587",
-		SMTPUsername: "test@example.com",
-		SMTPPassword: "password123",
+		Email: config.EmailConfig{
+			SMTP: config.SMTPConfig{
+				Host:     "smtp.example.com",
+				Port:     "587",
+				Username: "test@example.com",
+				Password: "password123",
+			},
+		},
 	}
 
 	provider, err := NewSMTPEmailProvider(cfg)

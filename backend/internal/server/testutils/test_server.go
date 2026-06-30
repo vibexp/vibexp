@@ -23,13 +23,23 @@ type TestServer struct {
 func NewTestServer(t *testing.T) *TestServer {
 	// #nosec G101 - Test utility function with hardcoded test credentials (not production secrets)
 	cfg := &config.Config{
-		EncryptionKey:      "test-encryption-key-32-bytes-aaa",
-		CORSAllowedOrigins: []string{"*"},
-		SMTPHost:           "localhost",
-		SMTPPort:           "587",
-		SMTPUsername:       "test",
-		SMTPPassword:       "test",
-		FrontendBaseURL:    "http://localhost:3000",
+		Security: config.SecurityConfig{
+			EncryptionKey: "12345678901234567890123456789012",
+		},
+		Server: config.ServerConfig{
+			CORSAllowedOrigins: []string{"*"},
+		},
+		Email: config.EmailConfig{
+			SMTP: config.SMTPConfig{
+				Host:     "localhost",
+				Port:     "587",
+				Username: "test",
+				Password: "test",
+			},
+		},
+		Frontend: config.FrontendConfig{
+			BaseURL: "http://localhost:3000",
+		},
 	}
 
 	// Create a test logger with minimal output
@@ -52,13 +62,23 @@ func NewTestServer(t *testing.T) *TestServer {
 func NewTestServerWithDB(t *testing.T, db *database.DB) *TestServer {
 	// #nosec G101 - Test utility function with hardcoded test credentials (not production secrets)
 	cfg := &config.Config{
-		EncryptionKey:      "test-encryption-key-32-bytes-aaa",
-		CORSAllowedOrigins: []string{"*"},
-		SMTPHost:           "localhost",
-		SMTPPort:           "587",
-		SMTPUsername:       "test",
-		SMTPPassword:       "test",
-		FrontendBaseURL:    "http://localhost:3000",
+		Security: config.SecurityConfig{
+			EncryptionKey: "12345678901234567890123456789012",
+		},
+		Server: config.ServerConfig{
+			CORSAllowedOrigins: []string{"*"},
+		},
+		Email: config.EmailConfig{
+			SMTP: config.SMTPConfig{
+				Host:     "localhost",
+				Port:     "587",
+				Username: "test",
+				Password: "test",
+			},
+		},
+		Frontend: config.FrontendConfig{
+			BaseURL: "http://localhost:3000",
+		},
 	}
 
 	// Create a test logger with minimal output
