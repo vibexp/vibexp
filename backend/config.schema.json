@@ -1,0 +1,629 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vibexp/vibexp/internal/config/config",
+  "$ref": "#/$defs/Config",
+  "$defs": {
+    "A2AConfig": {
+      "properties": {
+        "default_timeout": {
+          "type": "string",
+          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "APIOAuthConfig": {
+      "properties": {
+        "issuer": {
+          "type": "string"
+        },
+        "audiences": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "AuthConfig": {
+      "properties": {
+        "providers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "session_encryption_key": {
+          "type": "string"
+        },
+        "dev_login_enabled": {
+          "type": "boolean"
+        },
+        "signin_allowed_emails": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "google": {
+          "$ref": "#/$defs/GoogleAuthConfig"
+        },
+        "github": {
+          "$ref": "#/$defs/GitHubAuthConfig"
+        },
+        "oidc": {
+          "$ref": "#/$defs/OIDCAuthConfig"
+        },
+        "oauth_as": {
+          "$ref": "#/$defs/OAuthASConfig"
+        },
+        "api_oauth": {
+          "$ref": "#/$defs/APIOAuthConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Config": {
+      "properties": {
+        "server": {
+          "$ref": "#/$defs/ServerConfig"
+        },
+        "database": {
+          "$ref": "#/$defs/DatabaseConfig"
+        },
+        "security": {
+          "$ref": "#/$defs/SecurityConfig"
+        },
+        "auth": {
+          "$ref": "#/$defs/AuthConfig"
+        },
+        "mcp": {
+          "$ref": "#/$defs/MCPConfig"
+        },
+        "email": {
+          "$ref": "#/$defs/EmailConfig"
+        },
+        "frontend": {
+          "$ref": "#/$defs/FrontendConfig"
+        },
+        "search": {
+          "$ref": "#/$defs/SearchConfig"
+        },
+        "embedding": {
+          "$ref": "#/$defs/EmbeddingConfig"
+        },
+        "github": {
+          "$ref": "#/$defs/GitHubConfig"
+        },
+        "storage": {
+          "$ref": "#/$defs/StorageConfig"
+        },
+        "gcp": {
+          "$ref": "#/$defs/GCPConfig"
+        },
+        "rate_limit": {
+          "$ref": "#/$defs/RateLimitConfig"
+        },
+        "retention": {
+          "$ref": "#/$defs/RetentionConfig"
+        },
+        "a2a": {
+          "$ref": "#/$defs/A2AConfig"
+        },
+        "fcm": {
+          "$ref": "#/$defs/FCMConfig"
+        },
+        "deployment": {
+          "$ref": "#/$defs/DeploymentConfig"
+        },
+        "event_bus": {
+          "$ref": "#/$defs/EventsConfig"
+        },
+        "otel": {
+          "$ref": "#/$defs/ObservabilityConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DatabaseConfig": {
+      "properties": {
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DeploymentConfig": {
+      "properties": {
+        "otel_environment": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "env": {
+          "type": "string"
+        },
+        "deployment_environment": {
+          "type": "string"
+        },
+        "kubernetes_service_host": {
+          "type": "string"
+        },
+        "google_cloud_project": {
+          "type": "string"
+        },
+        "gcp_project": {
+          "type": "string"
+        },
+        "aws_region": {
+          "type": "string"
+        },
+        "aws_default_region": {
+          "type": "string"
+        },
+        "k_service": {
+          "type": "string"
+        },
+        "k_revision": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EmailConfig": {
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "from_address": {
+          "type": "string"
+        },
+        "contact_recipient_address": {
+          "type": "string"
+        },
+        "privacy_policy_url": {
+          "type": "string"
+        },
+        "smtp": {
+          "$ref": "#/$defs/SMTPConfig"
+        },
+        "mailgun": {
+          "$ref": "#/$defs/MailgunConfig"
+        },
+        "postmark": {
+          "$ref": "#/$defs/PostmarkConfig"
+        },
+        "sendgrid": {
+          "$ref": "#/$defs/SendGridConfig"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EmbeddingConfig": {
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "chunk_size": {
+          "type": "integer"
+        },
+        "chunk_overlap": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EventsConfig": {
+      "properties": {
+        "worker_count": {
+          "type": "integer"
+        },
+        "buffer_size": {
+          "type": "integer"
+        },
+        "max_retries": {
+          "type": "integer"
+        },
+        "retry_backoff": {
+          "type": "string",
+          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+        },
+        "retry_jitter": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "FCMConfig": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "FrontendConfig": {
+      "properties": {
+        "base_url": {
+          "type": "string"
+        },
+        "site_name": {
+          "type": "string"
+        },
+        "site_legal_name": {
+          "type": "string"
+        },
+        "site_url": {
+          "type": "string"
+        },
+        "terms_url": {
+          "type": "string"
+        },
+        "privacy_url": {
+          "type": "string"
+        },
+        "support_email": {
+          "type": "string"
+        },
+        "brand_logo_url": {
+          "type": "string"
+        },
+        "mcp_endpoint": {
+          "type": "string"
+        },
+        "error_type_base_uri": {
+          "type": "string"
+        },
+        "gtm_id": {
+          "type": "string"
+        },
+        "gtm_enabled": {
+          "type": "string"
+        },
+        "ga4_measurement_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GCPConfig": {
+      "properties": {
+        "project_id": {
+          "type": "string"
+        },
+        "pubsub_push_audience": {
+          "type": "string"
+        },
+        "pubsub_push_service_account_suffix": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GitHubAuthConfig": {
+      "properties": {
+        "client_id": {
+          "type": "string"
+        },
+        "client_secret": {
+          "type": "string"
+        },
+        "redirect_uri": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GitHubConfig": {
+      "properties": {
+        "app_id": {
+          "type": "string"
+        },
+        "app_slug": {
+          "type": "string"
+        },
+        "app_private_key": {
+          "type": "string"
+        },
+        "webhook_url": {
+          "type": "string"
+        },
+        "webhook_secret": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GoogleAuthConfig": {
+      "properties": {
+        "client_id": {
+          "type": "string"
+        },
+        "client_secret": {
+          "type": "string"
+        },
+        "redirect_uri": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MCPConfig": {
+      "properties": {
+        "oauth_issuer": {
+          "type": "string"
+        },
+        "resource_uri": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MailgunConfig": {
+      "properties": {
+        "base_url": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "sending_key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "OAuthASConfig": {
+      "properties": {
+        "issuer_url": {
+          "type": "string"
+        },
+        "access_token_ttl": {
+          "type": "string",
+          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+        },
+        "refresh_token_ttl": {
+          "type": "string",
+          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+        },
+        "auth_code_ttl": {
+          "type": "string",
+          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+        },
+        "key_rotation_interval": {
+          "type": "string",
+          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+        },
+        "cleanup_interval": {
+          "type": "string",
+          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "OIDCAuthConfig": {
+      "properties": {
+        "issuer_url": {
+          "type": "string"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "client_secret": {
+          "type": "string"
+        },
+        "redirect_uri": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ObservabilityConfig": {
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "export_interval": {
+          "type": "string",
+          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+        },
+        "trace_sample_ratio": {
+          "type": "number"
+        },
+        "tracing_enabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "PostmarkConfig": {
+      "properties": {
+        "server_token": {
+          "type": "string"
+        },
+        "message_stream": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RateLimitConfig": {
+      "properties": {
+        "auth_per_minute": {
+          "type": "integer"
+        },
+        "api_per_minute": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RetentionConfig": {
+      "properties": {
+        "activity_days": {
+          "type": "integer"
+        },
+        "access_event_days": {
+          "type": "integer"
+        },
+        "content_version_limit": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SMTPConfig": {
+      "properties": {
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SearchConfig": {
+      "properties": {
+        "recency_ranking_enabled": {
+          "type": "boolean"
+        },
+        "rank_weight_relevance": {
+          "type": "number"
+        },
+        "rank_weight_created": {
+          "type": "number"
+        },
+        "rank_weight_updated": {
+          "type": "number"
+        },
+        "rank_half_life_days": {
+          "type": "number"
+        },
+        "rank_candidate_cap": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SecurityConfig": {
+      "properties": {
+        "encryption_key": {
+          "type": "string"
+        },
+        "api_key_common": {
+          "type": "string"
+        },
+        "backoffice_admin_api_key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SendGridConfig": {
+      "properties": {
+        "api_key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ServerConfig": {
+      "properties": {
+        "port": {
+          "type": "string"
+        },
+        "log_level": {
+          "type": "string"
+        },
+        "log_format": {
+          "type": "string"
+        },
+        "service_version": {
+          "type": "string"
+        },
+        "release_sha": {
+          "type": "string"
+        },
+        "release_date": {
+          "type": "string"
+        },
+        "max_body_size_bytes": {
+          "type": "integer"
+        },
+        "cors_allowed_origins": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "error_type_base_uri": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "StorageConfig": {
+      "properties": {
+        "attachments_bucket": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "title": "VibeXP backend configuration (config.yaml)",
+  "description": "Schema for VibeXP's config.yaml. Generated from the Go config.Config struct by backend/cmd/gen-config-schema; do not edit by hand."
+}

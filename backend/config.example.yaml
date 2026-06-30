@@ -1,0 +1,292 @@
+# yaml-language-server: $schema=./config.schema.json
+#
+# VibeXP backend configuration — copy to config.yaml and edit.
+# ===========================================================================
+# This is the primary, documented configuration surface for VibeXP. The backend
+# loads a REQUIRED config.yaml at startup (override the path with --config or
+# VIBEXP_CONFIG_FILE); `make backend-run`/`backend-run-dev` bootstrap it from
+# this file automatically on a fresh clone.
+#
+# Structure vs. secrets:
+#   - Non-secret settings live here as literal values (edit them in place).
+#   - Secrets are referenced as ${VAR} and resolved from the process
+#     environment at load time — keep them OUT of this file and out of git.
+#     The .env.example beside this file lists every ${VAR} secret; `make
+#     backend-run*` loads .env into the environment so the references resolve.
+#
+# Interpolation grammar (string values only):
+#   ${VAR}            → the value of environment variable VAR (empty + a warning
+#                       if VAR is unset).
+#   ${VAR:-default}   → VAR when set and non-empty, otherwise "default".
+#   $${literal}       → a literal "${literal}" (the "$$" escapes interpolation).
+#
+# The values below mirror the code defaults and are tuned for LOCAL DEVELOPMENT
+# (localhost, Mailpit email sink, embedded OAuth AS auto-enabled). Comments call
+# out what to change for a real deployment.
+
+# HTTP server, logging, and build metadata.
+server:
+  port: "8080"
+  # log_level: debug | info | warn | error. Use debug for local development.
+  log_level: "info"
+  # log_format: json (structured, for log aggregators) | text (human-readable,
+  # handy for local development).
+  log_format: "json"
+  # Build metadata. Release builds inject these; SERVICE_VERSION may also be set
+  # in the environment.
+  service_version: "${SERVICE_VERSION:-dev}"
+  release_sha: "dev"
+  release_date: "unknown"
+  # Global request-body cap in bytes (memory-exhaustion backstop). Default 10MiB.
+  max_body_size_bytes: 10485760
+  # Permitted CORS origins. Only needed when the SPA is served from a DIFFERENT
+  # origin than the API (i.e. local dev with Vite on :5173); the combined image
+  # serves the SPA same-origin and needs none. When empty, the localhost dev
+  # origins (http://localhost:5173, http://localhost:5174) are allowed. For a
+  # split deployment list your frontend origin(s).
+  cors_allowed_origins: []
+  # Base URI for the RFC 9457 error "type" member (joined as <base>/<code>).
+  error_type_base_uri: "about:blank"
+
+# PostgreSQL connection. Host may be a Unix socket path (Cloud SQL) when it
+# starts with '/'. Defaults match the dev Postgres in backend/docker-compose.yml.
+database:
+  host: "localhost"
+  port: "5432"
+  user: "vibexp_app"
+  password: "${DB_PASSWORD}"
+  name: "vibexp_io"
+
+# Process-wide secrets and admin keys (all resolved from the environment).
+security:
+  # REQUIRED. Must be EXACTLY 32 bytes (AES-256); the service fails to start
+  # otherwise. Generate one with: openssl rand -hex 16
+  encryption_key: "${ENCRYPTION_KEY}"
+  # Global API key for the common API surface (optional).
+  api_key_common: "${API_KEY_COMMON}"
+  # Super-admin key for the back-office endpoints (/bo/*), separate from JWT and
+  # regular API keys (optional).
+  backoffice_admin_api_key: "${BACKOFFICE_ADMIN_API_KEY}"
+
+# Web-login identity providers and the embedded OAuth 2.1 Authorization Server.
+auth:
+  # Web-login providers to enable simultaneously (case-insensitive): google,
+  # github, oidc. Example: ["google", "github"]. Empty disables web login (dev
+  # login below still works). Takes precedence over `provider`.
+  providers: []
+  # Backward-compatible single-provider shim; used only when `providers` is empty.
+  provider: ""
+  # Hex secret (64 hex chars = 32 bytes) backing the AES-256-GCM session cookie
+  # and the OAuth state HMAC. Empty disables cookie session auth. Generate with:
+  # openssl rand -hex 32
+  session_encryption_key: "${SESSION_ENCRYPTION_KEY}"
+  # Gates /api/v1/auth/dev/login. Effective only when true AND the environment is
+  # detected as development (frontend.base_url points at localhost). Keep false in
+  # production.
+  dev_login_enabled: true
+  # Allow-list of emails permitted to sign in. Empty means open registration.
+  signin_allowed_emails: []
+
+  # Google OIDC web-login client (reached directly via accounts.google.com).
+  google:
+    client_id: ""
+    client_secret: "${GOOGLE_CLIENT_SECRET}"
+    redirect_uri: "http://localhost:8080/api/v1/auth/callback"
+
+  # GitHub OAuth2 web-login client (OAuth2, not OIDC).
+  github:
+    client_id: ""
+    client_secret: "${GITHUB_CLIENT_SECRET}"
+    redirect_uri: "http://localhost:8080/api/v1/auth/callback"
+
+  # Generic OIDC web-login client (any OIDC issuer: Keycloak, Authentik, Auth0…).
+  oidc:
+    issuer_url: ""
+    client_id: ""
+    client_secret: "${OIDC_CLIENT_SECRET}"
+    redirect_uri: "http://localhost:8080/api/v1/auth/callback"
+
+  # Embedded OAuth 2.1 Authorization Server (issue #31). When issuer_url is set
+  # the AS is mounted and mints JWTs for mcp.resource_uri; empty disables it. In
+  # LOCAL DEVELOPMENT it is auto-enabled at http://localhost:<port> even when
+  # left empty, so a freshly copied config boots a connectable MCP endpoint. In
+  # production set it to your public HTTPS URL (must be HTTPS) or leave it empty
+  # to disable the AS.
+  oauth_as:
+    issuer_url: ""
+    access_token_ttl: "15m"
+    refresh_token_ttl: "720h"
+    auth_code_ttl: "10m"
+    key_rotation_interval: "720h"
+    cleanup_interval: "1h"
+
+  # /api/v1 bearer-JWT path (AuthKit tokens alongside sessions and API keys).
+  # When issuer is set, /api/v1/* accepts those JWTs; empty disables the branch.
+  api_oauth:
+    issuer: ""
+    audiences: []
+
+# MCP OAuth 2.1 resource server (/mcp/v1/common). In local development both
+# fields are auto-derived from the embedded AS, so leave them empty. In
+# production set oauth_issuer to your AS issuer and resource_uri to the public
+# MCP URL (the required token audience, RFC 8707), e.g.
+# https://connect.example.com/mcp/v1/common.
+mcp:
+  oauth_issuer: ""
+  resource_uri: ""
+
+# Email delivery. provider selects the backend: smtp (default), mailgun,
+# postmark, sendgrid. Dev defaults target Mailpit (the local SMTP sink started
+# by `make backend-run-dev`; inbox at http://localhost:8025).
+email:
+  provider: "smtp"
+  # Sender address for all providers; empty falls back to smtp.username.
+  from_address: "dev@vibexp.local"
+  # Inbox for contact/support notifications; empty falls back to from_address.
+  contact_recipient_address: ""
+  privacy_policy_url: "https://example.com/privacy-policy"
+
+  # SMTP (the default provider). Dev defaults point at Mailpit, which accepts any
+  # credentials. For real delivery use e.g. smtp.gmail.com:587 with an app password.
+  smtp:
+    host: "localhost"
+    port: "1025"
+    username: "dev"
+    password: "${SMTP_PASSWORD}"
+
+  # Mailgun (required when provider is "mailgun").
+  mailgun:
+    base_url: ""
+    domain: ""
+    sending_key: "${MAILGUN_SENDING_KEY}"
+
+  # Postmark (required when provider is "postmark").
+  postmark:
+    server_token: "${POSTMARK_SERVER_TOKEN}"
+    message_stream: "outbound"
+
+  # SendGrid (required when provider is "sendgrid").
+  sendgrid:
+    api_key: "${SENDGRID_API_KEY}"
+
+# Frontend values served to the SPA via /config.js (window.__VIBEXP_ENV__).
+# SECURITY: /config.js is world-readable — never put secrets here. Each Site*/
+# Brand*/GTM*/GA4 field is optional; empty uses the SPA's neutral built-in.
+frontend:
+  # The public base URL of the app. In the combined image the backend serves the
+  # SPA and API from the SAME origin, so set this to your public URL in
+  # production. In local dev the SPA runs on the Vite dev server.
+  base_url: "http://localhost:5173"
+  site_name: ""
+  site_legal_name: ""
+  site_url: ""
+  terms_url: ""
+  privacy_url: ""
+  support_email: ""
+  brand_logo_url: ""
+  mcp_endpoint: ""
+  error_type_base_uri: ""
+  # Optional analytics. GTM is OFF unless gtm_enabled is exactly "true".
+  gtm_id: ""
+  gtm_enabled: ""
+  ga4_measurement_id: ""
+
+# Search ranking. When recency_ranking_enabled is false (default) results keep
+# relevance-only ordering; true blends relevance and freshness by the weights.
+search:
+  recency_ranking_enabled: false
+  rank_weight_relevance: 0.5
+  rank_weight_created: 0.3
+  rank_weight_updated: 0.2
+  rank_half_life_days: 90.0
+  rank_candidate_cap: 200
+
+# Embedding model id (the tag written on every row and used as the search
+# filter) and the in-Go chunker sizing. The vector width is fixed at 1024 in
+# code — pick a model that outputs 1024 dims. Overlap must be < chunk_size.
+embedding:
+  model: "gemini-embedding-001"
+  chunk_size: 1000
+  chunk_overlap: 200
+
+# GitHub App / integration (distinct from the github web-login client above).
+# Optional — leave empty for local dev; the provider stubs out. A non-empty but
+# invalid app_private_key fails startup on PEM parsing.
+github:
+  app_id: ""
+  app_slug: ""
+  # Base64-encoded private key. Generate: cat private-key.pem | base64 -w 0
+  app_private_key: "${GITHUB_APP_PRIVATE_KEY}"
+  webhook_url: ""
+  webhook_secret: "${GITHUB_WEBHOOK_SECRET}"
+
+# Resource-attachment storage. Empty disables attachments (upload/download/
+# delete return 503). Set to your GCS bucket name to enable.
+storage:
+  attachments_bucket: ""
+
+# Google Cloud settings for observability and the internal Pub/Sub-push job auth.
+# All optional; leave empty for local dev.
+gcp:
+  # GCP project id, used only for trace/log correlation.
+  project_id: ""
+  # OIDC token audience Cloud Scheduler mints for /internal/jobs/* (must equal
+  # the public base URL the caller targets), e.g. https://api.example.com.
+  pubsub_push_audience: ""
+  # Restrict accepted service-account identities (token email must end with
+  # this suffix), e.g. @your-project.iam.gserviceaccount.com. Empty skips it.
+  pubsub_push_service_account_suffix: ""
+
+# Per-IP request rate limits (requests per minute), per route group. Each >= 1.
+rate_limit:
+  auth_per_minute: 100
+  api_per_minute: 1000
+
+# Data-retention windows and limits.
+retention:
+  # activity_days / access_event_days must be in 1..3650.
+  activity_days: 90
+  access_event_days: 90
+  # Content-version snapshots kept per resource. 0 disables pruning (keep all).
+  content_version_limit: 20
+
+# Agent-to-Agent client settings.
+a2a:
+  default_timeout: "5m"
+
+# Firebase Cloud Messaging web-push channel (opt-in).
+fcm:
+  enabled: false
+
+# Environment-detection indicators (see GetDeploymentEnvironment). Most are
+# auto-populated by the hosting platform; the ${VAR:-} references pass the
+# platform's environment through so detection keeps working. Manual setting is
+# rarely needed.
+deployment:
+  otel_environment: "${OTEL_ENVIRONMENT:-}"
+  environment: "${ENVIRONMENT:-}"
+  env: "${ENV:-}"
+  deployment_environment: "${DEPLOYMENT_ENVIRONMENT:-}"
+  kubernetes_service_host: "${KUBERNETES_SERVICE_HOST:-}"
+  google_cloud_project: "${GOOGLE_CLOUD_PROJECT:-}"
+  gcp_project: "${GCP_PROJECT:-}"
+  aws_region: "${AWS_REGION:-}"
+  aws_default_region: "${AWS_DEFAULT_REGION:-}"
+  k_service: "${K_SERVICE:-}"
+  k_revision: "${K_REVISION:-}"
+
+# In-memory event bus tuning (see pkg/events). Defaults are production-tuned;
+# reduce worker_count/buffer_size for development if desired.
+event_bus:
+  worker_count: 20
+  buffer_size: 500
+  max_retries: 3
+  retry_backoff: "200ms"
+  retry_jitter: true
+
+# OpenTelemetry export configuration (see internal/observability).
+otel:
+  endpoint: "localhost:4317"
+  export_interval: "60s"
+  trace_sample_ratio: 0.1
+  tracing_enabled: false

@@ -1,4 +1,4 @@
-.PHONY: backend-test backend-test-coverage backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-server backend-wire-gen backend-wire-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
+.PHONY: backend-test backend-test-coverage backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
@@ -112,6 +112,22 @@ backend-wire-gen:
 backend-wire-check: backend-wire-gen
 	@cd backend && git diff --exit-code internal/container/wire_gen.go \
 		|| { echo "❌ wire_gen.go is out of sync — run 'make backend-wire-gen' and commit the result"; exit 1; }
+
+# Regenerate the config JSON schema (backend/config.schema.json) from the nested
+# config.Config struct. The schema gives editors (VS Code / JetBrains via the
+# YAML language server) validation + autocomplete for config.yaml and
+# config.example.yaml. Output is committed; CI fails the PR when it is stale
+# relative to the struct (backend-config-schema-check).
+backend-generate-config-schema:
+	@echo "🧬 Generating config JSON schema (backend/config.schema.json)..."
+	@cd backend && go run ./cmd/gen-config-schema
+
+# Regenerate config.schema.json, then fail if it differs from the committed file
+# — catches a changed Config struct that was never regenerated. Idempotent on a
+# clean tree.
+backend-config-schema-check: backend-generate-config-schema
+	@cd backend && git diff --exit-code config.schema.json \
+		|| { echo "❌ config.schema.json is out of sync — run 'make backend-generate-config-schema' and commit the result"; exit 1; }
 
 # Lint the bundle with vacuum using the shared Spectral-format ruleset.
 # vacuum (Go) has no nimma, so duplicated-entry-in-enum is active again.
