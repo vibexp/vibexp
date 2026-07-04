@@ -1,3 +1,47 @@
+-- Consolidated post-v0.2.0 migration.
+--
+-- Squashes the migrations that accumulated after the backend-v0.2.0 release into
+-- a single step, applied on top of 001_baseline. Merged here (in original order):
+--   * 002_add_memory_status_and_fulltext_indexes (issues #17, #18)
+--   * 003_oauth_authorization_server            (issue #31)
+--   * 004_oauth_request_expires_at              (issue #38)
+-- 004 only added expires_at columns/indexes to the tables 003 introduced, so
+-- those columns are inlined into the CREATE TABLE statements below rather than
+-- re-applied as ALTER TABLE.
+
+-- ---------------------------------------------------------------------------
+-- Memory lifecycle status (issue #17): add an active/draft/archived `status`
+-- column to memories, mirroring the artifacts pattern, so memories can be staged
+-- as draft or retired as archived. Existing rows backfill to 'active' via the
+-- NOT NULL default; a CHECK constraint enforces the allowed values.
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.memories
+    ADD COLUMN status varchar(20) DEFAULT 'active'::character varying NOT NULL;
+
+ALTER TABLE public.memories
+    ADD CONSTRAINT memories_status_check CHECK (status IN ('active', 'draft', 'archived'));
+
+-- Full-text search fallback (issue #18): when no embedding provider is configured,
+-- search reads the source tables directly with PostgreSQL FTS instead of the empty
+-- embeddings table. These GIN indexes cover the exact combined title+body tsvector
+-- expression SearchKeyword matches and ranks on, so the @@ filter avoids a
+-- sequential scan. The expression must stay byte-for-byte in sync with ftsExpr /
+-- buildKeywordBranch in internal/repositories/postgres/search.go, otherwise the
+-- planner cannot use the index (search stays correct but slower).
+
+CREATE INDEX IF NOT EXISTS idx_prompts_fts ON prompts
+    USING gin (to_tsvector('english', coalesce(name, '') || ' ' || coalesce(body, '')));
+
+CREATE INDEX IF NOT EXISTS idx_artifacts_fts ON artifacts
+    USING gin (to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, '')));
+
+CREATE INDEX IF NOT EXISTS idx_blueprints_fts ON blueprints
+    USING gin (to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, '')));
+
+CREATE INDEX IF NOT EXISTS idx_memories_fts ON memories
+    USING gin (to_tsvector('english', coalesce(LEFT(text, 100), '') || ' ' || coalesce(text, '')));
+
+-- ---------------------------------------------------------------------------
 -- Embedded OAuth 2.1 Authorization Server (issue #31).
 --
 -- VibeXP mints its own MCP-audience-bound JWT access tokens via ory/fosite,
@@ -12,6 +56,13 @@
 -- plus denormalized columns fosite needs to rehydrate a requester, and an
 -- `active` flag used for authorization-code invalidation and refresh-token
 -- reuse detection.
+--
+-- The `expires_at` column + index on the request-backing tables (issue #38) is
+-- inlined below: it is populated on insert from the fosite session and swept by
+-- the retention cleanup job, mirroring oauth_login_sessions.expires_at. It is
+-- nullable so any pre-existing rows are left untouched rather than risk
+-- premature deletion.
+-- ---------------------------------------------------------------------------
 
 -- Dynamically-registered OAuth clients (RFC 7591). Public PKCE clients have a
 -- NULL secret_hash; confidential clients (none today) would store a bcrypt hash.
@@ -43,9 +94,11 @@ CREATE TABLE public.oauth_authorization_codes (
     form_data          jsonb NOT NULL DEFAULT '{}'::jsonb,
     session_data       jsonb NOT NULL DEFAULT '{}'::jsonb,
     active             boolean NOT NULL DEFAULT true,
-    created_at         timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at         timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at         timestamp with time zone
 );
 CREATE INDEX idx_oauth_authorization_codes_request_id ON public.oauth_authorization_codes (request_id);
+CREATE INDEX idx_oauth_authorization_codes_expires_at ON public.oauth_authorization_codes (expires_at);
 
 -- Access-token sessions. Access tokens are self-contained JWTs; rows exist only
 -- so they can be revoked (RFC 7009) and introspected.
@@ -62,9 +115,11 @@ CREATE TABLE public.oauth_access_tokens (
     form_data          jsonb NOT NULL DEFAULT '{}'::jsonb,
     session_data       jsonb NOT NULL DEFAULT '{}'::jsonb,
     active             boolean NOT NULL DEFAULT true,
-    created_at         timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at         timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at         timestamp with time zone
 );
 CREATE INDEX idx_oauth_access_tokens_request_id ON public.oauth_access_tokens (request_id);
+CREATE INDEX idx_oauth_access_tokens_expires_at ON public.oauth_access_tokens (expires_at);
 
 -- Refresh-token sessions. `active=false` marks a rotated token; replaying it
 -- triggers reuse detection, which revokes the whole family by request_id.
@@ -82,9 +137,11 @@ CREATE TABLE public.oauth_refresh_tokens (
     form_data          jsonb NOT NULL DEFAULT '{}'::jsonb,
     session_data       jsonb NOT NULL DEFAULT '{}'::jsonb,
     active             boolean NOT NULL DEFAULT true,
-    created_at         timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at         timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at         timestamp with time zone
 );
 CREATE INDEX idx_oauth_refresh_tokens_request_id ON public.oauth_refresh_tokens (request_id);
+CREATE INDEX idx_oauth_refresh_tokens_expires_at ON public.oauth_refresh_tokens (expires_at);
 
 -- PKCE request sessions, keyed by the authorization-code signature.
 CREATE TABLE public.oauth_pkce_sessions (
@@ -100,8 +157,10 @@ CREATE TABLE public.oauth_pkce_sessions (
     form_data          jsonb NOT NULL DEFAULT '{}'::jsonb,
     session_data       jsonb NOT NULL DEFAULT '{}'::jsonb,
     active             boolean NOT NULL DEFAULT true,
-    created_at         timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at         timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at         timestamp with time zone
 );
+CREATE INDEX idx_oauth_pkce_sessions_expires_at ON public.oauth_pkce_sessions (expires_at);
 
 -- DB-backed signing keys. The active key signs new access tokens; inactive keys
 -- are retained so previously-issued tokens still validate against the JWKS until
