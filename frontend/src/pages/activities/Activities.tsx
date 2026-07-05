@@ -22,8 +22,11 @@ import {
 import { useAlerts } from '@/hooks'
 import { formatDateTime, formatRelativeTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import type {
+  Activity as ActivityType,
+  ActivityFilters,
+} from '@/services/activityService'
 import { activityService } from '@/services/activityService'
-import type { Activity as ActivityType, ActivityFilters } from '@/types'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 interface State {

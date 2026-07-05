@@ -19,7 +19,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatRelativeTime } from '@/lib/time'
 import { getActivityIcon } from '@/pages/home/activityHelpers'
-import type { Activity as ActivityType } from '@/types'
+import type { Activity as ActivityType } from '@/services/activityService'
 import type { FeedItem } from '@/types/feed'
 
 export function getActivitySubtitle(activity: ActivityType): string {

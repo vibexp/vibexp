@@ -1,4 +1,7 @@
-import type { SearchResultItem, SearchResultType } from '@/types/search'
+import type {
+  SearchResultItem,
+  SearchResultType,
+} from '@/services/searchService'
 
 export const EXCERPT_PREVIEW_LENGTH = 200
 

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 
 import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
-import type { Attachment } from '@/types/attachment'
+import type { Attachment } from '@/services/attachmentService'
 
 const mockList = jest.fn()
 const mockUpload = jest.fn()

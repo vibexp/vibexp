@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import type { Type } from '@/types'
+import type { Type } from '@/services/typeService'
 
 const mockUseTeam = jest.fn()
 jest.mock('@/contexts/TeamContext', () => ({

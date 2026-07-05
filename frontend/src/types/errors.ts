@@ -1,22 +1,14 @@
 // RFC 9457 Problem Details for HTTP APIs
 
-export interface ValidationError {
-  field: string
-  message: string
-  code: string
-  constraint?: string
-}
+import type { components } from '@vibexp/api-client'
 
-export interface APIErrorResponse {
-  type: string
-  title: string
-  status: number
-  detail: string
-  code: string
-  request_id: string
-  timestamp: string
-  instance?: string
-  validation_errors?: ValidationError[]
+export type ValidationError = components['schemas']['ValidationError']
+
+// The backend sends `metadata` on some errors (internal/errors/response.go,
+// e.g. RESOURCE_LIMIT_EXCEEDED details read by utils/apiErrorMeta.ts) but the
+// OpenAPI ErrorResponse schema doesn't document it yet — keep it as a local
+// extension until the spec gap is closed (see issue #90 discussion / #89).
+export type APIErrorResponse = components['schemas']['ErrorResponse'] & {
   metadata?: Record<string, unknown>
 }
 
@@ -38,9 +30,10 @@ export class ApiError extends Error {
     this.validationErrors = response.validation_errors
     this.metadata = response.metadata
 
-    // Maintains proper stack trace for where our error was thrown (only available on V8)
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (Error.captureStackTrace) {
+    // Maintains proper stack trace for where our error was thrown. Only V8
+    // provides captureStackTrace; the type declares it always-present, so
+    // guard with the `in` operator to keep the runtime check lint-clean.
+    if ('captureStackTrace' in Error) {
       Error.captureStackTrace(this, ApiError)
     }
   }

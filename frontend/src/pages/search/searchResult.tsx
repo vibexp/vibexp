@@ -10,7 +10,7 @@ import {
   resourceUrl,
   TYPE_LABEL,
 } from '@/pages/search/resourceUrl'
-import type { SearchResultItem } from '@/types/search'
+import type { SearchResultItem } from '@/services/searchService'
 
 interface SearchResultCardProps {
   item: SearchResultItem

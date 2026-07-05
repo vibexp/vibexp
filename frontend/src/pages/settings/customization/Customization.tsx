@@ -13,8 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
+import type { CreateTypeRequest, Type } from '@/services/typeService'
 import { typeService } from '@/services/typeService'
-import type { CreateTypeRequest, Type } from '@/types'
 
 import { CreateTypeDialog, type CreateTypeFormValues } from './CreateTypeDialog'
 

@@ -1,17 +1,26 @@
-import type { SearchRequest, SearchResultsResponse } from '../../types/search'
+import type { SearchRequest, SearchResultsResponse } from '../searchService'
 
-const mockApiClient = {
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  delete: jest.fn(),
+// Mock the generated client; unwrap stays real so service tests exercise the
+// same success/error resolution production uses.
+const mockGeneratedClient = {
+  POST: jest.fn(),
 }
 
-jest.mock('../../lib/apiClient', () => ({
-  apiClient: mockApiClient,
-}))
+jest.mock('../../lib/apiClientGenerated', () => {
+  const actual = jest.requireActual<
+    typeof import('../../lib/apiClientGenerated')
+  >('../../lib/apiClientGenerated')
+  return {
+    ...actual,
+    generatedClient: mockGeneratedClient,
+  }
+})
 
 import { searchService } from '../searchService'
+
+const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
+
+const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 
 describe('SearchService', () => {
   const teamId = 'team-123'
@@ -42,55 +51,70 @@ describe('SearchService', () => {
   })
 
   it('posts to the team-scoped search endpoint with the request payload', async () => {
-    mockApiClient.post.mockResolvedValue(response)
+    mockGeneratedClient.POST.mockReturnValue(success(response))
     const req: SearchRequest = { query: 'hello', page: 1, per_page: 20 }
 
     const result = await searchService.search(teamId, req)
 
-    expect(mockApiClient.post).toHaveBeenCalledWith(`/${teamId}/search`, req)
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/{team_id}/search',
+      { params: { path: { team_id: teamId } }, body: req }
+    )
     expect(result).toEqual(response)
   })
 
-  it('url-encodes the team id in the endpoint path', async () => {
-    mockApiClient.post.mockResolvedValue(response)
-
-    await searchService.search('team/with space', { query: 'x' })
-
-    expect(mockApiClient.post).toHaveBeenCalledWith(
-      '/team%2Fwith%20space/search',
-      { query: 'x' }
-    )
-  })
-
   it('forwards an optional types filter unchanged', async () => {
-    mockApiClient.post.mockResolvedValue(response)
+    mockGeneratedClient.POST.mockReturnValue(success(response))
     const req: SearchRequest = {
       query: 'hello',
       types: ['prompts', 'memories'],
+      page: 1,
+      per_page: 20,
     }
 
     await searchService.search(teamId, req)
 
-    expect(mockApiClient.post).toHaveBeenCalledWith(`/${teamId}/search`, req)
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/{team_id}/search',
+      { params: { path: { team_id: teamId } }, body: req }
+    )
   })
 
   it('forwards an optional project_id filter unchanged', async () => {
-    mockApiClient.post.mockResolvedValue(response)
+    mockGeneratedClient.POST.mockReturnValue(success(response))
     const req: SearchRequest = {
       query: 'hello',
       project_id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+      page: 1,
+      per_page: 20,
     }
 
     await searchService.search(teamId, req)
 
-    expect(mockApiClient.post).toHaveBeenCalledWith(`/${teamId}/search`, req)
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/{team_id}/search',
+      { params: { path: { team_id: teamId } }, body: req }
+    )
   })
 
-  it('propagates errors thrown by the api client', async () => {
-    mockApiClient.post.mockRejectedValue(new Error('boom'))
+  it('throws ApiError with backend detail on RFC 9457 error', async () => {
+    mockGeneratedClient.POST.mockReturnValue(
+      Promise.resolve({
+        error: {
+          type: 'https://api.vibexp.io/errors/BAD_REQUEST',
+          title: 'Bad Request',
+          status: 400,
+          detail: 'query is required',
+          code: 'BAD_REQUEST',
+          request_id: 'req-1',
+          timestamp: '2024-01-01T10:00:00Z',
+        },
+        response: { ok: false, status: 400, statusText: 'Bad Request' },
+      })
+    )
 
     await expect(
-      searchService.search(teamId, { query: 'hello' })
-    ).rejects.toThrow('boom')
+      searchService.search(teamId, { query: '', page: 1, per_page: 20 })
+    ).rejects.toThrow('query is required')
   })
 })

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { useTeam } from '@/contexts/TeamContext'
+import type { Type } from '@/services/typeService'
 import { typeService } from '@/services/typeService'
-import type { Type } from '@/types'
 
 interface UseTypesResult {
   types: Type[]

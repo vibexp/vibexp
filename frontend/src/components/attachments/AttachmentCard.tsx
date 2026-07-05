@@ -14,7 +14,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { PanelTitle } from '@/components/ui/panel-title'
-import type { Attachment } from '@/types/attachment'
+import type { Attachment } from '@/services/attachmentService'
 import { formatFileSize } from '@/utils/formatFileSize'
 
 // Defaults mirror the backend limits and safe-type allowlist (issue #1623).
