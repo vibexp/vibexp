@@ -46,3 +46,12 @@ if (typeof global.TextEncoder === 'undefined') {
 
 // Note: JSDOM navigation errors will be ignored by allowing them to fail silently
 // We've structured our tests to avoid relying on actual navigation behavior
+
+// Polyfill ResizeObserver for jsdom (used by Radix UI primitives like Select).
+if (typeof global.ResizeObserver === 'undefined') {
+  global.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+}
