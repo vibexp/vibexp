@@ -7,8 +7,12 @@ import (
 type EmbeddingProvider struct {
 	ID              string    `json:"id" db:"id"`
 	UserID          string    `json:"user_id" db:"user_id"`
+	TeamID          *string   `json:"team_id,omitempty" db:"team_id"`
 	Name            string    `json:"name" db:"name"`
 	ProviderType    string    `json:"provider_type" db:"provider_type"`
+	Model           string    `json:"model" db:"model"`
+	ChunkSize       int       `json:"chunk_size" db:"chunk_size"`
+	ChunkOverlap    int       `json:"chunk_overlap" db:"chunk_overlap"`
 	IsDefault       bool      `json:"is_default" db:"is_default"`
 	BaseURL         *string   `json:"base_url,omitempty" db:"base_url"`
 	APIKeyEncrypted *string   `json:"-" db:"api_key_encrypted"`
@@ -21,6 +25,9 @@ type EmbeddingProvider struct {
 type CreateEmbeddingProviderRequest struct {
 	Name         string  `json:"name" validate:"required,min=1,max=255"`
 	ProviderType string  `json:"provider_type" validate:"required"`
+	Model        string  `json:"model" validate:"required,min=1,max=255"`
+	ChunkSize    *int    `json:"chunk_size,omitempty" validate:"omitempty,min=1"`
+	ChunkOverlap *int    `json:"chunk_overlap,omitempty" validate:"omitempty,min=0"`
 	IsDefault    *bool   `json:"is_default,omitempty"`
 	BaseURL      *string `json:"base_url,omitempty" validate:"omitempty,url"`
 	// #nosec G117 - Request struct field for API key input, not a hardcoded secret
@@ -31,6 +38,9 @@ type CreateEmbeddingProviderRequest struct {
 type UpdateEmbeddingProviderRequest struct {
 	Name         *string `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
 	ProviderType *string `json:"provider_type,omitempty"`
+	Model        *string `json:"model,omitempty" validate:"omitempty,min=1,max=255"`
+	ChunkSize    *int    `json:"chunk_size,omitempty" validate:"omitempty,min=1"`
+	ChunkOverlap *int    `json:"chunk_overlap,omitempty" validate:"omitempty,min=0"`
 	IsDefault    *bool   `json:"is_default,omitempty"`
 	BaseURL      *string `json:"base_url,omitempty" validate:"omitempty,url"`
 	// #nosec G117 - Request struct field for API key input, not a hardcoded secret
@@ -53,6 +63,7 @@ type EmbeddingProviderListResponse struct {
 
 type ValidateEmbeddingProviderRequest struct {
 	ProviderType string `json:"provider_type" validate:"required"`
+	Model        string `json:"model" validate:"required,min=1,max=255"`
 	BaseURL      string `json:"base_url" validate:"required,url"`
 	// #nosec G117 - Request struct field for API key input, not a hardcoded secret
 	APIKey        *string                `json:"api_key,omitempty"`
@@ -60,11 +71,17 @@ type ValidateEmbeddingProviderRequest struct {
 }
 
 type ValidateEmbeddingProviderResponse struct {
-	IsValid bool   `json:"is_valid"`
-	Message string `json:"message"`
-	Details struct {
-		ResponseTime int    `json:"response_time_ms,omitempty"`
-		StatusCode   int    `json:"status_code,omitempty"`
-		ErrorDetails string `json:"error_details,omitempty"`
-	} `json:"details,omitempty"`
+	IsValid bool                             `json:"is_valid"`
+	Message string                           `json:"message"`
+	Details ValidateEmbeddingProviderDetails `json:"details,omitempty"`
+}
+
+// ValidateEmbeddingProviderDetails carries diagnostic details from a validation
+// probe. Dimension is the vector width the provider returned, checked against the
+// fixed EmbeddingVectorDimensions the store requires.
+type ValidateEmbeddingProviderDetails struct {
+	ResponseTime int    `json:"response_time_ms,omitempty"`
+	StatusCode   int    `json:"status_code,omitempty"`
+	Dimension    int    `json:"dimension,omitempty"`
+	ErrorDetails string `json:"error_details,omitempty"`
 }
