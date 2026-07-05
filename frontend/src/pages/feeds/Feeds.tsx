@@ -14,7 +14,6 @@ export function Feeds() {
   const {
     tab,
     feeds,
-    projects,
     assistants,
     itemsState,
     searchInput,
@@ -87,11 +86,6 @@ export function Feeds() {
         <FeedToolbar
           searchInput={searchInput}
           onSearchChange={setSearchInput}
-          projects={projects}
-          projectId={filters.project_id}
-          onProjectChange={v => {
-            setFilters(prev => ({ ...prev, project_id: v, page: 1 }))
-          }}
           assistants={assistants}
           assistantName={filters.ai_assistant_name}
           onAssistantChange={v => {

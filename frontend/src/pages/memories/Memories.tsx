@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import { ListPage, ListTable } from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
+import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -36,6 +37,7 @@ interface MemoriesState {
 export function Memories() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -49,13 +51,14 @@ export function Memories() {
     total: 0,
   })
 
-  const [filters, setFilters] = useState<MemoryFiltersType>({
+  const [filters, setFilters] = useState<MemoryFiltersType>(() => ({
     search: '',
     sort_by: 'updated_at',
     sort_order: 'desc',
     page: 1,
     limit: 20,
-  })
+    project_id: currentProject?.id,
+  }))
   const [searchInput, setSearchInput] = useState('')
   const [selectedTag, setSelectedTag] = useState<string | undefined>()
   const [projects, setProjects] = useState<Project[]>([])
@@ -64,7 +67,9 @@ export function Memories() {
 
   const fetchMemories = useCallback(
     async (currentFilters: MemoryFiltersType) => {
-      if (!currentTeam) return
+      // Wait for a persisted project selection to restore, so the first fetch
+      // is already scoped instead of flashing unfiltered results.
+      if (!currentTeam || isProjectLoading) return
       setState(prev => ({ ...prev, loading: true, error: null }))
       const response = await memoryService.getMemories(
         currentTeam.id,
@@ -80,7 +85,7 @@ export function Memories() {
         loading: false,
       }))
     },
-    [currentTeam]
+    [currentTeam, isProjectLoading]
   )
 
   useEffect(() => {
@@ -160,16 +165,16 @@ export function Memories() {
     }
   }, [allTags, selectedTag])
 
-  // Clear stale project filter when team changes and the project is no longer in scope
+  // Keep the list scoped to the globally selected project (header selector);
+  // ProjectContext already resets the selection on team change.
+  const projectId = currentProject?.id
   useEffect(() => {
-    if (
-      filters.project_id &&
-      projects.length > 0 &&
-      !projects.some(p => p.id === filters.project_id)
-    ) {
-      setFilters(prev => ({ ...prev, project_id: undefined, page: 1 }))
-    }
-  }, [projects, filters.project_id])
+    setFilters(prev =>
+      prev.project_id === projectId
+        ? prev
+        : { ...prev, project_id: projectId, page: 1 }
+    )
+  }, [projectId])
 
   const displayedMemories = useMemo(
     () =>
@@ -196,11 +201,6 @@ export function Memories() {
       return { ...prev, sort_by: key, sort_order: 'desc', page: 1 }
     })
   }, [])
-
-  const selectedProject = useMemo(
-    () => projects.find(p => p.id === filters.project_id),
-    [projects, filters.project_id]
-  )
 
   const columns = useMemo(
     () =>
@@ -246,11 +246,6 @@ export function Memories() {
             tags={allTags}
             selectedTag={selectedTag}
             onTagChange={setSelectedTag}
-            projects={projects}
-            selectedProjectId={filters.project_id}
-            onProjectChange={value => {
-              setFilters(prev => ({ ...prev, project_id: value, page: 1 }))
-            }}
             status={filters.status}
             onStatusChange={value => {
               setFilters(prev => ({ ...prev, status: value, page: 1 }))
@@ -273,8 +268,8 @@ export function Memories() {
               description={
                 filters.search && filters.project_id
                   ? 'Try a different search term or clear the filters.'
-                  : filters.project_id && selectedProject
-                    ? `No memories in ${selectedProject.name}. Create one to get started.`
+                  : filters.project_id && currentProject
+                    ? `No memories in ${currentProject.name}. Create one to get started.`
                     : filters.search || filters.project_id || filters.status
                       ? 'Try a different search term or clear the filters.'
                       : 'Create your first memory to save insights, snippets, or notes.'

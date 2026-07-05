@@ -9,7 +9,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { Project } from '@/types'
 import type { Feed } from '@/types/feed'
 
 /**
@@ -82,13 +81,11 @@ export function FeedTabs({
 /**
  * Search + filter row used by both /feeds and /feeds/:id.
  * Feed selector is optional — used only on the global /feeds index.
+ * Project filtering moved to the global header project selector (useProject).
  */
 interface FeedToolbarProps {
   searchInput: string
   onSearchChange: (value: string) => void
-  projects: Project[]
-  projectId: string | undefined
-  onProjectChange: (value: string | undefined) => void
   assistants: string[]
   assistantName: string | undefined
   onAssistantChange: (value: string | undefined) => void
@@ -100,9 +97,6 @@ interface FeedToolbarProps {
 export function FeedToolbar({
   searchInput,
   onSearchChange,
-  projects,
-  projectId,
-  onProjectChange,
   assistants,
   assistantName,
   onAssistantChange,
@@ -145,24 +139,6 @@ export function FeedToolbar({
         </Select>
       )}
 
-      <Select
-        value={projectId ?? '__all__'}
-        onValueChange={v => {
-          onProjectChange(v === '__all__' ? undefined : v)
-        }}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="All projects" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__all__">All projects</SelectItem>
-          {projects.map(p => (
-            <SelectItem key={p.id} value={p.id}>
-              {p.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
       <Select
         value={assistantName ?? '__all__'}
         onValueChange={v => {

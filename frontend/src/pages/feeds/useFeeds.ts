@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -24,6 +25,7 @@ interface ItemsState {
 
 export function useFeeds() {
   const { currentTeam } = useTeam()
+  const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -43,11 +45,12 @@ export function useFeeds() {
     currentPage: 1,
   })
   const [searchInput, setSearchInput] = useState('')
-  const [filters, setFilters] = useState<FeedItemFilters>({
+  const [filters, setFilters] = useState<FeedItemFilters>(() => ({
     page: 1,
     limit: DEFAULT_PER_PAGE,
     archived: 'false',
-  })
+    project_id: currentProject?.id,
+  }))
   const [feedToDelete, setFeedToDelete] = useState<Feed | null>(null)
   const [deletingFeed, setDeletingFeed] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<FeedItem | null>(null)
@@ -55,7 +58,9 @@ export function useFeeds() {
 
   const fetchItems = useCallback(
     async (currentFilters: FeedItemFilters) => {
-      if (!currentTeam) return
+      // Wait for a persisted project selection to restore, so the first fetch
+      // is already scoped instead of flashing unfiltered results.
+      if (!currentTeam || isProjectLoading) return
       setItemsState(prev => ({ ...prev, loading: true, error: null }))
       try {
         const response = await feedService.getFeedItems(
@@ -89,7 +94,7 @@ export function useFeeds() {
         handleError(error, 'Failed to load feed items')
       }
     },
-    [currentTeam, handleError]
+    [currentTeam, isProjectLoading, handleError]
   )
 
   useEffect(() => {
@@ -185,6 +190,16 @@ export function useFeeds() {
       clearTimeout(t)
     }
   }, [searchInput])
+
+  // Keep the list scoped to the globally selected project (header selector).
+  const currentProjectId = currentProject?.id
+  useEffect(() => {
+    setFilters(prev =>
+      prev.project_id === currentProjectId
+        ? prev
+        : { ...prev, project_id: currentProjectId, page: 1 }
+    )
+  }, [currentProjectId])
 
   useEffect(() => {
     trackEvent({

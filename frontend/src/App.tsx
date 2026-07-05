@@ -12,6 +12,7 @@ import { Root } from '@/components/layout/Root'
 import { Toaster } from '@/components/ui/sonner'
 import { AlertProvider } from '@/contexts/AlertContext'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { ProjectProvider } from '@/contexts/ProjectContext'
 import { TeamProvider } from '@/contexts/TeamContext'
 import { useAuth } from '@/contexts/useAuth'
 import { usePageTracking } from '@/hooks'
@@ -61,10 +62,12 @@ function MainApp() {
         <ReturnToResumeAfterAuth />
         <InvitationResumeAfterAuth />
         <TeamProvider>
-          <InvitationAcceptHandshake />
-          <Layout>
-            <AppRoutes />
-          </Layout>
+          <ProjectProvider>
+            <InvitationAcceptHandshake />
+            <Layout>
+              <AppRoutes />
+            </Layout>
+          </ProjectProvider>
         </TeamProvider>
       </AuthGate>
       <Toaster />

@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import { ListPage, ListTable } from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
+import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -38,6 +39,7 @@ interface State {
 export function Prompts() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -50,20 +52,23 @@ export function Prompts() {
     currentPage: 1,
     total: 0,
   })
-  const [filters, setFilters] = useState<PromptFiltersType>({
+  const [filters, setFilters] = useState<PromptFiltersType>(() => ({
     search: '',
     sort_by: 'updated_at',
     sort_order: 'desc',
     page: 1,
     limit: 20,
-  })
+    project_id: currentProject?.id,
+  }))
   const [searchInput, setSearchInput] = useState('')
   const [promptToDelete, setPromptToDelete] = useState<Prompt | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const fetchPrompts = useCallback(
     async (current: PromptFiltersType) => {
-      if (!currentTeam) return
+      // Wait for a persisted project selection to restore, so the first fetch
+      // is already scoped instead of flashing unfiltered results.
+      if (!currentTeam || isProjectLoading) return
       setState(prev => ({ ...prev, loading: true, error: null }))
       const response = await promptService.getPrompts(currentTeam.id, current)
       const responseData = 'data' in response ? response.data : response
@@ -79,7 +84,7 @@ export function Prompts() {
         total: responseData.total_count,
       })
     },
-    [currentTeam]
+    [currentTeam, isProjectLoading]
   )
 
   useEffect(() => {
@@ -105,6 +110,16 @@ export function Prompts() {
       clearTimeout(timeout)
     }
   }, [searchInput])
+
+  // Keep the list scoped to the globally selected project (header selector).
+  const projectId = currentProject?.id
+  useEffect(() => {
+    setFilters(prev =>
+      prev.project_id === projectId
+        ? prev
+        : { ...prev, project_id: projectId, page: 1 }
+    )
+  }, [projectId])
 
   useEffect(() => {
     trackEvent({
@@ -227,12 +242,12 @@ export function Prompts() {
             <EmptyState
               icon={FileText}
               title={
-                filters.search
+                filters.search || filters.project_id
                   ? 'No prompts match your filters'
                   : 'No prompts yet'
               }
               description={
-                filters.search
+                filters.search || filters.project_id
                   ? 'Try different search or filter settings.'
                   : 'Create your first prompt to build a reusable AI workflow.'
               }

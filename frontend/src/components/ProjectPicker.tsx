@@ -29,8 +29,12 @@ const SCROLL_LOAD_THRESHOLD = 48
 interface ProjectPickerProps extends AriaAttributes {
   /** Selected project id, or null/empty when nothing (or "All projects") is selected. */
   value: string | null
-  /** Called with the chosen project id, or `null` when "All projects" is picked. */
-  onChange: (projectId: string | null) => void
+  /**
+   * Called with the chosen project id, or `null` when "All projects" is
+   * picked. The full `Project` is passed alongside the id for consumers that
+   * need more than the id (e.g. the header switcher storing the selection).
+   */
+  onChange: (projectId: string | null, project: Project | null) => void
   /** Render a leading option that clears the selection (for list filters). */
   includeAllOption?: boolean
   /** Label for the "All projects" option and the cleared-state trigger. */
@@ -103,13 +107,13 @@ export function ProjectPicker({
 
   const handleSelectProject = (project: Project) => {
     setPicked(project)
-    onChange(project.id)
+    onChange(project.id, project)
     setOpen(false)
   }
 
   const handleSelectAll = () => {
     setPicked(null)
-    onChange(null)
+    onChange(null, null)
     setOpen(false)
   }
 
