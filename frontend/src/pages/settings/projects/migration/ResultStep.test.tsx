@@ -2,14 +2,20 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { MigrationResult } from '@/types/projectMigration'
+import type { MigrationResult } from '@/services/projectMigrationService'
 
 import { ResultStep } from './ResultStep'
+
+const projectNames = {
+  source_project_name: 'Source Project',
+  destination_project_name: 'Destination Project',
+}
 
 const cleanResult: MigrationResult = {
   migrated: { prompts: 3, artifacts: 2, blueprints: 1, feed_items: 0 },
   skipped: {},
   failed: {},
+  ...projectNames,
 }
 
 const resultWithSkipped: MigrationResult = {
@@ -18,6 +24,7 @@ const resultWithSkipped: MigrationResult = {
     prompts: [{ id: 'p3', reason: 'name conflict' }],
   },
   failed: {},
+  ...projectNames,
 }
 
 const resultWithFailed: MigrationResult = {
@@ -29,6 +36,7 @@ const resultWithFailed: MigrationResult = {
       { id: 'a2', reason: 'not found' },
     ],
   },
+  ...projectNames,
 }
 
 function renderResult(result: MigrationResult) {
@@ -82,6 +90,7 @@ describe('ResultStep', () => {
       migrated: { prompts: 1, artifacts: 0, blueprints: 0, feed_items: 0 },
       skipped: {},
       failed: {},
+      ...projectNames,
     }
     renderResult(singleResult)
 

@@ -1,19 +1,43 @@
 import type {
   MigrationInventory,
+  MigrationRequest,
   MigrationResult,
-} from '../../types/projectMigration'
+} from '../projectMigrationService'
 
-const mockGet = jest.fn()
-const mockPost = jest.fn()
+// Mock the generated client; unwrap stays real so service tests exercise the
+// same success/error resolution production uses.
+const mockGeneratedClient = {
+  GET: jest.fn(),
+  POST: jest.fn(),
+}
 
-jest.mock('../../lib/apiClient', () => ({
-  apiClient: {
-    get: (...args: unknown[]) => mockGet(...args),
-    post: (...args: unknown[]) => mockPost(...args),
-  },
-}))
+jest.mock('../../lib/apiClientGenerated', () => {
+  const actual = jest.requireActual<
+    typeof import('../../lib/apiClientGenerated')
+  >('../../lib/apiClientGenerated')
+  return {
+    ...actual,
+    generatedClient: mockGeneratedClient,
+  }
+})
 
 import { projectMigrationService } from '../projectMigrationService'
+
+const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
+const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
+const failure = (detail: string) =>
+  Promise.resolve({
+    error: {
+      type: 'https://api.vibexp.io/errors/INTERNAL_ERROR',
+      title: 'Internal Server Error',
+      status: 500,
+      detail,
+      code: 'INTERNAL_ERROR',
+      request_id: 'req-1',
+      timestamp: '2024-01-01T10:00:00Z',
+    },
+    response: { ok: false, status: 500, statusText: 'Server Error' },
+  })
 
 const TEAM_ID = 'team-abc'
 const PROJECT_ID = 'project-xyz'
@@ -35,6 +59,8 @@ const mockResult: MigrationResult = {
   migrated: { prompts: 2, artifacts: 1, blueprints: 0, feed_items: 0 },
   skipped: {},
   failed: {},
+  source_project_name: 'Source',
+  destination_project_name: 'Destination',
 }
 
 describe('ProjectMigrationService', () => {
@@ -44,32 +70,34 @@ describe('ProjectMigrationService', () => {
 
   describe('getInventory', () => {
     it('calls the correct endpoint and returns inventory', async () => {
-      mockGet.mockResolvedValueOnce(mockInventory)
+      mockGeneratedClient.GET.mockReturnValue(success(mockInventory))
 
       const result = await projectMigrationService.getInventory(
         TEAM_ID,
         PROJECT_ID
       )
 
-      expect(mockGet).toHaveBeenCalledWith(
-        `/${TEAM_ID}/projects/${PROJECT_ID}/migration/inventory`
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+        '/api/v1/{team_id}/projects/{project_id}/migration/inventory',
+        { params: { path: { team_id: TEAM_ID, project_id: PROJECT_ID } } }
       )
-      expect(result.prompts.count).toBe(2)
-      expect(result.prompts.items).toHaveLength(2)
+      expect(result.prompts?.count).toBe(2)
+      expect(result.prompts?.items).toHaveLength(2)
     })
 
-    it('encodes team and project IDs in the URL', async () => {
-      mockGet.mockResolvedValueOnce(mockInventory)
+    it('passes team and project IDs through path params', async () => {
+      mockGeneratedClient.GET.mockReturnValue(success(mockInventory))
 
       await projectMigrationService.getInventory('team/1', 'proj/2')
 
-      expect(mockGet).toHaveBeenCalledWith(
-        '/team%2F1/projects/proj%2F2/migration/inventory'
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+        '/api/v1/{team_id}/projects/{project_id}/migration/inventory',
+        { params: { path: { team_id: 'team/1', project_id: 'proj/2' } } }
       )
     })
 
     it('propagates errors', async () => {
-      mockGet.mockRejectedValueOnce(new Error('Network error'))
+      mockGeneratedClient.GET.mockReturnValue(failure('Network error'))
 
       await expect(
         projectMigrationService.getInventory(TEAM_ID, PROJECT_ID)
@@ -79,9 +107,9 @@ describe('ProjectMigrationService', () => {
 
   describe('migrate', () => {
     it('calls the correct endpoint with the request body', async () => {
-      mockPost.mockResolvedValueOnce(mockResult)
+      mockGeneratedClient.POST.mockReturnValue(success(mockResult))
 
-      const request = {
+      const request: MigrationRequest = {
         destination_project_id: 'dest-project-id',
         resources: {
           prompts: { all: true, ids: ['p1', 'p2'] },
@@ -89,7 +117,7 @@ describe('ProjectMigrationService', () => {
           blueprints: { all: false, ids: [] },
           feed_items: { all: false, ids: [] },
         },
-        conflict_policy: 'skip' as const,
+        conflict_policy: 'skip',
       }
 
       const result = await projectMigrationService.migrate(
@@ -98,18 +126,21 @@ describe('ProjectMigrationService', () => {
         request
       )
 
-      expect(mockPost).toHaveBeenCalledWith(
-        `/${TEAM_ID}/projects/${PROJECT_ID}/migration`,
-        request
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+        '/api/v1/{team_id}/projects/{project_id}/migration',
+        {
+          params: { path: { team_id: TEAM_ID, project_id: PROJECT_ID } },
+          body: request,
+        }
       )
       expect(result.migrated.prompts).toBe(2)
       expect(result.migrated.artifacts).toBe(1)
     })
 
-    it('encodes team and project IDs in the URL', async () => {
-      mockPost.mockResolvedValueOnce(mockResult)
+    it('passes team and project IDs through path params', async () => {
+      mockGeneratedClient.POST.mockReturnValue(success(mockResult))
 
-      await projectMigrationService.migrate('team/1', 'proj/2', {
+      const request: MigrationRequest = {
         destination_project_id: 'dest',
         resources: {
           prompts: { all: false, ids: [] },
@@ -118,16 +149,21 @@ describe('ProjectMigrationService', () => {
           feed_items: { all: false, ids: [] },
         },
         conflict_policy: 'rename',
-      })
+      }
 
-      expect(mockPost).toHaveBeenCalledWith(
-        '/team%2F1/projects/proj%2F2/migration',
-        expect.objectContaining({ conflict_policy: 'rename' })
+      await projectMigrationService.migrate('team/1', 'proj/2', request)
+
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+        '/api/v1/{team_id}/projects/{project_id}/migration',
+        {
+          params: { path: { team_id: 'team/1', project_id: 'proj/2' } },
+          body: expect.objectContaining({ conflict_policy: 'rename' }),
+        }
       )
     })
 
     it('propagates errors', async () => {
-      mockPost.mockRejectedValueOnce(new Error('Migration failed'))
+      mockGeneratedClient.POST.mockReturnValue(failure('Migration failed'))
 
       await expect(
         projectMigrationService.migrate(TEAM_ID, PROJECT_ID, {

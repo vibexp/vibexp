@@ -25,9 +25,9 @@ import { Textarea } from '@/components/ui/textarea'
 import type {
   Blueprint,
   CreateBlueprintRequest,
-  Project,
   UpdateBlueprintRequest,
-} from '@/types'
+} from '@/services/blueprintService'
+import type { Project } from '@/services/projectService'
 
 const schema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(255),

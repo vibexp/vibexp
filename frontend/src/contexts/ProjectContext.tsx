@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 
+import type { Project } from '@/services/projectService'
+
 import { STORAGE_KEYS } from '../constants/storageKeys'
 import { projectService } from '../services/projectService'
-import type { Project } from '../types/project'
 import { sessionStore, storage } from '../utils/storage'
 import { useTeam } from './TeamContext'
 

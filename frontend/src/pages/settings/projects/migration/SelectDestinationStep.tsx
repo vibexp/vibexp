@@ -20,11 +20,12 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { useProjectSearch } from '@/hooks'
 import { cn } from '@/lib/utils'
-import type { Project } from '@/types/project'
 import type {
   ConflictPolicy,
-  MigrationResources,
-} from '@/types/projectMigration'
+  ResourceSelection,
+  ResourceSelections,
+} from '@/services/projectMigrationService'
+import type { Project } from '@/services/projectService'
 
 interface ConflictPolicyOption {
   value: ConflictPolicy
@@ -66,11 +67,11 @@ function ResourceSummaryRow({ label, count }: ResourceSummaryRowProps) {
 }
 
 function countSelected(
-  sel: MigrationResources['prompts'],
+  sel: ResourceSelection | undefined,
   total: number
 ): number {
-  if (sel.all) return total
-  return sel.ids?.length ?? 0
+  if (sel?.all) return total
+  return sel?.ids?.length ?? 0
 }
 
 interface SelectDestinationStepProps {
@@ -78,7 +79,7 @@ interface SelectDestinationStepProps {
   sourceProjectName: string
   destinationProjectId: string
   conflictPolicy: ConflictPolicy
-  selectedResources: MigrationResources
+  selectedResources: ResourceSelections
   inventoryCounts: {
     prompts: number
     artifacts: number

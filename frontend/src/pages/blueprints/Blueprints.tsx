@@ -12,11 +12,11 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { BlueprintFilters } from '@/pages/blueprints/BlueprintFilters'
 import { buildBlueprintsColumns } from '@/pages/blueprints/blueprintsColumns'
-import { blueprintService } from '@/services/blueprintService'
 import type {
   Blueprint,
   BlueprintFilters as BlueprintFiltersType,
-} from '@/types'
+} from '@/services/blueprintService'
+import { blueprintService } from '@/services/blueprintService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -77,7 +77,7 @@ export function Blueprints() {
         current
       )
       setState({
-        blueprints: response.blueprints,
+        blueprints: response.spec_libraries,
         loading: false,
         error: null,
         totalPages: response.total_pages,

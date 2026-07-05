@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { FeedItem } from '@/types/feed'
+import type { FeedItem } from '@/services/feedService'
 
 import { FeedItemCard } from '../FeedItemCard'
 
@@ -15,6 +15,7 @@ const mockItem: FeedItem = {
   ai_assistant_name: 'claude-sonnet',
   posted_by_user_id: 'user-1',
   posted_at: new Date(Date.now() - 3600000).toISOString(),
+  reply_count: 0,
 }
 
 function renderCard(

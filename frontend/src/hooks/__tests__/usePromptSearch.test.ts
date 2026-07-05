@@ -2,7 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { act } from 'react'
 
 import * as TeamContextModule from '../../contexts/TeamContext'
-import type { Prompt, PromptsResponse } from '../../types'
+import type { Prompt, PromptListResponse } from '../../services/promptService'
 import { usePromptSearch } from '../usePromptSearch'
 
 // Mock the promptService module
@@ -51,6 +51,7 @@ describe('usePromptSearch', () => {
       description: 'A test prompt for searching',
       body: 'This is a test prompt body',
       user_id: 'user-1',
+      team_id: 'team-123',
       project_id: 'project-1',
       status: 'published',
       mcp_expose: true,
@@ -67,6 +68,7 @@ describe('usePromptSearch', () => {
       description: 'Another test prompt',
       body: 'This is another test prompt body',
       user_id: 'user-1',
+      team_id: 'team-123',
       project_id: 'project-1',
       status: 'published',
       mcp_expose: true,
@@ -106,16 +108,12 @@ describe('usePromptSearch', () => {
 
   describe('searchPrompts functionality', () => {
     it('should search prompts successfully with API wrapper response', async () => {
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: mockPrompts,
-          page: 1,
-          per_page: 10,
-          total_count: 2,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: mockPrompts,
+        page: 1,
+        per_page: 10,
+        total_count: 2,
+        total_pages: 1,
       }
 
       mockGetPrompts.mockResolvedValue(mockResponse)
@@ -141,16 +139,12 @@ describe('usePromptSearch', () => {
     })
 
     it('should search prompts successfully with direct response', async () => {
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: mockPrompts.slice(0, 1),
-          page: 1,
-          per_page: 10,
-          total_count: 1,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: mockPrompts.slice(0, 1),
+        page: 1,
+        per_page: 10,
+        total_count: 1,
+        total_pages: 1,
       }
 
       mockGetPrompts.mockResolvedValue(mockResponse)
@@ -165,13 +159,13 @@ describe('usePromptSearch', () => {
         expect(result.current.loading).toBe(false)
       })
 
-      expect(result.current.prompts).toEqual(mockResponse.data.prompts)
+      expect(result.current.prompts).toEqual(mockResponse.prompts)
       expect(result.current.error).toBeNull()
     })
 
     it('should set loading state during search', async () => {
-      let resolvePromise: (value: PromptsResponse) => void
-      const promise = new Promise<PromptsResponse>(resolve => {
+      let resolvePromise: (value: PromptListResponse) => void
+      const promise = new Promise<PromptListResponse>(resolve => {
         resolvePromise = resolve
       })
 
@@ -187,15 +181,11 @@ describe('usePromptSearch', () => {
 
       act(() => {
         resolvePromise({
-          status: 'success',
-          message: 'OK',
-          data: {
-            prompts: [],
-            page: 1,
-            per_page: 10,
-            total_count: 0,
-            total_pages: 0,
-          },
+          prompts: [],
+          page: 1,
+          per_page: 10,
+          total_count: 0,
+          total_pages: 0,
         })
       })
 
@@ -208,16 +198,12 @@ describe('usePromptSearch', () => {
       const { result } = renderHook(() => usePromptSearch())
 
       // First set some prompts
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: mockPrompts,
-          page: 1,
-          per_page: 10,
-          total_count: 2,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: mockPrompts,
+        page: 1,
+        per_page: 10,
+        total_count: 2,
+        total_pages: 1,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 
@@ -237,16 +223,12 @@ describe('usePromptSearch', () => {
     })
 
     it('should trim query before searching', async () => {
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: mockPrompts,
-          page: 1,
-          per_page: 10,
-          total_count: 2,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: mockPrompts,
+        page: 1,
+        per_page: 10,
+        total_count: 2,
+        total_pages: 1,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 
@@ -265,16 +247,12 @@ describe('usePromptSearch', () => {
     })
 
     it('should use custom limit option', async () => {
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: mockPrompts,
-          page: 1,
-          per_page: 5,
-          total_count: 2,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: mockPrompts,
+        page: 1,
+        per_page: 5,
+        total_count: 2,
+        total_pages: 1,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 
@@ -295,16 +273,12 @@ describe('usePromptSearch', () => {
 
   describe('filtering logic', () => {
     it('should filter out current prompt when excludeCurrentPrompt is provided', async () => {
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: mockPrompts,
-          page: 1,
-          per_page: 10,
-          total_count: 2,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: mockPrompts,
+        page: 1,
+        per_page: 10,
+        total_count: 2,
+        total_pages: 1,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 
@@ -326,16 +300,12 @@ describe('usePromptSearch', () => {
     })
 
     it('should handle empty prompts array', async () => {
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: [],
-          page: 1,
-          per_page: 10,
-          total_count: 0,
-          total_pages: 0,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: [],
+        page: 1,
+        per_page: 10,
+        total_count: 0,
+        total_pages: 0,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 
@@ -390,26 +360,8 @@ describe('usePromptSearch', () => {
       expect(result.current.prompts).toEqual([])
     })
 
-    // Removed: Testing null response is unnecessary as TypeScript guarantees non-null response
-
-    it('should handle response with no data property', async () => {
-      mockGetPrompts.mockResolvedValue({} as unknown as PromptsResponse)
-
-      const { result } = renderHook(() => usePromptSearch())
-
-      await act(async () => {
-        await result.current.searchPrompts('test')
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
-
-      // With an empty object {}, it will use {} as responseData, and 'prompts' in {} is false,
-      // so it will set prompts to [] without error
-      expect(result.current.error).toBeNull()
-      expect(result.current.prompts).toEqual([])
-    })
+    // The generated PromptListResponse guarantees a `prompts` array, so the
+    // former "no data property" defensive case is no longer representable.
 
     it('should clear error on successful search', async () => {
       // First, cause an error
@@ -424,16 +376,12 @@ describe('usePromptSearch', () => {
       expect(result.current.error).toBe('Test error')
 
       // Then, make a successful search
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: [mockPrompts[0]],
-          page: 1,
-          per_page: 10,
-          total_count: 1,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: [mockPrompts[0]],
+        page: 1,
+        per_page: 10,
+        total_count: 1,
+        total_pages: 1,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 
@@ -455,16 +403,12 @@ describe('usePromptSearch', () => {
       const { result } = renderHook(() => usePromptSearch())
 
       // First set some data
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: mockPrompts,
-          page: 1,
-          per_page: 10,
-          total_count: 2,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: mockPrompts,
+        page: 1,
+        per_page: 10,
+        total_count: 2,
+        total_pages: 1,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 
@@ -502,16 +446,12 @@ describe('usePromptSearch', () => {
 
       const initialResult = result.current
 
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: [mockPrompts[0]],
-          page: 1,
-          per_page: 10,
-          total_count: 1,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: [mockPrompts[0]],
+        page: 1,
+        per_page: 10,
+        total_count: 1,
+        total_pages: 1,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 
@@ -551,16 +491,12 @@ describe('usePromptSearch', () => {
 
   describe('integration scenarios', () => {
     it('should handle complete search workflow', async () => {
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: mockPrompts,
-          page: 1,
-          per_page: 5,
-          total_count: 2,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: mockPrompts,
+        page: 1,
+        per_page: 5,
+        total_count: 2,
+        total_pages: 1,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 
@@ -624,16 +560,12 @@ describe('usePromptSearch', () => {
       expect(result.current.error).toBeNull()
 
       // Successful search after error
-      const mockResponse: PromptsResponse = {
-        status: 'success',
-        message: 'OK',
-        data: {
-          prompts: [mockPrompts[0]],
-          page: 1,
-          per_page: 10,
-          total_count: 1,
-          total_pages: 1,
-        },
+      const mockResponse: PromptListResponse = {
+        prompts: [mockPrompts[0]],
+        page: 1,
+        per_page: 10,
+        total_count: 1,
+        total_pages: 1,
       }
       mockGetPrompts.mockResolvedValue(mockResponse)
 

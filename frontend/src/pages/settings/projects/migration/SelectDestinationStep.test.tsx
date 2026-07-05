@@ -2,12 +2,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { useTeam } from '@/contexts/TeamContext'
-import { projectService } from '@/services/projectService'
-import type { Project, ProjectListResponse } from '@/types/project'
 import type {
   ConflictPolicy,
-  MigrationResources,
-} from '@/types/projectMigration'
+  ResourceSelections,
+} from '@/services/projectMigrationService'
+import type { Project, ProjectListResponse } from '@/services/projectService'
+import { projectService } from '@/services/projectService'
 
 import { SelectDestinationStep } from './SelectDestinationStep'
 
@@ -31,6 +31,7 @@ const baseProject = (id: string, name: string, slug: string): Project => ({
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
   version: 1,
+  github_connected: false,
 })
 
 const listResponse = (projects: Project[]): ProjectListResponse => ({
@@ -49,7 +50,7 @@ const destProject = baseProject(
 )
 const otherProject = baseProject('other-id', 'Other Project', 'other-project')
 
-const emptyResources: MigrationResources = {
+const emptyResources: ResourceSelections = {
   prompts: { all: false, ids: [] },
   artifacts: { all: false, ids: [] },
   blueprints: { all: false, ids: [] },
@@ -99,7 +100,7 @@ function renderStep({
 }: {
   destinationProjectId?: string
   conflictPolicy?: ConflictPolicy
-  selectedResources?: MigrationResources
+  selectedResources?: ResourceSelections
   onDestinationSelect?: jest.Mock
   onConflictPolicyChange?: jest.Mock
   onBack?: jest.Mock

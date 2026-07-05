@@ -1,47 +1,57 @@
-import { apiClient } from '../lib/apiClient'
-import type {
-  CreateProjectRequest,
-  Project,
-  ProjectFilters,
-  ProjectListResponse,
-  ProjectStats,
-  UpdateProjectRequest,
-} from '../types/project'
+import type { components, operations } from '@vibexp/api-client'
+
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
+
+// Generated wire types for the projects domain — the OpenAPI spec is the single
+// source of truth; do not hand-write request/response shapes here.
+//
+// The widely-imported `Project` name maps to the generated `ProjectResponse`
+// (`Project & { github_connected: boolean }`) so existing call sites keep the
+// computed `github_connected` field they already rely on.
+export type Project = components['schemas']['ProjectResponse']
+export type ProjectResponse = components['schemas']['ProjectResponse']
+export type CreateProjectRequest = components['schemas']['CreateProjectRequest']
+export type UpdateProjectRequest = components['schemas']['UpdateProjectRequest']
+export type ProjectListResponse = components['schemas']['ProjectListResponse']
+export type ProjectStatsResponse = components['schemas']['ProjectStatsResponse']
+export type ProjectFilters = NonNullable<
+  operations['listProjects']['parameters']['query']
+>
 
 class ProjectService {
   async getProjects(
     teamId: string,
     filters: ProjectFilters = {}
   ): Promise<ProjectListResponse> {
-    const params = new URLSearchParams()
-
-    // Remove team_id from query params - it's now in the URL path
-    if (filters.search) params.append('search', filters.search)
-    if (filters.page) params.append('page', filters.page.toString())
-    if (filters.limit) params.append('limit', filters.limit.toString())
-    if (filters.sort_by) params.append('sort_by', filters.sort_by)
-    if (filters.sort_order) params.append('sort_order', filters.sort_order)
-
-    const queryString = params.toString()
-    const endpoint = `/${encodeURIComponent(teamId)}/projects${queryString ? `?${queryString}` : ''}`
-
-    return apiClient.get<ProjectListResponse>(endpoint)
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/projects', {
+        params: { path: { team_id: teamId }, query: filters },
+      })
+    )
   }
 
   async getProject(teamId: string, slug: string): Promise<Project> {
-    return apiClient.get<Project>(
-      `/${encodeURIComponent(teamId)}/projects/${encodeURIComponent(slug)}`
-    )
+    // The single-project endpoints are documented as returning the bare
+    // `Project` schema, but the backend also populates `github_connected`;
+    // surface it as `ProjectResponse` (the frontend `Project`) so consumers
+    // keep reading the computed field.
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/projects/{slug}', {
+        params: { path: { team_id: teamId, slug } },
+      })
+    ) as Promise<Project>
   }
 
   async createProject(
     teamId: string,
     data: CreateProjectRequest
   ): Promise<Project> {
-    return apiClient.post<Project>(
-      `/${encodeURIComponent(teamId)}/projects`,
-      data
-    )
+    return unwrap(
+      generatedClient.POST('/api/v1/{team_id}/projects', {
+        params: { path: { team_id: teamId } },
+        body: data,
+      })
+    ) as Promise<Project>
   }
 
   async updateProject(
@@ -49,21 +59,30 @@ class ProjectService {
     slug: string,
     data: UpdateProjectRequest
   ): Promise<Project> {
-    return apiClient.put<Project>(
-      `/${encodeURIComponent(teamId)}/projects/${encodeURIComponent(slug)}`,
-      data
-    )
+    return unwrap(
+      generatedClient.PUT('/api/v1/{team_id}/projects/{slug}', {
+        params: { path: { team_id: teamId, slug } },
+        body: data,
+      })
+    ) as Promise<Project>
   }
 
   async deleteProject(teamId: string, slug: string): Promise<void> {
-    await apiClient.delete(
-      `/${encodeURIComponent(teamId)}/projects/${encodeURIComponent(slug)}`
+    await unwrap(
+      generatedClient.DELETE('/api/v1/{team_id}/projects/{slug}', {
+        params: { path: { team_id: teamId, slug } },
+      })
     )
   }
 
-  async getProjectStats(teamId: string, slug: string): Promise<ProjectStats> {
-    return apiClient.get<ProjectStats>(
-      `/${encodeURIComponent(teamId)}/projects/${encodeURIComponent(slug)}/stats`
+  async getProjectStats(
+    teamId: string,
+    slug: string
+  ): Promise<ProjectStatsResponse> {
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/projects/{slug}/stats', {
+        params: { path: { team_id: teamId, slug } },
+      })
     )
   }
 }

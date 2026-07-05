@@ -9,9 +9,13 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { FeedForm, type FeedFormHandle } from '@/pages/feeds/FeedForm'
+import type {
+  CreateFeedRequest,
+  Feed,
+  UpdateFeedRequest,
+} from '@/services/feedService'
 import { feedService } from '@/services/feedService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import type { CreateFeedRequest, Feed, UpdateFeedRequest } from '@/types/feed'
 
 export function FeedEdit() {
   const { feedId } = useParams<{ feedId: string }>()

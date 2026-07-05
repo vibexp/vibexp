@@ -36,7 +36,7 @@ jest.mock('@/components/PageHeader', () => ({
 import type {
   NotificationPreferences as NotificationPrefsType,
   PreferencesResponse,
-} from '@/types/preferences'
+} from '@/services/preferencesService'
 
 import { NotificationPreferences } from '../NotificationPreferences'
 
@@ -59,13 +59,16 @@ const baseNotifPrefs: NotificationPrefsType = {
 function makePrefsResponse(
   notifPrefs?: NotificationPrefsType
 ): PreferencesResponse {
+  // `notifications` is a required field on the generated `Preferences` schema,
+  // but several tests exercise legacy data where it is absent; cast to keep
+  // those defensive scenarios expressible.
   return {
     preferences: {
       email_notification: baseEmailPrefs,
       notifications: notifPrefs,
     },
     updated_at: '2024-01-01T00:00:00Z',
-  }
+  } as unknown as PreferencesResponse
 }
 
 describe('NotificationPreferences', () => {
@@ -349,9 +352,10 @@ describe('NotificationPreferences', () => {
   // ---------------------------------------------------------------------------
 
   it('renders without crash when notifPrefs.types is undefined (web_push channel enabled)', async () => {
-    const prefsWithoutTypes = {
+    const prefsWithoutTypes: NotificationPrefsType = {
       channels: { in_app: true, email: true, web_push: true },
-    } as unknown as import('@/types/preferences').NotificationPreferences
+      types: {},
+    }
     mockPreferencesService.getPreferences.mockResolvedValue(
       makePrefsResponse(prefsWithoutTypes)
     )
@@ -373,9 +377,10 @@ describe('NotificationPreferences', () => {
   })
 
   it('handleWebPushTypeChange does not crash when notifPrefs.types is undefined', async () => {
-    const prefsWithoutTypes = {
+    const prefsWithoutTypes: NotificationPrefsType = {
       channels: { in_app: true, email: true, web_push: true },
-    } as unknown as import('@/types/preferences').NotificationPreferences
+      types: {},
+    }
     mockPreferencesService.getPreferences.mockResolvedValue(
       makePrefsResponse(prefsWithoutTypes)
     )
@@ -700,9 +705,10 @@ describe('NotificationPreferences', () => {
   // ---------------------------------------------------------------------------
 
   it('renders activity email card without crash when notifPrefs.types is undefined', async () => {
-    const prefsWithoutTypes = {
+    const prefsWithoutTypes: NotificationPrefsType = {
       channels: { in_app: true, email: true, web_push: false },
-    } as unknown as import('@/types/preferences').NotificationPreferences
+      types: {},
+    }
     mockPreferencesService.getPreferences.mockResolvedValue(
       makePrefsResponse(prefsWithoutTypes)
     )
@@ -730,7 +736,7 @@ describe('NotificationPreferences', () => {
   // ---------------------------------------------------------------------------
 
   it('shows digest as selected when typePrefs.email is undefined', async () => {
-    const prefsWithUndefinedEmail: NotificationPrefsType = {
+    const prefsWithUndefinedEmail = {
       channels: { in_app: true, email: true, web_push: false },
       types: {
         // email field intentionally omitted to simulate old backend data
@@ -740,7 +746,7 @@ describe('NotificationPreferences', () => {
           web_push: false,
         },
       },
-    }
+    } as unknown as NotificationPrefsType
     mockPreferencesService.getPreferences.mockResolvedValue(
       makePrefsResponse(prefsWithUndefinedEmail)
     )

@@ -17,7 +17,7 @@ import { assistantColor, assistantInitial } from '@/lib/avatar'
 import { cn } from '@/lib/utils'
 import { USER_POST_ASSISTANT_NAME } from '@/pages/feeds/feedActor'
 import { feedService } from '@/services/feedService'
-import type { Project } from '@/types'
+import type { Project } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 export { USER_POST_ASSISTANT_NAME }

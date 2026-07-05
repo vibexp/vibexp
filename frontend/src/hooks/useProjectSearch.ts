@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import type { Project } from '@/services/projectService'
+
 import { useTeam } from '../contexts/TeamContext'
 import { projectService } from '../services/projectService'
-import type { Project } from '../types/project'
 
 interface UseProjectSearchOptions {
   /** Page size for both the initial load and search/pagination requests. */

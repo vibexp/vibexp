@@ -27,8 +27,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import type { Project, ProjectStatsResponse } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type { Project, ProjectStats } from '@/types/project'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 const formatDate = (dateString: string) =>
@@ -85,7 +85,7 @@ export function ProjectDetails() {
   const { handleError } = useErrorHandler()
 
   const [project, setProject] = useState<Project | null>(null)
-  const [stats, setStats] = useState<ProjectStats | null>(null)
+  const [stats, setStats] = useState<ProjectStatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
@@ -326,27 +326,27 @@ export function ProjectDetails() {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             <StatCard
               label="Prompts"
-              count={stats.total_prompts}
+              count={stats.total_prompts ?? 0}
               icon={Sparkles}
             />
             <StatCard
               label="Artifacts"
-              count={stats.total_artifacts}
+              count={stats.total_artifacts ?? 0}
               icon={FileText}
             />
             <StatCard
               label="Blueprints"
-              count={stats.total_blueprints}
+              count={stats.total_blueprints ?? 0}
               icon={FolderKanban}
             />
             <StatCard
               label="Memories"
-              count={stats.total_memories}
+              count={stats.total_memories ?? 0}
               icon={Sparkles}
             />
             <StatCard
               label="Feed Items"
-              count={stats.total_feed_items}
+              count={stats.total_feed_items ?? 0}
               icon={Rss}
             />
           </div>

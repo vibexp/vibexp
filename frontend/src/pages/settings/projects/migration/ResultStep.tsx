@@ -5,9 +5,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import type {
-  MigrationOutcomes,
   MigrationResult,
-} from '@/types/projectMigration'
+  ResourceMigrationOutcomes,
+} from '@/services/projectMigrationService'
 
 interface CountRowProps {
   label: string
@@ -23,7 +23,7 @@ function CountRow({ label, value }: CountRowProps) {
   )
 }
 
-function countOutcomes(outcomes: MigrationOutcomes): number {
+function countOutcomes(outcomes: ResourceMigrationOutcomes): number {
   return (
     (outcomes.prompts?.length ?? 0) +
     (outcomes.artifacts?.length ?? 0) +
@@ -36,7 +36,7 @@ interface OutcomeSectionProps {
   label: string
   colorClass: string
   count: number
-  outcomes: MigrationOutcomes
+  outcomes: ResourceMigrationOutcomes
 }
 
 function OutcomeSection({
@@ -84,10 +84,10 @@ export function ResultStep({
   onDone,
 }: ResultStepProps) {
   const totalMigrated =
-    result.migrated.prompts +
-    result.migrated.artifacts +
-    result.migrated.blueprints +
-    result.migrated.feed_items
+    (result.migrated.prompts ?? 0) +
+    (result.migrated.artifacts ?? 0) +
+    (result.migrated.blueprints ?? 0) +
+    (result.migrated.feed_items ?? 0)
 
   const skippedCount = countOutcomes(result.skipped)
   const failedCount = countOutcomes(result.failed)
@@ -127,10 +127,19 @@ export function ResultStep({
         <div>
           <p className="mb-2 text-sm font-medium">Migrated</p>
           <div className="space-y-1">
-            <CountRow label="Prompts" value={result.migrated.prompts} />
-            <CountRow label="Artifacts" value={result.migrated.artifacts} />
-            <CountRow label="Blueprints" value={result.migrated.blueprints} />
-            <CountRow label="Feed items" value={result.migrated.feed_items} />
+            <CountRow label="Prompts" value={result.migrated.prompts ?? 0} />
+            <CountRow
+              label="Artifacts"
+              value={result.migrated.artifacts ?? 0}
+            />
+            <CountRow
+              label="Blueprints"
+              value={result.migrated.blueprints ?? 0}
+            />
+            <CountRow
+              label="Feed items"
+              value={result.migrated.feed_items ?? 0}
+            />
           </div>
         </div>
 

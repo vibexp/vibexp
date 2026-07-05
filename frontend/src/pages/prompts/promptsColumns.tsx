@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatRelativeTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
-import type { Prompt } from '@/types'
+import type { Prompt } from '@/services/promptService'
 
 function absTime(value: string) {
   return new Date(value).toLocaleString('en-US', {
@@ -83,7 +83,7 @@ export function buildPromptsColumns({
       id: 'labels',
       header: 'Labels',
       cell: ({ row }) => {
-        const labels = row.original.labels
+        const labels = row.original.labels ?? []
         if (labels.length === 0) {
           return <span className="text-muted-foreground text-xs">—</span>
         }

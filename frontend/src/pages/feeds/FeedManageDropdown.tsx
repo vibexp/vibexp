@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { Feed } from '@/types/feed'
+import type { Feed } from '@/services/feedService'
 
 interface FeedManageDropdownProps {
   feeds: Feed[]

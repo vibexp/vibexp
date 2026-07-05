@@ -10,12 +10,15 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fcmService } from '@/services/notifications/fcm'
-import { preferencesService } from '@/services/preferencesService'
-import type {
-  EmailNotificationPreferences,
-  NotificationPreferences,
-  NotificationTypePreference,
-} from '@/types/preferences'
+import {
+  type EmailNotificationPreferences,
+  type NotificationPreferences,
+  type NotificationTypePreference,
+  preferencesService,
+} from '@/services/preferencesService'
+
+// Email delivery mode enum for a single notification type.
+type EmailDeliveryMode = NotificationTypePreference['email']
 
 // ---------------------------------------------------------------------------
 // Shared row component
@@ -142,16 +145,14 @@ function BrowserPushCard({
               Notify me about
             </p>
             <div className="space-y-3">
-              {Object.entries(notifPrefs.types ?? {}).map(
-                ([typeName, typePrefs]) => (
-                  <WebPushTypeRow
-                    key={typeName}
-                    typeName={typeName}
-                    typePrefs={typePrefs}
-                    onTypeChange={onTypeChange}
-                  />
-                )
-              )}
+              {Object.entries(notifPrefs.types).map(([typeName, typePrefs]) => (
+                <WebPushTypeRow
+                  key={typeName}
+                  typeName={typeName}
+                  typePrefs={typePrefs}
+                  onTypeChange={onTypeChange}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -197,7 +198,7 @@ function WebPushTypeRow({
 interface ActivityEmailCardProps {
   notifPrefs: NotificationPreferences | null
   onChannelToggle: (enabled: boolean) => void
-  onTypeChange: (typeName: string, emailVal: string) => void
+  onTypeChange: (typeName: string, emailVal: EmailDeliveryMode) => void
 }
 
 function ActivityEmailCard({
@@ -230,16 +231,14 @@ function ActivityEmailCard({
               Delivery frequency per type
             </p>
             <div className="space-y-4">
-              {Object.entries(notifPrefs.types ?? {}).map(
-                ([typeName, typePrefs]) => (
-                  <ActivityEmailTypeRow
-                    key={typeName}
-                    typeName={typeName}
-                    typePrefs={typePrefs}
-                    onTypeChange={onTypeChange}
-                  />
-                )
-              )}
+              {Object.entries(notifPrefs.types).map(([typeName, typePrefs]) => (
+                <ActivityEmailTypeRow
+                  key={typeName}
+                  typeName={typeName}
+                  typePrefs={typePrefs}
+                  onTypeChange={onTypeChange}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -251,7 +250,7 @@ function ActivityEmailCard({
 interface ActivityEmailTypeRowProps {
   typeName: string
   typePrefs: NotificationTypePreference
-  onTypeChange: (typeName: string, emailVal: string) => void
+  onTypeChange: (typeName: string, emailVal: EmailDeliveryMode) => void
 }
 
 function ActivityEmailTypeRow({
@@ -265,9 +264,9 @@ function ActivityEmailTypeRow({
     <div className="flex items-center justify-between gap-4">
       <span className="text-sm">{label}</span>
       <Tabs
-        value={typePrefs.email ?? 'digest'}
+        value={typePrefs.email}
         onValueChange={val => {
-          onTypeChange(typeName, val)
+          onTypeChange(typeName, val as EmailDeliveryMode)
         }}
       >
         <TabsList className="h-8">
@@ -277,7 +276,7 @@ function ActivityEmailTypeRow({
           <TabsTrigger value="digest" className="px-2 py-1 text-xs">
             Daily digest
           </TabsTrigger>
-          <TabsTrigger value="off" className="px-2 py-1 text-xs">
+          <TabsTrigger value="none" className="px-2 py-1 text-xs">
             Off
           </TabsTrigger>
         </TabsList>
@@ -325,7 +324,7 @@ export function NotificationPreferences() {
       const emailPrefs = response.preferences.email_notification
       setPrefs(emailPrefs)
       setOriginalPrefs(emailPrefs)
-      const nPrefs = response.preferences.notifications ?? null
+      const nPrefs = response.preferences.notifications
       setNotifPrefs(nPrefs)
       setOriginalNotifPrefs(nPrefs)
     } catch (err) {
@@ -386,7 +385,7 @@ export function NotificationPreferences() {
     setNotifPrefs(prev => {
       if (!prev) return prev
       const updatedTypes = Object.fromEntries(
-        Object.entries(prev.types ?? {}).map(([key, val]) =>
+        Object.entries(prev.types).map(([key, val]) =>
           key === typeName ? [key, { ...val, web_push: webPush }] : [key, val]
         )
       )
@@ -403,10 +402,13 @@ export function NotificationPreferences() {
     setSuccessMessage(null)
   }
 
-  const handleEmailTypeChange = (typeName: string, emailVal: string) => {
+  const handleEmailTypeChange = (
+    typeName: string,
+    emailVal: EmailDeliveryMode
+  ) => {
     setNotifPrefs(prev => {
       if (!prev) return prev
-      const types = prev.types ?? {}
+      const types = prev.types
       return {
         ...prev,
         types: {
@@ -431,7 +433,7 @@ export function NotificationPreferences() {
       const updated = response.preferences.email_notification
       setPrefs(updated)
       setOriginalPrefs(updated)
-      const updatedNotif = response.preferences.notifications ?? null
+      const updatedNotif = response.preferences.notifications
       setNotifPrefs(updatedNotif)
       setOriginalNotifPrefs(updatedNotif)
       setSuccessMessage('Preferences saved successfully.')

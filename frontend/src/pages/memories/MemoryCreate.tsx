@@ -10,8 +10,9 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { MemoryForm, type MemoryFormHandle } from '@/pages/memories/MemoryForm'
 import { memoryService } from '@/services/memoryService'
+import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type { CreateMemoryRequest, Project, UpdateMemoryRequest } from '@/types'
+import type { CreateMemoryRequest, UpdateMemoryRequest } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 export function MemoryCreate() {

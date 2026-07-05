@@ -5,8 +5,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
+import type { Project, ProjectListResponse } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type { Project, ProjectListResponse } from '@/types/project'
 
 jest.mock('@/contexts/TeamContext')
 jest.mock('@/contexts/ProjectContext')
@@ -30,6 +30,7 @@ const alpha: Project = {
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
   version: 1,
+  github_connected: false,
 }
 
 const listResponse = (projects: Project[]): ProjectListResponse => ({

@@ -15,8 +15,12 @@ import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { PromptContentCard } from '@/pages/prompts/PromptContentCard'
 import { PromptDetailSidebar } from '@/pages/prompts/PromptDetailSidebar'
+import type {
+  Prompt,
+  PromptDependenciesResponse,
+  PromptVersion,
+} from '@/services/promptService'
 import { promptService } from '@/services/promptService'
-import type { Prompt, PromptDependenciesResponse, PromptVersion } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 function formatDate(value: string) {

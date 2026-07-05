@@ -17,8 +17,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { useAlertContext } from '@/contexts/AlertContext'
 import { cn } from '@/lib/utils'
+import type { PromptGalleryTemplate } from '@/services/promptGalleryService'
 import { promptGalleryService } from '@/services/promptGalleryService'
-import type { PromptGalleryTemplate } from '@/types'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 const PER_PAGE = 10
@@ -55,7 +55,7 @@ export function PromptGalleryCategory() {
 
         const tagsSet = new Set<string>()
         data.prompts.forEach(p => {
-          p.tags.forEach(tag => tagsSet.add(tag))
+          p.tags?.forEach(tag => tagsSet.add(tag))
         })
         setAvailableTags(Array.from(tagsSet).sort())
       } catch (error) {
@@ -221,7 +221,7 @@ export function PromptGalleryCategory() {
                   </div>
                   <ChevronRight className="text-muted-foreground size-5 shrink-0" />
                 </CardHeader>
-                {prompt.tags.length > 0 && (
+                {prompt.tags && prompt.tags.length > 0 && (
                   <CardContent>
                     <div className="flex flex-wrap gap-1.5">
                       {prompt.tags.map(tag => (

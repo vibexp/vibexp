@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { Feed } from '@/types/feed'
+import type { Feed } from '@/services/feedService'
 
 /**
  * Pill-style tab group used by both /feeds and /feeds/:id.

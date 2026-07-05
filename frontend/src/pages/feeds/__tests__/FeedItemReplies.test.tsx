@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import type { FeedItemReply, FeedItemReplyListResponse } from '@/types/feed'
+import type {
+  FeedItemReply,
+  FeedItemReplyListResponse,
+} from '@/services/feedService'
 import type { TeamMember } from '@/types/team'
 
 import { FeedItemReplies } from '../FeedItemReplies'

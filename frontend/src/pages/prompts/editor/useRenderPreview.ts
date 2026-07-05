@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import type { Prompt } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
-import type { Prompt } from '@/types'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 import type { EditorView } from './types'

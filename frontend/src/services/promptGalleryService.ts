@@ -1,65 +1,66 @@
-import { apiClient } from '../lib/apiClient'
-import type {
-  PromptGalleryCategory,
-  PromptGalleryFilters,
-  PromptGalleryListResponse,
-  PromptGalleryTemplate,
-  PromptGalleryUsageRequest,
-} from '../types'
+import type { components, operations } from '@vibexp/api-client'
+
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
+
+// Generated wire types for the prompt-gallery domain — the OpenAPI spec is the
+// single source of truth; do not hand-write request/response shapes here.
+export type PromptGalleryTemplate =
+  components['schemas']['PromptGalleryTemplate']
+export type PromptGalleryCategory =
+  components['schemas']['PromptGalleryCategory']
+export type PromptGalleryListResponse =
+  components['schemas']['PromptGalleryListResponse']
+export type PromptGalleryUsageRequest =
+  components['schemas']['PromptGalleryUsageRequest']
+
+// The generated list query has no `tags` field, so the richer hand-written
+// filter shape is kept; `tags` is serialized as a comma-separated string.
+export interface PromptGalleryFilters {
+  category?: string
+  search?: string
+  tags?: string[] // Array of tags to filter by
+  page?: number
+  limit?: number
+}
+
+type ListQuery = NonNullable<
+  operations['listPromptGalleryPrompts']['parameters']['query']
+>
 
 class PromptGalleryService {
   async getCategories(): Promise<PromptGalleryCategory[]> {
-    const response = await apiClient.get<PromptGalleryCategory[]>(
-      '/prompt-gallery/categories'
-    )
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    return response || []
+    return unwrap(generatedClient.GET('/api/v1/prompt-gallery/categories'))
   }
 
   async getPrompts(
     filters: PromptGalleryFilters = {}
   ): Promise<PromptGalleryListResponse> {
-    const params = new URLSearchParams()
-
-    if (filters.category) params.append('category', filters.category)
-    if (filters.search) params.append('search', filters.search)
-    if (filters.tags && filters.tags.length > 0) {
-      params.append('tags', filters.tags.join(','))
+    const { tags, ...rest } = filters
+    const query: ListQuery = {
+      ...rest,
+      ...(tags && tags.length > 0 ? { tags: tags.join(',') } : {}),
     }
-    if (filters.page) params.append('page', filters.page.toString())
-    if (filters.limit) params.append('limit', filters.limit.toString())
-
-    const queryString = params.toString()
-    const endpoint = `/prompt-gallery/prompts${queryString ? `?${queryString}` : ''}`
-
-    const response = await apiClient.get<PromptGalleryListResponse>(endpoint)
-    return (
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      response || {
-        prompts: [],
-        total_count: 0,
-        page: 1,
-        per_page: 10,
-        total_pages: 0,
-      }
+    return unwrap(
+      generatedClient.GET('/api/v1/prompt-gallery/prompts', {
+        params: { query },
+      })
     )
   }
 
   async getPromptById(id: string): Promise<PromptGalleryTemplate> {
-    const response = await apiClient.get<PromptGalleryTemplate>(
-      `/prompt-gallery/prompts/${id}`
+    return unwrap(
+      generatedClient.GET('/api/v1/prompt-gallery/prompts/{id}', {
+        params: { path: { id } },
+      })
     )
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (!response) {
-      throw new Error('Prompt not found')
-    }
-    return response
   }
 
   async trackPromptUsage(promptId: string): Promise<void> {
-    const data: PromptGalleryUsageRequest = { prompt_id: promptId }
-    // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
-    await apiClient.post<void>(`/prompt-gallery/prompts/${promptId}/use`, data)
+    await unwrap(
+      generatedClient.POST('/api/v1/prompt-gallery/prompts/{id}/use', {
+        params: { path: { id: promptId } },
+      })
+    )
   }
 }
 

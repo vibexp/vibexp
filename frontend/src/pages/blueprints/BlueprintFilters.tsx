@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { Blueprint } from '@/types'
+import type { Blueprint } from '@/services/blueprintService'
 
 interface Props {
   searchInput: string

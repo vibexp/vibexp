@@ -11,13 +11,9 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { MemoryForm, type MemoryFormHandle } from '@/pages/memories/MemoryForm'
 import { memoryService } from '@/services/memoryService'
+import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type {
-  CreateMemoryRequest,
-  Memory,
-  Project,
-  UpdateMemoryRequest,
-} from '@/types'
+import type { CreateMemoryRequest, Memory, UpdateMemoryRequest } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 

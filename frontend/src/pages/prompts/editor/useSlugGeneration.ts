@@ -27,7 +27,7 @@ export function useSlugGeneration(
         const response = await promptService.getPrompts(currentTeam.id, {
           limit: 1000,
         })
-        const existingSlugs = response.data.prompts
+        const existingSlugs = response.prompts
           .filter(p => p.slug !== currentPromptSlug)
           .map(p => p.slug)
 

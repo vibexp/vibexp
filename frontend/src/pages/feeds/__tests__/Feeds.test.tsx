@@ -1,7 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { FeedItemListResponse, FeedListResponse } from '@/types/feed'
+import type {
+  FeedItemListResponse,
+  FeedListResponse,
+} from '@/services/feedService'
 
 // Mock Radix UI components that cause infinite loops in JSDOM
 jest.mock('@/components/ui/tabs', () => ({
@@ -192,6 +195,7 @@ const mockFeedItemsResponse: FeedItemListResponse = {
       ai_assistant_name: 'claude-sonnet-4-5',
       posted_by_user_id: 'user-1',
       posted_at: new Date().toISOString(),
+      reply_count: 0,
     },
   ],
   total_count: 1,

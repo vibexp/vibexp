@@ -16,7 +16,7 @@ import { formatRelativeTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
 import { InlineReplyThread } from '@/pages/feeds/InlineReplyThread'
-import type { FeedItem } from '@/types/feed'
+import type { FeedItem } from '@/services/feedService'
 import type { TeamMember } from '@/types/team'
 
 interface FeedItemCardProps {

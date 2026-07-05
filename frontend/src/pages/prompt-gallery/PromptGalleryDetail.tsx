@@ -11,8 +11,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAlertContext } from '@/contexts/AlertContext'
+import type { PromptGalleryTemplate } from '@/services/promptGalleryService'
 import { promptGalleryService } from '@/services/promptGalleryService'
-import type { PromptGalleryTemplate } from '@/types'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 export function PromptGalleryDetail() {
@@ -167,7 +167,7 @@ export function PromptGalleryDetail() {
             </CardContent>
           </Card>
 
-          {prompt.tags.length > 0 && (
+          {prompt.tags && prompt.tags.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Tags</CardTitle>

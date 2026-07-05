@@ -14,8 +14,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { useAlertContext } from '@/contexts/AlertContext'
+import type { PromptGalleryCategory } from '@/services/promptGalleryService'
 import { promptGalleryService } from '@/services/promptGalleryService'
-import type { PromptGalleryCategory } from '@/types'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 export function PromptGallery() {

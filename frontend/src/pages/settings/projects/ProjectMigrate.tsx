@@ -15,18 +15,17 @@ import { ResultStep } from '@/pages/settings/projects/migration/ResultStep'
 import { SelectDestinationStep } from '@/pages/settings/projects/migration/SelectDestinationStep'
 import { SelectResourcesStep } from '@/pages/settings/projects/migration/SelectResourcesStep'
 import { SelectSourceStep } from '@/pages/settings/projects/migration/SelectSourceStep'
-import { projectMigrationService } from '@/services/projectMigrationService'
-import { projectService } from '@/services/projectService'
-import type { Project } from '@/types/project'
-import type {
-  ConflictPolicy,
-  MigrationInventory,
-  MigrationResources,
-  MigrationResult,
-} from '@/types/projectMigration'
+import {
+  type ConflictPolicy,
+  type MigrationInventory,
+  type MigrationResult,
+  projectMigrationService,
+  type ResourceSelections,
+} from '@/services/projectMigrationService'
+import { type Project, projectService } from '@/services/projectService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
-const EMPTY_SELECTION: MigrationResources = {
+const EMPTY_SELECTION: ResourceSelections = {
   prompts: { all: false, ids: [] },
   artifacts: { all: false, ids: [] },
   blueprints: { all: false, ids: [] },
@@ -41,7 +40,7 @@ interface WizardState {
   sourceProjectSlug: string
   sourceProjectName: string
   inventory: MigrationInventory | null
-  selectedResources: MigrationResources
+  selectedResources: ResourceSelections
   destinationProjectId: string
   destinationProjectSlug: string
   destinationProjectName: string
@@ -192,7 +191,7 @@ export function ProjectMigrate() {
     }))
   }, [])
 
-  const handleResourcesChange = useCallback((resources: MigrationResources) => {
+  const handleResourcesChange = useCallback((resources: ResourceSelections) => {
     setWizard(prev => ({ ...prev, selectedResources: resources }))
   }, [])
 
@@ -262,10 +261,10 @@ export function ProjectMigrate() {
 
   const inventoryCounts = wizard.inventory
     ? {
-        prompts: wizard.inventory.prompts.count,
-        artifacts: wizard.inventory.artifacts.count,
-        blueprints: wizard.inventory.blueprints.count,
-        feed_items: wizard.inventory.feed_items.count,
+        prompts: wizard.inventory.prompts?.count ?? 0,
+        artifacts: wizard.inventory.artifacts?.count ?? 0,
+        blueprints: wizard.inventory.blueprints?.count ?? 0,
+        feed_items: wizard.inventory.feed_items?.count ?? 0,
       }
     : { prompts: 0, artifacts: 0, blueprints: 0, feed_items: 0 }
 

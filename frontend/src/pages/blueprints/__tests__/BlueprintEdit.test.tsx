@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
-import type { Blueprint } from '@/types'
+import type { Blueprint } from '@/services/blueprintService'
 
 // Mock BlueprintForm to avoid complex form internals in unit tests
 jest.mock('@/pages/blueprints/BlueprintForm', () => ({

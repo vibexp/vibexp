@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { usePromptSearch } from '@/hooks/usePromptSearch'
-import type { Prompt } from '@/types'
+import type { Prompt } from '@/services/promptService'
 
 interface PromptTemplateLoaderProps {
   isOpen: boolean

@@ -9,9 +9,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAnalytics } from '@/hooks'
 import { toast } from '@/lib/toast'
+import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
+import type { Prompt } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
-import type { Project, Prompt } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -128,7 +129,7 @@ export function PromptEditor() {
           body: p.body,
           status: p.status,
           mcp_expose: p.mcp_expose,
-          labels: p.labels,
+          labels: p.labels ?? [],
           project_id: p.project_id,
         })
       } catch (error) {

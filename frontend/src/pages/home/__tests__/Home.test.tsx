@@ -11,7 +11,7 @@ import type {
   ActivitiesResponse,
   Activity as ActivityType,
 } from '@/services/activityService'
-import type { FeedItem, FeedItemListResponse } from '@/types/feed'
+import type { FeedItem, FeedItemListResponse } from '@/services/feedService'
 import type { TeamStats } from '@/types/team'
 
 const mockNavigate = jest.fn()
