@@ -31,6 +31,7 @@ describe('EmbeddingProviderService', () => {
     const mockRequest: CreateEmbeddingProviderRequest = {
       name: 'OpenAI Provider',
       provider_type: 'openai',
+      model: 'text-embedding-3-small',
       is_default: true,
       base_url: 'https://api.openai.com/v1',
       api_key: 'sk-test-key',
@@ -44,10 +45,13 @@ describe('EmbeddingProviderService', () => {
       user_id: 'user-456',
       name: 'OpenAI Provider',
       provider_type: 'openai',
+      model: 'text-embedding-3-small',
       is_default: true,
       base_url: 'https://api.openai.com/v1',
       configuration: '{"model":"text-embedding-ada-002"}',
       has_api_key: true,
+      chunk_size: 1000,
+      chunk_overlap: 200,
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
     }
@@ -118,10 +122,13 @@ describe('EmbeddingProviderService', () => {
         user_id: 'user-456',
         name: 'OpenAI Provider',
         provider_type: 'openai',
+        model: 'text-embedding-3-small',
         is_default: true,
         base_url: 'https://api.openai.com/v1',
         configuration: '{}',
         has_api_key: true,
+        chunk_size: 1000,
+        chunk_overlap: 200,
         created_at: '2023-01-01T00:00:00Z',
         updated_at: '2023-01-01T00:00:00Z',
       },
@@ -130,10 +137,13 @@ describe('EmbeddingProviderService', () => {
         user_id: 'user-456',
         name: 'Ollama Provider',
         provider_type: 'ollama',
+        model: 'text-embedding-3-small',
         is_default: false,
         base_url: 'http://localhost:11434',
         configuration: '{}',
         has_api_key: false,
+        chunk_size: 1000,
+        chunk_overlap: 200,
         created_at: '2023-01-02T00:00:00Z',
         updated_at: '2023-01-02T00:00:00Z',
       },
@@ -203,10 +213,13 @@ describe('EmbeddingProviderService', () => {
       user_id: 'user-456',
       name: 'OpenAI Provider',
       provider_type: 'openai',
+      model: 'text-embedding-3-small',
       is_default: true,
       base_url: 'https://api.openai.com/v1',
       configuration: '{}',
       has_api_key: true,
+      chunk_size: 1000,
+      chunk_overlap: 200,
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
     }
@@ -289,10 +302,13 @@ describe('EmbeddingProviderService', () => {
       user_id: 'user-456',
       name: 'Updated OpenAI Provider',
       provider_type: 'openai',
+      model: 'text-embedding-3-small',
       is_default: false,
       base_url: 'https://api.openai.com/v1',
       configuration: '{"model":"text-embedding-3-small"}',
       has_api_key: true,
+      chunk_size: 1000,
+      chunk_overlap: 200,
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T10:00:00Z',
     }
@@ -473,6 +489,7 @@ describe('EmbeddingProviderService', () => {
   describe('validateEmbeddingProvider', () => {
     const mockRequest: ValidateEmbeddingProviderRequest = {
       provider_type: 'openai',
+      model: 'text-embedding-3-small',
       base_url: 'https://api.openai.com/v1',
       api_key: 'sk-test-key',
       configuration: {
@@ -575,6 +592,7 @@ describe('EmbeddingProviderService', () => {
       const mockRequest: CreateEmbeddingProviderRequest = {
         name: 'Test Provider',
         provider_type: 'openai',
+        model: 'text-embedding-3-small',
       }
 
       await expect(
@@ -593,6 +611,7 @@ describe('EmbeddingProviderService', () => {
     it('should handle malformed JSON response in validateEmbeddingProvider', async () => {
       const mockRequest: ValidateEmbeddingProviderRequest = {
         provider_type: 'openai',
+        model: 'text-embedding-3-small',
         base_url: 'https://api.openai.com/v1',
       }
 
@@ -609,6 +628,7 @@ describe('EmbeddingProviderService', () => {
       const createRequest: CreateEmbeddingProviderRequest = {
         name: 'Test Provider',
         provider_type: 'openai',
+        model: 'text-embedding-3-small',
         api_key: 'sk-test',
       }
 
@@ -617,9 +637,12 @@ describe('EmbeddingProviderService', () => {
         user_id: 'user-456',
         name: 'Test Provider',
         provider_type: 'openai',
+        model: 'text-embedding-3-small',
         is_default: false,
         configuration: '{}',
         has_api_key: true,
+        chunk_size: 1000,
+        chunk_overlap: 200,
         created_at: '2023-01-01T00:00:00Z',
         updated_at: '2023-01-01T00:00:00Z',
       }
@@ -667,6 +690,7 @@ describe('EmbeddingProviderService', () => {
     it('should handle validation before creation', async () => {
       const validateRequest: ValidateEmbeddingProviderRequest = {
         provider_type: 'openai',
+        model: 'text-embedding-3-small',
         base_url: 'https://api.openai.com/v1',
         api_key: 'sk-test',
       }
@@ -690,6 +714,7 @@ describe('EmbeddingProviderService', () => {
         const createRequest: CreateEmbeddingProviderRequest = {
           name: 'Validated Provider',
           provider_type: validateRequest.provider_type,
+          model: validateRequest.model,
           base_url: validateRequest.base_url,
           api_key: validateRequest.api_key,
         }
@@ -699,10 +724,13 @@ describe('EmbeddingProviderService', () => {
           user_id: 'user-789',
           name: 'Validated Provider',
           provider_type: 'openai',
+          model: 'text-embedding-3-small',
           is_default: false,
           base_url: 'https://api.openai.com/v1',
           configuration: '{}',
           has_api_key: true,
+          chunk_size: 1000,
+          chunk_overlap: 200,
           created_at: '2023-01-01T00:00:00Z',
           updated_at: '2023-01-01T00:00:00Z',
         }
