@@ -663,6 +663,7 @@ func TestHandleValidateEmbeddingProvider_Success(t *testing.T) {
 
 	reqBody := models.ValidateEmbeddingProviderRequest{
 		ProviderType: "openai",
+		Model:        "text-embedding-3-small",
 		BaseURL:      "https://api.openai.com/v1",
 	}
 
@@ -702,6 +703,7 @@ func TestHandleValidateEmbeddingProvider_Invalid(t *testing.T) {
 	apiKey := "invalid-key"
 	reqBody := models.ValidateEmbeddingProviderRequest{
 		ProviderType: "openai",
+		Model:        "text-embedding-3-small",
 		BaseURL:      "https://api.openai.com/v1",
 		APIKey:       &apiKey,
 	}
@@ -753,8 +755,17 @@ func TestHandleValidateEmbeddingProvider_ValidationError(t *testing.T) {
 			name: "Missing base URL",
 			reqBody: models.ValidateEmbeddingProviderRequest{
 				ProviderType: "openai",
+				Model:        "m",
 			},
 			expectedError: "Base URL is required",
+		},
+		{
+			name: "Missing model",
+			reqBody: models.ValidateEmbeddingProviderRequest{
+				ProviderType: "openai",
+				BaseURL:      "https://api.openai.com/v1",
+			},
+			expectedError: "Model is required",
 		},
 	}
 
@@ -781,6 +792,7 @@ func TestHandleValidateEmbeddingProvider_ServiceError(t *testing.T) {
 
 	reqBody := models.ValidateEmbeddingProviderRequest{
 		ProviderType: "openai",
+		Model:        "text-embedding-3-small",
 		BaseURL:      "https://api.openai.com/v1",
 	}
 
@@ -804,6 +816,7 @@ func TestHandleValidateEmbeddingProvider_WithConfiguration(t *testing.T) {
 
 	reqBody := models.ValidateEmbeddingProviderRequest{
 		ProviderType: "openai",
+		Model:        "text-embedding-3-small",
 		BaseURL:      "https://api.openai.com/v1",
 		Configuration: map[string]interface{}{
 			"model":   "text-embedding-3-small",

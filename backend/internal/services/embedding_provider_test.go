@@ -2,7 +2,10 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -963,5 +966,64 @@ func TestEmbeddingProviderService_EdgeCases(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotEqual(t, encrypted, encrypted2)
 		}
+	})
+}
+
+// TestEmbeddingProviderService_validateOpenAICompatibleProvider_DimensionEnforcement
+// verifies validation runs the real generation path and accepts a provider only
+// when it returns exactly EmbeddingVectorDimensions-wide vectors (issue #79).
+func TestEmbeddingProviderService_validateOpenAICompatibleProvider_DimensionEnforcement(t *testing.T) {
+	mockRepo := mocks.NewMockEmbeddingProviderRepository(t)
+	service := createTestEmbeddingProviderService(mockRepo)
+
+	makeServer := func(status, dim int) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if status != http.StatusOK {
+				w.WriteHeader(status)
+				return
+			}
+			resp := map[string]any{
+				"data": []map[string]any{{"index": 0, "embedding": make([]float32, dim)}},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				t.Errorf("encode probe response: %v", err)
+			}
+		}))
+	}
+
+	validate := func(baseURL string) *models.ValidateEmbeddingProviderResponse {
+		resp, err := service.validateOpenAICompatibleProvider(context.Background(),
+			models.ValidateEmbeddingProviderRequest{
+				ProviderType: ProviderTypeOpenAICompatible,
+				Model:        "test-model",
+				BaseURL:      baseURL,
+			})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		return resp
+	}
+
+	t.Run("accepts a provider returning the required dimension", func(t *testing.T) {
+		srv := makeServer(http.StatusOK, EmbeddingVectorDimensions)
+		defer srv.Close()
+		resp := validate(srv.URL)
+		assert.True(t, resp.IsValid)
+		assert.Equal(t, EmbeddingVectorDimensions, resp.Details.Dimension)
+	})
+
+	t.Run("rejects a provider returning a different dimension", func(t *testing.T) {
+		srv := makeServer(http.StatusOK, 768)
+		defer srv.Close()
+		resp := validate(srv.URL)
+		assert.False(t, resp.IsValid)
+		assert.Contains(t, resp.Message, "1024")
+	})
+
+	t.Run("rejects an unauthenticated provider", func(t *testing.T) {
+		srv := makeServer(http.StatusUnauthorized, 0)
+		defer srv.Close()
+		resp := validate(srv.URL)
+		assert.False(t, resp.IsValid)
 	})
 }

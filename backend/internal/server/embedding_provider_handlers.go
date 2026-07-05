@@ -417,6 +417,15 @@ func (s *Server) validateEmbeddingProviderRequest(
 		validationErrors = append(validationErrors, errors.NewRequiredFieldError("base_url"))
 	}
 
+	if req.Model == "" {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleValidateEmbeddingProvider",
+			"user_id", userID,
+		).Error("Model is required")
+		validationErrors = append(validationErrors, errors.NewRequiredFieldError("model"))
+	}
+
 	if len(validationErrors) > 0 {
 		apiErr := errors.NewProviderValidationError(
 			"Provider validation request is missing required fields",
