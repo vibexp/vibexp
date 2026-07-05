@@ -579,11 +579,11 @@ func TestEmbeddingProviderGetCoverage_ServiceError(t *testing.T) {
 
 	providerID := "550e8400-e29b-41d4-a716-446655440000"
 
-	container.embeddingProviderService.On("GetEmbeddingProvider", mock.Anything, "user-123", providerID).
+	container.embeddingProviderService.On("GetEmbeddingProvider", mock.Anything, "team-123", providerID).
 		Return(nil, errors.New("database connection failed")).Maybe()
 
 	req := makeCoverageAuthRequest("GET", "/api/v1/embedding-providers/"+providerID, nil)
-	req = addCoverageChiParams(req, map[string]string{"id": providerID})
+	req = addCoverageChiParams(req, map[string]string{"id": providerID, "team_id": "team-123"})
 	rr := httptest.NewRecorder()
 
 	srv.handleGetEmbeddingProvider(rr, req)
@@ -608,7 +608,7 @@ func TestEmbeddingProviderUpdateCoverage_ServiceError(t *testing.T) {
 
 	providerID := "550e8400-e29b-41d4-a716-446655440000"
 
-	container.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "user-123", providerID, mock.Anything).
+	container.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", providerID, mock.Anything).
 		Return(nil, errors.New("database connection failed")).Maybe()
 
 	name := "Updated Provider"
@@ -617,7 +617,7 @@ func TestEmbeddingProviderUpdateCoverage_ServiceError(t *testing.T) {
 	}
 
 	req := makeCoverageAuthRequest("PUT", "/api/v1/embedding-providers/"+providerID, body)
-	req = addCoverageChiParams(req, map[string]string{"id": providerID})
+	req = addCoverageChiParams(req, map[string]string{"id": providerID, "team_id": "team-123"})
 	rr := httptest.NewRecorder()
 
 	srv.handleUpdateEmbeddingProvider(rr, req)
@@ -652,7 +652,7 @@ func TestEmbeddingProviderUpdateCoverage_SuccessWithValidData(t *testing.T) {
 		UpdatedAt:    time.Now(),
 	}
 
-	container.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "user-123", providerID, mock.Anything).
+	container.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", providerID, mock.Anything).
 		Return(expectedProvider, nil).Maybe()
 
 	name := "Updated Provider"
@@ -661,7 +661,7 @@ func TestEmbeddingProviderUpdateCoverage_SuccessWithValidData(t *testing.T) {
 	}
 
 	req := makeCoverageAuthRequest("PUT", "/api/v1/embedding-providers/"+providerID, body)
-	req = addCoverageChiParams(req, map[string]string{"id": providerID})
+	req = addCoverageChiParams(req, map[string]string{"id": providerID, "team_id": "team-123"})
 	rr := httptest.NewRecorder()
 
 	srv.handleUpdateEmbeddingProvider(rr, req)

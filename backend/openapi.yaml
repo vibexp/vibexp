@@ -1057,17 +1057,17 @@ paths:
     $ref: "./paths/types.yaml#/api-v1-team_id-types"
   /api/v1/{team_id}/types/{id}:
     $ref: "./paths/types.yaml#/api-v1-team_id-types-id"
-  /api/v1/embedding-providers:
+  /api/v1/{team_id}/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers"
-  /api/v1/embedding-providers/{id}:
+  /api/v1/{team_id}/embedding-providers/{id}:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-id"
-  /api/v1/embedding-providers/validate:
+  /api/v1/{team_id}/embedding-providers/validate:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-validate"
-  /api/v1/settings/embedding-providers:
+  /api/v1/{team_id}/settings/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers"
-  /api/v1/settings/embedding-providers/{id}:
+  /api/v1/{team_id}/settings/embedding-providers/{id}:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-id"
-  /api/v1/settings/embedding-providers/validate:
+  /api/v1/{team_id}/settings/embedding-providers/validate:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-validate"
   /api/v1/{team_id}/projects:
     $ref: "./paths/projects.yaml#/api-v1-team_id-projects"

@@ -7,49 +7,53 @@ import type {
   ValidateEmbeddingProviderResponse,
 } from '../types'
 
+// Embedding providers are team-scoped (issue #79): every call is nested under
+// the current team's id.
+const base = (teamId: string) =>
+  `/${encodeURIComponent(teamId)}/settings/embedding-providers`
+
 class EmbeddingProviderService {
   async createEmbeddingProvider(
+    teamId: string,
     request: CreateEmbeddingProviderRequest
   ): Promise<EmbeddingProviderResponse> {
-    return apiClient.post<EmbeddingProviderResponse>(
-      '/settings/embedding-providers',
-      request
-    )
+    return apiClient.post<EmbeddingProviderResponse>(base(teamId), request)
   }
 
-  async getEmbeddingProviders(): Promise<EmbeddingProviderResponse[]> {
-    return apiClient.get<EmbeddingProviderResponse[]>(
-      '/settings/embedding-providers'
-    )
+  async getEmbeddingProviders(
+    teamId: string
+  ): Promise<EmbeddingProviderResponse[]> {
+    return apiClient.get<EmbeddingProviderResponse[]>(base(teamId))
   }
 
-  async getEmbeddingProvider(id: string): Promise<EmbeddingProviderResponse> {
-    return apiClient.get<EmbeddingProviderResponse>(
-      `/settings/embedding-providers/${id}`
-    )
+  async getEmbeddingProvider(
+    teamId: string,
+    id: string
+  ): Promise<EmbeddingProviderResponse> {
+    return apiClient.get<EmbeddingProviderResponse>(`${base(teamId)}/${id}`)
   }
 
   async updateEmbeddingProvider(
+    teamId: string,
     id: string,
     request: UpdateEmbeddingProviderRequest
   ): Promise<EmbeddingProviderResponse> {
     return apiClient.put<EmbeddingProviderResponse>(
-      `/settings/embedding-providers/${id}`,
+      `${base(teamId)}/${id}`,
       request
     )
   }
 
-  async deleteEmbeddingProvider(id: string): Promise<void> {
-    await apiClient.delete<Record<string, never>>(
-      `/settings/embedding-providers/${id}`
-    )
+  async deleteEmbeddingProvider(teamId: string, id: string): Promise<void> {
+    await apiClient.delete<Record<string, never>>(`${base(teamId)}/${id}`)
   }
 
   async validateEmbeddingProvider(
+    teamId: string,
     request: ValidateEmbeddingProviderRequest
   ): Promise<ValidateEmbeddingProviderResponse> {
     return apiClient.post<ValidateEmbeddingProviderResponse>(
-      '/settings/embedding-providers/validate',
+      `${base(teamId)}/validate`,
       request
     )
   }

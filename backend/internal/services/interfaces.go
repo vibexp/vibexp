@@ -199,16 +199,16 @@ type CreateTypeParams struct {
 
 // EmbeddingProviderServiceInterface defines the interface for embedding provider operations
 type EmbeddingProviderServiceInterface interface {
-	CreateEmbeddingProvider(ctx context.Context, userID string, req models.CreateEmbeddingProviderRequest,
+	CreateEmbeddingProvider(ctx context.Context, teamID, userID string, req models.CreateEmbeddingProviderRequest,
 	) (*models.EmbeddingProvider, error)
-	GetEmbeddingProvidersByUserID(ctx context.Context, userID string,
+	GetEmbeddingProvidersByTeamID(ctx context.Context, teamID string,
 	) ([]models.EmbeddingProviderResponse, error)
-	GetEmbeddingProvider(ctx context.Context, userID, providerID string,
+	GetEmbeddingProvider(ctx context.Context, teamID, providerID string,
 	) (*models.EmbeddingProviderResponse, error)
-	UpdateEmbeddingProvider(ctx context.Context, userID, providerID string,
+	UpdateEmbeddingProvider(ctx context.Context, teamID, providerID string,
 		req models.UpdateEmbeddingProviderRequest) (*models.EmbeddingProvider, error)
-	DeleteEmbeddingProvider(ctx context.Context, userID, providerID string) error
-	GetDefaultEmbeddingProvider(ctx context.Context, userID string) (*models.EmbeddingProvider, error)
+	DeleteEmbeddingProvider(ctx context.Context, teamID, providerID string) error
+	GetDefaultEmbeddingProvider(ctx context.Context, teamID string) (*models.EmbeddingProvider, error)
 	ValidateEmbeddingProvider(ctx context.Context, req models.ValidateEmbeddingProviderRequest,
 	) (*models.ValidateEmbeddingProviderResponse, error)
 	// ResolveActiveProvider resolves the single system-wide embedding provider used

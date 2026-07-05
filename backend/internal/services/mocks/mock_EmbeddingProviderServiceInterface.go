@@ -24,9 +24,9 @@ func (_m *MockEmbeddingProviderServiceInterface) EXPECT() *MockEmbeddingProvider
 	return &MockEmbeddingProviderServiceInterface_Expecter{mock: &_m.Mock}
 }
 
-// CreateEmbeddingProvider provides a mock function with given fields: ctx, userID, req
-func (_m *MockEmbeddingProviderServiceInterface) CreateEmbeddingProvider(ctx context.Context, userID string, req models.CreateEmbeddingProviderRequest) (*models.EmbeddingProvider, error) {
-	ret := _m.Called(ctx, userID, req)
+// CreateEmbeddingProvider provides a mock function with given fields: ctx, teamID, userID, req
+func (_m *MockEmbeddingProviderServiceInterface) CreateEmbeddingProvider(ctx context.Context, teamID string, userID string, req models.CreateEmbeddingProviderRequest) (*models.EmbeddingProvider, error) {
+	ret := _m.Called(ctx, teamID, userID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateEmbeddingProvider")
@@ -34,19 +34,19 @@ func (_m *MockEmbeddingProviderServiceInterface) CreateEmbeddingProvider(ctx con
 
 	var r0 *models.EmbeddingProvider
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, models.CreateEmbeddingProviderRequest) (*models.EmbeddingProvider, error)); ok {
-		return rf(ctx, userID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.CreateEmbeddingProviderRequest) (*models.EmbeddingProvider, error)); ok {
+		return rf(ctx, teamID, userID, req)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, models.CreateEmbeddingProviderRequest) *models.EmbeddingProvider); ok {
-		r0 = rf(ctx, userID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.CreateEmbeddingProviderRequest) *models.EmbeddingProvider); ok {
+		r0 = rf(ctx, teamID, userID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.EmbeddingProvider)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, models.CreateEmbeddingProviderRequest) error); ok {
-		r1 = rf(ctx, userID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, models.CreateEmbeddingProviderRequest) error); ok {
+		r1 = rf(ctx, teamID, userID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -61,15 +61,16 @@ type MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call struct {
 
 // CreateEmbeddingProvider is a helper method to define mock.On call
 //   - ctx context.Context
+//   - teamID string
 //   - userID string
 //   - req models.CreateEmbeddingProviderRequest
-func (_e *MockEmbeddingProviderServiceInterface_Expecter) CreateEmbeddingProvider(ctx interface{}, userID interface{}, req interface{}) *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call {
-	return &MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call{Call: _e.mock.On("CreateEmbeddingProvider", ctx, userID, req)}
+func (_e *MockEmbeddingProviderServiceInterface_Expecter) CreateEmbeddingProvider(ctx interface{}, teamID interface{}, userID interface{}, req interface{}) *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call {
+	return &MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call{Call: _e.mock.On("CreateEmbeddingProvider", ctx, teamID, userID, req)}
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call) Run(run func(ctx context.Context, userID string, req models.CreateEmbeddingProviderRequest)) *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call {
+func (_c *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call) Run(run func(ctx context.Context, teamID string, userID string, req models.CreateEmbeddingProviderRequest)) *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(models.CreateEmbeddingProviderRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(models.CreateEmbeddingProviderRequest))
 	})
 	return _c
 }
@@ -79,14 +80,14 @@ func (_c *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call) Re
 	return _c
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call) RunAndReturn(run func(context.Context, string, models.CreateEmbeddingProviderRequest) (*models.EmbeddingProvider, error)) *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call {
+func (_c *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call) RunAndReturn(run func(context.Context, string, string, models.CreateEmbeddingProviderRequest) (*models.EmbeddingProvider, error)) *MockEmbeddingProviderServiceInterface_CreateEmbeddingProvider_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteEmbeddingProvider provides a mock function with given fields: ctx, userID, providerID
-func (_m *MockEmbeddingProviderServiceInterface) DeleteEmbeddingProvider(ctx context.Context, userID string, providerID string) error {
-	ret := _m.Called(ctx, userID, providerID)
+// DeleteEmbeddingProvider provides a mock function with given fields: ctx, teamID, providerID
+func (_m *MockEmbeddingProviderServiceInterface) DeleteEmbeddingProvider(ctx context.Context, teamID string, providerID string) error {
+	ret := _m.Called(ctx, teamID, providerID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteEmbeddingProvider")
@@ -94,7 +95,7 @@ func (_m *MockEmbeddingProviderServiceInterface) DeleteEmbeddingProvider(ctx con
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = rf(ctx, userID, providerID)
+		r0 = rf(ctx, teamID, providerID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -109,13 +110,13 @@ type MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call struct {
 
 // DeleteEmbeddingProvider is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
+//   - teamID string
 //   - providerID string
-func (_e *MockEmbeddingProviderServiceInterface_Expecter) DeleteEmbeddingProvider(ctx interface{}, userID interface{}, providerID interface{}) *MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call {
-	return &MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call{Call: _e.mock.On("DeleteEmbeddingProvider", ctx, userID, providerID)}
+func (_e *MockEmbeddingProviderServiceInterface_Expecter) DeleteEmbeddingProvider(ctx interface{}, teamID interface{}, providerID interface{}) *MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call {
+	return &MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call{Call: _e.mock.On("DeleteEmbeddingProvider", ctx, teamID, providerID)}
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call) Run(run func(ctx context.Context, userID string, providerID string)) *MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call {
+func (_c *MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call) Run(run func(ctx context.Context, teamID string, providerID string)) *MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
@@ -132,9 +133,9 @@ func (_c *MockEmbeddingProviderServiceInterface_DeleteEmbeddingProvider_Call) Ru
 	return _c
 }
 
-// GetDefaultEmbeddingProvider provides a mock function with given fields: ctx, userID
-func (_m *MockEmbeddingProviderServiceInterface) GetDefaultEmbeddingProvider(ctx context.Context, userID string) (*models.EmbeddingProvider, error) {
-	ret := _m.Called(ctx, userID)
+// GetDefaultEmbeddingProvider provides a mock function with given fields: ctx, teamID
+func (_m *MockEmbeddingProviderServiceInterface) GetDefaultEmbeddingProvider(ctx context.Context, teamID string) (*models.EmbeddingProvider, error) {
+	ret := _m.Called(ctx, teamID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetDefaultEmbeddingProvider")
@@ -143,10 +144,10 @@ func (_m *MockEmbeddingProviderServiceInterface) GetDefaultEmbeddingProvider(ctx
 	var r0 *models.EmbeddingProvider
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.EmbeddingProvider, error)); ok {
-		return rf(ctx, userID)
+		return rf(ctx, teamID)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string) *models.EmbeddingProvider); ok {
-		r0 = rf(ctx, userID)
+		r0 = rf(ctx, teamID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.EmbeddingProvider)
@@ -154,7 +155,7 @@ func (_m *MockEmbeddingProviderServiceInterface) GetDefaultEmbeddingProvider(ctx
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, userID)
+		r1 = rf(ctx, teamID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -169,12 +170,12 @@ type MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call stru
 
 // GetDefaultEmbeddingProvider is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
-func (_e *MockEmbeddingProviderServiceInterface_Expecter) GetDefaultEmbeddingProvider(ctx interface{}, userID interface{}) *MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call {
-	return &MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call{Call: _e.mock.On("GetDefaultEmbeddingProvider", ctx, userID)}
+//   - teamID string
+func (_e *MockEmbeddingProviderServiceInterface_Expecter) GetDefaultEmbeddingProvider(ctx interface{}, teamID interface{}) *MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call {
+	return &MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call{Call: _e.mock.On("GetDefaultEmbeddingProvider", ctx, teamID)}
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call) Run(run func(ctx context.Context, userID string)) *MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call {
+func (_c *MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call) Run(run func(ctx context.Context, teamID string)) *MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string))
 	})
@@ -191,9 +192,9 @@ func (_c *MockEmbeddingProviderServiceInterface_GetDefaultEmbeddingProvider_Call
 	return _c
 }
 
-// GetEmbeddingProvider provides a mock function with given fields: ctx, userID, providerID
-func (_m *MockEmbeddingProviderServiceInterface) GetEmbeddingProvider(ctx context.Context, userID string, providerID string) (*models.EmbeddingProviderResponse, error) {
-	ret := _m.Called(ctx, userID, providerID)
+// GetEmbeddingProvider provides a mock function with given fields: ctx, teamID, providerID
+func (_m *MockEmbeddingProviderServiceInterface) GetEmbeddingProvider(ctx context.Context, teamID string, providerID string) (*models.EmbeddingProviderResponse, error) {
+	ret := _m.Called(ctx, teamID, providerID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetEmbeddingProvider")
@@ -202,10 +203,10 @@ func (_m *MockEmbeddingProviderServiceInterface) GetEmbeddingProvider(ctx contex
 	var r0 *models.EmbeddingProviderResponse
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*models.EmbeddingProviderResponse, error)); ok {
-		return rf(ctx, userID, providerID)
+		return rf(ctx, teamID, providerID)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) *models.EmbeddingProviderResponse); ok {
-		r0 = rf(ctx, userID, providerID)
+		r0 = rf(ctx, teamID, providerID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.EmbeddingProviderResponse)
@@ -213,7 +214,7 @@ func (_m *MockEmbeddingProviderServiceInterface) GetEmbeddingProvider(ctx contex
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, userID, providerID)
+		r1 = rf(ctx, teamID, providerID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -228,13 +229,13 @@ type MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call struct {
 
 // GetEmbeddingProvider is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
+//   - teamID string
 //   - providerID string
-func (_e *MockEmbeddingProviderServiceInterface_Expecter) GetEmbeddingProvider(ctx interface{}, userID interface{}, providerID interface{}) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call {
-	return &MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call{Call: _e.mock.On("GetEmbeddingProvider", ctx, userID, providerID)}
+func (_e *MockEmbeddingProviderServiceInterface_Expecter) GetEmbeddingProvider(ctx interface{}, teamID interface{}, providerID interface{}) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call {
+	return &MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call{Call: _e.mock.On("GetEmbeddingProvider", ctx, teamID, providerID)}
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call) Run(run func(ctx context.Context, userID string, providerID string)) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call {
+func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call) Run(run func(ctx context.Context, teamID string, providerID string)) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
@@ -251,21 +252,21 @@ func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvider_Call) RunAn
 	return _c
 }
 
-// GetEmbeddingProvidersByUserID provides a mock function with given fields: ctx, userID
-func (_m *MockEmbeddingProviderServiceInterface) GetEmbeddingProvidersByUserID(ctx context.Context, userID string) ([]models.EmbeddingProviderResponse, error) {
-	ret := _m.Called(ctx, userID)
+// GetEmbeddingProvidersByTeamID provides a mock function with given fields: ctx, teamID
+func (_m *MockEmbeddingProviderServiceInterface) GetEmbeddingProvidersByTeamID(ctx context.Context, teamID string) ([]models.EmbeddingProviderResponse, error) {
+	ret := _m.Called(ctx, teamID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetEmbeddingProvidersByUserID")
+		panic("no return value specified for GetEmbeddingProvidersByTeamID")
 	}
 
 	var r0 []models.EmbeddingProviderResponse
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.EmbeddingProviderResponse, error)); ok {
-		return rf(ctx, userID)
+		return rf(ctx, teamID)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string) []models.EmbeddingProviderResponse); ok {
-		r0 = rf(ctx, userID)
+		r0 = rf(ctx, teamID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.EmbeddingProviderResponse)
@@ -273,7 +274,7 @@ func (_m *MockEmbeddingProviderServiceInterface) GetEmbeddingProvidersByUserID(c
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, userID)
+		r1 = rf(ctx, teamID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -281,31 +282,31 @@ func (_m *MockEmbeddingProviderServiceInterface) GetEmbeddingProvidersByUserID(c
 	return r0, r1
 }
 
-// MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEmbeddingProvidersByUserID'
-type MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call struct {
+// MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEmbeddingProvidersByTeamID'
+type MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call struct {
 	*mock.Call
 }
 
-// GetEmbeddingProvidersByUserID is a helper method to define mock.On call
+// GetEmbeddingProvidersByTeamID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
-func (_e *MockEmbeddingProviderServiceInterface_Expecter) GetEmbeddingProvidersByUserID(ctx interface{}, userID interface{}) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call {
-	return &MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call{Call: _e.mock.On("GetEmbeddingProvidersByUserID", ctx, userID)}
+//   - teamID string
+func (_e *MockEmbeddingProviderServiceInterface_Expecter) GetEmbeddingProvidersByTeamID(ctx interface{}, teamID interface{}) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call {
+	return &MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call{Call: _e.mock.On("GetEmbeddingProvidersByTeamID", ctx, teamID)}
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call) Run(run func(ctx context.Context, userID string)) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call {
+func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call) Run(run func(ctx context.Context, teamID string)) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call) Return(_a0 []models.EmbeddingProviderResponse, _a1 error) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call {
+func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call) Return(_a0 []models.EmbeddingProviderResponse, _a1 error) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call) RunAndReturn(run func(context.Context, string) ([]models.EmbeddingProviderResponse, error)) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByUserID_Call {
+func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call) RunAndReturn(run func(context.Context, string) ([]models.EmbeddingProviderResponse, error)) *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -370,9 +371,9 @@ func (_c *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call) RunA
 	return _c
 }
 
-// UpdateEmbeddingProvider provides a mock function with given fields: ctx, userID, providerID, req
-func (_m *MockEmbeddingProviderServiceInterface) UpdateEmbeddingProvider(ctx context.Context, userID string, providerID string, req models.UpdateEmbeddingProviderRequest) (*models.EmbeddingProvider, error) {
-	ret := _m.Called(ctx, userID, providerID, req)
+// UpdateEmbeddingProvider provides a mock function with given fields: ctx, teamID, providerID, req
+func (_m *MockEmbeddingProviderServiceInterface) UpdateEmbeddingProvider(ctx context.Context, teamID string, providerID string, req models.UpdateEmbeddingProviderRequest) (*models.EmbeddingProvider, error) {
+	ret := _m.Called(ctx, teamID, providerID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateEmbeddingProvider")
@@ -381,10 +382,10 @@ func (_m *MockEmbeddingProviderServiceInterface) UpdateEmbeddingProvider(ctx con
 	var r0 *models.EmbeddingProvider
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.UpdateEmbeddingProviderRequest) (*models.EmbeddingProvider, error)); ok {
-		return rf(ctx, userID, providerID, req)
+		return rf(ctx, teamID, providerID, req)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.UpdateEmbeddingProviderRequest) *models.EmbeddingProvider); ok {
-		r0 = rf(ctx, userID, providerID, req)
+		r0 = rf(ctx, teamID, providerID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.EmbeddingProvider)
@@ -392,7 +393,7 @@ func (_m *MockEmbeddingProviderServiceInterface) UpdateEmbeddingProvider(ctx con
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string, string, models.UpdateEmbeddingProviderRequest) error); ok {
-		r1 = rf(ctx, userID, providerID, req)
+		r1 = rf(ctx, teamID, providerID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -407,14 +408,14 @@ type MockEmbeddingProviderServiceInterface_UpdateEmbeddingProvider_Call struct {
 
 // UpdateEmbeddingProvider is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
+//   - teamID string
 //   - providerID string
 //   - req models.UpdateEmbeddingProviderRequest
-func (_e *MockEmbeddingProviderServiceInterface_Expecter) UpdateEmbeddingProvider(ctx interface{}, userID interface{}, providerID interface{}, req interface{}) *MockEmbeddingProviderServiceInterface_UpdateEmbeddingProvider_Call {
-	return &MockEmbeddingProviderServiceInterface_UpdateEmbeddingProvider_Call{Call: _e.mock.On("UpdateEmbeddingProvider", ctx, userID, providerID, req)}
+func (_e *MockEmbeddingProviderServiceInterface_Expecter) UpdateEmbeddingProvider(ctx interface{}, teamID interface{}, providerID interface{}, req interface{}) *MockEmbeddingProviderServiceInterface_UpdateEmbeddingProvider_Call {
+	return &MockEmbeddingProviderServiceInterface_UpdateEmbeddingProvider_Call{Call: _e.mock.On("UpdateEmbeddingProvider", ctx, teamID, providerID, req)}
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_UpdateEmbeddingProvider_Call) Run(run func(ctx context.Context, userID string, providerID string, req models.UpdateEmbeddingProviderRequest)) *MockEmbeddingProviderServiceInterface_UpdateEmbeddingProvider_Call {
+func (_c *MockEmbeddingProviderServiceInterface_UpdateEmbeddingProvider_Call) Run(run func(ctx context.Context, teamID string, providerID string, req models.UpdateEmbeddingProviderRequest)) *MockEmbeddingProviderServiceInterface_UpdateEmbeddingProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(models.UpdateEmbeddingProviderRequest))
 	})

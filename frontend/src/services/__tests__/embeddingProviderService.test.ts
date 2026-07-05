@@ -59,11 +59,13 @@ describe('EmbeddingProviderService', () => {
     it('should create embedding provider successfully', async () => {
       mockApiClient.post.mockResolvedValue(mockResponse)
 
-      const result =
-        await embeddingProviderService.createEmbeddingProvider(mockRequest)
+      const result = await embeddingProviderService.createEmbeddingProvider(
+        'team-1',
+        mockRequest
+      )
 
       expect(mockApiClient.post).toHaveBeenCalledWith(
-        '/settings/embedding-providers',
+        '/team-1/settings/embedding-providers',
         mockRequest
       )
       expect(result).toEqual(mockResponse)
@@ -82,10 +84,10 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.post.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow(ApiError)
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow('Authentication token is invalid or expired')
     })
 
@@ -102,7 +104,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.post.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow('Invalid API key format')
     })
 
@@ -110,7 +112,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.post.mockRejectedValue(new Error('Network error'))
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow('Network error')
     })
   })
@@ -152,10 +154,11 @@ describe('EmbeddingProviderService', () => {
     it('should get embedding providers successfully', async () => {
       mockApiClient.get.mockResolvedValue(mockProviders)
 
-      const result = await embeddingProviderService.getEmbeddingProviders()
+      const result =
+        await embeddingProviderService.getEmbeddingProviders('team-1')
 
       expect(mockApiClient.get).toHaveBeenCalledWith(
-        '/settings/embedding-providers'
+        '/team-1/settings/embedding-providers'
       )
       expect(result).toEqual(mockProviders)
     })
@@ -173,10 +176,10 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.get.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow(ApiError)
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow('Authentication token is invalid or expired')
     })
 
@@ -193,7 +196,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.get.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow('Failed to retrieve embedding providers')
     })
 
@@ -201,7 +204,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.get.mockRejectedValue(new Error('Network error'))
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow('Network error')
     })
   })
@@ -227,11 +230,13 @@ describe('EmbeddingProviderService', () => {
     it('should get embedding provider successfully', async () => {
       mockApiClient.get.mockResolvedValue(mockProvider)
 
-      const result =
-        await embeddingProviderService.getEmbeddingProvider(providerId)
+      const result = await embeddingProviderService.getEmbeddingProvider(
+        'team-1',
+        providerId
+      )
 
       expect(mockApiClient.get).toHaveBeenCalledWith(
-        `/settings/embedding-providers/${providerId}`
+        `/team-1/settings/embedding-providers/${providerId}`
       )
       expect(result).toEqual(mockProvider)
     })
@@ -249,10 +254,10 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.get.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.getEmbeddingProvider(providerId)
+        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow(ApiError)
       await expect(
-        embeddingProviderService.getEmbeddingProvider(providerId)
+        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Authentication token is invalid or expired')
     })
 
@@ -269,11 +274,11 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.get.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.getEmbeddingProvider(providerId)
+        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Embedding provider not found')
 
       const error = (await embeddingProviderService
-        .getEmbeddingProvider(providerId)
+        .getEmbeddingProvider('team-1', providerId)
         .catch((e: unknown) => e)) as ApiError
       expect(error.isNotFoundError()).toBe(true)
     })
@@ -282,7 +287,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.get.mockRejectedValue(new Error('Network error'))
 
       await expect(
-        embeddingProviderService.getEmbeddingProvider(providerId)
+        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Network error')
     })
   })
@@ -317,12 +322,13 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.put.mockResolvedValue(mockResponse)
 
       const result = await embeddingProviderService.updateEmbeddingProvider(
+        'team-1',
         providerId,
         mockRequest
       )
 
       expect(mockApiClient.put).toHaveBeenCalledWith(
-        `/settings/embedding-providers/${providerId}`,
+        `/team-1/settings/embedding-providers/${providerId}`,
         mockRequest
       )
       expect(result).toEqual(mockResponse)
@@ -342,12 +348,14 @@ describe('EmbeddingProviderService', () => {
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
       ).rejects.toThrow(ApiError)
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
@@ -368,6 +376,7 @@ describe('EmbeddingProviderService', () => {
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
@@ -388,6 +397,7 @@ describe('EmbeddingProviderService', () => {
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
@@ -399,6 +409,7 @@ describe('EmbeddingProviderService', () => {
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
@@ -413,11 +424,11 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.delete.mockResolvedValue({})
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).resolves.toBeUndefined()
 
       expect(mockApiClient.delete).toHaveBeenCalledWith(
-        `/settings/embedding-providers/${providerId}`
+        `/team-1/settings/embedding-providers/${providerId}`
       )
     })
 
@@ -434,10 +445,10 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.delete.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow(ApiError)
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Authentication token is invalid or expired')
     })
 
@@ -454,7 +465,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.delete.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Embedding provider not found')
     })
 
@@ -471,7 +482,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.delete.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow(
         'Failed to delete embedding provider due to database error'
       )
@@ -481,7 +492,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.delete.mockRejectedValue(new Error('Network error'))
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Network error')
     })
   })
@@ -509,11 +520,13 @@ describe('EmbeddingProviderService', () => {
     it('should validate embedding provider successfully', async () => {
       mockApiClient.post.mockResolvedValue(mockResponse)
 
-      const result =
-        await embeddingProviderService.validateEmbeddingProvider(mockRequest)
+      const result = await embeddingProviderService.validateEmbeddingProvider(
+        'team-1',
+        mockRequest
+      )
 
       expect(mockApiClient.post).toHaveBeenCalledWith(
-        '/settings/embedding-providers/validate',
+        '/team-1/settings/embedding-providers/validate',
         mockRequest
       )
       expect(result).toEqual(mockResponse)
@@ -532,8 +545,10 @@ describe('EmbeddingProviderService', () => {
 
       mockApiClient.post.mockResolvedValue(invalidResponse)
 
-      const result =
-        await embeddingProviderService.validateEmbeddingProvider(mockRequest)
+      const result = await embeddingProviderService.validateEmbeddingProvider(
+        'team-1',
+        mockRequest
+      )
 
       expect(result).toEqual(invalidResponse)
       expect(result.is_valid).toBe(false)
@@ -552,10 +567,16 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.post.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(mockRequest)
+        embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          mockRequest
+        )
       ).rejects.toThrow(ApiError)
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(mockRequest)
+        embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          mockRequest
+        )
       ).rejects.toThrow('Authentication token is invalid or expired')
     })
 
@@ -572,7 +593,10 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.post.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(mockRequest)
+        embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          mockRequest
+        )
       ).rejects.toThrow('Validation service is temporarily unavailable')
     })
 
@@ -580,7 +604,10 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.post.mockRejectedValue(new Error('Network error'))
 
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(mockRequest)
+        embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          mockRequest
+        )
       ).rejects.toThrow('Network error')
     })
   })
@@ -596,7 +623,7 @@ describe('EmbeddingProviderService', () => {
       }
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow('Invalid JSON')
     })
 
@@ -604,7 +631,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.get.mockRejectedValue(new Error('Invalid JSON'))
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow('Invalid JSON')
     })
 
@@ -618,7 +645,10 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.post.mockRejectedValue(new Error('Invalid JSON'))
 
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(mockRequest)
+        embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          mockRequest
+        )
       ).rejects.toThrow('Invalid JSON')
     })
   })
@@ -650,14 +680,17 @@ describe('EmbeddingProviderService', () => {
       // Create provider
       mockApiClient.post.mockResolvedValueOnce(createdProvider)
 
-      const created =
-        await embeddingProviderService.createEmbeddingProvider(createRequest)
+      const created = await embeddingProviderService.createEmbeddingProvider(
+        'team-1',
+        createRequest
+      )
       expect(created).toEqual(createdProvider)
 
       // Get provider
       mockApiClient.get.mockResolvedValueOnce(createdProvider)
 
       const retrieved = await embeddingProviderService.getEmbeddingProvider(
+        'team-1',
         created.id
       )
       expect(retrieved).toEqual(createdProvider)
@@ -674,6 +707,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.put.mockResolvedValueOnce(updatedProvider)
 
       const updated = await embeddingProviderService.updateEmbeddingProvider(
+        'team-1',
         created.id,
         updateRequest
       )
@@ -683,7 +717,7 @@ describe('EmbeddingProviderService', () => {
       mockApiClient.delete.mockResolvedValueOnce({})
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(created.id)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', created.id)
       ).resolves.toBeUndefined()
     })
 
@@ -705,6 +739,7 @@ describe('EmbeddingProviderService', () => {
 
       const validation =
         await embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
           validateRequest
         )
       expect(validation.is_valid).toBe(true)
@@ -737,8 +772,10 @@ describe('EmbeddingProviderService', () => {
 
         mockApiClient.post.mockResolvedValueOnce(createdProvider)
 
-        const created =
-          await embeddingProviderService.createEmbeddingProvider(createRequest)
+        const created = await embeddingProviderService.createEmbeddingProvider(
+          'team-1',
+          createRequest
+        )
         expect(created).toEqual(createdProvider)
       }
     })

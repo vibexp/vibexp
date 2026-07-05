@@ -50,17 +50,17 @@ func (r *EmbeddingProviderRepository) Create(ctx context.Context, provider *mode
 
 // GetByID retrieves an embedding provider by its ID
 func (r *EmbeddingProviderRepository) GetByID(
-	ctx context.Context, userID, providerID string,
+	ctx context.Context, teamID, providerID string,
 ) (*models.EmbeddingProvider, error) {
 	query := `
 		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
 		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at, version
 		FROM embedding_providers
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1 AND team_id = $2
 	`
 
 	var provider models.EmbeddingProvider
-	err := r.db.QueryRowContext(ctx, query, providerID, userID).Scan(
+	err := r.db.QueryRowContext(ctx, query, providerID, teamID).Scan(
 		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
@@ -79,10 +79,10 @@ func (r *EmbeddingProviderRepository) GetByID(
 
 // List retrieves embedding providers with filtering and pagination
 func (r *EmbeddingProviderRepository) List(
-	ctx context.Context, userID string, filters repositories.EmbeddingProviderFilters,
+	ctx context.Context, teamID string, filters repositories.EmbeddingProviderFilters,
 ) ([]models.EmbeddingProvider, int, error) {
 	// Shared WHERE conditions guarantee the count and page queries can never diverge.
-	where := squirrel.And{squirrel.Eq{"user_id": userID}}
+	where := squirrel.And{squirrel.Eq{"team_id": teamID}}
 	if filters.ProviderType != nil && *filters.ProviderType != "" {
 		where = append(where, squirrel.Eq{"provider_type": *filters.ProviderType})
 	}
@@ -197,7 +197,7 @@ func (r *EmbeddingProviderRepository) Update(ctx context.Context, provider *mode
 		SET name = $2, provider_type = $3, model = $4, chunk_size = $5, chunk_overlap = $6,
 		is_default = $7, base_url = $8, api_key_encrypted = $9, configuration = $10,
 		updated_at = $11, version = version + 1
-		WHERE id = $1 AND user_id = $12 AND version = $13
+		WHERE id = $1 AND team_id = $12 AND version = $13
 		RETURNING updated_at, version
 	`
 
@@ -205,7 +205,7 @@ func (r *EmbeddingProviderRepository) Update(ctx context.Context, provider *mode
 		provider.ID, provider.Name, provider.ProviderType, provider.Model,
 		provider.ChunkSize, provider.ChunkOverlap, provider.IsDefault,
 		provider.BaseURL, provider.APIKeyEncrypted, provider.Configuration,
-		provider.UpdatedAt, provider.UserID, provider.Version,
+		provider.UpdatedAt, provider.TeamID, provider.Version,
 	).Scan(&provider.UpdatedAt, &provider.Version)
 
 	if err != nil {
@@ -219,10 +219,10 @@ func (r *EmbeddingProviderRepository) Update(ctx context.Context, provider *mode
 }
 
 // Delete deletes an embedding provider
-func (r *EmbeddingProviderRepository) Delete(ctx context.Context, userID, providerID string) error {
-	query := `DELETE FROM embedding_providers WHERE id = $1 AND user_id = $2`
+func (r *EmbeddingProviderRepository) Delete(ctx context.Context, teamID, providerID string) error {
+	query := `DELETE FROM embedding_providers WHERE id = $1 AND team_id = $2`
 
-	result, err := r.db.ExecContext(ctx, query, providerID, userID)
+	result, err := r.db.ExecContext(ctx, query, providerID, teamID)
 	if err != nil {
 		return fmt.Errorf("failed to delete embedding provider: %w", err)
 	}
@@ -241,18 +241,18 @@ func (r *EmbeddingProviderRepository) Delete(ctx context.Context, userID, provid
 
 // GetDefault retrieves the default embedding provider for a user
 func (r *EmbeddingProviderRepository) GetDefault(
-	ctx context.Context, userID string,
+	ctx context.Context, teamID string,
 ) (*models.EmbeddingProvider, error) {
 	query := `
 		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
 		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at
 		FROM embedding_providers
-		WHERE user_id = $1 AND is_default = true
+		WHERE team_id = $1 AND is_default = true
 		LIMIT 1
 	`
 
 	var provider models.EmbeddingProvider
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+	err := r.db.QueryRowContext(ctx, query, teamID).Scan(
 		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
@@ -304,7 +304,7 @@ func (r *EmbeddingProviderRepository) GetActiveProvider(
 }
 
 // SetDefault sets an embedding provider as the default for a user
-func (r *EmbeddingProviderRepository) SetDefault(ctx context.Context, userID, providerID string) error {
+func (r *EmbeddingProviderRepository) SetDefault(ctx context.Context, teamID, providerID string) error {
 	// Start a transaction to ensure atomicity
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -319,8 +319,8 @@ func (r *EmbeddingProviderRepository) SetDefault(ctx context.Context, userID, pr
 	// First, unset all defaults for the user
 	_, err = tx.ExecContext(
 		ctx,
-		"UPDATE embedding_providers SET is_default = false WHERE user_id = $1",
-		userID,
+		"UPDATE embedding_providers SET is_default = false WHERE team_id = $1",
+		teamID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to unset default providers: %w", err)
@@ -329,9 +329,9 @@ func (r *EmbeddingProviderRepository) SetDefault(ctx context.Context, userID, pr
 	// Then set the specified provider as default
 	result, err := tx.ExecContext(
 		ctx,
-		"UPDATE embedding_providers SET is_default = true WHERE id = $1 AND user_id = $2",
+		"UPDATE embedding_providers SET is_default = true WHERE id = $1 AND team_id = $2",
 		providerID,
-		userID,
+		teamID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to set default provider: %w", err)
@@ -355,10 +355,10 @@ func (r *EmbeddingProviderRepository) SetDefault(ctx context.Context, userID, pr
 }
 
 // UnsetAllDefaults unsets all default embedding providers for a user
-func (r *EmbeddingProviderRepository) UnsetAllDefaults(ctx context.Context, userID string) error {
-	query := `UPDATE embedding_providers SET is_default = false WHERE user_id = $1`
+func (r *EmbeddingProviderRepository) UnsetAllDefaults(ctx context.Context, teamID string) error {
+	query := `UPDATE embedding_providers SET is_default = false WHERE team_id = $1`
 
-	_, err := r.db.ExecContext(ctx, query, userID)
+	_, err := r.db.ExecContext(ctx, query, teamID)
 	if err != nil {
 		return fmt.Errorf("failed to unset all default providers: %w", err)
 	}
@@ -367,11 +367,11 @@ func (r *EmbeddingProviderRepository) UnsetAllDefaults(ctx context.Context, user
 }
 
 // Count returns the total number of embedding providers for a user
-func (r *EmbeddingProviderRepository) Count(ctx context.Context, userID string) (int, error) {
-	query := `SELECT COUNT(*) FROM embedding_providers WHERE user_id = $1`
+func (r *EmbeddingProviderRepository) Count(ctx context.Context, teamID string) (int, error) {
+	query := `SELECT COUNT(*) FROM embedding_providers WHERE team_id = $1`
 
 	var count int
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	err := r.db.QueryRowContext(ctx, query, teamID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count embedding providers: %w", err)
 	}

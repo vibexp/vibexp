@@ -490,20 +490,20 @@ type ArtifactFilters struct {
 // EmbeddingProviderRepository defines the interface for embedding provider data access operations
 type EmbeddingProviderRepository interface {
 	Create(ctx context.Context, provider *models.EmbeddingProvider) error
-	GetByID(ctx context.Context, userID, providerID string) (*models.EmbeddingProvider, error)
-	List(ctx context.Context, userID string, filters EmbeddingProviderFilters) ([]models.EmbeddingProvider, int, error)
+	GetByID(ctx context.Context, teamID, providerID string) (*models.EmbeddingProvider, error)
+	List(ctx context.Context, teamID string, filters EmbeddingProviderFilters) ([]models.EmbeddingProvider, int, error)
 	Update(ctx context.Context, provider *models.EmbeddingProvider) error
-	Delete(ctx context.Context, userID, providerID string) error
-	GetDefault(ctx context.Context, userID string) (*models.EmbeddingProvider, error)
+	Delete(ctx context.Context, teamID, providerID string) error
+	GetDefault(ctx context.Context, teamID string) (*models.EmbeddingProvider, error)
 	// GetActiveProvider resolves the single system-wide embedding provider used to
 	// generate document and query embeddings, independent of any one user. It
 	// prefers a default-flagged provider, then the most recently updated one, so a
 	// single-tenant self-host deployment with one configured provider resolves it
 	// deterministically. Returns ErrNoActiveEmbeddingProvider when none exists.
 	GetActiveProvider(ctx context.Context) (*models.EmbeddingProvider, error)
-	SetDefault(ctx context.Context, userID, providerID string) error
-	UnsetAllDefaults(ctx context.Context, userID string) error
-	Count(ctx context.Context, userID string) (int, error)
+	SetDefault(ctx context.Context, teamID, providerID string) error
+	UnsetAllDefaults(ctx context.Context, teamID string) error
+	Count(ctx context.Context, teamID string) (int, error)
 }
 
 // EmbeddingProviderFilters represents filters for embedding provider queries

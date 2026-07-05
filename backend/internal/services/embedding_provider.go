@@ -133,7 +133,7 @@ func (eps *EmbeddingProviderService) prepareConfiguration(req models.CreateEmbed
 }
 
 func (eps *EmbeddingProviderService) buildEmbeddingProvider(
-	userID string,
+	teamID, userID string,
 	req models.CreateEmbeddingProviderRequest,
 	encryptedAPIKey *string,
 	configJSON string,
@@ -155,6 +155,7 @@ func (eps *EmbeddingProviderService) buildEmbeddingProvider(
 	now := time.Now()
 	return &models.EmbeddingProvider{
 		UserID:          userID,
+		TeamID:          &teamID,
 		Name:            req.Name,
 		ProviderType:    req.ProviderType,
 		Model:           req.Model,
@@ -171,6 +172,7 @@ func (eps *EmbeddingProviderService) buildEmbeddingProvider(
 
 func (eps *EmbeddingProviderService) CreateEmbeddingProvider(
 	ctx context.Context,
+	teamID string,
 	userID string,
 	req models.CreateEmbeddingProviderRequest,
 ) (*models.EmbeddingProvider, error) {
@@ -188,7 +190,7 @@ func (eps *EmbeddingProviderService) CreateEmbeddingProvider(
 		return nil, err
 	}
 
-	provider := eps.buildEmbeddingProvider(userID, req, encryptedAPIKey, configJSON)
+	provider := eps.buildEmbeddingProvider(teamID, userID, req, encryptedAPIKey, configJSON)
 
 	if err := eps.repo.Create(ctx, provider); err != nil {
 		// Check for duplicate/already exists errors from the database
@@ -202,7 +204,7 @@ func (eps *EmbeddingProviderService) CreateEmbeddingProvider(
 	}
 
 	if req.IsDefault != nil && *req.IsDefault {
-		if err := eps.repo.SetDefault(ctx, userID, provider.ID); err != nil {
+		if err := eps.repo.SetDefault(ctx, teamID, provider.ID); err != nil {
 			return nil, fmt.Errorf("failed to set as default: %w", err)
 		}
 	}
@@ -210,8 +212,8 @@ func (eps *EmbeddingProviderService) CreateEmbeddingProvider(
 	return provider, nil
 }
 
-func (eps *EmbeddingProviderService) GetEmbeddingProvidersByUserID(
-	ctx context.Context, userID string,
+func (eps *EmbeddingProviderService) GetEmbeddingProvidersByTeamID(
+	ctx context.Context, teamID string,
 ) ([]models.EmbeddingProviderResponse, error) {
 	if eps == nil || eps.repo == nil {
 		return nil, fmt.Errorf("EmbeddingProviderService is nil")
@@ -223,7 +225,7 @@ func (eps *EmbeddingProviderService) GetEmbeddingProvidersByUserID(
 		Limit: 1000, // Get all providers for the user
 	}
 
-	providers, _, err := eps.repo.List(ctx, userID, filters)
+	providers, _, err := eps.repo.List(ctx, teamID, filters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query embedding providers: %w", err)
 	}
@@ -246,13 +248,13 @@ func (eps *EmbeddingProviderService) GetEmbeddingProvidersByUserID(
 }
 
 func (eps *EmbeddingProviderService) GetEmbeddingProvider(
-	ctx context.Context, userID, providerID string,
+	ctx context.Context, teamID, providerID string,
 ) (*models.EmbeddingProviderResponse, error) {
 	if eps == nil || eps.repo == nil {
 		return nil, fmt.Errorf("EmbeddingProviderService is nil")
 	}
 
-	provider, err := eps.repo.GetByID(ctx, userID, providerID)
+	provider, err := eps.repo.GetByID(ctx, teamID, providerID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
 	}
@@ -270,12 +272,12 @@ func (eps *EmbeddingProviderService) GetEmbeddingProvider(
 
 func (eps *EmbeddingProviderService) handleDefaultProviderUpdate(
 	ctx context.Context,
-	userID, providerID string,
+	teamID, providerID string,
 	req models.UpdateEmbeddingProviderRequest,
 	provider *models.EmbeddingProvider,
 ) error {
 	if req.IsDefault != nil && *req.IsDefault {
-		setDefaultErr := eps.repo.SetDefault(ctx, userID, providerID)
+		setDefaultErr := eps.repo.SetDefault(ctx, teamID, providerID)
 		if setDefaultErr != nil {
 			return fmt.Errorf("failed to set as default: %w", setDefaultErr)
 		}
@@ -355,19 +357,19 @@ func applyConfigurationUpdate(
 
 func (eps *EmbeddingProviderService) UpdateEmbeddingProvider(
 	ctx context.Context,
-	userID, providerID string,
+	teamID, providerID string,
 	req models.UpdateEmbeddingProviderRequest,
 ) (*models.EmbeddingProvider, error) {
 	if eps == nil || eps.repo == nil {
 		return nil, fmt.Errorf("EmbeddingProviderService is nil")
 	}
 
-	provider, err := eps.repo.GetByID(ctx, userID, providerID)
+	provider, err := eps.repo.GetByID(ctx, teamID, providerID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
 	}
 
-	err = eps.handleDefaultProviderUpdate(ctx, userID, providerID, req, provider)
+	err = eps.handleDefaultProviderUpdate(ctx, teamID, providerID, req, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -387,19 +389,19 @@ func (eps *EmbeddingProviderService) UpdateEmbeddingProvider(
 	return provider, nil
 }
 
-func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(ctx context.Context, userID, providerID string) error {
+func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(ctx context.Context, teamID, providerID string) error {
 	if eps == nil || eps.repo == nil {
 		return fmt.Errorf("EmbeddingProviderService is nil")
 	}
 
 	// First, verify the provider exists and belongs to the user (security check)
-	_, err := eps.repo.GetByID(ctx, userID, providerID)
+	_, err := eps.repo.GetByID(ctx, teamID, providerID)
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrProviderNotFound, providerID)
 	}
 
 	// Check if this is the last provider using the efficient Count method
-	count, err := eps.repo.Count(ctx, userID)
+	count, err := eps.repo.Count(ctx, teamID)
 	if err != nil {
 		return fmt.Errorf("failed to count embedding providers: %w", err)
 	}
@@ -409,7 +411,7 @@ func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(ctx context.Context
 	}
 
 	// Proceed with deletion
-	err = eps.repo.Delete(ctx, userID, providerID)
+	err = eps.repo.Delete(ctx, teamID, providerID)
 	if err != nil {
 		return fmt.Errorf("failed to delete embedding provider: %w", err)
 	}
@@ -418,13 +420,13 @@ func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(ctx context.Context
 }
 
 func (eps *EmbeddingProviderService) GetDefaultEmbeddingProvider(
-	ctx context.Context, userID string,
+	ctx context.Context, teamID string,
 ) (*models.EmbeddingProvider, error) {
 	if eps == nil || eps.repo == nil {
 		return nil, fmt.Errorf("EmbeddingProviderService is nil")
 	}
 
-	provider, err := eps.repo.GetDefault(ctx, userID)
+	provider, err := eps.repo.GetDefault(ctx, teamID)
 	if err != nil {
 		return nil, fmt.Errorf("no default embedding provider found: %w", err)
 	}

@@ -63,7 +63,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 			},
 			setupMock: func() {
 				countRows := sqlmock.NewRows([]string{"count"}).AddRow(2)
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(user_id = \$1\)`).
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(team_id = \$1\)`).
 					WithArgs("user-123").
 					WillReturnRows(countRows)
 
@@ -78,7 +78,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 					`SELECT id, user_id, team_id, name, provider_type, model, chunk_size, ` +
 						`chunk_overlap, is_default, base_url, ` +
 						`api_key_encrypted, configuration, created_at, updated_at ` +
-						`FROM embedding_providers WHERE \(user_id = \$1\) ` +
+						`FROM embedding_providers WHERE \(team_id = \$1\) ` +
 						`ORDER BY is_default DESC, created_at DESC LIMIT 10 OFFSET 0`,
 				).
 					WithArgs("user-123").
@@ -99,7 +99,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 			setupMock: func() {
 				countRows := sqlmock.NewRows([]string{"count"}).AddRow(1)
 				mock.ExpectQuery(
-					`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(user_id = \$1 AND provider_type = \$2\)`,
+					`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(team_id = \$1 AND provider_type = \$2\)`,
 				).
 					WithArgs("user-123", "openai").
 					WillReturnRows(countRows)
@@ -109,7 +109,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 
 				mock.ExpectQuery(
 					`SELECT .+ FROM embedding_providers `+
-						`WHERE \(user_id = \$1 AND provider_type = \$2\) `+
+						`WHERE \(team_id = \$1 AND provider_type = \$2\) `+
 						`ORDER BY is_default DESC, created_at DESC LIMIT 10 OFFSET 0`,
 				).
 					WithArgs("user-123", "openai").
@@ -129,12 +129,12 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 			},
 			setupMock: func() {
 				countRows := sqlmock.NewRows([]string{"count"}).AddRow(0)
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(user_id = \$1\)`).
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(team_id = \$1\)`).
 					WithArgs("user-123").
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns)
-				mock.ExpectQuery(`SELECT .+ FROM embedding_providers WHERE \(user_id = \$1\)`).
+				mock.ExpectQuery(`SELECT .+ FROM embedding_providers WHERE \(team_id = \$1\)`).
 					WithArgs("user-123").
 					WillReturnRows(rows)
 			},
@@ -151,7 +151,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 			},
 			setupMock: func() {
 				countRows := sqlmock.NewRows([]string{"count"}).AddRow(20)
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(user_id = \$1\)`).
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(team_id = \$1\)`).
 					WithArgs("user-123").
 					WillReturnRows(countRows)
 
@@ -160,7 +160,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 
 				// offset = (3-1)*5 = 10
 				mock.ExpectQuery(
-					`SELECT .+ FROM embedding_providers WHERE \(user_id = \$1\) ` +
+					`SELECT .+ FROM embedding_providers WHERE \(team_id = \$1\) ` +
 						`ORDER BY is_default DESC, created_at DESC LIMIT 5 OFFSET 10`,
 				).
 					WithArgs("user-123").
@@ -179,14 +179,14 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 			},
 			setupMock: func() {
 				countRows := sqlmock.NewRows([]string{"count"}).AddRow(3)
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(user_id = \$1\)`).
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(team_id = \$1\)`).
 					WithArgs("user-123").
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns)
 				// Negative inputs must clamp to zero, never wrap to huge uint64 values.
 				mock.ExpectQuery(
-					`SELECT .+ FROM embedding_providers WHERE \(user_id = \$1\) ` +
+					`SELECT .+ FROM embedding_providers WHERE \(team_id = \$1\) ` +
 						`ORDER BY is_default DESC, created_at DESC LIMIT 0 OFFSET 0`,
 				).
 					WithArgs("user-123").
@@ -205,12 +205,12 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 			},
 			setupMock: func() {
 				countRows := sqlmock.NewRows([]string{"count"}).AddRow(0)
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(user_id = \$1\)`).
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM embedding_providers WHERE \(team_id = \$1\)`).
 					WithArgs("user-empty").
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns)
-				mock.ExpectQuery(`SELECT .+ FROM embedding_providers WHERE \(user_id = \$1\)`).
+				mock.ExpectQuery(`SELECT .+ FROM embedding_providers WHERE \(team_id = \$1\)`).
 					WithArgs("user-empty").
 					WillReturnRows(rows)
 			},

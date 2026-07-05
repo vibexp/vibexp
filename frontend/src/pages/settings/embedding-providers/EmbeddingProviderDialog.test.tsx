@@ -41,6 +41,7 @@ const fillValidForm = async (user: ReturnType<typeof userEvent.setup>) => {
 const renderDialog = (onSubmit = jest.fn().mockResolvedValue(undefined)) => {
   render(
     <EmbeddingProviderDialog
+      teamId="team-1"
       open
       onOpenChange={jest.fn()}
       submitting={false}
@@ -79,6 +80,7 @@ describe('EmbeddingProviderDialog', () => {
 
     await waitFor(() => {
       expect(mockedValidate).toHaveBeenCalledWith(
+        'team-1',
         expect.objectContaining({ model: 'text-embedding-3-small' })
       )
     })
@@ -128,6 +130,7 @@ describe('EmbeddingProviderDialog', () => {
     const onSubmit = jest.fn().mockResolvedValue(undefined)
     render(
       <EmbeddingProviderDialog
+        teamId="team-1"
         open
         onOpenChange={jest.fn()}
         submitting={false}
@@ -153,6 +156,7 @@ describe('EmbeddingProviderDialog', () => {
     const onSubmit = jest.fn().mockResolvedValue(undefined)
     render(
       <EmbeddingProviderDialog
+        teamId="team-1"
         open
         onOpenChange={jest.fn()}
         submitting={false}
@@ -168,6 +172,7 @@ describe('EmbeddingProviderDialog', () => {
 
     await waitFor(() => {
       expect(mockedValidate).toHaveBeenCalledWith(
+        'team-1',
         expect.objectContaining({ model: 'text-embedding-3-large' })
       )
     })

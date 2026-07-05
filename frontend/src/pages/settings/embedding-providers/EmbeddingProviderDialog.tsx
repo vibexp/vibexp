@@ -53,6 +53,7 @@ const schema = z.object({
 export type EmbeddingProviderFormValues = z.infer<typeof schema>
 
 interface Props {
+  teamId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   provider?: EmbeddingProviderResponse
@@ -63,6 +64,7 @@ interface Props {
 }
 
 export function EmbeddingProviderDialog({
+  teamId,
   open,
   onOpenChange,
   provider,
@@ -119,6 +121,7 @@ export function EmbeddingProviderDialog({
       setValidating(true)
       try {
         const result = await embeddingProviderService.validateEmbeddingProvider(
+          teamId,
           {
             provider_type: values.provider_type,
             model,

@@ -24,9 +24,9 @@ func (_m *MockEmbeddingProviderRepository) EXPECT() *MockEmbeddingProviderReposi
 	return &MockEmbeddingProviderRepository_Expecter{mock: &_m.Mock}
 }
 
-// Count provides a mock function with given fields: ctx, userID
-func (_m *MockEmbeddingProviderRepository) Count(ctx context.Context, userID string) (int, error) {
-	ret := _m.Called(ctx, userID)
+// Count provides a mock function with given fields: ctx, teamID
+func (_m *MockEmbeddingProviderRepository) Count(ctx context.Context, teamID string) (int, error) {
+	ret := _m.Called(ctx, teamID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Count")
@@ -35,16 +35,16 @@ func (_m *MockEmbeddingProviderRepository) Count(ctx context.Context, userID str
 	var r0 int
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, string) (int, error)); ok {
-		return rf(ctx, userID)
+		return rf(ctx, teamID)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string) int); ok {
-		r0 = rf(ctx, userID)
+		r0 = rf(ctx, teamID)
 	} else {
 		r0 = ret.Get(0).(int)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, userID)
+		r1 = rf(ctx, teamID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -59,12 +59,12 @@ type MockEmbeddingProviderRepository_Count_Call struct {
 
 // Count is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
-func (_e *MockEmbeddingProviderRepository_Expecter) Count(ctx interface{}, userID interface{}) *MockEmbeddingProviderRepository_Count_Call {
-	return &MockEmbeddingProviderRepository_Count_Call{Call: _e.mock.On("Count", ctx, userID)}
+//   - teamID string
+func (_e *MockEmbeddingProviderRepository_Expecter) Count(ctx interface{}, teamID interface{}) *MockEmbeddingProviderRepository_Count_Call {
+	return &MockEmbeddingProviderRepository_Count_Call{Call: _e.mock.On("Count", ctx, teamID)}
 }
 
-func (_c *MockEmbeddingProviderRepository_Count_Call) Run(run func(ctx context.Context, userID string)) *MockEmbeddingProviderRepository_Count_Call {
+func (_c *MockEmbeddingProviderRepository_Count_Call) Run(run func(ctx context.Context, teamID string)) *MockEmbeddingProviderRepository_Count_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string))
 	})
@@ -128,9 +128,9 @@ func (_c *MockEmbeddingProviderRepository_Create_Call) RunAndReturn(run func(con
 	return _c
 }
 
-// Delete provides a mock function with given fields: ctx, userID, providerID
-func (_m *MockEmbeddingProviderRepository) Delete(ctx context.Context, userID string, providerID string) error {
-	ret := _m.Called(ctx, userID, providerID)
+// Delete provides a mock function with given fields: ctx, teamID, providerID
+func (_m *MockEmbeddingProviderRepository) Delete(ctx context.Context, teamID string, providerID string) error {
+	ret := _m.Called(ctx, teamID, providerID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Delete")
@@ -138,7 +138,7 @@ func (_m *MockEmbeddingProviderRepository) Delete(ctx context.Context, userID st
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = rf(ctx, userID, providerID)
+		r0 = rf(ctx, teamID, providerID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -153,13 +153,13 @@ type MockEmbeddingProviderRepository_Delete_Call struct {
 
 // Delete is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
+//   - teamID string
 //   - providerID string
-func (_e *MockEmbeddingProviderRepository_Expecter) Delete(ctx interface{}, userID interface{}, providerID interface{}) *MockEmbeddingProviderRepository_Delete_Call {
-	return &MockEmbeddingProviderRepository_Delete_Call{Call: _e.mock.On("Delete", ctx, userID, providerID)}
+func (_e *MockEmbeddingProviderRepository_Expecter) Delete(ctx interface{}, teamID interface{}, providerID interface{}) *MockEmbeddingProviderRepository_Delete_Call {
+	return &MockEmbeddingProviderRepository_Delete_Call{Call: _e.mock.On("Delete", ctx, teamID, providerID)}
 }
 
-func (_c *MockEmbeddingProviderRepository_Delete_Call) Run(run func(ctx context.Context, userID string, providerID string)) *MockEmbeddingProviderRepository_Delete_Call {
+func (_c *MockEmbeddingProviderRepository_Delete_Call) Run(run func(ctx context.Context, teamID string, providerID string)) *MockEmbeddingProviderRepository_Delete_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
@@ -234,9 +234,9 @@ func (_c *MockEmbeddingProviderRepository_GetActiveProvider_Call) RunAndReturn(r
 	return _c
 }
 
-// GetByID provides a mock function with given fields: ctx, userID, providerID
-func (_m *MockEmbeddingProviderRepository) GetByID(ctx context.Context, userID string, providerID string) (*models.EmbeddingProvider, error) {
-	ret := _m.Called(ctx, userID, providerID)
+// GetByID provides a mock function with given fields: ctx, teamID, providerID
+func (_m *MockEmbeddingProviderRepository) GetByID(ctx context.Context, teamID string, providerID string) (*models.EmbeddingProvider, error) {
+	ret := _m.Called(ctx, teamID, providerID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetByID")
@@ -245,10 +245,10 @@ func (_m *MockEmbeddingProviderRepository) GetByID(ctx context.Context, userID s
 	var r0 *models.EmbeddingProvider
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*models.EmbeddingProvider, error)); ok {
-		return rf(ctx, userID, providerID)
+		return rf(ctx, teamID, providerID)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) *models.EmbeddingProvider); ok {
-		r0 = rf(ctx, userID, providerID)
+		r0 = rf(ctx, teamID, providerID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.EmbeddingProvider)
@@ -256,7 +256,7 @@ func (_m *MockEmbeddingProviderRepository) GetByID(ctx context.Context, userID s
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, userID, providerID)
+		r1 = rf(ctx, teamID, providerID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -271,13 +271,13 @@ type MockEmbeddingProviderRepository_GetByID_Call struct {
 
 // GetByID is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
+//   - teamID string
 //   - providerID string
-func (_e *MockEmbeddingProviderRepository_Expecter) GetByID(ctx interface{}, userID interface{}, providerID interface{}) *MockEmbeddingProviderRepository_GetByID_Call {
-	return &MockEmbeddingProviderRepository_GetByID_Call{Call: _e.mock.On("GetByID", ctx, userID, providerID)}
+func (_e *MockEmbeddingProviderRepository_Expecter) GetByID(ctx interface{}, teamID interface{}, providerID interface{}) *MockEmbeddingProviderRepository_GetByID_Call {
+	return &MockEmbeddingProviderRepository_GetByID_Call{Call: _e.mock.On("GetByID", ctx, teamID, providerID)}
 }
 
-func (_c *MockEmbeddingProviderRepository_GetByID_Call) Run(run func(ctx context.Context, userID string, providerID string)) *MockEmbeddingProviderRepository_GetByID_Call {
+func (_c *MockEmbeddingProviderRepository_GetByID_Call) Run(run func(ctx context.Context, teamID string, providerID string)) *MockEmbeddingProviderRepository_GetByID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
@@ -294,9 +294,9 @@ func (_c *MockEmbeddingProviderRepository_GetByID_Call) RunAndReturn(run func(co
 	return _c
 }
 
-// GetDefault provides a mock function with given fields: ctx, userID
-func (_m *MockEmbeddingProviderRepository) GetDefault(ctx context.Context, userID string) (*models.EmbeddingProvider, error) {
-	ret := _m.Called(ctx, userID)
+// GetDefault provides a mock function with given fields: ctx, teamID
+func (_m *MockEmbeddingProviderRepository) GetDefault(ctx context.Context, teamID string) (*models.EmbeddingProvider, error) {
+	ret := _m.Called(ctx, teamID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetDefault")
@@ -305,10 +305,10 @@ func (_m *MockEmbeddingProviderRepository) GetDefault(ctx context.Context, userI
 	var r0 *models.EmbeddingProvider
 	var r1 error
 	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.EmbeddingProvider, error)); ok {
-		return rf(ctx, userID)
+		return rf(ctx, teamID)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string) *models.EmbeddingProvider); ok {
-		r0 = rf(ctx, userID)
+		r0 = rf(ctx, teamID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.EmbeddingProvider)
@@ -316,7 +316,7 @@ func (_m *MockEmbeddingProviderRepository) GetDefault(ctx context.Context, userI
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, userID)
+		r1 = rf(ctx, teamID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -331,12 +331,12 @@ type MockEmbeddingProviderRepository_GetDefault_Call struct {
 
 // GetDefault is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
-func (_e *MockEmbeddingProviderRepository_Expecter) GetDefault(ctx interface{}, userID interface{}) *MockEmbeddingProviderRepository_GetDefault_Call {
-	return &MockEmbeddingProviderRepository_GetDefault_Call{Call: _e.mock.On("GetDefault", ctx, userID)}
+//   - teamID string
+func (_e *MockEmbeddingProviderRepository_Expecter) GetDefault(ctx interface{}, teamID interface{}) *MockEmbeddingProviderRepository_GetDefault_Call {
+	return &MockEmbeddingProviderRepository_GetDefault_Call{Call: _e.mock.On("GetDefault", ctx, teamID)}
 }
 
-func (_c *MockEmbeddingProviderRepository_GetDefault_Call) Run(run func(ctx context.Context, userID string)) *MockEmbeddingProviderRepository_GetDefault_Call {
+func (_c *MockEmbeddingProviderRepository_GetDefault_Call) Run(run func(ctx context.Context, teamID string)) *MockEmbeddingProviderRepository_GetDefault_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string))
 	})
@@ -353,9 +353,9 @@ func (_c *MockEmbeddingProviderRepository_GetDefault_Call) RunAndReturn(run func
 	return _c
 }
 
-// List provides a mock function with given fields: ctx, userID, filters
-func (_m *MockEmbeddingProviderRepository) List(ctx context.Context, userID string, filters repositories.EmbeddingProviderFilters) ([]models.EmbeddingProvider, int, error) {
-	ret := _m.Called(ctx, userID, filters)
+// List provides a mock function with given fields: ctx, teamID, filters
+func (_m *MockEmbeddingProviderRepository) List(ctx context.Context, teamID string, filters repositories.EmbeddingProviderFilters) ([]models.EmbeddingProvider, int, error) {
+	ret := _m.Called(ctx, teamID, filters)
 
 	if len(ret) == 0 {
 		panic("no return value specified for List")
@@ -365,10 +365,10 @@ func (_m *MockEmbeddingProviderRepository) List(ctx context.Context, userID stri
 	var r1 int
 	var r2 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, repositories.EmbeddingProviderFilters) ([]models.EmbeddingProvider, int, error)); ok {
-		return rf(ctx, userID, filters)
+		return rf(ctx, teamID, filters)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string, repositories.EmbeddingProviderFilters) []models.EmbeddingProvider); ok {
-		r0 = rf(ctx, userID, filters)
+		r0 = rf(ctx, teamID, filters)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.EmbeddingProvider)
@@ -376,13 +376,13 @@ func (_m *MockEmbeddingProviderRepository) List(ctx context.Context, userID stri
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string, repositories.EmbeddingProviderFilters) int); ok {
-		r1 = rf(ctx, userID, filters)
+		r1 = rf(ctx, teamID, filters)
 	} else {
 		r1 = ret.Get(1).(int)
 	}
 
 	if rf, ok := ret.Get(2).(func(context.Context, string, repositories.EmbeddingProviderFilters) error); ok {
-		r2 = rf(ctx, userID, filters)
+		r2 = rf(ctx, teamID, filters)
 	} else {
 		r2 = ret.Error(2)
 	}
@@ -397,13 +397,13 @@ type MockEmbeddingProviderRepository_List_Call struct {
 
 // List is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
+//   - teamID string
 //   - filters repositories.EmbeddingProviderFilters
-func (_e *MockEmbeddingProviderRepository_Expecter) List(ctx interface{}, userID interface{}, filters interface{}) *MockEmbeddingProviderRepository_List_Call {
-	return &MockEmbeddingProviderRepository_List_Call{Call: _e.mock.On("List", ctx, userID, filters)}
+func (_e *MockEmbeddingProviderRepository_Expecter) List(ctx interface{}, teamID interface{}, filters interface{}) *MockEmbeddingProviderRepository_List_Call {
+	return &MockEmbeddingProviderRepository_List_Call{Call: _e.mock.On("List", ctx, teamID, filters)}
 }
 
-func (_c *MockEmbeddingProviderRepository_List_Call) Run(run func(ctx context.Context, userID string, filters repositories.EmbeddingProviderFilters)) *MockEmbeddingProviderRepository_List_Call {
+func (_c *MockEmbeddingProviderRepository_List_Call) Run(run func(ctx context.Context, teamID string, filters repositories.EmbeddingProviderFilters)) *MockEmbeddingProviderRepository_List_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(repositories.EmbeddingProviderFilters))
 	})
@@ -420,9 +420,9 @@ func (_c *MockEmbeddingProviderRepository_List_Call) RunAndReturn(run func(conte
 	return _c
 }
 
-// SetDefault provides a mock function with given fields: ctx, userID, providerID
-func (_m *MockEmbeddingProviderRepository) SetDefault(ctx context.Context, userID string, providerID string) error {
-	ret := _m.Called(ctx, userID, providerID)
+// SetDefault provides a mock function with given fields: ctx, teamID, providerID
+func (_m *MockEmbeddingProviderRepository) SetDefault(ctx context.Context, teamID string, providerID string) error {
+	ret := _m.Called(ctx, teamID, providerID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SetDefault")
@@ -430,7 +430,7 @@ func (_m *MockEmbeddingProviderRepository) SetDefault(ctx context.Context, userI
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = rf(ctx, userID, providerID)
+		r0 = rf(ctx, teamID, providerID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -445,13 +445,13 @@ type MockEmbeddingProviderRepository_SetDefault_Call struct {
 
 // SetDefault is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
+//   - teamID string
 //   - providerID string
-func (_e *MockEmbeddingProviderRepository_Expecter) SetDefault(ctx interface{}, userID interface{}, providerID interface{}) *MockEmbeddingProviderRepository_SetDefault_Call {
-	return &MockEmbeddingProviderRepository_SetDefault_Call{Call: _e.mock.On("SetDefault", ctx, userID, providerID)}
+func (_e *MockEmbeddingProviderRepository_Expecter) SetDefault(ctx interface{}, teamID interface{}, providerID interface{}) *MockEmbeddingProviderRepository_SetDefault_Call {
+	return &MockEmbeddingProviderRepository_SetDefault_Call{Call: _e.mock.On("SetDefault", ctx, teamID, providerID)}
 }
 
-func (_c *MockEmbeddingProviderRepository_SetDefault_Call) Run(run func(ctx context.Context, userID string, providerID string)) *MockEmbeddingProviderRepository_SetDefault_Call {
+func (_c *MockEmbeddingProviderRepository_SetDefault_Call) Run(run func(ctx context.Context, teamID string, providerID string)) *MockEmbeddingProviderRepository_SetDefault_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
@@ -468,9 +468,9 @@ func (_c *MockEmbeddingProviderRepository_SetDefault_Call) RunAndReturn(run func
 	return _c
 }
 
-// UnsetAllDefaults provides a mock function with given fields: ctx, userID
-func (_m *MockEmbeddingProviderRepository) UnsetAllDefaults(ctx context.Context, userID string) error {
-	ret := _m.Called(ctx, userID)
+// UnsetAllDefaults provides a mock function with given fields: ctx, teamID
+func (_m *MockEmbeddingProviderRepository) UnsetAllDefaults(ctx context.Context, teamID string) error {
+	ret := _m.Called(ctx, teamID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UnsetAllDefaults")
@@ -478,7 +478,7 @@ func (_m *MockEmbeddingProviderRepository) UnsetAllDefaults(ctx context.Context,
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, userID)
+		r0 = rf(ctx, teamID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -493,12 +493,12 @@ type MockEmbeddingProviderRepository_UnsetAllDefaults_Call struct {
 
 // UnsetAllDefaults is a helper method to define mock.On call
 //   - ctx context.Context
-//   - userID string
-func (_e *MockEmbeddingProviderRepository_Expecter) UnsetAllDefaults(ctx interface{}, userID interface{}) *MockEmbeddingProviderRepository_UnsetAllDefaults_Call {
-	return &MockEmbeddingProviderRepository_UnsetAllDefaults_Call{Call: _e.mock.On("UnsetAllDefaults", ctx, userID)}
+//   - teamID string
+func (_e *MockEmbeddingProviderRepository_Expecter) UnsetAllDefaults(ctx interface{}, teamID interface{}) *MockEmbeddingProviderRepository_UnsetAllDefaults_Call {
+	return &MockEmbeddingProviderRepository_UnsetAllDefaults_Call{Call: _e.mock.On("UnsetAllDefaults", ctx, teamID)}
 }
 
-func (_c *MockEmbeddingProviderRepository_UnsetAllDefaults_Call) Run(run func(ctx context.Context, userID string)) *MockEmbeddingProviderRepository_UnsetAllDefaults_Call {
+func (_c *MockEmbeddingProviderRepository_UnsetAllDefaults_Call) Run(run func(ctx context.Context, teamID string)) *MockEmbeddingProviderRepository_UnsetAllDefaults_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string))
 	})

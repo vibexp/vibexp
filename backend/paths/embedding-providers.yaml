@@ -3,6 +3,14 @@
 # note in openapi.yaml info.description.
 
 api-v1-embedding-providers:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team that owns the embedding provider(s).
+      schema:
+        type: string
+        format: uuid
   post:
     summary: Create embedding provider
     description: |
@@ -89,6 +97,14 @@ api-v1-embedding-providers:
       - Embedding Providers
 
 api-v1-embedding-providers-id:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team that owns the embedding provider(s).
+      schema:
+        type: string
+        format: uuid
   get:
     summary: Get embedding provider
     description: |
@@ -239,6 +255,14 @@ api-v1-embedding-providers-id:
       - Embedding Providers
 
 api-v1-embedding-providers-validate:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team that owns the embedding provider(s).
+      schema:
+        type: string
+        format: uuid
   post:
     summary: Validate embedding provider configuration
     description: |
@@ -285,6 +309,14 @@ api-v1-embedding-providers-validate:
       - Embedding Providers
 
 api-v1-settings-embedding-providers:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team that owns the embedding provider(s).
+      schema:
+        type: string
+        format: uuid
   post:
     summary: Create embedding provider (Settings)
     description: |
@@ -371,6 +403,14 @@ api-v1-settings-embedding-providers:
       - Settings
 
 api-v1-settings-embedding-providers-id:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team that owns the embedding provider(s).
+      schema:
+        type: string
+        format: uuid
   get:
     summary: Get embedding provider (Settings)
     description: |
@@ -522,6 +562,14 @@ api-v1-settings-embedding-providers-id:
       - Settings
 
 api-v1-settings-embedding-providers-validate:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team that owns the embedding provider(s).
+      schema:
+        type: string
+        format: uuid
   post:
     summary: Validate embedding provider configuration (Settings)
     description: |

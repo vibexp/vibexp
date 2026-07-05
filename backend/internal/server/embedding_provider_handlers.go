@@ -36,7 +36,8 @@ func (s *Server) handleCreateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	provider, err := s.container.EmbeddingProviderService().CreateEmbeddingProvider(r.Context(), userID, req)
+	teamID := chi.URLParam(r, "team_id")
+	provider, err := s.container.EmbeddingProviderService().CreateEmbeddingProvider(r.Context(), teamID, userID, req)
 	if err != nil {
 		s.logger.With(
 			"service", "vibexp-api",
@@ -152,7 +153,8 @@ func (s *Server) handleListEmbeddingProviders(w http.ResponseWriter, r *http.Req
 		"user_id", userID,
 	).Info("Embedding providers list request received")
 
-	providers, err := s.container.EmbeddingProviderService().GetEmbeddingProvidersByUserID(r.Context(), userID)
+	teamID := chi.URLParam(r, "team_id")
+	providers, err := s.container.EmbeddingProviderService().GetEmbeddingProvidersByTeamID(r.Context(), teamID)
 	if err != nil {
 		s.logger.With(
 			"service", "vibexp-api",
@@ -171,6 +173,7 @@ func (s *Server) handleListEmbeddingProviders(w http.ResponseWriter, r *http.Req
 
 func (s *Server) handleGetEmbeddingProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
@@ -194,7 +197,7 @@ func (s *Server) handleGetEmbeddingProvider(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	provider, err := s.container.EmbeddingProviderService().GetEmbeddingProvider(r.Context(), userID, providerID)
+	provider, err := s.container.EmbeddingProviderService().GetEmbeddingProvider(r.Context(), teamID, providerID)
 	if err != nil {
 		s.logger.With(
 			"service", "vibexp-api",
@@ -218,6 +221,7 @@ func (s *Server) handleGetEmbeddingProvider(w http.ResponseWriter, r *http.Reque
 
 func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
@@ -254,7 +258,7 @@ func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	provider, err := s.container.EmbeddingProviderService().UpdateEmbeddingProvider(r.Context(), userID, providerID, req)
+	provider, err := s.container.EmbeddingProviderService().UpdateEmbeddingProvider(r.Context(), teamID, providerID, req)
 	if err != nil {
 		s.handleUpdateEmbeddingProviderError(w, r, userID, providerID, err)
 		return
@@ -295,6 +299,7 @@ func (s *Server) handleUpdateEmbeddingProviderError(
 
 func (s *Server) handleDeleteEmbeddingProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
@@ -318,7 +323,7 @@ func (s *Server) handleDeleteEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err := s.container.EmbeddingProviderService().DeleteEmbeddingProvider(r.Context(), userID, providerID)
+	err := s.container.EmbeddingProviderService().DeleteEmbeddingProvider(r.Context(), teamID, providerID)
 	if err != nil {
 		s.logger.With(
 			"service", "vibexp-api",
