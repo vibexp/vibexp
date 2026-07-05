@@ -45,7 +45,7 @@ func TestEmbeddingProviderService_buildEmbeddingProvider_defaults(t *testing.T) 
 	service := createTestEmbeddingProviderService(mockRepo)
 
 	t.Run("defaults applied when chunk sizing omitted", func(t *testing.T) {
-		p := service.buildEmbeddingProvider("user-1",
+		p := service.buildEmbeddingProvider("team-1", "user-1",
 			models.CreateEmbeddingProviderRequest{
 				Name: "P", ProviderType: "openai_compatible", Model: "m",
 			}, nil, "{}")
@@ -56,7 +56,7 @@ func TestEmbeddingProviderService_buildEmbeddingProvider_defaults(t *testing.T) 
 
 	t.Run("explicit chunk sizing is preserved", func(t *testing.T) {
 		size, overlap := 512, 64
-		p := service.buildEmbeddingProvider("user-1",
+		p := service.buildEmbeddingProvider("team-1", "user-1",
 			models.CreateEmbeddingProviderRequest{
 				Name: "P", ProviderType: "openai_compatible", Model: "m",
 				ChunkSize: &size, ChunkOverlap: &overlap,
@@ -191,6 +191,7 @@ func TestEmbeddingProviderService_decrypt_errors(t *testing.T) {
 func TestEmbeddingProviderService_CreateEmbeddingProvider(t *testing.T) {
 	tests := []struct {
 		name        string
+		teamID      string
 		userID      string
 		request     models.CreateEmbeddingProviderRequest
 		setup       func(*mocks.MockEmbeddingProviderRepository)
@@ -199,6 +200,7 @@ func TestEmbeddingProviderService_CreateEmbeddingProvider(t *testing.T) {
 	}{
 		{
 			name:    "Successful provider creation",
+			teamID:  "team-123",
 			userID:  "user-123",
 			request: createTestCreateEmbeddingProviderRequest(),
 			setup: func(mockRepo *mocks.MockEmbeddingProviderRepository) {
@@ -214,12 +216,13 @@ func TestEmbeddingProviderService_CreateEmbeddingProvider(t *testing.T) {
 					})
 
 				// Mock setting as default after creation
-				mockRepo.EXPECT().SetDefault(context.Background(), "user-123", "provider-123").Return(nil)
+				mockRepo.EXPECT().SetDefault(context.Background(), "team-123", "provider-123").Return(nil)
 			},
 			expectError: false,
 		},
 		{
 			name:   "Provider without default flag",
+			teamID: "team-123",
 			userID: "user-123",
 			request: models.CreateEmbeddingProviderRequest{
 				Name:         "Non-default Provider",
@@ -244,6 +247,7 @@ func TestEmbeddingProviderService_CreateEmbeddingProvider(t *testing.T) {
 		},
 		{
 			name:    "Error on unsetting default",
+			teamID:  "team-123",
 			userID:  "user-123",
 			request: createTestCreateEmbeddingProviderRequest(),
 			setup: func(mockRepo *mocks.MockEmbeddingProviderRepository) {
@@ -260,7 +264,7 @@ func TestEmbeddingProviderService_CreateEmbeddingProvider(t *testing.T) {
 
 				// Mock error on setting default
 				mockRepo.EXPECT().
-					SetDefault(context.Background(), "user-123", "provider-123").
+					SetDefault(context.Background(), "team-123", "provider-123").
 					Return(errors.New("database error"))
 			},
 			expectError: true,
@@ -268,6 +272,7 @@ func TestEmbeddingProviderService_CreateEmbeddingProvider(t *testing.T) {
 		},
 		{
 			name:   "Error on creation",
+			teamID: "team-123",
 			userID: "user-123",
 			request: models.CreateEmbeddingProviderRequest{
 				Name:         "Test Provider",
@@ -290,7 +295,7 @@ func TestEmbeddingProviderService_CreateEmbeddingProvider(t *testing.T) {
 
 			tt.setup(mockRepo)
 
-			provider, err := service.CreateEmbeddingProvider(context.Background(), tt.userID, tt.request)
+			provider, err := service.CreateEmbeddingProvider(context.Background(), tt.teamID, tt.userID, tt.request)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -312,7 +317,7 @@ func TestEmbeddingProviderService_CreateEmbeddingProvider(t *testing.T) {
 //nolint:funlen // Test function requires comprehensive setup and assertions
 
 //nolint:funlen // Test function requires comprehensive setup and assertions
-func TestEmbeddingProviderService_GetEmbeddingProvidersByUserID(t *testing.T) {
+func TestEmbeddingProviderService_GetEmbeddingProvidersByTeamID(t *testing.T) {
 	tests := []struct {
 		name        string
 		userID      string
@@ -390,7 +395,7 @@ func TestEmbeddingProviderService_GetEmbeddingProvidersByUserID(t *testing.T) {
 
 			tt.setup(mockRepo)
 
-			providers, err := service.GetEmbeddingProvidersByUserID(context.Background(), tt.userID)
+			providers, err := service.GetEmbeddingProvidersByTeamID(context.Background(), tt.userID)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -873,13 +878,14 @@ func TestEmbeddingProviderService_nilService(t *testing.T) {
 	var service *EmbeddingProviderService
 
 	ctx := context.Background()
+	teamID := "team-123"
 	userID := "user-123"
 
-	_, err := service.CreateEmbeddingProvider(ctx, userID, models.CreateEmbeddingProviderRequest{})
+	_, err := service.CreateEmbeddingProvider(ctx, teamID, userID, models.CreateEmbeddingProviderRequest{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "EmbeddingProviderService is nil")
 
-	_, err = service.GetEmbeddingProvidersByUserID(ctx, userID)
+	_, err = service.GetEmbeddingProvidersByTeamID(ctx, userID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "EmbeddingProviderService is nil")
 

@@ -25,14 +25,17 @@ jest.mock('../../src/services/embeddingProviderService', () => {
   const API_BASE_URL = 'http://localhost:8080/api/v1' // Mock API URL
 
   class EmbeddingProviderService {
-    async createEmbeddingProvider(request: CreateEmbeddingProviderRequest) {
+    async createEmbeddingProvider(
+      teamId: string,
+      request: CreateEmbeddingProviderRequest
+    ) {
       const token = mockAuthService.getToken()
       if (!token) {
         throw new Error('No authentication token')
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/settings/embedding-providers`,
+        `${API_BASE_URL}/${teamId}/settings/embedding-providers`,
         {
           method: 'POST',
           headers: {
@@ -55,14 +58,14 @@ jest.mock('../../src/services/embeddingProviderService', () => {
       return response.json()
     }
 
-    async getEmbeddingProviders() {
+    async getEmbeddingProviders(teamId: string) {
       const token = mockAuthService.getToken()
       if (!token) {
         throw new Error('No authentication token')
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/settings/embedding-providers`,
+        `${API_BASE_URL}/${teamId}/settings/embedding-providers`,
         {
           method: 'GET',
           headers: {
@@ -83,14 +86,14 @@ jest.mock('../../src/services/embeddingProviderService', () => {
       return response.json()
     }
 
-    async getEmbeddingProvider(id: string) {
+    async getEmbeddingProvider(teamId: string, id: string) {
       const token = mockAuthService.getToken()
       if (!token) {
         throw new Error('No authentication token')
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/settings/embedding-providers/${id}`,
+        `${API_BASE_URL}/${teamId}/settings/embedding-providers/${id}`,
         {
           method: 'GET',
           headers: {
@@ -115,6 +118,7 @@ jest.mock('../../src/services/embeddingProviderService', () => {
     }
 
     async updateEmbeddingProvider(
+      teamId: string,
       id: string,
       request: UpdateEmbeddingProviderRequest
     ) {
@@ -124,7 +128,7 @@ jest.mock('../../src/services/embeddingProviderService', () => {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/settings/embedding-providers/${id}`,
+        `${API_BASE_URL}/${teamId}/settings/embedding-providers/${id}`,
         {
           method: 'PUT',
           headers: {
@@ -150,14 +154,14 @@ jest.mock('../../src/services/embeddingProviderService', () => {
       return response.json()
     }
 
-    async deleteEmbeddingProvider(id: string) {
+    async deleteEmbeddingProvider(teamId: string, id: string) {
       const token = mockAuthService.getToken()
       if (!token) {
         throw new Error('No authentication token')
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/settings/embedding-providers/${id}`,
+        `${API_BASE_URL}/${teamId}/settings/embedding-providers/${id}`,
         {
           method: 'DELETE',
           headers: {
@@ -179,14 +183,17 @@ jest.mock('../../src/services/embeddingProviderService', () => {
       }
     }
 
-    async validateEmbeddingProvider(request: ValidateEmbeddingProviderRequest) {
+    async validateEmbeddingProvider(
+      teamId: string,
+      request: ValidateEmbeddingProviderRequest
+    ) {
       const token = mockAuthService.getToken()
       if (!token) {
         throw new Error('No authentication token')
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/settings/embedding-providers/validate`,
+        `${API_BASE_URL}/${teamId}/settings/embedding-providers/validate`,
         {
           method: 'POST',
           headers: {
@@ -262,11 +269,13 @@ describe('EmbeddingProviderService', () => {
         json: async () => mockResponse,
       })
 
-      const result =
-        await embeddingProviderService.createEmbeddingProvider(mockRequest)
+      const result = await embeddingProviderService.createEmbeddingProvider(
+        'team-1',
+        mockRequest
+      )
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE_URL}/settings/embedding-providers`,
+        `${API_BASE_URL}/team-1/settings/embedding-providers`,
         {
           method: 'POST',
           headers: {
@@ -283,7 +292,7 @@ describe('EmbeddingProviderService', () => {
       mockAuthService.getToken.mockReturnValue(null)
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow('No authentication token')
 
       expect(mockFetch).not.toHaveBeenCalled()
@@ -296,7 +305,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow('Authentication expired')
 
       expect(mockAuthService.logout).toHaveBeenCalled()
@@ -311,7 +320,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow(errorMessage)
     })
 
@@ -323,7 +332,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow('Failed to create embedding provider')
     })
 
@@ -331,7 +340,7 @@ describe('EmbeddingProviderService', () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(mockRequest)
+        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
       ).rejects.toThrow('Network error')
     })
   })
@@ -376,10 +385,11 @@ describe('EmbeddingProviderService', () => {
         json: async () => mockProviders,
       })
 
-      const result = await embeddingProviderService.getEmbeddingProviders()
+      const result =
+        await embeddingProviderService.getEmbeddingProviders('team-1')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE_URL}/settings/embedding-providers`,
+        `${API_BASE_URL}/team-1/settings/embedding-providers`,
         {
           method: 'GET',
           headers: {
@@ -395,7 +405,7 @@ describe('EmbeddingProviderService', () => {
       mockAuthService.getToken.mockReturnValue(null)
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow('No authentication token')
 
       expect(mockFetch).not.toHaveBeenCalled()
@@ -408,7 +418,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow('Authentication expired')
 
       expect(mockAuthService.logout).toHaveBeenCalled()
@@ -421,7 +431,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow('Failed to get embedding providers')
     })
   })
@@ -450,11 +460,13 @@ describe('EmbeddingProviderService', () => {
         json: async () => mockProvider,
       })
 
-      const result =
-        await embeddingProviderService.getEmbeddingProvider(providerId)
+      const result = await embeddingProviderService.getEmbeddingProvider(
+        'team-1',
+        providerId
+      )
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE_URL}/settings/embedding-providers/${providerId}`,
+        `${API_BASE_URL}/team-1/settings/embedding-providers/${providerId}`,
         {
           method: 'GET',
           headers: {
@@ -470,7 +482,7 @@ describe('EmbeddingProviderService', () => {
       mockAuthService.getToken.mockReturnValue(null)
 
       await expect(
-        embeddingProviderService.getEmbeddingProvider(providerId)
+        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('No authentication token')
 
       expect(mockFetch).not.toHaveBeenCalled()
@@ -483,7 +495,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.getEmbeddingProvider(providerId)
+        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Authentication expired')
 
       expect(mockAuthService.logout).toHaveBeenCalled()
@@ -496,7 +508,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.getEmbeddingProvider(providerId)
+        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Embedding provider not found')
     })
 
@@ -507,7 +519,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.getEmbeddingProvider(providerId)
+        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Failed to get embedding provider')
     })
   })
@@ -543,12 +555,13 @@ describe('EmbeddingProviderService', () => {
       })
 
       const result = await embeddingProviderService.updateEmbeddingProvider(
+        'team-1',
         providerId,
         mockRequest
       )
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE_URL}/settings/embedding-providers/${providerId}`,
+        `${API_BASE_URL}/team-1/settings/embedding-providers/${providerId}`,
         {
           method: 'PUT',
           headers: {
@@ -566,6 +579,7 @@ describe('EmbeddingProviderService', () => {
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
@@ -582,6 +596,7 @@ describe('EmbeddingProviderService', () => {
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
@@ -598,6 +613,7 @@ describe('EmbeddingProviderService', () => {
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
@@ -614,6 +630,7 @@ describe('EmbeddingProviderService', () => {
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
@@ -629,6 +646,7 @@ describe('EmbeddingProviderService', () => {
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
+          'team-1',
           providerId,
           mockRequest
         )
@@ -644,10 +662,13 @@ describe('EmbeddingProviderService', () => {
         ok: true,
       })
 
-      await embeddingProviderService.deleteEmbeddingProvider(providerId)
+      await embeddingProviderService.deleteEmbeddingProvider(
+        'team-1',
+        providerId
+      )
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE_URL}/settings/embedding-providers/${providerId}`,
+        `${API_BASE_URL}/team-1/settings/embedding-providers/${providerId}`,
         {
           method: 'DELETE',
           headers: {
@@ -661,7 +682,7 @@ describe('EmbeddingProviderService', () => {
       mockAuthService.getToken.mockReturnValue(null)
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('No authentication token')
 
       expect(mockFetch).not.toHaveBeenCalled()
@@ -674,7 +695,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Authentication expired')
 
       expect(mockAuthService.logout).toHaveBeenCalled()
@@ -687,7 +708,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Embedding provider not found')
     })
 
@@ -700,7 +721,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow(errorMessage)
     })
 
@@ -712,7 +733,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider(providerId)
+        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
       ).rejects.toThrow('Failed to delete embedding provider')
     })
   })
@@ -751,11 +772,13 @@ describe('EmbeddingProviderService', () => {
         json: async () => mockValidResponse,
       })
 
-      const result =
-        await embeddingProviderService.validateEmbeddingProvider(mockRequest)
+      const result = await embeddingProviderService.validateEmbeddingProvider(
+        'team-1',
+        mockRequest
+      )
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE_URL}/settings/embedding-providers/validate`,
+        `${API_BASE_URL}/team-1/settings/embedding-providers/validate`,
         {
           method: 'POST',
           headers: {
@@ -774,8 +797,10 @@ describe('EmbeddingProviderService', () => {
         json: async () => mockInvalidResponse,
       })
 
-      const result =
-        await embeddingProviderService.validateEmbeddingProvider(mockRequest)
+      const result = await embeddingProviderService.validateEmbeddingProvider(
+        'team-1',
+        mockRequest
+      )
 
       expect(result).toEqual(mockInvalidResponse)
     })
@@ -784,7 +809,10 @@ describe('EmbeddingProviderService', () => {
       mockAuthService.getToken.mockReturnValue(null)
 
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(mockRequest)
+        embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          mockRequest
+        )
       ).rejects.toThrow('No authentication token')
 
       expect(mockFetch).not.toHaveBeenCalled()
@@ -797,7 +825,10 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(mockRequest)
+        embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          mockRequest
+        )
       ).rejects.toThrow('Authentication expired')
 
       expect(mockAuthService.logout).toHaveBeenCalled()
@@ -812,7 +843,10 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(mockRequest)
+        embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          mockRequest
+        )
       ).rejects.toThrow(errorMessage)
     })
 
@@ -824,7 +858,10 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(mockRequest)
+        embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          mockRequest
+        )
       ).rejects.toThrow('Failed to validate embedding provider')
     })
 
@@ -840,11 +877,13 @@ describe('EmbeddingProviderService', () => {
         json: async () => mockValidResponse,
       })
 
-      const result =
-        await embeddingProviderService.validateEmbeddingProvider(minimalRequest)
+      const result = await embeddingProviderService.validateEmbeddingProvider(
+        'team-1',
+        minimalRequest
+      )
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${API_BASE_URL}/settings/embedding-providers/validate`,
+        `${API_BASE_URL}/team-1/settings/embedding-providers/validate`,
         {
           method: 'POST',
           headers: {
@@ -863,7 +902,7 @@ describe('EmbeddingProviderService', () => {
       mockFetch.mockRejectedValueOnce(new Error('Failed to fetch'))
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow('Failed to fetch')
     })
 
@@ -876,7 +915,7 @@ describe('EmbeddingProviderService', () => {
       })
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders()
+        embeddingProviderService.getEmbeddingProviders('team-1')
       ).rejects.toThrow('Invalid JSON')
     })
 
@@ -896,7 +935,7 @@ describe('EmbeddingProviderService', () => {
       }
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider(request)
+        embeddingProviderService.createEmbeddingProvider('team-1', request)
       ).rejects.toThrow('Cannot read response')
     })
   })
@@ -926,8 +965,10 @@ describe('EmbeddingProviderService', () => {
           }),
         })
 
-        const result =
-          await embeddingProviderService.validateEmbeddingProvider(request)
+        const result = await embeddingProviderService.validateEmbeddingProvider(
+          'team-1',
+          request
+        )
         expect(result.is_valid).toBe(true)
       }
     })
@@ -936,21 +977,27 @@ describe('EmbeddingProviderService', () => {
   describe('Authentication Integration', () => {
     it('should call authService.logout on 401 for all methods', async () => {
       const methods = [
-        () => embeddingProviderService.getEmbeddingProviders(),
-        () => embeddingProviderService.getEmbeddingProvider('test-id'),
+        () => embeddingProviderService.getEmbeddingProviders('team-1'),
         () =>
-          embeddingProviderService.createEmbeddingProvider({
+          embeddingProviderService.getEmbeddingProvider('team-1', 'test-id'),
+        () =>
+          embeddingProviderService.createEmbeddingProvider('team-1', {
             name: 'Test',
             provider_type: 'openai',
             model: 'text-embedding-3-small',
           }),
         () =>
-          embeddingProviderService.updateEmbeddingProvider('test-id', {
-            name: 'Updated',
-          }),
-        () => embeddingProviderService.deleteEmbeddingProvider('test-id'),
+          embeddingProviderService.updateEmbeddingProvider(
+            'team-1',
+            'test-id',
+            {
+              name: 'Updated',
+            }
+          ),
         () =>
-          embeddingProviderService.validateEmbeddingProvider({
+          embeddingProviderService.deleteEmbeddingProvider('team-1', 'test-id'),
+        () =>
+          embeddingProviderService.validateEmbeddingProvider('team-1', {
             provider_type: 'openai',
             model: 'text-embedding-3-small',
             base_url: 'https://api.openai.com/v1',
@@ -981,18 +1028,25 @@ describe('EmbeddingProviderService', () => {
       })
 
       // Test all methods that require authentication
-      await embeddingProviderService.getEmbeddingProviders()
-      await embeddingProviderService.getEmbeddingProvider('test-id')
-      await embeddingProviderService.createEmbeddingProvider({
+      await embeddingProviderService.getEmbeddingProviders('team-1')
+      await embeddingProviderService.getEmbeddingProvider('team-1', 'test-id')
+      await embeddingProviderService.createEmbeddingProvider('team-1', {
         name: 'Test',
         provider_type: 'openai',
         model: 'text-embedding-3-small',
       })
-      await embeddingProviderService.updateEmbeddingProvider('test-id', {
-        name: 'Updated',
-      })
-      await embeddingProviderService.deleteEmbeddingProvider('test-id')
-      await embeddingProviderService.validateEmbeddingProvider({
+      await embeddingProviderService.updateEmbeddingProvider(
+        'team-1',
+        'test-id',
+        {
+          name: 'Updated',
+        }
+      )
+      await embeddingProviderService.deleteEmbeddingProvider(
+        'team-1',
+        'test-id'
+      )
+      await embeddingProviderService.validateEmbeddingProvider('team-1', {
         provider_type: 'openai',
         model: 'text-embedding-3-small',
         base_url: 'https://api.openai.com/v1',

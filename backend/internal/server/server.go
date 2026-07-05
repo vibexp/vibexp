@@ -616,9 +616,17 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 			r.Get("/", s.handleListAPIKeys)
 			r.Delete("/{id}", s.handleDeleteAPIKey)
 		})
-		r.Route("/embedding-providers", s.setupEmbeddingProvidersRoutes)
 	})
-	r.Route("/api/v1/embedding-providers", s.setupEmbeddingProvidersRoutes)
+	// Embedding providers are scoped to a team (issue #79). Both the settings and
+	// bare route groups validate team membership from the {team_id} path segment.
+	r.Route("/api/v1/{team_id}/settings/embedding-providers", func(r chi.Router) {
+		r.Use(s.teamValidationMiddleware())
+		s.setupEmbeddingProvidersRoutes(r)
+	})
+	r.Route("/api/v1/{team_id}/embedding-providers", func(r chi.Router) {
+		r.Use(s.teamValidationMiddleware())
+		s.setupEmbeddingProvidersRoutes(r)
+	})
 	r.Route("/api/v1/preferences", s.setupPreferencesRoutes)
 }
 

@@ -54,7 +54,7 @@ func createTestEmbeddingProviderServer(container *MockEmbeddingProviderContainer
 	}
 
 	// Register routes manually (simplified version for testing)
-	r.Route("/api/v1/embedding-providers", func(r chi.Router) {
+	r.Route("/api/v1/{team_id}/embedding-providers", func(r chi.Router) {
 		r.Get("/", srv.handleListEmbeddingProviders)
 		r.Post("/", srv.handleCreateEmbeddingProvider)
 		r.Get("/{id}", srv.handleGetEmbeddingProvider)
@@ -121,14 +121,14 @@ func TestHandleListEmbeddingProviders_Success(t *testing.T) {
 		},
 	}
 
-	mockContainer.embeddingProviderService.On("GetEmbeddingProvidersByUserID", mock.Anything, "user-123").
+	mockContainer.embeddingProviderService.On("GetEmbeddingProvidersByTeamID", mock.Anything, "team-123").
 		Return(expectedProviders, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/embedding-providers", nil, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/team-123/embedding-providers", nil, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleListEmbeddingProviders(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -149,14 +149,14 @@ func TestHandleListEmbeddingProviders_Success(t *testing.T) {
 func TestHandleListEmbeddingProviders_Empty(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 
-	mockContainer.embeddingProviderService.On("GetEmbeddingProvidersByUserID", mock.Anything, "user-123").
+	mockContainer.embeddingProviderService.On("GetEmbeddingProvidersByTeamID", mock.Anything, "team-123").
 		Return([]models.EmbeddingProviderResponse{}, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/embedding-providers", nil, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/team-123/embedding-providers", nil, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleListEmbeddingProviders(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -172,14 +172,14 @@ func TestHandleListEmbeddingProviders_Empty(t *testing.T) {
 func TestHandleListEmbeddingProviders_ServiceError(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 
-	mockContainer.embeddingProviderService.On("GetEmbeddingProvidersByUserID", mock.Anything, "user-123").
+	mockContainer.embeddingProviderService.On("GetEmbeddingProvidersByTeamID", mock.Anything, "team-123").
 		Return(([]models.EmbeddingProviderResponse)(nil), errors.New("database error"))
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/embedding-providers", nil, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/team-123/embedding-providers", nil, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleListEmbeddingProviders(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
@@ -206,11 +206,11 @@ func TestHandleGetEmbeddingProvider_Success(t *testing.T) {
 		HasAPIKey: true,
 	}
 
-	mockContainer.embeddingProviderService.On("GetEmbeddingProvider", mock.Anything, "user-123", "provider-1").
+	mockContainer.embeddingProviderService.On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
 		Return(expectedProvider, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/embedding-providers/provider-1", nil, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/team-123/embedding-providers/provider-1", nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -232,11 +232,11 @@ func TestHandleGetEmbeddingProvider_Success(t *testing.T) {
 func TestHandleGetEmbeddingProvider_NotFound(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 
-	mockContainer.embeddingProviderService.On("GetEmbeddingProvider", mock.Anything, "user-123", "non-existent").
+	mockContainer.embeddingProviderService.On("GetEmbeddingProvider", mock.Anything, "team-123", "non-existent").
 		Return((*models.EmbeddingProviderResponse)(nil), services.ErrProviderNotFound)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/embedding-providers/non-existent", nil, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("GET", "/api/v1/team-123/embedding-providers/non-existent", nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -280,14 +280,14 @@ func TestHandleCreateEmbeddingProvider_Success(t *testing.T) {
 		UpdatedAt:       time.Now(),
 	}
 
-	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "user-123", reqBody).
+	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "team-123", "user-123", reqBody).
 		Return(expectedProvider, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/embedding-providers", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleCreateEmbeddingProvider(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -333,14 +333,14 @@ func TestHandleCreateEmbeddingProvider_Anthropic(t *testing.T) {
 		UpdatedAt:       time.Now(),
 	}
 
-	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "user-123", reqBody).
+	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "team-123", "user-123", reqBody).
 		Return(expectedProvider, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/embedding-providers", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleCreateEmbeddingProvider(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -383,14 +383,14 @@ func TestHandleCreateEmbeddingProvider_Custom(t *testing.T) {
 		UpdatedAt:       time.Now(),
 	}
 
-	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "user-123", reqBody).
+	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "team-123", "user-123", reqBody).
 		Return(expectedProvider, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/embedding-providers", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleCreateEmbeddingProvider(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -439,10 +439,10 @@ func TestHandleCreateEmbeddingProvider_ValidationError(t *testing.T) {
 			mockContainer := newMockEmbeddingProviderContainer(t)
 			srv := createTestEmbeddingProviderServer(mockContainer)
 
-			req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/embedding-providers", tt.reqBody, "user-123")
+			req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers", tt.reqBody, "user-123")
 			w := httptest.NewRecorder()
 
-			srv.handleCreateEmbeddingProvider(w, req)
+			srv.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 		})
@@ -461,14 +461,14 @@ func TestHandleCreateEmbeddingProvider_ServiceError(t *testing.T) {
 		BaseURL:      &baseURL,
 	}
 
-	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "user-123", reqBody).
+	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "team-123", "user-123", reqBody).
 		Return((*models.EmbeddingProvider)(nil), errors.New("failed to create provider"))
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/embedding-providers", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleCreateEmbeddingProvider(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
@@ -499,11 +499,11 @@ func TestHandleUpdateEmbeddingProvider_Success(t *testing.T) {
 		UpdatedAt:       time.Now(),
 	}
 
-	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "user-123", "provider-1", reqBody).
+	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
 		Return(updatedProvider, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("PUT", "/api/v1/embedding-providers/provider-1", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("PUT", "/api/v1/team-123/embedding-providers/provider-1", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -546,11 +546,11 @@ func TestHandleUpdateEmbeddingProvider_PartialUpdate(t *testing.T) {
 		UpdatedAt:       time.Now(),
 	}
 
-	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "user-123", "provider-1", reqBody).
+	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
 		Return(updatedProvider, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("PUT", "/api/v1/embedding-providers/provider-1", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("PUT", "/api/v1/team-123/embedding-providers/provider-1", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -576,12 +576,12 @@ func TestHandleUpdateEmbeddingProvider_NotFound(t *testing.T) {
 	}
 
 	mockContainer.embeddingProviderService.On(
-		"UpdateEmbeddingProvider", mock.Anything, "user-123", "non-existent", reqBody,
+		"UpdateEmbeddingProvider", mock.Anything, "team-123", "non-existent", reqBody,
 	).Return((*models.EmbeddingProvider)(nil), services.ErrProviderNotFound)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
 	req := makeAuthenticatedEmbeddingProviderRequest(
-		"PUT", "/api/v1/embedding-providers/non-existent", reqBody, "user-123",
+		"PUT", "/api/v1/team-123/embedding-providers/non-existent", reqBody, "user-123",
 	)
 	w := httptest.NewRecorder()
 
@@ -601,11 +601,11 @@ func TestHandleUpdateEmbeddingProvider_ServiceError(t *testing.T) {
 		Name: &newName,
 	}
 
-	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "user-123", "provider-1", reqBody).
+	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
 		Return((*models.EmbeddingProvider)(nil), errors.New("database error"))
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("PUT", "/api/v1/embedding-providers/provider-1", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("PUT", "/api/v1/team-123/embedding-providers/provider-1", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -619,11 +619,11 @@ func TestHandleUpdateEmbeddingProvider_ServiceError(t *testing.T) {
 func TestHandleDeleteEmbeddingProvider_Success(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 
-	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "user-123", "provider-1").
+	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "team-123", "provider-1").
 		Return(nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("DELETE", "/api/v1/embedding-providers/provider-1", nil, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("DELETE", "/api/v1/team-123/embedding-providers/provider-1", nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -637,11 +637,11 @@ func TestHandleDeleteEmbeddingProvider_Success(t *testing.T) {
 func TestHandleDeleteEmbeddingProvider_NotFound(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 
-	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "user-123", "non-existent").
+	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "team-123", "non-existent").
 		Return(services.ErrProviderNotFound)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("DELETE", "/api/v1/embedding-providers/non-existent", nil, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("DELETE", "/api/v1/team-123/embedding-providers/non-existent", nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -655,11 +655,11 @@ func TestHandleDeleteEmbeddingProvider_NotFound(t *testing.T) {
 func TestHandleDeleteEmbeddingProvider_LastProvider(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 
-	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "user-123", "provider-1").
+	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "team-123", "provider-1").
 		Return(services.ErrLastProviderDelete)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("DELETE", "/api/v1/embedding-providers/provider-1", nil, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("DELETE", "/api/v1/team-123/embedding-providers/provider-1", nil, "user-123")
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
@@ -692,10 +692,10 @@ func TestHandleValidateEmbeddingProvider_Success(t *testing.T) {
 		Return(expectedResponse, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/embedding-providers/validate", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers/validate", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleValidateEmbeddingProvider(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -733,10 +733,10 @@ func TestHandleValidateEmbeddingProvider_Invalid(t *testing.T) {
 		Return(expectedResponse, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/embedding-providers/validate", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers/validate", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleValidateEmbeddingProvider(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -787,11 +787,11 @@ func TestHandleValidateEmbeddingProvider_ValidationError(t *testing.T) {
 			srv := createTestEmbeddingProviderServer(mockContainer)
 
 			req := makeAuthenticatedEmbeddingProviderRequest(
-				"POST", "/api/v1/embedding-providers/validate", tt.reqBody, "user-123",
+				"POST", "/api/v1/team-123/embedding-providers/validate", tt.reqBody, "user-123",
 			)
 			w := httptest.NewRecorder()
 
-			srv.handleValidateEmbeddingProvider(w, req)
+			srv.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 		})
@@ -812,10 +812,10 @@ func TestHandleValidateEmbeddingProvider_ServiceError(t *testing.T) {
 		Return((*models.ValidateEmbeddingProviderResponse)(nil), errors.New("network error"))
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/embedding-providers/validate", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers/validate", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleValidateEmbeddingProvider(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
@@ -856,10 +856,10 @@ func TestHandleValidateEmbeddingProvider_WithConfiguration(t *testing.T) {
 	).Return(expectedResponse, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
-	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/embedding-providers/validate", reqBody, "user-123")
+	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers/validate", reqBody, "user-123")
 	w := httptest.NewRecorder()
 
-	srv.handleValidateEmbeddingProvider(w, req)
+	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 

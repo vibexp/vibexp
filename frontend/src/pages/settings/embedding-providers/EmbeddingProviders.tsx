@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
 import { EmbeddingProviderDialog } from '@/pages/settings/embedding-providers/EmbeddingProviderDialog'
@@ -32,6 +33,7 @@ function formatDate(value: string) {
 
 export function EmbeddingProviders() {
   const { handleError } = useErrorHandler()
+  const { currentTeam } = useTeam()
 
   const [providers, setProviders] = useState<EmbeddingProviderResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,9 +48,12 @@ export function EmbeddingProviders() {
   const [deleting, setDeleting] = useState(false)
 
   const loadProviders = useCallback(async () => {
+    if (!currentTeam) return
     try {
       setLoading(true)
-      const data = await embeddingProviderService.getEmbeddingProviders()
+      const data = await embeddingProviderService.getEmbeddingProviders(
+        currentTeam.id
+      )
       setProviders(data)
     } catch (error) {
       handleError(error, 'Failed to load embedding providers')
@@ -56,7 +61,7 @@ export function EmbeddingProviders() {
     } finally {
       setLoading(false)
     }
-  }, [handleError])
+  }, [handleError, currentTeam])
 
   useEffect(() => {
     void loadProviders()
@@ -65,13 +70,19 @@ export function EmbeddingProviders() {
   const handleSubmit = async (
     data: CreateEmbeddingProviderRequest | UpdateEmbeddingProviderRequest
   ) => {
+    if (!currentTeam) return
     try {
       setSubmitting(true)
       if (editing) {
-        await embeddingProviderService.updateEmbeddingProvider(editing.id, data)
+        await embeddingProviderService.updateEmbeddingProvider(
+          currentTeam.id,
+          editing.id,
+          data
+        )
         toast.success('Provider updated')
       } else {
         await embeddingProviderService.createEmbeddingProvider(
+          currentTeam.id,
           data as CreateEmbeddingProviderRequest
         )
         toast.success('Provider created')
@@ -90,10 +101,13 @@ export function EmbeddingProviders() {
   }
 
   const handleDelete = async () => {
-    if (!toDelete) return
+    if (!toDelete || !currentTeam) return
     try {
       setDeleting(true)
-      await embeddingProviderService.deleteEmbeddingProvider(toDelete.id)
+      await embeddingProviderService.deleteEmbeddingProvider(
+        currentTeam.id,
+        toDelete.id
+      )
       toast.success('Provider deleted')
       await loadProviders()
     } catch (error) {
@@ -242,6 +256,7 @@ export function EmbeddingProviders() {
       )}
 
       <EmbeddingProviderDialog
+        teamId={currentTeam?.id ?? ''}
         open={dialogOpen}
         onOpenChange={open => {
           setDialogOpen(open)
