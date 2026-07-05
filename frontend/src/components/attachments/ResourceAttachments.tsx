@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { AttachmentCard } from '@/components/attachments/AttachmentCard'
 import { useAlerts } from '@/hooks'
+import type { Attachment } from '@/services/attachmentService'
 import { attachmentService } from '@/services/attachmentService'
-import type { Attachment } from '@/types/attachment'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 interface ResourceAttachmentsProps {

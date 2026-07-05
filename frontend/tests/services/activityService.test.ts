@@ -7,7 +7,7 @@ import type {
   ActivityListResponse,
   ActivityStatsResponse,
   ActivityTypesResponse,
-} from '../../src/types'
+} from '../../src/services/activityService'
 
 // Mock fetch globally
 const mockFetch = jest.fn()

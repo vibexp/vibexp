@@ -1,40 +1,41 @@
-import { apiClient } from '../lib/apiClient'
-import type {
-  ActivitiesResponse,
-  ActivityFilters,
-  ActivityStatsApiResponse,
-  ActivityTypesApiResponse,
-} from '../types'
+import type { components, operations } from '@vibexp/api-client'
+
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
+
+// Generated wire types for the activities domain — the OpenAPI spec is the
+// single source of truth; do not hand-write request/response shapes here.
+export type Activity = components['schemas']['Activity']
+export type ActivityListResponse = components['schemas']['ActivityListResponse']
+export type ActivityStatsResponse =
+  components['schemas']['ActivityStatsResponse']
+export type ActivityTypesResponse =
+  components['schemas']['ActivityTypesResponse']
+export type ActivityFilters = NonNullable<
+  operations['listActivities']['parameters']['query']
+>
+export type ActivitiesResponse = components['schemas']['ActivityListEnvelope']
+export type ActivityStatsApiResponse =
+  components['schemas']['ActivityStatsEnvelope']
+export type ActivityTypesApiResponse =
+  components['schemas']['ActivityTypesEnvelope']
 
 class ActivityService {
   async getActivities(
     filters: ActivityFilters = {}
   ): Promise<ActivitiesResponse> {
-    const params = new URLSearchParams()
-
-    if (filters.activity_type)
-      params.append('activity_type', filters.activity_type)
-    if (filters.entity_type) params.append('entity_type', filters.entity_type)
-    if (filters.entity_id) params.append('entity_id', filters.entity_id)
-    if (filters.session_id) params.append('session_id', filters.session_id)
-    if (filters.search) params.append('search', filters.search)
-    if (filters.date_from) params.append('date_from', filters.date_from)
-    if (filters.date_to) params.append('date_to', filters.date_to)
-    if (filters.page) params.append('page', filters.page.toString())
-    if (filters.limit) params.append('limit', filters.limit.toString())
-
-    const queryString = params.toString()
-    const endpoint = `/activities${queryString ? `?${queryString}` : ''}`
-
-    return apiClient.get<ActivitiesResponse>(endpoint)
+    return unwrap(
+      generatedClient.GET('/api/v1/activities', {
+        params: { query: filters },
+      })
+    )
   }
 
   async getActivityStats(): Promise<ActivityStatsApiResponse> {
-    return apiClient.get<ActivityStatsApiResponse>('/activities/stats')
+    return unwrap(generatedClient.GET('/api/v1/activities/stats'))
   }
 
   async getActivityAndEntityTypes(): Promise<ActivityTypesApiResponse> {
-    return apiClient.get<ActivityTypesApiResponse>('/activities/types')
+    return unwrap(generatedClient.GET('/api/v1/activities/types'))
   }
 }
 

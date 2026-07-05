@@ -5,7 +5,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 
-import type { ActivitiesResponse, Activity as ActivityType } from '@/types'
+import type {
+  ActivitiesResponse,
+  Activity as ActivityType,
+} from '@/services/activityService'
 
 // ---------------------------------------------------------------------------
 // Mocks

@@ -25,29 +25,17 @@ export * from './agent'
 // Artifact types
 export * from './artifact'
 
-// Resource-agnostic, team-customizable category types
-export * from './type'
-
 // Resource-agnostic content-versioning types
 export * from './version'
 
-// Attachment types
-export * from './attachment'
-
 // Memory Management types
 export * from './memory'
-
-// Activity types
-export * from './activity'
 
 // Prompt Gallery and Sharing types
 export * from './gallery'
 
 // Blueprint types
 export * from './blueprint'
-
-// Support types
-export * from './support'
 
 // Project types
 export * from './project'
@@ -63,6 +51,3 @@ export * from './github'
 
 // Feed types
 export * from './feed'
-
-// Platform-wide Search types
-export * from './search'

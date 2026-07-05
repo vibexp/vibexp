@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { AttachmentCard } from '@/components/attachments/AttachmentCard'
-import type { Attachment } from '@/types/attachment'
+import type { Attachment } from '@/services/attachmentService'
 
 function makeAttachment(overrides: Partial<Attachment> = {}): Attachment {
   return {

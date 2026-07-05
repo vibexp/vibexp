@@ -7,7 +7,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { ActivitiesResponse, Activity as ActivityType } from '@/types'
+import type {
+  ActivitiesResponse,
+  Activity as ActivityType,
+} from '@/services/activityService'
 import type { FeedItem, FeedItemListResponse } from '@/types/feed'
 import type { TeamStats } from '@/types/team'
 
