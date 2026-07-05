@@ -118,7 +118,7 @@ describe('ProjectPicker', () => {
     })
   })
 
-  it('calls onChange with the project id when a project is selected', async () => {
+  it('calls onChange with the project id and project when a project is selected', async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
     const onChange = jest.fn()
     render(<ProjectPicker value={null} onChange={onChange} />)
@@ -128,7 +128,7 @@ describe('ProjectPicker', () => {
 
     await user.click(await screen.findByText('Beta Project'))
 
-    expect(onChange).toHaveBeenCalledWith('p2')
+    expect(onChange).toHaveBeenCalledWith('p2', beta)
   })
 
   it('renders an "All projects" option that clears the selection', async () => {
@@ -141,7 +141,7 @@ describe('ProjectPicker', () => {
 
     await user.click(await screen.findByText('All projects'))
 
-    expect(onChange).toHaveBeenCalledWith(null)
+    expect(onChange).toHaveBeenCalledWith(null, null)
   })
 
   it('forwards aria-* props onto the trigger (FormControl wiring)', () => {

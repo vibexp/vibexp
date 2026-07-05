@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -24,6 +25,7 @@ interface ItemsState {
 
 export function useFeeds() {
   const { currentTeam } = useTeam()
+  const { currentProject } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -43,11 +45,12 @@ export function useFeeds() {
     currentPage: 1,
   })
   const [searchInput, setSearchInput] = useState('')
-  const [filters, setFilters] = useState<FeedItemFilters>({
+  const [filters, setFilters] = useState<FeedItemFilters>(() => ({
     page: 1,
     limit: DEFAULT_PER_PAGE,
     archived: 'false',
-  })
+    project_id: currentProject?.id,
+  }))
   const [feedToDelete, setFeedToDelete] = useState<Feed | null>(null)
   const [deletingFeed, setDeletingFeed] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<FeedItem | null>(null)
@@ -185,6 +188,16 @@ export function useFeeds() {
       clearTimeout(t)
     }
   }, [searchInput])
+
+  // Keep the list scoped to the globally selected project (header selector).
+  const currentProjectId = currentProject?.id
+  useEffect(() => {
+    setFilters(prev =>
+      prev.project_id === currentProjectId
+        ? prev
+        : { ...prev, project_id: currentProjectId, page: 1 }
+    )
+  }, [currentProjectId])
 
   useEffect(() => {
     trackEvent({

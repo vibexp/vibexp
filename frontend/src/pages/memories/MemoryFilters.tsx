@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { MEMORY_STATUS_OPTIONS } from '@/pages/memories/memoryStatus'
-import type { MemoryStatus, Project } from '@/types'
+import type { MemoryStatus } from '@/types'
 
 interface Props {
   searchInput: string
@@ -17,22 +17,17 @@ interface Props {
   tags?: string[]
   selectedTag?: string
   onTagChange?: (tag: string | undefined) => void
-  projects?: Project[]
-  selectedProjectId?: string
-  onProjectChange?: (projectId: string | undefined) => void
   status?: MemoryStatus
   onStatusChange?: (status: MemoryStatus | undefined) => void
 }
 
+// Project filtering moved to the global header project selector (useProject).
 export function MemoryFilters({
   searchInput,
   onSearchInputChange,
   tags = [],
   selectedTag,
   onTagChange,
-  projects = [],
-  selectedProjectId,
-  onProjectChange,
   status,
   onStatusChange,
 }: Props) {
@@ -49,26 +44,6 @@ export function MemoryFilters({
           className="pl-8"
         />
       </div>
-      {projects.length > 0 && onProjectChange && (
-        <Select
-          value={selectedProjectId ?? 'all'}
-          onValueChange={value => {
-            onProjectChange(value === 'all' ? undefined : value)
-          }}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All projects" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All projects</SelectItem>
-            {projects.map(p => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
       {tags.length > 0 && onTagChange && (
         <Select
           value={selectedTag ?? 'all'}

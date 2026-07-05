@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
+import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -113,6 +114,7 @@ export function FeedView() {
   const { feedId } = useParams<{ feedId: string }>()
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const { currentProject } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -132,11 +134,12 @@ export function FeedView() {
     currentPage: 1,
   })
   const [searchInput, setSearchInput] = useState('')
-  const [filters, setFilters] = useState<FeedItemFilters>({
+  const [filters, setFilters] = useState<FeedItemFilters>(() => ({
     page: 1,
     limit: 20,
     archived: 'false',
-  })
+    project_id: currentProject?.id,
+  }))
   const [itemToDelete, setItemToDelete] = useState<FeedItem | null>(null)
   const [deletingItem, setDeletingItem] = useState(false)
 
@@ -243,6 +246,16 @@ export function FeedView() {
       clearTimeout(t)
     }
   }, [searchInput])
+
+  // Keep the list scoped to the globally selected project (header selector).
+  const currentProjectId = currentProject?.id
+  useEffect(() => {
+    setFilters(prev =>
+      prev.project_id === currentProjectId
+        ? prev
+        : { ...prev, project_id: currentProjectId, page: 1 }
+    )
+  }, [currentProjectId])
 
   useEffect(() => {
     trackEvent({
@@ -362,11 +375,6 @@ export function FeedView() {
         <FeedToolbar
           searchInput={searchInput}
           onSearchChange={setSearchInput}
-          projects={projects}
-          projectId={filters.project_id}
-          onProjectChange={v => {
-            setFilters(prev => ({ ...prev, project_id: v, page: 1 }))
-          }}
           assistants={assistants}
           assistantName={filters.ai_assistant_name}
           onAssistantChange={v => {

@@ -1,6 +1,5 @@
 import { Search } from 'lucide-react'
 
-import { ProjectPicker } from '@/components/ProjectPicker'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -16,19 +15,16 @@ import type { Artifact } from '@/types'
 interface Props {
   searchInput: string
   onSearchInputChange: (value: string) => void
-  projectId: string | undefined
-  onProjectChange: (value: string | undefined) => void
   type: Artifact['type'] | undefined
   onTypeChange: (value: Artifact['type'] | undefined) => void
   status: Artifact['status'] | undefined
   onStatusChange: (value: Artifact['status'] | undefined) => void
 }
 
+// Project filtering moved to the global header project selector (useProject).
 export function ArtifactFilters({
   searchInput,
   onSearchInputChange,
-  projectId,
-  onProjectChange,
   type,
   onTypeChange,
   status,
@@ -46,17 +42,6 @@ export function ArtifactFilters({
           }}
           placeholder="Search artifacts…"
           className="pl-8"
-        />
-      </div>
-      <div className="w-[200px]">
-        <ProjectPicker
-          value={projectId ?? null}
-          onChange={value => {
-            onProjectChange(value ?? undefined)
-          }}
-          includeAllOption
-          allOptionLabel="All projects"
-          data-testid="artifact-project-filter"
         />
       </div>
       <Select

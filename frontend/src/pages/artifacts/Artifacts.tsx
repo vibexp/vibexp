@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import { ListPage, ListTable } from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
+import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -33,6 +34,7 @@ interface State {
 export function Artifacts() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const { currentProject } = useProject()
   const { types } = useTypes('artifacts')
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
@@ -46,13 +48,14 @@ export function Artifacts() {
     currentPage: 1,
     total: 0,
   })
-  const [filters, setFilters] = useState<ArtifactFiltersType>({
+  const [filters, setFilters] = useState<ArtifactFiltersType>(() => ({
     search: '',
     page: 1,
     limit: 20,
     sort_by: 'updated_at',
     sort_order: 'desc',
-  })
+    project_id: currentProject?.id,
+  }))
   const [searchInput, setSearchInput] = useState('')
   const [artifactToDelete, setArtifactToDelete] = useState<Artifact | null>(
     null
@@ -102,6 +105,16 @@ export function Artifacts() {
       clearTimeout(t)
     }
   }, [searchInput])
+
+  // Keep the list scoped to the globally selected project (header selector).
+  const projectId = currentProject?.id
+  useEffect(() => {
+    setFilters(prev =>
+      prev.project_id === projectId
+        ? prev
+        : { ...prev, project_id: projectId, page: 1 }
+    )
+  }, [projectId])
 
   useEffect(() => {
     trackEvent({
@@ -190,10 +203,6 @@ export function Artifacts() {
           <ArtifactFilters
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}
-            projectId={filters.project_id}
-            onProjectChange={value => {
-              setFilters(prev => ({ ...prev, project_id: value, page: 1 }))
-            }}
             type={filters.type}
             onTypeChange={value => {
               setFilters(prev => ({ ...prev, type: value, page: 1 }))
@@ -213,12 +222,12 @@ export function Artifacts() {
             <EmptyState
               icon={Package}
               title={
-                filters.search
+                filters.search || filters.project_id
                   ? 'No artifacts match your filters'
                   : 'No artifacts yet'
               }
               description={
-                filters.search
+                filters.search || filters.project_id
                   ? 'Try different search or filter settings.'
                   : 'Create your first artifact to save AI-generated content.'
               }

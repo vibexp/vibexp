@@ -3,6 +3,7 @@ import { Menu } from 'lucide-react'
 import { HeaderBreadcrumb } from '@/components/layout/HeaderBreadcrumb'
 import { MobileSidebar } from '@/components/layout/MobileSidebar'
 import { NotificationBell } from '@/components/layout/NotificationBell'
+import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
 import { SearchModal } from '@/components/layout/SearchModal'
 import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
@@ -39,6 +40,7 @@ export function Header() {
 
       <div className="ml-auto flex items-center gap-1.5">
         <TeamSwitcher />
+        <ProjectSwitcher />
         <SearchModal />
         <ThemeToggle />
         <NotificationBell />

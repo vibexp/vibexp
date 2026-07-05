@@ -142,6 +142,18 @@ jest.mock('@/contexts/TeamContext', () => {
   }
 })
 
+// Mock ProjectContext — stable references, "All projects" selected
+jest.mock('@/contexts/ProjectContext', () => {
+  const setCurrentProject = jest.fn()
+  return {
+    useProject: () => ({
+      currentProject: null,
+      setCurrentProject,
+      isLoading: false,
+    }),
+  }
+})
+
 // Mock hooks — use stable function references via module-level singletons
 jest.mock('@/hooks', () => {
   const showSuccess = jest.fn()

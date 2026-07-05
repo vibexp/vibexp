@@ -40,6 +40,12 @@ export const STORAGE_KEYS = {
   // Team Management
   /** Currently selected team ID - persists across sessions */
   CURRENT_TEAM_ID: 'vx_current_team_id',
+  /**
+   * Globally selected project ID for the header project selector - persists
+   * across sessions. Absent when "All projects" is selected. Cleared whenever
+   * the current team changes (a project always belongs to one team).
+   */
+  CURRENT_PROJECT_ID: 'vx_current_project_id',
   /** Pending team invitation token - used during auth flow */
   PENDING_INVITATION_TOKEN: 'vx_pending_invitation_token',
   /**
@@ -107,6 +113,7 @@ export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
  */
 export const LOCAL_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.CURRENT_TEAM_ID,
+  STORAGE_KEYS.CURRENT_PROJECT_ID,
   STORAGE_KEYS.COOKIE_CONSENT,
   STORAGE_KEYS.FCM_TOKEN,
 ])

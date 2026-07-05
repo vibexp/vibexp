@@ -8,26 +8,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { Blueprint, Project } from '@/types'
+import type { Blueprint } from '@/types'
 
 interface Props {
   searchInput: string
   onSearchInputChange: (value: string) => void
-  projectId: string | undefined
-  onProjectChange: (value: string | undefined) => void
   type: Blueprint['type'] | undefined
   onTypeChange: (value: Blueprint['type'] | undefined) => void
-  projects: Project[]
 }
 
+// Project filtering moved to the global header project selector (useProject).
 export function BlueprintFilters({
   searchInput,
   onSearchInputChange,
-  projectId,
-  onProjectChange,
   type,
   onTypeChange,
-  projects,
 }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -42,24 +37,6 @@ export function BlueprintFilters({
           className="pl-8"
         />
       </div>
-      <Select
-        value={projectId ?? 'all'}
-        onValueChange={value => {
-          onProjectChange(value === 'all' ? undefined : value)
-        }}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All projects</SelectItem>
-          {projects.map(p => (
-            <SelectItem key={p.id} value={p.id}>
-              {p.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
       <Select
         value={type ?? 'all'}
         onValueChange={value => {
