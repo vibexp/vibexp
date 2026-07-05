@@ -49,13 +49,24 @@ type EmbeddingProvider interface {
 	Type() string
 }
 
-// ActiveEmbeddingProviderResolver resolves the single system-wide embedding
-// provider used by the embedding pipeline. A (nil, nil) result means no provider
-// is configured — embedding is disabled, not failed — so callers no-op rather
-// than erroring. It is the narrow seam the embedding worker and query embedder
-// depend on (satisfied by *EmbeddingProviderService).
+// ResolvedEmbeddingProvider is a team's active provider ready to embed: the
+// generation Provider (whose Model()/Dimensions() come from the stored row) plus
+// the in-Go chunker sizing from that same row. It is the resolver's unit so the
+// document path can chunk per-provider and the query path can read the model,
+// without the generation seam having to know about chunking.
+type ResolvedEmbeddingProvider struct {
+	Provider     EmbeddingProvider
+	ChunkSize    int
+	ChunkOverlap int
+}
+
+// ActiveEmbeddingProviderResolver resolves the embedding provider used to embed a
+// given team's resources. A (nil, nil) result means the team has no provider
+// configured — embedding is disabled, not failed — so callers no-op rather than
+// erroring. It is the narrow seam the embedding worker and query embedder depend
+// on (satisfied by *EmbeddingProviderService).
 type ActiveEmbeddingProviderResolver interface {
-	ResolveActiveProvider(ctx context.Context, model string, dimensions int) (EmbeddingProvider, error)
+	ResolveActiveProvider(ctx context.Context, teamID string) (*ResolvedEmbeddingProvider, error)
 }
 
 // OpenAICompatibleProvider calls an OpenAI-compatible POST {base_url}/embeddings
@@ -207,7 +218,7 @@ func (p *OpenAICompatibleProvider) orderVectors(decoded openAIEmbeddingsResponse
 
 // NewGenerationProvider builds an EmbeddingProvider from a stored provider row.
 // It maps provider_type to a concrete implementation; future provider types are a
-// single additional case here plus their implementation. model is EMBEDDING_MODEL
+// single additional case here plus their implementation. model is the provider's
 // and dimensions is the fixed EmbeddingVectorDimensions constant, so document and
 // query embeddings always share one model and one vector width.
 func NewGenerationProvider(

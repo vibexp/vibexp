@@ -39,7 +39,6 @@ func TestConfigDockerYAML_LoadsWithSecretEnvOnly(t *testing.T) {
 	require.Equal(t, "localhost", cfg.Database.Host)
 	require.Equal(t, "vibexp", cfg.Database.User)
 	require.Equal(t, "vibexp", cfg.Database.Name)
-	require.Equal(t, "gemini-embedding-001", cfg.Embedding.Model)
 
 	// The required secret resolved from the environment.
 	require.Equal(t, "change_me_to_a_32_byte_secret_ok", cfg.Security.EncryptionKey)

@@ -29,31 +29,24 @@ type embeddingInput struct {
 // comparable.
 type EmbeddingGenerationProcessor struct {
 	resolver         ActiveEmbeddingProviderResolver
-	chunker          Chunker
 	embeddingService EmbeddingServiceInterface
-	model            string
-	dimensions       int
 	logger           *slog.Logger
 }
 
 // Ensure EmbeddingGenerationProcessor implements events.EmbeddingProcessor.
 var _ events.EmbeddingProcessor = (*EmbeddingGenerationProcessor)(nil)
 
-// NewEmbeddingGenerationProcessor creates an EmbeddingGenerationProcessor.
+// NewEmbeddingGenerationProcessor creates an EmbeddingGenerationProcessor. The
+// provider (and its model + chunk sizing) is resolved per event from the entity's
+// team, so there is no global model or chunker.
 func NewEmbeddingGenerationProcessor(
 	resolver ActiveEmbeddingProviderResolver,
-	chunker Chunker,
 	embeddingService EmbeddingServiceInterface,
-	model string,
-	dimensions int,
 	logger *slog.Logger,
 ) *EmbeddingGenerationProcessor {
 	return &EmbeddingGenerationProcessor{
 		resolver:         resolver,
-		chunker:          chunker,
 		embeddingService: embeddingService,
-		model:            model,
-		dimensions:       dimensions,
 		logger:           logger,
 	}
 }
@@ -70,26 +63,41 @@ func (p *EmbeddingGenerationProcessor) ProcessEvent(ctx context.Context, event e
 		return nil // nothing to embed
 	}
 
-	provider, err := p.resolver.ResolveActiveProvider(ctx, p.model, p.dimensions)
+	teamID, err := p.embeddingService.ResolveEntityTeam(ctx, input.userID, input.entityType, input.entityID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve team for %s %s: %w", input.entityType, input.entityID, err)
+	}
+
+	resolved, err := p.resolver.ResolveActiveProvider(ctx, teamID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve embedding provider: %w", err)
 	}
-	if provider == nil {
+	if resolved == nil {
 		p.logger.With(
 			"service", "embedding",
 			"component", "embedding-processor",
 			"entity_type", input.entityType,
 			"entity_id", input.entityID,
-		).Debug("No active embedding provider configured; skipping embedding generation")
+			"team_id", teamID,
+		).Debug("No active embedding provider configured for team; skipping embedding generation")
 		return nil
 	}
 
-	chunkTexts := p.chunker.Chunk(input.text)
+	return p.generateAndSave(ctx, input, teamID, resolved)
+}
+
+// generateAndSave chunks the input, embeds it with the team's resolved provider,
+// and persists the chunks tagged with that provider's model.
+func (p *EmbeddingGenerationProcessor) generateAndSave(
+	ctx context.Context, input embeddingInput, teamID string, resolved *ResolvedEmbeddingProvider,
+) error {
+	chunker := NewTextChunker(resolved.ChunkSize, resolved.ChunkOverlap)
+	chunkTexts := chunker.Chunk(input.text)
 	if len(chunkTexts) == 0 {
 		return nil
 	}
 
-	vectors, err := provider.GenerateEmbeddings(ctx, chunkTexts)
+	vectors, err := resolved.Provider.GenerateEmbeddings(ctx, chunkTexts)
 	if err != nil {
 		return fmt.Errorf("failed to generate embeddings for %s %s: %w", input.entityType, input.entityID, err)
 	}
@@ -105,8 +113,9 @@ func (p *EmbeddingGenerationProcessor) ProcessEvent(ctx context.Context, event e
 		chunks[i] = EmbeddingChunk{Content: chunkTexts[i], Embedding: vectors[i]}
 	}
 
+	model := resolved.Provider.Model()
 	if err := p.embeddingService.SaveEmbeddingChunks(
-		input.userID, input.entityType, input.entityID, p.model, chunks,
+		input.userID, input.entityType, input.entityID, model, chunks,
 	); err != nil {
 		return fmt.Errorf("failed to save embeddings for %s %s: %w", input.entityType, input.entityID, err)
 	}
@@ -116,7 +125,8 @@ func (p *EmbeddingGenerationProcessor) ProcessEvent(ctx context.Context, event e
 		"component", "embedding-processor",
 		"entity_type", input.entityType,
 		"entity_id", input.entityID,
-		"model", p.model,
+		"team_id", teamID,
+		"model", model,
 		"chunk_count", len(chunks),
 	).Info("Embeddings generated and saved")
 

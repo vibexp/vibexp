@@ -127,10 +127,6 @@ search:
   rank_weight_updated: 0.15
   rank_half_life_days: 45
   rank_candidate_cap: 300
-embedding:
-  model: text-embedding-3-large
-  chunk_size: 800
-  chunk_overlap: 100
 github:
   app_id: "123456"
   app_slug: vibexp-app
@@ -249,16 +245,13 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "587", cfg.Email.SMTP.Port)
 	assert.Equal(t, "outbound", cfg.Email.Postmark.MessageStream)
 
-	// Search / embedding defaults.
+	// Search defaults.
 	assert.False(t, cfg.Search.RecencyRankingEnabled)
 	assert.InDelta(t, 0.5, cfg.Search.RankWeightRelevance, 1e-9)
 	assert.InDelta(t, 0.3, cfg.Search.RankWeightCreated, 1e-9)
 	assert.InDelta(t, 0.2, cfg.Search.RankWeightUpdated, 1e-9)
 	assert.InDelta(t, 90, cfg.Search.RankHalfLifeDays, 1e-9)
 	assert.Equal(t, 200, cfg.Search.RankCandidateCap)
-	assert.Equal(t, "gemini-embedding-001", cfg.Embedding.Model)
-	assert.Equal(t, 1000, cfg.Embedding.ChunkSize)
-	assert.Equal(t, 200, cfg.Embedding.ChunkOverlap)
 
 	// Rate limits / retention defaults.
 	assert.Equal(t, 100, cfg.RateLimit.AuthPerMinute)
@@ -356,14 +349,11 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, "true", cfg.Frontend.GTMEnabled)
 	assert.Equal(t, "G-XXXX", cfg.Frontend.GA4MeasurementID)
 
-	// Search / embedding.
+	// Search.
 	assert.True(t, cfg.Search.RecencyRankingEnabled)
 	assert.InDelta(t, 0.6, cfg.Search.RankWeightRelevance, 1e-9)
 	assert.InDelta(t, 45, cfg.Search.RankHalfLifeDays, 1e-9)
 	assert.Equal(t, 300, cfg.Search.RankCandidateCap)
-	assert.Equal(t, "text-embedding-3-large", cfg.Embedding.Model)
-	assert.Equal(t, 800, cfg.Embedding.ChunkSize)
-	assert.Equal(t, 100, cfg.Embedding.ChunkOverlap)
 
 	// GitHub app, storage, gcp.
 	assert.Equal(t, "123456", cfg.GitHub.AppID)
@@ -440,15 +430,15 @@ func TestLoad_Interpolation_EndToEnd(t *testing.T) {
 database:
   host: ${VX_DB_HOST}
   name: ${VX_DB_NAME:-defaultdb}
-embedding:
-  chunk_size: ${VX_CHUNK}
+search:
+  rank_candidate_cap: ${VX_CHUNK}
 frontend:
   base_url: $${LITERAL}
 `)
 	require.NoError(t, err)
 	assert.Equal(t, "db.from.env", cfg.Database.Host)
 	assert.Equal(t, "defaultdb", cfg.Database.Name, "unset var falls back to :- default")
-	assert.Equal(t, 750, cfg.Embedding.ChunkSize, "interpolated string coerces to int")
+	assert.Equal(t, 750, cfg.Search.RankCandidateCap, "interpolated string coerces to int")
 	assert.Equal(t, "${LITERAL}", cfg.Frontend.BaseURL, "$$ escapes to a literal ${...}")
 }
 
@@ -594,20 +584,6 @@ func TestLoad_SearchRankWeightNegative_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.Contains(t, err.Error(), "search.rank_weight")
-}
-
-func TestLoad_EmbeddingModelEmpty_ReturnsError(t *testing.T) {
-	cfg, err := loadYAML(t, baseValidYAML+"embedding:\n  model: \"\"\n")
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "embedding.model")
-}
-
-func TestLoad_EmbeddingChunkOverlapInvalid_ReturnsError(t *testing.T) {
-	cfg, err := loadYAML(t, baseValidYAML+"embedding:\n  chunk_size: 500\n  chunk_overlap: 500\n")
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "embedding.chunk_overlap")
 }
 
 func TestValidateSearchRankingConfig(t *testing.T) {

@@ -201,14 +201,6 @@ search:
   rank_half_life_days: 90.0
   rank_candidate_cap: 200
 
-# Embedding model id (the tag written on every row and used as the search
-# filter) and the in-Go chunker sizing. The vector width is fixed at 1024 in
-# code — pick a model that outputs 1024 dims. Overlap must be < chunk_size.
-embedding:
-  model: "gemini-embedding-001"
-  chunk_size: 1000
-  chunk_overlap: 200
-
 # GitHub App / integration (distinct from the github web-login client above).
 # Optional — leave empty for local dev; the provider stubs out. A non-empty but
 # invalid app_private_key fails startup on PEM parsing.

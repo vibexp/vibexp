@@ -34,18 +34,24 @@ func (f *fakeProvider) Dimensions() int { return 3 }
 func (f *fakeProvider) Type() string    { return ProviderTypeOpenAICompatible }
 
 type fakeResolver struct {
-	provider EmbeddingProvider
-	err      error
-	calls    int
-	gotModel string
-	gotDims  int
+	provider  EmbeddingProvider
+	err       error
+	calls     int
+	gotTeamID string
 }
 
-func (f *fakeResolver) ResolveActiveProvider(_ context.Context, model string, dims int) (EmbeddingProvider, error) {
+func (f *fakeResolver) ResolveActiveProvider(
+	_ context.Context, teamID string,
+) (*ResolvedEmbeddingProvider, error) {
 	f.calls++
-	f.gotModel = model
-	f.gotDims = dims
-	return f.provider, f.err
+	f.gotTeamID = teamID
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.provider == nil {
+		return nil, nil
+	}
+	return &ResolvedEmbeddingProvider{Provider: f.provider, ChunkSize: 1000, ChunkOverlap: 200}, nil
 }
 
 type fakeEmbeddingService struct {
@@ -56,6 +62,12 @@ type fakeEmbeddingService struct {
 	modelID    string
 	chunks     []EmbeddingChunk
 	saveErr    error
+	team       string
+	teamErr    error
+}
+
+func (f *fakeEmbeddingService) ResolveEntityTeam(_ context.Context, _, _, _ string) (string, error) {
+	return f.team, f.teamErr
 }
 
 func (f *fakeEmbeddingService) SaveEmbedding(_, _, _, _ string, _ [][]float32) error { return nil }
@@ -75,15 +87,13 @@ func (f *fakeEmbeddingService) FindSimilar(_, _ string, _ []float32, _ int) ([]m
 func (f *fakeEmbeddingService) DeleteEmbeddingsByEntity(_, _ string) error { return nil }
 
 func newProcessor(resolver ActiveEmbeddingProviderResolver, svc EmbeddingServiceInterface) *EmbeddingGenerationProcessor {
-	return NewEmbeddingGenerationProcessor(
-		resolver, NewTextChunker(1000, 200), svc, "fake-model", 3, slog.New(slog.DiscardHandler),
-	)
+	return NewEmbeddingGenerationProcessor(resolver, svc, slog.New(slog.DiscardHandler))
 }
 
 func TestProcessEvent_HappyPath_SavesChunks(t *testing.T) {
 	provider := &fakeProvider{vectors: [][]float32{{0.1, 0.2, 0.3}}}
 	resolver := &fakeResolver{provider: provider}
-	svc := &fakeEmbeddingService{}
+	svc := &fakeEmbeddingService{team: "team-9"}
 	p := newProcessor(resolver, svc)
 
 	event := events.NewPromptCreatedEvent(
@@ -92,8 +102,7 @@ func TestProcessEvent_HappyPath_SavesChunks(t *testing.T) {
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 
-	assert.Equal(t, "fake-model", resolver.gotModel)
-	assert.Equal(t, 3, resolver.gotDims)
+	assert.Equal(t, "team-9", resolver.gotTeamID)
 	require.Equal(t, 1, svc.saveCalls)
 	assert.Equal(t, "user-1", svc.userID)
 	assert.Equal(t, "prompt", svc.entityType)

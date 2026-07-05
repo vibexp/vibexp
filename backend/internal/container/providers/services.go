@@ -321,12 +321,9 @@ func ProvideEmbeddingService(
 // dimension as documents.
 func ProvideQueryEmbedder(
 	providerSvc services.EmbeddingProviderServiceInterface,
-	cfg *config.Config,
 	logger *slog.Logger,
 ) services.QueryEmbedder {
-	return services.NewProviderQueryEmbedder(
-		providerSvc, cfg.Embedding.Model, services.EmbeddingVectorDimensions, logger,
-	)
+	return services.NewProviderQueryEmbedder(providerSvc, logger)
 }
 
 // ProvideEmbeddingProcessor creates the events.EmbeddingProcessor the embedding
@@ -335,13 +332,9 @@ func ProvideQueryEmbedder(
 func ProvideEmbeddingProcessor(
 	providerSvc services.EmbeddingProviderServiceInterface,
 	embeddingService services.EmbeddingServiceInterface,
-	cfg *config.Config,
 	logger *slog.Logger,
 ) events.EmbeddingProcessor {
-	chunker := services.NewTextChunker(cfg.Embedding.ChunkSize, cfg.Embedding.ChunkOverlap)
-	return services.NewEmbeddingGenerationProcessor(
-		providerSvc, chunker, embeddingService, cfg.Embedding.Model, services.EmbeddingVectorDimensions, logger,
-	)
+	return services.NewEmbeddingGenerationProcessor(providerSvc, embeddingService, logger)
 }
 
 // ProvideSearchService creates a new SearchService, wiring the recency-ranking
@@ -360,7 +353,7 @@ func ProvideSearchService(
 		HalfLife:        time.Duration(cfg.Search.RankHalfLifeDays * float64(24*time.Hour)),
 		CandidateCap:    cfg.Search.RankCandidateCap,
 	}
-	return services.NewSearchService(repo, embedder, logger, ranking, cfg.Embedding.Model)
+	return services.NewSearchService(repo, embedder, logger, ranking)
 }
 
 // ProvideEnvironmentService creates a new EnvironmentService
@@ -432,10 +425,9 @@ func ProvideEmbeddingBackfillService(
 	repo repositories.EmbeddingBackfillRepository,
 	publisher events.EventPublisher,
 	promptService services.PromptServiceInterface,
-	cfg *config.Config,
 	logger *slog.Logger,
 ) services.EmbeddingBackfillServiceInterface {
-	return services.NewEmbeddingBackfillService(repo, publisher, promptService, cfg.Embedding.Model, logger)
+	return services.NewEmbeddingBackfillService(repo, publisher, promptService, logger)
 }
 
 // ProvideUserPreferencesService creates a new UserPreferencesService

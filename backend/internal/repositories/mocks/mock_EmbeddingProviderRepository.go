@@ -176,9 +176,9 @@ func (_c *MockEmbeddingProviderRepository_Delete_Call) RunAndReturn(run func(con
 	return _c
 }
 
-// GetActiveProvider provides a mock function with given fields: ctx
-func (_m *MockEmbeddingProviderRepository) GetActiveProvider(ctx context.Context) (*models.EmbeddingProvider, error) {
-	ret := _m.Called(ctx)
+// GetActiveProvider provides a mock function with given fields: ctx, teamID
+func (_m *MockEmbeddingProviderRepository) GetActiveProvider(ctx context.Context, teamID string) (*models.EmbeddingProvider, error) {
+	ret := _m.Called(ctx, teamID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetActiveProvider")
@@ -186,19 +186,19 @@ func (_m *MockEmbeddingProviderRepository) GetActiveProvider(ctx context.Context
 
 	var r0 *models.EmbeddingProvider
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (*models.EmbeddingProvider, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.EmbeddingProvider, error)); ok {
+		return rf(ctx, teamID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) *models.EmbeddingProvider); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.EmbeddingProvider); ok {
+		r0 = rf(ctx, teamID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.EmbeddingProvider)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -213,13 +213,14 @@ type MockEmbeddingProviderRepository_GetActiveProvider_Call struct {
 
 // GetActiveProvider is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *MockEmbeddingProviderRepository_Expecter) GetActiveProvider(ctx interface{}) *MockEmbeddingProviderRepository_GetActiveProvider_Call {
-	return &MockEmbeddingProviderRepository_GetActiveProvider_Call{Call: _e.mock.On("GetActiveProvider", ctx)}
+//   - teamID string
+func (_e *MockEmbeddingProviderRepository_Expecter) GetActiveProvider(ctx interface{}, teamID interface{}) *MockEmbeddingProviderRepository_GetActiveProvider_Call {
+	return &MockEmbeddingProviderRepository_GetActiveProvider_Call{Call: _e.mock.On("GetActiveProvider", ctx, teamID)}
 }
 
-func (_c *MockEmbeddingProviderRepository_GetActiveProvider_Call) Run(run func(ctx context.Context)) *MockEmbeddingProviderRepository_GetActiveProvider_Call {
+func (_c *MockEmbeddingProviderRepository_GetActiveProvider_Call) Run(run func(ctx context.Context, teamID string)) *MockEmbeddingProviderRepository_GetActiveProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
@@ -229,7 +230,7 @@ func (_c *MockEmbeddingProviderRepository_GetActiveProvider_Call) Return(_a0 *mo
 	return _c
 }
 
-func (_c *MockEmbeddingProviderRepository_GetActiveProvider_Call) RunAndReturn(run func(context.Context) (*models.EmbeddingProvider, error)) *MockEmbeddingProviderRepository_GetActiveProvider_Call {
+func (_c *MockEmbeddingProviderRepository_GetActiveProvider_Call) RunAndReturn(run func(context.Context, string) (*models.EmbeddingProvider, error)) *MockEmbeddingProviderRepository_GetActiveProvider_Call {
 	_c.Call.Return(run)
 	return _c
 }

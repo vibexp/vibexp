@@ -33,9 +33,6 @@ type SearchService struct {
 	embedder QueryEmbedder
 	logger   *slog.Logger
 	ranking  SearchRankingConfig
-	// model is the configured embedding model id; it gates the model_id filter so
-	// query embeddings only match rows written by the same model.
-	model string
 	// now returns the reference time for recency decay; overridable in tests.
 	now func() time.Time
 }
@@ -43,22 +40,21 @@ type SearchService struct {
 var _ SearchServiceInterface = (*SearchService)(nil)
 
 // NewSearchService creates a new SearchService. ranking controls result ordering:
-// when disabled the service preserves the historical relevance-only ordering.
-// model is the embedding model id used to filter stored embeddings; it must match
-// the model the query embedder uses so query and document vectors are comparable.
+// when disabled the service preserves the historical relevance-only ordering. The
+// model used to filter stored embeddings comes from the query embedder per
+// request (the team's active provider), so query and document vectors stay
+// comparable.
 func NewSearchService(
 	repo repositories.SearchRepository,
 	embedder QueryEmbedder,
 	logger *slog.Logger,
 	ranking SearchRankingConfig,
-	model string,
 ) *SearchService {
 	return &SearchService{
 		repo:     repo,
 		embedder: embedder,
 		logger:   logger,
 		ranking:  ranking,
-		model:    model,
 		now:      time.Now,
 	}
 }
@@ -75,13 +71,13 @@ func (s *SearchService) Search(
 ) (*models.SearchResultsResponse, error) {
 	entityTypes := resolveEntityTypes(req.Types)
 
-	vector, err := s.embedder.EmbedQuery(ctx, req.Query)
+	vector, model, err := s.embedder.EmbedQuery(ctx, teamID, req.Query)
 	keyword := errors.Is(err, ErrNoEmbeddingProvider)
 	if err != nil && !keyword {
 		return nil, fmt.Errorf("SearchService.Search: failed to embed query: %w", err)
 	}
 
-	pageRows, total, err := s.fetchPage(ctx, teamID, vector, keyword, entityTypes, req)
+	pageRows, total, err := s.fetchPage(ctx, teamID, vector, model, keyword, entityTypes, req)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +93,7 @@ func (s *SearchService) Search(
 		}
 		s.logger.With(
 			"team_id", teamID,
-			"model_id", s.model,
+			"model_id", model,
 			"entity_types", entityTypes,
 			"mode", mode,
 		).
@@ -129,6 +125,7 @@ func (s *SearchService) fetchPage(
 	ctx context.Context,
 	teamID string,
 	vector []float32,
+	model string,
 	keyword bool,
 	entityTypes []string,
 	req *models.SearchRequest,
@@ -139,7 +136,7 @@ func (s *SearchService) fetchPage(
 		if keyword {
 			return s.repo.SearchKeyword(ctx, teamID, req.Query, entityTypes, req.ProjectID, limit, offset)
 		}
-		return s.repo.SearchSimilar(ctx, teamID, vector, s.model, entityTypes, req.ProjectID, limit, offset)
+		return s.repo.SearchSimilar(ctx, teamID, vector, model, entityTypes, req.ProjectID, limit, offset)
 	}
 
 	if !s.ranking.Enabled {

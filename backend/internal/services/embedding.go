@@ -109,6 +109,9 @@ type EmbeddingServiceInterface interface {
 	GetEmbeddingsByEntity(userID, entityType, entityID string) ([]models.Embedding, error)
 	FindSimilar(userID, entityType string, vector []float32, limit int) ([]models.EmbeddingSimilarity, error)
 	DeleteEmbeddingsByEntity(entityType, entityID string) error
+	// ResolveEntityTeam validates the entity exists and returns its team id, so the
+	// embedding worker can pick that team's provider before embedding.
+	ResolveEntityTeam(ctx context.Context, userID, entityType, entityID string) (string, error)
 }
 
 // EmbeddingService implements the EmbeddingServiceInterface.
@@ -481,6 +484,14 @@ func (s *EmbeddingService) DeleteEmbeddingsByEntity(entityType, entityID string)
 // A nil ValidatorFunc on a registered entity is treated as "skip validation",
 // returning an empty teamID (the embeddings.team_id column is nullable). This
 // preserves the previous behaviour of allowing repos to be left out in tests.
+// ResolveEntityTeam is the exported entry point for resolveEntityTeam, letting the
+// embedding worker resolve an entity's team before picking that team's provider.
+func (s *EmbeddingService) ResolveEntityTeam(
+	ctx context.Context, userID, entityType, entityID string,
+) (string, error) {
+	return s.resolveEntityTeam(ctx, userID, entityType, entityID)
+}
+
 func (s *EmbeddingService) resolveEntityTeam(
 	ctx context.Context, userID, entityType, entityID string,
 ) (string, error) {

@@ -98,30 +98,29 @@ type EmbeddingBackfillService struct {
 	repo           repositories.EmbeddingBackfillRepository
 	publisher      events.EventPublisher
 	promptRenderer PromptBodyRenderer
-	// modelID is the currently configured embedding model. It keys the missing_only
-	// NOT EXISTS filter so a backfill targets entities lacking an embedding for the
-	// model the live pipeline now writes.
+	// modelID keys the missing_only NOT EXISTS filter. Embedding models are now
+	// per-team (issue #79), so there is no single configured model: it is left
+	// empty, which makes missing_only re-embed every entity (no model_id matches an
+	// empty string). Re-embedding is idempotent (delete-then-insert), so a backfill
+	// safely regenerates through each entity's team provider.
 	modelID string
 	logger  *slog.Logger
 }
 
 var _ EmbeddingBackfillServiceInterface = (*EmbeddingBackfillService)(nil)
 
-// NewEmbeddingBackfillService creates a new EmbeddingBackfillService. modelID is the
-// configured embedding model id (config.EmbeddingModel) used to key the missing_only
-// filter.
+// NewEmbeddingBackfillService creates a new EmbeddingBackfillService.
 func NewEmbeddingBackfillService(
 	repo repositories.EmbeddingBackfillRepository,
 	publisher events.EventPublisher,
 	promptRenderer PromptBodyRenderer,
-	modelID string,
 	logger *slog.Logger,
 ) *EmbeddingBackfillService {
 	return &EmbeddingBackfillService{
 		repo:           repo,
 		publisher:      publisher,
 		promptRenderer: promptRenderer,
-		modelID:        modelID,
+		modelID:        "",
 		logger:         logger,
 	}
 }

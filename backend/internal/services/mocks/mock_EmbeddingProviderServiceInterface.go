@@ -311,29 +311,29 @@ func (_c *MockEmbeddingProviderServiceInterface_GetEmbeddingProvidersByTeamID_Ca
 	return _c
 }
 
-// ResolveActiveProvider provides a mock function with given fields: ctx, model, dimensions
-func (_m *MockEmbeddingProviderServiceInterface) ResolveActiveProvider(ctx context.Context, model string, dimensions int) (services.EmbeddingProvider, error) {
-	ret := _m.Called(ctx, model, dimensions)
+// ResolveActiveProvider provides a mock function with given fields: ctx, teamID
+func (_m *MockEmbeddingProviderServiceInterface) ResolveActiveProvider(ctx context.Context, teamID string) (*services.ResolvedEmbeddingProvider, error) {
+	ret := _m.Called(ctx, teamID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ResolveActiveProvider")
 	}
 
-	var r0 services.EmbeddingProvider
+	var r0 *services.ResolvedEmbeddingProvider
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, int) (services.EmbeddingProvider, error)); ok {
-		return rf(ctx, model, dimensions)
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*services.ResolvedEmbeddingProvider, error)); ok {
+		return rf(ctx, teamID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, int) services.EmbeddingProvider); ok {
-		r0 = rf(ctx, model, dimensions)
+	if rf, ok := ret.Get(0).(func(context.Context, string) *services.ResolvedEmbeddingProvider); ok {
+		r0 = rf(ctx, teamID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(services.EmbeddingProvider)
+			r0 = ret.Get(0).(*services.ResolvedEmbeddingProvider)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, int) error); ok {
-		r1 = rf(ctx, model, dimensions)
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -348,25 +348,24 @@ type MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call struct {
 
 // ResolveActiveProvider is a helper method to define mock.On call
 //   - ctx context.Context
-//   - model string
-//   - dimensions int
-func (_e *MockEmbeddingProviderServiceInterface_Expecter) ResolveActiveProvider(ctx interface{}, model interface{}, dimensions interface{}) *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call {
-	return &MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call{Call: _e.mock.On("ResolveActiveProvider", ctx, model, dimensions)}
+//   - teamID string
+func (_e *MockEmbeddingProviderServiceInterface_Expecter) ResolveActiveProvider(ctx interface{}, teamID interface{}) *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call {
+	return &MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call{Call: _e.mock.On("ResolveActiveProvider", ctx, teamID)}
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call) Run(run func(ctx context.Context, model string, dimensions int)) *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call {
+func (_c *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call) Run(run func(ctx context.Context, teamID string)) *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(int))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call) Return(_a0 services.EmbeddingProvider, _a1 error) *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call {
+func (_c *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call) Return(_a0 *services.ResolvedEmbeddingProvider, _a1 error) *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call) RunAndReturn(run func(context.Context, string, int) (services.EmbeddingProvider, error)) *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call {
+func (_c *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call) RunAndReturn(run func(context.Context, string) (*services.ResolvedEmbeddingProvider, error)) *MockEmbeddingProviderServiceInterface_ResolveActiveProvider_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -125,11 +125,6 @@ frontend:
   gtm_enabled: "${VITE_GTM_ENABLED:-}"
   ga4_measurement_id: "${VITE_GA4_MEASUREMENT_ID:-}"
 
-# Embedding model id (the tag written on every row and the search filter). The
-# vector width is fixed at 1024 in code — pick a model that outputs 1024 dims.
-embedding:
-  model: "${EMBEDDING_MODEL:-gemini-embedding-001}"
-
 # GitHub App integration (optional; distinct from the github web-login client).
 github:
   app_id: "${GITHUB_APP_ID:-}"

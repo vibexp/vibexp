@@ -66,14 +66,12 @@ services:
       # production: openssl rand -hex 32
       SESSION_ENCRYPTION_KEY: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 
-      # The embedding vector width is fixed at 1024 in code (locked to the pgvector
-      # column) — pick a model that outputs 1024 dims (Titan V2, Cohere v3, Mistral,
-      # mxbai-embed-large; or OpenAI text-embedding-3-* / Gemini, which VibeXP requests
-      # at 1024). EMBEDDING_MODEL is the model_id tag + search filter. Embeddings are
-      # generated in-process — no separate AI service or Pub/Sub. To enable semantic
-      # search, configure an embedding provider (OpenAI-compatible endpoint) in the
-      # app; without one, embedding is skipped and entities still save.
-      EMBEDDING_MODEL: "gemini-embedding-001"
+      # Embeddings are generated in-process — no separate AI service or Pub/Sub.
+      # The provider, model, and chunk sizing are configured per team in the app
+      # (Settings → Embedding Providers), not via env: pick a model that outputs
+      # 1024-dim vectors (the fixed pgvector width) — the save-time validation
+      # rejects anything else. Without a provider, embedding is skipped and
+      # entities still save (search falls back to keyword).
 
       # YOUR deployment's public URL — the single origin that serves both the SPA
       # and the API. Same-origin serving means there is no separate frontend URL,
