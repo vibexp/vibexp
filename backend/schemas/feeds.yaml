@@ -105,6 +105,12 @@ FeedItem:
       format: date-time
       description: Server-set timestamp when the item was posted
       example: "2024-01-15T10:30:00Z"
+    reply_count:
+      type: integer
+      description: >-
+        Number of replies to this item. Populated with the real count on list
+        endpoints; always 0 on single-item and create responses.
+      example: 3
   required:
     - id
     - team_id
@@ -115,6 +121,7 @@ FeedItem:
     - ai_assistant_name
     - posted_by_user_id
     - posted_at
+    - reply_count
 
 # Request model for creating a feed
 CreateFeedRequest:
