@@ -495,12 +495,11 @@ type EmbeddingProviderRepository interface {
 	Update(ctx context.Context, provider *models.EmbeddingProvider) error
 	Delete(ctx context.Context, teamID, providerID string) error
 	GetDefault(ctx context.Context, teamID string) (*models.EmbeddingProvider, error)
-	// GetActiveProvider resolves the single system-wide embedding provider used to
-	// generate document and query embeddings, independent of any one user. It
-	// prefers a default-flagged provider, then the most recently updated one, so a
-	// single-tenant self-host deployment with one configured provider resolves it
-	// deterministically. Returns ErrNoActiveEmbeddingProvider when none exists.
-	GetActiveProvider(ctx context.Context) (*models.EmbeddingProvider, error)
+	// GetActiveProvider resolves the embedding provider used to generate document
+	// and query embeddings for a team. It prefers the team's default-flagged
+	// provider, then its most recently updated one. Returns
+	// ErrNoActiveEmbeddingProvider when the team has none.
+	GetActiveProvider(ctx context.Context, teamID string) (*models.EmbeddingProvider, error)
 	SetDefault(ctx context.Context, teamID, providerID string) error
 	UnsetAllDefaults(ctx context.Context, teamID string) error
 	Count(ctx context.Context, teamID string) (int, error)

@@ -21,34 +21,41 @@ func (_m *MockQueryEmbedder) EXPECT() *MockQueryEmbedder_Expecter {
 	return &MockQueryEmbedder_Expecter{mock: &_m.Mock}
 }
 
-// EmbedQuery provides a mock function with given fields: ctx, query
-func (_m *MockQueryEmbedder) EmbedQuery(ctx context.Context, query string) ([]float32, error) {
-	ret := _m.Called(ctx, query)
+// EmbedQuery provides a mock function with given fields: ctx, teamID, query
+func (_m *MockQueryEmbedder) EmbedQuery(ctx context.Context, teamID string, query string) ([]float32, string, error) {
+	ret := _m.Called(ctx, teamID, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for EmbedQuery")
 	}
 
 	var r0 []float32
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]float32, error)); ok {
-		return rf(ctx, query)
+	var r1 string
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]float32, string, error)); ok {
+		return rf(ctx, teamID, query)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []float32); ok {
-		r0 = rf(ctx, query)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []float32); ok {
+		r0 = rf(ctx, teamID, query)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]float32)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, query)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) string); ok {
+		r1 = rf(ctx, teamID, query)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(string)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, string, string) error); ok {
+		r2 = rf(ctx, teamID, query)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // MockQueryEmbedder_EmbedQuery_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'EmbedQuery'
@@ -58,24 +65,25 @@ type MockQueryEmbedder_EmbedQuery_Call struct {
 
 // EmbedQuery is a helper method to define mock.On call
 //   - ctx context.Context
+//   - teamID string
 //   - query string
-func (_e *MockQueryEmbedder_Expecter) EmbedQuery(ctx interface{}, query interface{}) *MockQueryEmbedder_EmbedQuery_Call {
-	return &MockQueryEmbedder_EmbedQuery_Call{Call: _e.mock.On("EmbedQuery", ctx, query)}
+func (_e *MockQueryEmbedder_Expecter) EmbedQuery(ctx interface{}, teamID interface{}, query interface{}) *MockQueryEmbedder_EmbedQuery_Call {
+	return &MockQueryEmbedder_EmbedQuery_Call{Call: _e.mock.On("EmbedQuery", ctx, teamID, query)}
 }
 
-func (_c *MockQueryEmbedder_EmbedQuery_Call) Run(run func(ctx context.Context, query string)) *MockQueryEmbedder_EmbedQuery_Call {
+func (_c *MockQueryEmbedder_EmbedQuery_Call) Run(run func(ctx context.Context, teamID string, query string)) *MockQueryEmbedder_EmbedQuery_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
 	return _c
 }
 
-func (_c *MockQueryEmbedder_EmbedQuery_Call) Return(_a0 []float32, _a1 error) *MockQueryEmbedder_EmbedQuery_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *MockQueryEmbedder_EmbedQuery_Call) Return(_a0 []float32, _a1 string, _a2 error) *MockQueryEmbedder_EmbedQuery_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *MockQueryEmbedder_EmbedQuery_Call) RunAndReturn(run func(context.Context, string) ([]float32, error)) *MockQueryEmbedder_EmbedQuery_Call {
+func (_c *MockQueryEmbedder_EmbedQuery_Call) RunAndReturn(run func(context.Context, string, string) ([]float32, string, error)) *MockQueryEmbedder_EmbedQuery_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -269,24 +269,25 @@ func (r *EmbeddingProviderRepository) GetDefault(
 	return &provider, nil
 }
 
-// GetActiveProvider resolves the single system-wide embedding provider used by
-// the embedding pipeline, independent of any one user. A default-flagged provider
-// wins; otherwise the most recently updated provider is used. Returns
-// ErrNoActiveEmbeddingProvider when the table is empty so callers can treat
-// "no provider configured" as embedding-disabled rather than an error.
+// GetActiveProvider resolves the embedding provider used by the embedding
+// pipeline for a team. The team's default-flagged provider wins; otherwise its
+// most recently updated provider is used. Returns ErrNoActiveEmbeddingProvider
+// when the team has none, so callers can treat "no provider configured" as
+// embedding-disabled rather than an error.
 func (r *EmbeddingProviderRepository) GetActiveProvider(
-	ctx context.Context,
+	ctx context.Context, teamID string,
 ) (*models.EmbeddingProvider, error) {
 	query := `
 		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
 		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at, version
 		FROM embedding_providers
+		WHERE team_id = $1
 		ORDER BY is_default DESC, updated_at DESC
 		LIMIT 1
 	`
 
 	var provider models.EmbeddingProvider
-	err := r.db.QueryRowContext(ctx, query).Scan(
+	err := r.db.QueryRowContext(ctx, query, teamID).Scan(
 		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,

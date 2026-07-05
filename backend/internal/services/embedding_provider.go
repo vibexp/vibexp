@@ -18,8 +18,8 @@ import (
 )
 
 // Default in-Go text-chunker sizing applied to a provider when the create
-// request omits it. These replace the former global config.Embedding.ChunkSize /
-// ChunkOverlap defaults now that chunk sizing lives on the provider record.
+// request omits it. Chunk sizing lives on the provider record now, so these are
+// only the fallback for a create request that leaves it unset.
 const (
 	defaultEmbeddingChunkSize    = 1000
 	defaultEmbeddingChunkOverlap = 200
@@ -441,13 +441,13 @@ func (eps *EmbeddingProviderService) GetDefaultEmbeddingProvider(
 // returns (nil, nil) when no provider is configured, signalling the embedding
 // pipeline to no-op so entity writes still succeed.
 func (eps *EmbeddingProviderService) ResolveActiveProvider(
-	ctx context.Context, model string, dimensions int,
-) (EmbeddingProvider, error) {
+	ctx context.Context, teamID string,
+) (*ResolvedEmbeddingProvider, error) {
 	if eps == nil || eps.repo == nil {
 		return nil, fmt.Errorf("EmbeddingProviderService is nil")
 	}
 
-	row, err := eps.repo.GetActiveProvider(ctx)
+	row, err := eps.repo.GetActiveProvider(ctx, teamID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNoActiveEmbeddingProvider) {
 			return nil, nil
@@ -463,7 +463,20 @@ func (eps *EmbeddingProviderService) ResolveActiveProvider(
 		}
 	}
 
-	return NewGenerationProvider(row, apiKey, model, dimensions, generateEmbeddingsTimeout)
+	// The model and vector width come from the stored row + the fixed constant, so
+	// document and query embeddings for this team always share one model and width.
+	provider, err := NewGenerationProvider(
+		row, apiKey, row.Model, EmbeddingVectorDimensions, generateEmbeddingsTimeout,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ResolvedEmbeddingProvider{
+		Provider:     provider,
+		ChunkSize:    row.ChunkSize,
+		ChunkOverlap: row.ChunkOverlap,
+	}, nil
 }
 
 func (eps *EmbeddingProviderService) ValidateEmbeddingProvider(

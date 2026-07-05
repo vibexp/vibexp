@@ -34,7 +34,6 @@ type Config struct {
 	Email      EmailConfig      `koanf:"email"`
 	Frontend   FrontendConfig   `koanf:"frontend"`
 	Search     SearchConfig     `koanf:"search"`
-	Embedding  EmbeddingConfig  `koanf:"embedding"`
 	GitHub     GitHubConfig     `koanf:"github"`
 	Storage    StorageConfig    `koanf:"storage"`
 	GCP        GCPConfig        `koanf:"gcp"`
@@ -272,13 +271,6 @@ type SearchConfig struct {
 	RankWeightUpdated     float64 `koanf:"rank_weight_updated"`
 	RankHalfLifeDays      float64 `koanf:"rank_half_life_days"`
 	RankCandidateCap      int     `koanf:"rank_candidate_cap"`
-}
-
-// EmbeddingConfig holds the embedding model id and the in-Go chunker sizing.
-type EmbeddingConfig struct {
-	Model        string `koanf:"model"`
-	ChunkSize    int    `koanf:"chunk_size"`
-	ChunkOverlap int    `koanf:"chunk_overlap"`
 }
 
 // GitHubConfig holds GitHub App / integration settings (distinct from the
@@ -633,26 +625,6 @@ func validateRetentionDays(yamlPath string, value int) error {
 	return nil
 }
 
-// validateEmbeddingConfig enforces that the embedding model is named and the
-// chunker sizing is sane, so the service fails closed at startup rather than
-// embedding/searching with an empty model_id or a stalled chunker.
-func validateEmbeddingConfig(cfg *Config) error {
-	e := cfg.Embedding
-	if e.Model == "" {
-		return fmt.Errorf("embedding.model is required and must be non-empty")
-	}
-	if e.ChunkSize < 1 {
-		return fmt.Errorf("embedding.chunk_size must be >= 1, got %d", e.ChunkSize)
-	}
-	if e.ChunkOverlap < 0 || e.ChunkOverlap >= e.ChunkSize {
-		return fmt.Errorf(
-			"embedding.chunk_overlap must be in [0, embedding.chunk_size), got %d (chunk size %d)",
-			e.ChunkOverlap, e.ChunkSize,
-		)
-	}
-	return nil
-}
-
 // validateRateLimits enforces that every per-IP rate limit is positive; a
 // non-positive value would reject every request to the guarded route group.
 func validateRateLimits(cfg *Config) error {
@@ -687,7 +659,6 @@ func validateAll(cfg *Config) error {
 		validateBodyAndRetention,
 		validateRateLimits,
 		validateSearchRankingConfig,
-		validateEmbeddingConfig,
 		validateEncryptionKey,
 		validateOAuthASConfig,
 	}
@@ -735,9 +706,6 @@ func defaults() map[string]any {
 		"email.smtp.port":                     "587",
 		"email.postmark.message_stream":       "outbound",
 		"frontend.base_url":                   "http://localhost:5173",
-		"embedding.model":                     "gemini-embedding-001",
-		"embedding.chunk_size":                1000,
-		"embedding.chunk_overlap":             200,
 		"search.rank_weight_relevance":        0.5,
 		"search.rank_weight_created":          0.3,
 		"search.rank_weight_updated":          0.2,

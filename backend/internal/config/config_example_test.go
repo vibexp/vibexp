@@ -50,8 +50,6 @@ func TestConfigExampleYAML_Loads(t *testing.T) {
 	require.Equal(t, "8080", cfg.Server.Port)
 	require.Equal(t, int64(10<<20), cfg.Server.MaxBodySizeBytes)
 	require.Equal(t, "vibexp_io", cfg.Database.Name)
-	require.Equal(t, "gemini-embedding-001", cfg.Embedding.Model)
-	require.Equal(t, 1000, cfg.Embedding.ChunkSize)
 	require.Equal(t, 15*time.Minute, cfg.Auth.OAuthAS.AccessTokenTTL)
 	require.Equal(t, 720*time.Hour, cfg.Auth.OAuthAS.RefreshTokenTTL)
 	require.Equal(t, 100, cfg.RateLimit.AuthPerMinute)

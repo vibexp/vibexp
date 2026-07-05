@@ -39,7 +39,7 @@ func newTestSearchServiceWithRanking(t *testing.T, ranking services.SearchRankin
 	repo := repomocks.NewMockSearchRepository(t)
 	embedder := svcmocks.NewMockQueryEmbedder(t)
 	logger := slog.New(slog.DiscardHandler)
-	return services.NewSearchService(repo, embedder, logger, ranking, testEmbeddingModel), repo, embedder
+	return services.NewSearchService(repo, embedder, logger, ranking), repo, embedder
 }
 
 func validVector() []float32 {
@@ -50,7 +50,7 @@ func TestSearchService_Search_DefaultsToAllTypes(t *testing.T) {
 	svc, repo, embedder := newTestSearchService(t)
 	vec := validVector()
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "hello").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "hello").Return(vec, testEmbeddingModel, nil)
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel,
 			[]string{"prompt", "artifact", "blueprint", "memory"}, "", 10, 0).
@@ -70,7 +70,7 @@ func TestSearchService_Search_MapsPluralToSingular(t *testing.T) {
 	svc, repo, embedder := newTestSearchService(t)
 	vec := validVector()
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	// Service preserves the request order when mapping plural -> singular;
 	// the repository enforces deterministic SQL ordering independently.
 	repo.EXPECT().
@@ -90,7 +90,7 @@ func TestSearchService_Search_PassesProjectFilter(t *testing.T) {
 	vec := validVector()
 	projectID := "7c9e6679-7425-40de-944b-e07fc1f90ae7"
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	// The request's project_id must be threaded verbatim into the repository call.
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel,
@@ -176,7 +176,7 @@ func TestSearchService_Search_MapsRows(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, repo, embedder := newTestSearchService(t)
 			vec := validVector()
-			embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+			embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 			repo.EXPECT().
 				SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel,
 					mock.Anything, "", 10, 0).
@@ -205,7 +205,7 @@ func TestSearchService_Search_TotalPagesAndOffset(t *testing.T) {
 	svc, repo, embedder := newTestSearchService(t)
 	vec := validVector()
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	// Page 2, per_page 10 -> offset (2-1)*10 = 10.
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel, mock.Anything, "", 10, 10).
@@ -224,7 +224,7 @@ func TestSearchService_Search_TotalPagesAndOffset(t *testing.T) {
 
 func TestSearchService_Search_EmbedderError(t *testing.T) {
 	svc, _, embedder := newTestSearchService(t)
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(nil, errors.New("ai down"))
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(nil, "", errors.New("ai down"))
 
 	_, err := svc.Search(context.Background(), testTeamID, &models.SearchRequest{
 		Query: "q", Page: 1, PerPage: 10,
@@ -237,7 +237,7 @@ func TestSearchService_Search_EmbedderError(t *testing.T) {
 func TestSearchService_Search_RepoError(t *testing.T) {
 	svc, repo, embedder := newTestSearchService(t)
 	vec := validVector()
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel, mock.Anything, "", 10, 0).
 		Return(nil, 0, errors.New("db error"))
@@ -266,7 +266,7 @@ func TestSearchService_Search_RankingDisabled_FetchesExactPage(t *testing.T) {
 	svc, repo, embedder := newTestSearchService(t)
 	vec := validVector()
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel, mock.Anything, "", 10, 10).
 		Return([]models.SearchResultRow{
@@ -309,7 +309,7 @@ func TestSearchService_Search_RankingEnabled_PullsCandidateCapAndReRanks(t *test
 		{EntityType: "prompt", EntityID: "p-fresh", ChunkID: "c-fresh", Distance: 0.40, CreatedAt: now, UpdatedAt: now},
 	}
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	// Ranking on: candidate cap (200) with offset 0, regardless of page size.
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel, mock.Anything, "", 200, 0).
@@ -351,7 +351,7 @@ func TestSearchService_Search_RankingEnabled_PaginatesReRankedPool(t *testing.T)
 	}
 	// Re-ranked newest-first: c4 (0d), c2 (-1d), c3 (-2d), c1 (-3d).
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel, mock.Anything, "", 200, 0).
 		Return(candidates, 4, nil)
@@ -373,7 +373,7 @@ func TestSearchService_Search_RankingEnabled_OffsetBeyondPoolReturnsEmpty(t *tes
 	svc.SetClockForTest(time.Now)
 	vec := validVector()
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel, mock.Anything, "", 200, 0).
 		Return([]models.SearchResultRow{
@@ -400,7 +400,7 @@ func TestSearchService_Search_RankingEnabled_TotalCountCappedToPool(t *testing.T
 	svc.SetClockForTest(time.Now)
 	vec := validVector()
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	// Pool capped at 3, but 100 rows match overall.
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel, mock.Anything, "", 3, 0).
@@ -423,7 +423,7 @@ func TestSearchService_Search_RankingEnabled_TotalCountCappedToPool(t *testing.T
 func TestSearchService_Search_RankingEnabled_RepoError(t *testing.T) {
 	svc, repo, embedder := newTestSearchServiceWithRanking(t, enabledRanking())
 	vec := validVector()
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(vec, nil)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
 	repo.EXPECT().
 		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel, mock.Anything, "", 200, 0).
 		Return(nil, 0, errors.New("db error"))
@@ -443,7 +443,7 @@ func TestSearchService_Search_NoProvider_FallsBackToKeyword(t *testing.T) {
 	svc, repo, embedder := newTestSearchService(t)
 	now := time.Now()
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "hello world").Return(nil, services.ErrNoEmbeddingProvider)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "hello world").Return(nil, "", services.ErrNoEmbeddingProvider)
 	repo.EXPECT().
 		SearchKeyword(mock.Anything, testTeamID, "hello world",
 			[]string{"prompt", "artifact", "blueprint", "memory"}, "", 10, 0).
@@ -475,7 +475,7 @@ func TestSearchService_Search_NoProvider_ThreadsProjectAndPagination(t *testing.
 	svc, repo, embedder := newTestSearchService(t)
 	projectID := "7c9e6679-7425-40de-944b-e07fc1f90ae7"
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(nil, services.ErrNoEmbeddingProvider)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(nil, "", services.ErrNoEmbeddingProvider)
 	// Page 2, per_page 10 -> offset 10; project_id threaded through; types preserved.
 	repo.EXPECT().
 		SearchKeyword(mock.Anything, testTeamID, "q", []string{"memory", "prompt"}, projectID, 10, 10).
@@ -493,7 +493,7 @@ func TestSearchService_Search_NoProvider_ThreadsProjectAndPagination(t *testing.
 // A non-sentinel embedder error must still fail the request (no silent fallback).
 func TestSearchService_Search_EmbedderError_DoesNotFallBack(t *testing.T) {
 	svc, _, embedder := newTestSearchService(t)
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(nil, errors.New("ai down"))
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(nil, "", errors.New("ai down"))
 
 	_, err := svc.Search(context.Background(), testTeamID, &models.SearchRequest{
 		Query: "q", Page: 1, PerPage: 10,
@@ -517,7 +517,7 @@ func TestSearchService_Search_NoProvider_RankingEnabledReRanks(t *testing.T) {
 		{EntityType: "prompt", EntityID: "p-fresh", ChunkID: "c-fresh", Distance: 0.40, CreatedAt: now, UpdatedAt: now},
 	}
 
-	embedder.EXPECT().EmbedQuery(mock.Anything, "q").Return(nil, services.ErrNoEmbeddingProvider)
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(nil, "", services.ErrNoEmbeddingProvider)
 	repo.EXPECT().
 		SearchKeyword(mock.Anything, testTeamID, "q", mock.Anything, "", 200, 0).
 		Return(candidates, 2, nil)

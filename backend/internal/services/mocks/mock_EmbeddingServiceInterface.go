@@ -3,6 +3,8 @@
 package mocks
 
 import (
+	context "context"
+
 	mock "github.com/stretchr/testify/mock"
 	models "github.com/vibexp/vibexp/internal/models"
 
@@ -186,6 +188,65 @@ func (_c *MockEmbeddingServiceInterface_GetEmbeddingsByEntity_Call) Return(_a0 [
 }
 
 func (_c *MockEmbeddingServiceInterface_GetEmbeddingsByEntity_Call) RunAndReturn(run func(string, string, string) ([]models.Embedding, error)) *MockEmbeddingServiceInterface_GetEmbeddingsByEntity_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ResolveEntityTeam provides a mock function with given fields: ctx, userID, entityType, entityID
+func (_m *MockEmbeddingServiceInterface) ResolveEntityTeam(ctx context.Context, userID string, entityType string, entityID string) (string, error) {
+	ret := _m.Called(ctx, userID, entityType, entityID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ResolveEntityTeam")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (string, error)); ok {
+		return rf(ctx, userID, entityType, entityID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) string); ok {
+		r0 = rf(ctx, userID, entityType, entityID)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, userID, entityType, entityID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockEmbeddingServiceInterface_ResolveEntityTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ResolveEntityTeam'
+type MockEmbeddingServiceInterface_ResolveEntityTeam_Call struct {
+	*mock.Call
+}
+
+// ResolveEntityTeam is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - entityType string
+//   - entityID string
+func (_e *MockEmbeddingServiceInterface_Expecter) ResolveEntityTeam(ctx interface{}, userID interface{}, entityType interface{}, entityID interface{}) *MockEmbeddingServiceInterface_ResolveEntityTeam_Call {
+	return &MockEmbeddingServiceInterface_ResolveEntityTeam_Call{Call: _e.mock.On("ResolveEntityTeam", ctx, userID, entityType, entityID)}
+}
+
+func (_c *MockEmbeddingServiceInterface_ResolveEntityTeam_Call) Run(run func(ctx context.Context, userID string, entityType string, entityID string)) *MockEmbeddingServiceInterface_ResolveEntityTeam_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockEmbeddingServiceInterface_ResolveEntityTeam_Call) Return(_a0 string, _a1 error) *MockEmbeddingServiceInterface_ResolveEntityTeam_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockEmbeddingServiceInterface_ResolveEntityTeam_Call) RunAndReturn(run func(context.Context, string, string, string) (string, error)) *MockEmbeddingServiceInterface_ResolveEntityTeam_Call {
 	_c.Call.Return(run)
 	return _c
 }

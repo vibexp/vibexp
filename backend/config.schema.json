@@ -96,9 +96,6 @@
         "search": {
           "$ref": "#/$defs/SearchConfig"
         },
-        "embedding": {
-          "$ref": "#/$defs/EmbeddingConfig"
-        },
         "github": {
           "$ref": "#/$defs/GitHubConfig"
         },
@@ -218,21 +215,6 @@
         },
         "sendgrid": {
           "$ref": "#/$defs/SendGridConfig"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "EmbeddingConfig": {
-      "properties": {
-        "model": {
-          "type": "string"
-        },
-        "chunk_size": {
-          "type": "integer"
-        },
-        "chunk_overlap": {
-          "type": "integer"
         }
       },
       "additionalProperties": false,
