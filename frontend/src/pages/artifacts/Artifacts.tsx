@@ -34,7 +34,7 @@ interface State {
 export function Artifacts() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
-  const { currentProject } = useProject()
+  const { currentProject, isLoading: isProjectLoading } = useProject()
   const { types } = useTypes('artifacts')
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
@@ -64,7 +64,9 @@ export function Artifacts() {
 
   const fetchArtifacts = useCallback(
     async (current: ArtifactFiltersType) => {
-      if (!currentTeam) return
+      // Wait for a persisted project selection to restore, so the first fetch
+      // is already scoped instead of flashing unfiltered results.
+      if (!currentTeam || isProjectLoading) return
       setState(prev => ({ ...prev, loading: true, error: null }))
       const response = await artifactService.getArtifacts(
         currentTeam.id,
@@ -79,7 +81,7 @@ export function Artifacts() {
         total: response.total_count,
       })
     },
-    [currentTeam]
+    [currentTeam, isProjectLoading]
   )
 
   useEffect(() => {

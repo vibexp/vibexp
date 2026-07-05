@@ -37,7 +37,7 @@ interface MemoriesState {
 export function Memories() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
-  const { currentProject } = useProject()
+  const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -67,7 +67,9 @@ export function Memories() {
 
   const fetchMemories = useCallback(
     async (currentFilters: MemoryFiltersType) => {
-      if (!currentTeam) return
+      // Wait for a persisted project selection to restore, so the first fetch
+      // is already scoped instead of flashing unfiltered results.
+      if (!currentTeam || isProjectLoading) return
       setState(prev => ({ ...prev, loading: true, error: null }))
       const response = await memoryService.getMemories(
         currentTeam.id,
@@ -83,7 +85,7 @@ export function Memories() {
         loading: false,
       }))
     },
-    [currentTeam]
+    [currentTeam, isProjectLoading]
   )
 
   useEffect(() => {

@@ -116,6 +116,7 @@ describe('Artifacts page — global project filter', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     projectContextValue.currentProject = null
+    projectContextValue.isLoading = false
     ;(artifactService.getArtifacts as jest.Mock).mockResolvedValue(
       emptyResponse
     )
@@ -142,6 +143,15 @@ describe('Artifacts page — global project filter', () => {
         expect.objectContaining({ project_id: 'p1' })
       )
     })
+  })
+
+  it('does not fetch while the persisted project selection is restoring', async () => {
+    projectContextValue.isLoading = true
+    renderArtifacts()
+
+    // Flush pending effects/microtasks, then assert no fetch happened
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(artifactService.getArtifacts).not.toHaveBeenCalled()
   })
 
   it('shows the filtered empty state when a project is selected', async () => {

@@ -34,10 +34,18 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   const [currentProject, setCurrentProjectState] = useState<Project | null>(
     null
   )
-  const [isLoading, setIsLoading] = useState(true)
+  // Loading only means "a persisted selection is being restored" — with
+  // nothing stored there is nothing to wait for, so consumers (list pages)
+  // can fetch immediately.
+  const [isLoading, setIsLoading] = useState(
+    () => getStoredProjectId() !== null
+  )
   // Team id the selection was last resolved for; distinguishes the initial
   // restore-from-storage from a later team switch (which resets instead).
   const resolvedTeamIdRef = useRef<string | null>(null)
+  // Set once the user picks a project; a slow in-flight restore must never
+  // overwrite an explicit selection made while it was pending.
+  const userSelectedRef = useRef(false)
 
   useEffect(() => {
     if (!currentTeam) return
@@ -68,7 +76,7 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
         const response = await projectService.getProjects(currentTeam.id, {
           limit: 100,
         })
-        if (cancelled) return
+        if (cancelled || userSelectedRef.current) return
         const stored = response.projects.find(p => p.id === storedId)
         if (stored) {
           setCurrentProjectState(stored)
@@ -88,6 +96,7 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   }, [currentTeam])
 
   const setCurrentProject = (project: Project | null) => {
+    userSelectedRef.current = true
     setCurrentProjectState(project)
     if (project) {
       saveProjectId(project.id)

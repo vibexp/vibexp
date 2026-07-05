@@ -25,7 +25,7 @@ interface ItemsState {
 
 export function useFeeds() {
   const { currentTeam } = useTeam()
-  const { currentProject } = useProject()
+  const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -58,7 +58,9 @@ export function useFeeds() {
 
   const fetchItems = useCallback(
     async (currentFilters: FeedItemFilters) => {
-      if (!currentTeam) return
+      // Wait for a persisted project selection to restore, so the first fetch
+      // is already scoped instead of flashing unfiltered results.
+      if (!currentTeam || isProjectLoading) return
       setItemsState(prev => ({ ...prev, loading: true, error: null }))
       try {
         const response = await feedService.getFeedItems(
@@ -92,7 +94,7 @@ export function useFeeds() {
         handleError(error, 'Failed to load feed items')
       }
     },
-    [currentTeam, handleError]
+    [currentTeam, isProjectLoading, handleError]
   )
 
   useEffect(() => {

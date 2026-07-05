@@ -39,7 +39,7 @@ interface State {
 export function Blueprints() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
-  const { currentProject } = useProject()
+  const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -68,7 +68,9 @@ export function Blueprints() {
 
   const fetchBlueprints = useCallback(
     async (current: BlueprintFiltersType) => {
-      if (!currentTeam) return
+      // Wait for a persisted project selection to restore, so the first fetch
+      // is already scoped instead of flashing unfiltered results.
+      if (!currentTeam || isProjectLoading) return
       setState(prev => ({ ...prev, loading: true, error: null }))
       const response = await blueprintService.getBlueprints(
         currentTeam.id,
@@ -83,7 +85,7 @@ export function Blueprints() {
         total: response.total_count,
       })
     },
-    [currentTeam]
+    [currentTeam, isProjectLoading]
   )
 
   useEffect(() => {

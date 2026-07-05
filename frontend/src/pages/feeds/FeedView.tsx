@@ -114,7 +114,7 @@ export function FeedView() {
   const { feedId } = useParams<{ feedId: string }>()
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
-  const { currentProject } = useProject()
+  const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -160,7 +160,9 @@ export function FeedView() {
 
   const fetchItems = useCallback(
     async (f: FeedItemFilters) => {
-      if (!currentTeam || !feedId) return
+      // Wait for a persisted project selection to restore, so the first fetch
+      // is already scoped instead of flashing unfiltered results.
+      if (!currentTeam || !feedId || isProjectLoading) return
       setItemsState(prev => ({ ...prev, loading: true, error: null }))
       try {
         const res = await feedService.getFeedItemsForFeed(
@@ -193,7 +195,7 @@ export function FeedView() {
         handleError(e, 'Failed to load feed items')
       }
     },
-    [currentTeam, feedId, handleError]
+    [currentTeam, feedId, isProjectLoading, handleError]
   )
 
   useEffect(() => {

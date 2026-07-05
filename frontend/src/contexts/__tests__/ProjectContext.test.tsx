@@ -237,6 +237,54 @@ describe('ProjectContext', () => {
     expect(mockStorage.remove).toHaveBeenCalled()
   })
 
+  it('does not clobber a selection made while the restore is in flight', async () => {
+    mockStorage.get.mockReturnValue('project-1')
+    let resolveFetch!: (value: {
+      projects: Project[]
+      total_count: number
+      page: number
+      per_page: number
+      total_pages: number
+    }) => void
+    mockProjectService.getProjects.mockReturnValue(
+      new Promise(resolve => {
+        resolveFetch = resolve
+      })
+    )
+
+    render(
+      <ProjectProvider>
+        <TestComponent />
+      </ProjectProvider>
+    )
+
+    // User picks Project Beta while the restore of project-1 is still pending
+    act(() => {
+      screen.getByTestId('select-project').click()
+    })
+    expect(screen.getByTestId('current-project')).toHaveTextContent(
+      'Project Beta'
+    )
+
+    await act(async () => {
+      resolveFetch({
+        projects: mockProjects,
+        total_count: mockProjects.length,
+        page: 1,
+        per_page: 100,
+        total_pages: 1,
+      })
+      // Flush the resolved restore promise chain
+      await Promise.resolve()
+    })
+
+    // The late restore must not overwrite the explicit selection
+    expect(screen.getByTestId('current-project')).toHaveTextContent(
+      'Project Beta'
+    )
+    expect(screen.getByTestId('loading')).toHaveTextContent('false')
+  })
+
   it('keeps the selection when storage restore fails but logs the error', async () => {
     mockStorage.get.mockReturnValue('project-1')
     mockProjectService.getProjects.mockRejectedValue(new Error('network down'))

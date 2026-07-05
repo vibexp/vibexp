@@ -39,7 +39,7 @@ interface State {
 export function Prompts() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
-  const { currentProject } = useProject()
+  const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -66,7 +66,9 @@ export function Prompts() {
 
   const fetchPrompts = useCallback(
     async (current: PromptFiltersType) => {
-      if (!currentTeam) return
+      // Wait for a persisted project selection to restore, so the first fetch
+      // is already scoped instead of flashing unfiltered results.
+      if (!currentTeam || isProjectLoading) return
       setState(prev => ({ ...prev, loading: true, error: null }))
       const response = await promptService.getPrompts(currentTeam.id, current)
       const responseData = 'data' in response ? response.data : response
@@ -82,7 +84,7 @@ export function Prompts() {
         total: responseData.total_count,
       })
     },
-    [currentTeam]
+    [currentTeam, isProjectLoading]
   )
 
   useEffect(() => {
