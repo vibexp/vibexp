@@ -66,10 +66,18 @@ test.describe('Prompt Inclusions (@mentions)', () => {
       timeout: 10000,
     })
 
-    // The saved prompt carries the @mention. Use the auto-retrying assertion
-    // (not a one-shot textContent read) so we don't race the detail page's
-    // "Loading prompt…" state.
-    await expect(authenticatedPage.locator('body')).toContainText(
+    // The detail page defaults to the Rendered tab, which RESOLVES the
+    // mention into the base prompt's content — so the raw `@slug` text is not
+    // reliably in the DOM (#86). Assert both behaviours explicitly:
+    // 1) Rendered resolves the inclusion end-to-end…
+    await expect(authenticatedPage.getByRole('tabpanel')).toContainText(
+      'Base content here',
+      { timeout: 10000 }
+    )
+
+    // 2) …and the stored content keeps the @mention, visible on the Raw tab.
+    await authenticatedPage.getByRole('tab', { name: 'Raw' }).click()
+    await expect(authenticatedPage.getByRole('tabpanel')).toContainText(
       `@${baseSlug}`,
       { timeout: 10000 }
     )
