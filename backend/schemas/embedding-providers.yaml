@@ -9,12 +9,32 @@ EmbeddingProvider:
     user_id:
       type: string
       example: "user_123"
+    team_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Team that owns this provider.
+      example: "b1234567-89ab-cdef-0123-456789abcdef"
     name:
       type: string
       example: "OpenAI Embeddings"
     provider_type:
       type: string
       example: "openai"
+    model:
+      type: string
+      description: >-
+        Embedding model this provider requests. Must return the fixed vector
+        width VibeXP stores (1024).
+      example: "text-embedding-3-small"
+    chunk_size:
+      type: integer
+      description: In-Go text-chunker size used when embedding documents.
+      example: 1000
+    chunk_overlap:
+      type: integer
+      description: Overlap between adjacent chunks.
+      example: 200
     is_default:
       type: boolean
       example: false
@@ -45,6 +65,9 @@ EmbeddingProvider:
     - user_id
     - name
     - provider_type
+    - model
+    - chunk_size
+    - chunk_overlap
     - is_default
     - configuration
     - created_at
@@ -73,6 +96,22 @@ CreateEmbeddingProviderRequest:
     provider_type:
       type: string
       example: "openai"
+    model:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Embedding model that must return 1024-dimensional vectors.
+      example: "text-embedding-3-small"
+    chunk_size:
+      type: integer
+      minimum: 1
+      description: Optional chunker size; defaults to 1000 when omitted.
+      example: 1000
+    chunk_overlap:
+      type: integer
+      minimum: 0
+      description: Optional chunk overlap; defaults to 200 when omitted.
+      example: 200
     is_default:
       type: boolean
       example: false
@@ -89,6 +128,7 @@ CreateEmbeddingProviderRequest:
   required:
     - name
     - provider_type
+    - model
 
 UpdateEmbeddingProviderRequest:
   type: object
@@ -99,6 +139,16 @@ UpdateEmbeddingProviderRequest:
       maxLength: 255
     provider_type:
       type: string
+    model:
+      type: string
+      minLength: 1
+      maxLength: 255
+    chunk_size:
+      type: integer
+      minimum: 1
+    chunk_overlap:
+      type: integer
+      minimum: 0
     is_default:
       type: boolean
     base_url:
