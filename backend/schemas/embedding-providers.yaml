@@ -138,6 +138,12 @@ ValidateEmbeddingProviderRequest:
     provider_type:
       type: string
       example: "openai_compatible"
+    model:
+      type: string
+      description: >-
+        Embedding model to probe. The provider is accepted only if it returns
+        vectors of the fixed dimension VibeXP stores (1024).
+      example: "text-embedding-3-small"
     base_url:
       type: string
       format: uri
@@ -150,6 +156,7 @@ ValidateEmbeddingProviderRequest:
       additionalProperties: true
   required:
     - provider_type
+    - model
     - base_url
 
 ValidateEmbeddingProviderResponse:
@@ -170,6 +177,10 @@ ValidateEmbeddingProviderResponse:
         status_code:
           type: integer
           example: 200
+        dimension:
+          type: integer
+          description: Vector width the provider returned during the probe.
+          example: 1024
         error_details:
           type: string
           example: "Connection timeout"

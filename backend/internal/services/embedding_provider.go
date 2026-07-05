@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -11,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 
@@ -438,80 +436,17 @@ func (eps *EmbeddingProviderService) ValidateEmbeddingProvider(
 	}
 }
 
-func prepareEmbeddingTestPayload(req models.ValidateEmbeddingProviderRequest) ([]byte, error) {
-	testPayload := map[string]interface{}{
-		"input": "test embedding validation",
-		"model": "all-MiniLM-L6-v2",
-	}
+// embeddingValidationProbeText is the sample input sent to a provider during
+// validation. It is short and neutral; only the returned vector's shape matters.
+const embeddingValidationProbeText = "VibeXP embedding provider validation probe."
 
-	if req.Configuration != nil {
-		if model, ok := req.Configuration["model"].(string); ok && model != "" {
-			testPayload["model"] = model
-		}
-	}
-
-	return json.Marshal(testPayload)
-}
-
-func createEmbeddingValidationRequest(
-	ctx context.Context,
-	req models.ValidateEmbeddingProviderRequest,
-	payloadBytes []byte,
-) (*http.Request, error) {
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", req.BaseURL, bytes.NewBuffer(payloadBytes))
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	if req.APIKey != nil && *req.APIKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+*req.APIKey)
-	}
-
-	return httpReq, nil
-}
-
-func handleEmbeddingValidationResponse(
-	resp *http.Response,
-	response *models.ValidateEmbeddingProviderResponse,
-) {
-	response.Details.StatusCode = resp.StatusCode
-
-	switch {
-	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		response.IsValid = true
-		response.Message = "Embedding provider validation successful"
-	case resp.StatusCode == 401:
-		response.Message = "Authentication failed - please check your API key"
-	case resp.StatusCode == 404:
-		response.Message = "Embeddings endpoint not found - please check your base URL"
-	case resp.StatusCode >= 400 && resp.StatusCode < 500:
-		response.Message = "Client error - please check your configuration"
-	default:
-		response.Message = "Server error from embedding provider"
-	}
-}
-
-func extractEmbeddingErrorDetails(resp *http.Response, response *models.ValidateEmbeddingProviderResponse) {
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil || len(responseBody) == 0 {
-		return
-	}
-
-	var errorResp map[string]interface{}
-	if json.Unmarshal(responseBody, &errorResp) == nil {
-		if errorMsg, ok := errorResp["error"].(string); ok {
-			response.Details.ErrorDetails = errorMsg
-		} else if errorDetail, ok := errorResp["detail"].(string); ok {
-			response.Details.ErrorDetails = errorDetail
-		} else {
-			response.Details.ErrorDetails = string(responseBody)
-		}
-	} else {
-		response.Details.ErrorDetails = string(responseBody)
-	}
-}
-
+// validateOpenAICompatibleProvider validates a provider by running the exact
+// generation path used for real embeddings: it builds the provider and requests a
+// probe embedding. Reusing NewGenerationProvider means the provider is accepted
+// only if it is reachable, authenticates, AND returns a vector of exactly
+// EmbeddingVectorDimensions -- the fixed width the vector(N) column requires -- so
+// a model that emits a different dimension is rejected before any resource is
+// embedded with it.
 func (eps *EmbeddingProviderService) validateOpenAICompatibleProvider(
 	ctx context.Context,
 	req models.ValidateEmbeddingProviderRequest,
@@ -521,41 +456,62 @@ func (eps *EmbeddingProviderService) validateOpenAICompatibleProvider(
 		Message: "Validation failed",
 	}
 
-	payloadBytes, err := prepareEmbeddingTestPayload(req)
+	baseURL := req.BaseURL
+	row := &models.EmbeddingProvider{
+		ProviderType: req.ProviderType,
+		BaseURL:      &baseURL,
+	}
+
+	apiKey := ""
+	if req.APIKey != nil {
+		apiKey = *req.APIKey
+	}
+
+	provider, err := NewGenerationProvider(
+		row, apiKey, req.Model, EmbeddingVectorDimensions, generateEmbeddingsTimeout,
+	)
 	if err != nil {
-		response.Message = "Failed to prepare test request"
+		response.Message = "Unsupported or misconfigured provider"
 		response.Details.ErrorDetails = err.Error()
 		return response, nil
 	}
-
-	httpReq, err := createEmbeddingValidationRequest(ctx, req, payloadBytes)
-	if err != nil {
-		response.Message = "Failed to create HTTP request"
-		response.Details.ErrorDetails = err.Error()
-		return response, nil
-	}
-
-	client := &http.Client{Timeout: 30 * time.Second}
 
 	startTime := time.Now()
-	// #nosec G704 - URL is from embedding provider configuration (admin-controlled), not user input
-	resp, err := client.Do(httpReq)
+	vectors, err := provider.GenerateEmbeddings(ctx, []string{embeddingValidationProbeText})
 	response.Details.ResponseTime = int(time.Since(startTime).Milliseconds())
-
 	if err != nil {
-		response.Message = "Failed to connect to embedding provider"
+		response.Message = describeEmbeddingValidationError(err)
 		response.Details.ErrorDetails = err.Error()
 		return response, nil
 	}
-	defer func() {
-		_ = resp.Body.Close() //nolint:errcheck
-	}()
-
-	handleEmbeddingValidationResponse(resp, response)
-
-	if !response.IsValid {
-		extractEmbeddingErrorDetails(resp, response)
+	// GenerateEmbeddings already guarantees exactly one vector of
+	// EmbeddingVectorDimensions on a nil error (it errors otherwise, handled
+	// above); the dimension mismatch surfaces as an error and is reported by
+	// describeEmbeddingValidationError. This guard only avoids indexing an empty
+	// slice if that contract ever changes.
+	if len(vectors) == 0 {
+		response.Message = "Provider returned no embedding vector"
+		return response, nil
 	}
 
+	response.IsValid = true
+	response.Message = "Embedding provider validation successful"
+	response.Details.Dimension = len(vectors[0])
 	return response, nil
+}
+
+// describeEmbeddingValidationError maps a generation error to a concise,
+// user-facing validation message without leaking internals.
+func describeEmbeddingValidationError(err error) string {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "status 401"):
+		return "Authentication failed - please check your API key"
+	case strings.Contains(msg, "status 404"):
+		return "Embeddings endpoint not found - please check your base URL"
+	case strings.Contains(msg, "expected") && strings.Contains(msg, "length"):
+		return fmt.Sprintf("Provider must return %d-dimensional embeddings", EmbeddingVectorDimensions)
+	default:
+		return "Failed to validate embedding provider"
+	}
 }
