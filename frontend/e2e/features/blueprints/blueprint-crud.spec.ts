@@ -22,7 +22,9 @@ async function createBlueprint(
   await page.getByLabel('Content', { exact: true }).fill(blueprint.content)
 
   // Project is a Radix Select with no default — pick the first project.
-  await page.getByRole('combobox', { name: 'Project' }).click()
+  // (Targeted by testid: the header project switcher's accessible name also
+  // contains "Project", so a role+name lookup is ambiguous since #78.)
+  await page.getByTestId('blueprint-project-select').click()
   await page.getByRole('option').first().click()
 
   await page.getByRole('button', { name: 'Create blueprint' }).click()

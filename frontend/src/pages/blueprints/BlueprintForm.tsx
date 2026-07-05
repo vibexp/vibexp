@@ -209,7 +209,7 @@ export const BlueprintForm = forwardRef<
                       disabled={isLoading}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger data-testid="blueprint-project-select">
                           <SelectValue placeholder="Select project" />
                         </SelectTrigger>
                       </FormControl>
