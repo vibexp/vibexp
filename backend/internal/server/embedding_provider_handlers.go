@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
@@ -12,6 +13,56 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 )
+
+// reembedTeamIfProviderIdentityChanged wipes and re-generates a team's embeddings
+// when an update changed the provider's embedding identity (model, provider type,
+// or base URL). Vectors from a different model are not comparable to new queries,
+// so the old ones are deleted and the team's entities are re-embedded in the
+// background (the update response must not block on a large regeneration). A
+// name/default/key-only edit leaves the identity unchanged and is a no-op.
+func (s *Server) reembedTeamIfProviderIdentityChanged(
+	teamID string, old *models.EmbeddingProviderResponse, updated *models.EmbeddingProvider,
+) {
+	if old == nil || updated == nil {
+		return
+	}
+	derefStr := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	if old.Model == updated.Model &&
+		old.ProviderType == updated.ProviderType &&
+		derefStr(old.BaseURL) == derefStr(updated.BaseURL) {
+		return
+	}
+
+	logger := s.logger.With(
+		"service", "vibexp-api",
+		"component", "embedding-reembed",
+		"team_id", teamID,
+	)
+
+	deleted, err := s.container.EmbeddingRepository().DeleteByTeam(context.Background(), teamID)
+	if err != nil {
+		logger.With("error", fmt.Sprintf("%+v", err)).
+			Error("Failed to wipe team embeddings after provider change")
+		return
+	}
+	logger.With("deleted", deleted).
+		Info("Wiped team embeddings after provider change; re-embedding in background")
+
+	go func() {
+		if _, err := s.container.EmbeddingBackfillService().Backfill(
+			context.Background(),
+			services.EmbeddingBackfillRequest{All: true, TeamID: teamID},
+		); err != nil {
+			logger.With("error", fmt.Sprintf("%+v", err)).
+				Error("Background re-embed after provider change failed")
+		}
+	}()
+}
 
 func (s *Server) handleCreateEmbeddingProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
@@ -258,11 +309,21 @@ func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Capture the provider before the update so we can tell whether its embedding
+	// identity (model / provider type / endpoint) changed and a re-embed is needed.
+	// Best-effort: if we can't read it, skip the re-embed check rather than fail.
+	oldProvider, oldErr := s.container.EmbeddingProviderService().GetEmbeddingProvider(r.Context(), teamID, providerID)
+	if oldErr != nil {
+		oldProvider = nil
+	}
+
 	provider, err := s.container.EmbeddingProviderService().UpdateEmbeddingProvider(r.Context(), teamID, providerID, req)
 	if err != nil {
 		s.handleUpdateEmbeddingProviderError(w, r, userID, providerID, err)
 		return
 	}
+
+	s.reembedTeamIfProviderIdentityChanged(teamID, oldProvider, provider)
 
 	s.logger.With(
 		"service", "vibexp-api",

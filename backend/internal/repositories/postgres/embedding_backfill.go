@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -33,6 +34,7 @@ type backfillQuery struct {
 	selectFrom string
 	orderBy    string
 	idExpr     string
+	teamCol    string
 }
 
 // backfillQueries maps each singular embeddable entity type to the SQL that
@@ -50,6 +52,7 @@ var backfillQueries = map[string]backfillQuery{
 		LEFT JOIN users u ON u.id = p.user_id`,
 		orderBy: "p.created_at, p.id",
 		idExpr:  "p.id",
+		teamCol: "p.team_id",
 	},
 	"artifact": {
 		selectFrom: `
@@ -58,6 +61,7 @@ var backfillQueries = map[string]backfillQuery{
 		FROM artifacts a`,
 		orderBy: "a.created_at, a.id",
 		idExpr:  "a.id",
+		teamCol: "a.team_id",
 	},
 	"memory": {
 		selectFrom: `
@@ -67,6 +71,7 @@ var backfillQueries = map[string]backfillQuery{
 		FROM memories m`,
 		orderBy: "m.created_at, m.id",
 		idExpr:  "m.id",
+		teamCol: "m.team_id",
 	},
 	"blueprint": {
 		selectFrom: `
@@ -75,6 +80,7 @@ var backfillQueries = map[string]backfillQuery{
 		FROM blueprints b`,
 		orderBy: "b.created_at, b.id",
 		idExpr:  "b.id",
+		teamCol: "b.team_id",
 	},
 	"feed_item": {
 		selectFrom: `
@@ -84,6 +90,7 @@ var backfillQueries = map[string]backfillQuery{
 		FROM feed_items f`,
 		orderBy: "f.posted_at, f.id",
 		idExpr:  "f.id",
+		teamCol: "f.team_id",
 	},
 }
 
@@ -91,14 +98,23 @@ var backfillQueries = map[string]backfillQuery{
 // is true it adds a NOT EXISTS subquery so only source rows without an embedding for
 // the configured model are returned; the model id is bound as $3. entityType is a
 // fixed map key (never user input), so embedding it as a literal is injection-safe.
-func buildBackfillSQL(entityType string, q backfillQuery, missingOnly bool) string {
-	where := ""
+func buildBackfillSQL(entityType string, q backfillQuery, teamID string, missingOnly bool) string {
+	conds := make([]string, 0, 2)
+	arg := 3 // $1=limit, $2=offset
+	if teamID != "" {
+		conds = append(conds, fmt.Sprintf("%s = $%d", q.teamCol, arg))
+		arg++
+	}
 	if missingOnly {
-		where = fmt.Sprintf(`
-		WHERE NOT EXISTS (
-			SELECT 1 FROM embeddings emb
-			WHERE emb.entity_type = '%s' AND emb.entity_id = %s AND emb.model_id = $3
-		)`, entityType, q.idExpr)
+		conds = append(conds, fmt.Sprintf(
+			"NOT EXISTS (SELECT 1 FROM embeddings emb "+
+				"WHERE emb.entity_type = '%s' AND emb.entity_id = %s AND emb.model_id = $%d)",
+			entityType, q.idExpr, arg,
+		))
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = "\n\t\tWHERE " + strings.Join(conds, " AND ")
 	}
 	return fmt.Sprintf("%s%s\n\t\tORDER BY %s\n\t\tLIMIT $1 OFFSET $2", q.selectFrom, where, q.orderBy)
 }
@@ -108,16 +124,19 @@ func buildBackfillSQL(entityType string, q backfillQuery, missingOnly bool) stri
 // missingOnly is true, only entities without an embedding row for modelID are
 // returned, so a backfill can target just the gaps left by a model swap.
 func (r *EmbeddingBackfillRepository) ListEntities(
-	ctx context.Context, entityType, modelID string, missingOnly bool, limit, offset int,
+	ctx context.Context, entityType, modelID, teamID string, missingOnly bool, limit, offset int,
 ) ([]models.BackfillEntity, error) {
 	q, ok := backfillQueries[entityType]
 	if !ok {
 		return nil, fmt.Errorf("unsupported backfill entity type: %s", entityType)
 	}
 
-	sql := buildBackfillSQL(entityType, q, missingOnly)
+	sql := buildBackfillSQL(entityType, q, teamID, missingOnly)
 
 	args := []any{limit, offset}
+	if teamID != "" {
+		args = append(args, teamID)
+	}
 	if missingOnly {
 		args = append(args, modelID)
 	}

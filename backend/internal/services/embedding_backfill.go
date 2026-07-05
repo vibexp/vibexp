@@ -52,6 +52,9 @@ type EmbeddingBackfillRequest struct {
 	// DryRun counts the entities that would be republished without publishing any
 	// event, so an operator can preview the blast radius. It honors MissingOnly.
 	DryRun bool
+	// TeamID, when set, restricts the run to that team's entities. Empty means all
+	// teams. Used to re-embed a single team after its provider's model changes.
+	TeamID string
 }
 
 // EmbeddingBackfillTypeResult is the per-entity-type outcome of a backfill run.
@@ -143,7 +146,7 @@ func (s *EmbeddingBackfillService) Backfill(
 	}
 
 	for _, entityType := range types {
-		typeResult, err := s.backfillType(ctx, entityType, req.MissingOnly, req.DryRun)
+		typeResult, err := s.backfillType(ctx, entityType, req.TeamID, req.MissingOnly, req.DryRun)
 		if err != nil {
 			return nil, fmt.Errorf("backfill of %s failed: %w", entityType, err)
 		}
@@ -165,12 +168,12 @@ func (s *EmbeddingBackfillService) Backfill(
 
 // backfillType pages through one entity type and republishes its `.created` events.
 func (s *EmbeddingBackfillService) backfillType(
-	ctx context.Context, entityType string, missingOnly, dryRun bool,
+	ctx context.Context, entityType, teamID string, missingOnly, dryRun bool,
 ) (EmbeddingBackfillTypeResult, error) {
 	res := EmbeddingBackfillTypeResult{EntityType: entityType}
 
 	for offset := 0; ; offset += backfillPageSize {
-		entities, err := s.repo.ListEntities(ctx, entityType, s.modelID, missingOnly, backfillPageSize, offset)
+		entities, err := s.repo.ListEntities(ctx, entityType, s.modelID, teamID, missingOnly, backfillPageSize, offset)
 		if err != nil {
 			return res, err
 		}

@@ -41,7 +41,7 @@ func TestEmbeddingBackfillRepository_ListEntities_Prompt(t *testing.T) {
 		WithArgs(500, 0).
 		WillReturnRows(rows)
 
-	got, err := repo.ListEntities(context.Background(), "prompt", testModelID, false, 500, 0)
+	got, err := repo.ListEntities(context.Background(), "prompt", testModelID, "", false, 500, 0)
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
@@ -73,7 +73,7 @@ func TestEmbeddingBackfillRepository_ListEntities_FeedItem(t *testing.T) {
 		WithArgs(500, 0).
 		WillReturnRows(rows)
 
-	got, err := repo.ListEntities(context.Background(), "feed_item", testModelID, false, 500, 0)
+	got, err := repo.ListEntities(context.Background(), "feed_item", testModelID, "", false, 500, 0)
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
@@ -105,7 +105,7 @@ func TestEmbeddingBackfillRepository_ListEntities_MissingOnly_FiltersAndBindsMod
 		WithArgs(500, 0, testModelID).
 		WillReturnRows(rows)
 
-	got, err := repo.ListEntities(context.Background(), "memory", testModelID, true, 500, 0)
+	got, err := repo.ListEntities(context.Background(), "memory", testModelID, "", true, 500, 0)
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
@@ -124,7 +124,7 @@ func TestEmbeddingBackfillRepository_ListEntities_UnsupportedType(t *testing.T) 
 
 	repo := NewEmbeddingBackfillRepository(&database.DB{DB: mockDB})
 
-	_, err = repo.ListEntities(context.Background(), "widget", testModelID, false, 500, 0)
+	_, err = repo.ListEntities(context.Background(), "widget", testModelID, "", false, 500, 0)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported backfill entity type")
@@ -141,7 +141,7 @@ func TestEmbeddingBackfillRepository_ListEntities_FeedItemReply_NoLongerSupporte
 
 	repo := NewEmbeddingBackfillRepository(&database.DB{DB: mockDB})
 
-	_, err = repo.ListEntities(context.Background(), "feed_item_reply", testModelID, false, 500, 0)
+	_, err = repo.ListEntities(context.Background(), "feed_item_reply", testModelID, "", false, 500, 0)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported backfill entity type")

@@ -150,7 +150,7 @@ describe('EmbeddingProviderDialog', () => {
     expect(mockedValidate).not.toHaveBeenCalled()
   })
 
-  it('validates when the model changes on edit', async () => {
+  it('confirms re-embed, then validates, when the model changes on edit', async () => {
     const user = userEvent.setup()
     mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
     const onSubmit = jest.fn().mockResolvedValue(undefined)
@@ -170,11 +170,20 @@ describe('EmbeddingProviderDialog', () => {
     await user.type(model, 'text-embedding-3-large')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
+    // A model change first prompts the re-embed confirmation; nothing runs yet.
+    const confirm = await screen.findByRole('button', {
+      name: 'Save & re-embed',
+    })
+    expect(mockedValidate).not.toHaveBeenCalled()
+
+    await user.click(confirm)
+
     await waitFor(() => {
       expect(mockedValidate).toHaveBeenCalledWith(
         'team-1',
         expect.objectContaining({ model: 'text-embedding-3-large' })
       )
     })
+    expect(onSubmit).toHaveBeenCalled()
   })
 })

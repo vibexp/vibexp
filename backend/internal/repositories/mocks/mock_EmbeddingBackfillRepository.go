@@ -22,9 +22,9 @@ func (_m *MockEmbeddingBackfillRepository) EXPECT() *MockEmbeddingBackfillReposi
 	return &MockEmbeddingBackfillRepository_Expecter{mock: &_m.Mock}
 }
 
-// ListEntities provides a mock function with given fields: ctx, entityType, modelID, missingOnly, limit, offset
-func (_m *MockEmbeddingBackfillRepository) ListEntities(ctx context.Context, entityType string, modelID string, missingOnly bool, limit int, offset int) ([]models.BackfillEntity, error) {
-	ret := _m.Called(ctx, entityType, modelID, missingOnly, limit, offset)
+// ListEntities provides a mock function with given fields: ctx, entityType, modelID, teamID, missingOnly, limit, offset
+func (_m *MockEmbeddingBackfillRepository) ListEntities(ctx context.Context, entityType string, modelID string, teamID string, missingOnly bool, limit int, offset int) ([]models.BackfillEntity, error) {
+	ret := _m.Called(ctx, entityType, modelID, teamID, missingOnly, limit, offset)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ListEntities")
@@ -32,19 +32,19 @@ func (_m *MockEmbeddingBackfillRepository) ListEntities(ctx context.Context, ent
 
 	var r0 []models.BackfillEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool, int, int) ([]models.BackfillEntity, error)); ok {
-		return rf(ctx, entityType, modelID, missingOnly, limit, offset)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, bool, int, int) ([]models.BackfillEntity, error)); ok {
+		return rf(ctx, entityType, modelID, teamID, missingOnly, limit, offset)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool, int, int) []models.BackfillEntity); ok {
-		r0 = rf(ctx, entityType, modelID, missingOnly, limit, offset)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, bool, int, int) []models.BackfillEntity); ok {
+		r0 = rf(ctx, entityType, modelID, teamID, missingOnly, limit, offset)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.BackfillEntity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, bool, int, int) error); ok {
-		r1 = rf(ctx, entityType, modelID, missingOnly, limit, offset)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, bool, int, int) error); ok {
+		r1 = rf(ctx, entityType, modelID, teamID, missingOnly, limit, offset)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -61,16 +61,17 @@ type MockEmbeddingBackfillRepository_ListEntities_Call struct {
 //   - ctx context.Context
 //   - entityType string
 //   - modelID string
+//   - teamID string
 //   - missingOnly bool
 //   - limit int
 //   - offset int
-func (_e *MockEmbeddingBackfillRepository_Expecter) ListEntities(ctx interface{}, entityType interface{}, modelID interface{}, missingOnly interface{}, limit interface{}, offset interface{}) *MockEmbeddingBackfillRepository_ListEntities_Call {
-	return &MockEmbeddingBackfillRepository_ListEntities_Call{Call: _e.mock.On("ListEntities", ctx, entityType, modelID, missingOnly, limit, offset)}
+func (_e *MockEmbeddingBackfillRepository_Expecter) ListEntities(ctx interface{}, entityType interface{}, modelID interface{}, teamID interface{}, missingOnly interface{}, limit interface{}, offset interface{}) *MockEmbeddingBackfillRepository_ListEntities_Call {
+	return &MockEmbeddingBackfillRepository_ListEntities_Call{Call: _e.mock.On("ListEntities", ctx, entityType, modelID, teamID, missingOnly, limit, offset)}
 }
 
-func (_c *MockEmbeddingBackfillRepository_ListEntities_Call) Run(run func(ctx context.Context, entityType string, modelID string, missingOnly bool, limit int, offset int)) *MockEmbeddingBackfillRepository_ListEntities_Call {
+func (_c *MockEmbeddingBackfillRepository_ListEntities_Call) Run(run func(ctx context.Context, entityType string, modelID string, teamID string, missingOnly bool, limit int, offset int)) *MockEmbeddingBackfillRepository_ListEntities_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(bool), args[4].(int), args[5].(int))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(bool), args[5].(int), args[6].(int))
 	})
 	return _c
 }
@@ -80,7 +81,7 @@ func (_c *MockEmbeddingBackfillRepository_ListEntities_Call) Return(_a0 []models
 	return _c
 }
 
-func (_c *MockEmbeddingBackfillRepository_ListEntities_Call) RunAndReturn(run func(context.Context, string, string, bool, int, int) ([]models.BackfillEntity, error)) *MockEmbeddingBackfillRepository_ListEntities_Call {
+func (_c *MockEmbeddingBackfillRepository_ListEntities_Call) RunAndReturn(run func(context.Context, string, string, string, bool, int, int) ([]models.BackfillEntity, error)) *MockEmbeddingBackfillRepository_ListEntities_Call {
 	_c.Call.Return(run)
 	return _c
 }

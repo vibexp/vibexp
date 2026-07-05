@@ -17,6 +17,8 @@ import (
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
+	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
 )
@@ -26,15 +28,27 @@ type MockEmbeddingProviderContainer struct {
 	BaseMockContainer // Embed base container for default nil implementations
 	mock.Mock
 	embeddingProviderService *svcmocks.MockEmbeddingProviderServiceInterface
+	embeddingRepository      *repomocks.MockEmbeddingRepository
+	embeddingBackfillService *svcmocks.MockEmbeddingBackfillServiceInterface
 }
 
 func (m *MockEmbeddingProviderContainer) EmbeddingProviderService() services.EmbeddingProviderServiceInterface {
 	return m.embeddingProviderService
 }
 
+func (m *MockEmbeddingProviderContainer) EmbeddingRepository() repositories.EmbeddingRepository {
+	return m.embeddingRepository
+}
+
+func (m *MockEmbeddingProviderContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
+	return m.embeddingBackfillService
+}
+
 func newMockEmbeddingProviderContainer(t *testing.T) *MockEmbeddingProviderContainer {
 	return &MockEmbeddingProviderContainer{
 		embeddingProviderService: svcmocks.NewMockEmbeddingProviderServiceInterface(t),
+		embeddingRepository:      repomocks.NewMockEmbeddingRepository(t),
+		embeddingBackfillService: svcmocks.NewMockEmbeddingBackfillServiceInterface(t),
 	}
 }
 
@@ -499,6 +513,9 @@ func TestHandleUpdateEmbeddingProvider_Success(t *testing.T) {
 		UpdatedAt:       time.Now(),
 	}
 
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+		Return(&models.EmbeddingProviderResponse{EmbeddingProvider: *updatedProvider}, nil)
 	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
 		Return(updatedProvider, nil)
 
@@ -546,6 +563,9 @@ func TestHandleUpdateEmbeddingProvider_PartialUpdate(t *testing.T) {
 		UpdatedAt:       time.Now(),
 	}
 
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+		Return(&models.EmbeddingProviderResponse{EmbeddingProvider: *updatedProvider}, nil)
 	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
 		Return(updatedProvider, nil)
 
@@ -575,6 +595,9 @@ func TestHandleUpdateEmbeddingProvider_NotFound(t *testing.T) {
 		Name: &newName,
 	}
 
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "non-existent").
+		Return((*models.EmbeddingProviderResponse)(nil), services.ErrProviderNotFound)
 	mockContainer.embeddingProviderService.On(
 		"UpdateEmbeddingProvider", mock.Anything, "team-123", "non-existent", reqBody,
 	).Return((*models.EmbeddingProvider)(nil), services.ErrProviderNotFound)
@@ -601,6 +624,9 @@ func TestHandleUpdateEmbeddingProvider_ServiceError(t *testing.T) {
 		Name: &newName,
 	}
 
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+		Return((*models.EmbeddingProviderResponse)(nil), errors.New("database error"))
 	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
 		Return((*models.EmbeddingProvider)(nil), errors.New("database error"))
 
@@ -869,4 +895,63 @@ func TestHandleValidateEmbeddingProvider_WithConfiguration(t *testing.T) {
 	assert.True(t, response.IsValid)
 
 	mockContainer.embeddingProviderService.AssertExpectations(t)
+}
+
+// TestHandleUpdateEmbeddingProvider_ReembedsOnModelChange verifies that changing a
+// provider's embedding identity (here the model) wipes the team's embeddings and
+// triggers a background re-embed scoped to that team (issue #79).
+func TestHandleUpdateEmbeddingProvider_ReembedsOnModelChange(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+
+	baseURL := "https://api.openai.com/v1"
+	oldProvider := &models.EmbeddingProviderResponse{
+		EmbeddingProvider: models.EmbeddingProvider{
+			ID: "provider-1", ProviderType: "openai_compatible",
+			Model: "old-model", BaseURL: &baseURL,
+		},
+	}
+	newModel := "new-model"
+	reqBody := models.UpdateEmbeddingProviderRequest{Model: &newModel}
+	updatedProvider := &models.EmbeddingProvider{
+		ID: "provider-1", ProviderType: "openai_compatible",
+		Model: "new-model", BaseURL: &baseURL,
+	}
+
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+		Return(oldProvider, nil)
+	mockContainer.embeddingProviderService.
+		On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
+		Return(updatedProvider, nil)
+	mockContainer.embeddingRepository.
+		On("DeleteByTeam", mock.Anything, "team-123").
+		Return(int64(5), nil)
+
+	backfillDone := make(chan struct{})
+	mockContainer.embeddingBackfillService.
+		On("Backfill", mock.Anything, mock.MatchedBy(func(r services.EmbeddingBackfillRequest) bool {
+			return r.TeamID == "team-123" && r.All
+		})).
+		Return(&services.EmbeddingBackfillResult{}, nil).
+		Run(func(mock.Arguments) { close(backfillDone) })
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"PUT", "/api/v1/team-123/embedding-providers/provider-1", reqBody, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Wait for the async re-embed to fire before the test (and its mocks) tear down.
+	select {
+	case <-backfillDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("background re-embed was not triggered on a model change")
+	}
+
+	mockContainer.embeddingRepository.AssertExpectations(t)
+	mockContainer.embeddingBackfillService.AssertExpectations(t)
 }
