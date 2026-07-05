@@ -41,60 +41,91 @@ async function performDevLogin(
   // The TeamContext fetches teams asynchronously, and many components depend on
   // currentTeam. The current team id is persisted to localStorage once teams
   // load, which is also our signal that the authenticated session is ready.
-  await page.waitForFunction(
-    () => localStorage.getItem('vx_current_team_id') !== null,
-    { timeout: 15000 }
-  )
+  // Every login provisions a brand-new user (user + personal team + default
+  // project), which under CI load occasionally takes longer than one wait
+  // budget — the session cookie is already set at this point, so a single
+  // reload re-triggers the teams fetch without re-submitting the form (#86).
+  try {
+    await waitForTeamHydration(page)
+  } catch {
+    console.warn(
+      '[e2e] team hydration slow after dev login — reloading once (#86)'
+    )
+    await page.reload()
+    await waitForTeamHydration(page)
+  }
 
   // Give an extra moment for React to process the team context update.
   await page.waitForTimeout(500)
 }
 
+async function waitForTeamHydration(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => localStorage.getItem('vx_current_team_id') !== null,
+    { timeout: 15000 }
+  )
+}
+
 /**
- * Custom fixture that provides authenticated context using dev login
+ * Custom fixture that provides authenticated context using dev login.
+ *
+ * Each login fixture carries its OWN timeout (tuple form) so setup is not
+ * boxed by the 30s per-test timeout: `performDevLogin`'s internal waits alone
+ * allow 15s (redirect) + 15s (team hydration, retried once), which cannot fit
+ * the test budget and was intermittently failing random specs during fixture
+ * setup under CI load (#86).
  */
 export const test = base.extend({
   /**
    * Authenticated page fixture - logs in before each test using this fixture
    * This is reusable across all tests that need authentication
    */
-  authenticatedPage: async ({ page }, use) => {
-    const testEmail = `playwright_vibexp${Date.now()}@example.com`
-    await performDevLogin(page, testEmail, 'Playwright Test User')
+  authenticatedPage: [
+    async ({ page }, use) => {
+      const testEmail = `playwright_vibexp${Date.now()}@example.com`
+      await performDevLogin(page, testEmail, 'Playwright Test User')
 
-    // Use the authenticated page in the test
-    await use(page)
-  },
+      // Use the authenticated page in the test
+      await use(page)
+    },
+    { timeout: 60000 },
+  ],
 
   /**
    * Authenticated page with team context - similar to authenticatedPage
    * but explicitly provides team context for team-scoped tests
    */
-  authenticatedPageWithTeam: async ({ page }, use) => {
-    await devLogin(page)
+  authenticatedPageWithTeam: [
+    async ({ page }, use) => {
+      await devLogin(page)
 
-    // Ensure we have a team context
-    const currentTeam = await getCurrentTeam(page)
-    if (!currentTeam) {
-      throw new Error('No team context found after login')
-    }
+      // Ensure we have a team context
+      const currentTeam = await getCurrentTeam(page)
+      if (!currentTeam) {
+        throw new Error('No team context found after login')
+      }
 
-    await use(page)
-  },
+      await use(page)
+    },
+    { timeout: 60000 },
+  ],
 
   /**
    * Fresh user page fixture - creates a new user for tests that need
    * a clean user state (e.g., onboarding, first-time flows)
    */
-  freshUserPage: async ({ page }, use) => {
-    // Create a unique email for this fresh user
-    const freshEmail = `fresh_user_${Date.now()}@example.com`
-    const freshName = `Fresh User ${Date.now()}`
+  freshUserPage: [
+    async ({ page }, use) => {
+      // Create a unique email for this fresh user
+      const freshEmail = `fresh_user_${Date.now()}@example.com`
+      const freshName = `Fresh User ${Date.now()}`
 
-    await devLogin(page, freshEmail, freshName)
+      await devLogin(page, freshEmail, freshName)
 
-    await use(page)
-  },
+      await use(page)
+    },
+    { timeout: 60000 },
+  ],
 })
 
 /**
