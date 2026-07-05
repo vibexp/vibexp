@@ -1,26 +1,79 @@
+import { ApiError } from '../../types/errors'
 import type {
   CreateEmbeddingProviderRequest,
   EmbeddingProviderResponse,
   UpdateEmbeddingProviderRequest,
   ValidateEmbeddingProviderRequest,
   ValidateEmbeddingProviderResponse,
-} from '../../types'
-import { ApiError, type APIErrorResponse } from '../../types/errors'
+} from '../embeddingProviderService'
 
-// Mock apiClient
-const mockApiClient = {
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  delete: jest.fn(),
+// Mock the generated client; unwrap stays real so service tests exercise the
+// same success/error resolution production uses.
+const mockGeneratedClient = {
+  GET: jest.fn(),
+  POST: jest.fn(),
+  PUT: jest.fn(),
+  DELETE: jest.fn(),
 }
 
-jest.mock('../../lib/apiClient', () => ({
-  apiClient: mockApiClient,
-}))
+jest.mock('../../lib/apiClientGenerated', () => {
+  const actual = jest.requireActual<
+    typeof import('../../lib/apiClientGenerated')
+  >('../../lib/apiClientGenerated')
+  return {
+    ...actual,
+    generatedClient: mockGeneratedClient,
+  }
+})
 
-// Import the embeddingProviderService after mocking
 import { embeddingProviderService } from '../embeddingProviderService'
+
+const teamId = 'team-1'
+const providerId = 'provider-123'
+const base = '/api/v1/{team_id}/settings/embedding-providers'
+const byId = `${base}/{id}`
+
+const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
+const noContent = {
+  ok: true,
+  status: 204,
+  statusText: 'No Content',
+} as Response
+
+const success = <T>(data: T, response: Response = okResponse) =>
+  Promise.resolve({ data, response })
+
+// An RFC 9457 problem-details error body as openapi-fetch surfaces it.
+const problem = (status: number, detail: string, code: string) =>
+  Promise.resolve({
+    error: {
+      type: `https://api.vibexp.io/errors/${code}`,
+      title: code,
+      status,
+      detail,
+      code,
+      request_id: 'req-1',
+      timestamp: '2024-01-01T00:00:00Z',
+    },
+    response: { ok: false, status, statusText: code } as Response,
+  })
+
+const provider: EmbeddingProviderResponse = {
+  id: providerId,
+  user_id: 'user-456',
+  name: 'OpenAI Provider',
+  provider_type: 'openai',
+  model: 'text-embedding-3-small',
+  chunk_size: 1000,
+  chunk_overlap: 200,
+  is_default: true,
+  base_url: 'https://api.openai.com/v1',
+  configuration: '{}',
+  created_at: '2023-01-01T00:00:00Z',
+  updated_at: '2023-01-01T00:00:00Z',
+  version: 1,
+  has_api_key: true,
+}
 
 describe('EmbeddingProviderService', () => {
   beforeEach(() => {
@@ -28,756 +81,229 @@ describe('EmbeddingProviderService', () => {
   })
 
   describe('createEmbeddingProvider', () => {
-    const mockRequest: CreateEmbeddingProviderRequest = {
+    const request: CreateEmbeddingProviderRequest = {
       name: 'OpenAI Provider',
       provider_type: 'openai',
       model: 'text-embedding-3-small',
       is_default: true,
       base_url: 'https://api.openai.com/v1',
       api_key: 'sk-test-key',
-      configuration: {
-        model: 'text-embedding-ada-002',
-      },
+      configuration: { model: 'text-embedding-ada-002' },
     }
 
-    const mockResponse: EmbeddingProviderResponse = {
-      id: 'provider-123',
-      user_id: 'user-456',
-      name: 'OpenAI Provider',
-      provider_type: 'openai',
-      model: 'text-embedding-3-small',
-      is_default: true,
-      base_url: 'https://api.openai.com/v1',
-      configuration: '{"model":"text-embedding-ada-002"}',
-      has_api_key: true,
-      chunk_size: 1000,
-      chunk_overlap: 200,
-      created_at: '2023-01-01T00:00:00Z',
-      updated_at: '2023-01-01T00:00:00Z',
-    }
-
-    it('should create embedding provider successfully', async () => {
-      mockApiClient.post.mockResolvedValue(mockResponse)
+    it('posts to the team-scoped settings endpoint and returns the provider', async () => {
+      mockGeneratedClient.POST.mockReturnValue(success(provider))
 
       const result = await embeddingProviderService.createEmbeddingProvider(
-        'team-1',
-        mockRequest
+        teamId,
+        request
       )
 
-      expect(mockApiClient.post).toHaveBeenCalledWith(
-        '/team-1/settings/embedding-providers',
-        mockRequest
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(base, {
+        params: { path: { team_id: teamId } },
+        body: request,
+      })
+      expect(result).toEqual(provider)
+    })
+
+    it('throws ApiError with the backend detail on a validation failure', async () => {
+      mockGeneratedClient.POST.mockReturnValue(
+        problem(400, 'Invalid API key format', 'VALIDATION_FAILED')
       )
-      expect(result).toEqual(mockResponse)
-    })
-
-    it('should throw ApiError on authentication error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/AUTH_REQUIRED',
-        title: 'Unauthorized',
-        status: 401,
-        detail: 'Authentication token is invalid or expired',
-        code: 'AUTH_REQUIRED',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.post.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
-      ).rejects.toThrow(ApiError)
-      await expect(
-        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
-      ).rejects.toThrow('Authentication token is invalid or expired')
-    })
-
-    it('should throw ApiError with meaningful message on validation failure', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/VALIDATION_FAILED',
-        title: 'Validation Failed',
-        status: 400,
-        detail: 'Invalid API key format',
-        code: 'VALIDATION_FAILED',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.post.mockRejectedValue(new ApiError(errorResponse))
-
-      await expect(
-        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
+        embeddingProviderService.createEmbeddingProvider(teamId, request)
       ).rejects.toThrow('Invalid API key format')
     })
 
-    it('should handle network errors', async () => {
-      mockApiClient.post.mockRejectedValue(new Error('Network error'))
+    it('maps a network failure to a friendly message', async () => {
+      mockGeneratedClient.POST.mockRejectedValue(new TypeError('fetch failed'))
 
       await expect(
-        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
-      ).rejects.toThrow('Network error')
+        embeddingProviderService.createEmbeddingProvider(teamId, request)
+      ).rejects.toThrow('Network error: Unable to connect to server')
     })
   })
 
   describe('getEmbeddingProviders', () => {
-    const mockProviders: EmbeddingProviderResponse[] = [
-      {
-        id: 'provider-1',
-        user_id: 'user-456',
-        name: 'OpenAI Provider',
-        provider_type: 'openai',
-        model: 'text-embedding-3-small',
-        is_default: true,
-        base_url: 'https://api.openai.com/v1',
-        configuration: '{}',
-        has_api_key: true,
-        chunk_size: 1000,
-        chunk_overlap: 200,
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      },
-      {
-        id: 'provider-2',
-        user_id: 'user-456',
-        name: 'Ollama Provider',
-        provider_type: 'ollama',
-        model: 'text-embedding-3-small',
-        is_default: false,
-        base_url: 'http://localhost:11434',
-        configuration: '{}',
-        has_api_key: false,
-        chunk_size: 1000,
-        chunk_overlap: 200,
-        created_at: '2023-01-02T00:00:00Z',
-        updated_at: '2023-01-02T00:00:00Z',
-      },
-    ]
-
-    it('should get embedding providers successfully', async () => {
-      mockApiClient.get.mockResolvedValue(mockProviders)
+    it('lists providers as a bare array from the settings endpoint', async () => {
+      const providers = [provider, { ...provider, id: 'provider-2' }]
+      mockGeneratedClient.GET.mockReturnValue(success(providers))
 
       const result =
-        await embeddingProviderService.getEmbeddingProviders('team-1')
+        await embeddingProviderService.getEmbeddingProviders(teamId)
 
-      expect(mockApiClient.get).toHaveBeenCalledWith(
-        '/team-1/settings/embedding-providers'
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(base, {
+        params: { path: { team_id: teamId } },
+      })
+      expect(result).toEqual(providers)
+    })
+
+    it('throws ApiError on a server error', async () => {
+      mockGeneratedClient.GET.mockReturnValue(
+        problem(500, 'Failed to retrieve embedding providers', 'INTERNAL_ERROR')
       )
-      expect(result).toEqual(mockProviders)
-    })
-
-    it('should throw ApiError on authentication error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/AUTH_REQUIRED',
-        title: 'Unauthorized',
-        status: 401,
-        detail: 'Authentication token is invalid or expired',
-        code: 'AUTH_REQUIRED',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.get.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.getEmbeddingProviders('team-1')
-      ).rejects.toThrow(ApiError)
-      await expect(
-        embeddingProviderService.getEmbeddingProviders('team-1')
-      ).rejects.toThrow('Authentication token is invalid or expired')
-    })
-
-    it('should throw ApiError on server error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/INTERNAL_ERROR',
-        title: 'Internal Server Error',
-        status: 500,
-        detail: 'Failed to retrieve embedding providers',
-        code: 'INTERNAL_ERROR',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.get.mockRejectedValue(new ApiError(errorResponse))
-
-      await expect(
-        embeddingProviderService.getEmbeddingProviders('team-1')
+        embeddingProviderService.getEmbeddingProviders(teamId)
       ).rejects.toThrow('Failed to retrieve embedding providers')
-    })
-
-    it('should handle network errors', async () => {
-      mockApiClient.get.mockRejectedValue(new Error('Network error'))
-
-      await expect(
-        embeddingProviderService.getEmbeddingProviders('team-1')
-      ).rejects.toThrow('Network error')
     })
   })
 
   describe('getEmbeddingProvider', () => {
-    const providerId = 'provider-123'
-    const mockProvider: EmbeddingProviderResponse = {
-      id: providerId,
-      user_id: 'user-456',
-      name: 'OpenAI Provider',
-      provider_type: 'openai',
-      model: 'text-embedding-3-small',
-      is_default: true,
-      base_url: 'https://api.openai.com/v1',
-      configuration: '{}',
-      has_api_key: true,
-      chunk_size: 1000,
-      chunk_overlap: 200,
-      created_at: '2023-01-01T00:00:00Z',
-      updated_at: '2023-01-01T00:00:00Z',
-    }
-
-    it('should get embedding provider successfully', async () => {
-      mockApiClient.get.mockResolvedValue(mockProvider)
+    it('fetches a single provider by id', async () => {
+      mockGeneratedClient.GET.mockReturnValue(success(provider))
 
       const result = await embeddingProviderService.getEmbeddingProvider(
-        'team-1',
+        teamId,
         providerId
       )
 
-      expect(mockApiClient.get).toHaveBeenCalledWith(
-        `/team-1/settings/embedding-providers/${providerId}`
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(byId, {
+        params: { path: { team_id: teamId, id: providerId } },
+      })
+      expect(result).toEqual(provider)
+    })
+
+    it('throws a not-found ApiError', async () => {
+      mockGeneratedClient.GET.mockReturnValue(
+        problem(404, 'Embedding provider not found', 'PROVIDER_NOT_FOUND')
       )
-      expect(result).toEqual(mockProvider)
-    })
-
-    it('should throw ApiError on authentication error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/AUTH_REQUIRED',
-        title: 'Unauthorized',
-        status: 401,
-        detail: 'Authentication token is invalid or expired',
-        code: 'AUTH_REQUIRED',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.get.mockRejectedValue(new ApiError(errorResponse))
-
-      await expect(
-        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
-      ).rejects.toThrow(ApiError)
-      await expect(
-        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
-      ).rejects.toThrow('Authentication token is invalid or expired')
-    })
-
-    it('should throw ApiError on not found error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/RESOURCE_NOT_FOUND',
-        title: 'Not Found',
-        status: 404,
-        detail: 'Embedding provider not found',
-        code: 'RESOURCE_NOT_FOUND',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.get.mockRejectedValue(new ApiError(errorResponse))
-
-      await expect(
-        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
-      ).rejects.toThrow('Embedding provider not found')
 
       const error = (await embeddingProviderService
-        .getEmbeddingProvider('team-1', providerId)
+        .getEmbeddingProvider(teamId, providerId)
         .catch((e: unknown) => e)) as ApiError
-      expect(error.isNotFoundError()).toBe(true)
-    })
-
-    it('should handle network errors', async () => {
-      mockApiClient.get.mockRejectedValue(new Error('Network error'))
-
-      await expect(
-        embeddingProviderService.getEmbeddingProvider('team-1', providerId)
-      ).rejects.toThrow('Network error')
+      expect(error).toBeInstanceOf(ApiError)
+      expect(error.status).toBe(404)
+      expect(error.message).toContain('Embedding provider not found')
     })
   })
 
   describe('updateEmbeddingProvider', () => {
-    const providerId = 'provider-123'
-    const mockRequest: UpdateEmbeddingProviderRequest = {
+    const request: UpdateEmbeddingProviderRequest = {
       name: 'Updated OpenAI Provider',
       is_default: false,
-      configuration: {
-        model: 'text-embedding-3-small',
-      },
     }
 
-    const mockResponse: EmbeddingProviderResponse = {
-      id: providerId,
-      user_id: 'user-456',
-      name: 'Updated OpenAI Provider',
-      provider_type: 'openai',
-      model: 'text-embedding-3-small',
-      is_default: false,
-      base_url: 'https://api.openai.com/v1',
-      configuration: '{"model":"text-embedding-3-small"}',
-      has_api_key: true,
-      chunk_size: 1000,
-      chunk_overlap: 200,
-      created_at: '2023-01-01T00:00:00Z',
-      updated_at: '2023-01-01T10:00:00Z',
-    }
-
-    it('should update embedding provider successfully', async () => {
-      mockApiClient.put.mockResolvedValue(mockResponse)
+    it('puts the changed fields to the by-id endpoint', async () => {
+      const updated = { ...provider, name: 'Updated OpenAI Provider' }
+      mockGeneratedClient.PUT.mockReturnValue(success(updated))
 
       const result = await embeddingProviderService.updateEmbeddingProvider(
-        'team-1',
+        teamId,
         providerId,
-        mockRequest
+        request
       )
 
-      expect(mockApiClient.put).toHaveBeenCalledWith(
-        `/team-1/settings/embedding-providers/${providerId}`,
-        mockRequest
+      expect(mockGeneratedClient.PUT).toHaveBeenCalledWith(byId, {
+        params: { path: { team_id: teamId, id: providerId } },
+        body: request,
+      })
+      expect(result.name).toBe('Updated OpenAI Provider')
+    })
+
+    it('throws ApiError on a validation failure', async () => {
+      mockGeneratedClient.PUT.mockReturnValue(
+        problem(400, 'Invalid configuration format', 'VALIDATION_FAILED')
       )
-      expect(result).toEqual(mockResponse)
-    })
-
-    it('should throw ApiError on authentication error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/AUTH_REQUIRED',
-        title: 'Unauthorized',
-        status: 401,
-        detail: 'Authentication token is invalid or expired',
-        code: 'AUTH_REQUIRED',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.put.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
         embeddingProviderService.updateEmbeddingProvider(
-          'team-1',
+          teamId,
           providerId,
-          mockRequest
-        )
-      ).rejects.toThrow(ApiError)
-      await expect(
-        embeddingProviderService.updateEmbeddingProvider(
-          'team-1',
-          providerId,
-          mockRequest
-        )
-      ).rejects.toThrow('Authentication token is invalid or expired')
-    })
-
-    it('should throw ApiError on not found error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/RESOURCE_NOT_FOUND',
-        title: 'Not Found',
-        status: 404,
-        detail: 'Embedding provider not found',
-        code: 'RESOURCE_NOT_FOUND',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.put.mockRejectedValue(new ApiError(errorResponse))
-
-      await expect(
-        embeddingProviderService.updateEmbeddingProvider(
-          'team-1',
-          providerId,
-          mockRequest
-        )
-      ).rejects.toThrow('Embedding provider not found')
-    })
-
-    it('should throw ApiError with meaningful message on validation failure', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/VALIDATION_FAILED',
-        title: 'Validation Failed',
-        status: 400,
-        detail: 'Invalid configuration format',
-        code: 'VALIDATION_FAILED',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.put.mockRejectedValue(new ApiError(errorResponse))
-
-      await expect(
-        embeddingProviderService.updateEmbeddingProvider(
-          'team-1',
-          providerId,
-          mockRequest
+          request
         )
       ).rejects.toThrow('Invalid configuration format')
-    })
-
-    it('should handle network errors', async () => {
-      mockApiClient.put.mockRejectedValue(new Error('Network error'))
-
-      await expect(
-        embeddingProviderService.updateEmbeddingProvider(
-          'team-1',
-          providerId,
-          mockRequest
-        )
-      ).rejects.toThrow('Network error')
     })
   })
 
   describe('deleteEmbeddingProvider', () => {
-    const providerId = 'provider-123'
-
-    it('should delete embedding provider successfully', async () => {
-      mockApiClient.delete.mockResolvedValue({})
+    it('deletes by id and resolves void on a 204', async () => {
+      mockGeneratedClient.DELETE.mockReturnValue(success(undefined, noContent))
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
+        embeddingProviderService.deleteEmbeddingProvider(teamId, providerId)
       ).resolves.toBeUndefined()
 
-      expect(mockApiClient.delete).toHaveBeenCalledWith(
-        `/team-1/settings/embedding-providers/${providerId}`
+      expect(mockGeneratedClient.DELETE).toHaveBeenCalledWith(byId, {
+        params: { path: { team_id: teamId, id: providerId } },
+      })
+    })
+
+    it('surfaces the last-provider guard as an ApiError', async () => {
+      mockGeneratedClient.DELETE.mockReturnValue(
+        problem(
+          400,
+          'Cannot delete the last embedding provider',
+          'PROVIDER_LAST_DELETE_BLOCKED'
+        )
       )
-    })
-
-    it('should throw ApiError on authentication error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/AUTH_REQUIRED',
-        title: 'Unauthorized',
-        status: 401,
-        detail: 'Authentication token is invalid or expired',
-        code: 'AUTH_REQUIRED',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.delete.mockRejectedValue(new ApiError(errorResponse))
 
       await expect(
-        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
-      ).rejects.toThrow(ApiError)
-      await expect(
-        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
-      ).rejects.toThrow('Authentication token is invalid or expired')
-    })
-
-    it('should throw ApiError on not found error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/RESOURCE_NOT_FOUND',
-        title: 'Not Found',
-        status: 404,
-        detail: 'Embedding provider not found',
-        code: 'RESOURCE_NOT_FOUND',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.delete.mockRejectedValue(new ApiError(errorResponse))
-
-      await expect(
-        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
-      ).rejects.toThrow('Embedding provider not found')
-    })
-
-    it('should throw ApiError with meaningful message on failure', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/INTERNAL_ERROR',
-        title: 'Internal Server Error',
-        status: 500,
-        detail: 'Failed to delete embedding provider due to database error',
-        code: 'INTERNAL_ERROR',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.delete.mockRejectedValue(new ApiError(errorResponse))
-
-      await expect(
-        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
-      ).rejects.toThrow(
-        'Failed to delete embedding provider due to database error'
-      )
-    })
-
-    it('should handle network errors', async () => {
-      mockApiClient.delete.mockRejectedValue(new Error('Network error'))
-
-      await expect(
-        embeddingProviderService.deleteEmbeddingProvider('team-1', providerId)
-      ).rejects.toThrow('Network error')
+        embeddingProviderService.deleteEmbeddingProvider(teamId, providerId)
+      ).rejects.toThrow('Cannot delete the last embedding provider')
     })
   })
 
   describe('validateEmbeddingProvider', () => {
-    const mockRequest: ValidateEmbeddingProviderRequest = {
+    const request: ValidateEmbeddingProviderRequest = {
       provider_type: 'openai',
       model: 'text-embedding-3-small',
       base_url: 'https://api.openai.com/v1',
       api_key: 'sk-test-key',
-      configuration: {
-        model: 'text-embedding-ada-002',
-      },
     }
 
-    const mockResponse: ValidateEmbeddingProviderResponse = {
-      is_valid: true,
-      message: 'Provider configuration is valid',
-      details: {
-        response_time_ms: 150,
-        status_code: 200,
-      },
-    }
-
-    it('should validate embedding provider successfully', async () => {
-      mockApiClient.post.mockResolvedValue(mockResponse)
+    it('posts to the validate endpoint and returns the outcome', async () => {
+      const response: ValidateEmbeddingProviderResponse = {
+        is_valid: true,
+        message: 'Provider configuration is valid',
+        details: { response_time_ms: 150, status_code: 200, dimension: 1024 },
+      }
+      mockGeneratedClient.POST.mockReturnValue(success(response))
 
       const result = await embeddingProviderService.validateEmbeddingProvider(
-        'team-1',
-        mockRequest
+        teamId,
+        request
       )
 
-      expect(mockApiClient.post).toHaveBeenCalledWith(
-        '/team-1/settings/embedding-providers/validate',
-        mockRequest
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+        `${base}/validate`,
+        {
+          params: { path: { team_id: teamId } },
+          body: request,
+        }
       )
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(response)
     })
 
-    it('should handle invalid provider configuration', async () => {
-      const invalidResponse: ValidateEmbeddingProviderResponse = {
+    it('returns an is_valid:false outcome without throwing (200 body)', async () => {
+      const response: ValidateEmbeddingProviderResponse = {
         is_valid: false,
         message: 'Invalid API key',
-        details: {
-          response_time_ms: 50,
-          status_code: 401,
-          error_details: 'Unauthorized',
-        },
+        details: { status_code: 401, error_details: 'Unauthorized' },
       }
-
-      mockApiClient.post.mockResolvedValue(invalidResponse)
+      mockGeneratedClient.POST.mockReturnValue(success(response))
 
       const result = await embeddingProviderService.validateEmbeddingProvider(
-        'team-1',
-        mockRequest
+        teamId,
+        request
       )
 
-      expect(result).toEqual(invalidResponse)
       expect(result.is_valid).toBe(false)
     })
 
-    it('should throw ApiError on authentication error', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/AUTH_REQUIRED',
-        title: 'Unauthorized',
-        status: 401,
-        detail: 'Authentication token is invalid or expired',
-        code: 'AUTH_REQUIRED',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.post.mockRejectedValue(new ApiError(errorResponse))
+    it('throws ApiError on an internal service error', async () => {
+      mockGeneratedClient.POST.mockReturnValue(
+        problem(
+          500,
+          'Validation service is temporarily unavailable',
+          'INTERNAL_ERROR'
+        )
+      )
 
       await expect(
-        embeddingProviderService.validateEmbeddingProvider(
-          'team-1',
-          mockRequest
-        )
-      ).rejects.toThrow(ApiError)
-      await expect(
-        embeddingProviderService.validateEmbeddingProvider(
-          'team-1',
-          mockRequest
-        )
-      ).rejects.toThrow('Authentication token is invalid or expired')
-    })
-
-    it('should throw ApiError with meaningful message on service unavailable', async () => {
-      const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/SERVICE_UNAVAILABLE',
-        title: 'Service Unavailable',
-        status: 503,
-        detail: 'Validation service is temporarily unavailable',
-        code: 'SERVICE_UNAVAILABLE',
-        request_id: 'req-123',
-        timestamp: new Date().toISOString(),
-      }
-      mockApiClient.post.mockRejectedValue(new ApiError(errorResponse))
-
-      await expect(
-        embeddingProviderService.validateEmbeddingProvider(
-          'team-1',
-          mockRequest
-        )
+        embeddingProviderService.validateEmbeddingProvider(teamId, request)
       ).rejects.toThrow('Validation service is temporarily unavailable')
-    })
-
-    it('should handle network errors', async () => {
-      mockApiClient.post.mockRejectedValue(new Error('Network error'))
-
-      await expect(
-        embeddingProviderService.validateEmbeddingProvider(
-          'team-1',
-          mockRequest
-        )
-      ).rejects.toThrow('Network error')
-    })
-  })
-
-  describe('edge cases and error handling', () => {
-    it('should handle malformed JSON response in createEmbeddingProvider', async () => {
-      mockApiClient.post.mockRejectedValue(new Error('Invalid JSON'))
-
-      const mockRequest: CreateEmbeddingProviderRequest = {
-        name: 'Test Provider',
-        provider_type: 'openai',
-        model: 'text-embedding-3-small',
-      }
-
-      await expect(
-        embeddingProviderService.createEmbeddingProvider('team-1', mockRequest)
-      ).rejects.toThrow('Invalid JSON')
-    })
-
-    it('should handle malformed JSON response in getEmbeddingProviders', async () => {
-      mockApiClient.get.mockRejectedValue(new Error('Invalid JSON'))
-
-      await expect(
-        embeddingProviderService.getEmbeddingProviders('team-1')
-      ).rejects.toThrow('Invalid JSON')
-    })
-
-    it('should handle malformed JSON response in validateEmbeddingProvider', async () => {
-      const mockRequest: ValidateEmbeddingProviderRequest = {
-        provider_type: 'openai',
-        model: 'text-embedding-3-small',
-        base_url: 'https://api.openai.com/v1',
-      }
-
-      mockApiClient.post.mockRejectedValue(new Error('Invalid JSON'))
-
-      await expect(
-        embeddingProviderService.validateEmbeddingProvider(
-          'team-1',
-          mockRequest
-        )
-      ).rejects.toThrow('Invalid JSON')
-    })
-  })
-
-  describe('integration scenarios', () => {
-    it('should handle complete provider lifecycle', async () => {
-      const createRequest: CreateEmbeddingProviderRequest = {
-        name: 'Test Provider',
-        provider_type: 'openai',
-        model: 'text-embedding-3-small',
-        api_key: 'sk-test',
-      }
-
-      const createdProvider: EmbeddingProviderResponse = {
-        id: 'provider-123',
-        user_id: 'user-456',
-        name: 'Test Provider',
-        provider_type: 'openai',
-        model: 'text-embedding-3-small',
-        is_default: false,
-        configuration: '{}',
-        has_api_key: true,
-        chunk_size: 1000,
-        chunk_overlap: 200,
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      }
-
-      // Create provider
-      mockApiClient.post.mockResolvedValueOnce(createdProvider)
-
-      const created = await embeddingProviderService.createEmbeddingProvider(
-        'team-1',
-        createRequest
-      )
-      expect(created).toEqual(createdProvider)
-
-      // Get provider
-      mockApiClient.get.mockResolvedValueOnce(createdProvider)
-
-      const retrieved = await embeddingProviderService.getEmbeddingProvider(
-        'team-1',
-        created.id
-      )
-      expect(retrieved).toEqual(createdProvider)
-
-      // Update provider
-      const updateRequest: UpdateEmbeddingProviderRequest = {
-        name: 'Updated Test Provider',
-      }
-      const updatedProvider = {
-        ...createdProvider,
-        name: 'Updated Test Provider',
-      }
-
-      mockApiClient.put.mockResolvedValueOnce(updatedProvider)
-
-      const updated = await embeddingProviderService.updateEmbeddingProvider(
-        'team-1',
-        created.id,
-        updateRequest
-      )
-      expect(updated.name).toBe('Updated Test Provider')
-
-      // Delete provider
-      mockApiClient.delete.mockResolvedValueOnce({})
-
-      await expect(
-        embeddingProviderService.deleteEmbeddingProvider('team-1', created.id)
-      ).resolves.toBeUndefined()
-    })
-
-    it('should handle validation before creation', async () => {
-      const validateRequest: ValidateEmbeddingProviderRequest = {
-        provider_type: 'openai',
-        model: 'text-embedding-3-small',
-        base_url: 'https://api.openai.com/v1',
-        api_key: 'sk-test',
-      }
-
-      const validationResponse: ValidateEmbeddingProviderResponse = {
-        is_valid: true,
-        message: 'Configuration is valid',
-      }
-
-      // Validate first
-      mockApiClient.post.mockResolvedValueOnce(validationResponse)
-
-      const validation =
-        await embeddingProviderService.validateEmbeddingProvider(
-          'team-1',
-          validateRequest
-        )
-      expect(validation.is_valid).toBe(true)
-
-      // Then create if valid
-      if (validation.is_valid) {
-        const createRequest: CreateEmbeddingProviderRequest = {
-          name: 'Validated Provider',
-          provider_type: validateRequest.provider_type,
-          model: validateRequest.model,
-          base_url: validateRequest.base_url,
-          api_key: validateRequest.api_key,
-        }
-
-        const createdProvider: EmbeddingProviderResponse = {
-          id: 'provider-456',
-          user_id: 'user-789',
-          name: 'Validated Provider',
-          provider_type: 'openai',
-          model: 'text-embedding-3-small',
-          is_default: false,
-          base_url: 'https://api.openai.com/v1',
-          configuration: '{}',
-          has_api_key: true,
-          chunk_size: 1000,
-          chunk_overlap: 200,
-          created_at: '2023-01-01T00:00:00Z',
-          updated_at: '2023-01-01T00:00:00Z',
-        }
-
-        mockApiClient.post.mockResolvedValueOnce(createdProvider)
-
-        const created = await embeddingProviderService.createEmbeddingProvider(
-          'team-1',
-          createRequest
-        )
-        expect(created).toEqual(createdProvider)
-      }
     })
   })
 })
