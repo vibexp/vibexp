@@ -669,11 +669,7 @@ func TestHandleValidateEmbeddingProvider_Success(t *testing.T) {
 	expectedResponse := &models.ValidateEmbeddingProviderResponse{
 		IsValid: true,
 		Message: "Provider configuration is valid",
-		Details: struct {
-			ResponseTime int    `json:"response_time_ms,omitempty"`
-			StatusCode   int    `json:"status_code,omitempty"`
-			ErrorDetails string `json:"error_details,omitempty"`
-		}{
+		Details: models.ValidateEmbeddingProviderDetails{
 			ResponseTime: 100,
 			StatusCode:   200,
 		},
@@ -713,11 +709,7 @@ func TestHandleValidateEmbeddingProvider_Invalid(t *testing.T) {
 	expectedResponse := &models.ValidateEmbeddingProviderResponse{
 		IsValid: false,
 		Message: "Invalid API key",
-		Details: struct {
-			ResponseTime int    `json:"response_time_ms,omitempty"`
-			StatusCode   int    `json:"status_code,omitempty"`
-			ErrorDetails string `json:"error_details,omitempty"`
-		}{
+		Details: models.ValidateEmbeddingProviderDetails{
 			StatusCode:   401,
 			ErrorDetails: "Authentication failed",
 		},
@@ -822,11 +814,7 @@ func TestHandleValidateEmbeddingProvider_WithConfiguration(t *testing.T) {
 	expectedResponse := &models.ValidateEmbeddingProviderResponse{
 		IsValid: true,
 		Message: "Provider configuration is valid",
-		Details: struct {
-			ResponseTime int    `json:"response_time_ms,omitempty"`
-			StatusCode   int    `json:"status_code,omitempty"`
-			ErrorDetails string `json:"error_details,omitempty"`
-		}{
+		Details: models.ValidateEmbeddingProviderDetails{
 			ResponseTime: 150,
 			StatusCode:   200,
 		},
