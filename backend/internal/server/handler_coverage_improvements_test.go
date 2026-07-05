@@ -608,6 +608,9 @@ func TestEmbeddingProviderUpdateCoverage_ServiceError(t *testing.T) {
 
 	providerID := "550e8400-e29b-41d4-a716-446655440000"
 
+	container.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", providerID).
+		Return(nil, errors.New("database connection failed")).Maybe()
 	container.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", providerID, mock.Anything).
 		Return(nil, errors.New("database connection failed")).Maybe()
 
@@ -652,6 +655,9 @@ func TestEmbeddingProviderUpdateCoverage_SuccessWithValidData(t *testing.T) {
 		UpdatedAt:    time.Now(),
 	}
 
+	container.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", providerID).
+		Return(&models.EmbeddingProviderResponse{EmbeddingProvider: *expectedProvider}, nil).Maybe()
 	container.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", providerID, mock.Anything).
 		Return(expectedProvider, nil).Maybe()
 

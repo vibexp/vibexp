@@ -68,7 +68,7 @@ func emptyForRemainingTypes(repo *repomocks.MockEmbeddingBackfillRepository, exc
 		if skip[et] {
 			continue
 		}
-		repo.EXPECT().ListEntities(mock.Anything, et, "", false, mock.Anything, 0).
+		repo.EXPECT().ListEntities(mock.Anything, et, "", "", false, mock.Anything, 0).
 			Return([]models.BackfillEntity{}, nil).Once()
 	}
 }
@@ -77,7 +77,7 @@ func TestEmbeddingBackfill_AllTypes_PublishesEach(t *testing.T) {
 	svc, repo, publisher, renderer := newTestBackfillService(t)
 	passthroughRender(renderer)
 
-	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", false, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{backfillEntity("prompt", "p1"), backfillEntity("prompt", "p2")}, nil).Once()
 	emptyForRemainingTypes(repo, "prompt")
 	publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(nil).Times(2)
@@ -117,9 +117,9 @@ func TestEmbeddingBackfill_AllAndEntityTypes_ReturnsScopeAmbiguous(t *testing.T)
 func TestEmbeddingBackfill_EntityTypesFilter_OnlyRequested(t *testing.T) {
 	svc, repo, publisher, _ := newTestBackfillService(t)
 
-	repo.EXPECT().ListEntities(mock.Anything, "blueprint", "", false, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "blueprint", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{backfillEntity("blueprint", "b1")}, nil).Once()
-	repo.EXPECT().ListEntities(mock.Anything, "feed_item", "", false, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "feed_item", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{backfillEntity("feed_item", "f1")}, nil).Once()
 	publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(nil).Times(2)
 
@@ -139,7 +139,7 @@ func TestEmbeddingBackfill_MissingOnly_PassesFilterToRepo(t *testing.T) {
 
 	// Only the entity the repo's missing-only query returns is published; an
 	// already-embedded entity is filtered out at the repo and never seen here.
-	repo.EXPECT().ListEntities(mock.Anything, "memory", "", true, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "memory", "", "", true, mock.Anything, 0).
 		Return([]models.BackfillEntity{backfillEntity("memory", "missing-1")}, nil).Once()
 	publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(nil).Once()
 
@@ -156,7 +156,7 @@ func TestEmbeddingBackfill_MissingOnly_PassesFilterToRepo(t *testing.T) {
 func TestEmbeddingBackfill_DryRun_CountsWithoutPublishing(t *testing.T) {
 	svc, repo, publisher, _ := newTestBackfillService(t)
 
-	repo.EXPECT().ListEntities(mock.Anything, "artifact", "", false, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "artifact", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{backfillEntity("artifact", "a1")}, nil).Once()
 
 	result, err := svc.Backfill(context.Background(), services.EmbeddingBackfillRequest{
@@ -177,7 +177,7 @@ func TestEmbeddingBackfill_DryRunMissingOnly_CountsMissingWithoutPublishing(t *t
 
 	// Dry run still threads missing_only into the repo, so counts reflect only the
 	// gaps; nothing is published.
-	repo.EXPECT().ListEntities(mock.Anything, "artifact", "", true, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "artifact", "", "", true, mock.Anything, 0).
 		Return([]models.BackfillEntity{backfillEntity("artifact", "a1"), backfillEntity("artifact", "a2")}, nil).Once()
 
 	result, err := svc.Backfill(context.Background(), services.EmbeddingBackfillRequest{
@@ -197,7 +197,7 @@ func TestEmbeddingBackfill_PublishFailure_LogsAndContinues(t *testing.T) {
 	svc, repo, publisher, renderer := newTestBackfillService(t)
 	passthroughRender(renderer)
 
-	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", false, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{backfillEntity("prompt", "p1"), backfillEntity("prompt", "p2")}, nil).Once()
 	// First publish fails, second succeeds; the run must not abort.
 	publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(errors.New("pubsub down")).Once()
@@ -222,8 +222,8 @@ func TestEmbeddingBackfill_Pagination_WalksAllPages(t *testing.T) {
 	for i := range fullPage {
 		fullPage[i] = backfillEntity("memory", "m")
 	}
-	repo.EXPECT().ListEntities(mock.Anything, "memory", "", false, 500, 0).Return(fullPage, nil).Once()
-	repo.EXPECT().ListEntities(mock.Anything, "memory", "", false, 500, 500).
+	repo.EXPECT().ListEntities(mock.Anything, "memory", "", "", false, 500, 0).Return(fullPage, nil).Once()
+	repo.EXPECT().ListEntities(mock.Anything, "memory", "", "", false, 500, 500).
 		Return([]models.BackfillEntity{backfillEntity("memory", "last")}, nil).Once()
 	publisher.EXPECT().Publish(mock.Anything, mock.Anything).Return(nil).Times(501)
 
@@ -274,7 +274,7 @@ func TestEmbeddingBackfill_BuildsCorrectEventTypePerEntity(t *testing.T) {
 			if entityType == "prompt" {
 				passthroughRender(renderer)
 			}
-			repo.EXPECT().ListEntities(mock.Anything, entityType, "", false, mock.Anything, 0).
+			repo.EXPECT().ListEntities(mock.Anything, entityType, "", "", false, mock.Anything, 0).
 				Return([]models.BackfillEntity{backfillEntity(entityType, "x")}, nil).Once()
 			publisher.EXPECT().
 				Publish(mock.Anything, mock.MatchedBy(func(e events.Event) bool {
@@ -297,7 +297,7 @@ func TestEmbeddingBackfill_Prompt_EmbedsRenderedBody(t *testing.T) {
 	entity.Body = "Intro: @shared-context"                     // raw template with a reference
 	const renderedBody = "Intro: resolved shared context body" // what the live path would embed
 
-	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", false, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{entity}, nil).Once()
 	renderer.EXPECT().RenderPromptBody("user-1", entity.Body).Return(renderedBody, nil).Once()
 
@@ -323,7 +323,7 @@ func TestEmbeddingBackfill_Prompt_RenderFailureFallsBackToRawBody(t *testing.T) 
 	entity := backfillEntity("prompt", "p1")
 	entity.Body = "Intro: @missing-ref"
 
-	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", false, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{entity}, nil).Once()
 	renderer.EXPECT().RenderPromptBody("user-1", entity.Body).
 		Return("", errors.New("circular reference")).Once()
@@ -346,7 +346,7 @@ func TestEmbeddingBackfill_Prompt_RenderFailureFallsBackToRawBody(t *testing.T) 
 func TestEmbeddingBackfill_RepoError_Aborts(t *testing.T) {
 	svc, repo, _, _ := newTestBackfillService(t)
 
-	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", false, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", "", false, mock.Anything, 0).
 		Return(nil, errors.New("db down")).Once()
 
 	_, err := svc.Backfill(context.Background(), services.EmbeddingBackfillRequest{
@@ -361,7 +361,7 @@ func TestEmbeddingBackfill_PublishesBackfillOriginEvents(t *testing.T) {
 	svc, repo, publisher, renderer := newTestBackfillService(t)
 	passthroughRender(renderer)
 
-	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", false, mock.Anything, 0).
+	repo.EXPECT().ListEntities(mock.Anything, "prompt", "", "", false, mock.Anything, 0).
 		Return([]models.BackfillEntity{backfillEntity("prompt", "p1")}, nil).Once()
 
 	var captured events.Event

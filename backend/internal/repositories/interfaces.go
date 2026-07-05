@@ -747,6 +747,10 @@ type EmbeddingRepository interface {
 	FindSimilar(ctx context.Context, userID, entityType string, vector []float32, limit int,
 	) ([]models.EmbeddingSimilarity, error)
 	DeleteByEntity(ctx context.Context, entityType, entityID string) error
+	// DeleteByTeam removes every embedding owned by a team, returning the number of
+	// rows deleted. Used to wipe a team's vectors before re-embedding when its
+	// provider's model/endpoint changes (issue #79).
+	DeleteByTeam(ctx context.Context, teamID string) (int64, error)
 }
 
 // SearchRepository defines the interface for cross-entity semantic search over embeddings.
@@ -798,7 +802,7 @@ type EmbeddingBackfillRepository interface {
 	// returns an error. When missingOnly is true, only entities lacking an
 	// embedding row for modelID are returned.
 	ListEntities(
-		ctx context.Context, entityType, modelID string, missingOnly bool, limit, offset int,
+		ctx context.Context, entityType, modelID, teamID string, missingOnly bool, limit, offset int,
 	) ([]models.BackfillEntity, error)
 }
 

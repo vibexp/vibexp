@@ -117,6 +117,63 @@ func (_c *MockEmbeddingRepository_DeleteByEntity_Call) RunAndReturn(run func(con
 	return _c
 }
 
+// DeleteByTeam provides a mock function with given fields: ctx, teamID
+func (_m *MockEmbeddingRepository) DeleteByTeam(ctx context.Context, teamID string) (int64, error) {
+	ret := _m.Called(ctx, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteByTeam")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (int64, error)); ok {
+		return rf(ctx, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) int64); ok {
+		r0 = rf(ctx, teamID)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockEmbeddingRepository_DeleteByTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteByTeam'
+type MockEmbeddingRepository_DeleteByTeam_Call struct {
+	*mock.Call
+}
+
+// DeleteByTeam is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+func (_e *MockEmbeddingRepository_Expecter) DeleteByTeam(ctx interface{}, teamID interface{}) *MockEmbeddingRepository_DeleteByTeam_Call {
+	return &MockEmbeddingRepository_DeleteByTeam_Call{Call: _e.mock.On("DeleteByTeam", ctx, teamID)}
+}
+
+func (_c *MockEmbeddingRepository_DeleteByTeam_Call) Run(run func(ctx context.Context, teamID string)) *MockEmbeddingRepository_DeleteByTeam_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockEmbeddingRepository_DeleteByTeam_Call) Return(_a0 int64, _a1 error) *MockEmbeddingRepository_DeleteByTeam_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockEmbeddingRepository_DeleteByTeam_Call) RunAndReturn(run func(context.Context, string) (int64, error)) *MockEmbeddingRepository_DeleteByTeam_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindSimilar provides a mock function with given fields: ctx, userID, entityType, vector, limit
 func (_m *MockEmbeddingRepository) FindSimilar(ctx context.Context, userID string, entityType string, vector []float32, limit int) ([]models.EmbeddingSimilarity, error) {
 	ret := _m.Called(ctx, userID, entityType, vector, limit)

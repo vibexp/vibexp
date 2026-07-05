@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -72,6 +73,8 @@ export function EmbeddingProviderDialog({
   onSubmit,
 }: Props) {
   const [validating, setValidating] = useState(false)
+  const [pendingValues, setPendingValues] =
+    useState<EmbeddingProviderFormValues | null>(null)
 
   const form = useForm<EmbeddingProviderFormValues>({
     resolver: zodResolver(schema),
@@ -102,22 +105,26 @@ export function EmbeddingProviderDialog({
     }
   }, [open, provider, form])
 
-  const handleSubmit = form.handleSubmit(async values => {
+  // identityChanged is true when an edit changes the model, base URL, or provider
+  // type — the fields that make existing embeddings incomparable. It gates both
+  // the validate-on-save probe and the re-embed confirmation.
+  const identityChanged = (values: EmbeddingProviderFormValues) =>
+    !!provider &&
+    (values.model.trim() !== provider.model ||
+      values.base_url.trim() !== (provider.base_url ?? '') ||
+      values.provider_type !== provider.provider_type)
+
+  const proceed = async (values: EmbeddingProviderFormValues) => {
     const baseUrl = values.base_url.trim()
     const apiKey = values.api_key?.trim() ?? ''
     const model = values.model.trim()
 
     // Validate-on-save: probe the provider so it is accepted only if it returns
     // the fixed 1024-dimensional vectors VibeXP stores. Always validate on create
-    // and whenever an edit changes the embedding identity (model / base URL /
-    // provider type); a name/default-only edit needs no re-probe. When the
-    // identity changed but the provider needs a key the user didn't re-enter, the
-    // probe fails with an auth error that prompts them to supply it.
-    const identityChanged =
-      model !== provider?.model ||
-      baseUrl !== (provider.base_url ?? '') ||
-      values.provider_type !== provider.provider_type
-    if (identityChanged) {
+    // and whenever an edit changes the embedding identity; a name/default-only edit
+    // needs no re-probe. When the identity changed but the provider needs a key the
+    // user didn't re-enter, the probe fails with an auth error that prompts them.
+    if (!provider || identityChanged(values)) {
       setValidating(true)
       try {
         const result = await embeddingProviderService.validateEmbeddingProvider(
@@ -151,181 +158,219 @@ export function EmbeddingProviderDialog({
       api_key: apiKey === '' ? undefined : apiKey,
       is_default: values.is_default,
     })
+  }
+
+  // Editing the model/endpoint/type invalidates this team's existing embeddings,
+  // so confirm the wipe + re-embed before proceeding.
+  const handleSubmit = form.handleSubmit(async values => {
+    if (identityChanged(values)) {
+      setPendingValues(values)
+      return
+    }
+    await proceed(values)
   })
 
   const busy = submitting || validating
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {provider ? 'Edit provider' : 'Add embedding provider'}
-          </DialogTitle>
-          <DialogDescription>
-            Embedding providers convert text into vectors for semantic search.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={event => {
-              void handleSubmit(event)
-            }}
-            className="space-y-4"
-          >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="e.g., OpenAI Embeddings" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="provider_type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Provider type</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {provider ? 'Edit provider' : 'Add embedding provider'}
+            </DialogTitle>
+            <DialogDescription>
+              Embedding providers convert text into vectors for semantic search.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form
+              onSubmit={event => {
+                void handleSubmit(event)
+              }}
+              className="space-y-4"
+            >
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                      <Input {...field} placeholder="e.g., OpenAI Embeddings" />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="openai_compatible">
-                        OpenAI-compatible
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="model"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Model</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="e.g., text-embedding-3-small"
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Must return {EMBEDDING_VECTOR_DIMENSIONS}-dimensional
-                    vectors.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="space-y-2">
-              <Label htmlFor="embedding-dimension">Dimension</Label>
-              <Input
-                id="embedding-dimension"
-                value={EMBEDDING_VECTOR_DIMENSIONS}
-                disabled
-                readOnly
-                aria-label="Embedding vector dimension"
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              <p className="text-sm text-muted-foreground">
-                Fixed by VibeXP&apos;s vector store. Providers are validated on
-                save to guarantee they return this width.
-              </p>
-            </div>
-            <FormField
-              control={form.control}
-              name="base_url"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Base URL</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="https://api.openai.com/v1" />
-                  </FormControl>
-                  <FormDescription>
-                    Required for custom OpenAI-compatible endpoints.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="api_key"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>API key</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="password"
-                      placeholder={
-                        provider
-                          ? 'Leave blank to keep current key'
-                          : 'Enter API key'
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="is_default"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start gap-2 space-y-0">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={value => {
-                        field.onChange(value === true)
-                      }}
-                      className="mt-0.5"
-                    />
-                  </FormControl>
-                  <div className="space-y-0.5 leading-none">
-                    <FormLabel>Use as default</FormLabel>
+              <FormField
+                control={form.control}
+                name="provider_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Provider type</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="openai_compatible">
+                          OpenAI-compatible
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="model"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Model</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="e.g., text-embedding-3-small"
+                      />
+                    </FormControl>
                     <FormDescription>
-                      Embedding requests without an explicit provider will use
-                      this one.
+                      Must return {EMBEDDING_VECTOR_DIMENSIONS}-dimensional
+                      vectors.
                     </FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busy}
-                onClick={() => {
-                  onOpenChange(false)
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={busy}>
-                {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-                {validating
-                  ? 'Validating…'
-                  : provider
-                    ? 'Save changes'
-                    : 'Add provider'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="space-y-2">
+                <Label htmlFor="embedding-dimension">Dimension</Label>
+                <Input
+                  id="embedding-dimension"
+                  value={EMBEDDING_VECTOR_DIMENSIONS}
+                  disabled
+                  readOnly
+                  aria-label="Embedding vector dimension"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Fixed by VibeXP&apos;s vector store. Providers are validated
+                  on save to guarantee they return this width.
+                </p>
+              </div>
+              <FormField
+                control={form.control}
+                name="base_url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Base URL</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="https://api.openai.com/v1"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Required for custom OpenAI-compatible endpoints.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="api_key"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>API key</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="password"
+                        placeholder={
+                          provider
+                            ? 'Leave blank to keep current key'
+                            : 'Enter API key'
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="is_default"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start gap-2 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={value => {
+                          field.onChange(value === true)
+                        }}
+                        className="mt-0.5"
+                      />
+                    </FormControl>
+                    <div className="space-y-0.5 leading-none">
+                      <FormLabel>Use as default</FormLabel>
+                      <FormDescription>
+                        Embedding requests without an explicit provider will use
+                        this one.
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    onOpenChange(false)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={busy}>
+                  {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  {validating
+                    ? 'Validating…'
+                    : provider
+                      ? 'Save changes'
+                      : 'Add provider'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      <ConfirmDialog
+        open={pendingValues !== null}
+        onOpenChange={openState => {
+          if (!openState) setPendingValues(null)
+        }}
+        title="Re-embed this team's resources?"
+        description={
+          <>
+            Changing the model, endpoint, or provider type deletes this
+            team&apos;s existing embeddings and re-generates them in the
+            background. Semantic search falls back to keyword matching until
+            re-indexing completes.
+          </>
+        }
+        confirmLabel="Save & re-embed"
+        variant="destructive"
+        loading={busy}
+        onConfirm={async () => {
+          const values = pendingValues
+          setPendingValues(null)
+          if (values) await proceed(values)
+        }}
+      />
+    </>
   )
 }

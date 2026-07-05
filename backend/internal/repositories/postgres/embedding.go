@@ -187,3 +187,17 @@ func (r *EmbeddingRepository) DeleteByEntity(ctx context.Context, entityType, en
 
 	return nil
 }
+
+// DeleteByTeam removes every embedding owned by a team and returns the rows
+// deleted.
+func (r *EmbeddingRepository) DeleteByTeam(ctx context.Context, teamID string) (int64, error) {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM embeddings WHERE team_id = $1`, teamID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete embeddings for team: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read rows affected: %w", err)
+	}
+	return rows, nil
+}
