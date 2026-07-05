@@ -27,6 +27,7 @@ func createTestCreateEmbeddingProviderRequest() models.CreateEmbeddingProviderRe
 	return models.CreateEmbeddingProviderRequest{
 		Name:         "Test Provider",
 		ProviderType: "openai_compatible",
+		Model:        "text-embedding-3-small",
 		IsDefault:    boolPtr(true),
 		BaseURL:      stringPtr("https://api.openai.com/v1/embeddings"),
 		APIKey:       stringPtr("sk-test-key-123"),
@@ -34,6 +35,35 @@ func createTestCreateEmbeddingProviderRequest() models.CreateEmbeddingProviderRe
 			"model": "text-embedding-ada-002",
 		},
 	}
+}
+
+// TestEmbeddingProviderService_buildEmbeddingProvider_defaults verifies the model
+// is persisted and chunk sizing falls back to the package defaults when the
+// request omits it (issue #79).
+func TestEmbeddingProviderService_buildEmbeddingProvider_defaults(t *testing.T) {
+	mockRepo := mocks.NewMockEmbeddingProviderRepository(t)
+	service := createTestEmbeddingProviderService(mockRepo)
+
+	t.Run("defaults applied when chunk sizing omitted", func(t *testing.T) {
+		p := service.buildEmbeddingProvider("user-1",
+			models.CreateEmbeddingProviderRequest{
+				Name: "P", ProviderType: "openai_compatible", Model: "m",
+			}, nil, "{}")
+		assert.Equal(t, "m", p.Model)
+		assert.Equal(t, defaultEmbeddingChunkSize, p.ChunkSize)
+		assert.Equal(t, defaultEmbeddingChunkOverlap, p.ChunkOverlap)
+	})
+
+	t.Run("explicit chunk sizing is preserved", func(t *testing.T) {
+		size, overlap := 512, 64
+		p := service.buildEmbeddingProvider("user-1",
+			models.CreateEmbeddingProviderRequest{
+				Name: "P", ProviderType: "openai_compatible", Model: "m",
+				ChunkSize: &size, ChunkOverlap: &overlap,
+			}, nil, "{}")
+		assert.Equal(t, 512, p.ChunkSize)
+		assert.Equal(t, 64, p.ChunkOverlap)
+	})
 }
 
 func stringPtr(s string) *string {

@@ -28,13 +28,15 @@ func NewEmbeddingProviderRepository(db *database.DB) repositories.EmbeddingProvi
 func (r *EmbeddingProviderRepository) Create(ctx context.Context, provider *models.EmbeddingProvider) error {
 	query := `
 		INSERT INTO embedding_providers
-		(user_id, name, provider_type, is_default, base_url, api_key_encrypted, configuration, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		(user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
+		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING id, created_at, updated_at
 	`
 
 	err := r.db.QueryRowContext(ctx, query,
-		provider.UserID, provider.Name, provider.ProviderType, provider.IsDefault,
+		provider.UserID, provider.TeamID, provider.Name, provider.ProviderType,
+		provider.Model, provider.ChunkSize, provider.ChunkOverlap, provider.IsDefault,
 		provider.BaseURL, provider.APIKeyEncrypted, provider.Configuration,
 		provider.CreatedAt, provider.UpdatedAt,
 	).Scan(&provider.ID, &provider.CreatedAt, &provider.UpdatedAt)
@@ -51,15 +53,16 @@ func (r *EmbeddingProviderRepository) GetByID(
 	ctx context.Context, userID, providerID string,
 ) (*models.EmbeddingProvider, error) {
 	query := `
-		SELECT id, user_id, name, provider_type, is_default, base_url,
-		api_key_encrypted, configuration, created_at, updated_at, version
+		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
+		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at, version
 		FROM embedding_providers
 		WHERE id = $1 AND user_id = $2
 	`
 
 	var provider models.EmbeddingProvider
 	err := r.db.QueryRowContext(ctx, query, providerID, userID).Scan(
-		&provider.ID, &provider.UserID, &provider.Name, &provider.ProviderType,
+		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
+		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt, &provider.Version,
 	)
@@ -121,7 +124,8 @@ func (r *EmbeddingProviderRepository) queryList(
 
 	query, args, err := psql.
 		Select(
-			"id", "user_id", "name", "provider_type", "is_default", "base_url",
+			"id", "user_id", "team_id", "name", "provider_type", "model", "chunk_size",
+			"chunk_overlap", "is_default", "base_url",
 			"api_key_encrypted", "configuration", "created_at", "updated_at",
 		).
 		From("embedding_providers").
@@ -148,7 +152,8 @@ func (r *EmbeddingProviderRepository) queryList(
 	for rows.Next() {
 		var provider models.EmbeddingProvider
 		scanErr := rows.Scan(
-			&provider.ID, &provider.UserID, &provider.Name, &provider.ProviderType,
+			&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
+			&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap,
 			&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 			&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt,
 		)
@@ -189,14 +194,16 @@ func (r *EmbeddingProviderRepository) countList(ctx context.Context, where squir
 func (r *EmbeddingProviderRepository) Update(ctx context.Context, provider *models.EmbeddingProvider) error {
 	query := `
 		UPDATE embedding_providers
-		SET name = $2, provider_type = $3, is_default = $4, base_url = $5,
-		api_key_encrypted = $6, configuration = $7, updated_at = $8, version = version + 1
-		WHERE id = $1 AND user_id = $9 AND version = $10
+		SET name = $2, provider_type = $3, model = $4, chunk_size = $5, chunk_overlap = $6,
+		is_default = $7, base_url = $8, api_key_encrypted = $9, configuration = $10,
+		updated_at = $11, version = version + 1
+		WHERE id = $1 AND user_id = $12 AND version = $13
 		RETURNING updated_at, version
 	`
 
 	err := r.db.QueryRowContext(ctx, query,
-		provider.ID, provider.Name, provider.ProviderType, provider.IsDefault,
+		provider.ID, provider.Name, provider.ProviderType, provider.Model,
+		provider.ChunkSize, provider.ChunkOverlap, provider.IsDefault,
 		provider.BaseURL, provider.APIKeyEncrypted, provider.Configuration,
 		provider.UpdatedAt, provider.UserID, provider.Version,
 	).Scan(&provider.UpdatedAt, &provider.Version)
@@ -237,8 +244,8 @@ func (r *EmbeddingProviderRepository) GetDefault(
 	ctx context.Context, userID string,
 ) (*models.EmbeddingProvider, error) {
 	query := `
-		SELECT id, user_id, name, provider_type, is_default, base_url,
-		api_key_encrypted, configuration, created_at, updated_at
+		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
+		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at
 		FROM embedding_providers
 		WHERE user_id = $1 AND is_default = true
 		LIMIT 1
@@ -246,7 +253,8 @@ func (r *EmbeddingProviderRepository) GetDefault(
 
 	var provider models.EmbeddingProvider
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&provider.ID, &provider.UserID, &provider.Name, &provider.ProviderType,
+		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
+		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt,
 	)
@@ -270,8 +278,8 @@ func (r *EmbeddingProviderRepository) GetActiveProvider(
 	ctx context.Context,
 ) (*models.EmbeddingProvider, error) {
 	query := `
-		SELECT id, user_id, name, provider_type, is_default, base_url,
-		api_key_encrypted, configuration, created_at, updated_at, version
+		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
+		is_default, base_url, api_key_encrypted, configuration, created_at, updated_at, version
 		FROM embedding_providers
 		ORDER BY is_default DESC, updated_at DESC
 		LIMIT 1
@@ -279,7 +287,8 @@ func (r *EmbeddingProviderRepository) GetActiveProvider(
 
 	var provider models.EmbeddingProvider
 	err := r.db.QueryRowContext(ctx, query).Scan(
-		&provider.ID, &provider.UserID, &provider.Name, &provider.ProviderType,
+		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
+		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt, &provider.Version,
 	)

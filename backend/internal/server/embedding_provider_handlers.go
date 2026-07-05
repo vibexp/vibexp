@@ -95,6 +95,15 @@ func (s *Server) validateCreateEmbeddingProviderRequest(
 		validationErrors = append(validationErrors, errors.NewRequiredFieldError("provider_type"))
 	}
 
+	if req.Model == "" {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleCreateEmbeddingProvider",
+			"user_id", userID,
+		).Error("Model is required")
+		validationErrors = append(validationErrors, errors.NewRequiredFieldError("model"))
+	}
+
 	if len(validationErrors) > 0 {
 		apiErr := errors.NewProviderValidationError(
 			"Embedding provider validation failed. Please check the required fields.",

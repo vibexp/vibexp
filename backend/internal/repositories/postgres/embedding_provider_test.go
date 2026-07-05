@@ -26,7 +26,8 @@ func setupEmbeddingProviderTest(t *testing.T) (*EmbeddingProviderRepository, sql
 // embeddingProviderListColumns mirrors the 10 columns selected by List
 // (no version column).
 var embeddingProviderListColumns = []string{
-	"id", "user_id", "name", "provider_type", "is_default", "base_url",
+	"id", "user_id", "team_id", "name", "provider_type", "model", "chunk_size",
+	"chunk_overlap", "is_default", "base_url",
 	"api_key_encrypted", "configuration", "created_at", "updated_at",
 }
 
@@ -67,14 +68,15 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns).
-					AddRow("p1", "user-123", "Default", "openai", true, nil, "enc", "{}", now, now).
-					AddRow("p2", "user-123", "Other", "ollama", false, nil, "enc", "{}", now, now)
+					AddRow("p1", "user-123", nil, "Default", "openai", "m", 1000, 200, true, nil, "enc", "{}", now, now).
+					AddRow("p2", "user-123", nil, "Other", "ollama", "m", 1000, 200, false, nil, "enc", "{}", now, now)
 
 				// LIMIT/OFFSET are inlined literals by squirrel, so they are NOT bound args.
-				// The baseline scenario pins the exact 10-column projection (no version)
+				// The baseline scenario pins the exact 14-column projection (no version)
 				// so projection drift fails loudly as this template is copied to other repos.
 				mock.ExpectQuery(
-					`SELECT id, user_id, name, provider_type, is_default, base_url, ` +
+					`SELECT id, user_id, team_id, name, provider_type, model, chunk_size, ` +
+						`chunk_overlap, is_default, base_url, ` +
 						`api_key_encrypted, configuration, created_at, updated_at ` +
 						`FROM embedding_providers WHERE \(user_id = \$1\) ` +
 						`ORDER BY is_default DESC, created_at DESC LIMIT 10 OFFSET 0`,
@@ -103,7 +105,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns).
-					AddRow("p1", "user-123", "Default", "openai", true, nil, "enc", "{}", now, now)
+					AddRow("p1", "user-123", nil, "Default", "openai", "m", 1000, 200, true, nil, "enc", "{}", now, now)
 
 				mock.ExpectQuery(
 					`SELECT .+ FROM embedding_providers `+
@@ -154,7 +156,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns).
-					AddRow("p11", "user-123", "Eleven", "openai", false, nil, "enc", "{}", now, now)
+					AddRow("p11", "user-123", nil, "Eleven", "openai", "m", 1000, 200, false, nil, "enc", "{}", now, now)
 
 				// offset = (3-1)*5 = 10
 				mock.ExpectQuery(
@@ -290,7 +292,7 @@ func TestEmbeddingProviderRepository_List(t *testing.T) {
 					WillReturnRows(countRows)
 
 				rows := sqlmock.NewRows(embeddingProviderListColumns).
-					AddRow("p1", "user-123", "Default", "openai", true, nil, "enc", "{}", now, now).
+					AddRow("p1", "user-123", nil, "Default", "openai", "m", 1000, 200, true, nil, "enc", "{}", now, now).
 					RowError(0, sql.ErrConnDone)
 				mock.ExpectQuery(`SELECT .+ FROM embedding_providers`).
 					WithArgs("user-123").

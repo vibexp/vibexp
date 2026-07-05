@@ -257,6 +257,7 @@ func TestHandleCreateEmbeddingProvider_Success(t *testing.T) {
 	reqBody := models.CreateEmbeddingProviderRequest{
 		Name:         "New OpenAI Provider",
 		ProviderType: "openai",
+		Model:        "text-embedding-3-small",
 		BaseURL:      &baseURL,
 		APIKey:       &apiKey,
 		IsDefault:    &isDefault,
@@ -313,6 +314,7 @@ func TestHandleCreateEmbeddingProvider_Anthropic(t *testing.T) {
 	reqBody := models.CreateEmbeddingProviderRequest{
 		Name:         "Anthropic Provider",
 		ProviderType: "anthropic",
+		Model:        "text-embedding-3-small",
 		BaseURL:      &baseURL,
 		APIKey:       &apiKey,
 	}
@@ -362,6 +364,7 @@ func TestHandleCreateEmbeddingProvider_Custom(t *testing.T) {
 	reqBody := models.CreateEmbeddingProviderRequest{
 		Name:         "Custom Provider",
 		ProviderType: "custom",
+		Model:        "text-embedding-3-small",
 		BaseURL:      &baseURL,
 		APIKey:       &apiKey,
 	}
@@ -421,6 +424,14 @@ func TestHandleCreateEmbeddingProvider_ValidationError(t *testing.T) {
 			},
 			expectedError: "Provider type is required",
 		},
+		{
+			name: "Missing model",
+			reqBody: models.CreateEmbeddingProviderRequest{
+				Name:         "Test Provider",
+				ProviderType: "openai",
+			},
+			expectedError: "Model is required",
+		},
 	}
 
 	for _, tt := range tests {
@@ -446,6 +457,7 @@ func TestHandleCreateEmbeddingProvider_ServiceError(t *testing.T) {
 	reqBody := models.CreateEmbeddingProviderRequest{
 		Name:         "Test Provider",
 		ProviderType: "openai",
+		Model:        "text-embedding-3-small",
 		BaseURL:      &baseURL,
 	}
 

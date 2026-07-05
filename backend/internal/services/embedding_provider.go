@@ -17,6 +17,14 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
+// Default in-Go text-chunker sizing applied to a provider when the create
+// request omits it. These replace the former global config.Embedding.ChunkSize /
+// ChunkOverlap defaults now that chunk sizing lives on the provider record.
+const (
+	defaultEmbeddingChunkSize    = 1000
+	defaultEmbeddingChunkOverlap = 200
+)
+
 // Ensure EmbeddingProviderService satisfies the narrow resolver seam consumed by
 // the embedding worker and query embedder.
 var _ ActiveEmbeddingProviderResolver = (*EmbeddingProviderService)(nil)
@@ -135,11 +143,23 @@ func (eps *EmbeddingProviderService) buildEmbeddingProvider(
 		isDefault = *req.IsDefault
 	}
 
+	chunkSize := defaultEmbeddingChunkSize
+	if req.ChunkSize != nil {
+		chunkSize = *req.ChunkSize
+	}
+	chunkOverlap := defaultEmbeddingChunkOverlap
+	if req.ChunkOverlap != nil {
+		chunkOverlap = *req.ChunkOverlap
+	}
+
 	now := time.Now()
 	return &models.EmbeddingProvider{
 		UserID:          userID,
 		Name:            req.Name,
 		ProviderType:    req.ProviderType,
+		Model:           req.Model,
+		ChunkSize:       chunkSize,
+		ChunkOverlap:    chunkOverlap,
 		IsDefault:       isDefault,
 		BaseURL:         req.BaseURL,
 		APIKeyEncrypted: encryptedAPIKey,
@@ -274,6 +294,15 @@ func (eps *EmbeddingProviderService) updateProviderFields(
 	if req.ProviderType != nil {
 		provider.ProviderType = *req.ProviderType
 	}
+	if req.Model != nil {
+		provider.Model = *req.Model
+	}
+	if req.ChunkSize != nil {
+		provider.ChunkSize = *req.ChunkSize
+	}
+	if req.ChunkOverlap != nil {
+		provider.ChunkOverlap = *req.ChunkOverlap
+	}
 	if req.IsDefault != nil {
 		provider.IsDefault = *req.IsDefault
 	}
@@ -281,26 +310,46 @@ func (eps *EmbeddingProviderService) updateProviderFields(
 		provider.BaseURL = req.BaseURL
 	}
 
-	if req.APIKey != nil {
-		var encryptedAPIKey *string
-		if *req.APIKey != "" {
-			encrypted, encryptErr := eps.encrypt(*req.APIKey)
-			if encryptErr != nil {
-				return fmt.Errorf("failed to encrypt API key: %w", encryptErr)
-			}
-			encryptedAPIKey = &encrypted
-		}
-		provider.APIKeyEncrypted = encryptedAPIKey
+	if err := eps.applyAPIKeyUpdate(req, provider); err != nil {
+		return err
 	}
 
-	if req.Configuration != nil {
-		configBytes, marshalErr := json.Marshal(req.Configuration)
-		if marshalErr != nil {
-			return fmt.Errorf("failed to marshal configuration: %w", marshalErr)
-		}
-		provider.Configuration = string(configBytes)
-	}
+	return applyConfigurationUpdate(req, provider)
+}
 
+// applyAPIKeyUpdate re-encrypts and applies an API-key change from the update
+// request, treating an explicit empty string as "clear the stored key".
+func (eps *EmbeddingProviderService) applyAPIKeyUpdate(
+	req models.UpdateEmbeddingProviderRequest, provider *models.EmbeddingProvider,
+) error {
+	if req.APIKey == nil {
+		return nil
+	}
+	var encryptedAPIKey *string
+	if *req.APIKey != "" {
+		encrypted, err := eps.encrypt(*req.APIKey)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt API key: %w", err)
+		}
+		encryptedAPIKey = &encrypted
+	}
+	provider.APIKeyEncrypted = encryptedAPIKey
+	return nil
+}
+
+// applyConfigurationUpdate marshals and applies a configuration change from the
+// update request.
+func applyConfigurationUpdate(
+	req models.UpdateEmbeddingProviderRequest, provider *models.EmbeddingProvider,
+) error {
+	if req.Configuration == nil {
+		return nil
+	}
+	configBytes, err := json.Marshal(req.Configuration)
+	if err != nil {
+		return fmt.Errorf("failed to marshal configuration: %w", err)
+	}
+	provider.Configuration = string(configBytes)
 	return nil
 }
 
