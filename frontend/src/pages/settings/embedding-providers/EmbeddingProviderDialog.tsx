@@ -34,13 +34,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from '@/lib/toast'
-import { embeddingProviderService } from '@/services/embeddingProviderService'
 import type {
   CreateEmbeddingProviderRequest,
   EmbeddingProviderResponse,
   UpdateEmbeddingProviderRequest,
-} from '@/types'
-import { EMBEDDING_VECTOR_DIMENSIONS } from '@/types/embedding'
+} from '@/services/embeddingProviderService'
+import {
+  EMBEDDING_VECTOR_DIMENSIONS,
+  embeddingProviderService,
+} from '@/services/embeddingProviderService'
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255),

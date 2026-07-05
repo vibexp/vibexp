@@ -7,6 +7,9 @@ import { embeddingProviderService } from '@/services/embeddingProviderService'
 import { EmbeddingProviderDialog } from './EmbeddingProviderDialog'
 
 jest.mock('@/services/embeddingProviderService', () => ({
+  // Keep EMBEDDING_VECTOR_DIMENSIONS (and any other exports) real; only the
+  // service singleton is mocked so validate-on-save can be asserted.
+  ...jest.requireActual('@/services/embeddingProviderService'),
   embeddingProviderService: {
     validateEmbeddingProvider: jest.fn(),
   },
@@ -123,6 +126,7 @@ describe('EmbeddingProviderDialog', () => {
     has_api_key: true,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
+    version: 1,
   }
 
   it('skips validation on a name-only edit (identity unchanged)', async () => {

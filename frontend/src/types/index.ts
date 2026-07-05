@@ -16,9 +16,6 @@ export * from './prompt'
 // Alert System types
 export * from './alert'
 
-// Embedding Provider types
-export * from './embedding'
-
 // Agent types
 export * from './agent'
 

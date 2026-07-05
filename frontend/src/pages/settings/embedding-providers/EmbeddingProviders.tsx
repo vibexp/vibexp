@@ -14,12 +14,12 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
 import { EmbeddingProviderDialog } from '@/pages/settings/embedding-providers/EmbeddingProviderDialog'
-import { embeddingProviderService } from '@/services/embeddingProviderService'
 import type {
   CreateEmbeddingProviderRequest,
   EmbeddingProviderResponse,
   UpdateEmbeddingProviderRequest,
-} from '@/types'
+} from '@/services/embeddingProviderService'
+import { embeddingProviderService } from '@/services/embeddingProviderService'
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('en-US', {
@@ -77,7 +77,7 @@ export function EmbeddingProviders() {
         await embeddingProviderService.updateEmbeddingProvider(
           currentTeam.id,
           editing.id,
-          data
+          data as UpdateEmbeddingProviderRequest
         )
         toast.success('Provider updated')
       } else {
