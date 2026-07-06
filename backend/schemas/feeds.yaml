@@ -109,7 +109,8 @@ FeedItem:
       type: integer
       description: >-
         Number of replies to this item. Populated with the real count on list
-        endpoints; always 0 on single-item and create responses.
+        and single-item GET responses; always 0 on create responses (a new item
+        has no replies yet).
       example: 3
   required:
     - id

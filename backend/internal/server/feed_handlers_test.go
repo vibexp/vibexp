@@ -899,6 +899,9 @@ func TestHandleListFeedItemsByFeed_Success(t *testing.T) {
 func TestHandleGetFeedItem_Success(t *testing.T) {
 	mockItemSvc := servicesmocks.NewMockFeedItemServiceInterface(t)
 	item := sampleFeedItem()
+	// The service enriches the single item with its reply count (#101); the
+	// handler must carry it through to the response.
+	item.ReplyCount = 3
 
 	mockItemSvc.On("GetFeedItem", mock.Anything, feedTestUserID, feedTestTeamID, feedTestItemID).
 		Return(item, nil)
@@ -916,6 +919,7 @@ func TestHandleGetFeedItem_Success(t *testing.T) {
 	var got models.FeedItem
 	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
 	assert.Equal(t, feedTestItemID, got.ID)
+	assert.Equal(t, 3, got.ReplyCount)
 }
 
 func TestHandleGetFeedItem_NotFound(t *testing.T) {

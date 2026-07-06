@@ -519,7 +519,11 @@ func TestGetFeedItem_HappyPath(t *testing.T) {
 	mockFeedItemSvc := mocks.NewMockFeedItemServiceInterface(t)
 	srv := newMCPFeedTestServer(t, nil, mockFeedItemSvc, nil)
 
-	expectedItem := &models.FeedItem{ID: feedUUID, TeamID: testTeamUUID, Content: "## Full body", PostedAt: now}
+	// The service enriches the single item with its reply count (#101); the MCP
+	// tool must surface it in the structured result.
+	expectedItem := &models.FeedItem{
+		ID: feedUUID, TeamID: testTeamUUID, Content: "## Full body", PostedAt: now, ReplyCount: 3,
+	}
 	mockFeedItemSvc.On("GetFeedItem", mock.Anything, testMemberUserID, testTeamUUID, feedUUID).Return(expectedItem, nil)
 
 	params := &GetFeedItemParams{TeamID: testTeamUUID, FeedItemID: feedUUID}
@@ -529,6 +533,7 @@ func TestGetFeedItem_HappyPath(t *testing.T) {
 	assert.False(t, result.IsError)
 	item := structured.(*models.FeedItem)
 	assert.Equal(t, "## Full body", item.Content)
+	assert.Equal(t, 3, item.ReplyCount)
 }
 
 func TestGetFeedItem_NonMemberTeamDenied(t *testing.T) {
