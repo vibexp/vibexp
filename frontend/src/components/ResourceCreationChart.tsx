@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
+import type { CreationCountByDate } from '@/services/resourceCreationService'
 import { resourceCreationService } from '@/services/resourceCreationService'
-import type { CreationCountByDate } from '@/types'
 
 import { type ChartSeries, TimeSeriesBarChart } from './TimeSeriesBarChart'
 

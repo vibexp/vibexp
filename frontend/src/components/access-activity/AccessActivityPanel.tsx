@@ -4,8 +4,11 @@ import {
   type ChartSeries,
   TimeSeriesBarChart,
 } from '@/components/TimeSeriesBarChart'
+import type {
+  AccessCountByDate,
+  ResourceAccessType,
+} from '@/services/resourceAccessService'
 import { resourceAccessService } from '@/services/resourceAccessService'
-import type { AccessCountByDate, ResourceAccessType } from '@/types'
 
 interface AccessActivityPanelProps {
   teamId: string

@@ -1,4 +1,4 @@
-import type { ResourceAccessMetricsResponse } from '../../types'
+import type { ResourceAccessMetricsResponse } from '../resourceAccessService'
 
 const mockApiClient = {
   get: jest.fn(),

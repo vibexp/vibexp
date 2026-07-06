@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
+import type { TeamCreationCountByDate } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { TeamCreationCountByDate } from '@/types'
 
 import { type ChartSeries, TimeSeriesBarChart } from './TimeSeriesBarChart'
 

@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
-import type { TeamCreationCountByDate } from '../../types'
-import type { TeamResourceCreationMetricsResponse } from '../../types'
+import type {
+  TeamCreationCountByDate,
+  TeamResourceCreationMetricsResponse,
+} from '../../services/teamService'
 import type { TeamStats } from '../../types/team'
 
 const mockGetTeamResourceCreationMetrics = jest.fn()

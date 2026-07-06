@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
-import type { ResourceCreationMetricsResponse } from '../../types'
+import type { ResourceCreationMetricsResponse } from '../../services/resourceCreationService'
 
 const mockGetResourceCreationMetrics = jest.fn()
 

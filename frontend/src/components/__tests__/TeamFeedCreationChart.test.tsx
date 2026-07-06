@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
-import type { TeamFeedCreationMetricsResponse } from '../../types'
+import type { TeamFeedCreationMetricsResponse } from '../../services/teamService'
 
 const mockGetTeamFeedCreationMetrics = jest.fn()
 

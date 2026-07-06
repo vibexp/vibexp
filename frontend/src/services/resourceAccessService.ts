@@ -1,8 +1,18 @@
+import type { components, operations } from '@vibexp/api-client'
+
 import { apiClient } from '../lib/apiClient'
-import type {
-  ResourceAccessMetricsResponse,
-  ResourceAccessType,
-} from '../types'
+
+// Generated wire types for the resource-access metrics domain (issue #92 hooks
+// slice) — the OpenAPI spec is the single source of truth. `ResourceAccessType`
+// is the endpoint's `resource_type` query enum; `AccessCountByDate` keeps its
+// historical name as an alias of the renamed `ResourceAccessDailyCount` row so
+// chart consumers don't churn.
+export type ResourceAccessType =
+  operations['getResourceAccessMetrics']['parameters']['query']['resource_type']
+export type AccessCountByDate =
+  components['schemas']['ResourceAccessDailyCount']
+export type ResourceAccessMetricsResponse =
+  components['schemas']['ResourceAccessMetricsResponse']
 
 /**
  * Service for fetching per-resource access metrics (web/cli/mcp/api breakdown
