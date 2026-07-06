@@ -436,6 +436,69 @@ func TestFeedItemService_EnrichWithReplyCounts(t *testing.T) {
 	}
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FeedItemService.GetFeedItem — single-item reply-count enrichment (#101)
+// ─────────────────────────────────────────────────────────────────────────────
+
+//nolint:funlen // Table-driven test with multiple cases
+func TestFeedItemService_GetFeedItem_EnrichesReplyCount(t *testing.T) {
+	const (
+		userID = "user-1"
+		teamID = "team-1"
+		itemID = "item-1"
+	)
+
+	tests := []struct {
+		name      string
+		count     int
+		getErr    error
+		countErr  error
+		wantCount int
+		wantErr   bool
+	}{
+		{name: "item with replies is enriched", count: 3, wantCount: 3},
+		{name: "item with no replies stays zero", count: 0, wantCount: 0},
+		{name: "get error propagated", getErr: errors.New("not found"), wantErr: true},
+		{name: "reply-count error propagated", countErr: errors.New("db failure"), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockFeedItemRepo := repoMocks.NewMockFeedItemRepository(t)
+			mockReplyRepo := repoMocks.NewMockFeedItemReplyRepository(t)
+			svc := services.NewFeedItemService(mockFeedItemRepo, mockReplyRepo, nil, nil, nil, newTestLogger())
+			ctx := context.Background()
+
+			if tt.getErr != nil {
+				mockFeedItemRepo.On("GetByID", ctx, userID, teamID, itemID).
+					Return((*models.FeedItem)(nil), tt.getErr)
+			} else {
+				mockFeedItemRepo.On("GetByID", ctx, userID, teamID, itemID).
+					Return(&models.FeedItem{ID: itemID, TeamID: teamID}, nil)
+
+				if tt.countErr != nil {
+					mockReplyRepo.On("CountRepliesByItemIDs", ctx, teamID, mock.AnythingOfType("[]string")).
+						Return((map[string]int)(nil), tt.countErr)
+				} else {
+					mockReplyRepo.On("CountRepliesByItemIDs", ctx, teamID, mock.AnythingOfType("[]string")).
+						Return(map[string]int{itemID: tt.count}, nil)
+				}
+			}
+
+			item, err := svc.GetFeedItem(ctx, userID, teamID, itemID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, item)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, item)
+			assert.Equal(t, tt.wantCount, item.ReplyCount)
+		})
+	}
+}
+
 // setupReplyCreateMocks wires the common mock expectations for a successful CreateReply:
 // team membership passes, the parent item is active, and the repo returns a created reply.
 func setupReplyCreateMocks(

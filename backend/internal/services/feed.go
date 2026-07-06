@@ -487,7 +487,16 @@ func (s *FeedItemService) GetFeedItem(ctx context.Context, userID, teamID, itemI
 		return nil, err
 	}
 
-	return item, nil
+	// Enrich the single item with its reply count so the single-item GET path
+	// (REST GET .../feed-items/{id} and the MCP get_feed_item tool) reports the
+	// real count instead of the zero value. Reuses the bulk enrichment helper
+	// with a one-element slice.
+	enriched, err := s.EnrichWithReplyCounts(ctx, teamID, []models.FeedItem{*item})
+	if err != nil {
+		return nil, err
+	}
+
+	return &enriched[0], nil
 }
 
 // ListFeedItems retrieves feed items with filtering and pagination
