@@ -55,6 +55,12 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Building $IMAGE_NAME:$version"
 
+      # QEMU is used only for the lightweight per-arch runtime stage (the alpine
+      # `apk add`); the heavy frontend/Go build stages run natively on the runner
+      # via --platform=$BUILDPLATFORM (see backend/Dockerfile).
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8  # v4.2.0
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
 
@@ -81,6 +87,7 @@ jobs:
         with:
           context: .
           file: ./backend/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
