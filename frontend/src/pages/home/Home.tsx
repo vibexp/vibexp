@@ -146,7 +146,7 @@ export function Home() {
           setTotalAgents(stat.total_agents)
         }
         if (created.status === 'fulfilled') {
-          const sum = (k: string) =>
+          const sum = (k: keyof (typeof created.value.data.counts)[number]) =>
             created.value.data.counts.reduce(
               (acc, c) => acc + (Number(c[k]) || 0),
               0

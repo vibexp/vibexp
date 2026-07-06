@@ -1,10 +1,6 @@
+import type { components } from '@vibexp/api-client'
+
 import { apiClient } from '../lib/apiClient'
-import type {
-  ResourceAccessMetricsResponse,
-  TeamFeedCreationMetricsResponse,
-  TeamResourceCreationMetricsResponse,
-  TeamTopAccessedResourcesResponse,
-} from '../types'
 import type {
   AcceptInvitationResponse,
   CreateTeamRequest,
@@ -20,6 +16,23 @@ import type {
   TeamStats,
   UpdateTeamRequest,
 } from '../types/team'
+import type { ResourceAccessMetricsResponse } from './resourceAccessService'
+
+// Generated wire types for the team AI-tools metrics (issue #92 hooks slice).
+// The `*CountByDate` rows keep their historical names as aliases of the renamed
+// generated daily-count schemas so chart consumers don't churn.
+export type TeamCreationCountByDate =
+  components['schemas']['TeamResourceCreationDailyCount']
+export type TeamResourceCreationMetricsResponse =
+  components['schemas']['TeamResourceCreationMetricsResponse']
+export type TeamFeedCreationCountByDate =
+  components['schemas']['TeamFeedCreationDailyCount']
+export type TeamFeedCreationMetricsResponse =
+  components['schemas']['TeamFeedCreationMetricsResponse']
+export type TopAccessedResource =
+  components['schemas']['TopAccessedResourceItem']
+export type TeamTopAccessedResourcesResponse =
+  components['schemas']['TeamTopAccessedResourcesResponse']
 
 /**
  * Team service for managing teams and team invitations

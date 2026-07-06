@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type {
   TeamTopAccessedResourcesResponse,
   TopAccessedResource,
-} from '@/types'
+} from '@/services/teamService'
 
 const mockGetTeamTopAccessedResources = jest.fn()
 

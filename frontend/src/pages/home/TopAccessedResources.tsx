@@ -14,8 +14,8 @@ import {
 } from '@/components/SegmentedControl'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { TopAccessedResource } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { TopAccessedResource } from '@/types'
 
 /** Access-channel filter shown on every list (matches the design). */
 const CHANNELS: readonly SegmentedOption[] = [

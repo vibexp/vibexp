@@ -1,5 +1,15 @@
+import type { components } from '@vibexp/api-client'
+
 import { apiClient } from '../lib/apiClient'
-import type { ResourceCreationMetricsResponse } from '../types'
+
+// Generated wire types for the per-project resource-creation metrics domain
+// (issue #92 hooks slice). `CreationCountByDate` keeps its historical name as an
+// alias of the renamed `ProjectResourceCreationDailyCount` row so chart
+// consumers don't churn.
+export type CreationCountByDate =
+  components['schemas']['ProjectResourceCreationDailyCount']
+export type ResourceCreationMetricsResponse =
+  components['schemas']['ProjectResourceCreationMetricsResponse']
 
 /**
  * Service for fetching per-project resource-creation metrics (daily counts of

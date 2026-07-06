@@ -1,8 +1,6 @@
-import type {
-  ResourceAccessMetricsResponse,
-  TeamResourceCreationMetricsResponse,
-} from '../../types'
 import type { TeamStats } from '../../types/team'
+import type { ResourceAccessMetricsResponse } from '../resourceAccessService'
+import type { TeamResourceCreationMetricsResponse } from '../teamService'
 
 const mockApiClient = {
   get: jest.fn(),

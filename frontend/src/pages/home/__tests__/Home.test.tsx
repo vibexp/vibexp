@@ -168,7 +168,7 @@ function emptyMetrics() {
   return {
     status: 'success',
     message: 'ok',
-    data: { total_created: 0, range: '7d', counts: [] },
+    data: { total_created: 0, range: '7d' as const, counts: [] },
   }
 }
 
