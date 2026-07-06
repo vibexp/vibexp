@@ -4,7 +4,6 @@ import {
   Network,
   Plus,
   Sparkles,
-  Store,
   Terminal,
   Trash2,
 } from 'lucide-react'
@@ -24,8 +23,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
+import type { APIKey, CreateAPIKeyRequest } from '@/services/apiKeyService'
 import { apiKeyService } from '@/services/apiKeyService'
-import type { APIKey, CreateAPIKeyRequest } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 import {
@@ -42,7 +41,6 @@ const INTEGRATION_META: Partial<
   ai_tools: { name: 'AI Tools', icon: Sparkles },
   cli: { name: 'CLI', icon: Terminal },
   mcp_server: { name: 'MCP Server', icon: Network },
-  marketplace: { name: 'Marketplace', icon: Store },
 }
 
 function formatDate(value: string) {
