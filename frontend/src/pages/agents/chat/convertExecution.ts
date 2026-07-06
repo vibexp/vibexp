@@ -1,4 +1,4 @@
-import type { AgentExecution } from '@/types'
+import type { AgentExecution } from '@/services/agentService'
 import type { A2AArtifact, A2APart, A2ATextPart } from '@/types/a2a'
 
 import type { Message } from './types'
@@ -8,7 +8,9 @@ export function convertExecutionToMessages(
 ): Message[] {
   const messages: Message[] = []
 
-  if (execution.input !== undefined && execution.input !== null) {
+  // Truthy guard (not `!== undefined`): the spec types `input` as non-nullable,
+  // but a runtime `null` would still crash the `'text' in input` check below.
+  if (execution.input) {
     const inputText =
       typeof execution.input === 'object' && 'text' in execution.input
         ? (execution.input as { text: string }).text

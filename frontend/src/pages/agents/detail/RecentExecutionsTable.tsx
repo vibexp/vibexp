@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import type { AgentExecution } from '@/types'
+import type { AgentExecution } from '@/services/agentService'
 
 import { formatDuration, formatRelativeTime } from '../helpers'
 

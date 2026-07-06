@@ -9,8 +9,11 @@ import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
+import type {
+  Agent,
+  AgentFilters as AgentFiltersType,
+} from '@/services/agentService'
 import { agentService } from '@/services/agentService'
-import type { Agent, AgentFilters as AgentFiltersType } from '@/types'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 import { AgentFilters, type StatusFilter } from './AgentFilters'

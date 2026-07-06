@@ -2,7 +2,7 @@ import { ArrowUp, Bot } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
-import type { Agent } from '@/types'
+import type { Agent } from '@/services/agentService'
 
 import { ChatMessage } from './ChatMessage'
 import type { Message } from './types'

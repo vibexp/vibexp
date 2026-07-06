@@ -14,7 +14,10 @@
 
 import { renderHook, act, waitFor } from '@testing-library/react'
 
-import type { AgentExecution, AgentExecutionResponse } from '../../src/types'
+import type {
+  AgentExecution,
+  AgentExecutionResponse,
+} from '../../src/services/agentService'
 
 // Mock the agentService
 const mockAgentService = {
@@ -35,11 +38,11 @@ describe('useExecutionPolling', () => {
     user_id: 'user-789',
     status: 'running',
     input: { message: 'Hello' },
-    output: null,
     error: null,
     started_at: '2023-01-01T00:00:00Z',
     ended_at: null,
     duration: null,
+    version: 1,
   }
 
   const createMockResponse = (
@@ -270,7 +273,6 @@ describe('useExecutionPolling', () => {
       const completedExecution: AgentExecution = {
         ...mockExecution,
         status: 'completed',
-        output: { result: 'Success' },
       }
 
       mockAgentService.getExecutionStatus.mockResolvedValue(

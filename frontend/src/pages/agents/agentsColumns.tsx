@@ -4,7 +4,7 @@ import type { NavigateFunction } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { Agent } from '@/types'
+import type { Agent } from '@/services/agentService'
 
 import {
   agentStatusLabel,

@@ -13,9 +13,6 @@ export * from './hooks'
 // Alert System types
 export * from './alert'
 
-// Agent types
-export * from './agent'
-
 // Artifact types
 export * from './artifact'
 

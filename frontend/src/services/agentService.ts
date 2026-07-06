@@ -1,15 +1,66 @@
+import type { components } from '@vibexp/api-client'
+
 import { apiClient } from '../lib/apiClient'
-import type {
-  AgentExecutionResponse,
-  AgentFilters,
-  AgentResponse,
-  AgentsResponse,
-  AgentStatsApiResponse,
-  CompleteAgentExecutionRequest,
-  CreateAgentRequest,
-  StartAgentExecutionRequest,
-  UpdateAgentRequest,
-} from '../types'
+import type { ApiResponse } from '../types/api'
+
+// Generated wire types for the agent domain (epic #87) — the OpenAPI spec is the
+// single source of truth. AgentSkill/AgentCapabilities/AgentProvider/AgentActivity
+// are inlined in their parent schemas, so they are re-derived as indexed-access
+// aliases. The A2A `AgentCard` has every field optional/nullable in the spec.
+export type AgentCard = components['schemas']['AgentCard']
+export type AgentSkill = NonNullable<AgentCard['skills']>[number]
+export type AgentCapabilities = NonNullable<AgentCard['capabilities']>
+export type AgentProvider = NonNullable<AgentCard['provider']>
+export type Agent = components['schemas']['Agent']
+export type CreateAgentRequest = components['schemas']['CreateAgentRequest']
+export type UpdateAgentRequest = components['schemas']['UpdateAgentRequest']
+export type AgentListResponse = components['schemas']['AgentListResponse']
+export type AgentStatsResponse = components['schemas']['AgentStatsResponse']
+export type AgentActivity = NonNullable<
+  AgentStatsResponse['recent_activities']
+>[number]
+export type AgentExecution = components['schemas']['AgentExecution']
+// The completion/update request narrows status to the spec's 3 values
+// (running|success|error) — distinct from AgentExecution.status' 9-value read union.
+export type CompleteAgentExecutionRequest =
+  components['schemas']['UpdateAgentExecutionRequest']
+export type AgentExecutionEvent = components['schemas']['AgentExecutionEvent']
+export type AgentExecutionEventsResponse =
+  components['schemas']['AgentExecutionEventsPageResponse']
+export type ConversationExecutionsResponse =
+  components['schemas']['ConversationExecutionsResponse']
+export type ConversationSummary = components['schemas']['ConversationSummary']
+export type ConversationListResponse =
+  components['schemas']['ConversationListResponse']
+
+// Local-only shapes with no generated counterpart. AgentFilters is a query-param
+// bag; StartAgentExecutionRequest carries an optional conversation_id the spec's
+// CreateAgentExecutionRequest does not model; the ApiResponse envelope wrappers
+// are a frontend convention consumers unwrap.
+export interface AgentFilters {
+  status?: 'active' | 'paused' | 'error'
+  search?: string
+  page?: number
+  limit?: number
+  sort_by?:
+    | 'name'
+    | 'status'
+    | 'total_runs'
+    | 'success_rate'
+    | 'last_run'
+    | 'created_at'
+  sort_order?: 'asc' | 'desc'
+}
+
+export interface StartAgentExecutionRequest {
+  input?: Record<string, unknown>
+  conversation_id?: string
+}
+
+export type AgentsResponse = ApiResponse<AgentListResponse>
+export type AgentResponse = ApiResponse<Agent>
+export type AgentStatsApiResponse = ApiResponse<AgentStatsResponse>
+export type AgentExecutionResponse = ApiResponse<AgentExecution>
 
 class AgentService {
   async getAgents(
@@ -88,16 +139,10 @@ class AgentService {
     )
   }
 
-  async previewAgentCard(
-    teamId: string,
-    cardUrl: string
-  ): Promise<import('../types').AgentCard> {
-    return apiClient.post<import('../types').AgentCard>(
-      `/${teamId}/agents/preview-card`,
-      {
-        card_url: cardUrl,
-      }
-    )
+  async previewAgentCard(teamId: string, cardUrl: string): Promise<AgentCard> {
+    return apiClient.post<AgentCard>(`/${teamId}/agents/preview-card`, {
+      card_url: cardUrl,
+    })
   }
 
   async updateAgentCredentials(
@@ -136,7 +181,7 @@ class AgentService {
       limit?: number
     }
   ): Promise<{
-    executions: import('../types').AgentExecution[]
+    executions: AgentExecution[]
     total_count: number
     page: number
     per_page: number
@@ -170,7 +215,7 @@ class AgentService {
     teamId: string,
     executionId: string,
     filters?: { page?: number; limit?: number }
-  ): Promise<import('../types').AgentExecutionEventsResponse> {
+  ): Promise<AgentExecutionEventsResponse> {
     const params = new URLSearchParams()
     if (filters?.page) params.append('page', filters.page.toString())
     if (filters?.limit) params.append('limit', filters.limit.toString())
@@ -178,9 +223,7 @@ class AgentService {
     const queryString = params.toString()
     const endpoint = `/${teamId}/agents/executions/${executionId}/events${queryString ? `?${queryString}` : ''}`
 
-    return apiClient.get<import('../types').AgentExecutionEventsResponse>(
-      endpoint
-    )
+    return apiClient.get<AgentExecutionEventsResponse>(endpoint)
   }
 
   async getConversationExecutions(
@@ -190,7 +233,7 @@ class AgentService {
       limit?: number
       before?: string // ISO timestamp
     }
-  ): Promise<import('../types').ConversationExecutionsResponse> {
+  ): Promise<ConversationExecutionsResponse> {
     const params = new URLSearchParams()
     if (options?.limit) params.append('limit', options.limit.toString())
     if (options?.before) params.append('before', options.before)
@@ -200,9 +243,7 @@ class AgentService {
       queryString ? `?${queryString}` : ''
     }`
 
-    return apiClient.get<import('../types').ConversationExecutionsResponse>(
-      endpoint
-    )
+    return apiClient.get<ConversationExecutionsResponse>(endpoint)
   }
 
   async listAgentConversations(
@@ -212,7 +253,7 @@ class AgentService {
       page?: number
       limit?: number
     }
-  ): Promise<import('../types').ConversationListResponse> {
+  ): Promise<ConversationListResponse> {
     const params = new URLSearchParams()
     // Remove team_id from query params - it's now in the URL path
     if (options?.page) params.append('page', options.page.toString())
@@ -221,7 +262,7 @@ class AgentService {
     const queryString = params.toString()
     const endpoint = `/${teamId}/agents/${agentId}/conversations${queryString ? `?${queryString}` : ''}`
 
-    return apiClient.get<import('../types').ConversationListResponse>(endpoint)
+    return apiClient.get<ConversationListResponse>(endpoint)
   }
 }
 

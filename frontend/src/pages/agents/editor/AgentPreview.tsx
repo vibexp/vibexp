@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { AgentCard } from '@/types'
+import type { AgentCard } from '@/services/agentService'
 
 interface AgentPreviewProps {
   loading: boolean
@@ -102,7 +102,7 @@ export function AgentPreview({
             <div>
               <p className="mb-2 text-sm font-medium">Input</p>
               <div className="flex flex-wrap gap-1.5">
-                {data.defaultInputModes.map((mode, idx) => (
+                {(data.defaultInputModes ?? []).map((mode, idx) => (
                   <Badge key={idx} variant="secondary">
                     {mode}
                   </Badge>
@@ -112,7 +112,7 @@ export function AgentPreview({
             <div>
               <p className="mb-2 text-sm font-medium">Output</p>
               <div className="flex flex-wrap gap-1.5">
-                {data.defaultOutputModes.map((mode, idx) => (
+                {(data.defaultOutputModes ?? []).map((mode, idx) => (
                   <Badge key={idx} variant="secondary">
                     {mode}
                   </Badge>
@@ -123,14 +123,14 @@ export function AgentPreview({
         </CardContent>
       </Card>
 
-      {data.skills.length > 0 && (
+      {(data.skills?.length ?? 0) > 0 && (
         <Card>
           <CardContent className="space-y-4 p-6">
             <h5 className="font-semibold">
-              Skills &amp; capabilities ({data.skills.length})
+              Skills &amp; capabilities ({data.skills?.length ?? 0})
             </h5>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {data.skills.map((skill, idx) => (
+              {(data.skills ?? []).map((skill, idx) => (
                 <div
                   key={idx}
                   className="bg-muted/50 space-y-2 rounded-md border p-3"
@@ -143,22 +143,22 @@ export function AgentPreview({
                       </p>
                     )}
                   </div>
-                  {skill.tags.length > 0 && (
+                  {(skill.tags?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {skill.tags.map((tag, tagIdx) => (
+                      {(skill.tags ?? []).map((tag, tagIdx) => (
                         <Badge key={tagIdx} variant="outline">
                           {tag}
                         </Badge>
                       ))}
                     </div>
                   )}
-                  {skill.examples.length > 0 && (
+                  {(skill.examples?.length ?? 0) > 0 && (
                     <>
                       <Separator />
                       <div>
                         <p className="mb-1 text-xs font-medium">Example</p>
                         <p className="text-muted-foreground bg-background rounded border p-2 text-xs italic">
-                          &quot;{skill.examples[0]}&quot;
+                          &quot;{skill.examples?.[0]}&quot;
                         </p>
                       </div>
                     </>
