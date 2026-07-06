@@ -8,8 +8,8 @@ import {
 
 import { STORAGE_KEYS } from '../constants/storageKeys'
 import { analyticsService } from '../services/analytics'
+import type { User } from '../services/authService'
 import { authService } from '../services/authService'
-import type { User } from '../types'
 import { grantCookieConsent } from '../utils/cookieConsent'
 import { sessionStore } from '../utils/storage'
 import { isFirstTimeUser } from '../utils/userUtils'

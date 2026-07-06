@@ -1,88 +1,11 @@
-// Authentication types
-export interface User {
-  id: string
-  google_id?: string
-  email: string
-  name: string
-  avatar_url?: string
-  created_at: string
-  updated_at: string
-  onboarding_completed: boolean
-  onboarding_completed_at?: string
-}
+import type { User } from '../services/authService'
 
+// UI-only auth state shape (not a wire type). The `User` wire type and the
+// APIKey/provider wire types now live on their services (authService,
+// apiKeyService) as generated re-exports.
 export interface AuthState {
   user: User | null
   isAuthenticated: boolean
-}
-
-// Identity-provider login URL response
-export interface LoginUrlResponse {
-  url: string
-}
-
-// Logout response
-export interface LogoutResponse {
-  message: string
-}
-
-// One enabled login provider, as returned by GET /api/v1/auth/providers.
-// `name` is the canonical provider id passed back as the ?provider= hint;
-// `display_name` is the human label rendered in the provider picker.
-export interface AuthProvider {
-  name: string
-  display_name: string
-}
-
-// Response body of GET /api/v1/auth/providers — the deployment's enabled
-// login providers, stable-sorted by canonical name.
-export interface ProvidersResponse {
-  providers: AuthProvider[]
-}
-
-// Legacy Google OAuth types (kept for backward compatibility during migration)
-/** @deprecated Use LoginUrlResponse instead */
-export interface GoogleLoginResponse {
-  login_url: string
-  state: string
-}
-
-/** @deprecated No longer returned by backend — backend sets httpOnly cookie */
-export interface GoogleCallbackRequest {
-  code: string
-  state: string
-}
-
-/** @deprecated Backend no longer returns a token — session cookie is set server-side */
-export interface AuthResponse {
-  user: User
-}
-
-// API Key types
-export interface APIKey {
-  id: string
-  user_id: string
-  name: string
-  key_prefix: string
-  integrations: string[] // Array of integration codes
-  is_legacy: boolean
-  migration_notes?: string
-  last_used_at?: string | null
-  created_at: string
-  updated_at: string
-  // Legacy field for backward compatibility
-  usage_type?: 'ai_tools' | 'cli' | 'mcp' | 'everything'
-}
-
-export interface CreateAPIKeyRequest {
-  name: string
-  integration_codes: string[] // Array of integration codes to grant access
-}
-
-export interface CreateAPIKeyResponse {
-  api_key: APIKey
-  full_key: string
-  key_prefix: string
 }
 
 // Integration definition for UI

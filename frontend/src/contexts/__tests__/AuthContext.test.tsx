@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { renderHook } from '@testing-library/react'
 
-import type { User } from '../../types'
+import type { User } from '../../services/authService'
 import { AuthProvider, useAuth } from '../AuthContext'
 
 // Mock the authService (cookie-based, no token management)
@@ -33,6 +33,8 @@ describe('AuthContext (cookie-based auth)', () => {
     created_at: '2023-01-01T00:00:00Z',
     updated_at: '2023-01-01T00:00:00Z',
     onboarding_completed: true,
+    subscription_status: 'active',
+    version: 1,
   }
 
   // A first-time user (created_at within the last few seconds)

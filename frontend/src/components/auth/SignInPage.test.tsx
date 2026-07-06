@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { AuthProvider } from '../../types'
+import type { AuthProvider } from '../../services/authService'
 import { SignInPage } from './SignInPage'
 
 // ---------------------------------------------------------------------------

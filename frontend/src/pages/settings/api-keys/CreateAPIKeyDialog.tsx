@@ -54,7 +54,9 @@ const schema = z.object({
     .trim()
     .min(1, 'Name is required')
     .max(255, 'Name must be under 255 characters'),
-  integrations: z.array(z.string()).min(1, 'Select at least one integration'),
+  integrations: z
+    .array(z.enum(['ai_tools', 'cli', 'mcp_server']))
+    .min(1, 'Select at least one integration'),
 })
 
 export type CreateAPIKeyFormValues = z.infer<typeof schema>

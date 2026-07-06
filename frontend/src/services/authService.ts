@@ -1,11 +1,15 @@
+import type { components } from '@vibexp/api-client'
+
 import { apiClient } from '../lib/apiClient'
-import type {
-  AuthProvider,
-  LoginUrlResponse,
-  LogoutResponse,
-  ProvidersResponse,
-  User,
-} from '../types'
+
+// Generated wire types for the auth domain — the OpenAPI spec is the single
+// source of truth. `LoginUrlResponse` keeps its historical name as an alias of
+// the generated `LoginResponse` ({ url }).
+export type User = components['schemas']['User']
+export type AuthProvider = components['schemas']['AuthProvider']
+export type ProvidersResponse = components['schemas']['ProvidersResponse']
+export type LoginUrlResponse = components['schemas']['LoginResponse']
+export type LogoutResponse = components['schemas']['LogoutResponse']
 
 class AuthService {
   /**

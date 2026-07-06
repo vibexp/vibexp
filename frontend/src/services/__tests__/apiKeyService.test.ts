@@ -1,9 +1,9 @@
+import { ApiError, type APIErrorResponse } from '../../types/errors'
 import type {
   APIKey,
   CreateAPIKeyRequest,
   CreateAPIKeyResponse,
-} from '../../types'
-import { ApiError, type APIErrorResponse } from '../../types/errors'
+} from '../apiKeyService'
 
 // Mock apiClient
 const mockApiClient = {
@@ -40,7 +40,7 @@ describe('ApiKeyService', () => {
   describe('createAPIKey', () => {
     const mockRequest: CreateAPIKeyRequest = {
       name: 'Test Key',
-      integration_codes: ['ai_tools', 'cli', 'mcp_server', 'marketplace'],
+      integration_codes: ['ai_tools', 'cli', 'mcp_server'],
     }
     const mockResponse: CreateAPIKeyResponse = {
       api_key: mockAPIKey,
@@ -326,7 +326,7 @@ describe('ApiKeyService', () => {
     it('should handle concurrent API key operations', async () => {
       const mockRequest: CreateAPIKeyRequest = {
         name: 'Concurrent Test',
-        integration_codes: ['ai_tools', 'cli', 'mcp_server', 'marketplace'],
+        integration_codes: ['ai_tools', 'cli', 'mcp_server'],
       }
       const mockResponse: CreateAPIKeyResponse = {
         api_key: mockAPIKey,
@@ -356,7 +356,7 @@ describe('ApiKeyService', () => {
     it('should handle complete API key lifecycle', async () => {
       const createRequest: CreateAPIKeyRequest = {
         name: 'Integration Test Key',
-        integration_codes: ['ai_tools', 'cli', 'mcp_server', 'marketplace'],
+        integration_codes: ['ai_tools', 'cli', 'mcp_server'],
       }
       const createResponse: CreateAPIKeyResponse = {
         api_key: mockAPIKey,
@@ -397,7 +397,7 @@ describe('ApiKeyService', () => {
 
       await apiKeyService.createAPIKey({
         name: 'Test',
-        integration_codes: ['ai_tools', 'cli', 'mcp_server', 'marketplace'],
+        integration_codes: ['ai_tools', 'cli', 'mcp_server'],
       })
 
       expect(mockApiClient.post).toHaveBeenCalledWith(
