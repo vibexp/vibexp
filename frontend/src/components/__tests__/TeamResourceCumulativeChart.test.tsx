@@ -5,7 +5,7 @@ import type {
   TeamCreationCountByDate,
   TeamResourceCreationMetricsResponse,
 } from '../../services/teamService'
-import type { TeamStats } from '../../types/team'
+import type { TeamStats } from '../../services/teamService'
 
 const mockGetTeamResourceCreationMetrics = jest.fn()
 const mockGetTeamStats = jest.fn()

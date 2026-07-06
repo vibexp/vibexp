@@ -26,8 +26,8 @@ import { agentService } from '@/services/agentService'
 import { aiToolsService } from '@/services/aiToolsService'
 import type { FeedItem } from '@/services/feedService'
 import { feedService } from '@/services/feedService'
+import type { TeamStats } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { TeamStats } from '@/types/team'
 
 const DEFAULT_RANGE = '30d'
 

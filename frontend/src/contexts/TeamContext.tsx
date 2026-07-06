@@ -2,8 +2,8 @@ import type { ReactNode } from 'react'
 import { createContext, useContext, useEffect, useState } from 'react'
 
 import { STORAGE_KEYS } from '../constants/storageKeys'
+import type { Team } from '../services/teamService'
 import { teamService } from '../services/teamService'
-import type { Team } from '../types/team'
 import { sessionStore, storage } from '../utils/storage'
 
 interface TeamContextValue {

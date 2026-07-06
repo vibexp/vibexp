@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { renderHook } from '@testing-library/react'
 
-import type { Team } from '../../types/team'
+import type { Team } from '../../services/teamService'
 import { TeamProvider, useTeam } from '../TeamContext'
 
 // Mock the teamService
@@ -39,6 +39,7 @@ describe('TeamContext', () => {
   const mockTeams: Team[] = [
     {
       id: 'team-1',
+      owner_id: 'owner-1',
       name: 'Team Alpha',
       slug: 'team-alpha',
       description: 'First team',
@@ -50,6 +51,7 @@ describe('TeamContext', () => {
     },
     {
       id: 'team-2',
+      owner_id: 'owner-1',
       name: 'Team Beta',
       slug: 'team-beta',
       description: 'Second team',

@@ -2,10 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { toast } from '@/lib/toast'
+import type { Team } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 import type { APIErrorResponse } from '@/types/errors'
 import { ApiError } from '@/types/errors'
-import type { Team } from '@/types/team'
 
 import { DeleteTeamModal } from './DeleteTeamModal'
 
@@ -32,6 +32,7 @@ const mockedToastSuccess = toast.success as jest.MockedFunction<
 
 const makeTeam = (overrides: Partial<Team> = {}): Team => ({
   id: 'team-1',
+  owner_id: 'owner-1',
   name: 'Acme',
   slug: 'acme',
   description: '',

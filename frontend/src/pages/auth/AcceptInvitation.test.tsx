@@ -2,9 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
+import type { TeamInvitation } from '@/services/teamService'
 import type { APIErrorResponse } from '@/types/errors'
 import { ApiError } from '@/types/errors'
-import type { TeamInvitation } from '@/types/team'
 
 // ---------------------------------------------------------------------------
 // Mocks (set up before importing the component under test)
@@ -442,19 +442,6 @@ describe('AcceptInvitation', () => {
     expect(
       await screen.findByText('Failed to reject invitation. Please try again.')
     ).toBeInTheDocument()
-  })
-
-  it('renders the legacy "email" field when invitee_email is missing', async () => {
-    mockGetInvitationByToken.mockResolvedValueOnce({
-      invitation: buildInvitation({
-        invitee_email: undefined,
-        email: 'legacy@example.com',
-      }),
-    })
-
-    renderPage()
-
-    expect(await screen.findByText('legacy@example.com')).toBeInTheDocument()
   })
 
   it('navigates home from the error state when "Go to dashboard" is clicked', async () => {

@@ -1,4 +1,4 @@
-import type { TeamInvitation } from '../../types/team'
+import type { TeamInvitation } from '../teamService'
 
 const mockApiClient = {
   get: jest.fn(),
@@ -74,7 +74,7 @@ describe('TeamService.getTeamInvitations', () => {
       buildInvitation({ id: 'p-1', status: 'pending' }),
       buildInvitation({ id: 'a-1', status: 'accepted' }),
       buildInvitation({ id: 'r-1', status: 'rejected' }),
-      buildInvitation({ id: 'e-1', status: 'expired' }),
+      buildInvitation({ id: 'e-1', status: 'revoked' }),
     ]
     mockApiClient.get.mockResolvedValueOnce(invitations)
 
@@ -85,7 +85,7 @@ describe('TeamService.getTeamInvitations', () => {
       'pending',
       'accepted',
       'rejected',
-      'expired',
+      'revoked',
     ])
   })
 

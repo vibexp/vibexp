@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FeedItemCard } from '@/pages/feeds/FeedItemCard'
 import type { FeedItem } from '@/services/feedService'
-import type { TeamMember } from '@/types/team'
+import type { TeamMember } from '@/services/teamService'
 
 interface FeedItemListProps {
   items: FeedItem[]

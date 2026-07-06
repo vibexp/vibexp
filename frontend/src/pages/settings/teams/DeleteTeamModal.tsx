@@ -12,9 +12,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { toast } from '@/lib/toast'
+import type { Team } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 import { ApiError } from '@/types/errors'
-import type { Team } from '@/types/team'
 
 interface DeleteTeamModalProps {
   isOpen: boolean
@@ -122,9 +122,11 @@ export function DeleteTeamModal({
           </DialogDescription>
         </DialogHeader>
 
-        {team.member_count > 1 && (
+        {(team.member_count ?? 0) > 1 && (
           <Alert variant="destructive">
-            <AlertTitle>This team has {team.member_count} members</AlertTitle>
+            <AlertTitle>
+              This team has {team.member_count ?? 0} members
+            </AlertTitle>
             <AlertDescription>
               Remove all members before deleting.
             </AlertDescription>

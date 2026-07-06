@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils'
 import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
 import { InlineReplyThread } from '@/pages/feeds/InlineReplyThread'
 import type { FeedItem } from '@/services/feedService'
-import type { TeamMember } from '@/types/team'
+import type { TeamMember } from '@/services/teamService'
 
 interface FeedItemCardProps {
   item: FeedItem

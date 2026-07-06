@@ -1,4 +1,4 @@
-import type { TeamInvitation, TeamMember } from '@/types/team'
+import type { TeamInvitation, TeamMember } from '@/services/teamService'
 
 /**
  * Canonical email key for de-dupe: trim then lower-case. Matches against
@@ -26,7 +26,7 @@ const displayNameFromEmail = (email: string): string => {
 export const pendingInvitationToMember = (
   invitation: TeamInvitation
 ): TeamMember => {
-  const email = invitation.invitee_email ?? invitation.email ?? ''
+  const email = invitation.invitee_email ?? ''
   return {
     user_id: `inv:${invitation.id}`,
     email,

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 import type { FeedItem } from '@/services/feedService'
-import type { TeamMember } from '@/types/team'
+import type { TeamMember } from '@/services/teamService'
 
 import { FeedItemCard } from '../FeedItemCard'
 

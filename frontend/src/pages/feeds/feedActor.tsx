@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 import { resolveAiAssistantIcon } from '@/lib/aiAssistantIcon'
 import { assistantColor, assistantInitial } from '@/lib/avatar'
-import type { TeamMember } from '@/types/team'
+import type { TeamMember } from '@/services/teamService'
 
 // Sentinel value the FeedPostComposer writes to `ai_assistant_name` when a
 // human posts a feed item. Centralised here so the rendering layer can

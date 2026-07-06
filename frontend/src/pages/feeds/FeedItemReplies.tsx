@@ -12,8 +12,8 @@ import { formatRelativeTime } from '@/lib/time'
 import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
 import type { FeedItemReply } from '@/services/feedService'
 import { feedService } from '@/services/feedService'
+import type { TeamMember } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { TeamMember } from '@/types/team'
 
 interface FeedItemRepliesProps {
   teamId: string

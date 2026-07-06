@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import type { Team } from '@/types/team'
+import type { Team } from '@/services/teamService'
 
 import { TeamIdentifiers } from '../TeamIdentifiers'
 
@@ -11,6 +11,7 @@ Object.assign(navigator, { clipboard: { writeText } })
 function makeTeam(overrides: Partial<Team> = {}): Team {
   return {
     id: 'uuid-aaa',
+    owner_id: 'owner-1',
     name: 'Acme Team',
     slug: 'acme-team',
     description: '',

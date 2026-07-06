@@ -3,7 +3,7 @@ import { useState } from 'react'
 
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import type { Team } from '@/types/team'
+import type { Team } from '@/services/teamService'
 
 interface TeamIdentifiersProps {
   teams: Team[]

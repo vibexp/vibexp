@@ -1,4 +1,4 @@
-import type { TeamInvitation, TeamMember } from '@/types/team'
+import type { TeamInvitation, TeamMember } from '@/services/teamService'
 
 import {
   mergeMembersAndInvitations,
@@ -42,13 +42,6 @@ describe('pendingInvitationToMember', () => {
     )
     expect(member.email).toBe('jane.doe@example.com')
     expect(member.name).toBe('jane.doe')
-  })
-
-  it('falls back to legacy `email` field if invitee_email is missing', () => {
-    const member = pendingInvitationToMember(
-      makeInvitation({ invitee_email: undefined, email: 'legacy@example.com' })
-    )
-    expect(member.email).toBe('legacy@example.com')
   })
 
   it('uses the full email as the name when no @ is present', () => {
@@ -113,7 +106,7 @@ describe('mergeMembersAndInvitations', () => {
         }),
         makeInvitation({
           id: 'd',
-          status: 'expired',
+          status: 'revoked',
           invitee_email: 'd@example.com',
         }),
       ]
@@ -135,7 +128,7 @@ describe('mergeMembersAndInvitations', () => {
   it('drops pending invitations with empty emails', () => {
     const result = mergeMembersAndInvitations(
       [],
-      [makeInvitation({ invitee_email: undefined, email: undefined })]
+      [makeInvitation({ invitee_email: undefined })]
     )
     expect(result).toEqual([])
   })

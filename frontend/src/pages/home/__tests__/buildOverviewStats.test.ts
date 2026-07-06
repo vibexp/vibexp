@@ -1,4 +1,4 @@
-import type { TeamStats } from '@/types/team'
+import type { TeamStats } from '@/services/teamService'
 
 import { buildOverviewStats, type OverviewInputs } from '../buildOverviewStats'
 
