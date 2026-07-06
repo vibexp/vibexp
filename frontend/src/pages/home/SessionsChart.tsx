@@ -5,8 +5,7 @@ import {
   TimeSeriesBarChart,
   type TimeSeriesDatum,
 } from '@/components/TimeSeriesBarChart'
-import type { SessionCountByDate } from '@/types'
-import { apiClient } from '@/utils/api'
+import { aiToolsService, type SessionCounts } from '@/services/aiToolsService'
 
 /** Single-series sessions-per-day. Uses the primary token (no categorical split). */
 const SESSIONS_SERIES: readonly ChartSeries[] = [
@@ -25,7 +24,7 @@ interface SessionsChartProps {
  * Re-fetches whenever the selected range changes.
  */
 export function SessionsChart({ range, onRangeChange }: SessionsChartProps) {
-  const [data, setData] = useState<SessionCountByDate[]>([])
+  const [data, setData] = useState<SessionCounts['counts']>([])
   const [totalSessions, setTotalSessions] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -34,9 +33,9 @@ export function SessionsChart({ range, onRangeChange }: SessionsChartProps) {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const response = await apiClient.getSessionCounts(range)
-        setData(response.data.counts)
-        setTotalSessions(response.data.total_sessions || 0)
+        const response = await aiToolsService.getClaudeCodeSessionCounts(range)
+        setData(response.counts)
+        setTotalSessions(response.total_sessions || 0)
         setError(false)
       } catch (err) {
         console.error('Failed to fetch session counts:', err)
@@ -59,9 +58,9 @@ export function SessionsChart({ range, onRangeChange }: SessionsChartProps) {
     .slice()
     .reverse()
     .map(item => ({
-      date: item.date.slice(0, 10),
-      count: item.count,
-      total: item.count,
+      date: (item.date ?? '').slice(0, 10),
+      count: item.count ?? 0,
+      total: item.count ?? 0,
     }))
 
   return (

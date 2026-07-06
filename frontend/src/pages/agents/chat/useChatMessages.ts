@@ -194,6 +194,7 @@ export function useChatMessages({
   )
 
   const { currentState } = useEventPolling({
+    teamId,
     executionId: currentExecutionId,
     enabled: !!currentExecutionId,
     onEvent: handleStreamingEvent,

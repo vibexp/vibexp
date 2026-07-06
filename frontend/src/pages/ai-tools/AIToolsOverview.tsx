@@ -8,7 +8,7 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { apiClient } from '@/utils/api'
+import { aiToolsService } from '@/services/aiToolsService'
 
 interface Tool {
   name: 'Claude Code' | 'Cursor IDE'
@@ -27,11 +27,11 @@ export function AIToolsOverview() {
     const fetchCounts = async () => {
       try {
         const [claudeRes, cursorRes] = await Promise.all([
-          apiClient.getSessionCounts('7d'),
-          apiClient.getCursorSessionCounts('7d'),
+          aiToolsService.getClaudeCodeSessionCounts('7d'),
+          aiToolsService.getCursorIDESessionCounts('7d'),
         ])
-        setClaudeSessions(claudeRes.data.total_sessions)
-        setCursorSessions(cursorRes.data.total_sessions)
+        setClaudeSessions(claudeRes.total_sessions)
+        setCursorSessions(cursorRes.total_sessions)
       } catch (error) {
         console.error('Failed to fetch session counts:', error)
       } finally {

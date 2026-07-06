@@ -50,8 +50,8 @@ jest.mock('@/services/teamService', () => ({
 jest.mock('@/services/agentService', () => ({
   agentService: { getAgentStats: jest.fn() },
 }))
-jest.mock('@/utils/api', () => ({
-  apiClient: { getOverviewStats: jest.fn() },
+jest.mock('@/services/aiToolsService', () => ({
+  aiToolsService: { getClaudeCodeOverviewStats: jest.fn() },
 }))
 
 // Analytics widgets and the top-accessed grid are covered by their own tests.
@@ -79,9 +79,9 @@ jest.mock('@/pages/home/activityHelpers', () => ({
 
 import { activityService } from '@/services/activityService'
 import { agentService } from '@/services/agentService'
+import { aiToolsService } from '@/services/aiToolsService'
 import { feedService } from '@/services/feedService'
 import { teamService } from '@/services/teamService'
-import { apiClient } from '@/utils/api'
 
 import { Home } from '../Home'
 
@@ -89,7 +89,7 @@ const mockActivity = activityService as jest.Mocked<typeof activityService>
 const mockFeed = feedService as jest.Mocked<typeof feedService>
 const mockTeam = teamService as jest.Mocked<typeof teamService>
 const mockAgent = agentService as jest.Mocked<typeof agentService>
-const mockApi = apiClient as jest.Mocked<typeof apiClient>
+const mockAiTools = aiToolsService as jest.Mocked<typeof aiToolsService>
 
 function makeStats(overrides: Partial<TeamStats> = {}): TeamStats {
   return {
@@ -193,20 +193,16 @@ function setup(stats: TeamStats = makeStats(), activities = [makeActivity()]) {
       recent_activities: [],
     },
   })
-  mockApi.getOverviewStats.mockResolvedValue({
-    status: 'success',
-    message: 'ok',
-    data: {
-      total_sessions: 0,
-      sessions_this_week: 0,
-      sessions_last_week: 0,
-      weekly_trend_percent: 0,
-      avg_user_prompts_per_session: 0,
-      total_unique_tools: 0,
-      top_tools: [],
-      avg_session_duration_minutes: 0,
-      total_memories: 51,
-    },
+  mockAiTools.getClaudeCodeOverviewStats.mockResolvedValue({
+    total_sessions: 0,
+    sessions_this_week: 0,
+    sessions_last_week: 0,
+    weekly_trend_percent: 0,
+    avg_user_prompts_per_session: 0,
+    total_unique_tools: 0,
+    top_tools: [],
+    avg_session_duration_minutes: 0,
+    total_memories: 51,
   })
 }
 
