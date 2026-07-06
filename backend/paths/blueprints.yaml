@@ -101,7 +101,12 @@ api-v1-team_id-blueprints:
 
   get:
     summary: List spec libraries
-    description: Retrieves all spec libraries for the authenticated user with optional filtering and pagination
+    description: >-
+      Retrieves all spec libraries for the authenticated user with optional
+      filtering and pagination. Metadata filtering is dynamic: any query
+      parameter named `metadata_<key>` filters on that metadata field, e.g.
+      `metadata_env=prod` matches spec libraries whose metadata `env` equals
+      `prod`. Multiple `metadata_*` parameters are combined (AND).
     operationId: listSpecLibraries
     parameters:
       - name: team_id
@@ -153,16 +158,6 @@ api-v1-team_id-blueprints:
         schema:
           type: string
           example: "openapi"
-      - name: metadata_key
-        in: query
-        description: Filter by metadata key
-        schema:
-          type: string
-      - name: metadata_value
-        in: query
-        description: Filter by metadata value (requires metadata_key)
-        schema:
-          type: string
       - name: sort_by
         in: query
         description: Sort field
@@ -261,7 +256,12 @@ api-v1-team_id-blueprints-stats:
 api-v1-team_id-blueprints-project_id:
   get:
     summary: List spec libraries by project
-    description: Retrieves spec libraries for a specific project with optional filtering
+    description: >-
+      Retrieves spec libraries for a specific project with optional filtering.
+      Metadata filtering is dynamic: any query parameter named `metadata_<key>`
+      filters on that metadata field, e.g. `metadata_env=prod` matches spec
+      libraries whose metadata `env` equals `prod`. Multiple `metadata_*`
+      parameters are combined (AND).
     operationId: listSpecLibrariesByProject
     parameters:
       - name: team_id
@@ -299,16 +299,6 @@ api-v1-team_id-blueprints-project_id:
       - name: search
         in: query
         description: Search in title, description, and content
-        schema:
-          type: string
-      - name: metadata_key
-        in: query
-        description: Filter by metadata key
-        schema:
-          type: string
-      - name: metadata_value
-        in: query
-        description: Filter by metadata value (requires metadata_key)
         schema:
           type: string
       - name: sort_by
