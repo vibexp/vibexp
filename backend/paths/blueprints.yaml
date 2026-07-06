@@ -117,6 +117,15 @@ api-v1-team_id-blueprints:
         schema:
           type: string
           example: "my-api-project"
+      - name: project_id
+        in: query
+        description: >-
+          Filter by project ID. On this team-scoped variant the backend reads it
+          only when a project is not already selected via a path parameter (i.e.
+          not on listSpecLibrariesByProject).
+        schema:
+          type: string
+          format: uuid
       - name: status
         in: query
         description: Filter by status
@@ -131,12 +140,29 @@ api-v1-team_id-blueprints:
           type: string
           enum: [general]
           example: "general"
+      - name: subtype
+        in: query
+        description: Filter by subtype category
+        schema:
+          type: string
+          enum: [sub-agents, skills, slash-commands, others, claude-md, agents, commands, rules, cursor-md, agents-md]
+          example: "sub-agents"
       - name: search
         in: query
         description: Search in title, description, and content
         schema:
           type: string
           example: "openapi"
+      - name: metadata_key
+        in: query
+        description: Filter by metadata key
+        schema:
+          type: string
+      - name: metadata_value
+        in: query
+        description: Filter by metadata value (requires metadata_key)
+        schema:
+          type: string
       - name: sort_by
         in: query
         description: Sort field
@@ -264,9 +290,25 @@ api-v1-team_id-blueprints-project_id:
         schema:
           type: string
           enum: [general]
+      - name: subtype
+        in: query
+        description: Filter by subtype category
+        schema:
+          type: string
+          enum: [sub-agents, skills, slash-commands, others, claude-md, agents, commands, rules, cursor-md, agents-md]
       - name: search
         in: query
         description: Search in title, description, and content
+        schema:
+          type: string
+      - name: metadata_key
+        in: query
+        description: Filter by metadata key
+        schema:
+          type: string
+      - name: metadata_value
+        in: query
+        description: Filter by metadata value (requires metadata_key)
         schema:
           type: string
       - name: sort_by

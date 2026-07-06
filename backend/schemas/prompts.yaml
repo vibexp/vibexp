@@ -397,3 +397,42 @@ PromptVersionListResponse:
       description: Content-version snapshots for the prompt, newest first
   required:
     - versions
+
+# Dependency-graph entry for a single related prompt. Mirrors
+# models.PromptDependencyInfo (Go struct serialized as-is by the handler).
+PromptDependencyInfo:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Prompt identifier
+    slug:
+      type: string
+      description: Prompt slug
+    name:
+      type: string
+      description: Prompt name
+  required:
+    - id
+    - slug
+    - name
+
+# Response body for GET /prompts/{slug}/dependencies. Written raw (non-enveloped)
+# by the handler, mirroring models.PromptDependenciesResponse: prompts that
+# reference this prompt (used_by) and prompts this prompt references (uses).
+PromptDependenciesResponse:
+  type: object
+  properties:
+    used_by:
+      type: array
+      description: Prompts that reference this prompt
+      items:
+        $ref: '#/PromptDependencyInfo'
+    uses:
+      type: array
+      description: Prompts that this prompt references
+      items:
+        $ref: '#/PromptDependencyInfo'
+  required:
+    - used_by
+    - uses

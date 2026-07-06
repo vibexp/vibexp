@@ -183,6 +183,10 @@ components:
       $ref: "./schemas/prompts.yaml#/RenderPromptResponse"
     PromptPlaceholdersResponse:
       $ref: "./schemas/prompts.yaml#/PromptPlaceholdersResponse"
+    PromptDependencyInfo:
+      $ref: "./schemas/prompts.yaml#/PromptDependencyInfo"
+    PromptDependenciesResponse:
+      $ref: "./schemas/prompts.yaml#/PromptDependenciesResponse"
 
     # Import prompt gallery schemas
     PromptGalleryTemplate:

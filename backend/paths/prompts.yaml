@@ -443,19 +443,7 @@ api-v1-team_id-prompts-slug-dependencies:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                dependencies:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      prompt_id:
-                        type: string
-                      prompt_slug:
-                        type: string
-                      prompt_name:
-                        type: string
+              $ref: '../openapi.yaml#/components/schemas/PromptDependenciesResponse'
       '401':
         description: Unauthorized
         content:
