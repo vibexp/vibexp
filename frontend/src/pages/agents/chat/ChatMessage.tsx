@@ -2,7 +2,7 @@ import { Bot } from 'lucide-react'
 import { useState } from 'react'
 
 import { cn } from '@/lib/utils'
-import type { Agent } from '@/types'
+import type { Agent } from '@/services/agentService'
 
 import { type Message, STREAMING } from './types'
 

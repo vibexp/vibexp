@@ -3,7 +3,7 @@ import { ExternalLink, Globe, Shield, Tag, Zap } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import type { Agent } from '@/types'
+import type { Agent } from '@/services/agentService'
 
 interface AgentCardDetailsProps {
   agent: Agent
@@ -54,7 +54,7 @@ export function AgentCardDetails({ agent }: AgentCardDetailsProps) {
           <MetaTile
             icon={Globe}
             label="Transport"
-            value={agent.agent_card.preferredTransport || 'Not specified'}
+            value={agent.agent_card.preferredTransport ?? 'Not specified'}
           />
           <MetaTile
             icon={Zap}
@@ -66,7 +66,7 @@ export function AgentCardDetails({ agent }: AgentCardDetailsProps) {
           <MetaTile
             icon={Shield}
             label="Skills"
-            value={`${String(agent.agent_card.skills.length)} available`}
+            value={`${String(agent.agent_card.skills?.length ?? 0)} available`}
           />
         </div>
 
@@ -76,7 +76,7 @@ export function AgentCardDetails({ agent }: AgentCardDetailsProps) {
           <div>
             <h4 className="mb-2 text-sm font-medium">Input modes</h4>
             <div className="flex flex-wrap gap-1.5">
-              {agent.agent_card.defaultInputModes.map((mode, idx) => (
+              {(agent.agent_card.defaultInputModes ?? []).map((mode, idx) => (
                 <Badge key={idx} variant="secondary">
                   {mode}
                 </Badge>
@@ -86,7 +86,7 @@ export function AgentCardDetails({ agent }: AgentCardDetailsProps) {
           <div>
             <h4 className="mb-2 text-sm font-medium">Output modes</h4>
             <div className="flex flex-wrap gap-1.5">
-              {agent.agent_card.defaultOutputModes.map((mode, idx) => (
+              {(agent.agent_card.defaultOutputModes ?? []).map((mode, idx) => (
                 <Badge key={idx} variant="secondary">
                   {mode}
                 </Badge>
@@ -95,7 +95,7 @@ export function AgentCardDetails({ agent }: AgentCardDetailsProps) {
           </div>
         </div>
 
-        {agent.agent_card.skills.length > 0 && (
+        {(agent.agent_card.skills?.length ?? 0) > 0 && (
           <>
             <Separator />
             <div>
@@ -103,33 +103,38 @@ export function AgentCardDetails({ agent }: AgentCardDetailsProps) {
                 Skills &amp; capabilities
               </h4>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {agent.agent_card.skills.slice(0, 6).map((skill, idx) => (
-                  <div key={idx} className="bg-muted/50 rounded-md border p-3">
-                    <div className="font-medium">{skill.name}</div>
-                    {skill.description && (
-                      <p className="text-muted-foreground mt-1 text-sm">
-                        {skill.description}
-                      </p>
-                    )}
-                    {skill.tags.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {skill.tags.slice(0, 3).map((tag, tagIdx) => (
-                          <Badge
-                            key={tagIdx}
-                            variant="outline"
-                            className="gap-1"
-                          >
-                            <Tag className="size-3" />
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {agent.agent_card.skills.length > 6 && (
+                {(agent.agent_card.skills ?? [])
+                  .slice(0, 6)
+                  .map((skill, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-muted/50 rounded-md border p-3"
+                    >
+                      <div className="font-medium">{skill.name}</div>
+                      {skill.description && (
+                        <p className="text-muted-foreground mt-1 text-sm">
+                          {skill.description}
+                        </p>
+                      )}
+                      {(skill.tags?.length ?? 0) > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {(skill.tags ?? []).slice(0, 3).map((tag, tagIdx) => (
+                            <Badge
+                              key={tagIdx}
+                              variant="outline"
+                              className="gap-1"
+                            >
+                              <Tag className="size-3" />
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                {(agent.agent_card.skills?.length ?? 0) > 6 && (
                   <p className="text-muted-foreground py-3 text-center text-sm md:col-span-2">
-                    +{agent.agent_card.skills.length - 6} more skills
+                    +{(agent.agent_card.skills?.length ?? 0) - 6} more skills
                   </p>
                 )}
               </div>

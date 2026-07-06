@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Agent } from '@/types'
+import type { Agent } from '@/services/agentService'
 
 import { formatDate, successRateColor } from '../helpers'
 

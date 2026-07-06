@@ -5,8 +5,8 @@ import {
   useEventPolling,
 } from '@/hooks/useEventPolling'
 import { toast } from '@/lib/toast'
+import type { Agent, AgentExecution } from '@/services/agentService'
 import { agentService } from '@/services/agentService'
-import type { Agent, AgentExecution } from '@/types'
 import type {
   A2AArtifact,
   A2AArtifactUpdateEventData,
@@ -286,7 +286,7 @@ export function useChatMessages({
 
       try {
         setIsExecuting(true)
-        const inputMode = agent.agent_card?.defaultInputModes[0] ?? 'text'
+        const inputMode = agent.agent_card?.defaultInputModes?.[0] ?? 'text'
         const response = await agentService.executeAgent(
           teamId,
           agent.id,

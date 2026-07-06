@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import type { Agent } from '@/types'
+import type { Agent } from '@/services/agentService'
 
 import { agentStatusLabel, agentStatusVariant, formatDate } from '../helpers'
 

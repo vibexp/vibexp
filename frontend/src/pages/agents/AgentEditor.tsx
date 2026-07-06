@@ -17,13 +17,13 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { toast } from '@/lib/toast'
-import { agentService } from '@/services/agentService'
 import type {
   Agent,
   AgentCard,
   CreateAgentRequest,
   UpdateAgentRequest,
-} from '@/types'
+} from '@/services/agentService'
+import { agentService } from '@/services/agentService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 import { AgentCredentialsEditor } from './editor/AgentCredentialsEditor'

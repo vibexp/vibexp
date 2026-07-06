@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import type { AgentExecution } from '../services/agentService'
 import { agentService } from '../services/agentService'
-import type { AgentExecution } from '../types'
 
 interface UseExecutionPollingOptions {
   teamId: string | null
