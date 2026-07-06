@@ -15,7 +15,10 @@
 # values remain (relative API base URL, release stamps, optional Sentry DSN).
 
 # ---- 1) Build the frontend SPA → frontend/dist ----
-FROM node:22-alpine AS frontend
+# Pin to the native builder ($BUILDPLATFORM): the dist is architecture-independent
+# (plain JS/CSS), so it is built ONCE on the runner arch and reused for every
+# target platform — no QEMU emulation of the npm build.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 
 WORKDIR /app/frontend
 
@@ -36,7 +39,13 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- 2) Build the Go backend, embedding the SPA ----
-FROM golang:1.25.11-alpine AS backend
+# Pin to the native builder ($BUILDPLATFORM) and cross-compile per target arch:
+# the binary is CGO_ENABLED=0, so GOOS/GOARCH cross-compile for free (no QEMU).
+# buildx injects TARGETOS/TARGETARCH for each platform in the manifest list.
+FROM --platform=$BUILDPLATFORM golang:1.25.11-alpine AS backend
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -52,7 +61,9 @@ COPY backend/ ./
 COPY --from=frontend /app/frontend/dist ./internal/server/dist
 
 # Build with the embedfrontend tag so the SPA is embedded and served.
-RUN CGO_ENABLED=0 GOOS=linux go build -tags embedfrontend -a -installsuffix cgo -o main .
+# GOOS/GOARCH come from buildx's TARGETOS/TARGETARCH so one native build stage
+# emits a binary for each target platform (linux/amd64, linux/arm64).
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -tags embedfrontend -a -installsuffix cgo -o main .
 
 # ---- 3) Minimal runtime ----
 FROM alpine:3.20
