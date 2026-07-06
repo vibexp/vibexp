@@ -6,7 +6,8 @@ import {
   waitFor,
 } from '@testing-library/react'
 
-import type { Project } from '../../types/project'
+import type { Project } from '@/services/projectService'
+
 import { ProjectProvider, useProject } from '../ProjectContext'
 
 // Mock the projectService
@@ -59,6 +60,7 @@ function makeProject(id: string, name: string): Project {
     created_at: '2023-01-01T00:00:00Z',
     updated_at: '2023-01-01T00:00:00Z',
     version: 1,
+    github_connected: false,
   }
 }
 

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 
+import type { Project } from '@/services/projectService'
+import type { CreatePromptRequest, Prompt } from '@/services/promptService'
+
 import { useTeam } from '../contexts/TeamContext'
 import { projectService } from '../services/projectService'
-import type { CreatePromptRequest, Prompt } from '../types'
-import type { Project } from '../types/project'
 
 interface PromptFormData {
   name: string
@@ -96,7 +97,7 @@ export function usePromptForm({
         body: prompt.body,
         project_id: prompt.project_id,
         status: prompt.status,
-        labels: prompt.labels,
+        labels: prompt.labels ?? [],
       })
     }
   }, [prompt])

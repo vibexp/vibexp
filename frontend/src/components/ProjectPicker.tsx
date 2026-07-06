@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/popover'
 import { useProjectSearch } from '@/hooks'
 import { cn } from '@/lib/utils'
-import type { Project } from '@/types/project'
+import type { Project } from '@/services/projectService'
 
 // Sentinel CommandItem values — never used as real project ids (uuids).
 const ALL_OPTION_VALUE = '__all_projects__'

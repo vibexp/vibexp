@@ -2,43 +2,35 @@
 //
 // The backend versioning core is polymorphic — a snapshot is keyed by
 // `(resource_type, resource_id)` in `content_versions` — so the frontend models
-// versions generically too. Artifacts are the first adopter; Prompts, Blueprints
-// and Memory reuse the same `ResourceVersion` shape later. See backend
+// versions generically too. These types are sourced from the generated OpenAPI
+// schema (`@vibexp/api-client`); the wire shape is `ContentVersion`. See backend
 // `internal/models/content_version.go` for the source of truth.
+
+import type { components } from '@vibexp/api-client'
 
 // How a version came to be: a human edit or a system action (e.g. a restore or a
 // future auto-save). Mirrors `models.ActorType{Human,System}`.
-export type VersionActorType = 'human' | 'system'
+export type VersionActorType =
+  components['schemas']['ContentVersion']['actor_type']
 
 // Resolved, render-ready attribution for a version's author, populated
 // server-side from `created_by` so clients don't issue per-version user lookups.
-// Null when the version has no author or the user can no longer be resolved.
-export interface VersionAuthor {
-  id: string
-  display_name: string
-  avatar_url: string | null
-  initials: string
-}
+// The generated `VersionAuthor` is nullable at the schema level (a version may
+// have no resolvable author, carried by `ContentVersion.author`); this alias
+// models the populated object.
+export type VersionAuthor = NonNullable<components['schemas']['VersionAuthor']>
 
 // A single immutable snapshot of a versioned resource's content.
-export interface ResourceVersion {
-  id: string
-  team_id: string
-  resource_type: string
-  resource_id: string
-  version_number: number
-  content: string
-  // Optional human-readable "commit message" for the change captured at this
-  // version (added in backend #1832; nullable).
-  change_summary: string | null
-  actor_type: VersionActorType
-  created_by: string | null
-  author: VersionAuthor | null
-  created_at: string
-}
+export type ContentVersion = components['schemas']['ContentVersion']
 
-// Wire shape of the version-listing endpoint: a single object with a
-// newest-first `versions` array.
+// Back-compat alias: the resource type files (artifact/blueprint/memory/prompt)
+// and the version-history feature module still reference `ResourceVersion`.
+export type ResourceVersion = ContentVersion
+
+// Wire shape of the version-listing endpoints: a single object with a
+// newest-first `versions` array. The spec exposes four per-resource names
+// (`ArtifactVersionListResponse`, …), all `{ versions: ContentVersion[] }`; this
+// generic local alias serves the resource-agnostic version-history module.
 export interface ResourceVersionListResponse {
-  versions: ResourceVersion[]
+  versions: ContentVersion[]
 }

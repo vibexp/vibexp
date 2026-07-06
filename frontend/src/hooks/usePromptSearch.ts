@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
 
+import type { Prompt } from '@/services/promptService'
+
 import { useTeam } from '../contexts/TeamContext'
 import { promptService } from '../services/promptService'
-import type { Prompt } from '../types'
 
 interface UsePromptSearchOptions {
   limit?: number
@@ -50,11 +51,7 @@ export function usePromptSearch(
           status: 'published', // Only show published prompts for embedding
         })
 
-        // Handle both response formats: { data: {...} } or direct response
-        const responseData = 'data' in response ? response.data : response
-        let searchResults = Array.isArray(responseData.prompts)
-          ? responseData.prompts
-          : []
+        let searchResults = response.prompts
 
         // Filter out the current prompt if editing
         if (excludeCurrentPrompt) {

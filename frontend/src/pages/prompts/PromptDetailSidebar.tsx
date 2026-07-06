@@ -8,7 +8,10 @@ import {
 } from '@/components/metadata/MetadataPanel'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Prompt, PromptDependenciesResponse } from '@/types'
+import type {
+  Prompt,
+  PromptDependenciesResponse,
+} from '@/services/promptService'
 
 interface Props {
   prompt: Prompt
@@ -40,7 +43,7 @@ export function PromptDetailSidebar({
         </Card>
       )}
 
-      {prompt.labels.length > 0 && (
+      {prompt.labels && prompt.labels.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Labels</CardTitle>

@@ -12,13 +12,13 @@ import {
   BlueprintForm,
   type BlueprintFormHandle,
 } from '@/pages/blueprints/BlueprintForm'
-import { blueprintService } from '@/services/blueprintService'
-import { projectService } from '@/services/projectService'
 import type {
   CreateBlueprintRequest,
-  Project,
   UpdateBlueprintRequest,
-} from '@/types'
+} from '@/services/blueprintService'
+import { blueprintService } from '@/services/blueprintService'
+import type { Project } from '@/services/projectService'
+import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 

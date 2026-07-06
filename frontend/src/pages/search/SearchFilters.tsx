@@ -10,8 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import type { Project } from '@/services/projectService'
 import type { SearchFilterType } from '@/services/searchService'
-import type { Project } from '@/types'
 
 const TYPE_OPTIONS: { value: SearchFilterType; label: string }[] = [
   { value: 'prompts', label: 'Prompts' },

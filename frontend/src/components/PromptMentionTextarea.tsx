@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from 'react'
 
 import { PromptTemplateLoader } from '@/components/PromptTemplateLoader'
 import { useAnalytics } from '@/hooks'
-import type { Prompt } from '@/types'
+import type { Prompt } from '@/services/promptService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 interface PromptMentionTextareaProps {

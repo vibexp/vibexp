@@ -1,17 +1,25 @@
-// Focused coverage for the prompt version-history service methods. The broader
-// prompt service tests exercise CRUD elsewhere; here we drive the REAL promptService
-// against a mocked apiClient to lock in the slug-based URL construction for the version
-// endpoints (mirrors memoryService / blueprintService version tests).
-const mockApiClient = {
-  get: jest.fn(),
-  post: jest.fn(),
+// Focused coverage for the prompt version-history service methods. Drives the
+// REAL promptService against a mocked generated client to lock in the operation
+// + path params for the version endpoints (mirrors blueprintService tests).
+const mockGeneratedClient = {
+  GET: jest.fn(),
+  POST: jest.fn(),
 }
 
-jest.mock('../../src/lib/apiClient', () => ({
-  apiClient: mockApiClient,
-}))
+jest.mock('../../src/lib/apiClientGenerated', () => {
+  const actual = jest.requireActual<
+    typeof import('../../src/lib/apiClientGenerated')
+  >('../../src/lib/apiClientGenerated')
+  return {
+    ...actual,
+    generatedClient: mockGeneratedClient,
+  }
+})
 
 import { promptService } from '../../src/services/promptService'
+
+const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
+const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 
 describe('promptService version history', () => {
   const teamId = 'team-123'
@@ -40,45 +48,38 @@ describe('promptService version history', () => {
   })
 
   it('getPromptVersions fetches the versions endpoint', async () => {
-    mockApiClient.get.mockResolvedValue(versionList)
+    mockGeneratedClient.GET.mockReturnValue(success(versionList))
 
     const result = await promptService.getPromptVersions(teamId, slug)
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      `/${teamId}/prompts/${slug}/versions`
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/{team_id}/prompts/{slug}/versions',
+      { params: { path: { team_id: teamId, slug } } }
     )
     expect(result).toEqual(versionList)
   })
 
   it('getPromptVersion fetches a single version by number', async () => {
-    mockApiClient.get.mockResolvedValue(versionList.versions[0])
+    mockGeneratedClient.GET.mockReturnValue(success(versionList.versions[0]))
 
     await promptService.getPromptVersion(teamId, slug, 2)
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      `/${teamId}/prompts/${slug}/versions/2`
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/{team_id}/prompts/{slug}/versions/{version_number}',
+      { params: { path: { team_id: teamId, slug, version_number: 2 } } }
     )
   })
 
-  it('restorePromptVersion posts to the restore endpoint and unwraps the prompt', async () => {
+  it('restorePromptVersion posts to the restore endpoint', async () => {
     const restored = { id: 'prompt-1', slug, name: 'Weekly report' }
-    mockApiClient.post.mockResolvedValue(restored)
+    mockGeneratedClient.POST.mockReturnValue(success(restored))
 
     const result = await promptService.restorePromptVersion(teamId, slug, 1)
 
-    expect(mockApiClient.post).toHaveBeenCalledWith(
-      `/${teamId}/prompts/${slug}/versions/1/restore`
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/{team_id}/prompts/{slug}/versions/{version_number}/restore',
+      { params: { path: { team_id: teamId, slug, version_number: 1 } } }
     )
     expect(result).toEqual(restored)
-  })
-
-  it('encodes special characters in the prompt slug', async () => {
-    mockApiClient.get.mockResolvedValue(versionList)
-
-    await promptService.getPromptVersions(teamId, 'my prompt/1')
-
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      `/${teamId}/prompts/my%20prompt%2F1/versions`
-    )
   })
 })

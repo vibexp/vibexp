@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 
 import { useTeam } from '@/contexts/TeamContext'
+import type { Project, ProjectListResponse } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type { Project, ProjectListResponse } from '@/types/project'
 
 import { useProjectSearch } from './useProjectSearch'
 
@@ -26,6 +26,7 @@ const project = (id: string, name: string): Project => ({
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
   version: 1,
+  github_connected: false,
 })
 
 const listResponse = (projects: Project[]): ProjectListResponse => ({

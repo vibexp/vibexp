@@ -1,4 +1,6 @@
-import type { Blueprint, Memory, Prompt } from '../../src/types'
+import type { Blueprint } from '../../src/services/blueprintService'
+import type { Prompt } from '../../src/services/promptService'
+import type { Memory } from '../../src/types'
 
 const mockBlueprintService = {
   getBlueprint: jest.fn(),
@@ -232,6 +234,7 @@ describe('createPromptVersionSource', () => {
     description: '',
     body: 'live {{name}} @intro',
     user_id: 'user-123',
+    team_id: teamId,
     project_id: 'proj-1',
     status: 'published',
     mcp_expose: false,

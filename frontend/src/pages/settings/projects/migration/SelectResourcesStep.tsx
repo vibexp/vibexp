@@ -13,8 +13,10 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import type {
   MigrationInventory,
-  MigrationResources,
-} from '@/types/projectMigration'
+  ResourceInventory,
+  ResourceSelection,
+  ResourceSelections,
+} from '@/services/projectMigrationService'
 
 type ResourceKey = 'prompts' | 'artifacts' | 'blueprints' | 'feed_items'
 
@@ -28,8 +30,8 @@ const RESOURCE_LABELS: Record<ResourceKey, string> = {
 interface ResourceSectionProps {
   resourceKey: ResourceKey
   label: string
-  inventory: MigrationInventory[ResourceKey]
-  selection: MigrationResources[ResourceKey]
+  inventory: ResourceInventory
+  selection: ResourceSelection
   defaultOpen: boolean
   onSelectAll: (checked: boolean) => void
   onToggleItem: (id: string, checked: boolean) => void
@@ -49,7 +51,7 @@ function ResourceSection({
   const items = inventory.items ?? []
   const selectedIds = new Set(selection.ids ?? [])
   const allChecked =
-    selection.all ||
+    (selection.all ?? false) ||
     (items.length > 0 && items.every(i => selectedIds.has(i.id)))
   const someChecked = !allChecked && items.some(i => selectedIds.has(i.id))
   const selectedCount = selection.all ? inventory.count : selectedIds.size
@@ -107,7 +109,8 @@ function ResourceSection({
                 {items.length > 0 && (
                   <div className="mt-2 space-y-2 pl-6">
                     {items.map(item => {
-                      const checked = selection.all || selectedIds.has(item.id)
+                      const checked =
+                        (selection.all ?? false) || selectedIds.has(item.id)
                       return (
                         <div key={item.id} className="flex items-center gap-2">
                           <Checkbox
@@ -139,8 +142,8 @@ function ResourceSection({
 
 interface SelectResourcesStepProps {
   inventory: MigrationInventory
-  selectedResources: MigrationResources
-  onResourcesChange: (resources: MigrationResources) => void
+  selectedResources: ResourceSelections
+  onResourcesChange: (resources: ResourceSelections) => void
   onBack: () => void
   onNext: () => void
 }
@@ -161,14 +164,14 @@ export function SelectResourcesStep({
 
   const totalSelected = resourceKeys.reduce((acc, key) => {
     const sel = selectedResources[key]
-    if (sel.all) return acc + inventory[key].count
-    return acc + (sel.ids?.length ?? 0)
+    if (sel?.all) return acc + (inventory[key]?.count ?? 0)
+    return acc + (sel?.ids?.length ?? 0)
   }, 0)
 
   const hasSelection = totalSelected > 0
 
   const handleSelectAll = (key: ResourceKey, checked: boolean) => {
-    const items = inventory[key].items ?? []
+    const items = inventory[key]?.items ?? []
     onResourcesChange({
       ...selectedResources,
       [key]: checked
@@ -179,7 +182,7 @@ export function SelectResourcesStep({
 
   const handleToggleItem = (key: ResourceKey, id: string, checked: boolean) => {
     const current = selectedResources[key]
-    const currentIds = new Set(current.ids ?? [])
+    const currentIds = new Set(current?.ids ?? [])
 
     if (checked) {
       currentIds.add(id)
@@ -187,7 +190,7 @@ export function SelectResourcesStep({
       currentIds.delete(id)
     }
 
-    const items = inventory[key].items ?? []
+    const items = inventory[key]?.items ?? []
     const allSelected =
       items.length > 0 && items.every(i => currentIds.has(i.id))
 
@@ -216,8 +219,8 @@ export function SelectResourcesStep({
             key={key}
             resourceKey={key}
             label={RESOURCE_LABELS[key]}
-            inventory={inventory[key]}
-            selection={selectedResources[key]}
+            inventory={inventory[key] ?? { count: 0 }}
+            selection={selectedResources[key] ?? {}}
             defaultOpen={idx < 3}
             onSelectAll={checked => {
               handleSelectAll(key, checked)

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import type { FeedItem } from '@/types/feed'
+import type { FeedItem } from '@/services/feedService'
 
 import { USER_POST_ASSISTANT_NAME } from '../FeedPostComposer'
 import { FeedPostComposer } from '../FeedPostComposer'
@@ -41,6 +41,7 @@ const mockFeedItem: FeedItem = {
   ai_assistant_name: USER_POST_ASSISTANT_NAME,
   posted_by_user_id: 'user-1',
   posted_at: new Date().toISOString(),
+  reply_count: 0,
 }
 
 function renderComposer(onPosted = jest.fn()) {

@@ -16,12 +16,9 @@ import {
 } from '@/pages/memories/memoriesColumns'
 import { MemoryFilters } from '@/pages/memories/MemoryFilters'
 import { memoryService } from '@/services/memoryService'
+import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type {
-  Memory,
-  MemoryFilters as MemoryFiltersType,
-  Project,
-} from '@/types'
+import type { Memory, MemoryFilters as MemoryFiltersType } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 

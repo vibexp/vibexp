@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
 import { usePromptRenderer } from '../../src/hooks/usePromptRenderer'
-import type { RenderPromptResponse } from '../../src/types'
+import type { RenderPromptResponse } from '../../src/services/promptService'
 
 // Mock marked library
 jest.mock('marked', () => ({

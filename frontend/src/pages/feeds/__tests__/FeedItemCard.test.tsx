@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { FeedItem } from '@/types/feed'
+import type { FeedItem } from '@/services/feedService'
 import type { TeamMember } from '@/types/team'
 
 import { FeedItemCard } from '../FeedItemCard'
@@ -16,6 +16,7 @@ const mockItem: FeedItem = {
   ai_assistant_name: 'claude-sonnet-4-5',
   posted_by_user_id: 'user-1',
   posted_at: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+  reply_count: 0,
 }
 
 const archivedItem: FeedItem = {

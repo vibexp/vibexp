@@ -11,11 +11,11 @@ import { useAlerts } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { ProjectFilters } from '@/pages/settings/projects/ProjectFilters'
 import { buildProjectsColumns } from '@/pages/settings/projects/projectsColumns'
-import { projectService } from '@/services/projectService'
 import type {
   Project,
   ProjectFilters as ProjectFiltersType,
-} from '@/types/project'
+} from '@/services/projectService'
+import { projectService } from '@/services/projectService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 interface State {

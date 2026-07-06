@@ -11,8 +11,11 @@ import {
   ProjectForm,
   type ProjectFormHandle,
 } from '@/pages/settings/projects/ProjectForm'
+import type {
+  CreateProjectRequest,
+  UpdateProjectRequest,
+} from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type { CreateProjectRequest, UpdateProjectRequest } from '@/types'
 
 export function ProjectCreate() {
   const navigate = useNavigate()

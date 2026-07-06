@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/popover'
 import { useProjectSearch } from '@/hooks'
 import { cn } from '@/lib/utils'
-import type { Project } from '@/types/project'
+import type { Project } from '@/services/projectService'
 
 interface SelectSourceStepProps {
   /**

@@ -9,7 +9,8 @@ import {
   MEMORY_STATUS_LABEL,
   memoryStatusTone,
 } from '@/pages/memories/memoryStatus'
-import type { Memory, Project } from '@/types'
+import type { Project } from '@/services/projectService'
+import type { Memory } from '@/types'
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('en-US', {

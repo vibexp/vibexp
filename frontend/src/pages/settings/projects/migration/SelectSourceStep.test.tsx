@@ -2,8 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { useTeam } from '@/contexts/TeamContext'
+import type { Project, ProjectListResponse } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type { Project, ProjectListResponse } from '@/types/project'
 
 import { SelectSourceStep } from './SelectSourceStep'
 
@@ -27,6 +27,7 @@ const baseProject = (id: string, name: string, slug: string): Project => ({
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
   version: 1,
+  github_connected: false,
 })
 
 const listResponse = (projects: Project[]): ProjectListResponse => ({

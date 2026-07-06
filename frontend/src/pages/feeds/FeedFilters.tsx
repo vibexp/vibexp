@@ -8,8 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { Project } from '@/types'
-import type { Feed } from '@/types/feed'
+import type { Feed } from '@/services/feedService'
+import type { Project } from '@/services/projectService'
 
 interface FeedFiltersProps {
   searchInput: string

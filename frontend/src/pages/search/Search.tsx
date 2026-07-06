@@ -9,6 +9,7 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { SearchFilters } from '@/pages/search/SearchFilters'
 import { SearchResultCard } from '@/pages/search/searchResult'
+import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
 import type {
   SearchFilterType,
@@ -16,7 +17,6 @@ import type {
   SearchResultItem,
 } from '@/services/searchService'
 import { searchService } from '@/services/searchService'
-import type { Project } from '@/types'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 const PER_PAGE = 20

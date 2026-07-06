@@ -23,8 +23,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import type { Blueprint, BlueprintVersion } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
-import type { Blueprint, BlueprintVersion } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -192,7 +192,7 @@ export function BlueprintView() {
     <div className="space-y-6">
       <PageHeader
         title={blueprint.title}
-        description={blueprint.description || undefined}
+        description={blueprint.description}
         actions={
           <>
             <Button
@@ -264,7 +264,7 @@ export function BlueprintView() {
             <MetaSlugRow value={blueprint.slug} />
           </MetadataPanel>
 
-          <AdditionalDataCard data={blueprint.metadata} />
+          <AdditionalDataCard data={blueprint.metadata ?? {}} />
 
           {currentTeam && (
             <ResourceAttachments

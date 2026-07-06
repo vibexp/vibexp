@@ -12,8 +12,11 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { PromptFilters, type SharedFilter } from '@/pages/prompts/PromptFilters'
 import { buildPromptsColumns } from '@/pages/prompts/promptsColumns'
+import type {
+  Prompt,
+  PromptFilters as PromptFiltersType,
+} from '@/services/promptService'
 import { promptService } from '@/services/promptService'
-import type { Prompt, PromptFilters as PromptFiltersType } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -71,17 +74,13 @@ export function Prompts() {
       if (!currentTeam || isProjectLoading) return
       setState(prev => ({ ...prev, loading: true, error: null }))
       const response = await promptService.getPrompts(currentTeam.id, current)
-      const responseData = 'data' in response ? response.data : response
-      const prompts = Array.isArray(responseData.prompts)
-        ? responseData.prompts
-        : []
       setState({
-        prompts,
+        prompts: response.prompts,
         loading: false,
         error: null,
-        totalPages: responseData.total_pages,
+        totalPages: response.total_pages,
         currentPage: current.page ?? 1,
-        total: responseData.total_count,
+        total: response.total_count,
       })
     },
     [currentTeam, isProjectLoading]

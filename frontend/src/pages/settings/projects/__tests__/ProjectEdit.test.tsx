@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
-import type { Project } from '@/types'
+import type { Project } from '@/services/projectService'
 
 // Mock ProjectForm to avoid complex form internals in unit tests
 jest.mock('@/pages/settings/projects/ProjectForm', () => ({
@@ -45,6 +45,7 @@ const mockProject: Project = {
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-02T00:00:00Z',
   version: 1,
+  github_connected: false,
 }
 
 function renderProjectEdit(slug = 'my-project') {

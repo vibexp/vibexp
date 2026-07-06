@@ -1,4 +1,4 @@
-import type { Project } from '@/types'
+import type { Project } from '@/services/projectService'
 
 export interface PromptFormData {
   name: string

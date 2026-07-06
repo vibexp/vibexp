@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { Project } from '@/types/project'
+import type { Project } from '@/services/projectService'
 
 // Mock Radix Select — it can loop in JSDOM (same approach as Feeds.test.tsx)
 jest.mock('@/components/ui/select', () => ({
@@ -102,6 +102,7 @@ const alpha: Project = {
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
   version: 1,
+  github_connected: false,
 }
 
 function renderArtifacts() {

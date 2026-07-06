@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
-import type { Project, ProjectStats } from '@/types/project'
+import type { Project, ProjectStatsResponse } from '@/services/projectService'
 
 // Mock TeamContext — stable references to prevent effect re-runs
 const mockUseTeam = jest.fn()
@@ -47,7 +47,7 @@ const mockProject: Project = {
   github_connected: true,
 }
 
-const mockStats: ProjectStats = {
+const mockStats: ProjectStatsResponse = {
   total_prompts: 5,
   total_artifacts: 3,
   total_blueprints: 2,

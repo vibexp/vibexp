@@ -16,7 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import type { Project } from '@/types/project'
+import type { Project } from '@/services/projectService'
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-US', {

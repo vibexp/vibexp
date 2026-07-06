@@ -13,12 +13,12 @@ import {
   ProjectForm,
   type ProjectFormHandle,
 } from '@/pages/settings/projects/ProjectForm'
-import { projectService } from '@/services/projectService'
 import type {
   CreateProjectRequest,
   Project,
   UpdateProjectRequest,
-} from '@/types'
+} from '@/services/projectService'
+import { projectService } from '@/services/projectService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 export function ProjectEdit() {

@@ -1,79 +1,77 @@
-import { apiClient } from '../lib/apiClient'
+import type { components, operations } from '@vibexp/api-client'
+
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 import type {
-  CreatePromptRequest,
-  Prompt,
-  PromptDependenciesApiResponse,
-  PromptDependenciesResponse,
-  PromptFilters,
-  PromptsResponse,
-  PromptVersion,
-  PromptVersionListResponse,
-  RenderPromptResponse,
-  UpdatePromptRequest,
-} from '../types'
+  ResourceVersion,
+  ResourceVersionListResponse,
+} from '../types/version'
 
-/**
- * Normalize a single-prompt API response into a bare {@link Prompt}.
- *
- * The backend returns the prompt object directly for single-prompt
- * endpoints, but may also be wrapped in a {status, message, data}
- * envelope. This unwraps both shapes so callers never read `.data`.
- */
-function unwrapPrompt(response: unknown): Prompt {
-  // A `Prompt` has no `data` field, so the presence of a top-level `data`
-  // key reliably distinguishes the envelope from a bare prompt. If `Prompt`
-  // ever gains a `data` field, this discriminator must be revisited.
-  const isEnveloped =
-    typeof response === 'object' && response !== null && 'data' in response
-  const data = isEnveloped
-    ? (response as { data?: Prompt }).data
-    : (response as Prompt | undefined)
+// Generated wire types for the prompts domain — the OpenAPI spec is the single
+// source of truth; do not hand-write request/response shapes here.
+export type Prompt = components['schemas']['Prompt']
+export type CreatePromptRequest = components['schemas']['CreatePromptRequest']
+export type UpdatePromptRequest = components['schemas']['UpdatePromptRequest']
+export type PromptListResponse = components['schemas']['PromptListResponse']
+export type RenderPromptRequest = components['schemas']['RenderPromptRequest']
+export type RenderPromptResponse = components['schemas']['RenderPromptResponse']
+export type PromptFilters = NonNullable<
+  operations['listPrompts']['parameters']['query']
+>
 
-  if (!data || typeof data !== 'object') {
-    throw new Error('No prompt data received from server')
-  }
+// Prompt versions are the generic resource version with `resource_type` ===
+// "prompt". Kept as aliases so prompt call sites read naturally while the
+// version-history module works against the resource-agnostic types.
+export type PromptVersion = ResourceVersion
+export type PromptVersionListResponse = ResourceVersionListResponse
 
-  return data
+// Prompt dependency types. The dependencies endpoint is documented in the spec
+// as returning `{ dependencies }`, but the backend actually returns the
+// `{ used_by, uses }` split the dependency UI consumes (and that the
+// pre-migration client already read). We keep these local types plus a small
+// adapter to preserve that contract.
+export interface PromptDependencyInfo {
+  id: string
+  slug: string
+  name: string
+}
+
+export interface PromptDependenciesResponse {
+  used_by: PromptDependencyInfo[] // Prompts that reference this prompt
+  uses: PromptDependencyInfo[] // Prompts that this prompt references
 }
 
 class PromptService {
   async getPrompts(
     teamId: string,
     filters: PromptFilters = {}
-  ): Promise<PromptsResponse> {
-    const params = new URLSearchParams()
-
-    // Remove team_id from query params - it's now in the URL path
-    if (filters.status) params.append('status', filters.status)
-    if (filters.search) params.append('search', filters.search)
-    if (filters.shared !== undefined)
-      params.append('shared', filters.shared.toString())
-    if (filters.labels && filters.labels.length > 0) {
-      params.append('labels', filters.labels.join(','))
-    }
-    if (filters.project_id) params.append('project_id', filters.project_id)
-    if (filters.sort_by) params.append('sort_by', filters.sort_by)
-    if (filters.sort_order) params.append('sort_order', filters.sort_order)
-    if (filters.page) params.append('page', filters.page.toString())
-    if (filters.limit) params.append('limit', filters.limit.toString())
-
-    const queryString = params.toString()
-    const endpoint = `/${teamId}/prompts${queryString ? `?${queryString}` : ''}`
-
-    return apiClient.get<PromptsResponse>(endpoint)
+  ): Promise<PromptListResponse> {
+    return (
+      await unwrap(
+        generatedClient.GET('/api/v1/{team_id}/prompts', {
+          params: { path: { team_id: teamId }, query: filters },
+        })
+      )
+    ).data
   }
 
   async getPrompt(teamId: string, slug: string): Promise<Prompt> {
-    const response = await apiClient.get<unknown>(`/${teamId}/prompts/${slug}`)
-    return unwrapPrompt(response)
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/prompts/{slug}', {
+        params: { path: { team_id: teamId, slug } },
+      })
+    )
   }
 
   async createPrompt(
     teamId: string,
     data: CreatePromptRequest
   ): Promise<Prompt> {
-    const response = await apiClient.post<unknown>(`/${teamId}/prompts`, data)
-    return unwrapPrompt(response)
+    return unwrap(
+      generatedClient.POST('/api/v1/{team_id}/prompts', {
+        params: { path: { team_id: teamId } },
+        body: data,
+      })
+    )
   }
 
   async updatePrompt(
@@ -81,24 +79,30 @@ class PromptService {
     slug: string,
     data: UpdatePromptRequest
   ): Promise<Prompt> {
-    const response = await apiClient.put<unknown>(
-      `/${teamId}/prompts/${slug}`,
-      data
+    return unwrap(
+      generatedClient.PUT('/api/v1/{team_id}/prompts/{slug}', {
+        params: { path: { team_id: teamId, slug } },
+        body: data,
+      })
     )
-    return unwrapPrompt(response)
   }
 
   async deletePrompt(teamId: string, slug: string): Promise<void> {
-    await apiClient.delete(`/${teamId}/prompts/${slug}`)
+    await unwrap(
+      generatedClient.DELETE('/api/v1/{team_id}/prompts/{slug}', {
+        params: { path: { team_id: teamId, slug } },
+      })
+    )
   }
 
   async getPromptPlaceholders(teamId: string, slug: string): Promise<string[]> {
-    const response = await apiClient.get<{ placeholders: string[] }>(
-      `/${teamId}/prompts/${slug}/placeholders`
-    )
     return (
-      (response as { placeholders?: string[] } | undefined)?.placeholders ?? []
-    )
+      await unwrap(
+        generatedClient.GET('/api/v1/{team_id}/prompts/{slug}/placeholders', {
+          params: { path: { team_id: teamId, slug } },
+        })
+      )
+    ).placeholders
   }
 
   async renderPrompt(
@@ -106,11 +110,11 @@ class PromptService {
     slug: string,
     placeholders: Record<string, string>
   ): Promise<RenderPromptResponse> {
-    return apiClient.post<RenderPromptResponse>(
-      `/${teamId}/prompts/${slug}/render`,
-      {
-        placeholders,
-      }
+    return unwrap(
+      generatedClient.POST('/api/v1/{team_id}/prompts/{slug}/render', {
+        params: { path: { team_id: teamId, slug } },
+        body: { placeholders },
+      })
     )
   }
 
@@ -118,37 +122,30 @@ class PromptService {
     teamId: string,
     slug: string
   ): Promise<PromptDependenciesResponse> {
-    const response = await apiClient.get<PromptDependenciesApiResponse>(
-      `/${teamId}/prompts/${slug}/dependencies`
-    )
-    // Handle both wrapped {data: {...}} and unwrapped {...} responses
+    const data = (await unwrap(
+      generatedClient.GET('/api/v1/{team_id}/prompts/{slug}/dependencies', {
+        params: { path: { team_id: teamId, slug } },
+      })
+    )) as unknown as Partial<PromptDependenciesResponse> | undefined
 
-    const responseData: PromptDependenciesResponse =
-      (response as { data?: PromptDependenciesResponse } | undefined)?.data ??
-      (response as unknown as PromptDependenciesResponse)
-
-    // Ensure we always return arrays, never null
-    const data = responseData as PromptDependenciesResponse | undefined
-    if (!data) {
-      return { used_by: [], uses: [] }
-    }
-
+    // Always return arrays, never null/undefined.
     return {
-      used_by:
-        (data as { used_by?: PromptDependenciesResponse['used_by'] }).used_by ??
-        [],
-      uses: (data as { uses?: PromptDependenciesResponse['uses'] }).uses ?? [],
+      used_by: data?.used_by ?? [],
+      uses: data?.uses ?? [],
     }
   }
 
-  // Content version history. Slug-addressed within a team (no project_id), mirroring
-  // the prompt CRUD endpoints. The versioned content is the raw body template.
+  // Content version history. Slug-addressed within a team (no project_id),
+  // mirroring the prompt CRUD endpoints. The versioned content is the raw body
+  // template.
   async getPromptVersions(
     teamId: string,
     slug: string
   ): Promise<PromptVersionListResponse> {
-    return apiClient.get<PromptVersionListResponse>(
-      `/${encodeURIComponent(teamId)}/prompts/${encodeURIComponent(slug)}/versions`
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/prompts/{slug}/versions', {
+        params: { path: { team_id: teamId, slug } },
+      })
     )
   }
 
@@ -157,8 +154,15 @@ class PromptService {
     slug: string,
     versionNumber: number
   ): Promise<PromptVersion> {
-    return apiClient.get<PromptVersion>(
-      `/${encodeURIComponent(teamId)}/prompts/${encodeURIComponent(slug)}/versions/${encodeURIComponent(versionNumber)}`
+    return unwrap(
+      generatedClient.GET(
+        '/api/v1/{team_id}/prompts/{slug}/versions/{version_number}',
+        {
+          params: {
+            path: { team_id: teamId, slug, version_number: versionNumber },
+          },
+        }
+      )
     )
   }
 
@@ -167,21 +171,26 @@ class PromptService {
     slug: string,
     versionNumber: number
   ): Promise<Prompt> {
-    const response = await apiClient.post<unknown>(
-      `/${encodeURIComponent(teamId)}/prompts/${encodeURIComponent(slug)}/versions/${encodeURIComponent(versionNumber)}/restore`
+    return unwrap(
+      generatedClient.POST(
+        '/api/v1/{team_id}/prompts/{slug}/versions/{version_number}/restore',
+        {
+          params: {
+            path: { team_id: teamId, slug, version_number: versionNumber },
+          },
+        }
+      )
     )
-    return unwrapPrompt(response)
   }
 
   async getPromptLabels(teamId: string): Promise<string[]> {
-    // Remove team_id from query params - it's now in the URL path
-    const response = await apiClient.get<{ data: { labels: string[] } }>(
-      `/${teamId}/prompts/labels`
-    )
     return (
-      (response as { data?: { labels?: string[] } } | undefined)?.data
-        ?.labels ?? []
-    )
+      await unwrap(
+        generatedClient.GET('/api/v1/{team_id}/prompts/labels', {
+          params: { path: { team_id: teamId } },
+        })
+      )
+    ).data.labels
   }
 }
 

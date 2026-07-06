@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
 import { toast } from '@/lib/toast'
+import type { Prompt } from '@/services/promptService'
 import { promptService } from '@/services/promptService'
-import type { Prompt } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 

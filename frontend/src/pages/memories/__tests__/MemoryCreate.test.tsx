@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { Memory, Project } from '@/types'
+import type { Project } from '@/services/projectService'
+import type { Memory } from '@/types'
 
 const mockUseTeam = jest.fn()
 jest.mock('@/contexts/TeamContext', () => ({
@@ -46,6 +47,7 @@ const mockProject: Project = {
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
   version: 1,
+  github_connected: false,
 }
 
 const mockCreatedMemory: Memory = {

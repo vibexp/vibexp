@@ -11,8 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BRAND_LOGO_URL, SITE_NAME, SITE_URL } from '@/config/siteConfig'
 import { useAnalytics } from '@/hooks/useAnalytics'
+import type { SharedPromptResponse } from '@/services/promptShareService'
 import { promptShareService } from '@/services/promptShareService'
-import type { SharedPromptResponse } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 export function SharedPrompt() {
@@ -30,11 +30,7 @@ export function SharedPrompt() {
       setLoading(true)
       setError(null)
       try {
-        const response = await promptShareService.getSharedPrompt(shareToken)
-        const promptData: SharedPromptResponse =
-          'data' in response
-            ? (response as { data: SharedPromptResponse }).data
-            : response
+        const promptData = await promptShareService.getSharedPrompt(shareToken)
         setData(promptData)
         trackEvent({
           event: ANALYTICS_EVENTS.SHARED_PROMPT_VIEWED,
@@ -43,7 +39,6 @@ export function SharedPrompt() {
             share_type: promptData.share_type,
             prompt_id: promptData.prompt.id,
             prompt_title: promptData.prompt.name,
-            has_expiration: !!promptData.expires_at,
             referrer: document.referrer,
             action_context: 'view',
           },
@@ -173,7 +168,11 @@ export function SharedPrompt() {
             rel="noopener noreferrer"
             className="flex items-center gap-3 hover:opacity-80"
           >
-            <img src="/logo_rounded.png" alt={SITE_NAME} className="h-10 w-10" />
+            <img
+              src="/logo_rounded.png"
+              alt={SITE_NAME}
+              className="h-10 w-10"
+            />
             <div>
               <div className="text-lg font-semibold">{SITE_NAME}</div>
               <div className="text-muted-foreground text-xs">
@@ -239,15 +238,6 @@ export function SharedPrompt() {
                 )}
               </Button>
             </div>
-            {data.expires_at && (
-              <Alert className="mt-4">
-                <AlertTitle>Note</AlertTitle>
-                <AlertDescription>
-                  This share link expires on{' '}
-                  {new Date(data.expires_at).toLocaleString()}
-                </AlertDescription>
-              </Alert>
-            )}
           </CardHeader>
           <CardContent>
             <MarkdownRenderer content={data.rendered_body} syntaxTheme="auto" />

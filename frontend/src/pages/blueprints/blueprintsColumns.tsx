@@ -5,7 +5,7 @@ import type { NavigateFunction } from 'react-router-dom'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { Blueprint } from '@/types'
+import type { Blueprint } from '@/services/blueprintService'
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('en-US', {

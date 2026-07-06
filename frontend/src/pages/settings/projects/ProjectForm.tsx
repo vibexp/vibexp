@@ -18,7 +18,7 @@ import type {
   CreateProjectRequest,
   Project,
   UpdateProjectRequest,
-} from '@/types'
+} from '@/services/projectService'
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255),

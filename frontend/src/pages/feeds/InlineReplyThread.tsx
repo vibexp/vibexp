@@ -9,9 +9,9 @@ import {
   resolveFeedActor,
   USER_POST_ASSISTANT_NAME,
 } from '@/pages/feeds/feedActor'
+import type { FeedItemReply } from '@/services/feedService'
 import { feedService } from '@/services/feedService'
 import { teamService } from '@/services/teamService'
-import type { FeedItemReply } from '@/types/feed'
 import type { TeamMember } from '@/types/team'
 
 interface InlineReplyThreadProps {

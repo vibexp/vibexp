@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FeedItemCard } from '@/pages/feeds/FeedItemCard'
-import type { FeedItem } from '@/types/feed'
+import type { FeedItem } from '@/services/feedService'
 import type { TeamMember } from '@/types/team'
 
 interface FeedItemListProps {
@@ -110,7 +110,7 @@ export function FeedItemList({
           feedName={feedName?.(item.feed_id)}
           projectName={projectName?.(item.project_id)}
           member={member?.(item.posted_by_user_id)}
-          replyCount={item.reply_count ?? 0}
+          replyCount={item.reply_count}
           onArchive={tab === 'active' ? onArchive : undefined}
           onUnarchive={tab === 'archived' ? onUnarchive : undefined}
           onDelete={onDelete}

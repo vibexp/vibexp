@@ -2,8 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 
 import type {
   MigrationInventory,
-  MigrationResources,
-} from '@/types/projectMigration'
+  ResourceSelections,
+} from '@/services/projectMigrationService'
 
 import { SelectResourcesStep } from './SelectResourcesStep'
 
@@ -32,7 +32,7 @@ const mockInventory: MigrationInventory = {
   },
 }
 
-const emptySelection: MigrationResources = {
+const emptySelection: ResourceSelections = {
   prompts: { all: false, ids: [] },
   artifacts: { all: false, ids: [] },
   blueprints: { all: false, ids: [] },
@@ -40,7 +40,7 @@ const emptySelection: MigrationResources = {
 }
 
 function renderStep(
-  selectedResources: MigrationResources = emptySelection,
+  selectedResources: ResourceSelections = emptySelection,
   onResourcesChange = jest.fn(),
   onBack = jest.fn(),
   onNext = jest.fn()

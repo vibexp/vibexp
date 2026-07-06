@@ -20,7 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatRelativeTime } from '@/lib/time'
 import { getActivityIcon } from '@/pages/home/activityHelpers'
 import type { Activity as ActivityType } from '@/services/activityService'
-import type { FeedItem } from '@/types/feed'
+import type { FeedItem } from '@/services/feedService'
 
 export function getActivitySubtitle(activity: ActivityType): string {
   const parts: string[] = []
