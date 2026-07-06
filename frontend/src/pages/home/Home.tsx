@@ -23,11 +23,11 @@ import { mcpTools } from '@/pages/mcp/mcp-tools'
 import type { Activity as ActivityType } from '@/services/activityService'
 import { activityService } from '@/services/activityService'
 import { agentService } from '@/services/agentService'
+import { aiToolsService } from '@/services/aiToolsService'
 import type { FeedItem } from '@/services/feedService'
 import { feedService } from '@/services/feedService'
 import { teamService } from '@/services/teamService'
 import type { TeamStats } from '@/types/team'
-import { apiClient } from '@/utils/api'
 
 const DEFAULT_RANGE = '30d'
 
@@ -129,15 +129,15 @@ export function Home() {
         const [stats, overview, agents, created, feed] =
           await Promise.allSettled([
             teamService.getTeamStats(teamId),
-            apiClient.getOverviewStats(),
+            aiToolsService.getClaudeCodeOverviewStats(),
             agentService.getAgentStats(teamId),
             teamService.getTeamResourceCreationMetrics(teamId, '7d'),
             teamService.getTeamFeedCreationMetrics(teamId, '7d'),
           ])
         if (stats.status === 'fulfilled') setTeamStats(stats.value)
         if (overview.status === 'fulfilled') {
-          setTotalSessions(overview.value.data.total_sessions)
-          setSessionsTrendPct(overview.value.data.weekly_trend_percent)
+          setTotalSessions(overview.value.total_sessions)
+          setSessionsTrendPct(overview.value.weekly_trend_percent)
         }
         if (agents.status === 'fulfilled') {
           // getAgentStats may return the stats wrapped ({data}) or bare.

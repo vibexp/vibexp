@@ -1,66 +1,38 @@
+import type { components } from '@vibexp/api-client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { getApiBaseUrl } from '../utils/environment'
+import { generatedClient, unwrap } from '@/lib/apiClientGenerated'
+import { ApiError } from '@/types/errors'
 
 // Polling interval constant (in milliseconds)
 // Adjust this value to control how frequently events are fetched
 export const EVENT_POLLING_INTERVAL_MS = 3000 // 3 seconds
 
-export interface AgentExecutionEvent {
-  id: string
-  execution_id: string
-  event_type: string
-  event_data: Record<string, unknown>
-  sequence_number: number
-  received_at: string
-}
+export type AgentExecutionEvent = components['schemas']['AgentExecutionEvent']
 
-export interface EventPollingResponse {
-  execution_id: string
-  status: string
-  current_state: string | null
-  events: AgentExecutionEvent[]
-  has_more: boolean
-  next_sequence: number
-}
+// Cursor-based polling response (the `since` query selects this variant over the
+// page-based one). The generated 200 type is a union of the two shapes.
+type EventPollingResponse =
+  components['schemas']['AgentExecutionEventsPollResponse']
 
-// Simple fetch wrapper for event polling
+// Fetch the next batch of execution events through the generated, team-scoped
+// operation. Passing `since` selects cursor-based polling, so the response is
+// always the poll variant of the union.
 async function fetchEvents(
+  teamId: string,
   executionId: string,
   since: number
 ): Promise<EventPollingResponse> {
-  const url = `${getApiBaseUrl()}/agents/executions/${executionId}/events?since=${String(since)}`
-  const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      window.location.href = '/sign-in'
-      throw new Error('Session expired. Please sign in again.')
-    }
-    // Try to parse error response, fallback to generic error
-    let errorMessage = 'Network error'
-    try {
-      const errorData = (await response.json()) as { message?: string }
-      if (errorData.message) {
-        errorMessage = errorData.message
-      }
-    } catch {
-      // Use default error message if JSON parsing fails
-    }
-    throw new Error(
-      `${errorMessage} (HTTP ${String(response.status)}: ${response.statusText})`
-    )
-  }
-
-  return response.json() as Promise<EventPollingResponse>
+  const response = await unwrap(
+    generatedClient.GET('/api/v1/{team_id}/agents/executions/{id}/events', {
+      params: { path: { team_id: teamId, id: executionId }, query: { since } },
+    })
+  )
+  return response as EventPollingResponse
 }
 
 interface UseEventPollingOptions {
+  teamId: string | undefined
   executionId: string | null
   enabled?: boolean
   onEvent?: (event: AgentExecutionEvent) => void
@@ -69,6 +41,7 @@ interface UseEventPollingOptions {
 }
 
 export function useEventPolling({
+  teamId,
   executionId,
   enabled = true,
   onEvent,
@@ -96,7 +69,7 @@ export function useEventPolling({
   }, [onEvent, onComplete, pollingInterval])
 
   const poll = useCallback(async () => {
-    if (!executionId || !enabled || pollingRef.current) {
+    if (!teamId || !executionId || !enabled || pollingRef.current) {
       return
     }
 
@@ -108,7 +81,11 @@ export function useEventPolling({
     )
 
     try {
-      const response = await fetchEvents(executionId, nextSequenceRef.current)
+      const response = await fetchEvents(
+        teamId,
+        executionId,
+        nextSequenceRef.current
+      )
 
       const {
         events: newEvents,
@@ -124,7 +101,7 @@ export function useEventPolling({
 
       // Update state
       setStatus(execStatus)
-      setCurrentState(current_state)
+      setCurrentState(current_state ?? null)
       nextSequenceRef.current = next_sequence
 
       // Process new events
@@ -169,6 +146,17 @@ export function useEventPolling({
     } catch (err) {
       const error = err as Error
       console.error('Event polling error:', error)
+
+      // Session expired — send the user back to sign in (preserves the
+      // hand-written client's 401 behaviour now that the transport throws
+      // ApiError instead of redirecting itself).
+      if (error instanceof ApiError && error.status === 401) {
+        setIsPolling(false)
+        pollingRef.current = false
+        window.location.href = '/sign-in'
+        return
+      }
+
       setError(error.message)
       setIsPolling(false)
       pollingRef.current = false
@@ -179,11 +167,11 @@ export function useEventPolling({
         void poll()
       }, pollingIntervalRef.current * 2) // Back off on error
     }
-  }, [executionId, enabled]) // Only depend on executionId and enabled
+  }, [teamId, executionId, enabled]) // Only depend on teamId, executionId and enabled
 
-  // Start polling when enabled and executionId is set
+  // Start polling when enabled and both teamId and executionId are set
   useEffect(() => {
-    if (enabled && executionId) {
+    if (enabled && teamId && executionId) {
       // Reset state for new execution
       setEvents([])
       setStatus('pending')
@@ -205,7 +193,7 @@ export function useEventPolling({
       pollingRef.current = false
       setIsPolling(false)
     }
-  }, [executionId, enabled, poll]) // poll is now stable with refs
+  }, [teamId, executionId, enabled, poll]) // poll is now stable with refs
 
   return {
     events,

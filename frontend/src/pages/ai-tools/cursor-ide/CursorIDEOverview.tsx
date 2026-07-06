@@ -1,5 +1,5 @@
 import { ToolOverview } from '@/pages/ai-tools/ToolOverview'
-import { apiClient } from '@/utils/api'
+import { aiToolsService } from '@/services/aiToolsService'
 
 export function CursorIDEOverview() {
   return (
@@ -8,8 +8,8 @@ export function CursorIDEOverview() {
       description="AI-powered IDE with intelligent code completion and editing."
       sessionsHref="/ai-tools/cursor-ide/sessions"
       setupHref="/ai-tools/cursor-ide/setup"
-      fetchStats={() => apiClient.getCursorOverviewStats()}
-      fetchActivities={() => apiClient.getCursorRecentActivities()}
+      fetchStats={() => aiToolsService.getCursorIDEOverviewStats()}
+      fetchActivities={() => aiToolsService.getCursorIDERecentActivities()}
     />
   )
 }

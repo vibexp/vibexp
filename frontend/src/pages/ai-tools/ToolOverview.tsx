@@ -10,15 +10,18 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
-import type { RecentActivity } from '@/types'
+import type { RecentActivity } from '@/services/aiToolsService'
 
+// Common shape read by this shared shell for both Claude Code (`OverviewStats`)
+// and Cursor IDE (`CursorOverviewStats`); `top_tools[].tool_name` is optional to
+// stay assignable from the generated stats types.
 interface ToolStats {
   total_sessions: number
   sessions_this_week: number
   weekly_trend_percent: number
   avg_user_prompts_per_session: number
   total_unique_tools: number
-  top_tools: { tool_name: string }[]
+  top_tools: { tool_name?: string }[]
   avg_session_duration_minutes: number
 }
 import { PageHeader } from '@/components/PageHeader'
@@ -68,8 +71,8 @@ interface ToolOverviewProps {
   description: string
   sessionsHref: string
   setupHref: string
-  fetchStats: () => Promise<{ data: ToolStats }>
-  fetchActivities: () => Promise<{ data: { activities: RecentActivity[] } }>
+  fetchStats: () => Promise<ToolStats>
+  fetchActivities: () => Promise<{ activities: RecentActivity[] }>
 }
 
 export function ToolOverview({
@@ -92,8 +95,8 @@ export function ToolOverview({
           fetchStats(),
           fetchActivities(),
         ])
-        setStats(statsRes.data)
-        setActivities(activitiesRes.data.activities)
+        setStats(statsRes)
+        setActivities(activitiesRes.activities)
       } catch (error) {
         console.error('Failed to fetch overview data:', error)
       } finally {

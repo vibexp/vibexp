@@ -1,5 +1,5 @@
 import { ToolOverview } from '@/pages/ai-tools/ToolOverview'
-import { apiClient } from '@/utils/api'
+import { aiToolsService } from '@/services/aiToolsService'
 
 export function ClaudeCodeOverview() {
   return (
@@ -8,8 +8,8 @@ export function ClaudeCodeOverview() {
       description="AI-powered code assistant with advanced context awareness."
       sessionsHref="/ai-tools/claude-code/sessions"
       setupHref="/ai-tools/claude-code/setup"
-      fetchStats={() => apiClient.getOverviewStats()}
-      fetchActivities={() => apiClient.getRecentActivities()}
+      fetchStats={() => aiToolsService.getClaudeCodeOverviewStats()}
+      fetchActivities={() => aiToolsService.getClaudeCodeRecentActivities()}
     />
   )
 }

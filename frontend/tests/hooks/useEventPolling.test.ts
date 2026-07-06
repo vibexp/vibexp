@@ -1,13 +1,42 @@
 import { renderHook, waitFor } from '@testing-library/react'
+
+// Mock the generated client; unwrap stays real so the hook exercises the same
+// success/error resolution production uses (see searchService.test.ts). The
+// module under test is imported AFTER the mock so the factory runs once the
+// mock object is initialised.
+const mockGeneratedClient = {
+  GET: jest.fn(),
+}
+
+jest.mock('../../src/lib/apiClientGenerated', () => {
+  const actual = jest.requireActual<
+    typeof import('../../src/lib/apiClientGenerated')
+  >('../../src/lib/apiClientGenerated')
+  return {
+    ...actual,
+    generatedClient: mockGeneratedClient,
+  }
+})
+
 import {
   useEventPolling,
   EVENT_POLLING_INTERVAL_MS,
 } from '../../src/hooks/useEventPolling'
 
-// authService no longer used by useEventPolling (cookie-based auth)
+const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
+const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 
-// Mock fetch
-global.fetch = jest.fn()
+const TEAM_ID = 'team-1'
+const EXECUTION_ID = 'exec-1'
+const EVENTS_PATH = '/api/v1/{team_id}/agents/executions/{id}/events'
+
+// The `since` query value from the Nth (1-based) GET call.
+function sinceOf(callIndex: number): number | undefined {
+  const call = mockGeneratedClient.GET.mock.calls[callIndex - 1] as
+    | [string, { params: { query: { since?: number } } }]
+    | undefined
+  return call?.[1].params.query.since
+}
 
 describe('useEventPolling', () => {
   beforeEach(() => {
@@ -19,33 +48,34 @@ describe('useEventPolling', () => {
     jest.useRealTimers()
   })
 
-  it('should start polling when enabled with execution ID', async () => {
-    const mockResponse = {
-      execution_id: 'exec-1',
-      status: 'pending',
-      current_state: 'working',
-      events: [],
-      has_more: true,
-      next_sequence: 0,
-    }
-
-    ;(global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => mockResponse,
-    })
+  it('should start polling when enabled with team ID and execution ID', async () => {
+    mockGeneratedClient.GET.mockReturnValue(
+      success({
+        execution_id: EXECUTION_ID,
+        status: 'pending',
+        current_state: 'working',
+        events: [],
+        has_more: true,
+        next_sequence: 0,
+      })
+    )
 
     const { result } = renderHook(() =>
       useEventPolling({
-        executionId: 'exec-1',
+        teamId: TEAM_ID,
+        executionId: EXECUTION_ID,
         enabled: true,
       })
     )
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/agents/executions/exec-1/events?since=0'),
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+        EVENTS_PATH,
         expect.objectContaining({
-          credentials: 'include',
+          params: {
+            path: { team_id: TEAM_ID, id: EXECUTION_ID },
+            query: { since: 0 },
+          },
         })
       )
     })
@@ -54,68 +84,58 @@ describe('useEventPolling', () => {
   })
 
   it('should accumulate events from multiple polls', async () => {
-    const firstResponse = {
-      execution_id: 'exec-1',
-      status: 'pending',
-      current_state: 'working',
-      events: [
-        {
-          id: 'event-1',
-          execution_id: 'exec-1',
-          event_type: 'status-update',
-          event_data: { state: 'working' },
-          sequence_number: 1,
-          received_at: new Date().toISOString(),
-        },
-      ],
-      has_more: true,
-      next_sequence: 2,
-    }
-
-    const secondResponse = {
-      execution_id: 'exec-1',
-      status: 'pending',
-      current_state: 'working',
-      events: [
-        {
-          id: 'event-2',
-          execution_id: 'exec-1',
-          event_type: 'artifact-update',
-          event_data: { artifactId: 'art-1', append: false },
-          sequence_number: 2,
-          received_at: new Date().toISOString(),
-        },
-      ],
-      has_more: true,
-      next_sequence: 3,
-    }
-
-    ;(global.fetch as jest.Mock)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => firstResponse,
+    mockGeneratedClient.GET.mockReturnValueOnce(
+      success({
+        execution_id: EXECUTION_ID,
+        status: 'pending',
+        current_state: 'working',
+        events: [
+          {
+            id: 'event-1',
+            execution_id: EXECUTION_ID,
+            event_type: 'status-update',
+            event_data: { state: 'working' },
+            sequence_number: 1,
+            received_at: new Date().toISOString(),
+          },
+        ],
+        has_more: true,
+        next_sequence: 2,
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => secondResponse,
+    ).mockReturnValueOnce(
+      success({
+        execution_id: EXECUTION_ID,
+        status: 'pending',
+        current_state: 'working',
+        events: [
+          {
+            id: 'event-2',
+            execution_id: EXECUTION_ID,
+            event_type: 'artifact-update',
+            event_data: { artifactId: 'art-1', append: false },
+            sequence_number: 2,
+            received_at: new Date().toISOString(),
+          },
+        ],
+        has_more: true,
+        next_sequence: 3,
       })
+    )
 
     const { result } = renderHook(() =>
       useEventPolling({
-        executionId: 'exec-1',
+        teamId: TEAM_ID,
+        executionId: EXECUTION_ID,
         enabled: true,
       })
     )
 
-    // Wait for first poll
     await waitFor(() => {
       expect(result.current.events).toHaveLength(1)
     })
 
-    // Advance time to trigger second poll
     jest.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS)
 
-    // Wait for second poll
     await waitFor(() => {
       expect(result.current.events).toHaveLength(2)
     })
@@ -124,119 +144,100 @@ describe('useEventPolling', () => {
     expect(result.current.events[1].sequence_number).toBe(2)
   })
 
-  it('should advance cursor with each poll', async () => {
-    const responses = [
-      {
-        execution_id: 'exec-1',
+  it('should advance the cursor with each poll', async () => {
+    mockGeneratedClient.GET.mockReturnValueOnce(
+      success({
+        execution_id: EXECUTION_ID,
         status: 'pending',
+        current_state: 'working',
         events: [
           {
             id: 'e1',
-            sequence_number: 1,
+            execution_id: EXECUTION_ID,
             event_type: 'test',
             event_data: {},
-            execution_id: 'exec-1',
+            sequence_number: 1,
             received_at: '',
           },
         ],
         has_more: true,
         next_sequence: 2,
-        current_state: 'working',
-      },
-      {
-        execution_id: 'exec-1',
+      })
+    ).mockReturnValue(
+      success({
+        execution_id: EXECUTION_ID,
         status: 'pending',
+        current_state: 'working',
         events: [
           {
             id: 'e2',
-            sequence_number: 2,
+            execution_id: EXECUTION_ID,
             event_type: 'test',
             event_data: {},
-            execution_id: 'exec-1',
+            sequence_number: 2,
             received_at: '',
           },
         ],
         has_more: true,
         next_sequence: 3,
-        current_state: 'working',
-      },
-    ]
-
-    ;(global.fetch as jest.Mock)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => responses[0],
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => responses[1],
-      })
+    )
 
-    // Use real timers
     jest.runOnlyPendingTimers()
     jest.useRealTimers()
 
     renderHook(() =>
       useEventPolling({
-        executionId: 'exec-1',
+        teamId: TEAM_ID,
+        executionId: EXECUTION_ID,
         enabled: true,
-        pollingInterval: 500, // Faster for testing
+        pollingInterval: 500,
       })
     )
 
-    // First poll should use since=0
+    // First poll uses since=0.
     await waitFor(
       () => {
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining('since=0'),
-          expect.any(Object)
-        )
+        expect(sinceOf(1)).toBe(0)
       },
       { timeout: 3000 }
     )
 
-    // Wait for second poll (500ms + buffer)
+    // Second poll advances to the last returned sequence.
     await waitFor(
       () => {
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining('since=2'),
-          expect.any(Object)
-        )
+        expect(sinceOf(2)).toBe(2)
       },
       { timeout: 2000 }
     )
   })
 
   it('should stop polling when status is complete', async () => {
-    const mockResponse = {
-      execution_id: 'exec-1',
-      status: 'success',
-      current_state: 'completed',
-      events: [],
-      has_more: false,
-      next_sequence: 5,
-    }
-
-    ;(global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => mockResponse,
-    })
+    mockGeneratedClient.GET.mockReturnValue(
+      success({
+        execution_id: EXECUTION_ID,
+        status: 'success',
+        current_state: 'completed',
+        events: [],
+        has_more: false,
+        next_sequence: 5,
+      })
+    )
 
     const onComplete = jest.fn()
 
-    // Use real timers
     jest.runOnlyPendingTimers()
     jest.useRealTimers()
 
     const { result } = renderHook(() =>
       useEventPolling({
-        executionId: 'exec-1',
+        teamId: TEAM_ID,
+        executionId: EXECUTION_ID,
         enabled: true,
         onComplete,
       })
     )
 
-    // Wait for state to update
     await waitFor(
       () => {
         expect(result.current.status).toBe('success')
@@ -244,40 +245,37 @@ describe('useEventPolling', () => {
       { timeout: 5000 }
     )
 
-    // Verify polling stopped and callback was called
     expect(result.current.isPolling).toBe(false)
     expect(onComplete).toHaveBeenCalledWith('success')
   })
 
   it('should call onEvent callback for each new event', async () => {
-    const mockResponse = {
-      execution_id: 'exec-1',
-      status: 'pending',
-      current_state: 'working',
-      events: [
-        {
-          id: 'event-1',
-          execution_id: 'exec-1',
-          event_type: 'artifact-update',
-          event_data: { test: 'data' },
-          sequence_number: 1,
-          received_at: new Date().toISOString(),
-        },
-      ],
-      has_more: true,
-      next_sequence: 2,
-    }
-
-    ;(global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => mockResponse,
-    })
+    mockGeneratedClient.GET.mockReturnValue(
+      success({
+        execution_id: EXECUTION_ID,
+        status: 'pending',
+        current_state: 'working',
+        events: [
+          {
+            id: 'event-1',
+            execution_id: EXECUTION_ID,
+            event_type: 'artifact-update',
+            event_data: { test: 'data' },
+            sequence_number: 1,
+            received_at: new Date().toISOString(),
+          },
+        ],
+        has_more: true,
+        next_sequence: 2,
+      })
+    )
 
     const onEvent = jest.fn()
 
     renderHook(() =>
       useEventPolling({
-        executionId: 'exec-1',
+        teamId: TEAM_ID,
+        executionId: EXECUTION_ID,
         enabled: true,
         onEvent,
       })
@@ -293,22 +291,24 @@ describe('useEventPolling', () => {
     })
   })
 
-  it('should not poll when disabled', async () => {
+  it('should not poll when disabled', () => {
     renderHook(() =>
       useEventPolling({
-        executionId: 'exec-1',
+        teamId: TEAM_ID,
+        executionId: EXECUTION_ID,
         enabled: false,
       })
     )
 
     jest.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS * 2)
 
-    expect(global.fetch).not.toHaveBeenCalled()
+    expect(mockGeneratedClient.GET).not.toHaveBeenCalled()
   })
 
-  it('should not poll without execution ID', async () => {
+  it('should not poll without an execution ID', () => {
     renderHook(() =>
       useEventPolling({
+        teamId: TEAM_ID,
         executionId: null,
         enabled: true,
       })
@@ -316,24 +316,37 @@ describe('useEventPolling', () => {
 
     jest.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS * 2)
 
-    expect(global.fetch).not.toHaveBeenCalled()
+    expect(mockGeneratedClient.GET).not.toHaveBeenCalled()
   })
 
-  it('should handle fetch errors gracefully', async () => {
-    ;(global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'))
+  it('should not poll without a team ID', () => {
+    renderHook(() =>
+      useEventPolling({
+        teamId: undefined,
+        executionId: EXECUTION_ID,
+        enabled: true,
+      })
+    )
 
-    // Use real timers
+    jest.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS * 2)
+
+    expect(mockGeneratedClient.GET).not.toHaveBeenCalled()
+  })
+
+  it('should handle fetch errors gracefully and retry', async () => {
+    mockGeneratedClient.GET.mockRejectedValue(new Error('Network error'))
+
     jest.runOnlyPendingTimers()
     jest.useRealTimers()
 
     const { result } = renderHook(() =>
       useEventPolling({
-        executionId: 'exec-1',
+        teamId: TEAM_ID,
+        executionId: EXECUTION_ID,
         enabled: true,
       })
     )
 
-    // Wait for first error
     await waitFor(
       () => {
         expect(result.current.error).toBe('Network error')
@@ -341,59 +354,51 @@ describe('useEventPolling', () => {
       { timeout: 5000 }
     )
 
-    // First call should have happened
-    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(mockGeneratedClient.GET).toHaveBeenCalledTimes(1)
 
-    // Wait for retry (with backoff: interval * 2 = 6 seconds)
+    // Retry after backoff (interval * 2 = 6 seconds).
     await waitFor(
       () => {
-        expect(global.fetch).toHaveBeenCalledTimes(2)
+        expect(mockGeneratedClient.GET).toHaveBeenCalledTimes(2)
       },
       { timeout: 10000 }
     )
   }, 15000)
 
-  it('should respect custom polling interval', async () => {
-    const customInterval = 1000 // 1 second for faster test
+  it('should respect a custom polling interval', async () => {
+    mockGeneratedClient.GET.mockReturnValue(
+      success({
+        execution_id: EXECUTION_ID,
+        status: 'pending',
+        current_state: 'working',
+        events: [],
+        has_more: true,
+        next_sequence: 0,
+      })
+    )
 
-    const mockResponse = {
-      execution_id: 'exec-1',
-      status: 'pending',
-      events: [],
-      has_more: true,
-      next_sequence: 0,
-      current_state: 'working',
-    }
-
-    ;(global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => mockResponse,
-    })
-
-    // Use real timers
     jest.runOnlyPendingTimers()
     jest.useRealTimers()
 
     renderHook(() =>
       useEventPolling({
-        executionId: 'exec-1',
+        teamId: TEAM_ID,
+        executionId: EXECUTION_ID,
         enabled: true,
-        pollingInterval: customInterval,
+        pollingInterval: 1000,
       })
     )
 
-    // Wait for first poll
     await waitFor(
       () => {
-        expect(global.fetch).toHaveBeenCalledTimes(1)
+        expect(mockGeneratedClient.GET).toHaveBeenCalledTimes(1)
       },
       { timeout: 3000 }
     )
 
-    // Wait for second poll (custom interval + buffer)
     await waitFor(
       () => {
-        expect(global.fetch).toHaveBeenCalledTimes(2)
+        expect(mockGeneratedClient.GET).toHaveBeenCalledTimes(2)
       },
       { timeout: 3000 }
     )

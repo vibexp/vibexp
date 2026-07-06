@@ -14,9 +14,10 @@ jest.mock('@/components/TimeSeriesBarChart', () => ({
 }))
 
 const mockGetSessionCounts = jest.fn()
-jest.mock('@/utils/api', () => ({
-  apiClient: {
-    getSessionCounts: (...args: unknown[]) => mockGetSessionCounts(...args),
+jest.mock('@/services/aiToolsService', () => ({
+  aiToolsService: {
+    getClaudeCodeSessionCounts: (...args: unknown[]) =>
+      mockGetSessionCounts(...args),
   },
 }))
 
@@ -30,14 +31,12 @@ describe('SessionsChart', () => {
 
   it('reverses to ascending dates, trims RFC3339 to YYYY-MM-DD, and mirrors total', async () => {
     mockGetSessionCounts.mockResolvedValue({
-      data: {
-        total_sessions: 5,
-        // The sessions endpoint returns newest-first DATEs serialised as RFC3339.
-        counts: [
-          { date: '2026-05-02T00:00:00Z', count: 2 },
-          { date: '2026-05-01T00:00:00Z', count: 3 },
-        ],
-      },
+      total_sessions: 5,
+      // The sessions endpoint returns newest-first DATEs serialised as RFC3339.
+      counts: [
+        { date: '2026-05-02T00:00:00Z', count: 2 },
+        { date: '2026-05-01T00:00:00Z', count: 3 },
+      ],
     })
 
     render(<SessionsChart range="30d" onRangeChange={jest.fn()} />)
