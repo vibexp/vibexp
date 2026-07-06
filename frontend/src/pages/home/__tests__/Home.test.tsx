@@ -12,7 +12,7 @@ import type {
   Activity as ActivityType,
 } from '@/services/activityService'
 import type { FeedItem, FeedItemListResponse } from '@/services/feedService'
-import type { TeamStats } from '@/types/team'
+import type { TeamStats } from '@/services/teamService'
 
 const mockNavigate = jest.fn()
 jest.mock('react-router-dom', () => ({

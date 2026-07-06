@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { TeamInvitation } from '@/types/team'
+import type { TeamInvitation } from '@/services/teamService'
 
 // ---------------------------------------------------------------------------
 // Mocks

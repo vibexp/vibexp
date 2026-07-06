@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import type { TeamMember } from '@/types'
+import type { TeamMember } from '@/services/teamService'
 
 interface TeamMembersListProps {
   members: TeamMember[] | undefined

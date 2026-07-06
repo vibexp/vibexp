@@ -9,7 +9,7 @@ import {
   Zap,
 } from 'lucide-react'
 
-import type { TeamStats } from '@/types/team'
+import type { TeamStats } from '@/services/teamService'
 
 import type { OverviewStat, Trend } from './OverviewCard'
 

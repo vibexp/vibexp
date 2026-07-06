@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 
 import { promptService } from '@/services/promptService'
-import type { Team } from '@/types'
+import type { Team } from '@/services/teamService'
 
 export function slugify(name: string): string {
   return name

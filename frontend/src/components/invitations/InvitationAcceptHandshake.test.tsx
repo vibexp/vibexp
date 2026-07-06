@@ -1,6 +1,6 @@
 import { render, waitFor } from '@testing-library/react'
 
-import type { Team } from '@/types/team'
+import type { Team } from '@/services/teamService'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -73,6 +73,7 @@ import { InvitationAcceptHandshake } from './InvitationAcceptHandshake'
 
 const buildTeam = (overrides: Partial<Team> = {}): Team => ({
   id: 'team-1',
+  owner_id: 'owner-1',
   name: 'Engineering',
   slug: 'engineering',
   description: '',

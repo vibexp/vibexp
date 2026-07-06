@@ -14,8 +14,8 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { useAuth } from '@/contexts/useAuth'
+import type { TeamInvitation } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { TeamInvitation } from '@/types/team'
 import {
   GENERIC_ACCEPT_ERROR,
   INVALID_LINK_ERROR,
@@ -189,9 +189,7 @@ export function AcceptInvitation() {
               </>
             )}
             <Separator />
-            <InfoRow label="Invited email">
-              {invitation.invitee_email ?? invitation.email}
-            </InfoRow>
+            <InfoRow label="Invited email">{invitation.invitee_email}</InfoRow>
             <Separator />
             <InfoRow label="Expires">
               {new Date(invitation.expires_at).toLocaleString('en-US', {

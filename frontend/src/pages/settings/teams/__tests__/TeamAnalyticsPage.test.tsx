@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
-import type { Team, TeamStats } from '@/types/team'
+import type { Team, TeamStats } from '@/services/teamService'
 
 jest.mock('@/services/teamService', () => ({
   teamService: {

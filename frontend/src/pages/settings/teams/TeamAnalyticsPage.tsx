@@ -24,8 +24,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { Team, TeamStats } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { Team, TeamStats } from '@/types/team'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 const DEFAULT_RANGE = '30d'

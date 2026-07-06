@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 
-import type { Team } from '@/types/team'
+import type { Team } from '@/services/teamService'
 
 // ---------------------------------------------------------------------------
 // Mocks (set up before importing the hook under test)
@@ -72,6 +72,7 @@ import { useAcceptAndEnterTeam } from '../useAcceptAndEnterTeam'
 
 const buildTeam = (overrides: Partial<Team> = {}): Team => ({
   id: 'team-123',
+  owner_id: 'owner-1',
   name: 'Engineering',
   slug: 'engineering',
   description: '',

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 
-import type { TeamMember } from '@/types/team'
+import type { TeamMember } from '@/services/teamService'
 
 import { TeamMembersList } from './TeamMembersList'
 

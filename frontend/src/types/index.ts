@@ -22,8 +22,5 @@ export * from './version'
 // Memory Management types
 export * from './memory'
 
-// Team and Invitation types
-export * from './team'
-
 // GitHub Integration types
 export * from './github'

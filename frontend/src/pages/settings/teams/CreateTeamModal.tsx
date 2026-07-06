@@ -13,8 +13,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useTeam } from '@/contexts/TeamContext'
 import { toast } from '@/lib/toast'
+import type { CreateTeamRequest } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { CreateTeamRequest } from '@/types/team'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 interface CreateTeamModalProps {

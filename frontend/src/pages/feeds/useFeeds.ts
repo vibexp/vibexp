@@ -8,9 +8,9 @@ import type { Feed, FeedItem, FeedItemFilters } from '@/services/feedService'
 import { feedService } from '@/services/feedService'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
+import type { TeamMember } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import type { TeamMember } from '@/types/team'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 const DEFAULT_PER_PAGE = 20

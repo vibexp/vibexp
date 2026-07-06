@@ -4,7 +4,7 @@ import type {
   FeedItemReply,
   FeedItemReplyListResponse,
 } from '@/services/feedService'
-import type { TeamMember } from '@/types/team'
+import type { TeamMember } from '@/services/teamService'
 
 import { FeedItemReplies } from '../FeedItemReplies'
 

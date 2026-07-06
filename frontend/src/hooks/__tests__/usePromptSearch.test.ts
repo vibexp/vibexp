@@ -21,6 +21,7 @@ const mockGetPrompts = promptService.getPrompts as jest.MockedFunction<
 // Mock TeamContext to provide immediate access to currentTeam
 const mockTeam = {
   id: 'team-123',
+  owner_id: 'owner-1',
   name: 'Test Team',
   slug: 'test-team',
   description: 'Test Team Description',

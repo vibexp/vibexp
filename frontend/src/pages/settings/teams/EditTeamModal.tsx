@@ -14,8 +14,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/lib/toast'
+import type { Team } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { Team } from '@/types'
 
 interface EditTeamModalProps {
   isOpen: boolean

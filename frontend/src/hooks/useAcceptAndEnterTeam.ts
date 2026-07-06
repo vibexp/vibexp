@@ -5,8 +5,8 @@ import { emitInvitationsChanged } from '@/components/invitations/invitationEvent
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { useTeam } from '@/contexts/TeamContext'
 import { toast } from '@/lib/toast'
+import type { Team } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { Team } from '@/types/team'
 import { mapInvitationError } from '@/utils/invitationErrors'
 import { sessionStore } from '@/utils/storage'
 

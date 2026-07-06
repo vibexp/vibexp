@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { useAcceptAndEnterTeam } from '@/hooks/useAcceptAndEnterTeam'
+import type { TeamInvitation } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
-import type { TeamInvitation } from '@/types/team'
 import { sessionStore } from '@/utils/storage'
 
 import {

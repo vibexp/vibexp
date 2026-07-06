@@ -1,21 +1,6 @@
 import type { components } from '@vibexp/api-client'
 
 import { apiClient } from '../lib/apiClient'
-import type {
-  AcceptInvitationResponse,
-  CreateTeamRequest,
-  InvitationResponse,
-  InviteTeamMembersRequest,
-  InviteTeamMembersResponse,
-  PendingInvitationsResponse,
-  Team,
-  TeamInvitation,
-  TeamMember,
-  TeamMembersResponse,
-  TeamsResponse,
-  TeamStats,
-  UpdateTeamRequest,
-} from '../types/team'
 import type { ResourceAccessMetricsResponse } from './resourceAccessService'
 
 // Generated wire types for the team AI-tools metrics (issue #92 hooks slice).
@@ -33,6 +18,70 @@ export type TopAccessedResource =
   components['schemas']['TopAccessedResourceItem']
 export type TeamTopAccessedResourcesResponse =
   components['schemas']['TeamTopAccessedResourcesResponse']
+
+// Generated wire types for the team domain (epic #87), keeping the historical
+// names as aliases of the renamed generated schemas so ~28 consumers don't churn.
+// ⚠️ COLLISION TRAP: the manual `InvitationResponse` was the `{ invitation }`
+// wrapper → generated `InvitationDetailsResponse`; the manual `TeamInvitation`
+// (the invitation object itself) → generated `InvitationResponse`.
+export type Team = components['schemas']['Team']
+export type TeamMember = components['schemas']['TeamMemberDetail']
+export type TeamsResponse = components['schemas']['TeamListResponse']
+// `members` stays optional — the backend omits the slice when empty (Go
+// omitempty), which the generated (required) field doesn't model.
+export type TeamMembersResponse = Omit<
+  components['schemas']['TeamMembersListResponse'],
+  'members'
+> & { members?: TeamMember[] }
+export type TeamStats = components['schemas']['TeamStatsResponse']
+// `role` stays optional — the service injects a default ('member'); the
+// generated SendInvitationsRequest marks it required.
+export type InviteTeamMembersRequest = Omit<
+  components['schemas']['SendInvitationsRequest'],
+  'role'
+> & { role?: 'member' | 'admin' }
+// The generated InvitationResponse marks every field optional (Go omitempty),
+// but the get/list invitation endpoints always populate the invitation's
+// identity + lifecycle fields (as the previous hand-written type asserted), so
+// re-require them here to avoid scattering fallbacks across ~12 consumers.
+export type TeamInvitation = components['schemas']['InvitationResponse'] & {
+  id: string
+  token: string
+  team_id: string
+  team_name: string
+  status: InvitationStatus
+  created_at: string
+  expires_at: string
+}
+// The `{ invitation }` wrapper (generated InvitationDetailsResponse), re-typed
+// so the wrapped value is the domain TeamInvitation.
+export interface InvitationResponse {
+  invitation: TeamInvitation
+}
+// `invitations` stays optional (Go omitempty) and carries the domain type.
+export type PendingInvitationsResponse = Omit<
+  components['schemas']['PendingInvitationsListResponse'],
+  'invitations'
+> & { invitations?: TeamInvitation[] }
+export type AcceptInvitationResponse =
+  components['schemas']['AcceptInvitationResponse']
+export type CreateTeamRequest = components['schemas']['CreateTeamRequest']
+export type UpdateTeamRequest = components['schemas']['UpdateTeamRequest']
+
+// Local shapes with no generated counterpart. `InviteTeamMembersResponse` is a
+// spec gap; `TeamWithMembers` is a frontend composite; the role/status unions
+// exist only inline in the generated schemas (status is now `revoked`, not the
+// legacy `expired`).
+export type TeamRole = 'owner' | 'admin' | 'member'
+export type InvitationStatus = 'pending' | 'accepted' | 'rejected' | 'revoked'
+export interface InviteTeamMembersResponse {
+  invitations: { email: string; invitation_id: string; status: string }[]
+  success_count: number
+  error_count: number
+}
+export interface TeamWithMembers extends Team {
+  members: TeamMember[]
+}
 
 /**
  * Team service for managing teams and team invitations
