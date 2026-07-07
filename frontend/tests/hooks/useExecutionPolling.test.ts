@@ -14,10 +14,7 @@
 
 import { renderHook, act, waitFor } from '@testing-library/react'
 
-import type {
-  AgentExecution,
-  AgentExecutionResponse,
-} from '../../src/services/agentService'
+import type { AgentExecution } from '../../src/services/agentService'
 
 // Mock the agentService
 const mockAgentService = {
@@ -45,13 +42,9 @@ describe('useExecutionPolling', () => {
     version: 1,
   }
 
-  const createMockResponse = (
-    execution: AgentExecution
-  ): AgentExecutionResponse => ({
-    status: 'success',
-    message: 'Execution retrieved',
-    data: execution,
-  })
+  // getExecutionStatus now returns the bare AgentExecution (no envelope).
+  const createMockResponse = (execution: AgentExecution): AgentExecution =>
+    execution
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -697,25 +690,6 @@ describe('useExecutionPolling', () => {
   })
 
   describe('Response Data Handling', () => {
-    it('should handle wrapped response data', async () => {
-      const wrappedResponse = {
-        data: mockExecution,
-      }
-
-      mockAgentService.getExecutionStatus.mockResolvedValue(wrappedResponse)
-
-      const { result } = renderHook(() =>
-        useExecutionPolling({
-          teamId: 'test-team-id',
-          executionId: 'exec-123',
-        })
-      )
-
-      await waitFor(() => {
-        expect(result.current.execution).toEqual(mockExecution)
-      })
-    })
-
     it('should handle unwrapped response data', async () => {
       mockAgentService.getExecutionStatus.mockResolvedValue(mockExecution)
 

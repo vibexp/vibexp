@@ -77,7 +77,7 @@ export function Agents() {
         currentFilters
       )
 
-      const responseData = 'data' in response ? response.data : response
+      const responseData = response
       const agents = Array.isArray(responseData.agents)
         ? responseData.agents
         : []
@@ -100,7 +100,7 @@ export function Agents() {
 
       try {
         const response = await agentService.getAgentStats(currentTeam.id)
-        const statsData = 'data' in response ? response.data : response
+        const statsData = response
 
         setState(prev => ({
           ...prev,

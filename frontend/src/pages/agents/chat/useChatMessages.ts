@@ -206,9 +206,7 @@ export function useChatMessages({
               teamId,
               currentExecutionId
             )
-            const execution =
-              (response as { data?: AgentExecution }).data ??
-              (response as unknown as AgentExecution)
+            const execution = response
             handleExecutionComplete(execution)
           } catch (error) {
             toast.error(
@@ -294,9 +292,7 @@ export function useChatMessages({
           { [inputMode]: userMessage.text },
           conversationId ?? undefined
         )
-        const executionData =
-          (response as { data?: AgentExecution }).data ??
-          (response as unknown as AgentExecution)
+        const executionData = response
 
         if (
           executionData.status === 'pending' ||

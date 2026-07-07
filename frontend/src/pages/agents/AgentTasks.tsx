@@ -88,7 +88,7 @@ export function AgentTasks() {
     try {
       setLoadingAgent(true)
       const response = await agentService.getAgent(teamId, agentId)
-      const agentData = 'data' in response ? response.data : response
+      const agentData = response
       setAgent(agentData)
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to load agent'))

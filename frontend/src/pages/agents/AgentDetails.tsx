@@ -39,11 +39,7 @@ export function AgentDetails() {
       setLoading(true)
       setError(null)
       const response = await agentService.getAgent(teamId, agentId)
-      const agentData = response.data
-      if (typeof agentData !== 'object' || !('id' in agentData)) {
-        throw new Error('No agent data received')
-      }
-      setAgent(agentData)
+      setAgent(response)
     } catch (err) {
       const errorMessage = getErrorMessage(err, 'Failed to load agent')
       setError(errorMessage)
