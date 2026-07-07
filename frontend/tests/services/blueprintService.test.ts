@@ -52,7 +52,7 @@ describe('BlueprintService', () => {
   }
 
   const mockListResponse: BlueprintListResponse = {
-    spec_libraries: [mockBlueprint],
+    blueprints: [mockBlueprint],
     page: 1,
     per_page: 20,
     total_count: 1,
