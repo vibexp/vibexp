@@ -77,7 +77,7 @@ export function Blueprints() {
         current
       )
       setState({
-        blueprints: response.spec_libraries,
+        blueprints: response.blueprints,
         loading: false,
         error: null,
         totalPages: response.total_pages,

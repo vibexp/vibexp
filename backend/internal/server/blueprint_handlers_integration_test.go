@@ -19,6 +19,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 // MockBlueprintContainer implements container.Container interface for blueprint tests
@@ -696,6 +697,61 @@ func TestHandleListBlueprints_Success(t *testing.T) {
 
 	assert.Equal(t, 2, response.TotalCount)
 	assert.Len(t, response.Blueprints, 2)
+
+	mockBlueprintService.AssertExpectations(t)
+}
+
+// TestHandleListBlueprints_EmptyResultConformsToSpec guards the issue #121 fix:
+// the empty blueprints list must serialize under the wire field name the spec
+// documents (`blueprints`). It reproduces the exact body the frontend crashed
+// on ({"blueprints":[],"total_count":0,...}) and validates it against the spec,
+// so a future spec/backend field-name divergence fails here instead of in E2E.
+func TestHandleListBlueprints_EmptyResultConformsToSpec(t *testing.T) {
+	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
+
+	mockBlueprintService.On(
+		"ListBlueprints",
+		"user-123",
+		mock.MatchedBy(func(filters services.BlueprintFilters) bool {
+			return filters.Page == 1 && filters.Limit == 10
+		})).Return(&models.BlueprintListResponse{
+		Blueprints: []models.Blueprint{},
+		TotalCount: 0,
+		Page:       1,
+		PerPage:    20,
+		TotalPages: 0,
+	}, nil)
+
+	mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
+	mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
+	mockAPIKeyService.On("ValidateAPIKey", mock.Anything, "vxk_test_fake_key_for_testing").
+		Return(&models.APIKey{ID: "api-key-123", UserID: "user-123"}, nil)
+	mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", mock.AnythingOfType("string")).
+		Return(true, nil).Maybe()
+
+	mockContainer := &MockBlueprintContainer{
+		BlueprintServiceMock: mockBlueprintService,
+		TeamServiceMock:      mockTeamService,
+		APIKeyServiceMock:    mockAPIKeyService,
+	}
+
+	cfg := &config.Config{}
+	logger := slog.New(slog.DiscardHandler)
+	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv.container = mockContainer
+
+	req := createBlueprintAuthenticatedRequest(
+		"GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/blueprints", "", "user-123")
+	rr := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(rr, req)
+	specconformance.AssertConformsToSpec(t, req, rr)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	// The wire field must be `blueprints` (spec name aligned with the backend).
+	assert.JSONEq(t,
+		`{"blueprints":[],"total_count":0,"page":1,"per_page":20,"total_pages":0}`,
+		rr.Body.String())
 
 	mockBlueprintService.AssertExpectations(t)
 }

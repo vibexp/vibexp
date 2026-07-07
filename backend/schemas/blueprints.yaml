@@ -200,7 +200,7 @@ UpdateBlueprintRequest:
 BlueprintListResponse:
   type: object
   properties:
-    spec_libraries:
+    blueprints:
       type: array
       items:
         $ref: '#/Blueprint'
@@ -222,7 +222,7 @@ BlueprintListResponse:
       description: Total number of pages
       example: 3
   required:
-    - spec_libraries
+    - blueprints
     - total_count
     - page
     - per_page
