@@ -1,6 +1,6 @@
 import type { components } from '@vibexp/api-client'
 
-import { apiClient } from '../lib/apiClient'
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 
 // Generated wire types for the auth domain — the OpenAPI spec is the single
 // source of truth. `LoginUrlResponse` keeps its historical name as an alias of
@@ -19,8 +19,8 @@ class AuthService {
    * label. The list may be empty when no provider is configured.
    */
   async getProviders(): Promise<AuthProvider[]> {
-    const response = await apiClient.get<ProvidersResponse>('/auth/providers')
-    return response.providers
+    return (await unwrap(generatedClient.GET('/api/v1/auth/providers', {})))
+      .providers
   }
 
   /**
@@ -30,11 +30,13 @@ class AuthService {
    * provider. The caller should redirect the browser to the returned URL.
    */
   async getLoginUrl(provider?: string): Promise<string> {
-    const endpoint = provider
-      ? `/auth/login?provider=${encodeURIComponent(provider)}`
-      : '/auth/login'
-    const response = await apiClient.get<LoginUrlResponse>(endpoint)
-    return response.url
+    return (
+      await unwrap(
+        generatedClient.GET('/api/v1/auth/login', {
+          params: { query: { provider } },
+        })
+      )
+    ).url
   }
 
   /**
@@ -42,21 +44,21 @@ class AuthService {
    * Returns the user object if the session is valid, throws on 401/network error.
    */
   async getCurrentUser(): Promise<User> {
-    return apiClient.get<User>('/auth/me')
+    return unwrap(generatedClient.GET('/api/v1/auth/me', {}))
   }
 
   /**
    * Server-side logout: clears the httpOnly session cookie.
    */
   async logout(): Promise<void> {
-    await apiClient.post<LogoutResponse>('/auth/logout')
+    await unwrap(generatedClient.POST('/api/v1/auth/logout', {}))
   }
 
   /**
    * Mark onboarding as completed for the current user.
    */
   async markOnboardingComplete(): Promise<User> {
-    return apiClient.post<User>('/user/onboarding/complete')
+    return unwrap(generatedClient.POST('/api/v1/user/onboarding/complete', {}))
   }
 
   /**
@@ -64,10 +66,11 @@ class AuthService {
    * Returns the authenticated User directly (no token).
    */
   async devLogin(email: string, name?: string): Promise<User> {
-    return apiClient.post<User>('/auth/dev/login', {
-      email,
-      name: name ?? 'Dev User',
-    })
+    return unwrap(
+      generatedClient.POST('/api/v1/auth/dev/login', {
+        body: { email, name: name ?? 'Dev User' },
+      })
+    )
   }
 }
 

@@ -1,6 +1,7 @@
 import type { components } from '@vibexp/api-client'
 
-import { apiClient } from '../lib/apiClient'
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
+import type { MetricsRange } from './resourceAccessService'
 
 // Generated wire types for the per-project resource-creation metrics domain
 // (issue #92 hooks slice). `CreationCountByDate` keeps its historical name as an
@@ -14,9 +15,7 @@ export type ResourceCreationMetricsResponse =
 /**
  * Service for fetching per-project resource-creation metrics (daily counts of
  * prompts/artifacts/blueprints/memories created over a time range). Backed by
- * the project-scoped resource-creation-metrics endpoint. Mirrors
- * resourceAccessService — both use the plain apiClient (the project metrics
- * domain is not yet on the generated typed client).
+ * the project-scoped resource-creation-metrics endpoint.
  */
 class ResourceCreationService {
   async getResourceCreationMetrics(
@@ -25,10 +24,17 @@ class ResourceCreationService {
     range = '30d',
     signal?: AbortSignal
   ): Promise<ResourceCreationMetricsResponse> {
-    const params = new URLSearchParams({ range })
-    return apiClient.get<ResourceCreationMetricsResponse>(
-      `/${encodeURIComponent(teamId)}/projects/${encodeURIComponent(slug)}/resource-creation-metrics?${params.toString()}`,
-      { signal }
+    return unwrap(
+      generatedClient.GET(
+        '/api/v1/{team_id}/projects/{slug}/resource-creation-metrics',
+        {
+          params: {
+            path: { team_id: teamId, slug },
+            query: { range: range as MetricsRange },
+          },
+          signal,
+        }
+      )
     )
   }
 }

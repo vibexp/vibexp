@@ -1,17 +1,22 @@
 import type { ResourceAccessMetricsResponse } from '../resourceAccessService'
 
-const mockApiClient = {
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  delete: jest.fn(),
-}
+// Mock the generated client; unwrap stays real so the test exercises the same
+// success/error resolution production uses.
+const mockGeneratedClient = { GET: jest.fn() }
 
-jest.mock('../../lib/apiClient', () => ({
-  apiClient: mockApiClient,
-}))
+jest.mock('../../lib/apiClientGenerated', () => {
+  const actual = jest.requireActual<
+    typeof import('../../lib/apiClientGenerated')
+  >('../../lib/apiClientGenerated')
+  return { ...actual, generatedClient: mockGeneratedClient }
+})
 
 import { resourceAccessService } from '../resourceAccessService'
+
+const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
+const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
+
+const PATH = '/api/v1/{team_id}/resource-access-metrics'
 
 describe('ResourceAccessService', () => {
   const teamId = 'team-123'
@@ -34,8 +39,8 @@ describe('ResourceAccessService', () => {
     jest.clearAllMocks()
   })
 
-  it('builds the team-scoped endpoint with query params and returns the response', async () => {
-    mockApiClient.get.mockResolvedValue(response)
+  it('calls the team-scoped endpoint with path + query params', async () => {
+    mockGeneratedClient.GET.mockReturnValue(success(response))
 
     const result = await resourceAccessService.getResourceAccessMetrics(
       teamId,
@@ -44,15 +49,22 @@ describe('ResourceAccessService', () => {
       '7d'
     )
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      `/${teamId}/resource-access-metrics?resource_type=prompt&resource_id=${resourceId}&range=7d`,
-      { signal: undefined }
-    )
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(PATH, {
+      params: {
+        path: { team_id: teamId },
+        query: {
+          resource_type: 'prompt',
+          resource_id: resourceId,
+          range: '7d',
+        },
+      },
+      signal: undefined,
+    })
     expect(result).toEqual(response)
   })
 
   it('defaults the range to 30d when omitted', async () => {
-    mockApiClient.get.mockResolvedValue(response)
+    mockGeneratedClient.GET.mockReturnValue(success(response))
 
     await resourceAccessService.getResourceAccessMetrics(
       teamId,
@@ -60,29 +72,18 @@ describe('ResourceAccessService', () => {
       resourceId
     )
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      `/${teamId}/resource-access-metrics?resource_type=prompt&resource_id=${resourceId}&range=30d`,
-      { signal: undefined }
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      PATH,
+      expect.objectContaining({
+        params: expect.objectContaining({
+          query: expect.objectContaining({ range: '30d' }),
+        }),
+      })
     )
   })
 
-  it('url-encodes the team id in the endpoint path', async () => {
-    mockApiClient.get.mockResolvedValue(response)
-
-    await resourceAccessService.getResourceAccessMetrics(
-      'team/with space',
-      resourceType,
-      resourceId
-    )
-
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      expect.stringContaining('/team%2Fwith%20space/resource-access-metrics?'),
-      { signal: undefined }
-    )
-  })
-
-  it('forwards an abort signal to the api client', async () => {
-    mockApiClient.get.mockResolvedValue(response)
+  it('forwards an abort signal to the generated client', async () => {
+    mockGeneratedClient.GET.mockReturnValue(success(response))
     const controller = new AbortController()
 
     await resourceAccessService.getResourceAccessMetrics(
@@ -93,13 +94,27 @@ describe('ResourceAccessService', () => {
       controller.signal
     )
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(expect.any(String), {
-      signal: controller.signal,
-    })
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      PATH,
+      expect.objectContaining({ signal: controller.signal })
+    )
   })
 
-  it('propagates errors thrown by the api client', async () => {
-    mockApiClient.get.mockRejectedValue(new Error('boom'))
+  it('throws ApiError on an RFC 9457 error response', async () => {
+    mockGeneratedClient.GET.mockReturnValue(
+      Promise.resolve({
+        error: {
+          type: 'https://api.vibexp.io/errors/INTERNAL_ERROR',
+          title: 'Internal Server Error',
+          status: 500,
+          detail: 'Failed to compute metrics',
+          code: 'INTERNAL_ERROR',
+          request_id: 'req-1',
+          timestamp: '2026-05-01T00:00:00Z',
+        },
+        response: { ok: false, status: 500, statusText: 'Error' } as Response,
+      })
+    )
 
     await expect(
       resourceAccessService.getResourceAccessMetrics(
@@ -107,6 +122,6 @@ describe('ResourceAccessService', () => {
         resourceType,
         resourceId
       )
-    ).rejects.toThrow('boom')
+    ).rejects.toThrow('Failed to compute metrics')
   })
 })

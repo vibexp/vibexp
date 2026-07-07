@@ -1,6 +1,6 @@
 import type { components } from '@vibexp/api-client'
 
-import { apiClient } from '../lib/apiClient'
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 
 // Generated wire types for the API-key domain — the OpenAPI spec is the single
 // source of truth. `integrations` / `integration_codes` are the closed union
@@ -15,16 +15,27 @@ class APIKeyService {
   async createAPIKey(
     request: CreateAPIKeyRequest
   ): Promise<CreateAPIKeyResponse> {
-    return apiClient.post<CreateAPIKeyResponse>('/settings/api-keys', request)
+    return unwrap(
+      generatedClient.POST('/api/v1/settings/api-keys', { body: request })
+    )
   }
 
   async getAPIKeys(): Promise<APIKey[]> {
-    return apiClient.get<APIKey[]>('/settings/api-keys')
+    // Spec drift: `listAPIKeysSettings` documents an APIKeyListResponse envelope,
+    // but the backend (handleListAPIKeys → writeOK) returns a bare APIKey[]
+    // array. Cast through the real runtime shape until the spec/handler are
+    // reconciled (tracked as a backend response-contract follow-up).
+    const result = await unwrap(
+      generatedClient.GET('/api/v1/settings/api-keys', {})
+    )
+    return result as unknown as APIKey[]
   }
 
   async deleteAPIKey(apiKeyId: string): Promise<void> {
-    await apiClient.delete<Record<string, never>>(
-      `/settings/api-keys/${apiKeyId}`
+    await unwrap(
+      generatedClient.DELETE('/api/v1/settings/api-keys/{id}', {
+        params: { path: { id: apiKeyId } },
+      })
     )
   }
 }

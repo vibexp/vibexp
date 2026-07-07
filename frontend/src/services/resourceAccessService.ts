@@ -1,6 +1,6 @@
 import type { components, operations } from '@vibexp/api-client'
 
-import { apiClient } from '../lib/apiClient'
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 
 // Generated wire types for the resource-access metrics domain (issue #92 hooks
 // slice) — the OpenAPI spec is the single source of truth. `ResourceAccessType`
@@ -13,6 +13,10 @@ export type AccessCountByDate =
   components['schemas']['ResourceAccessDailyCount']
 export type ResourceAccessMetricsResponse =
   components['schemas']['ResourceAccessMetricsResponse']
+// The selectable reporting windows the metrics endpoints accept.
+export type MetricsRange = NonNullable<
+  operations['getResourceAccessMetrics']['parameters']['query']['range']
+>
 
 /**
  * Service for fetching per-resource access metrics (web/cli/mcp/api breakdown
@@ -26,14 +30,20 @@ class ResourceAccessService {
     range = '30d',
     signal?: AbortSignal
   ): Promise<ResourceAccessMetricsResponse> {
-    const params = new URLSearchParams({
-      resource_type: resourceType,
-      resource_id: resourceId,
-      range,
-    })
-    return apiClient.get<ResourceAccessMetricsResponse>(
-      `/${encodeURIComponent(teamId)}/resource-access-metrics?${params.toString()}`,
-      { signal }
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/resource-access-metrics', {
+        params: {
+          path: { team_id: teamId },
+          // `range` originates from a fixed selector, so it is always one of the
+          // accepted window values.
+          query: {
+            resource_type: resourceType,
+            resource_id: resourceId,
+            range: range as MetricsRange,
+          },
+        },
+        signal,
+      })
     )
   }
 }
