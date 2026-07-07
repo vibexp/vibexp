@@ -23,8 +23,17 @@ const REQUEST_TIMEOUT_MS = 30000
 export const generatedClient = createApiClient({
   baseUrl: API_ORIGIN,
   credentials: 'include',
+  // Combine the caller's signal (openapi-fetch puts a per-request `signal` on
+  // the Request) with the request timeout so callers can still cancel in-flight
+  // requests (e.g. charts aborting on unmount / range change) while the timeout
+  // guard is preserved. `AbortSignal.any` aborts as soon as either fires.
   fetch: request =>
-    fetch(request, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }),
+    fetch(request, {
+      signal: AbortSignal.any([
+        request.signal,
+        AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      ]),
+    }),
 })
 
 interface FetchResult<T> {
