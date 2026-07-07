@@ -745,6 +745,7 @@ func TestHandleGetPromptPlaceholders_Success(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	srv.ServeHTTP(w, req)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -757,6 +758,34 @@ func TestHandleGetPromptPlaceholders_Success(t *testing.T) {
 	assert.Equal(t, "name", placeholders[0])
 	assert.Equal(t, "age", placeholders[1])
 	assert.Equal(t, "location", placeholders[2])
+
+	mockContainer.promptService.AssertExpectations(t)
+}
+
+// TestHandleGetPromptPlaceholders_EmptyReturnsArray guards the issue #121 fix:
+// a prompt with no placeholders must serialize {"placeholders":[]}, never null.
+// GetPromptPlaceholders returns a nil slice for the empty case, so this asserts
+// the handler coerces it to an empty JSON array and that the body conforms to
+// the (required, non-nullable array) spec.
+func TestHandleGetPromptPlaceholders_EmptyReturnsArray(t *testing.T) {
+	mockContainer := newMockPromptContainer(t)
+	setupPromptDefaultTeamMock(mockContainer)
+
+	mockContainer.promptService.On("GetPromptPlaceholders", "user-123", mock.Anything, "test-slug").
+		Return(([]string)(nil), nil)
+
+	srv := createTestServer(mockContainer)
+	req := makeAuthenticatedRequest(
+		"GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/test-slug/placeholders", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// The raw body must contain an empty array, not null (the crash in #121).
+	assert.JSONEq(t, `{"placeholders":[]}`, w.Body.String())
 
 	mockContainer.promptService.AssertExpectations(t)
 }

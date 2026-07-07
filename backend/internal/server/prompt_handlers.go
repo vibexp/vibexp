@@ -742,6 +742,15 @@ func (s *Server) handleGetPromptPlaceholders(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// The OpenAPI contract declares placeholders as a required, non-nullable
+	// array. ExtractAllPlaceholders returns a nil slice when a prompt has no
+	// placeholders, which marshals to JSON null and crashes clients that trust
+	// the generated types (issue #121). Coerce to an empty array so the wire
+	// shape always honors the spec.
+	if placeholders == nil {
+		placeholders = []string{}
+	}
+
 	response := map[string]interface{}{
 		"placeholders": placeholders,
 	}
