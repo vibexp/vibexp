@@ -285,15 +285,15 @@ export async function mockAgentsApi(
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(
-          envelope({
-            agents,
-            page: 1,
-            per_page: 20,
-            total_count: agents.length,
-            total_pages: agents.length > 0 ? 1 : 0,
-          })
-        ),
+        // The backend returns the list bare (handleListAgents -> writeOK), not
+        // enveloped — match that so the frontend's typed read works.
+        body: JSON.stringify({
+          agents,
+          page: 1,
+          per_page: 20,
+          total_count: agents.length,
+          total_pages: agents.length > 0 ? 1 : 0,
+        }),
       })
       return
     }
@@ -302,18 +302,17 @@ export async function mockAgentsApi(
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(
-          envelope({
-            total_agents: agents.length,
-            active_agents: agents.filter(a => a.status === 'active').length,
-            paused_agents: agents.filter(a => a.status === 'paused').length,
-            error_agents: agents.filter(a => a.status === 'error').length,
-            total_runs: agents.reduce((sum, a) => sum + a.total_runs, 0),
-            avg_success_rate: 91.7,
-            runs_today: 2,
-            runs_this_week: 8,
-          })
-        ),
+        // Bare stats object (handleGetAgentStats -> writeOK), not enveloped.
+        body: JSON.stringify({
+          total_agents: agents.length,
+          active_agents: agents.filter(a => a.status === 'active').length,
+          paused_agents: agents.filter(a => a.status === 'paused').length,
+          error_agents: agents.filter(a => a.status === 'error').length,
+          total_runs: agents.reduce((sum, a) => sum + a.total_runs, 0),
+          avg_success_rate: 91.7,
+          runs_today: 2,
+          runs_this_week: 8,
+        }),
       })
       return
     }
@@ -368,7 +367,7 @@ export async function mockAgentsApi(
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(envelope(agent)),
+        body: JSON.stringify(agent),
       })
       return
     }
