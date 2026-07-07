@@ -1,18 +1,18 @@
 import type { TeamInvitation } from '../teamService'
 
-const mockApiClient = {
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  delete: jest.fn(),
-}
+const mockGeneratedClient = { GET: jest.fn() }
 
-jest.mock('../../lib/apiClient', () => ({
-  apiClient: mockApiClient,
-}))
+jest.mock('../../lib/apiClientGenerated', () => {
+  const actual = jest.requireActual<
+    typeof import('../../lib/apiClientGenerated')
+  >('../../lib/apiClientGenerated')
+  return { ...actual, generatedClient: mockGeneratedClient }
+})
 
-// Import the real service after mocking apiClient.
 import { teamService } from '../teamService'
+
+const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
+const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 
 const buildInvitation = (
   overrides: Partial<TeamInvitation> = {}
@@ -29,29 +29,31 @@ const buildInvitation = (
   ...overrides,
 })
 
+const PATH = '/api/v1/teams/{id}/invitations'
+
 describe('TeamService.getTeamInvitations', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  it('calls GET /teams/{id}/invitations and returns the array as-is', async () => {
+  it('GETs the team invitations endpoint and returns the array', async () => {
     const invitations: TeamInvitation[] = [
       buildInvitation(),
       buildInvitation({ id: 'inv-2', invitee_email: 'second@example.com' }),
     ]
-    mockApiClient.get.mockResolvedValueOnce(invitations)
+    mockGeneratedClient.GET.mockReturnValue(success(invitations))
 
     const result = await teamService.getTeamInvitations('team-123')
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      '/teams/team-123/invitations'
-    )
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(PATH, {
+      params: { path: { id: 'team-123' } },
+    })
     expect(result).toEqual(invitations)
     expect(result).toHaveLength(2)
   })
 
   it('returns an empty array when the backend returns []', async () => {
-    mockApiClient.get.mockResolvedValueOnce([])
+    mockGeneratedClient.GET.mockReturnValue(success([]))
 
     const result = await teamService.getTeamInvitations('team-123')
 
@@ -59,28 +61,26 @@ describe('TeamService.getTeamInvitations', () => {
     expect(Array.isArray(result)).toBe(true)
   })
 
-  it('does not unwrap an envelope — the endpoint already returns a raw array', async () => {
-    // Regression guard: a previous bug shape would have called `response.invitations`.
+  it('does not unwrap an envelope — the endpoint returns a raw array', async () => {
     const invitations = [buildInvitation()]
-    mockApiClient.get.mockResolvedValueOnce(invitations)
+    mockGeneratedClient.GET.mockReturnValue(success(invitations))
 
     const result = await teamService.getTeamInvitations('team-xyz')
 
     expect(result).toBe(invitations)
   })
 
-  it('passes through pending invitations that include all status values from the backend', async () => {
+  it('passes through all invitation status values from the backend', async () => {
     const invitations: TeamInvitation[] = [
       buildInvitation({ id: 'p-1', status: 'pending' }),
       buildInvitation({ id: 'a-1', status: 'accepted' }),
       buildInvitation({ id: 'r-1', status: 'rejected' }),
       buildInvitation({ id: 'e-1', status: 'revoked' }),
     ]
-    mockApiClient.get.mockResolvedValueOnce(invitations)
+    mockGeneratedClient.GET.mockReturnValue(success(invitations))
 
     const result = await teamService.getTeamInvitations('team-123')
 
-    expect(result).toHaveLength(4)
     expect(result.map(i => i.status)).toEqual([
       'pending',
       'accepted',
@@ -89,22 +89,28 @@ describe('TeamService.getTeamInvitations', () => {
     ])
   })
 
-  it('propagates errors from the API client', async () => {
-    const error = new Error('forbidden')
-    mockApiClient.get.mockRejectedValueOnce(error)
+  it('throws ApiError on an RFC 9457 error', async () => {
+    mockGeneratedClient.GET.mockReturnValue(
+      Promise.resolve({
+        error: {
+          type: 'https://api.vibexp.io/errors/FORBIDDEN',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'forbidden',
+          code: 'FORBIDDEN',
+          request_id: 'req-1',
+          timestamp: '2024-01-01T00:00:00Z',
+        },
+        response: {
+          ok: false,
+          status: 403,
+          statusText: 'Forbidden',
+        } as Response,
+      })
+    )
 
     await expect(teamService.getTeamInvitations('team-123')).rejects.toThrow(
       'forbidden'
-    )
-  })
-
-  it('encodes the team id verbatim in the URL', async () => {
-    mockApiClient.get.mockResolvedValueOnce([])
-
-    await teamService.getTeamInvitations('team-with-dashes')
-
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      '/teams/team-with-dashes/invitations'
     )
   })
 })

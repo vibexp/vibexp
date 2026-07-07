@@ -51,9 +51,7 @@ export function useExecutionPolling({
         teamId,
         executionId
       )
-      const executionData =
-        (response as { data?: AgentExecution } | undefined)?.data ??
-        (response as unknown as AgentExecution)
+      const executionData = response
 
       setExecution(executionData)
       setError(null)

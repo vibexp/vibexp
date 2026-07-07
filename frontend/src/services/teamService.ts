@@ -1,7 +1,10 @@
 import type { components } from '@vibexp/api-client'
 
-import { apiClient } from '../lib/apiClient'
-import type { ResourceAccessMetricsResponse } from './resourceAccessService'
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
+import type {
+  MetricsRange,
+  ResourceAccessMetricsResponse,
+} from './resourceAccessService'
 
 // Generated wire types for the team AI-tools metrics (issue #92 hooks slice).
 // The `*CountByDate` rows keep their historical names as aliases of the renamed
@@ -68,17 +71,11 @@ export type AcceptInvitationResponse =
 export type CreateTeamRequest = components['schemas']['CreateTeamRequest']
 export type UpdateTeamRequest = components['schemas']['UpdateTeamRequest']
 
-// Local shapes with no generated counterpart. `InviteTeamMembersResponse` is a
-// spec gap; `TeamWithMembers` is a frontend composite; the role/status unions
-// exist only inline in the generated schemas (status is now `revoked`, not the
-// legacy `expired`).
+// Local shapes with no generated counterpart. `TeamWithMembers` is a frontend
+// composite; the role/status unions exist only inline in the generated schemas
+// (status is now `revoked`, not the legacy `expired`).
 export type TeamRole = 'owner' | 'admin' | 'member'
 export type InvitationStatus = 'pending' | 'accepted' | 'rejected' | 'revoked'
-export interface InviteTeamMembersResponse {
-  invitations: { email: string; invitation_id: string; status: string }[]
-  success_count: number
-  error_count: number
-}
 export interface TeamWithMembers extends Team {
   members: TeamMember[]
 }
@@ -91,46 +88,56 @@ class TeamService {
    * Get all teams for the current user
    */
   async getTeams(): Promise<Team[]> {
-    const response = await apiClient.get<TeamsResponse>('/teams')
-    return response.teams
+    return (await unwrap(generatedClient.GET('/api/v1/teams', {}))).teams
   }
 
   /**
    * Create a new team
    */
   async createTeam(request: CreateTeamRequest): Promise<Team> {
-    return apiClient.post<Team>('/teams', request)
+    return unwrap(generatedClient.POST('/api/v1/teams', { body: request }))
   }
 
   /**
    * Get team details (without members - use getTeamMembers for members)
    */
   async getTeamDetails(teamId: string): Promise<Team> {
-    const response = await apiClient.get<Team>(`/teams/${teamId}`)
-    return response
+    return unwrap(
+      generatedClient.GET('/api/v1/teams/{id}', {
+        params: { path: { id: teamId } },
+      })
+    )
   }
 
   /**
    * Get team members
    */
   async getTeamMembers(teamId: string): Promise<TeamMember[]> {
-    const response = await apiClient.get<TeamMembersResponse>(
-      `/teams/${teamId}/members`
-    )
+    // The generated response types `members` as required, but the backend omits
+    // an empty slice (Go omitempty), so read it defensively.
+    const response = (await unwrap(
+      generatedClient.GET('/api/v1/teams/{id}/members', {
+        params: { path: { id: teamId } },
+      })
+    )) as TeamMembersResponse
     return response.members ?? []
   }
 
   /**
-   * Invite members to a team
+   * Invite members to a team. The endpoint returns the created invitations as a
+   * raw array (`InvitationResponse[]`); the backend populates the identity /
+   * lifecycle fields the domain TeamInvitation requires.
    */
   async inviteMembers(
     teamId: string,
     request: InviteTeamMembersRequest
-  ): Promise<InviteTeamMembersResponse> {
-    return apiClient.post<InviteTeamMembersResponse>(
-      `/teams/${teamId}/invitations`,
-      { ...request, role: request.role ?? 'member' }
-    )
+  ): Promise<TeamInvitation[]> {
+    return (await unwrap(
+      generatedClient.POST('/api/v1/teams/{id}/invitations', {
+        params: { path: { id: teamId } },
+        body: { ...request, role: request.role ?? 'member' },
+      })
+    )) as TeamInvitation[]
   }
 
   /**
@@ -141,16 +148,22 @@ class TeamService {
    * `handleListTeamInvitations` in `team_invitation_handlers.go`.
    */
   async getTeamInvitations(teamId: string): Promise<TeamInvitation[]> {
-    return apiClient.get<TeamInvitation[]>(`/teams/${teamId}/invitations`)
+    // The backend always populates the invitation identity/lifecycle fields the
+    // domain TeamInvitation requires (see the type note above).
+    return (await unwrap(
+      generatedClient.GET('/api/v1/teams/{id}/invitations', {
+        params: { path: { id: teamId } },
+      })
+    )) as TeamInvitation[]
   }
 
   /**
    * Get all pending invitations for the current user
    */
-  async getPendingInvitations() {
-    const response = await apiClient.get<PendingInvitationsResponse>(
-      '/invitations/pending'
-    )
+  async getPendingInvitations(): Promise<TeamInvitation[]> {
+    const response = (await unwrap(
+      generatedClient.GET('/api/v1/invitations/pending', {})
+    )) as PendingInvitationsResponse
     return response.invitations ?? []
   }
 
@@ -158,17 +171,21 @@ class TeamService {
    * Get invitation details by token
    */
   async getInvitationByToken(token: string): Promise<InvitationResponse> {
-    return apiClient.get<InvitationResponse>(
-      `/invitations/${encodeURIComponent(token)}`
-    )
+    return (await unwrap(
+      generatedClient.GET('/api/v1/invitations/{token}', {
+        params: { path: { token } },
+      })
+    )) as unknown as InvitationResponse
   }
 
   /**
    * Accept a team invitation
    */
   async acceptInvitation(token: string): Promise<AcceptInvitationResponse> {
-    return apiClient.post<AcceptInvitationResponse>(
-      `/invitations/${encodeURIComponent(token)}/accept`
+    return unwrap(
+      generatedClient.POST('/api/v1/invitations/{token}/accept', {
+        params: { path: { token } },
+      })
     )
   }
 
@@ -176,8 +193,10 @@ class TeamService {
    * Reject a team invitation
    */
   async rejectInvitation(token: string): Promise<void> {
-    await apiClient.post<Record<string, never>>(
-      `/invitations/${encodeURIComponent(token)}/reject`
+    await unwrap(
+      generatedClient.POST('/api/v1/invitations/{token}/reject', {
+        params: { path: { token } },
+      })
     )
   }
 
@@ -185,8 +204,10 @@ class TeamService {
    * Leave a team
    */
   async leaveTeam(teamId: string, userId: string): Promise<void> {
-    await apiClient.delete<Record<string, never>>(
-      `/teams/${teamId}/members/${userId}`
+    await unwrap(
+      generatedClient.DELETE('/api/v1/teams/{id}/members/{userId}', {
+        params: { path: { id: teamId, userId } },
+      })
     )
   }
 
@@ -194,8 +215,10 @@ class TeamService {
    * Remove a member from a team
    */
   async removeMember(teamId: string, userId: string): Promise<void> {
-    await apiClient.delete<Record<string, never>>(
-      `/teams/${teamId}/members/${userId}`
+    await unwrap(
+      generatedClient.DELETE('/api/v1/teams/{id}/members/{userId}', {
+        params: { path: { id: teamId, userId } },
+      })
     )
   }
 
@@ -203,14 +226,23 @@ class TeamService {
    * Update a team
    */
   async updateTeam(teamId: string, request: UpdateTeamRequest): Promise<Team> {
-    return apiClient.put<Team>(`/teams/${teamId}`, request)
+    return unwrap(
+      generatedClient.PUT('/api/v1/teams/{id}', {
+        params: { path: { id: teamId } },
+        body: request,
+      })
+    )
   }
 
   /**
    * Delete a team
    */
   async deleteTeam(teamId: string): Promise<void> {
-    await apiClient.delete<Record<string, never>>(`/teams/${teamId}`)
+    await unwrap(
+      generatedClient.DELETE('/api/v1/teams/{id}', {
+        params: { path: { id: teamId } },
+      })
+    )
   }
 
   /**
@@ -218,25 +250,30 @@ class TeamService {
    * returns the bare stats object (no envelope), matching getProjectStats.
    */
   async getTeamStats(teamId: string): Promise<TeamStats> {
-    return apiClient.get<TeamStats>(
-      `/teams/${encodeURIComponent(teamId)}/stats`
+    return unwrap(
+      generatedClient.GET('/api/v1/teams/{id}/stats', {
+        params: { path: { id: teamId } },
+      })
     )
   }
 
   /**
    * Get team-wide daily resource-creation metrics (prompts/artifacts/blueprints/
-   * memories/projects). Mirrors resourceCreationService — plain apiClient, the
-   * team metrics domain is not on the generated typed client.
+   * memories/projects).
    */
   async getTeamResourceCreationMetrics(
     teamId: string,
     range = '30d',
     signal?: AbortSignal
   ): Promise<TeamResourceCreationMetricsResponse> {
-    const params = new URLSearchParams({ range })
-    return apiClient.get<TeamResourceCreationMetricsResponse>(
-      `/teams/${encodeURIComponent(teamId)}/resource-creation-metrics?${params.toString()}`,
-      { signal }
+    return unwrap(
+      generatedClient.GET('/api/v1/teams/{id}/resource-creation-metrics', {
+        params: {
+          path: { id: teamId },
+          query: { range: range as MetricsRange },
+        },
+        signal,
+      })
     )
   }
 
@@ -249,10 +286,14 @@ class TeamService {
     range = '30d',
     signal?: AbortSignal
   ): Promise<ResourceAccessMetricsResponse> {
-    const params = new URLSearchParams({ range })
-    return apiClient.get<ResourceAccessMetricsResponse>(
-      `/teams/${encodeURIComponent(teamId)}/resource-access-metrics?${params.toString()}`,
-      { signal }
+    return unwrap(
+      generatedClient.GET('/api/v1/teams/{id}/resource-access-metrics', {
+        params: {
+          path: { id: teamId },
+          query: { range: range as MetricsRange },
+        },
+        signal,
+      })
     )
   }
 
@@ -265,10 +306,14 @@ class TeamService {
     range = '30d',
     signal?: AbortSignal
   ): Promise<TeamFeedCreationMetricsResponse> {
-    const params = new URLSearchParams({ range })
-    return apiClient.get<TeamFeedCreationMetricsResponse>(
-      `/teams/${encodeURIComponent(teamId)}/feed-creation-metrics?${params.toString()}`,
-      { signal }
+    return unwrap(
+      generatedClient.GET('/api/v1/teams/{id}/feed-creation-metrics', {
+        params: {
+          path: { id: teamId },
+          query: { range: range as MetricsRange },
+        },
+        signal,
+      })
     )
   }
 
@@ -285,12 +330,22 @@ class TeamService {
     source?: string,
     signal?: AbortSignal
   ): Promise<TeamTopAccessedResourcesResponse> {
-    const params = new URLSearchParams({ range })
-    if (limit != null) params.set('limit', String(limit))
-    if (source != null && source !== 'all') params.set('source', source)
-    return apiClient.get<TeamTopAccessedResourcesResponse>(
-      `/teams/${encodeURIComponent(teamId)}/top-accessed-resources?${params.toString()}`,
-      { signal }
+    return unwrap(
+      generatedClient.GET('/api/v1/teams/{id}/top-accessed-resources', {
+        params: {
+          path: { id: teamId },
+          query: {
+            range: range as MetricsRange,
+            limit,
+            // `source` is a fixed channel selector; 'all'/undefined mean no filter.
+            source:
+              source != null && source !== 'all'
+                ? (source as 'web' | 'cli' | 'mcp' | 'api')
+                : undefined,
+          },
+        },
+        signal,
+      })
     )
   }
 }

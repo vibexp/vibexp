@@ -179,19 +179,15 @@ function setup(stats: TeamStats = makeStats(), activities = [makeActivity()]) {
   mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(emptyMetrics())
   mockTeam.getTeamFeedCreationMetrics.mockResolvedValue(emptyMetrics())
   mockAgent.getAgentStats.mockResolvedValue({
-    status: 'success',
-    message: 'ok',
-    data: {
-      total_agents: 9,
-      active_agents: 9,
-      paused_agents: 0,
-      error_agents: 0,
-      total_runs: 0,
-      avg_success_rate: 0,
-      runs_today: 0,
-      runs_this_week: 0,
-      recent_activities: [],
-    },
+    total_agents: 9,
+    active_agents: 9,
+    paused_agents: 0,
+    error_agents: 0,
+    total_runs: 0,
+    avg_success_rate: 0,
+    runs_today: 0,
+    runs_this_week: 0,
+    recent_activities: [],
   })
   mockAiTools.getClaudeCodeOverviewStats.mockResolvedValue({
     total_sessions: 0,

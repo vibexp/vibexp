@@ -1,19 +1,22 @@
 import type { ResourceAccessMetricsResponse } from '../resourceAccessService'
-import type { TeamStats } from '../teamService'
-import type { TeamResourceCreationMetricsResponse } from '../teamService'
+import type {
+  TeamResourceCreationMetricsResponse,
+  TeamStats,
+} from '../teamService'
 
-const mockApiClient = {
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  delete: jest.fn(),
-}
+const mockGeneratedClient = { GET: jest.fn() }
 
-jest.mock('../../lib/apiClient', () => ({
-  apiClient: mockApiClient,
-}))
+jest.mock('../../lib/apiClientGenerated', () => {
+  const actual = jest.requireActual<
+    typeof import('../../lib/apiClientGenerated')
+  >('../../lib/apiClientGenerated')
+  return { ...actual, generatedClient: mockGeneratedClient }
+})
 
 import { teamService } from '../teamService'
+
+const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
+const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 
 describe('teamService analytics methods', () => {
   const teamId = 'team-123'
@@ -22,7 +25,7 @@ describe('teamService analytics methods', () => {
     jest.clearAllMocks()
   })
 
-  it('getTeamStats hits the bare /stats endpoint and returns the stats object', async () => {
+  it('getTeamStats GETs the bare /stats endpoint and returns the stats object', async () => {
     const stats: TeamStats = {
       total_projects: 4,
       total_prompts: 25,
@@ -31,15 +34,18 @@ describe('teamService analytics methods', () => {
       total_memories: 40,
       total_feed_items: 52,
     }
-    mockApiClient.get.mockResolvedValue(stats)
+    mockGeneratedClient.GET.mockReturnValue(success(stats))
 
     const result = await teamService.getTeamStats(teamId)
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(`/teams/${teamId}/stats`)
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/teams/{id}/stats',
+      { params: { path: { id: teamId } } }
+    )
     expect(result).toEqual(stats)
   })
 
-  it('getTeamResourceCreationMetrics builds the endpoint with range + forwards the signal', async () => {
+  it('getTeamResourceCreationMetrics passes range + forwards the signal', async () => {
     const response: TeamResourceCreationMetricsResponse = {
       status: 'success',
       message: 'ok',
@@ -59,7 +65,7 @@ describe('teamService analytics methods', () => {
         ],
       },
     }
-    mockApiClient.get.mockResolvedValue(response)
+    mockGeneratedClient.GET.mockReturnValue(success(response))
     const controller = new AbortController()
 
     const result = await teamService.getTeamResourceCreationMetrics(
@@ -68,25 +74,30 @@ describe('teamService analytics methods', () => {
       controller.signal
     )
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      `/teams/${teamId}/resource-creation-metrics?range=7d`,
-      { signal: controller.signal }
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/teams/{id}/resource-creation-metrics',
+      {
+        params: { path: { id: teamId }, query: { range: '7d' } },
+        signal: controller.signal,
+      }
     )
     expect(result).toEqual(response)
   })
 
   it('getTeamResourceCreationMetrics defaults the range to 30d', async () => {
-    mockApiClient.get.mockResolvedValue({ data: { counts: [] } })
+    mockGeneratedClient.GET.mockReturnValue(success({ data: { counts: [] } }))
 
     await teamService.getTeamResourceCreationMetrics(teamId)
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      `/teams/${teamId}/resource-creation-metrics?range=30d`,
-      { signal: undefined }
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/teams/{id}/resource-creation-metrics',
+      expect.objectContaining({
+        params: expect.objectContaining({ query: { range: '30d' } }),
+      })
     )
   })
 
-  it('getTeamResourceAccessMetrics builds the endpoint with range', async () => {
+  it('getTeamResourceAccessMetrics passes range', async () => {
     const response: ResourceAccessMetricsResponse = {
       status: 'success',
       message: 'ok',
@@ -98,29 +109,35 @@ describe('teamService analytics methods', () => {
         ],
       },
     }
-    mockApiClient.get.mockResolvedValue(response)
+    mockGeneratedClient.GET.mockReturnValue(success(response))
 
     const result = await teamService.getTeamResourceAccessMetrics(teamId, '14d')
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      `/teams/${teamId}/resource-access-metrics?range=14d`,
-      { signal: undefined }
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/teams/{id}/resource-access-metrics',
+      {
+        params: { path: { id: teamId }, query: { range: '14d' } },
+        signal: undefined,
+      }
     )
     expect(result).toEqual(response)
   })
 
-  it('url-encodes the team id in the analytics endpoints', async () => {
-    mockApiClient.get.mockResolvedValue({})
-
-    await teamService.getTeamStats('team/with space')
-
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      '/teams/team%2Fwith%20space/stats'
+  it('propagates errors thrown by the generated client', async () => {
+    mockGeneratedClient.GET.mockReturnValue(
+      Promise.resolve({
+        error: {
+          type: 'https://api.vibexp.io/errors/INTERNAL_ERROR',
+          title: 'Internal Server Error',
+          status: 500,
+          detail: 'boom',
+          code: 'INTERNAL_ERROR',
+          request_id: 'req-1',
+          timestamp: '2026-05-01T00:00:00Z',
+        },
+        response: { ok: false, status: 500, statusText: 'Error' } as Response,
+      })
     )
-  })
-
-  it('propagates errors thrown by the api client', async () => {
-    mockApiClient.get.mockRejectedValue(new Error('boom'))
 
     await expect(teamService.getTeamStats(teamId)).rejects.toThrow('boom')
   })

@@ -140,9 +140,7 @@ export function Home() {
           setSessionsTrendPct(overview.value.weekly_trend_percent)
         }
         if (agents.status === 'fulfilled') {
-          // getAgentStats may return the stats wrapped ({data}) or bare.
-          const a = agents.value
-          const stat = 'data' in a ? a.data : a
+          const stat = agents.value
           setTotalAgents(stat.total_agents)
         }
         if (created.status === 'fulfilled') {
