@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle, Info, X, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
-import type { Alert as AlertType } from '@/types'
+import type { Alert as AlertType } from '@/types/alert'
 
 interface AlertProps {
   alert: AlertType

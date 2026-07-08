@@ -14,11 +14,11 @@ const API_ORIGIN = getApiBaseUrl().replace(/\/api\/v1\/?$/, '')
 const REQUEST_TIMEOUT_MS = 30000
 
 /**
- * Typed openapi-fetch client generated from the backend OpenAPI spec.
- *
- * Side-by-side with the hand-written `apiClient`: domains migrate to this
- * client incrementally (see docs/developer-guidelines/frontend/api-integration.md).
- * Authentication uses the same httpOnly session cookie as `apiClient`.
+ * Typed openapi-fetch client generated from the backend OpenAPI spec — the
+ * single HTTP client for the SPA (the hand-written `apiClient` was retired in
+ * #94). Every domain service calls this client and resolves with `unwrap`; see
+ * docs/developer-guidelines/frontend/api-integration.md for the pattern.
+ * Authentication uses the httpOnly session cookie (`credentials: 'include'`).
  */
 export const generatedClient = createApiClient({
   baseUrl: API_ORIGIN,

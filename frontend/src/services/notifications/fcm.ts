@@ -7,7 +7,7 @@ import {
   onMessage,
 } from 'firebase/messaging'
 
-import { apiClient } from '@/lib/apiClient'
+import { generatedClient, unwrap } from '@/lib/apiClientGenerated'
 import {
   getFirebaseConfig,
   getFirebaseVapidKey,
@@ -59,11 +59,15 @@ class FCMService {
 
       if (!token) return false
 
-      await apiClient.post<unknown>('/device-tokens', {
-        token,
-        platform: 'web',
-        user_agent: navigator.userAgent,
-      })
+      await unwrap(
+        generatedClient.POST('/api/v1/device-tokens', {
+          body: {
+            token,
+            platform: 'web',
+            user_agent: navigator.userAgent,
+          },
+        })
+      )
 
       // Set up foreground message handler
       onMessage(this.messagingInstance, payload => {
@@ -104,7 +108,9 @@ class FCMService {
       if (!token) return
 
       await deleteToken(this.messagingInstance)
-      await apiClient.delete<unknown>('/device-tokens', { token })
+      await unwrap(
+        generatedClient.DELETE('/api/v1/device-tokens', { body: { token } })
+      )
     } catch {
       // Best-effort cleanup — do not propagate errors
     }

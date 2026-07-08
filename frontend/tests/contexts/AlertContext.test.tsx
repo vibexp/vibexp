@@ -1,7 +1,7 @@
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { renderHook } from '@testing-library/react'
 import { AlertProvider, useAlertContext } from '../../src/contexts/AlertContext'
-import type { AlertOptions } from '../../src/types'
+import type { AlertOptions } from '../../src/types/alert'
 
 // Mock timers for testing auto-dismiss functionality
 beforeEach(() => {

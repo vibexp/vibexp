@@ -1,10 +1,97 @@
-import { apiClient } from '../lib/apiClient'
+import { errorTypeUri } from '../config/siteConfig'
+import { ApiError, type APIErrorResponse } from '../types/errors'
 import type {
   OAuthConsentAction,
   OAuthConsentAttachResponse,
   OAuthConsentDecisionResponse,
   OAuthConsentDetails,
 } from '../types/oauth'
+import { getApiBaseUrl } from '../utils/environment'
+
+const API_BASE_URL = getApiBaseUrl()
+
+/**
+ * Minimal, self-contained fetch wrapper for the OAuth Authorization Server
+ * consent surface (`/oauth/consent[/attach]`).
+ *
+ * INTENTIONALLY HAND-WRITTEN — the deliberate exception to the "every service
+ * uses `generatedClient`" rule (see docs/developer-guidelines/frontend/api-integration.md).
+ * These endpoints are served by the embedded AS and are kept OUT of
+ * `openapi.yaml` by design: documenting them would break the spec drift +
+ * payload-coverage gates (the drift test's DB-free server never mounts the AS
+ * routes) — re-verified in #89 (PR #100), same conclusion as #34/PR #72. Because
+ * they are not in the spec, they are not in the generated client, so this thin
+ * wrapper reproduces just what the consent flow needs: same-origin session
+ * cookie auth, JSON encoding, and the RFC 9457 → {@link ApiError} mapping the
+ * rest of the app relies on (the consent page branches on `ApiError.status`).
+ * Keep it small and local; do not grow it into a second general-purpose client.
+ */
+async function consentRequest<T>(
+  method: 'GET' | 'POST',
+  endpoint: string,
+  body?: unknown,
+  headers: Record<string, string> = {}
+): Promise<T> {
+  const requestHeaders: Record<string, string> = { ...headers }
+  if (body !== undefined) {
+    requestHeaders['Content-Type'] = 'application/json'
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method,
+    headers: requestHeaders,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    await throwConsentError(response)
+  }
+
+  const contentType = response.headers.get('content-type')
+  if (contentType?.includes('application/json')) {
+    return (await response.json()) as T
+  }
+
+  // 204 / non-JSON responses have no body to parse.
+  return {} as T
+}
+
+/**
+ * Parse an error response into the same {@link ApiError} the generated client's
+ * `unwrap` throws, preserving the backend's RFC 9457 `detail`/`code` when
+ * present so callers behave identically regardless of transport.
+ */
+async function throwConsentError(response: Response): Promise<never> {
+  const contentType = response.headers.get('content-type')
+  const isJsonLike =
+    contentType !== null &&
+    (contentType.includes('application/problem+json') ||
+      contentType.includes('application/json'))
+
+  if (isJsonLike) {
+    try {
+      const parsed = (await response.json()) as APIErrorResponse
+      if (parsed.code && parsed.detail) {
+        throw new ApiError(parsed)
+      }
+    } catch (e) {
+      // Re-throw the ApiError we just built; a json() rejection or a body
+      // missing code/detail falls through to the generic error below.
+      if (e instanceof ApiError) throw e
+    }
+  }
+
+  throw new ApiError({
+    type: errorTypeUri('UNKNOWN'),
+    title: response.statusText !== '' ? response.statusText : 'Error',
+    status: response.status,
+    detail: `HTTP ${String(response.status)} error`,
+    code: 'UNKNOWN_ERROR',
+    request_id: '',
+    timestamp: new Date().toISOString(),
+  })
+}
 
 class OAuthService {
   /**
@@ -15,7 +102,8 @@ class OAuthService {
    * session; the page renders a friendly error state.
    */
   async getConsent(login: string): Promise<OAuthConsentDetails> {
-    return apiClient.get<OAuthConsentDetails>(
+    return consentRequest<OAuthConsentDetails>(
+      'GET',
       `/oauth/consent?login=${encodeURIComponent(login)}`
     )
   }
@@ -31,7 +119,8 @@ class OAuthService {
     login: string,
     csrf: string
   ): Promise<OAuthConsentAttachResponse> {
-    return apiClient.post<OAuthConsentAttachResponse>(
+    return consentRequest<OAuthConsentAttachResponse>(
+      'POST',
       '/oauth/consent/attach',
       { login },
       { 'X-CSRF-Token': csrf }
@@ -49,11 +138,11 @@ class OAuthService {
     csrf: string,
     action: OAuthConsentAction
   ): Promise<OAuthConsentDecisionResponse> {
-    return apiClient.post<OAuthConsentDecisionResponse>('/oauth/consent', {
-      login,
-      csrf,
-      action,
-    })
+    return consentRequest<OAuthConsentDecisionResponse>(
+      'POST',
+      '/oauth/consent',
+      { login, csrf, action }
+    )
   }
 }
 

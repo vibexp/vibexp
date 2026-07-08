@@ -38,15 +38,25 @@ jest.mock('@/lib/firebaseEnv', () => ({
   isFirebaseConfigured: mockIsFirebaseConfigured,
 }))
 
-// Mock apiClient
-const mockApiClient = {
-  post: jest.fn(),
-  delete: jest.fn(),
+// Mock the generated client; unwrap stays real so the test exercises the same
+// success/error resolution production uses.
+const mockGeneratedClient = {
+  POST: jest.fn(),
+  DELETE: jest.fn(),
 }
 
-jest.mock('@/lib/apiClient', () => ({
-  apiClient: mockApiClient,
-}))
+jest.mock('@/lib/apiClientGenerated', () => {
+  const actual = jest.requireActual<typeof import('@/lib/apiClientGenerated')>(
+    '@/lib/apiClientGenerated'
+  )
+  return {
+    ...actual,
+    generatedClient: mockGeneratedClient,
+  }
+})
+
+const okResponse = { ok: true, status: 201, statusText: 'Created' } as Response
+const success = () => ({ data: undefined, response: okResponse })
 
 // Mock toast
 const mockToast = {
@@ -114,7 +124,7 @@ describe('FCMService', () => {
 
       expect(result).toBe(false)
       expect(mockGetToken).not.toHaveBeenCalled()
-      expect(mockApiClient.post).not.toHaveBeenCalled()
+      expect(mockGeneratedClient.POST).not.toHaveBeenCalled()
     })
 
     it('returns false when permission is default (not yet decided)', async () => {
@@ -126,7 +136,7 @@ describe('FCMService', () => {
       const result = await fcmService.requestPermissionAndRegister()
 
       expect(result).toBe(false)
-      expect(mockApiClient.post).not.toHaveBeenCalled()
+      expect(mockGeneratedClient.POST).not.toHaveBeenCalled()
     })
   })
 
@@ -159,16 +169,21 @@ describe('FCMService', () => {
 
     it('returns true and posts device token when permission is granted', async () => {
       mockGetToken.mockResolvedValue('fcm-token-abc')
-      mockApiClient.post.mockResolvedValue(undefined)
+      mockGeneratedClient.POST.mockResolvedValue(success())
 
       const result = await fcmService.requestPermissionAndRegister()
 
       expect(result).toBe(true)
-      expect(mockApiClient.post).toHaveBeenCalledWith('/device-tokens', {
-        token: 'fcm-token-abc',
-        platform: 'web',
-        user_agent: expect.any(String),
-      })
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+        '/api/v1/device-tokens',
+        {
+          body: {
+            token: 'fcm-token-abc',
+            platform: 'web',
+            user_agent: expect.any(String),
+          },
+        }
+      )
     })
 
     it('returns false when getToken returns empty string', async () => {
@@ -177,12 +192,12 @@ describe('FCMService', () => {
       const result = await fcmService.requestPermissionAndRegister()
 
       expect(result).toBe(false)
-      expect(mockApiClient.post).not.toHaveBeenCalled()
+      expect(mockGeneratedClient.POST).not.toHaveBeenCalled()
     })
 
     it('registers onMessage foreground handler after successful registration', async () => {
       mockGetToken.mockResolvedValue('fcm-token-xyz')
-      mockApiClient.post.mockResolvedValue(undefined)
+      mockGeneratedClient.POST.mockResolvedValue(success())
 
       await fcmService.requestPermissionAndRegister()
 
@@ -195,7 +210,7 @@ describe('FCMService', () => {
     it('reuses existing Firebase app if already initialized', async () => {
       mockGetApps.mockReturnValue([mockApp])
       mockGetToken.mockResolvedValue('fcm-token-reuse')
-      mockApiClient.post.mockResolvedValue(undefined)
+      mockGeneratedClient.POST.mockResolvedValue(success())
 
       await fcmService.requestPermissionAndRegister()
 
@@ -206,7 +221,7 @@ describe('FCMService', () => {
     it('uses vapid key from getFirebaseVapidKey', async () => {
       mockGetToken.mockResolvedValue('fcm-token-vapid')
       mockGetFirebaseVapidKey.mockReturnValue('custom-vapid-key')
-      mockApiClient.post.mockResolvedValue(undefined)
+      mockGeneratedClient.POST.mockResolvedValue(success())
 
       await fcmService.requestPermissionAndRegister()
 
@@ -251,7 +266,7 @@ describe('FCMService', () => {
       const result = await fcmService.requestPermissionAndRegister()
 
       expect(result).toBe(false)
-      expect(mockApiClient.post).not.toHaveBeenCalled()
+      expect(mockGeneratedClient.POST).not.toHaveBeenCalled()
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         '[FCM] requestPermissionAndRegister failed:',
         abortError
@@ -272,7 +287,7 @@ describe('FCMService', () => {
 
       expect(result).toBe(false)
       expect(mockGetToken).not.toHaveBeenCalled()
-      expect(mockApiClient.post).not.toHaveBeenCalled()
+      expect(mockGeneratedClient.POST).not.toHaveBeenCalled()
       expect(consoleErrorSpy).toHaveBeenCalled()
     })
 
@@ -287,7 +302,7 @@ describe('FCMService', () => {
 
       expect(result).toBe(false)
       expect(mockGetToken).not.toHaveBeenCalled()
-      expect(mockApiClient.post).not.toHaveBeenCalled()
+      expect(mockGeneratedClient.POST).not.toHaveBeenCalled()
       expect(consoleErrorSpy).toHaveBeenCalled()
     })
   })
@@ -316,14 +331,20 @@ describe('FCMService', () => {
     it('calls deleteToken and removes device token from backend', async () => {
       mockGetToken.mockResolvedValue('fcm-token-to-revoke')
       mockDeleteToken.mockResolvedValue(true)
-      mockApiClient.delete.mockResolvedValue(undefined)
+      mockGeneratedClient.DELETE.mockResolvedValue({
+        data: undefined,
+        response: { ok: true, status: 204, statusText: 'No Content' },
+      })
 
       await fcmService.revokeToken()
 
       expect(mockDeleteToken).toHaveBeenCalledWith(mockMessaging)
-      expect(mockApiClient.delete).toHaveBeenCalledWith('/device-tokens', {
-        token: 'fcm-token-to-revoke',
-      })
+      expect(mockGeneratedClient.DELETE).toHaveBeenCalledWith(
+        '/api/v1/device-tokens',
+        {
+          body: { token: 'fcm-token-to-revoke' },
+        }
+      )
     })
 
     it('does not throw if getRegistration returns undefined', async () => {
@@ -359,7 +380,7 @@ describe('FCMService', () => {
       await fcmService.revokeToken()
 
       expect(mockDeleteToken).not.toHaveBeenCalled()
-      expect(mockApiClient.delete).not.toHaveBeenCalled()
+      expect(mockGeneratedClient.DELETE).not.toHaveBeenCalled()
     })
   })
 })

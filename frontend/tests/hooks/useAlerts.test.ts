@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { useAlerts } from '../../src/hooks/useAlerts'
 import { useAlertContext } from '../../src/contexts/AlertContext'
-import type { AlertContextValue, Alert } from '../../src/types'
+import type { AlertContextValue, Alert } from '../../src/types/alert'
 
 // Mock the AlertContext
 jest.mock('../../src/contexts/AlertContext')
