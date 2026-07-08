@@ -10,7 +10,7 @@
 # downgrades — which keeps govulncheck, staticcheck and the analyzers
 # reproducible everywhere. Go downloads the toolchain on demand if missing.
 # Keep GO_VERSION in sync with the go-version pins in the CI workflow.
-GO_VERSION := 1.25.11
+GO_VERSION := 1.25.12
 export GOTOOLCHAIN := go$(GO_VERSION)
 
 # ============================================

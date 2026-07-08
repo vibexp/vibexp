@@ -67,6 +67,11 @@ Memory:
 CreateMemoryRequest:
   type: object
   properties:
+    project_id:
+      type: string
+      format: uuid
+      description: UUID of the project this memory belongs to
+      example: "01234567-89ab-cdef-0123-456789abcdef"
     text:
       type: string
       description: The text content of the memory
@@ -86,12 +91,18 @@ CreateMemoryRequest:
         priority: "high"
         project: "api-project"
   required:
+    - project_id
     - text
 
 # Request model for updating memories
 UpdateMemoryRequest:
   type: object
   properties:
+    project_id:
+      type: string
+      format: uuid
+      description: New project UUID for the memory (moves it between projects)
+      example: "01234567-89ab-cdef-0123-456789abcdef"
     text:
       type: string
       description: Updated text content of the memory

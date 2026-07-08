@@ -22,6 +22,7 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 // mockActivityService is a simple mock for ActivityService
@@ -211,11 +212,14 @@ func TestHandleCreateMemory_Success(t *testing.T) {
 	expectedMemory := &models.Memory{
 		ID:        "memory-123",
 		UserID:    "test-user-123",
+		TeamID:    "team-123",
 		ProjectID: testHandlerProjectID,
 		Text:      "Test memory text",
+		Status:    models.MemoryStatusActive,
 		Metadata:  map[string]interface{}{"category": "work"},
 		CreatedAt: now,
 		UpdatedAt: now,
+		Version:   1,
 	}
 
 	// Mock project repository: project belongs to team-123
@@ -253,6 +257,7 @@ func TestHandleCreateMemory_Success(t *testing.T) {
 	srv.handleCreateMemory(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var response models.Memory
 	err := json.NewDecoder(w.Body).Decode(&response)
@@ -393,18 +398,26 @@ func TestHandleListMemories_Success(t *testing.T) {
 			{
 				ID:        "memory-1",
 				UserID:    "test-user-123",
+				TeamID:    "team-123",
+				ProjectID: testHandlerProjectID,
 				Text:      "Memory 1",
+				Status:    models.MemoryStatusActive,
 				Metadata:  map[string]interface{}{"category": "work"},
 				CreatedAt: now,
 				UpdatedAt: now,
+				Version:   1,
 			},
 			{
 				ID:        "memory-2",
 				UserID:    "test-user-123",
+				TeamID:    "team-123",
+				ProjectID: testHandlerProjectID,
 				Text:      "Memory 2",
+				Status:    models.MemoryStatusActive,
 				Metadata:  map[string]interface{}{"category": "personal"},
 				CreatedAt: now,
 				UpdatedAt: now,
+				Version:   1,
 			},
 		},
 		TotalCount: 2,
@@ -429,6 +442,7 @@ func TestHandleListMemories_Success(t *testing.T) {
 	srv.handleListMemories(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var response models.MemoryListResponse
 	err := json.NewDecoder(w.Body).Decode(&response)
@@ -486,10 +500,14 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 	updatedMemory := &models.Memory{
 		ID:        "memory-123",
 		UserID:    "test-user-123",
+		TeamID:    "team-123",
+		ProjectID: testHandlerProjectID,
 		Text:      "Updated memory text",
+		Status:    models.MemoryStatusActive,
 		Metadata:  map[string]interface{}{"category": "work"},
 		CreatedAt: now.Add(-time.Hour),
 		UpdatedAt: now,
+		Version:   2,
 	}
 
 	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "test-user-123", "memory").
@@ -518,6 +536,7 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 	srv.handleUpdateMemory(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var response models.Memory
 	err := json.NewDecoder(w.Body).Decode(&response)

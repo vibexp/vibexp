@@ -115,6 +115,12 @@ api-v1-team_id-integrations-github-callback:
                 format: int64
                 description: GitHub App installation ID from the callback URL
                 example: 12345678
+              setup_action:
+                type: string
+                description: >-
+                  Setup action reported by GitHub on the callback URL (e.g. "install").
+                  Accepted for forward compatibility but currently ignored server-side.
+                example: "install"
               state:
                 type: string
                 description: HMAC-signed state parameter from the install URL (CSRF protection)
@@ -257,6 +263,9 @@ api-v1-team_id-integrations-github-repositories-repo_id-import-project:
                 message:
                   type: string
                   example: "Project already exists for this repository"
+              required:
+                - project
+                - created
       '201':
         description: Project created successfully from the GitHub repository
         content:
@@ -269,6 +278,9 @@ api-v1-team_id-integrations-github-repositories-repo_id-import-project:
                 created:
                   type: boolean
                   example: true
+              required:
+                - project
+                - created
       '400':
         description: Invalid repository ID
         content:

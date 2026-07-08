@@ -55,6 +55,12 @@ api-v1-team_id-memories:
         schema:
           type: string
           format: uuid
+      - name: project_id
+        in: query
+        description: Filter memories by project ID
+        schema:
+          type: string
+          format: uuid
       - name: search
         in: query
         description: Search in memory text
@@ -133,6 +139,12 @@ api-v1-team_id-memories-search:
         in: path
         required: true
         description: Team ID
+        schema:
+          type: string
+          format: uuid
+      - name: project_id
+        in: query
+        description: Filter memories by project ID
         schema:
           type: string
           format: uuid

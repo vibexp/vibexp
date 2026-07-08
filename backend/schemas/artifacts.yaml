@@ -53,8 +53,10 @@ Artifact:
       example: "Comprehensive API documentation for the project"
     type:
       type: string
-      enum: [work_reports, static_contexts, general]
-      description: Type category of the artifact
+      description: >-
+        Type category of the artifact. An open string validated at runtime against the
+        team's registered types (the system defaults work_reports, static_contexts and
+        general, plus any custom types the team has added), not a fixed enum.
       example: "general"
     metadata:
       type: object
@@ -107,8 +109,11 @@ CreateArtifactRequest:
       example: "Comprehensive API documentation for the project"
     type:
       type: string
-      enum: [work_reports, static_contexts, general]
-      description: Type category of the artifact
+      description: >-
+        Type category of the artifact. An open string validated at runtime against the
+        team's registered types (the system defaults work_reports, static_contexts and
+        general, plus any custom types the team has added), not a fixed enum. Defaults
+        to general when omitted.
       example: "general"
     status:
       type: string
@@ -160,8 +165,11 @@ UpdateArtifactRequest:
       example: "Updated comprehensive API documentation for the project"
     type:
       type: string
-      enum: [work_reports, static_contexts, general]
-      description: Updated type category of the artifact
+      description: >-
+        Updated type category of the artifact. An open string validated at runtime
+        against the team's registered types (the system defaults work_reports,
+        static_contexts and general, plus any custom types the team has added), not a
+        fixed enum.
       example: "general"
     status:
       type: string

@@ -26,6 +26,7 @@ import (
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 const githubTestUserID = "user-github-123"
@@ -300,6 +301,45 @@ func addGitHubChiParams(req *http.Request, params map[string]string) *http.Reque
 }
 
 // =============================================================================
+// Tests for handleGitHubStatus
+// =============================================================================
+
+func TestHandleGitHubStatus_Success(t *testing.T) {
+	container, _ := newGitHubTestContainer(t)
+	srv := createGitHubTestServer(container)
+
+	installedAt := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	container.gitHubAppService.On(
+		"GetInstallationStatus", mock.Anything, githubTestTeamID,
+	).Return(&models.GitHubInstallationStatus{
+		Installed:      true,
+		AccountLogin:   "my-org",
+		InstallationID: 12345678,
+		Suspended:      false,
+		InstalledAt:    installedAt,
+	}, nil)
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/"+githubTestTeamID+"/integrations/github/status", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, githubTestUserID))
+	req = addGitHubChiParams(req, map[string]string{"team_id": githubTestTeamID})
+	rr := httptest.NewRecorder()
+
+	srv.handleGitHubStatus(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
+
+	var resp models.GitHubInstallationStatus
+	err := json.NewDecoder(rr.Body).Decode(&resp)
+	assert.NoError(t, err)
+	assert.True(t, resp.Installed)
+	assert.Equal(t, "my-org", resp.AccountLogin)
+
+	container.gitHubAppService.AssertExpectations(t)
+}
+
+// =============================================================================
 // Tests for handleGitHubImportProject
 // =============================================================================
 
@@ -323,7 +363,8 @@ func TestHandleGitHubImportProject_SuccessNewProject_RecordsActivity(t *testing.
 		mock.Anything, githubTestUserID, githubTestTeamID, int64(42),
 	).Return(project, true, nil)
 
-	req := makeGitHubPOSTAuthRequest("/api/v1/"+githubTestTeamID+"/github/repos/42/import-project", nil)
+	req := makeGitHubPOSTAuthRequest(
+		"/api/v1/"+githubTestTeamID+"/integrations/github/repositories/42/import-project", nil)
 	req = addGitHubChiParams(req, map[string]string{
 		"team_id": githubTestTeamID,
 		"repo_id": "42",
@@ -333,6 +374,7 @@ func TestHandleGitHubImportProject_SuccessNewProject_RecordsActivity(t *testing.
 	srv.handleGitHubImportProject(rr, req)
 
 	assert.Equal(t, http.StatusCreated, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 
 	// Verify activity was recorded
 	assert.Len(t, trackingSvc.recordedActivities, 1)
@@ -368,7 +410,8 @@ func TestHandleGitHubImportProject_ExistingProject_NoActivityRecorded(t *testing
 		mock.Anything, githubTestUserID, githubTestTeamID, int64(99),
 	).Return(project, false, nil)
 
-	req := makeGitHubPOSTAuthRequest("/api/v1/"+githubTestTeamID+"/github/repos/99/import-project", nil)
+	req := makeGitHubPOSTAuthRequest(
+		"/api/v1/"+githubTestTeamID+"/integrations/github/repositories/99/import-project", nil)
 	req = addGitHubChiParams(req, map[string]string{
 		"team_id": githubTestTeamID,
 		"repo_id": "99",
@@ -378,6 +421,7 @@ func TestHandleGitHubImportProject_ExistingProject_NoActivityRecorded(t *testing
 	srv.handleGitHubImportProject(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 
 	// No activity should be recorded since project already existed
 	assert.Len(t, trackingSvc.recordedActivities, 0)
@@ -478,7 +522,8 @@ func TestHandleGitHubImportBlueprints_Success_RecordsActivity(t *testing.T) {
 	).Return(report, nil)
 
 	reqBody := map[string]interface{}{"repository_id": 42}
-	req := makeGitHubPOSTAuthRequest("/api/v1/"+githubTestTeamID+"/github/import-blueprints", reqBody)
+	req := makeGitHubPOSTAuthRequest(
+		"/api/v1/"+githubTestTeamID+"/integrations/github/import-blueprints", reqBody)
 	req = addGitHubChiParams(req, map[string]string{
 		"team_id": githubTestTeamID,
 	})
@@ -487,6 +532,7 @@ func TestHandleGitHubImportBlueprints_Success_RecordsActivity(t *testing.T) {
 	srv.handleGitHubImportBlueprints(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 
 	// Verify activity was recorded
 	assert.Len(t, trackingSvc.recordedActivities, 1)

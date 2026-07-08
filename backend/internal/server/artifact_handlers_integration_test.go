@@ -19,6 +19,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 // Helper to add chi URL params to request context
@@ -133,8 +134,8 @@ func TestHandleGetArtifactsByProject_Success(t *testing.T) {
 
 	teamID := "550e8400-e29b-41d4-a716-446655440000"
 	expectedArtifacts := []models.Artifact{
-		{ID: "art-1", ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "slug-1", Title: "Artifact 1"},
-		{ID: "art-2", ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "slug-2", Title: "Artifact 2"},
+		{ID: "art-1", ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "slug-1", Title: "Artifact 1", UserID: "user-123", Type: "general", Status: "active", Metadata: map[string]interface{}{}},
+		{ID: "art-2", ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "slug-2", Title: "Artifact 2", UserID: "user-123", Type: "general", Status: "active", Metadata: map[string]interface{}{}},
 	}
 
 	expectedResponse := &models.ArtifactListResponse{
@@ -169,6 +170,7 @@ func TestHandleGetArtifactsByProject_Success(t *testing.T) {
 	srv.handleListArtifactsByProject(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 
 	var response models.ArtifactListResponse
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
@@ -249,6 +251,7 @@ func TestHandleCreateArtifact_Success(t *testing.T) {
 	srv.handleCreateArtifact(rr, req)
 
 	assert.Equal(t, http.StatusCreated, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 
 	var response models.Artifact
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
@@ -411,6 +414,7 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 		UserID:    "user-123",
 		Type:      "general",
 		Status:    "active",
+		Metadata:  map[string]interface{}{},
 		UpdatedAt: time.Now(),
 	}
 
@@ -451,6 +455,7 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 	srv.handleUpdateArtifact(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 
 	var response models.Artifact
 	err := json.Unmarshal(rr.Body.Bytes(), &response)

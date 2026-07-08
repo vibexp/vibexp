@@ -1,6 +1,6 @@
 module github.com/vibexp/vibexp
 
-go 1.25.11
+go 1.25.12
 
 require (
 	cloud.google.com/go/storage v1.62.3
