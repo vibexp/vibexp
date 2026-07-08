@@ -42,7 +42,7 @@ RUN npm run build
 # Pin to the native builder ($BUILDPLATFORM) and cross-compile per target arch:
 # the binary is CGO_ENABLED=0, so GOOS/GOARCH cross-compile for free (no QEMU).
 # buildx injects TARGETOS/TARGETARCH for each platform in the manifest list.
-FROM --platform=$BUILDPLATFORM golang:1.25.11-alpine AS backend
+FROM --platform=$BUILDPLATFORM golang:1.25.12-alpine AS backend
 
 ARG TARGETOS
 ARG TARGETARCH

@@ -81,10 +81,12 @@ api-v1-team_id-artifacts:
           enum: [active, draft, archived]
       - name: type
         in: query
-        description: Filter by type
+        description: >-
+          Filter by type. An open string matched against the team's registered types
+          (the system defaults work_reports, static_contexts and general, plus any
+          custom types the team has added), not a fixed enum.
         schema:
           type: string
-          enum: [work_reports, static_contexts, general]
       - name: search
         in: query
         description: Search in title, description, and content
@@ -202,10 +204,12 @@ api-v1-team_id-artifacts-project_id:
           enum: [active, draft, archived]
       - name: type
         in: query
-        description: Filter by type
+        description: >-
+          Filter by type. An open string matched against the team's registered types
+          (the system defaults work_reports, static_contexts and general, plus any
+          custom types the team has added), not a fixed enum.
         schema:
           type: string
-          enum: [work_reports, static_contexts, general]
       - name: search
         in: query
         description: Search in title, description, and content

@@ -9,44 +9,24 @@ GitHubInstallationStatus:
       type: boolean
       description: Whether the GitHub App is installed for the team
       example: true
+    account_login:
+      type: string
+      description: GitHub account or organization login that installed the app (present when installed is true)
+      example: "my-org"
     installation_id:
       type: integer
       format: int64
       description: GitHub installation ID (present when installed is true)
       example: 12345678
-    account_login:
-      type: string
-      description: GitHub account or organization login that installed the app
-      example: "my-org"
-    account_type:
-      type: string
-      description: Type of GitHub account (User or Organization)
-      enum: [User, Organization]
-      example: "Organization"
-    target_type:
-      type: string
-      description: Target type of the installation
-      example: "Organization"
-    permissions:
-      type: object
-      additionalProperties:
-        type: string
-      description: Permissions granted by the installation
-      example:
-        contents: "read"
-        metadata: "read"
-    events:
-      type: array
-      items:
-        type: string
-      description: Events the installation is subscribed to
-      example: ["push", "pull_request"]
-    suspended_at:
+    suspended:
+      type: boolean
+      description: Whether the installation is currently suspended
+      example: false
+    installed_at:
       type: string
       format: date-time
-      nullable: true
-      description: When the installation was suspended (null if not suspended)
-      example: null
+      description: When the GitHub App was installed (present when installed is true)
+      example: "2024-01-15T10:30:00Z"
   required:
     - installed
 
@@ -252,7 +232,7 @@ BlueprintImportReport:
       items:
         $ref: "#/BlueprintImportFailed"
       description: Details of files that failed to import
-    success_items:
+    successful_items:
       type: array
       items:
         $ref: "#/BlueprintImportSuccess"
@@ -268,5 +248,5 @@ BlueprintImportReport:
     - total_failed
     - total_skipped
     - failed_items
-    - success_items
+    - successful_items
     - skipped_items

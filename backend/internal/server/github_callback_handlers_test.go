@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 // =============================================================================
@@ -30,7 +31,7 @@ func makeCallbackRequest(body interface{}) *http.Request {
 		}
 	}
 	req := httptest.NewRequest(http.MethodPost,
-		"/api/v1/"+githubTestTeamID+"/github/callback",
+		"/api/v1/"+githubTestTeamID+"/integrations/github/callback",
 		bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(req.Context(), contextKeyUserID, githubTestUserID)
@@ -66,6 +67,7 @@ func TestHandleGitHubCallback_NewInstallation(t *testing.T) {
 	srv.handleGitHubCallback(rr, req)
 
 	assert.Equal(t, http.StatusCreated, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 
 	var resp map[string]interface{}
 	err := json.NewDecoder(rr.Body).Decode(&resp)
