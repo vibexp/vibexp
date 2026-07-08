@@ -6,7 +6,7 @@ import {
   useState,
 } from 'react'
 
-import type { Alert, AlertContextValue, AlertOptions } from '../types'
+import type { Alert, AlertContextValue, AlertOptions } from '../types/alert'
 
 const AlertContext = createContext<AlertContextValue | undefined>(undefined)
 
@@ -96,7 +96,6 @@ export function AlertProvider({ children }: AlertProviderProps) {
   return <AlertContext.Provider value={value}>{children}</AlertContext.Provider>
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAlertContext(): AlertContextValue {
   const context = useContext(AlertContext)
   if (context === undefined) {

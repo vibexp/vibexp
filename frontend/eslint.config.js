@@ -149,6 +149,42 @@ export default tseslint.config(
 
       // Disable react/prop-types for TypeScript (type checking is handled by TypeScript)
       'react/prop-types': 'off',
+
+      // --- Spec-first API guardrail (#94, epic #87) ---
+      // The hand-written `lib/apiClient`, the `src/types` barrel, and the
+      // `ApiResponse<T>`/`PaginatedData<T>` envelope were removed once every
+      // domain moved to the generated `@vibexp/api-client` + `generatedClient`.
+      // Block re-introducing them so wire types can't silently drift from the
+      // OpenAPI spec again. See docs/developer-guidelines/frontend/api-integration.md.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/types',
+              message:
+                'The hand-written API types barrel was removed (#94). Import UI-only types by direct path (e.g. `@/types/alert`) and wire types from the generated client via your service. See docs/developer-guidelines/frontend/api-integration.md',
+            },
+            {
+              name: '@/types/api',
+              message:
+                'The `ApiResponse<T>`/`PaginatedData<T>` envelope was removed (#94). Use the generated response types and `unwrap` from `@/lib/apiClientGenerated`. See docs/developer-guidelines/frontend/api-integration.md',
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/lib/apiClient', '@/lib/apiClient'],
+              message:
+                'The hand-written `apiClient` was removed (#94). Use `{ generatedClient, unwrap }` from `@/lib/apiClientGenerated` and re-export wire types from your service (the notificationService pattern). See docs/developer-guidelines/frontend/api-integration.md',
+            },
+            {
+              group: ['**/types/api'],
+              message:
+                'The `ApiResponse<T>`/`PaginatedData<T>` envelope was removed (#94). Use the generated response types and `unwrap` from `@/lib/apiClientGenerated`. See docs/developer-guidelines/frontend/api-integration.md',
+            },
+          ],
+        },
+      ],
     },
   },
   // 3. Prism Config - Disable import sorting (import order is critical for Prism)

@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 
 import { useAlertContext } from '../contexts/AlertContext'
-import type { UseAlerts } from '../types'
+import type { UseAlerts } from '../types/alert'
 
 export function useAlerts(): UseAlerts {
   const { alerts, showAlert, dismissAlert, clearAll } = useAlertContext()
