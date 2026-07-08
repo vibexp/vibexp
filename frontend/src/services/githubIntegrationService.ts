@@ -17,59 +17,31 @@ export type BlueprintImportFailed =
 export type BlueprintImportSkipped =
   components['schemas']['BlueprintImportSkipped']
 
-// DRIFT: the backend serializes the successful items as `successful_items`
-// (backend/internal/models/github_installation.go), but the spec's
-// `BlueprintImportReport` names the field `success_items`. Correct it locally so
-// the import-report view reads the real field (deferred spec-gap follow-up).
-export type BlueprintImportReport = Omit<
-  components['schemas']['BlueprintImportReport'],
-  'success_items'
-> & { successful_items: BlueprintImportSuccess[] }
+export type BlueprintImportReport =
+  components['schemas']['BlueprintImportReport']
 
 // UI-only repository visibility filter — not a wire type. Kept here now that the
 // hand-written `src/types/github.ts` is gone.
 export type VisibilityFilter = 'all' | 'private' | 'public'
 
-// DRIFT: `handleGitHubStatus` returns `models.GitHubInstallationStatus`
-// ({ installed, account_login, installation_id, suspended, installed_at } —
-// backend/internal/models/github_installation.go), but the spec's
-// `GitHubInstallationStatus` documents a different shape (suspended_at,
-// account_type, permissions, …). Model the real backend response locally until the
-// spec is corrected (deferred spec-gap follow-up).
-export interface GitHubInstallationStatus {
-  installed: boolean
-  account_login?: string
-  installation_id?: number
-  suspended?: boolean
-  installed_at?: string
-}
+export type GitHubInstallationStatus =
+  components['schemas']['GitHubInstallationStatus']
 
-// DRIFT: the spec's callback body omits `setup_action`; the backend struct carries
-// it but reads only `installation_id` + `state` (github_handlers.go). Keep it
-// optional so the callback page can forward the GitHub redirect's query param
-// unchanged — it is serialized but ignored server-side.
+// The callback body carries `setup_action` (accepted-and-ignored server-side); it
+// is part of the generated request body now.
 export type GitHubInstallCallbackRequest =
-  operations['handleGitHubCallback']['requestBody']['content']['application/json'] & {
-    setup_action?: string
-  }
+  operations['handleGitHubCallback']['requestBody']['content']['application/json']
 
-// DRIFT: the spec types `project` and `created` optional on the import response,
-// but the backend always returns them on a 2xx (github_handlers.go). Narrow to the
-// real success shape so callers read project fields without guards.
-export interface ImportProjectResponse {
-  project: components['schemas']['Project']
-  created: boolean
-  message?: string
-}
+// The import-project 2xx response always carries `project` + `created` (the spec
+// marks them required); this is the generated success shape.
+export type ImportProjectResponse =
+  operations['importGitHubProject']['responses'][200]['content']['application/json']
 
 class GitHubIntegrationService {
   /**
    * Get GitHub integration status for a team
    */
   async getStatus(teamId: string): Promise<GitHubInstallationStatus> {
-    // See the GitHubInstallationStatus DRIFT note: the runtime payload matches the
-    // local shape (it adds the optional `suspended`/`installed_at` the generated
-    // type lacks), so the generated response type is assignable to it directly.
     return unwrap(
       generatedClient.GET('/api/v1/{team_id}/integrations/github/status', {
         params: { path: { team_id: teamId } },
@@ -151,9 +123,7 @@ class GitHubIntegrationService {
         }
       )
     )
-    // See the ImportProjectResponse DRIFT note: `project`/`created` are always
-    // present on a successful response.
-    return result as unknown as ImportProjectResponse
+    return result
   }
 
   /**
@@ -173,9 +143,7 @@ class GitHubIntegrationService {
         }
       )
     )
-    // See the BlueprintImportReport DRIFT note: the runtime payload uses
-    // `successful_items`, not the spec's `success_items`.
-    return report as unknown as BlueprintImportReport
+    return report
   }
 }
 

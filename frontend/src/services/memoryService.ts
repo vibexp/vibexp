@@ -20,28 +20,16 @@ export type MemoryResponse = Memory
 // Lifecycle-status union, derived from the generated `Memory` schema.
 export type MemoryStatus = Memory['status']
 
-// DRIFT: `createMemory` requires `project_id` in the body and `updateMemory` reads
-// it (backend/internal/server/memory_handlers.go), but the spec's
-// Create/UpdateMemoryRequest omit it. Restore the real request contract with a
-// local extension until the spec documents the field (deferred spec-gap follow-up).
-export type CreateMemoryRequest =
-  components['schemas']['CreateMemoryRequest'] & {
-    project_id: string
-  }
-export type UpdateMemoryRequest =
-  components['schemas']['UpdateMemoryRequest'] & {
-    project_id?: string
-  }
+// Request shapes are the generated bodies — the spec now carries `project_id`
+// (required on create, optional on update).
+export type CreateMemoryRequest = components['schemas']['CreateMemoryRequest']
+export type UpdateMemoryRequest = components['schemas']['UpdateMemoryRequest']
 
-// List query params, sourced from the generated `listMemories` operation.
-// DRIFT: the backend memory list reads a `project_id` query param
-// (backend/internal/server/memory_handlers.go) that the spec's `listMemories`
-// query omits — the project-scoped Memories page relies on it. Extend the query
-// type until the spec documents it (deferred spec-gap follow-up); openapi-fetch
-// still serializes the extra key at runtime.
+// List query params, sourced from the generated `listMemories` operation (the
+// spec now carries the project-scoping `project_id` query param).
 export type MemoryFilters = NonNullable<
   operations['listMemories']['parameters']['query']
-> & { project_id?: string }
+>
 
 // Memory versions are the generic resource version, with `resource_type` ===
 // "memory". Kept as aliases so call sites read naturally while the version-history
@@ -73,8 +61,6 @@ class MemoryService {
     teamId: string,
     data: CreateMemoryRequest
   ): Promise<MemoryResponse> {
-    // `data` carries the required `project_id` (see the DRIFT note above); it is
-    // structurally a superset of the generated body, so it serializes as-is.
     return unwrap(
       generatedClient.POST('/api/v1/{team_id}/memories', {
         params: { path: { team_id: teamId } },
