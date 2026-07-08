@@ -142,6 +142,12 @@ api-v1-team_id-memories-search:
         schema:
           type: string
           format: uuid
+      - name: project_id
+        in: query
+        description: Filter memories by project ID
+        schema:
+          type: string
+          format: uuid
       - name: metadata_key
         in: query
         required: true
