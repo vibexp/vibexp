@@ -1,48 +1,86 @@
-import { apiClient } from '../lib/apiClient'
+import type { components, operations } from '@vibexp/api-client'
+
+import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 import type {
-  CreateMemoryRequest,
-  MemoriesResponse,
-  MemoryFilters,
-  MemoryResponse,
-  MemoryVersion,
-  MemoryVersionListResponse,
-  UpdateMemoryRequest,
-} from '../types'
+  ResourceVersion,
+  ResourceVersionListResponse,
+} from '../types/version'
+
+// Generated wire types for the memory domain — the OpenAPI spec is the single
+// source of truth; do not hand-write request/response shapes.
+export type Memory = components['schemas']['Memory']
+export type MemoryListResponse = components['schemas']['MemoryListResponse']
+
+// Back-compat aliases matching the old hand-written names: the list endpoint
+// returns `MemoryListResponse`, and single-memory endpoints return a bare `Memory`
+// (the backend `writeJSON` does not envelope memory payloads).
+export type MemoriesResponse = MemoryListResponse
+export type MemoryResponse = Memory
+
+// Lifecycle-status union, derived from the generated `Memory` schema.
+export type MemoryStatus = Memory['status']
+
+// DRIFT: `createMemory` requires `project_id` in the body and `updateMemory` reads
+// it (backend/internal/server/memory_handlers.go), but the spec's
+// Create/UpdateMemoryRequest omit it. Restore the real request contract with a
+// local extension until the spec documents the field (deferred spec-gap follow-up).
+export type CreateMemoryRequest =
+  components['schemas']['CreateMemoryRequest'] & {
+    project_id: string
+  }
+export type UpdateMemoryRequest =
+  components['schemas']['UpdateMemoryRequest'] & {
+    project_id?: string
+  }
+
+// List query params, sourced from the generated `listMemories` operation.
+// DRIFT: the backend memory list reads a `project_id` query param
+// (backend/internal/server/memory_handlers.go) that the spec's `listMemories`
+// query omits — the project-scoped Memories page relies on it. Extend the query
+// type until the spec documents it (deferred spec-gap follow-up); openapi-fetch
+// still serializes the extra key at runtime.
+export type MemoryFilters = NonNullable<
+  operations['listMemories']['parameters']['query']
+> & { project_id?: string }
+
+// Memory versions are the generic resource version, with `resource_type` ===
+// "memory". Kept as aliases so call sites read naturally while the version-history
+// module works against the resource-agnostic types.
+export type MemoryVersion = ResourceVersion
+export type MemoryVersionListResponse = ResourceVersionListResponse
 
 class MemoryService {
   async getMemories(
     teamId: string,
     filters: MemoryFilters = {}
   ): Promise<MemoriesResponse> {
-    const params = new URLSearchParams()
-
-    if (filters.project_id) params.append('project_id', filters.project_id)
-    if (filters.search) params.append('search', filters.search)
-    if (filters.status) params.append('status', filters.status)
-    if (filters.metadata_key)
-      params.append('metadata_key', filters.metadata_key)
-    if (filters.metadata_value)
-      params.append('metadata_value', filters.metadata_value)
-    if (filters.sort_by) params.append('sort_by', filters.sort_by)
-    if (filters.sort_order) params.append('sort_order', filters.sort_order)
-    if (filters.page) params.append('page', filters.page.toString())
-    if (filters.limit) params.append('limit', filters.limit.toString())
-
-    const queryString = params.toString()
-    const endpoint = `/${teamId}/memories${queryString ? `?${queryString}` : ''}`
-
-    return apiClient.get<MemoriesResponse>(endpoint)
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/memories', {
+        params: { path: { team_id: teamId }, query: filters },
+      })
+    )
   }
 
   async getMemory(teamId: string, id: string): Promise<MemoryResponse> {
-    return apiClient.get<MemoryResponse>(`/${teamId}/memories/${id}`)
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/memories/{id}', {
+        params: { path: { team_id: teamId, id } },
+      })
+    )
   }
 
   async createMemory(
     teamId: string,
     data: CreateMemoryRequest
   ): Promise<MemoryResponse> {
-    return apiClient.post<MemoryResponse>(`/${teamId}/memories`, data)
+    // `data` carries the required `project_id` (see the DRIFT note above); it is
+    // structurally a superset of the generated body, so it serializes as-is.
+    return unwrap(
+      generatedClient.POST('/api/v1/{team_id}/memories', {
+        params: { path: { team_id: teamId } },
+        body: data,
+      })
+    )
   }
 
   async updateMemory(
@@ -50,19 +88,30 @@ class MemoryService {
     id: string,
     data: UpdateMemoryRequest
   ): Promise<MemoryResponse> {
-    return apiClient.put<MemoryResponse>(`/${teamId}/memories/${id}`, data)
+    return unwrap(
+      generatedClient.PUT('/api/v1/{team_id}/memories/{id}', {
+        params: { path: { team_id: teamId, id } },
+        body: data,
+      })
+    )
   }
 
   async deleteMemory(teamId: string, id: string): Promise<void> {
-    await apiClient.delete(`/${teamId}/memories/${id}`)
+    await unwrap(
+      generatedClient.DELETE('/api/v1/{team_id}/memories/{id}', {
+        params: { path: { team_id: teamId, id } },
+      })
+    )
   }
 
   async getMemoryVersions(
     teamId: string,
     id: string
   ): Promise<MemoryVersionListResponse> {
-    return apiClient.get<MemoryVersionListResponse>(
-      `/${encodeURIComponent(teamId)}/memories/${encodeURIComponent(id)}/versions`
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/memories/{id}/versions', {
+        params: { path: { team_id: teamId, id } },
+      })
     )
   }
 
@@ -71,8 +120,15 @@ class MemoryService {
     id: string,
     versionNumber: number
   ): Promise<MemoryVersion> {
-    return apiClient.get<MemoryVersion>(
-      `/${encodeURIComponent(teamId)}/memories/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionNumber)}`
+    return unwrap(
+      generatedClient.GET(
+        '/api/v1/{team_id}/memories/{id}/versions/{version_number}',
+        {
+          params: {
+            path: { team_id: teamId, id, version_number: versionNumber },
+          },
+        }
+      )
     )
   }
 
@@ -81,8 +137,15 @@ class MemoryService {
     id: string,
     versionNumber: number
   ): Promise<MemoryResponse> {
-    return apiClient.post<MemoryResponse>(
-      `/${encodeURIComponent(teamId)}/memories/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionNumber)}/restore`
+    return unwrap(
+      generatedClient.POST(
+        '/api/v1/{team_id}/memories/{id}/versions/{version_number}/restore',
+        {
+          params: {
+            path: { team_id: teamId, id, version_number: versionNumber },
+          },
+        }
+      )
     )
   }
 
@@ -96,15 +159,19 @@ class MemoryService {
       )
     }
 
-    const params = new URLSearchParams()
-    params.append('metadata_key', filters.metadata_key)
-    params.append('metadata_value', filters.metadata_value)
-    if (filters.search) params.append('search', filters.search)
-    if (filters.page) params.append('page', filters.page.toString())
-    if (filters.limit) params.append('limit', filters.limit.toString())
-
-    return apiClient.get<MemoriesResponse>(
-      `/${teamId}/memories/search?${params.toString()}`
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/memories/search', {
+        params: {
+          path: { team_id: teamId },
+          query: {
+            metadata_key: filters.metadata_key,
+            metadata_value: filters.metadata_value,
+            search: filters.search,
+            page: filters.page,
+            limit: filters.limit,
+          },
+        },
+      })
     )
   }
 }

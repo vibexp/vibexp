@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
-import type { Artifact } from '@/types'
+import type { Artifact } from '@/services/artifactService'
 
 // Mock ArtifactForm to avoid complex form internals in unit tests
 jest.mock('@/pages/artifacts/ArtifactForm', () => ({

@@ -7,8 +7,8 @@
  * plus service-call behaviour via mocks.
  */
 
+import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
-import type { Memory } from '@/types'
 
 import { buildMemoriesColumns, extractTags } from '../memoriesColumns'
 

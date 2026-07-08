@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
-import type { Artifact } from '@/types'
+import type { Artifact } from '@/services/artifactService'
 
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues
 jest.mock('@/components/MarkdownRenderer', () => ({

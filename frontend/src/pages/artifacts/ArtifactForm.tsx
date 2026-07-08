@@ -29,7 +29,7 @@ import type {
   Artifact,
   CreateArtifactRequest,
   UpdateArtifactRequest,
-} from '@/types'
+} from '@/services/artifactService'
 
 const schema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(255),

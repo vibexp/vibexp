@@ -1,4 +1,4 @@
-import type { ArtifactStatus } from '@/types'
+import type { ArtifactStatus } from '@/services/artifactService'
 
 // Human-readable labels for each status (badge text, table cells).
 export const ARTIFACT_STATUS_LABEL: Record<ArtifactStatus, string> = {

@@ -31,8 +31,12 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { MEMORY_STATUS_OPTIONS } from '@/pages/memories/memoryStatus'
+import type {
+  CreateMemoryRequest,
+  Memory,
+  UpdateMemoryRequest,
+} from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
-import type { CreateMemoryRequest, Memory, UpdateMemoryRequest } from '@/types'
 
 const schema = z.object({
   text: z.string().trim().min(1, 'Memory content is required'),

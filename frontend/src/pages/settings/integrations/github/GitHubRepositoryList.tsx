@@ -5,7 +5,10 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { GitHubRepository, VisibilityFilter } from '@/types/github'
+import type {
+  GitHubRepository,
+  VisibilityFilter,
+} from '@/services/githubIntegrationService'
 
 import { GitHubRepositoryTable } from './GitHubRepositoryTable'
 import { RepositoryFilters } from './RepositoryFilters'

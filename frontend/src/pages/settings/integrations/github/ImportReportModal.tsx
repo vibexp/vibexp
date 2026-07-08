@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { BlueprintImportReport } from '@/types/github'
+import type { BlueprintImportReport } from '@/services/githubIntegrationService'
 
 interface ImportReportModalProps {
   isOpen: boolean

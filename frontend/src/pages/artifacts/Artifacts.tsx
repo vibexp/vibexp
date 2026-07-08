@@ -13,8 +13,11 @@ import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { useTypes } from '@/hooks/useTypes'
 import { ArtifactFilters } from '@/pages/artifacts/ArtifactFilters'
 import { buildArtifactsColumns } from '@/pages/artifacts/artifactsColumns'
+import type {
+  Artifact,
+  ArtifactFilters as ArtifactFiltersType,
+} from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
-import type { Artifact, ArtifactFilters as ArtifactFiltersType } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 

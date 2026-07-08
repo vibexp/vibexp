@@ -1,6 +1,6 @@
 import type { Blueprint } from '../../src/services/blueprintService'
 import type { Prompt } from '../../src/services/promptService'
-import type { Memory } from '../../src/types'
+import type { Memory } from '../../src/services/memoryService'
 
 const mockBlueprintService = {
   getBlueprint: jest.fn(),

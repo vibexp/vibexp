@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import type { VisibilityFilter } from '@/types/github'
+import type { VisibilityFilter } from '@/services/githubIntegrationService'
 
 interface RepositoryFiltersProps {
   ownerFilter: string

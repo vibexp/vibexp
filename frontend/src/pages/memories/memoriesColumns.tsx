@@ -9,8 +9,8 @@ import {
   MEMORY_STATUS_LABEL,
   memoryStatusTone,
 } from '@/pages/memories/memoryStatus'
+import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
-import type { Memory } from '@/types'
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('en-US', {
@@ -22,8 +22,8 @@ function formatDate(value: string) {
   })
 }
 
-export function extractTags(meta: Record<string, unknown>): string[] {
-  const tags = meta.tags
+export function extractTags(meta?: Record<string, unknown>): string[] {
+  const tags = meta?.tags
   if (!Array.isArray(tags)) return []
   return tags.filter((t): t is string => typeof t === 'string')
 }

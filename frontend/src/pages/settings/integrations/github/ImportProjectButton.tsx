@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
+import type { GitHubRepository } from '@/services/githubIntegrationService'
 import { githubIntegrationService } from '@/services/githubIntegrationService'
-import type { GitHubRepository } from '@/types/github'
 
 import { ImportProjectModal } from './ImportProjectModal'
 

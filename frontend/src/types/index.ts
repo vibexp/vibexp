@@ -13,14 +13,9 @@ export * from './hooks'
 // Alert System types
 export * from './alert'
 
-// Artifact types
-export * from './artifact'
-
 // Resource-agnostic content-versioning types
 export * from './version'
 
-// Memory Management types
-export * from './memory'
-
-// GitHub Integration types
-export * from './github'
+// Artifact, Memory, and GitHub integration types now live with their services
+// (`@/services/{artifactService,memoryService,githubIntegrationService}`), sourced
+// from the generated `@vibexp/api-client` schema — import them from there.

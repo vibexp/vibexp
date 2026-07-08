@@ -2,8 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
+import type { GitHubRepository } from '@/services/githubIntegrationService'
 import { githubIntegrationService } from '@/services/githubIntegrationService'
-import type { GitHubRepository } from '@/types/github'
 
 const mockUseTeam = jest.fn()
 jest.mock('@/contexts/TeamContext', () => ({

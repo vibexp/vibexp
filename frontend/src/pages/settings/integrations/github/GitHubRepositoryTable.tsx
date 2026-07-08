@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import type { GitHubRepository } from '@/types/github'
+import type { GitHubRepository } from '@/services/githubIntegrationService'
 
 import { ImportBlueprintsButton } from './ImportBlueprintsButton'
 import { ImportProjectButton } from './ImportProjectButton'

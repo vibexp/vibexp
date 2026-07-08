@@ -10,10 +10,14 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { MemoryForm, type MemoryFormHandle } from '@/pages/memories/MemoryForm'
+import type {
+  CreateMemoryRequest,
+  Memory,
+  UpdateMemoryRequest,
+} from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type { CreateMemoryRequest, Memory, UpdateMemoryRequest } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -77,7 +81,7 @@ export function MemoryEdit() {
         properties: {
           memory_id: memory.id,
           memory_type:
-            typeof memory.metadata.type === 'string'
+            typeof memory.metadata?.type === 'string'
               ? memory.metadata.type
               : 'unknown',
           action_context: 'update',

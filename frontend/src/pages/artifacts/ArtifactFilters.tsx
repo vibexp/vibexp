@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/select'
 import { useTypes } from '@/hooks/useTypes'
 import { ARTIFACT_STATUS_OPTIONS } from '@/pages/artifacts/artifactStatus'
-import type { Artifact } from '@/types'
+import type { Artifact } from '@/services/artifactService'
 
 interface Props {
   searchInput: string

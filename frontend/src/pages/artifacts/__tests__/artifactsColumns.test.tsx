@@ -2,7 +2,7 @@ import type { Row } from '@tanstack/react-table'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
-import type { Artifact } from '@/types'
+import type { Artifact } from '@/services/artifactService'
 
 import { buildArtifactsColumns } from '../artifactsColumns'
 

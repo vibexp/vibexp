@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { GitHubInstallationStatus } from '@/types/github'
+import type { GitHubInstallationStatus } from '@/services/githubIntegrationService'
 
 interface GitHubConnectionCardProps {
   status: GitHubInstallationStatus | null

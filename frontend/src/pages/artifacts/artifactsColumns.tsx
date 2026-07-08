@@ -10,7 +10,7 @@ import {
   ARTIFACT_STATUS_LABEL,
   artifactStatusTone,
 } from '@/pages/artifacts/artifactStatus'
-import type { Artifact } from '@/types'
+import type { Artifact } from '@/services/artifactService'
 
 // Types are team-customizable, so the artifact row carries only the slug.
 // Fall back to a readable label derived from the slug (e.g. "work-reports" ->
