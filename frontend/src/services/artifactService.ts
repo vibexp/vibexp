@@ -7,47 +7,31 @@ import type {
 } from '../types/version'
 
 // Generated wire types for the artifact domain — the OpenAPI spec is the single
-// source of truth; do not hand-write request/response shapes.
-//
-// DRIFT: the spec enumerates `type` as [work_reports, static_contexts, general]
-// (the system-default types), but the backend validates it against the team's
-// types — system defaults PLUS custom types (backend/internal/models/artifact.go)
-// — so it is an open string, and the type dropdowns are populated dynamically via
-// `useTypes()`. Widen `type` to `string` on the request/response/filter shapes so
-// custom types type-check (deferred spec-gap follow-up); every other field stays
-// generated. Widening is a loosening, so unwrapped responses remain assignable.
-type WireArtifact = components['schemas']['Artifact']
-export type Artifact = Omit<WireArtifact, 'type'> & { type: string }
-export type ArtifactListResponse = Omit<
-  components['schemas']['ArtifactListResponse'],
-  'artifacts'
-> & { artifacts: Artifact[] }
+// source of truth; do not hand-write request/response shapes. `type` is an open
+// string in the spec (validated at runtime against the team's system + custom
+// types), so custom types type-check directly with no widening shim.
+export type Artifact = components['schemas']['Artifact']
+export type ArtifactListResponse = components['schemas']['ArtifactListResponse']
 export type ArtifactStatsResponse =
   components['schemas']['ArtifactStatsResponse']
-export type CreateArtifactRequest = Omit<
-  components['schemas']['CreateArtifactRequest'],
-  'type'
-> & { type?: string }
-export type UpdateArtifactRequest = Omit<
-  components['schemas']['UpdateArtifactRequest'],
-  'type'
-> & { type?: string }
+export type CreateArtifactRequest =
+  components['schemas']['CreateArtifactRequest']
+export type UpdateArtifactRequest =
+  components['schemas']['UpdateArtifactRequest']
 
 // Status union, derived from the generated `Artifact` schema; `type` is the open
-// string above.
+// string above, surfaced dynamically via `useTypes()`.
 export type ArtifactStatus = Artifact['status']
 export type ArtifactType = string
 
 // List query params, sourced from the generated operations (the by-project variant
-// carries `project_id` in the path, so its query omits it); `type` widened to match.
-export type ArtifactFilters = Omit<
-  NonNullable<operations['listArtifacts']['parameters']['query']>,
-  'type'
-> & { type?: string }
-export type ArtifactByProjectFilters = Omit<
-  NonNullable<operations['listArtifactsByProject']['parameters']['query']>,
-  'type'
-> & { type?: string }
+// carries `project_id` in the path, so its query omits it).
+export type ArtifactFilters = NonNullable<
+  operations['listArtifacts']['parameters']['query']
+>
+export type ArtifactByProjectFilters = NonNullable<
+  operations['listArtifactsByProject']['parameters']['query']
+>
 
 // Artifact versions are the generic resource version, with `resource_type` ===
 // "artifact". Kept as aliases so call sites read naturally while the
@@ -64,11 +48,7 @@ class ArtifactService {
       generatedClient.GET('/api/v1/{team_id}/artifacts', {
         params: {
           path: { team_id: teamId },
-          // `type` is widened to string (see the DRIFT note); the generated query
-          // narrows it to the enum, so cast back at the boundary.
-          query: filters as NonNullable<
-            operations['listArtifacts']['parameters']['query']
-          >,
+          query: filters,
         },
       })
     )
@@ -83,9 +63,7 @@ class ArtifactService {
       generatedClient.GET('/api/v1/{team_id}/artifacts/{project_id}', {
         params: {
           path: { team_id: teamId, project_id: projectId },
-          query: filters as NonNullable<
-            operations['listArtifactsByProject']['parameters']['query']
-          >,
+          query: filters,
         },
       })
     )
@@ -110,9 +88,7 @@ class ArtifactService {
     return unwrap(
       generatedClient.POST('/api/v1/{team_id}/artifacts', {
         params: { path: { team_id: teamId } },
-        // `type` is widened to string (see the DRIFT note); cast back to the
-        // generated body shape at the boundary.
-        body: data as components['schemas']['CreateArtifactRequest'],
+        body: data,
       })
     )
   }
@@ -126,7 +102,7 @@ class ArtifactService {
     return unwrap(
       generatedClient.PUT('/api/v1/{team_id}/artifacts/{project_id}/{slug}', {
         params: { path: { team_id: teamId, project_id: projectId, slug } },
-        body: data as components['schemas']['UpdateArtifactRequest'],
+        body: data,
       })
     )
   }
