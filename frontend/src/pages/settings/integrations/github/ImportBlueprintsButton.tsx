@@ -4,8 +4,11 @@ import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
+import type {
+  BlueprintImportReport,
+  GitHubRepository,
+} from '@/services/githubIntegrationService'
 import { githubIntegrationService } from '@/services/githubIntegrationService'
-import type { BlueprintImportReport, GitHubRepository } from '@/types/github'
 
 import { ImportBlueprintsModal } from './ImportBlueprintsModal'
 import { ImportReportModal } from './ImportReportModal'

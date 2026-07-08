@@ -1,4 +1,4 @@
-import type { MemoryStatus } from '@/types'
+import type { MemoryStatus } from '@/services/memoryService'
 
 import {
   MEMORY_STATUS_LABEL,

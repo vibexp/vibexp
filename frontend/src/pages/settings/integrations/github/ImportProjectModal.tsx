@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { GitHubRepository } from '@/types/github'
+import type { GitHubRepository } from '@/services/githubIntegrationService'
 
 interface ImportProjectModalProps {
   isOpen: boolean

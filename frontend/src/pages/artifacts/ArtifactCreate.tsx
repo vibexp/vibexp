@@ -11,8 +11,11 @@ import {
   ArtifactForm,
   type ArtifactFormHandle,
 } from '@/pages/artifacts/ArtifactForm'
+import type {
+  CreateArtifactRequest,
+  UpdateArtifactRequest,
+} from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
-import type { CreateArtifactRequest, UpdateArtifactRequest } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 

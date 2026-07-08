@@ -15,10 +15,13 @@ import {
   extractTags,
 } from '@/pages/memories/memoriesColumns'
 import { MemoryFilters } from '@/pages/memories/MemoryFilters'
+import type {
+  Memory,
+  MemoryFilters as MemoryFiltersType,
+} from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type { Memory, MemoryFilters as MemoryFiltersType } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -183,7 +186,9 @@ export function Memories() {
     [state.memories, selectedTag]
   )
 
-  const sortKey = filters.sort_by ?? 'updated_at'
+  // The memories table only exposes `updated_at` sorting (sortableKeys below), so
+  // narrow the widened generated sort_by union to it.
+  const sortKey = (filters.sort_by ?? 'updated_at') as 'updated_at'
   const sortDir = filters.sort_order ?? 'desc'
 
   const handleSortChange = useCallback((key: 'updated_at') => {

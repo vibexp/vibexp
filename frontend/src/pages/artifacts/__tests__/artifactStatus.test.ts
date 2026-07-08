@@ -1,4 +1,4 @@
-import type { ArtifactStatus } from '@/types'
+import type { ArtifactStatus } from '@/services/artifactService'
 
 import {
   ARTIFACT_STATUS_LABEL,

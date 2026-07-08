@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
+import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
-import type { Memory } from '@/types'
 
 // Mock TeamContext — stable references to prevent effect re-runs
 const mockUseTeam = jest.fn()

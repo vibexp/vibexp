@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
+import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
-import type { Memory } from '@/types'
 
 const mockUseTeam = jest.fn()
 jest.mock('@/contexts/TeamContext', () => ({

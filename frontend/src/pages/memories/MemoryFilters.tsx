@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { MEMORY_STATUS_OPTIONS } from '@/pages/memories/memoryStatus'
-import type { MemoryStatus } from '@/types'
+import type { MemoryStatus } from '@/services/memoryService'
 
 interface Props {
   searchInput: string

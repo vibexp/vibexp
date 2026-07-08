@@ -30,20 +30,21 @@ import {
   MEMORY_STATUS_LABEL,
   memoryStatusTone,
 } from '@/pages/memories/memoryStatus'
+import type { Memory, MemoryVersion } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
-import type { Memory, MemoryVersion } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
-function extractTags(meta: Record<string, unknown>): string[] {
-  const tags = meta.tags
+function extractTags(meta?: Record<string, unknown>): string[] {
+  const tags = meta?.tags
   if (!Array.isArray(tags)) return []
   return tags.filter((t): t is string => typeof t === 'string')
 }
 
-function extractExtras(meta: Record<string, unknown>) {
+function extractExtras(meta?: Record<string, unknown>) {
+  if (!meta) return {}
   const { tags: _tags, ...rest } = meta
   void _tags
   return rest
@@ -105,7 +106,7 @@ export function MemoryView() {
           properties: {
             memory_id: response.id,
             memory_type:
-              typeof response.metadata.type === 'string'
+              typeof response.metadata?.type === 'string'
                 ? response.metadata.type
                 : 'unknown',
             action_context: 'view',

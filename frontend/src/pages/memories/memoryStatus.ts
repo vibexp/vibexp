@@ -1,4 +1,4 @@
-import type { MemoryStatus } from '@/types'
+import type { MemoryStatus } from '@/services/memoryService'
 
 // Human-readable labels for each status (badge text, table cells).
 export const MEMORY_STATUS_LABEL: Record<MemoryStatus, string> = {

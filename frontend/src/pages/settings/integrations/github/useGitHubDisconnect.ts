@@ -3,9 +3,12 @@ import { useState } from 'react'
 import { useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
+import type {
+  GitHubInstallationStatus,
+  GitHubRepository,
+} from '@/services/githubIntegrationService'
 import { githubIntegrationService } from '@/services/githubIntegrationService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import type { GitHubInstallationStatus, GitHubRepository } from '@/types/github'
 
 interface UseGitHubDisconnectParams {
   teamId: string | undefined

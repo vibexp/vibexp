@@ -27,8 +27,8 @@ import {
   ARTIFACT_STATUS_LABEL,
   artifactStatusTone,
 } from '@/pages/artifacts/artifactStatus'
+import type { Artifact, ArtifactVersion } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
-import type { Artifact, ArtifactVersion } from '@/types'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -198,7 +198,7 @@ export function ArtifactView() {
     <div className="space-y-6">
       <PageHeader
         title={artifact.title}
-        description={artifact.description || undefined}
+        description={artifact.description}
         actions={
           <>
             <Button
@@ -269,7 +269,7 @@ export function ArtifactView() {
             <MetaSlugRow value={artifact.slug} />
           </MetadataPanel>
 
-          <AdditionalDataCard data={artifact.metadata} />
+          <AdditionalDataCard data={artifact.metadata ?? {}} />
 
           {currentTeam && (
             <ResourceAttachments

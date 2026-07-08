@@ -9,14 +9,14 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
-import { githubIntegrationService } from '@/services/githubIntegrationService'
-import { ANALYTICS_EVENTS } from '@/types/analytics'
-import { ApiError } from '@/types/errors'
 import type {
   GitHubInstallationStatus,
   GitHubInstallCallbackRequest,
   GitHubRepository,
-} from '@/types/github'
+} from '@/services/githubIntegrationService'
+import { githubIntegrationService } from '@/services/githubIntegrationService'
+import { ANALYTICS_EVENTS } from '@/types/analytics'
+import { ApiError } from '@/types/errors'
 import { safeRedirect } from '@/utils/urlValidation'
 
 import { GitHubConnectionCard } from './GitHubConnectionCard'
