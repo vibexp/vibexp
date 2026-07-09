@@ -60,10 +60,19 @@ COPY backend/ ./
 # ./internal/server/dist, populated here with the frontend build output.
 COPY --from=frontend /app/frontend/dist ./internal/server/dist
 
+# Release stamps injected by release.yml (github.sha + build date). The container
+# build stage has no .git, so these ldflags are the only source of the SHA/date
+# for the binary; when empty (e.g. a plain `docker build`) the -X flags are a
+# harmless no-op and the binary falls back to its "dev"/"unknown" sentinels.
+ARG RELEASE_SHA=""
+ARG RELEASE_DATE=""
+
 # Build with the embedfrontend tag so the SPA is embedded and served.
 # GOOS/GOARCH come from buildx's TARGETOS/TARGETARCH so one native build stage
 # emits a binary for each target platform (linux/amd64, linux/arm64).
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -tags embedfrontend -a -installsuffix cgo -o main .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+    -ldflags "-X github.com/vibexp/vibexp/cmd.buildSHA=${RELEASE_SHA} -X github.com/vibexp/vibexp/cmd.buildDate=${RELEASE_DATE}" \
+    -tags embedfrontend -a -installsuffix cgo -o main .
 
 # ---- 3) Minimal runtime ----
 FROM alpine:3.20
