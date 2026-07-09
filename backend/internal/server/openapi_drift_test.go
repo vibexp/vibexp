@@ -56,6 +56,11 @@ var notFoundStubRoutes = map[string]string{
 var undocumentedRouteAllowlist = map[string]string{
 	// Intentionally excluded by the documentation scope policy.
 	"POST /api/v1/integrations/github/webhook": "308 permanent-redirect shim to /api/v1/webhooks/github",
+	// The bundled spec served for external consumers (#139): serving the spec at
+	// its own routes must not require documenting those routes inside the spec —
+	// like /favicon.ico, they are static plumbing, not part of the API contract.
+	"GET /openapi.yaml": "serves the bundled OpenAPI spec itself (#139); not part of the documented API",
+	"GET /openapi.json": "serves the bundled OpenAPI spec itself (#139); not part of the documented API",
 }
 
 // driftParamRegexp strips chi regex constraints: {id:[0-9]+} → {id}.

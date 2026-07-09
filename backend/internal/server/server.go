@@ -443,6 +443,13 @@ func (s *Server) setupPublicRoutes() {
 	s.router.Get("/ping", s.handlePing)
 	s.router.Get("/health", s.handleHealth)
 	s.router.Get("/favicon.ico", s.handleFavicon)
+	// Public, unauthenticated OpenAPI spec (#139): the fully-bundled,
+	// self-contained schema served from the embedded artifact (openapispec) so
+	// external tooling can fetch the API contract from any running instance.
+	// Intentionally undocumented-by-convention (allowlisted in the drift gate),
+	// like /favicon.ico.
+	s.router.Get("/openapi.yaml", s.handleOpenAPISpecYAML)
+	s.router.Get("/openapi.json", s.handleOpenAPISpecJSON)
 	// OAuth 2.1 resource-server discovery for the MCP endpoint. Both are public
 	// (no auth): clients fetch them before they hold a token. RFC 9728 (PRM) and
 	// the legacy AS-metadata probe path that older MCP clients hit.

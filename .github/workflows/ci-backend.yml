@@ -110,3 +110,9 @@ jobs:
       # which resolves and runs the validator on demand — no project install needed.
       - name: Validate OpenAPI specification
         run: make backend-validate-openapi
+
+      # Regenerate the embedded bundle served at /openapi.{yaml,json} (#139) and
+      # fail if it drifts from the committed files — same gate as the config
+      # schema. Runs here (not Build & Test) because it needs Node/npx for redocly.
+      - name: Check embedded OpenAPI bundle drift
+        run: make backend-openapi-bundle-check
