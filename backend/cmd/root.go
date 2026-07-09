@@ -18,9 +18,19 @@ import (
 	"github.com/vibexp/vibexp/internal/server"
 )
 
-// buildSHA is set at build time via ldflags:
-// go build -ldflags "-X github.com/vibexp/vibexp/cmd.buildSHA=abc1234"
-var buildSHA = ""
+// buildSHA and buildDate are set at build time via ldflags, e.g.:
+//
+//	go build -ldflags "-X github.com/vibexp/vibexp/cmd.buildSHA=abc1234 \
+//	                    -X github.com/vibexp/vibexp/cmd.buildDate=2026-07-09T12:00:00Z"
+//
+// The release image (backend/Dockerfile + .github/workflows/release.yml) injects
+// them so production builds are self-identifying; the default local build leaves
+// them empty and falls back to the VCS build info, then the "dev"/"unknown"
+// sentinels.
+var (
+	buildSHA  = ""
+	buildDate = ""
+)
 
 // configPath is the --config flag value: the path to the config.yaml to load.
 // Empty falls back to VIBEXP_CONFIG_FILE, then ./config.yaml (handled by config.Load).
@@ -69,21 +79,57 @@ func loadConfiguration() *config.Config {
 		os.Exit(1)
 	}
 
-	// Precedence: config server.release_sha → ldflags buildSHA → runtime/debug VCS → "dev"
-	if cfg.Server.ReleaseSHA == "" || cfg.Server.ReleaseSHA == "dev" {
-		if buildSHA != "" {
-			cfg.Server.ReleaseSHA = buildSHA
-		} else if info, ok := debug.ReadBuildInfo(); ok {
-			for _, s := range info.Settings {
-				if s.Key == "vcs.revision" && s.Value != "" {
-					cfg.Server.ReleaseSHA = s.Value
-					break
-				}
-			}
-		}
-	}
+	resolveReleaseMetadata(cfg)
 
 	return cfg
+}
+
+// resolveReleaseMetadata fills in server.release_sha / server.release_date from
+// the strongest available source. Each field follows the same precedence:
+//
+//	config value → ldflags build var → runtime/debug VCS info → sentinel
+//
+// The sentinels ("dev" for the SHA, "unknown" for the date) match the config
+// defaults, so a config value only wins when it is a real override.
+func resolveReleaseMetadata(cfg *config.Config) {
+	vcsRevision, vcsTime := vcsBuildInfo()
+	cfg.Server.ReleaseSHA = resolveReleaseValue(cfg.Server.ReleaseSHA, buildSHA, vcsRevision, "dev")
+	cfg.Server.ReleaseDate = resolveReleaseValue(cfg.Server.ReleaseDate, buildDate, vcsTime, "unknown")
+}
+
+// resolveReleaseValue applies the release-metadata precedence for one field.
+// The config value wins unless it is empty or still the sentinel default; then
+// the ldflags value, then the VCS build-info value, then the sentinel.
+func resolveReleaseValue(current, ldflag, vcs, sentinel string) string {
+	if current != "" && current != sentinel {
+		return current
+	}
+	if ldflag != "" {
+		return ldflag
+	}
+	if vcs != "" {
+		return vcs
+	}
+	return sentinel
+}
+
+// vcsBuildInfo returns the VCS revision and commit time recorded by the Go
+// toolchain (via -buildvcs). Both are empty when the build carries no VCS info,
+// e.g. the container build stage, which has no .git.
+func vcsBuildInfo() (revision, buildTime string) {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "", ""
+	}
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			revision = s.Value
+		case "vcs.time":
+			buildTime = s.Value
+		}
+	}
+	return revision, buildTime
 }
 
 func configureLogger(cfg *config.Config) *slog.Logger {

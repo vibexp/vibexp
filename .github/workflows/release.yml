@@ -55,6 +55,10 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Building $IMAGE_NAME:$version"
 
+      - name: Resolve build date
+        id: builddate
+        run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       # QEMU is used only for the lightweight per-arch runtime stage (the alpine
       # `apk add`); the heavy frontend/Go build stages run natively on the runner
       # via --platform=$BUILDPLATFORM (see backend/Dockerfile).
@@ -92,5 +96,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
+            RELEASE_SHA=${{ github.sha }}
+            RELEASE_DATE=${{ steps.builddate.outputs.date }}
             VITE_RELEASE_SHA=${{ github.sha }}
+            VITE_RELEASE_DATE=${{ steps.builddate.outputs.date }}
           provenance: true
