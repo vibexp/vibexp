@@ -1,4 +1,4 @@
-.PHONY: backend-test backend-test-coverage backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
+.PHONY: backend-test backend-test-coverage backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
@@ -87,6 +87,29 @@ backend-validate-openapi:
 backend-bundle-openapi:
 	@echo "📦 Bundling OpenAPI specification..."
 	@cd backend && npx @redocly/cli bundle openapi.yaml -o dist/openapi.bundled.yaml
+
+# Generate the committed, embedded OpenAPI bundle served at /openapi.yaml and
+# /openapi.json (#139). The bundled artifacts live inside the embedding package
+# (go:embed cannot reach ../../openapi.yaml). The redocly version is pinned so
+# the committed bytes are reproducible in CI and pre-commit, where
+# backend-openapi-bundle-check regenerates and diffs them (same convention as
+# backend-config-schema-check). redocly omits the trailing newline on JSON
+# output, so we append one — keeping the committed file identical to what a fresh
+# regenerate produces and leaving the end-of-file-fixer hook nothing to change.
+REDOCLY_VERSION := 2.5.0
+OPENAPI_BUNDLE_DIR := internal/server/openapispec
+backend-generate-openapi-bundle:
+	@echo "📦 Generating embedded OpenAPI bundle (openapispec)..."
+	@cd backend && npx --yes @redocly/cli@$(REDOCLY_VERSION) bundle openapi.yaml -o $(OPENAPI_BUNDLE_DIR)/openapi.bundled.yaml
+	@cd backend && npx --yes @redocly/cli@$(REDOCLY_VERSION) bundle openapi.yaml -o $(OPENAPI_BUNDLE_DIR)/openapi.bundled.json
+	@cd backend && printf '\n' >> $(OPENAPI_BUNDLE_DIR)/openapi.bundled.json
+
+# Regenerate the embedded bundle and fail if it drifts from the committed files
+# — the served spec must be byte-for-byte a fresh bundle of the split source.
+# Same gate pattern as backend-config-schema-check / backend-wire-check.
+backend-openapi-bundle-check: backend-generate-openapi-bundle
+	@cd backend && git diff --exit-code $(OPENAPI_BUNDLE_DIR)/openapi.bundled.yaml $(OPENAPI_BUNDLE_DIR)/openapi.bundled.json \
+		|| { echo "❌ embedded OpenAPI bundle is out of sync — run 'make backend-generate-openapi-bundle' and commit the result"; exit 1; }
 
 # Regenerate the oapi-codegen strict-server bindings from the bundle, one
 # self-contained package per spec-first domain (Notifications #1713, Types

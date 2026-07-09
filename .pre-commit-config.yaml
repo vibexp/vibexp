@@ -39,6 +39,16 @@ repos:
         files: ^backend/(openapi\.yaml|paths/.*\.ya?ml|schemas/.*\.ya?ml)$
         pass_filenames: false
 
+      - id: openapi-bundle-check
+        name: OpenAPI embedded bundle drift (#139)
+        # Regenerate the committed bundle served at /openapi.{yaml,json} and fail
+        # if it drifts from the split source. Triggered by spec-source edits and
+        # by hand-edits to the committed bundle itself.
+        entry: bash -c 'make backend-openapi-bundle-check'
+        language: system
+        files: ^backend/(openapi\.yaml|paths/.*\.ya?ml|schemas/.*\.ya?ml|internal/server/openapispec/openapi\.bundled\.(ya?ml|json))$
+        pass_filenames: false
+
       - id: no-os-getenv
         name: Block os.Getenv usage in backend
         # Block os.Getenv - use the config package instead.

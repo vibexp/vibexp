@@ -68,6 +68,7 @@ Then open:
 
 - 🖥️ **App:** http://localhost:8080
 - ⚙️ **API health:** http://localhost:8080/health
+- 📄 **OpenAPI spec:** http://localhost:8080/openapi.yaml (or `/openapi.json`) — the full, self-contained API contract, served publicly by every instance for code generators, Postman, and the Swagger editor.
 
 Local evaluation uses a dev-login bypass, so there is nothing to configure to start clicking around.
 
