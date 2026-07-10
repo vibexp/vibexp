@@ -21,6 +21,7 @@ import (
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 // MockEmbeddingProviderContainer implements Container interface for embedding provider handler tests
@@ -67,15 +68,11 @@ func createTestEmbeddingProviderServer(container *MockEmbeddingProviderContainer
 		router:    r,
 	}
 
-	// Register routes manually (simplified version for testing)
-	r.Route("/api/v1/{team_id}/embedding-providers", func(r chi.Router) {
-		r.Get("/", srv.handleListEmbeddingProviders)
-		r.Post("/", srv.handleCreateEmbeddingProvider)
-		r.Get("/{id}", srv.handleGetEmbeddingProvider)
-		r.Put("/{id}", srv.handleUpdateEmbeddingProvider)
-		r.Delete("/{id}", srv.handleDeleteEmbeddingProvider)
-		r.Post("/validate", srv.handleValidateEmbeddingProvider)
-	})
+	// Register routes via the production setup under both prefixes (bare and
+	// settings) so tests exercise the same route tree the server mounts,
+	// including the reprocess endpoint under each.
+	r.Route("/api/v1/{team_id}/embedding-providers", srv.setupEmbeddingProvidersRoutes)
+	r.Route("/api/v1/{team_id}/settings/embedding-providers", srv.setupEmbeddingProvidersRoutes)
 
 	return srv
 }
@@ -97,6 +94,29 @@ func makeAuthenticatedEmbeddingProviderRequest(method, path string, body interfa
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, userID))
 
 	return req
+}
+
+// expectTeamReembed sets up the background, missing-only, team-scoped enqueue
+// (Backfill with All + MissingOnly, no wipe) that both provider create and
+// reprocess trigger, and registers a cleanup that waits for it to fire — so the
+// async goroutine settles before the mock's own AssertExpectations cleanup runs
+// (cleanups are LIFO, and this is registered after the mock's).
+func expectTeamReembed(t *testing.T, c *MockEmbeddingProviderContainer) {
+	t.Helper()
+	done := make(chan struct{})
+	c.embeddingBackfillService.
+		On("Backfill", mock.Anything, mock.MatchedBy(func(r services.EmbeddingBackfillRequest) bool {
+			return r.TeamID == "team-123" && r.All && r.MissingOnly
+		})).
+		Return(&services.EmbeddingBackfillResult{}, nil).
+		Run(func(mock.Arguments) { close(done) })
+	t.Cleanup(func() {
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("background team re-embed was not triggered")
+		}
+	})
 }
 
 // TestHandleListEmbeddingProviders_Success tests successful list embedding providers
@@ -296,6 +316,7 @@ func TestHandleCreateEmbeddingProvider_Success(t *testing.T) {
 
 	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "team-123", "user-123", reqBody).
 		Return(expectedProvider, nil)
+	expectTeamReembed(t, mockContainer)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
 	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers", reqBody, "user-123")
@@ -349,6 +370,7 @@ func TestHandleCreateEmbeddingProvider_Anthropic(t *testing.T) {
 
 	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "team-123", "user-123", reqBody).
 		Return(expectedProvider, nil)
+	expectTeamReembed(t, mockContainer)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
 	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers", reqBody, "user-123")
@@ -399,6 +421,7 @@ func TestHandleCreateEmbeddingProvider_Custom(t *testing.T) {
 
 	mockContainer.embeddingProviderService.On("CreateEmbeddingProvider", mock.Anything, "team-123", "user-123", reqBody).
 		Return(expectedProvider, nil)
+	expectTeamReembed(t, mockContainer)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
 	req := makeAuthenticatedEmbeddingProviderRequest("POST", "/api/v1/team-123/embedding-providers", reqBody, "user-123")
@@ -953,5 +976,129 @@ func TestHandleUpdateEmbeddingProvider_ReembedsOnModelChange(t *testing.T) {
 	}
 
 	mockContainer.embeddingRepository.AssertExpectations(t)
+	mockContainer.embeddingBackfillService.AssertExpectations(t)
+}
+
+// providerForReprocess is the minimal provider the reprocess existence check
+// resolves before enqueuing.
+func providerForReprocess() *models.EmbeddingProviderResponse {
+	baseURL := "https://api.openai.com/v1"
+	return &models.EmbeddingProviderResponse{
+		EmbeddingProvider: models.EmbeddingProvider{
+			ID: "provider-1", ProviderType: "openai",
+			Model: "text-embedding-3-small", BaseURL: &baseURL,
+		},
+	}
+}
+
+// TestHandleReprocessEmbeddingProvider_Success verifies reprocess returns a
+// spec-conforming 202 and enqueues a background, missing-only, team-scoped
+// re-embed (no wipe).
+func TestHandleReprocessEmbeddingProvider_Success(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+		Return(providerForReprocess(), nil)
+	expectTeamReembed(t, mockContainer)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"POST", "/api/v1/team-123/embedding-providers/provider-1/reprocess", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusAccepted, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	mockContainer.embeddingProviderService.AssertExpectations(t)
+}
+
+// TestHandleReprocessEmbeddingProviderSettings_SpecConformance covers the
+// settings-route variant so its documented operation has a spec-validated
+// response too.
+func TestHandleReprocessEmbeddingProviderSettings_SpecConformance(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+		Return(providerForReprocess(), nil)
+	expectTeamReembed(t, mockContainer)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"POST", "/api/v1/team-123/settings/embedding-providers/provider-1/reprocess", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusAccepted, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+}
+
+// TestHandleReprocessEmbeddingProvider_NotFound verifies an unknown provider id
+// returns a spec-conforming 404 and never enqueues a re-embed.
+func TestHandleReprocessEmbeddingProvider_NotFound(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "missing").
+		Return((*models.EmbeddingProviderResponse)(nil), services.ErrProviderNotFound)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"POST", "/api/v1/team-123/embedding-providers/missing/reprocess", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+	mockContainer.embeddingProviderService.AssertExpectations(t)
+}
+
+// TestHandleReprocessEmbeddingProvider_InFlightGuardSkipsDuplicate verifies the
+// per-team guard: a second reprocess issued while the first run is still in
+// flight does not fan out a second Backfill for the same team.
+func TestHandleReprocessEmbeddingProvider_InFlightGuardSkipsDuplicate(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+		Return(providerForReprocess(), nil)
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	// Exactly one Backfill: the guard must drop the concurrent second call.
+	mockContainer.embeddingBackfillService.
+		On("Backfill", mock.Anything, mock.Anything).
+		Return(&services.EmbeddingBackfillResult{}, nil).
+		Run(func(mock.Arguments) {
+			close(started)
+			<-release
+		}).Once()
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	post := func() *httptest.ResponseRecorder {
+		req := makeAuthenticatedEmbeddingProviderRequest(
+			"POST", "/api/v1/team-123/embedding-providers/provider-1/reprocess", nil, "user-123",
+		)
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+		return w
+	}
+
+	// First call: its background Backfill starts and blocks (still in flight).
+	assert.Equal(t, http.StatusAccepted, post().Code)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first reprocess did not start")
+	}
+
+	// Second call while the first is in flight: 202, but no second Backfill.
+	assert.Equal(t, http.StatusAccepted, post().Code)
+
+	close(release) // let the first run finish
 	mockContainer.embeddingBackfillService.AssertExpectations(t)
 }
