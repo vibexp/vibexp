@@ -232,6 +232,10 @@ func (b *BaseMockContainer) BackofficeService() services.BackofficeServiceInterf
 	return nil
 }
 
+func (b *BaseMockContainer) EmbeddingStatusService() services.EmbeddingStatusServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
 	return nil
 }

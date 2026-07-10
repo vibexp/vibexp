@@ -253,6 +253,10 @@ components:
       $ref: "./schemas/embedding-providers.yaml#/ValidateEmbeddingProviderRequest"
     ValidateEmbeddingProviderResponse:
       $ref: "./schemas/embedding-providers.yaml#/ValidateEmbeddingProviderResponse"
+    EmbeddingCoverageItem:
+      $ref: "./schemas/embedding-providers.yaml#/EmbeddingCoverageItem"
+    EmbeddingCoverageResponse:
+      $ref: "./schemas/embedding-providers.yaml#/EmbeddingCoverageResponse"
 
     # Import resource usage schemas
     ResourceUsageItem:
@@ -990,6 +994,8 @@ paths:
     $ref: "./paths/types.yaml#/api-v1-team_id-types-id"
   /api/v1/{team_id}/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers"
+  /api/v1/{team_id}/embedding-providers/coverage:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-coverage"
   /api/v1/{team_id}/embedding-providers/{id}:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-id"
   /api/v1/{team_id}/embedding-providers/{id}/reprocess:
@@ -998,6 +1004,8 @@ paths:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-validate"
   /api/v1/{team_id}/settings/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers"
+  /api/v1/{team_id}/settings/embedding-providers/coverage:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-coverage"
   /api/v1/{team_id}/settings/embedding-providers/{id}:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-id"
   /api/v1/{team_id}/settings/embedding-providers/{id}/reprocess:

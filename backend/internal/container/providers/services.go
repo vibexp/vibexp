@@ -445,6 +445,16 @@ func ProvideEmbeddingBackfillService(
 	return services.NewEmbeddingBackfillService(repo, publisher, promptService, logger)
 }
 
+// ProvideEmbeddingStatusService creates a new EmbeddingStatusService that derives
+// per-entity-type embedding coverage from a team's active provider model.
+func ProvideEmbeddingStatusService(
+	providerRepo repositories.EmbeddingProviderRepository,
+	coverageRepo repositories.EmbeddingBackfillRepository,
+	logger *slog.Logger,
+) services.EmbeddingStatusServiceInterface {
+	return services.NewEmbeddingStatusService(providerRepo, coverageRepo, logger)
+}
+
 // ProvideUserPreferencesService creates a new UserPreferencesService
 func ProvideUserPreferencesService(
 	repo repositories.UserPreferencesRepository,

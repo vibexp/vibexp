@@ -79,6 +79,7 @@ type Container interface {
 	ResourceUsageService() services.ResourceUsageServiceInterface
 	BackofficeService() services.BackofficeServiceInterface
 	EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface
+	EmbeddingStatusService() services.EmbeddingStatusServiceInterface
 	UserPreferencesService() services.UserPreferencesServiceInterface
 	TeamService() services.TeamServiceInterface
 	TeamInvitationService() *services.TeamInvitationService

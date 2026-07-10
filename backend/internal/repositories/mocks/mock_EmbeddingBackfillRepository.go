@@ -22,6 +22,66 @@ func (_m *MockEmbeddingBackfillRepository) EXPECT() *MockEmbeddingBackfillReposi
 	return &MockEmbeddingBackfillRepository_Expecter{mock: &_m.Mock}
 }
 
+// CountCoverage provides a mock function with given fields: ctx, modelID, teamID
+func (_m *MockEmbeddingBackfillRepository) CountCoverage(ctx context.Context, modelID string, teamID string) ([]models.EmbeddingCoverageCount, error) {
+	ret := _m.Called(ctx, modelID, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountCoverage")
+	}
+
+	var r0 []models.EmbeddingCoverageCount
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) ([]models.EmbeddingCoverageCount, error)); ok {
+		return rf(ctx, modelID, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []models.EmbeddingCoverageCount); ok {
+		r0 = rf(ctx, modelID, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.EmbeddingCoverageCount)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, modelID, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockEmbeddingBackfillRepository_CountCoverage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountCoverage'
+type MockEmbeddingBackfillRepository_CountCoverage_Call struct {
+	*mock.Call
+}
+
+// CountCoverage is a helper method to define mock.On call
+//   - ctx context.Context
+//   - modelID string
+//   - teamID string
+func (_e *MockEmbeddingBackfillRepository_Expecter) CountCoverage(ctx interface{}, modelID interface{}, teamID interface{}) *MockEmbeddingBackfillRepository_CountCoverage_Call {
+	return &MockEmbeddingBackfillRepository_CountCoverage_Call{Call: _e.mock.On("CountCoverage", ctx, modelID, teamID)}
+}
+
+func (_c *MockEmbeddingBackfillRepository_CountCoverage_Call) Run(run func(ctx context.Context, modelID string, teamID string)) *MockEmbeddingBackfillRepository_CountCoverage_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockEmbeddingBackfillRepository_CountCoverage_Call) Return(_a0 []models.EmbeddingCoverageCount, _a1 error) *MockEmbeddingBackfillRepository_CountCoverage_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockEmbeddingBackfillRepository_CountCoverage_Call) RunAndReturn(run func(context.Context, string, string) ([]models.EmbeddingCoverageCount, error)) *MockEmbeddingBackfillRepository_CountCoverage_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListEntities provides a mock function with given fields: ctx, entityType, modelID, teamID, missingOnly, limit, offset
 func (_m *MockEmbeddingBackfillRepository) ListEntities(ctx context.Context, entityType string, modelID string, teamID string, missingOnly bool, limit int, offset int) ([]models.BackfillEntity, error) {
 	ret := _m.Called(ctx, entityType, modelID, teamID, missingOnly, limit, offset)
