@@ -48,6 +48,7 @@ import { APIKeys } from '@/pages/settings/api-keys/APIKeys'
 import { Customization } from '@/pages/settings/customization/Customization'
 import { EmbeddingProviders } from '@/pages/settings/embedding-providers/EmbeddingProviders'
 import { GitHubIntegration } from '@/pages/settings/integrations/github/GitHubIntegration'
+import { ModelProviders } from '@/pages/settings/model-providers/ModelProviders'
 import { NotificationPreferences } from '@/pages/settings/notifications/NotificationPreferences'
 import { ProjectCreate } from '@/pages/settings/projects/ProjectCreate'
 import { ProjectDetails } from '@/pages/settings/projects/ProjectDetails'
@@ -212,6 +213,7 @@ export function AppRoutes() {
         path="settings/embedding-providers"
         element={<EmbeddingProviders />}
       />
+      <Route path="settings/model-providers" element={<ModelProviders />} />
       <Route path="settings/projects" element={<Projects />} />
       <Route path="settings/projects/create" element={<ProjectCreate />} />
       <Route path="settings/projects/edit/:slug" element={<ProjectEdit />} />
