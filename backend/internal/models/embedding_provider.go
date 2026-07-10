@@ -13,6 +13,7 @@ type EmbeddingProvider struct {
 	Model           string    `json:"model" db:"model"`
 	ChunkSize       int       `json:"chunk_size" db:"chunk_size"`
 	ChunkOverlap    int       `json:"chunk_overlap" db:"chunk_overlap"`
+	Concurrency     int       `json:"concurrency" db:"concurrency"`
 	IsDefault       bool      `json:"is_default" db:"is_default"`
 	BaseURL         *string   `json:"base_url,omitempty" db:"base_url"`
 	APIKeyEncrypted *string   `json:"-" db:"api_key_encrypted"`
@@ -28,6 +29,7 @@ type CreateEmbeddingProviderRequest struct {
 	Model        string  `json:"model" validate:"required,min=1,max=255"`
 	ChunkSize    *int    `json:"chunk_size,omitempty" validate:"omitempty,min=1"`
 	ChunkOverlap *int    `json:"chunk_overlap,omitempty" validate:"omitempty,min=0"`
+	Concurrency  *int    `json:"concurrency,omitempty" validate:"omitempty,min=1"`
 	IsDefault    *bool   `json:"is_default,omitempty"`
 	BaseURL      *string `json:"base_url,omitempty" validate:"omitempty,url"`
 	// #nosec G117 - Request struct field for API key input, not a hardcoded secret
@@ -41,6 +43,7 @@ type UpdateEmbeddingProviderRequest struct {
 	Model        *string `json:"model,omitempty" validate:"omitempty,min=1,max=255"`
 	ChunkSize    *int    `json:"chunk_size,omitempty" validate:"omitempty,min=1"`
 	ChunkOverlap *int    `json:"chunk_overlap,omitempty" validate:"omitempty,min=0"`
+	Concurrency  *int    `json:"concurrency,omitempty" validate:"omitempty,min=1"`
 	IsDefault    *bool   `json:"is_default,omitempty"`
 	BaseURL      *string `json:"base_url,omitempty" validate:"omitempty,url"`
 	// #nosec G117 - Request struct field for API key input, not a hardcoded secret

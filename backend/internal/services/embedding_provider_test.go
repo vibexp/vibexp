@@ -38,13 +38,13 @@ func createTestCreateEmbeddingProviderRequest() models.CreateEmbeddingProviderRe
 }
 
 // TestEmbeddingProviderService_buildEmbeddingProvider_defaults verifies the model
-// is persisted and chunk sizing falls back to the package defaults when the
-// request omits it (issue #79).
+// is persisted and chunk sizing plus concurrency fall back to the package
+// defaults when the request omits them (issues #79, #144).
 func TestEmbeddingProviderService_buildEmbeddingProvider_defaults(t *testing.T) {
 	mockRepo := mocks.NewMockEmbeddingProviderRepository(t)
 	service := createTestEmbeddingProviderService(mockRepo)
 
-	t.Run("defaults applied when chunk sizing omitted", func(t *testing.T) {
+	t.Run("defaults applied when chunk sizing and concurrency omitted", func(t *testing.T) {
 		p := service.buildEmbeddingProvider("team-1", "user-1",
 			models.CreateEmbeddingProviderRequest{
 				Name: "P", ProviderType: "openai_compatible", Model: "m",
@@ -52,17 +52,19 @@ func TestEmbeddingProviderService_buildEmbeddingProvider_defaults(t *testing.T) 
 		assert.Equal(t, "m", p.Model)
 		assert.Equal(t, defaultEmbeddingChunkSize, p.ChunkSize)
 		assert.Equal(t, defaultEmbeddingChunkOverlap, p.ChunkOverlap)
+		assert.Equal(t, defaultEmbeddingConcurrency, p.Concurrency)
 	})
 
-	t.Run("explicit chunk sizing is preserved", func(t *testing.T) {
-		size, overlap := 512, 64
+	t.Run("explicit chunk sizing and concurrency are preserved", func(t *testing.T) {
+		size, overlap, concurrency := 512, 64, 4
 		p := service.buildEmbeddingProvider("team-1", "user-1",
 			models.CreateEmbeddingProviderRequest{
 				Name: "P", ProviderType: "openai_compatible", Model: "m",
-				ChunkSize: &size, ChunkOverlap: &overlap,
+				ChunkSize: &size, ChunkOverlap: &overlap, Concurrency: &concurrency,
 			}, nil, "{}")
 		assert.Equal(t, 512, p.ChunkSize)
 		assert.Equal(t, 64, p.ChunkOverlap)
+		assert.Equal(t, 4, p.Concurrency)
 	})
 }
 

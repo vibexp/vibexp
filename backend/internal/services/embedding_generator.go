@@ -51,13 +51,15 @@ type EmbeddingProvider interface {
 
 // ResolvedEmbeddingProvider is a team's active provider ready to embed: the
 // generation Provider (whose Model()/Dimensions() come from the stored row) plus
-// the in-Go chunker sizing from that same row. It is the resolver's unit so the
-// document path can chunk per-provider and the query path can read the model,
-// without the generation seam having to know about chunking.
+// the in-Go chunker sizing and per-provider concurrency limit from that same row.
+// It is the resolver's unit so the document path can chunk per-provider and the
+// processing path can bound fan-out (#142), without the generation seam having to
+// know about chunking. Concurrency is plumbed here but not yet enforced (#144).
 type ResolvedEmbeddingProvider struct {
 	Provider     EmbeddingProvider
 	ChunkSize    int
 	ChunkOverlap int
+	Concurrency  int
 }
 
 // ActiveEmbeddingProviderResolver resolves the embedding provider used to embed a

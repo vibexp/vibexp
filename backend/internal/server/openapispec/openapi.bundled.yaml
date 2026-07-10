@@ -12280,6 +12280,10 @@ components:
           type: integer
           description: Overlap between adjacent chunks.
           example: 200
+        concurrency:
+          type: integer
+          description: Maximum number of simultaneous embedding requests VibeXP issues to this provider. Keep at 1 for single-threaded providers.
+          example: 1
         is_default:
           type: boolean
           example: false
@@ -12310,6 +12314,7 @@ components:
         - model
         - chunk_size
         - chunk_overlap
+        - concurrency
         - is_default
         - configuration
         - created_at
@@ -12352,6 +12357,11 @@ components:
           minimum: 0
           description: Optional chunk overlap; defaults to 200 when omitted.
           example: 200
+        concurrency:
+          type: integer
+          minimum: 1
+          description: Optional max simultaneous embedding requests to this provider; defaults to 1 when omitted.
+          example: 1
         is_default:
           type: boolean
           example: false
@@ -12388,6 +12398,9 @@ components:
         chunk_overlap:
           type: integer
           minimum: 0
+        concurrency:
+          type: integer
+          minimum: 1
         is_default:
           type: boolean
         base_url:
