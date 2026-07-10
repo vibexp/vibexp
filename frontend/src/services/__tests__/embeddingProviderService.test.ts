@@ -307,4 +307,72 @@ describe('EmbeddingProviderService', () => {
       ).rejects.toThrow('Validation service is temporarily unavailable')
     })
   })
+
+  describe('getEmbeddingCoverage', () => {
+    const coverage = {
+      has_active_provider: true,
+      active_model: 'text-embedding-3-small',
+      coverage: [
+        {
+          entity_type: 'prompt' as const,
+          total: 120,
+          embedded: 90,
+          pending: 30,
+          embedded_percent: 75,
+        },
+      ],
+    }
+
+    it('gets team-scoped coverage from the settings coverage endpoint', async () => {
+      mockGeneratedClient.GET.mockReturnValue(success(coverage))
+
+      const result = await embeddingProviderService.getEmbeddingCoverage(teamId)
+
+      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(`${base}/coverage`, {
+        params: { path: { team_id: teamId } },
+      })
+      expect(result).toEqual(coverage)
+    })
+
+    it('throws ApiError on a server error', async () => {
+      mockGeneratedClient.GET.mockReturnValue(
+        problem(500, 'Failed to retrieve embedding coverage', 'DATABASE_ERROR')
+      )
+
+      await expect(
+        embeddingProviderService.getEmbeddingCoverage(teamId)
+      ).rejects.toThrow('Failed to retrieve embedding coverage')
+    })
+  })
+
+  describe('reprocessEmbeddingProvider', () => {
+    it('posts to the by-id reprocess endpoint and resolves void on a 202', async () => {
+      mockGeneratedClient.POST.mockReturnValue(
+        success({ success: true }, {
+          ok: true,
+          status: 202,
+          statusText: 'Accepted',
+        } as Response)
+      )
+
+      await expect(
+        embeddingProviderService.reprocessEmbeddingProvider(teamId, providerId)
+      ).resolves.toBeUndefined()
+
+      expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+        `${byId}/reprocess`,
+        { params: { path: { team_id: teamId, id: providerId } } }
+      )
+    })
+
+    it('throws a not-found ApiError when the provider is missing', async () => {
+      mockGeneratedClient.POST.mockReturnValue(
+        problem(404, 'Embedding provider not found', 'PROVIDER_NOT_FOUND')
+      )
+
+      await expect(
+        embeddingProviderService.reprocessEmbeddingProvider(teamId, providerId)
+      ).rejects.toThrow('Embedding provider not found')
+    })
+  })
 })

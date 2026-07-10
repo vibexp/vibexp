@@ -17,6 +17,10 @@ export type ValidateEmbeddingProviderRequest =
   components['schemas']['ValidateEmbeddingProviderRequest']
 export type ValidateEmbeddingProviderResponse =
   components['schemas']['ValidateEmbeddingProviderResponse']
+export type EmbeddingCoverageResponse =
+  components['schemas']['EmbeddingCoverageResponse']
+export type EmbeddingCoverageItem =
+  components['schemas']['EmbeddingCoverageItem']
 
 // EMBEDDING_VECTOR_DIMENSIONS is the fixed vector width VibeXP stores (locked to
 // the vector(1024) column). It is displayed read-only; a provider is accepted
@@ -97,6 +101,37 @@ class EmbeddingProviderService {
       generatedClient.POST(
         '/api/v1/{team_id}/settings/embedding-providers/validate',
         { params: { path: { team_id: teamId } }, body: request }
+      )
+    )
+  }
+
+  /**
+   * Derived, team-scoped embedding coverage (total / embedded / pending / %
+   * per entity type) measured against the team's active provider model. Counts
+   * come from existing rows — a non-decreasing pending count is the signal that
+   * embedding is stuck.
+   */
+  async getEmbeddingCoverage(
+    teamId: string
+  ): Promise<EmbeddingCoverageResponse> {
+    return unwrap(
+      generatedClient.GET(
+        '/api/v1/{team_id}/settings/embedding-providers/coverage',
+        { params: { path: { team_id: teamId } } }
+      )
+    )
+  }
+
+  /**
+   * Enqueue a background re-drive of missing embeddings. Reprocess is
+   * team-scoped (a provider is per-team), so `id` identifies the team's active
+   * provider; the backend responds 202 and regenerates in the background.
+   */
+  async reprocessEmbeddingProvider(teamId: string, id: string): Promise<void> {
+    await unwrap(
+      generatedClient.POST(
+        '/api/v1/{team_id}/settings/embedding-providers/{id}/reprocess',
+        { params: { path: { team_id: teamId, id } } }
       )
     )
   }
