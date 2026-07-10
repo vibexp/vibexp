@@ -140,34 +140,47 @@ func (d *EmbeddingDispatcher) resolveAndRoute(event events.Event) {
 		return // not embeddable, no text, or no provider configured (engine logs)
 	}
 
-	d.executorFor(teamID, resolved.Concurrency).submit(func() {
-		d.generate(input, teamID, resolved)
-	})
+	d.submitGenerate(input, teamID, resolved)
 }
 
-// executorFor returns the generate executor for a team's active provider,
-// creating it (sized to concurrency) on first use. If the provider's concurrency
-// has changed since the executor was built, the old one is retired in the
-// background (it drains what it already holds) and a new one is created at the new
-// size — so a rare admin concurrency change is picked up without a restart.
-func (d *EmbeddingDispatcher) executorFor(teamID string, concurrency int) *boundedExecutor {
+// submitGenerate enqueues an entity's generate job onto its provider's executor,
+// creating that executor (sized to concurrency) on first use. If the provider's
+// concurrency has changed since the executor was built, the old one is retired in
+// the background — it drains what it already holds — and a new one is created at
+// the new size, so a rare admin concurrency change is picked up without a
+// restart. The get-or-create and the submit happen under one lock so a concurrent
+// concurrency change can never close the executor between the two and drop the
+// job.
+func (d *EmbeddingDispatcher) submitGenerate(input embeddingInput, teamID string, resolved *ResolvedEmbeddingProvider) {
+	concurrency := resolved.Concurrency
 	if concurrency < 1 {
 		concurrency = 1
 	}
 
 	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if pe := d.execs[teamID]; pe != nil {
-		if pe.concurrency == concurrency {
-			return pe.exec
+	pe := d.execs[teamID]
+	if pe == nil || pe.concurrency != concurrency {
+		if pe != nil {
+			go pe.exec.close() // drain the old executor, then let its workers exit
 		}
-		go pe.exec.close() // drain the old executor, then let its workers exit
+		pe = &providerExecutor{concurrency: concurrency, exec: newBoundedExecutor(concurrency)}
+		d.execs[teamID] = pe
 	}
+	ok := pe.exec.submit(func() { d.generate(input, teamID, resolved) })
+	d.mu.Unlock()
 
-	exec := newBoundedExecutor(concurrency)
-	d.execs[teamID] = &providerExecutor{concurrency: concurrency, exec: exec}
-	return exec
+	if !ok {
+		// Unreachable in practice: the executor was just fetched or created live
+		// under the lock, and an executor is only closed after being replaced in
+		// the map. Log rather than drop, so a regression never goes silent.
+		d.logger.With(
+			"service", "embedding",
+			"component", "embedding-dispatcher",
+			"entity_type", input.entityType,
+			"entity_id", input.entityID,
+			"team_id", teamID,
+		).Error("Embedding job not enqueued; entity left unembedded")
+	}
 }
 
 // generate runs one entity's embedding with bounded retry. On success after a

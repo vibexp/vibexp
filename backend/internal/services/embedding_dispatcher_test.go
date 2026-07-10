@@ -243,3 +243,48 @@ func TestEmbeddingDispatcher_TerminalFailureLogsEntityID(t *testing.T) {
 }
 
 const nonEmbeddableFailID = "prompt-doomed-42"
+
+// dynamicConcurrencyResolver reports a concurrency that can change between
+// resolutions, exercising the executor-rebuild path.
+type dynamicConcurrencyResolver struct {
+	provider    EmbeddingProvider
+	concurrency atomic.Int32
+}
+
+func (r *dynamicConcurrencyResolver) ResolveActiveProvider(
+	_ context.Context, _ string,
+) (*ResolvedEmbeddingProvider, error) {
+	return &ResolvedEmbeddingProvider{
+		Provider:     r.provider,
+		ChunkSize:    1000,
+		ChunkOverlap: 200,
+		Concurrency:  int(r.concurrency.Load()),
+	}, nil
+}
+
+// A provider concurrency change mid-stream must rebuild the per-provider executor
+// without dropping any entity that was already enqueued at the old size.
+func TestEmbeddingDispatcher_ConcurrencyChangeDropsNothing(t *testing.T) {
+	t.Parallel()
+
+	provider := &countingProvider{delay: time.Millisecond}
+	resolver := &dynamicConcurrencyResolver{provider: provider}
+	resolver.concurrency.Store(1)
+	svc := newRecordingEmbeddingService(func(string) string { return "team-1" })
+
+	d := newDispatcher(resolver, svc, slog.New(slog.DiscardHandler),
+		EmbeddingRetryConfig{MaxRetries: 3, BaseBackoff: time.Millisecond})
+	defer d.Stop()
+
+	const k = 60
+	for i := 0; i < k; i++ {
+		if i == k/2 {
+			resolver.concurrency.Store(3) // flip mid-burst; executor rebuilds
+		}
+		require.NoError(t, d.ProcessEvent(context.Background(), promptEvent(fmt.Sprintf("p%d", i))))
+	}
+
+	waitFor(t, func() bool { return svc.savedCount() == k },
+		"every entity embeds across a concurrency change — none dropped")
+	assert.Equal(t, int32(k), provider.calls.Load())
+}
