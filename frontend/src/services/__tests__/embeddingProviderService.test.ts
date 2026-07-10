@@ -66,6 +66,7 @@ const provider: EmbeddingProviderResponse = {
   model: 'text-embedding-3-small',
   chunk_size: 1000,
   chunk_overlap: 200,
+  concurrency: 1,
   is_default: true,
   base_url: 'https://api.openai.com/v1',
   configuration: '{}',
