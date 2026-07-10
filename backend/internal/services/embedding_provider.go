@@ -23,6 +23,9 @@ import (
 const (
 	defaultEmbeddingChunkSize    = 1000
 	defaultEmbeddingChunkOverlap = 200
+	// Safe single-threaded default when a create request omits concurrency, so a
+	// provider never fans out embedding requests until an operator opts in (#144).
+	defaultEmbeddingConcurrency = 1
 )
 
 // Ensure EmbeddingProviderService satisfies the narrow resolver seam consumed by
@@ -151,6 +154,10 @@ func (eps *EmbeddingProviderService) buildEmbeddingProvider(
 	if req.ChunkOverlap != nil {
 		chunkOverlap = *req.ChunkOverlap
 	}
+	concurrency := defaultEmbeddingConcurrency
+	if req.Concurrency != nil {
+		concurrency = *req.Concurrency
+	}
 
 	now := time.Now()
 	return &models.EmbeddingProvider{
@@ -161,6 +168,7 @@ func (eps *EmbeddingProviderService) buildEmbeddingProvider(
 		Model:           req.Model,
 		ChunkSize:       chunkSize,
 		ChunkOverlap:    chunkOverlap,
+		Concurrency:     concurrency,
 		IsDefault:       isDefault,
 		BaseURL:         req.BaseURL,
 		APIKeyEncrypted: encryptedAPIKey,
@@ -304,6 +312,9 @@ func (eps *EmbeddingProviderService) updateProviderFields(
 	}
 	if req.ChunkOverlap != nil {
 		provider.ChunkOverlap = *req.ChunkOverlap
+	}
+	if req.Concurrency != nil {
+		provider.Concurrency = *req.Concurrency
 	}
 	if req.IsDefault != nil {
 		provider.IsDefault = *req.IsDefault
@@ -476,6 +487,7 @@ func (eps *EmbeddingProviderService) ResolveActiveProvider(
 		Provider:     provider,
 		ChunkSize:    row.ChunkSize,
 		ChunkOverlap: row.ChunkOverlap,
+		Concurrency:  row.Concurrency,
 	}, nil
 }
 
