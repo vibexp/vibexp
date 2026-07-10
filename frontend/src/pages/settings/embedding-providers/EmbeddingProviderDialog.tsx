@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { type Control, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -50,10 +50,54 @@ const schema = z.object({
   model: z.string().trim().min(1, 'Model is required').max(255),
   base_url: z.string().trim().url('Must be a valid URL'),
   api_key: z.string().optional(),
+  concurrency: z
+    .number()
+    .int('Must be a whole number')
+    .min(1, 'Must be at least 1'),
   is_default: z.boolean(),
 })
 
 export type EmbeddingProviderFormValues = z.infer<typeof schema>
+
+// Concurrency is the one numeric field, so it needs value/onChange coercion
+// (an <input type="number"> yields strings, but the schema wants a number).
+// Extracted to keep the dialog component under the max-lines-per-function cap.
+function ConcurrencyField({
+  control,
+}: {
+  control: Control<EmbeddingProviderFormValues>
+}) {
+  return (
+    <FormField
+      control={control}
+      name="concurrency"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Concurrency</FormLabel>
+          <FormControl>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              name={field.name}
+              ref={field.ref}
+              onBlur={field.onBlur}
+              value={Number.isNaN(field.value) ? '' : field.value}
+              onChange={event => {
+                field.onChange(event.target.valueAsNumber)
+              }}
+            />
+          </FormControl>
+          <FormDescription>
+            Max simultaneous embedding requests to this provider; keep at 1 for
+            single-threaded providers.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+}
 
 interface Props {
   teamId: string
@@ -86,6 +130,7 @@ export function EmbeddingProviderDialog({
       model: '',
       base_url: '',
       api_key: '',
+      concurrency: 1,
       is_default: false,
     },
   })
@@ -102,6 +147,7 @@ export function EmbeddingProviderDialog({
         model: provider.model,
         base_url: provider.base_url ?? '',
         api_key: '',
+        concurrency: provider.concurrency,
         is_default: provider.is_default,
       })
     }
@@ -158,6 +204,7 @@ export function EmbeddingProviderDialog({
       model,
       base_url: baseUrl,
       api_key: apiKey === '' ? undefined : apiKey,
+      concurrency: values.concurrency,
       is_default: values.is_default,
     })
   }
@@ -262,6 +309,7 @@ export function EmbeddingProviderDialog({
                   on save to guarantee they return this width.
                 </p>
               </div>
+              <ConcurrencyField control={form.control} />
               <FormField
                 control={form.control}
                 name="base_url"

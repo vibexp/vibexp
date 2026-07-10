@@ -92,6 +92,26 @@ describe('EmbeddingProviderDialog', () => {
     )
   })
 
+  it('defaults concurrency to 1 and threads an edited value into submit', async () => {
+    const user = userEvent.setup()
+    mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
+    const onSubmit = renderDialog()
+
+    const concurrency = screen.getByLabelText('Concurrency')
+    expect(concurrency).toHaveValue(1)
+
+    await fillValidForm(user)
+    await user.clear(concurrency)
+    await user.type(concurrency, '4')
+    await user.click(screen.getByRole('button', { name: 'Add provider' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ concurrency: 4 })
+      )
+    })
+  })
+
   it('blocks submit and shows an error when validation fails', async () => {
     const user = userEvent.setup()
     mockedValidate.mockResolvedValue({
@@ -120,6 +140,7 @@ describe('EmbeddingProviderDialog', () => {
     model: 'text-embedding-3-small',
     chunk_size: 1000,
     chunk_overlap: 200,
+    concurrency: 5,
     is_default: false,
     base_url: 'https://api.openai.com/v1',
     configuration: '{}',
@@ -128,6 +149,20 @@ describe('EmbeddingProviderDialog', () => {
     updated_at: '2024-01-01T00:00:00Z',
     version: 1,
   }
+
+  it('prefills concurrency from the provider on edit', () => {
+    render(
+      <EmbeddingProviderDialog
+        teamId="team-1"
+        open
+        onOpenChange={jest.fn()}
+        submitting={false}
+        provider={existingProvider}
+        onSubmit={jest.fn()}
+      />
+    )
+    expect(screen.getByLabelText('Concurrency')).toHaveValue(5)
+  })
 
   it('skips validation on a name-only edit (identity unchanged)', async () => {
     const user = userEvent.setup()
