@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -23,6 +24,27 @@ import (
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
+
+// TestEmbeddingsBackfillRoute_Removed_Returns404 guards acceptance criterion #1
+// of issue #146: the manual back-office backfill endpoint is gone. With a valid
+// admin key (so the /bo/v1 auth middleware passes) the request no longer matches
+// any route and 404s — a regression guard against the route being re-added.
+func TestEmbeddingsBackfillRoute_Removed_Returns404(t *testing.T) {
+	const adminKey = "test-backoffice-key"
+	srv := &Server{
+		config: &config.Config{Security: config.SecurityConfig{BackofficeAdminAPIKey: adminKey}},
+		logger: slog.New(slog.DiscardHandler),
+		router: chi.NewRouter(),
+	}
+	srv.setupBackofficeRoutes()
+
+	req := httptest.NewRequest(http.MethodPost, "/bo/v1/embeddings/backfill", nil)
+	req.Header.Set("Authorization", "Bearer "+adminKey)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
 
 // MockBackofficeService is a mock implementation of BackofficeServiceInterface
 type MockBackofficeService struct {
