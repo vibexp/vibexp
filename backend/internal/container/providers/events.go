@@ -16,6 +16,23 @@ import (
 // EventSystemDeps holds the event system dependencies.
 type EventSystemDeps struct {
 	EventManager *events.EventManager
+
+	// embeddingProcessor is retained so shutdown can drain a concurrency-managed
+	// processor (e.g. the EmbeddingDispatcher, #142) after the bus has stopped
+	// producing new events. See ShutdownListeners.
+	embeddingProcessor events.EmbeddingProcessor
+}
+
+// ShutdownListeners best-effort drains listeners that own worker goroutines
+// (their generation runs off the bus). Call it after EventManager.Stop so no new
+// events are produced while draining. It is safe to call when nothing needs it.
+func (d *EventSystemDeps) ShutdownListeners() {
+	if d == nil {
+		return
+	}
+	if s, ok := d.embeddingProcessor.(interface{ Stop() }); ok {
+		s.Stop()
+	}
 }
 
 // ProvideEventManager creates and starts the event manager
@@ -78,7 +95,8 @@ func ProvideEventSystemDeps(
 	)
 
 	return &EventSystemDeps{
-		EventManager: eventManager,
+		EventManager:       eventManager,
+		embeddingProcessor: embeddingProcessor,
 	}
 }
 
