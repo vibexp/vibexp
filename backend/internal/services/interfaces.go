@@ -218,6 +218,24 @@ type EmbeddingProviderServiceInterface interface {
 	ResolveActiveProvider(ctx context.Context, teamID string) (*ResolvedEmbeddingProvider, error)
 }
 
+// ModelProviderServiceInterface defines the interface for model provider
+// operations (per-team, bring-your-own OpenAI-compatible LLM config). Issue #110
+// ships only config storage + a validate probe; no runtime consumer is wired.
+type ModelProviderServiceInterface interface {
+	CreateModelProvider(ctx context.Context, teamID, userID string, req models.CreateModelProviderRequest,
+	) (*models.ModelProvider, error)
+	GetModelProvidersByTeamID(ctx context.Context, teamID string,
+	) ([]models.ModelProviderResponse, error)
+	GetModelProvider(ctx context.Context, teamID, providerID string,
+	) (*models.ModelProviderResponse, error)
+	UpdateModelProvider(ctx context.Context, teamID, providerID string,
+		req models.UpdateModelProviderRequest) (*models.ModelProvider, error)
+	DeleteModelProvider(ctx context.Context, teamID, providerID string) error
+	GetDefaultModelProvider(ctx context.Context, teamID string) (*models.ModelProvider, error)
+	ValidateModelProvider(ctx context.Context, req models.ValidateModelProviderRequest,
+	) (*models.ValidateModelProviderResponse, error)
+}
+
 // EmailServiceInterface defines the interface for email operations
 type EmailServiceInterface interface {
 	SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error

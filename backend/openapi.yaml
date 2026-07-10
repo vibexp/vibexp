@@ -258,6 +258,24 @@ components:
     EmbeddingCoverageResponse:
       $ref: "./schemas/embedding-providers.yaml#/EmbeddingCoverageResponse"
 
+    # Import model provider schemas
+    ModelProvider:
+      $ref: "./schemas/model-providers.yaml#/ModelProvider"
+    ModelProviderResponse:
+      $ref: "./schemas/model-providers.yaml#/ModelProviderResponse"
+    CreateModelProviderRequest:
+      $ref: "./schemas/model-providers.yaml#/CreateModelProviderRequest"
+    UpdateModelProviderRequest:
+      $ref: "./schemas/model-providers.yaml#/UpdateModelProviderRequest"
+    ModelProviderListResponse:
+      $ref: "./schemas/model-providers.yaml#/ModelProviderListResponse"
+    ModelProviderResponseList:
+      $ref: "./schemas/model-providers.yaml#/ModelProviderResponseList"
+    ValidateModelProviderRequest:
+      $ref: "./schemas/model-providers.yaml#/ValidateModelProviderRequest"
+    ValidateModelProviderResponse:
+      $ref: "./schemas/model-providers.yaml#/ValidateModelProviderResponse"
+
     # Import resource usage schemas
     ResourceUsageItem:
       $ref: "./schemas/resource-usage.yaml#/ResourceUsageItem"
@@ -1012,6 +1030,18 @@ paths:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-id-reprocess"
   /api/v1/{team_id}/settings/embedding-providers/validate:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-validate"
+  /api/v1/{team_id}/model-providers:
+    $ref: "./paths/model-providers.yaml#/api-v1-model-providers"
+  /api/v1/{team_id}/model-providers/{id}:
+    $ref: "./paths/model-providers.yaml#/api-v1-model-providers-id"
+  /api/v1/{team_id}/model-providers/validate:
+    $ref: "./paths/model-providers.yaml#/api-v1-model-providers-validate"
+  /api/v1/{team_id}/settings/model-providers:
+    $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers"
+  /api/v1/{team_id}/settings/model-providers/{id}:
+    $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers-id"
+  /api/v1/{team_id}/settings/model-providers/validate:
+    $ref: "./paths/model-providers.yaml#/api-v1-settings-model-providers-validate"
   /api/v1/{team_id}/projects:
     $ref: "./paths/projects.yaml#/api-v1-team_id-projects"
   /api/v1/{team_id}/projects/{slug}:
@@ -1060,6 +1090,8 @@ tags:
     description: Activity tracking and analytics endpoints
   - name: Embedding Providers
     description: Embedding provider configuration endpoints
+  - name: Model Providers
+    description: Model provider (bring-your-own OpenAI-compatible LLM) configuration endpoints
   - name: Subscriptions
     description: Subscription and billing endpoints
   - name: Support

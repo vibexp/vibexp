@@ -68,6 +68,11 @@ func ProvideEmbeddingProviderRepository(db *database.DB) repositories.EmbeddingP
 	return postgres.NewEmbeddingProviderRepository(db)
 }
 
+// ProvideModelProviderRepository creates a new ModelProviderRepository
+func ProvideModelProviderRepository(db *database.DB) repositories.ModelProviderRepository {
+	return postgres.NewModelProviderRepository(db)
+}
+
 // ProvideActivityRepository creates a new ActivityRepository
 func ProvideActivityRepository(db *database.DB) repositories.ActivityRepository {
 	return postgres.NewActivityRepository(db)

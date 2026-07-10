@@ -134,6 +134,14 @@ var (
 	// failure: entity writes still succeed and no embedding is generated.
 	ErrNoActiveEmbeddingProvider = errors.New("no active embedding provider configured")
 
+	// ErrModelProviderNotFound is returned by ModelProviderRepository
+	// lookups/updates/deletes when no provider row matches the given identifier.
+	ErrModelProviderNotFound = errors.New("model provider not found")
+
+	// ErrDefaultModelProviderNotFound is returned by
+	// ModelProviderRepository.GetDefault when the team has no default provider.
+	ErrDefaultModelProviderNotFound = errors.New("no default model provider found")
+
 	// ErrFeedNotFound is returned by FeedRepository lookups/updates/deletes when no
 	// feed row matches the given identifier for the team.
 	ErrFeedNotFound = errors.New("feed not found")
@@ -507,6 +515,26 @@ type EmbeddingProviderRepository interface {
 
 // EmbeddingProviderFilters represents filters for embedding provider queries
 type EmbeddingProviderFilters struct {
+	ProviderType *string
+	Page         int
+	Limit        int
+}
+
+// ModelProviderRepository defines the interface for model provider data access operations
+type ModelProviderRepository interface {
+	Create(ctx context.Context, provider *models.ModelProvider) error
+	GetByID(ctx context.Context, teamID, providerID string) (*models.ModelProvider, error)
+	List(ctx context.Context, teamID string, filters ModelProviderFilters) ([]models.ModelProvider, int, error)
+	Update(ctx context.Context, provider *models.ModelProvider) error
+	Delete(ctx context.Context, teamID, providerID string) error
+	GetDefault(ctx context.Context, teamID string) (*models.ModelProvider, error)
+	SetDefault(ctx context.Context, teamID, providerID string) error
+	UnsetAllDefaults(ctx context.Context, teamID string) error
+	Count(ctx context.Context, teamID string) (int, error)
+}
+
+// ModelProviderFilters represents filters for model provider queries
+type ModelProviderFilters struct {
 	ProviderType *string
 	Page         int
 	Limit        int
