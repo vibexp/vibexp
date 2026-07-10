@@ -6,13 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
@@ -22,10 +21,30 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
-	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
+
+// TestEmbeddingsBackfillRoute_Removed_Returns404 guards acceptance criterion #1
+// of issue #146: the manual back-office backfill endpoint is gone. With a valid
+// admin key (so the /bo/v1 auth middleware passes) the request no longer matches
+// any route and 404s — a regression guard against the route being re-added.
+func TestEmbeddingsBackfillRoute_Removed_Returns404(t *testing.T) {
+	const adminKey = "test-backoffice-key"
+	srv := &Server{
+		config: &config.Config{Security: config.SecurityConfig{BackofficeAdminAPIKey: adminKey}},
+		logger: slog.New(slog.DiscardHandler),
+		router: chi.NewRouter(),
+	}
+	srv.setupBackofficeRoutes()
+
+	req := httptest.NewRequest(http.MethodPost, "/bo/v1/embeddings/backfill", nil)
+	req.Header.Set("Authorization", "Bearer "+adminKey)
+	w := httptest.NewRecorder()
+	srv.router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
 
 // MockBackofficeService is a mock implementation of BackofficeServiceInterface
 type MockBackofficeService struct {
@@ -46,16 +65,11 @@ func (m *MockBackofficeService) GetUsageAndGrowth(
 // MockContainerForBackoffice is a mock container for backoffice handler testing
 type MockContainerForBackoffice struct {
 	BaseMockContainer
-	backofficeService        *MockBackofficeService
-	embeddingBackfillService services.EmbeddingBackfillServiceInterface
+	backofficeService *MockBackofficeService
 }
 
 func (m *MockContainerForBackoffice) BackofficeService() services.BackofficeServiceInterface {
 	return m.backofficeService
-}
-
-func (m *MockContainerForBackoffice) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
-	return m.embeddingBackfillService
 }
 
 // Implement all required container.Container interface methods
@@ -770,107 +784,6 @@ func (m *MockContainerForBackoffice) DigestRunner() *notifications.DigestRunner 
 
 func (m *MockContainerForBackoffice) ProjectMigrationService() services.ProjectMigrationServiceInterface {
 	return nil
-}
-
-// backfillTestServer builds a Server whose container exposes the given backfill
-// service mock, for exercising handleEmbeddingsBackfill in isolation.
-func backfillTestServer(backfill services.EmbeddingBackfillServiceInterface) *Server {
-	return &Server{
-		port:      "8080",
-		apiKey:    "test-api-key",
-		config:    &config.Config{},
-		container: &MockContainerForBackoffice{embeddingBackfillService: backfill},
-		logger:    setupTestLogger(),
-	}
-}
-
-func postBackfill(t *testing.T, srv *Server, body string) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/bo/v1/embeddings/backfill", bytesReader(body))
-	rr := httptest.NewRecorder()
-	srv.handleEmbeddingsBackfill(rr, req)
-	return rr
-}
-
-func bytesReader(s string) *strings.Reader { return strings.NewReader(s) }
-
-func TestEmbeddingsBackfill_NoScope_Returns400(t *testing.T) {
-	backfill := svcmocks.NewMockEmbeddingBackfillServiceInterface(t)
-	backfill.EXPECT().Backfill(mock.Anything, mock.Anything).
-		Return(nil, services.ErrBackfillScopeRequired).Once()
-
-	rr := postBackfill(t, backfillTestServer(backfill), `{}`)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Equal(t, "application/problem+json", rr.Header().Get("Content-Type"))
-}
-
-func TestEmbeddingsBackfill_AllAndEntityTypes_Returns400(t *testing.T) {
-	backfill := svcmocks.NewMockEmbeddingBackfillServiceInterface(t)
-	backfill.EXPECT().Backfill(mock.Anything, mock.Anything).
-		Return(nil, services.ErrBackfillScopeAmbiguous).Once()
-
-	rr := postBackfill(t, backfillTestServer(backfill), `{"all":true,"entity_types":["prompt"]}`)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestEmbeddingsBackfill_UnsupportedType_Returns400(t *testing.T) {
-	backfill := svcmocks.NewMockEmbeddingBackfillServiceInterface(t)
-	backfill.EXPECT().Backfill(mock.Anything, mock.Anything).
-		Return(nil, services.ErrUnsupportedBackfillEntityType).Once()
-
-	rr := postBackfill(t, backfillTestServer(backfill), `{"entity_types":["feed_item_reply"]}`)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestEmbeddingsBackfill_All_ThreadsScopeAndReturnsCounts(t *testing.T) {
-	backfill := svcmocks.NewMockEmbeddingBackfillServiceInterface(t)
-	backfill.EXPECT().
-		Backfill(mock.Anything, mock.MatchedBy(func(req services.EmbeddingBackfillRequest) bool {
-			return req.All && len(req.EntityTypes) == 0 && !req.MissingOnly && !req.DryRun
-		})).
-		Return(&services.EmbeddingBackfillResult{TotalSeen: 5, TotalPublished: 5}, nil).Once()
-
-	rr := postBackfill(t, backfillTestServer(backfill), `{"all":true}`)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	var resp services.EmbeddingBackfillResult
-	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
-	assert.Equal(t, 5, resp.TotalPublished)
-}
-
-func TestEmbeddingsBackfill_MissingOnlyDryRun_ThreadsFlags(t *testing.T) {
-	backfill := svcmocks.NewMockEmbeddingBackfillServiceInterface(t)
-	backfill.EXPECT().
-		Backfill(mock.Anything, mock.MatchedBy(func(req services.EmbeddingBackfillRequest) bool {
-			return req.MissingOnly && req.DryRun && len(req.EntityTypes) == 1 && req.EntityTypes[0] == "memory"
-		})).
-		Return(&services.EmbeddingBackfillResult{DryRun: true, TotalSeen: 3}, nil).Once()
-
-	rr := postBackfill(t, backfillTestServer(backfill),
-		`{"entity_types":["memory"],"missing_only":true,"dry_run":true}`)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-func TestEmbeddingsBackfill_UnknownField_Returns400(t *testing.T) {
-	backfill := svcmocks.NewMockEmbeddingBackfillServiceInterface(t)
-	// DisallowUnknownFields rejects before the service is reached.
-	rr := postBackfill(t, backfillTestServer(backfill), `{"missingOnly":true}`)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestEmbeddingsBackfill_ServiceError_Returns500(t *testing.T) {
-	backfill := svcmocks.NewMockEmbeddingBackfillServiceInterface(t)
-	backfill.EXPECT().Backfill(mock.Anything, mock.Anything).
-		Return(nil, assert.AnError).Once()
-
-	rr := postBackfill(t, backfillTestServer(backfill), `{"all":true}`)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
 
 func (m *MockContainerForBackoffice) TypeService() services.TypeServiceInterface { return nil }

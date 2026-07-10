@@ -112,6 +112,11 @@ type Server struct {
 	// parallel requests from the same user with an expired access token would all
 	// race on RefreshTokens and most would 401. See middleware.go:authenticateWithSession.
 	refreshLocks sync.Map // map[string]*sync.Mutex keyed by user_id
+	// reembedInFlight guards background team re-embeds so a rapid provider
+	// change or a repeated reprocess click never stacks duplicate fan-outs for
+	// the same team. Keyed by team_id; the value is present while a run is live
+	// (see enqueueTeamReembed). Its zero value is ready to use.
+	reembedInFlight sync.Map // map[string]struct{} keyed by team_id
 	// spaFS is the embedded frontend build (contents of frontend/dist), served by
 	// the SPA catch-all (handleSPA). It is nil in the default dev/CI build (the
 	// frontend is NOT embedded, so the backend compiles and runs without a built
@@ -435,7 +440,6 @@ func (s *Server) setupBackofficeRoutes() {
 		r.Route("/reports", func(r chi.Router) {
 			r.Get("/usage-and-growth", s.handleBackofficeUsageAndGrowth)
 		})
-		r.Post("/embeddings/backfill", s.handleEmbeddingsBackfill)
 	})
 }
 
@@ -648,6 +652,7 @@ func (s *Server) setupEmbeddingProvidersRoutes(r chi.Router) {
 	r.Get("/{id}", s.handleGetEmbeddingProvider)
 	r.Put("/{id}", s.handleUpdateEmbeddingProvider)
 	r.Delete("/{id}", s.handleDeleteEmbeddingProvider)
+	r.Post("/{id}/reprocess", s.handleReprocessEmbeddingProvider)
 	r.Post("/validate", s.handleValidateEmbeddingProvider)
 }
 

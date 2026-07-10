@@ -38,28 +38,57 @@ func (s *Server) reembedTeamIfProviderIdentityChanged(
 		return
 	}
 
+	// The identity changed, so the old vectors were produced by a different model
+	// and are not comparable to new queries: wipe them and regenerate the team.
+	s.enqueueTeamReembed(teamID, true)
+}
+
+// enqueueTeamReembed regenerates a team's embeddings in the background through the
+// concurrency-bounded embedding path (#142): EmbeddingBackfillService republishes
+// each entity's `.created` event, which the inline, per-provider-bounded
+// EmbeddingWorker consumes, so a large regeneration never fans out unbounded onto
+// the event bus. It is the single enqueue seam behind provider create, an identity
+// change on update, and the reprocess action.
+//
+// When wipe is true the team's existing vectors are deleted first — used when a
+// provider change makes the old vectors incomparable to new queries; otherwise
+// only entities still missing an embedding are (re)generated. A per-team in-flight
+// guard drops overlapping calls so a rapid provider change or a repeated reprocess
+// click never stacks duplicate bursts for the same team.
+func (s *Server) enqueueTeamReembed(teamID string, wipe bool) {
 	logger := s.logger.With(
 		"service", "vibexp-api",
 		"component", "embedding-reembed",
 		"team_id", teamID,
 	)
 
-	deleted, err := s.container.EmbeddingRepository().DeleteByTeam(context.Background(), teamID)
-	if err != nil {
-		logger.With("error", fmt.Sprintf("%+v", err)).
-			Error("Failed to wipe team embeddings after provider change")
+	if _, inFlight := s.reembedInFlight.LoadOrStore(teamID, struct{}{}); inFlight {
+		logger.Info("Team re-embed already in flight; skipping duplicate enqueue")
 		return
 	}
-	logger.With("deleted", deleted).
-		Info("Wiped team embeddings after provider change; re-embedding in background")
+
+	if wipe {
+		deleted, err := s.container.EmbeddingRepository().DeleteByTeam(context.Background(), teamID)
+		if err != nil {
+			s.reembedInFlight.Delete(teamID)
+			logger.With("error", fmt.Sprintf("%+v", err)).
+				Error("Failed to wipe team embeddings before re-embed")
+			return
+		}
+		logger.With("deleted", deleted).
+			Info("Wiped team embeddings; re-embedding in background")
+	}
 
 	go func() {
+		defer s.reembedInFlight.Delete(teamID)
+		// MissingOnly mirrors the intent: after a wipe every entity is missing, so
+		// re-embed all; otherwise (create / reprocess) only fill the gaps.
 		if _, err := s.container.EmbeddingBackfillService().Backfill(
 			context.Background(),
-			services.EmbeddingBackfillRequest{All: true, TeamID: teamID},
+			services.EmbeddingBackfillRequest{All: true, TeamID: teamID, MissingOnly: !wipe},
 		); err != nil {
 			logger.With("error", fmt.Sprintf("%+v", err)).
-				Error("Background re-embed after provider change failed")
+				Error("Background team re-embed failed")
 		}
 	}()
 }
@@ -117,6 +146,12 @@ func (s *Server) handleCreateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		"provider_id", provider.ID,
 		"name", req.Name,
 	).Info("Embedding provider created successfully")
+
+	// Enqueue embedding generation for the team's existing entities so a newly
+	// added provider populates automatically — previously only an identity change
+	// on update re-embedded, so new providers started empty. Missing-only and in
+	// the background, riding the #142 bounded path.
+	s.enqueueTeamReembed(teamID, false)
 
 	s.writeEmbeddingProviderResponse(w, provider)
 }
@@ -415,6 +450,61 @@ func (s *Server) handleDeleteEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	).Info("Embedding provider deleted successfully")
 
 	writeNoContent(w)
+}
+
+// handleReprocessEmbeddingProvider handles POST .../embedding-providers/{id}/reprocess.
+// It re-drives embedding generation for the team's entities that are still missing
+// an embedding, through the concurrency-bounded path (#142), and returns 202
+// immediately — generation runs in the background and is idempotent
+// (delete-then-insert per entity). The provider {id} is validated and authorized
+// (team middleware), but the work is team-scoped: a provider is per-team, so
+// reprocess enqueues the team's entity set, generated via the team's active
+// provider. A per-team in-flight guard makes repeat calls safe (no double
+// fan-out).
+func (s *Server) handleReprocessEmbeddingProvider(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
+	providerID := chi.URLParam(r, "id")
+
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleReprocessEmbeddingProvider",
+		"user_id", userID,
+		"provider_id", providerID,
+	).Info("Embedding provider reprocess request received")
+
+	if providerID == "" {
+		apiErr := errors.NewProviderValidationError(
+			"Provider ID is required in the URL path",
+			[]errors.ValidationError{errors.NewRequiredFieldError("id")},
+		)
+		errors.WriteJSONError(w, r, apiErr)
+		return
+	}
+
+	// Confirm the provider exists and belongs to the team before enqueuing, so a
+	// bad id returns 404 rather than silently starting a team-wide re-embed.
+	if _, err := s.container.EmbeddingProviderService().GetEmbeddingProvider(r.Context(), teamID, providerID); err != nil {
+		s.logEmbeddingProviderError(
+			"handleReprocessEmbeddingProvider", userID, providerID, err,
+			"Failed to load provider for reprocess",
+		)
+		if stderrors.Is(err, services.ErrProviderNotFound) {
+			errors.WriteJSONError(w, r, errors.NewProviderNotFoundError(providerID))
+			return
+		}
+		errors.WriteJSONError(w, r, errors.NewDatabaseError(
+			fmt.Sprintf("Failed to retrieve embedding provider '%s'. Please try again later.", providerID),
+		))
+		return
+	}
+
+	s.enqueueTeamReembed(teamID, false)
+
+	writeJSON(w, http.StatusAccepted, map[string]interface{}{
+		"status":  "accepted",
+		"message": "Reprocessing missing embeddings for this team in the background.",
+	}, s.logger)
 }
 
 func (s *Server) handleValidateEmbeddingProvider(w http.ResponseWriter, r *http.Request) {

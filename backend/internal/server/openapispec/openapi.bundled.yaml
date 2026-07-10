@@ -4429,56 +4429,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Back Office
-  /bo/v1/embeddings/backfill:
-    post:
-      summary: Regenerate embeddings
-      description: |
-        Republishes the `.created` event for embeddable entities (prompts,
-        artifacts, memories, blueprints, and feed items) so the embedding pipeline
-        regenerates vectors under the currently configured embedding model. This is
-        the operational step after an embedding model or dimension change. The
-        operation is idempotent (the pipeline uses delete-then-insert per entity).
-
-        The scope is explicit: the request body must set exactly one of `all` or a
-        non-empty `entity_types`. Set `missing_only` to limit the run to entities
-        that lack an embedding for the configured model. This endpoint is for
-        administrative purposes only and requires the back office admin API key.
-      operationId: backfillEmbeddings
-      security:
-        - BackofficeAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EmbeddingBackfillRequest'
-      responses:
-        '200':
-          description: Backfill completed; per-entity-type and aggregate counts returned.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EmbeddingBackfillResult'
-        '400':
-          description: Invalid request body, no scope (`all` and `entity_types` both empty), an ambiguous scope (both `all` and `entity_types` set), or an unsupported entity type was requested.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized - Missing or invalid back office admin API key
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      tags:
-        - Back Office
   /api/v1/{team_id}/integrations/github/status:
     get:
       summary: Get GitHub App installation status
@@ -9276,6 +9226,68 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Embedding Providers
+  /api/v1/{team_id}/embedding-providers/{id}/reprocess:
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team that owns the embedding provider(s).
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Reprocess missing embeddings
+      description: |
+        Re-drives embedding generation for the team's entities that are still
+        missing an embedding, through the concurrency-bounded embedding path so a
+        large run never fans out beyond the provider's configured concurrency. It
+        is the sanctioned replacement for the removed back-office backfill
+        endpoint.
+
+        The provider `{id}` is validated and authorized, but the work is
+        team-scoped: an embedding provider is per-team, so reprocess enqueues the
+        team's entity set (generated via the team's active provider). It returns
+        202 immediately and runs in the background; generation is idempotent
+        (delete-then-insert per entity) and a per-team in-flight guard makes
+        repeat calls safe (no double fan-out).
+      operationId: reprocessEmbeddingProvider
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Embedding provider ID
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Reprocess accepted; embeddings are regenerated in the background.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to load the provider before reprocess (`DATABASE_ERROR`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Embedding Providers
   /api/v1/{team_id}/embedding-providers/validate:
     parameters:
       - name: team_id
@@ -9571,6 +9583,63 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Provider deletion failed (`PROVIDER_DELETE_FAILED`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Settings
+  /api/v1/{team_id}/settings/embedding-providers/{id}/reprocess:
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team that owns the embedding provider(s).
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Reprocess missing embeddings (Settings)
+      description: |
+        Re-drives embedding generation for the team's entities that are still
+        missing an embedding, through the concurrency-bounded embedding path
+        (settings route). The provider `{id}` is validated and authorized, but the
+        work is team-scoped: an embedding provider is per-team, so reprocess
+        enqueues the team's entity set. It returns 202 immediately and runs in the
+        background; generation is idempotent and a per-team in-flight guard makes
+        repeat calls safe.
+      operationId: reprocessEmbeddingProviderSettings
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Embedding provider ID
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Reprocess accepted; embeddings are regenerated in the background.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to load the provider before reprocess (`DATABASE_ERROR`)
           content:
             application/problem+json:
               schema:
@@ -14743,85 +14812,6 @@ components:
         total_agent_executions_run:
           type: integer
           description: Total number of agent executions run by user
-    EmbeddingBackfillRequest:
-      type: object
-      description: 'Configuration for an embedding backfill run. The scope is explicit: set exactly one of `all` or a non-empty `entity_types`. Sending neither, or both, is rejected with a 400.'
-      properties:
-        all:
-          type: boolean
-          description: Backfill every supported entity type. Mutually exclusive with `entity_types`.
-          default: false
-        entity_types:
-          type: array
-          description: Restrict the run to these entity types. Mutually exclusive with `all`.
-          items:
-            type: string
-            enum:
-              - prompt
-              - artifact
-              - memory
-              - blueprint
-              - feed_item
-          example:
-            - prompt
-            - artifact
-        missing_only:
-          type: boolean
-          description: When true, only publish for entities that do not already have an embedding for the currently configured model. Honored by `dry_run`.
-          default: false
-        dry_run:
-          type: boolean
-          description: When true, count the entities that would be republished without publishing any event.
-          default: false
-    EmbeddingBackfillTypeResult:
-      type: object
-      description: Per-entity-type outcome of a backfill run.
-      required:
-        - entity_type
-        - total
-        - published
-        - failed
-      properties:
-        entity_type:
-          type: string
-          example: prompt
-        total:
-          type: integer
-          description: Number of source entities seen for this type.
-          example: 42
-        published:
-          type: integer
-          description: Number of `.created` events successfully republished (0 on a dry run).
-          example: 42
-        failed:
-          type: integer
-          description: Number of entities whose event publish failed (log-and-continue).
-          example: 0
-    EmbeddingBackfillResult:
-      type: object
-      description: Aggregated result of an embedding backfill run.
-      required:
-        - dry_run
-        - results
-        - total_seen
-        - total_published
-        - total_failed
-      properties:
-        dry_run:
-          type: boolean
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/EmbeddingBackfillTypeResult'
-        total_seen:
-          type: integer
-          example: 42
-        total_published:
-          type: integer
-          example: 42
-        total_failed:
-          type: integer
-          example: 0
     UsageAndGrowthResponse:
       type: object
       description: Usage and growth data response

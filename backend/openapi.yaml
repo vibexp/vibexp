@@ -483,77 +483,6 @@ components:
           type: integer
           description: Total number of agent executions run by user
 
-    EmbeddingBackfillRequest:
-      type: object
-      description: >-
-        Configuration for an embedding backfill run. The scope is explicit: set
-        exactly one of `all` or a non-empty `entity_types`. Sending neither, or
-        both, is rejected with a 400.
-      properties:
-        all:
-          type: boolean
-          description: >-
-            Backfill every supported entity type. Mutually exclusive with
-            `entity_types`.
-          default: false
-        entity_types:
-          type: array
-          description: >-
-            Restrict the run to these entity types. Mutually exclusive with `all`.
-          items:
-            type: string
-            enum: [prompt, artifact, memory, blueprint, feed_item]
-          example: [prompt, artifact]
-        missing_only:
-          type: boolean
-          description: >-
-            When true, only publish for entities that do not already have an
-            embedding for the currently configured model. Honored by `dry_run`.
-          default: false
-        dry_run:
-          type: boolean
-          description: When true, count the entities that would be republished without publishing any event.
-          default: false
-    EmbeddingBackfillTypeResult:
-      type: object
-      description: Per-entity-type outcome of a backfill run.
-      required: [entity_type, total, published, failed]
-      properties:
-        entity_type:
-          type: string
-          example: prompt
-        total:
-          type: integer
-          description: Number of source entities seen for this type.
-          example: 42
-        published:
-          type: integer
-          description: Number of `.created` events successfully republished (0 on a dry run).
-          example: 42
-        failed:
-          type: integer
-          description: Number of entities whose event publish failed (log-and-continue).
-          example: 0
-    EmbeddingBackfillResult:
-      type: object
-      description: Aggregated result of an embedding backfill run.
-      required: [dry_run, results, total_seen, total_published, total_failed]
-      properties:
-        dry_run:
-          type: boolean
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/EmbeddingBackfillTypeResult'
-        total_seen:
-          type: integer
-          example: 42
-        total_published:
-          type: integer
-          example: 42
-        total_failed:
-          type: integer
-          example: 0
     UsageAndGrowthResponse:
       type: object
       description: Usage and growth data response
@@ -939,8 +868,6 @@ paths:
     $ref: "./paths/prompts.yaml#/api-v1-shared-prompts-token"
   /bo/v1/reports/usage-and-growth:
     $ref: "./paths/backoffice.yaml#/bo-v1-reports-usage-and-growth"
-  /bo/v1/embeddings/backfill:
-    $ref: "./paths/backoffice.yaml#/bo-v1-embeddings-backfill"
   /api/v1/{team_id}/integrations/github/status:
     $ref: "./paths/github.yaml#/api-v1-team_id-integrations-github-status"
   /api/v1/{team_id}/integrations/github/install-url:
@@ -1065,12 +992,16 @@ paths:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers"
   /api/v1/{team_id}/embedding-providers/{id}:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-id"
+  /api/v1/{team_id}/embedding-providers/{id}/reprocess:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-id-reprocess"
   /api/v1/{team_id}/embedding-providers/validate:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-validate"
   /api/v1/{team_id}/settings/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers"
   /api/v1/{team_id}/settings/embedding-providers/{id}:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-id"
+  /api/v1/{team_id}/settings/embedding-providers/{id}/reprocess:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-id-reprocess"
   /api/v1/{team_id}/settings/embedding-providers/validate:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-validate"
   /api/v1/{team_id}/projects:
