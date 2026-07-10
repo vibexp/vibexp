@@ -595,6 +595,9 @@ func (c *WireContainer) Close() error {
 				"error", fmt.Sprintf("%+v", err),
 			)
 		}
+		// Drain concurrency-managed listeners (e.g. the embedding dispatcher's
+		// per-provider workers) now that the bus is no longer producing events.
+		c.eventSystemDeps.ShutdownListeners()
 	}
 
 	// Drain the resource-access worker pool (best-effort flush of buffered

@@ -20,17 +20,24 @@ type EmbeddingProcessor interface {
 
 // EmbeddingWorker is the in-process async embedding listener. It subscribes to
 // entity created/updated events on the in-memory event bus and delegates the
-// actual generation to an EmbeddingProcessor. The bus's existing non-blocking
-// worker pool (with retry/backoff) provides the "async goroutine worker", so this
-// listener stays thin and adds no new concurrency primitives.
+// actual generation to an EmbeddingProcessor.
+//
+// When its processor manages its own concurrency (bounds fan-out on its own
+// per-provider workers — see EmbeddingDispatcher / #142), the worker reports
+// ManagesOwnConcurrency so the bus dispatches it inline and its generation never
+// rides the shared pool's unbounded go task() saturation fallback. With a plain
+// synchronous processor it reports false and rides the bus worker pool as before.
 type EmbeddingWorker struct {
 	processor  EmbeddingProcessor
 	eventTypes []string
 	logger     *slog.Logger
 }
 
-// Ensure EmbeddingWorker implements EventListener.
-var _ EventListener = (*EmbeddingWorker)(nil)
+// Ensure EmbeddingWorker implements EventListener and ConcurrencyManagedListener.
+var (
+	_ EventListener              = (*EmbeddingWorker)(nil)
+	_ ConcurrencyManagedListener = (*EmbeddingWorker)(nil)
+)
 
 // NewEmbeddingWorker creates an EmbeddingWorker subscribed to the entity
 // created/updated events that drive embedding generation.
@@ -51,6 +58,15 @@ func (w *EmbeddingWorker) Handle(ctx context.Context, event Event) error {
 // EventTypes returns the entity created/updated events this worker handles.
 func (w *EmbeddingWorker) EventTypes() []string {
 	return w.eventTypes
+}
+
+// ManagesOwnConcurrency reports whether the underlying processor bounds its own
+// concurrency (and so must bypass the shared worker pool). It defers to the
+// processor: a dispatcher that runs generation on its own per-provider workers
+// returns true; a plain synchronous processor returns false.
+func (w *EmbeddingWorker) ManagesOwnConcurrency() bool {
+	p, ok := w.processor.(interface{ ManagesOwnConcurrency() bool })
+	return ok && p.ManagesOwnConcurrency()
 }
 
 // EmbeddingEventTypes is the set of entity events that trigger embedding

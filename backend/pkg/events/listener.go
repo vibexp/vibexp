@@ -11,6 +11,21 @@ type EventListener interface {
 	EventTypes() []string
 }
 
+// ConcurrencyManagedListener is an EventListener that runs its work on its own
+// bounded worker goroutines. When ManagesOwnConcurrency reports true, the bus
+// invokes the listener inline on the dispatch goroutine instead of through the
+// shared worker pool, so its handling never rides the pool's unbounded
+// `go task()` saturation fallback (#142). Such a listener's Handle MUST be fast
+// and non-blocking (enqueue only) and owns its own retry policy — the bus applies
+// none. A listener that returns false is dispatched normally (via the pool).
+type ConcurrencyManagedListener interface {
+	EventListener
+
+	// ManagesOwnConcurrency reports whether this listener bounds its own
+	// concurrency and must bypass the shared worker pool.
+	ManagesOwnConcurrency() bool
+}
+
 // NoOpListener is a listener that does nothing (for initial implementation)
 type NoOpListener struct {
 	eventTypes []string

@@ -327,14 +327,29 @@ func ProvideQueryEmbedder(
 }
 
 // ProvideEmbeddingProcessor creates the events.EmbeddingProcessor the embedding
-// worker uses to generate and persist embeddings off the event bus: it resolves
-// the active provider, chunks entity text in Go, embeds it, and saves the chunks.
+// worker uses to generate and persist embeddings off the event bus. The
+// generation engine resolves the active provider, chunks entity text in Go,
+// embeds it, and saves the chunks; the EmbeddingDispatcher wraps it to bound
+// fan-out per provider (sized by each provider's concurrency) and keep generation
+// off the bus's shared, unbounded worker pool (#142). Retry and resolve-stage
+// sizing reuse the event_bus.* knobs so operators tune one set of values.
 func ProvideEmbeddingProcessor(
 	providerSvc services.EmbeddingProviderServiceInterface,
 	embeddingService services.EmbeddingServiceInterface,
+	cfg *config.Config,
 	logger *slog.Logger,
 ) events.EmbeddingProcessor {
-	return services.NewEmbeddingGenerationProcessor(providerSvc, embeddingService, logger)
+	engine := services.NewEmbeddingGenerationProcessor(providerSvc, embeddingService, logger)
+	return services.NewEmbeddingDispatcher(
+		engine,
+		cfg.EventBus.WorkerCount,
+		services.EmbeddingRetryConfig{
+			MaxRetries:  cfg.EventBus.MaxRetries,
+			BaseBackoff: cfg.EventBus.RetryBackoff,
+			Jitter:      cfg.EventBus.RetryJitter,
+		},
+		logger,
+	)
 }
 
 // ProvideSearchService creates a new SearchService, wiring the recency-ranking

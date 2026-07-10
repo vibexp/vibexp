@@ -55,22 +55,46 @@ func NewEmbeddingGenerationProcessor(
 // the event is not embeddable, carries no text, or no provider is configured —
 // the originating entity write must never be failed by embedding generation.
 func (p *EmbeddingGenerationProcessor) ProcessEvent(ctx context.Context, event events.Event) error {
+	input, teamID, resolved, err := p.resolveJob(ctx, event)
+	if err != nil {
+		return err
+	}
+	if resolved == nil {
+		return nil // not embeddable, no text, or no provider configured
+	}
+	return p.generateAndSave(ctx, input, teamID, resolved)
+}
+
+// resolveJob extracts the embeddable input from event and resolves the entity's
+// team and active provider. It returns a nil *ResolvedEmbeddingProvider (with no
+// error) for the no-op cases the caller skips: an event that is not embeddable,
+// carries no text, or whose team has no provider configured. A non-nil error is a
+// genuine resolution failure (team lookup or provider decode) worth surfacing. It
+// is the shared front half of the sync ProcessEvent path and the async
+// EmbeddingDispatcher, so both resolve identically.
+func (p *EmbeddingGenerationProcessor) resolveJob(
+	ctx context.Context, event events.Event,
+) (embeddingInput, string, *ResolvedEmbeddingProvider, error) {
 	input, ok := extractEmbeddingInput(event)
 	if !ok {
-		return nil // event type is not embeddable
+		return embeddingInput{}, "", nil, nil // event type is not embeddable
 	}
 	if input.entityID == "" || input.userID == "" || strings.TrimSpace(input.text) == "" {
-		return nil // nothing to embed
+		return embeddingInput{}, "", nil, nil // nothing to embed
 	}
 
 	teamID, err := p.embeddingService.ResolveEntityTeam(ctx, input.userID, input.entityType, input.entityID)
 	if err != nil {
-		return fmt.Errorf("failed to resolve team for %s %s: %w", input.entityType, input.entityID, err)
+		// Return the extracted input alongside the error so a caller can name the
+		// entity in a terminal log rather than dropping it anonymously.
+		return input, "", nil, fmt.Errorf(
+			"failed to resolve team for %s %s: %w", input.entityType, input.entityID, err,
+		)
 	}
 
 	resolved, err := p.resolver.ResolveActiveProvider(ctx, teamID)
 	if err != nil {
-		return fmt.Errorf("failed to resolve embedding provider: %w", err)
+		return input, teamID, nil, fmt.Errorf("failed to resolve embedding provider: %w", err)
 	}
 	if resolved == nil {
 		p.logger.With(
@@ -80,10 +104,10 @@ func (p *EmbeddingGenerationProcessor) ProcessEvent(ctx context.Context, event e
 			"entity_id", input.entityID,
 			"team_id", teamID,
 		).Debug("No active embedding provider configured for team; skipping embedding generation")
-		return nil
+		return embeddingInput{}, teamID, nil, nil
 	}
 
-	return p.generateAndSave(ctx, input, teamID, resolved)
+	return input, teamID, resolved, nil
 }
 
 // generateAndSave chunks the input, embeds it with the team's resolved provider,

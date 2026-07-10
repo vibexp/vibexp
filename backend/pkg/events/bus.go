@@ -287,12 +287,34 @@ func (b *InMemoryEventBus) processEvent(event Event) {
 		return
 	}
 
-	// Dispatch to each listener via worker pool
+	// Dispatch to each listener. A concurrency-managed listener bounds its own
+	// fan-out on its own workers, so it is invoked inline here and never rides the
+	// shared pool's unbounded go task() saturation fallback (#142); every other
+	// listener is dispatched through the worker pool as before.
 	for _, listener := range listeners {
 		listener := listener // capture loop variable
+		if cm, ok := listener.(ConcurrencyManagedListener); ok && cm.ManagesOwnConcurrency() {
+			b.dispatchInline(listener, event)
+			continue
+		}
 		b.workerPool.Submit(func() {
 			b.handleEventWithRetry(listener, event)
 		})
+	}
+}
+
+// dispatchInline invokes a concurrency-managed listener on the dispatch
+// goroutine. Such a listener only enqueues onto its own bounded workers and
+// returns immediately, so running it here (rather than via the shared worker
+// pool) keeps its work off the pool's unbounded saturation fallback. It owns its
+// own retry policy, so the bus applies none; an enqueue rejection is logged.
+func (b *InMemoryEventBus) dispatchInline(listener EventListener, event Event) {
+	if err := listener.Handle(context.Background(), event); err != nil {
+		b.logger.With(
+			"listener_type", fmt.Sprintf("%T", listener),
+			"event_type", event.Type(),
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Concurrency-managed listener rejected event")
 	}
 }
 
