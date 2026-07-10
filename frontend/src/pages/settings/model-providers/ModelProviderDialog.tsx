@@ -170,7 +170,7 @@ export function ModelProviderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {provider ? 'Edit provider' : 'Add model provider'}
@@ -184,7 +184,7 @@ export function ModelProviderDialog({
             onSubmit={event => {
               void handleSubmit(event)
             }}
-            className="space-y-4"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2"
           >
             <FormField
               control={form.control}
@@ -221,20 +221,7 @@ export function ModelProviderDialog({
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="model"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Model</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="e.g., gpt-4o-mini" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label>Presets</Label>
               <div className="flex flex-wrap gap-2">
                 {BASE_URL_PRESETS.map(preset => (
@@ -260,6 +247,19 @@ export function ModelProviderDialog({
             </div>
             <FormField
               control={form.control}
+              name="model"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Model</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="e.g., gpt-4o-mini" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="base_url"
               render={({ field }) => (
                 <FormItem>
@@ -278,7 +278,7 @@ export function ModelProviderDialog({
               control={form.control}
               name="api_key"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="sm:col-span-2">
                   <FormLabel>API key</FormLabel>
                   <FormControl>
                     <Input
@@ -299,7 +299,7 @@ export function ModelProviderDialog({
               control={form.control}
               name="is_default"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-start gap-2 space-y-0">
+                <FormItem className="flex flex-row items-start gap-2 space-y-0 sm:col-span-2">
                   <FormControl>
                     <Checkbox
                       checked={field.value}
@@ -319,7 +319,7 @@ export function ModelProviderDialog({
                 </FormItem>
               )}
             />
-            <DialogFooter>
+            <DialogFooter className="sm:col-span-2">
               <Button
                 type="button"
                 variant="outline"

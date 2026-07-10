@@ -224,7 +224,7 @@ export function EmbeddingProviderDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {provider ? 'Edit provider' : 'Add embedding provider'}
@@ -238,7 +238,7 @@ export function EmbeddingProviderDialog({
               onSubmit={event => {
                 void handleSubmit(event)
               }}
-              className="space-y-4"
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2"
             >
               <FormField
                 control={form.control}
@@ -333,7 +333,7 @@ export function EmbeddingProviderDialog({
                 control={form.control}
                 name="api_key"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="sm:col-span-2">
                     <FormLabel>API key</FormLabel>
                     <FormControl>
                       <Input
@@ -354,7 +354,7 @@ export function EmbeddingProviderDialog({
                 control={form.control}
                 name="is_default"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-start gap-2 space-y-0">
+                  <FormItem className="flex flex-row items-start gap-2 space-y-0 sm:col-span-2">
                     <FormControl>
                       <Checkbox
                         checked={field.value}
@@ -374,7 +374,7 @@ export function EmbeddingProviderDialog({
                   </FormItem>
                 )}
               />
-              <DialogFooter>
+              <DialogFooter className="sm:col-span-2">
                 <Button
                   type="button"
                   variant="outline"
