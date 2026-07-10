@@ -67,6 +67,10 @@ func (b *BaseMockContainer) EmbeddingProviderRepository() repositories.Embedding
 	return nil
 }
 
+func (b *BaseMockContainer) ModelProviderRepository() repositories.ModelProviderRepository {
+	return nil
+}
+
 func (b *BaseMockContainer) ActivityRepository() repositories.ActivityRepository {
 	return nil
 }
@@ -181,6 +185,10 @@ func (b *BaseMockContainer) BlueprintService() services.BlueprintServiceInterfac
 }
 
 func (b *BaseMockContainer) EmbeddingProviderService() services.EmbeddingProviderServiceInterface {
+	return nil
+}
+
+func (b *BaseMockContainer) ModelProviderService() services.ModelProviderServiceInterface {
 	return nil
 }
 

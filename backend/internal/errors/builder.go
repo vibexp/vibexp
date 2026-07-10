@@ -370,6 +370,98 @@ func NewProviderValidationError(detail string, validationErrors []ValidationErro
 	}
 }
 
+// Model Provider Errors
+
+// NewModelProviderNotFoundError creates a model provider not found error
+func NewModelProviderNotFoundError(providerID string) *APIError {
+	detail := "Model provider not found"
+	if providerID != "" {
+		detail = fmt.Sprintf("Model provider with ID '%s' not found", providerID)
+	}
+	return NewAPIError(
+		CodeModelProviderNotFound,
+		GetErrorTitle(CodeModelProviderNotFound),
+		detail,
+		http.StatusNotFound,
+	)
+}
+
+// NewModelProviderAlreadyExistsError creates a model provider already exists error
+func NewModelProviderAlreadyExistsError(providerName string) *APIError {
+	detail := "Model provider already exists"
+	if providerName != "" {
+		detail = fmt.Sprintf("Model provider '%s' already exists", providerName)
+	}
+	return NewAPIError(
+		CodeModelProviderAlreadyExists,
+		GetErrorTitle(CodeModelProviderAlreadyExists),
+		detail,
+		http.StatusConflict,
+	)
+}
+
+// NewModelProviderCreateFailedError creates a model provider creation failed error
+func NewModelProviderCreateFailedError(detail string) *APIError {
+	if detail == "" {
+		detail = "Failed to create model provider"
+	}
+	return NewAPIError(
+		CodeModelProviderCreateFailed,
+		GetErrorTitle(CodeModelProviderCreateFailed),
+		detail,
+		http.StatusInternalServerError,
+	)
+}
+
+// NewModelProviderUpdateFailedError creates a model provider update failed error
+func NewModelProviderUpdateFailedError(detail string) *APIError {
+	if detail == "" {
+		detail = "Failed to update model provider"
+	}
+	return NewAPIError(
+		CodeModelProviderUpdateFailed,
+		GetErrorTitle(CodeModelProviderUpdateFailed),
+		detail,
+		http.StatusInternalServerError,
+	)
+}
+
+// NewModelProviderDeleteFailedError creates a model provider deletion failed error
+func NewModelProviderDeleteFailedError(detail string) *APIError {
+	if detail == "" {
+		detail = "Failed to delete model provider"
+	}
+	return NewAPIError(
+		CodeModelProviderDeleteFailed,
+		GetErrorTitle(CodeModelProviderDeleteFailed),
+		detail,
+		http.StatusInternalServerError,
+	)
+}
+
+// NewModelProviderLastDeleteBlockedError creates an error for attempting to delete the last provider
+func NewModelProviderLastDeleteBlockedError() *APIError {
+	return NewAPIError(
+		CodeModelProviderLastDeleteBlocked,
+		GetErrorTitle(CodeModelProviderLastDeleteBlocked),
+		"Cannot delete the last model provider. Please add another provider first.",
+		http.StatusBadRequest,
+	)
+}
+
+// NewModelProviderValidationError creates a model provider validation error with field-level errors
+func NewModelProviderValidationError(detail string, validationErrors []ValidationError) *APIError {
+	return &APIError{
+		Type:             typeURI(CodeModelProviderValidationFailed),
+		Title:            GetErrorTitle(CodeModelProviderValidationFailed),
+		Status:           http.StatusBadRequest,
+		Detail:           detail,
+		Code:             CodeModelProviderValidationFailed,
+		ValidationErrors: validationErrors,
+		Timestamp:        time.Now().UTC().Format(time.RFC3339),
+	}
+}
+
 // User Preferences Errors
 
 // NewPreferencesNotFoundError creates a user preferences not found error

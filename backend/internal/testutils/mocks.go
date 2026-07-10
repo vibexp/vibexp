@@ -167,6 +167,14 @@ func (m *MockAppContainer) EmbeddingProviderRepository() repositories.EmbeddingP
 	return args.Get(0).(repositories.EmbeddingProviderRepository)
 }
 
+func (m *MockAppContainer) ModelProviderRepository() repositories.ModelProviderRepository {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(repositories.ModelProviderRepository)
+}
+
 func (m *MockAppContainer) ActivityRepository() repositories.ActivityRepository {
 	args := m.Called()
 	if args.Get(0) == nil {
@@ -270,6 +278,14 @@ func (m *MockAppContainer) EmbeddingProviderService() services.EmbeddingProvider
 		return nil
 	}
 	return args.Get(0).(services.EmbeddingProviderServiceInterface)
+}
+
+func (m *MockAppContainer) ModelProviderService() services.ModelProviderServiceInterface {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(services.ModelProviderServiceInterface)
 }
 
 func (m *MockAppContainer) EmailService() services.EmailServiceInterface {

@@ -1,0 +1,214 @@
+# Model provider management schemas
+
+ModelProvider:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "provider_123"
+    user_id:
+      type: string
+      example: "user_123"
+    team_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Team that owns this provider.
+      example: "b1234567-89ab-cdef-0123-456789abcdef"
+    name:
+      type: string
+      example: "OpenAI GPT-4o"
+    provider_type:
+      type: string
+      example: "openai_compatible"
+    model:
+      type: string
+      description: Chat/completion model this provider requests.
+      example: "gpt-4o-mini"
+    is_default:
+      type: boolean
+      example: false
+    base_url:
+      type: string
+      format: uri
+      nullable: true
+      example: "https://api.openai.com/v1"
+    configuration:
+      type: string
+      example: "{\"temperature\": 0.7, \"max_tokens\": 1024}"
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    version:
+      type: integer
+      format: int64
+      description: >-
+        Optimistic-concurrency version counter, incremented on each update.
+        Note: create responses currently return 0 (the persisted row starts
+        at 1) — read it from get/list/update responses instead.
+      example: 1
+  required:
+    - id
+    - user_id
+    - name
+    - provider_type
+    - model
+    - is_default
+    - configuration
+    - created_at
+    - updated_at
+    - version
+
+ModelProviderResponse:
+  allOf:
+    - $ref: '../openapi.yaml#/components/schemas/ModelProvider'
+    - type: object
+      properties:
+        has_api_key:
+          type: boolean
+          example: true
+      required:
+        - has_api_key
+
+CreateModelProviderRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      example: "OpenAI GPT-4o"
+    provider_type:
+      type: string
+      example: "openai_compatible"
+    model:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Chat/completion model to use.
+      example: "gpt-4o-mini"
+    is_default:
+      type: boolean
+      example: false
+    base_url:
+      type: string
+      format: uri
+      example: "https://api.openai.com/v1"
+    api_key:
+      type: string
+      nullable: true
+    configuration:
+      type: object
+      additionalProperties: true
+  required:
+    - name
+    - provider_type
+    - model
+
+UpdateModelProviderRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    provider_type:
+      type: string
+    model:
+      type: string
+      minLength: 1
+      maxLength: 255
+    is_default:
+      type: boolean
+    base_url:
+      type: string
+      format: uri
+    api_key:
+      type: string
+    configuration:
+      type: object
+      additionalProperties: true
+
+# Bare-array list payload (the list endpoints return a JSON array, not an
+# envelope). Named rather than inlined in the path so the response schema is a
+# pure $ref — an inline `items: $ref` inside a path file mis-resolves under the
+# spec-conformance validator's multi-file rolodex.
+ModelProviderResponseList:
+  type: array
+  items:
+    $ref: '../openapi.yaml#/components/schemas/ModelProviderResponse'
+
+ModelProviderListResponse:
+  type: object
+  properties:
+    model_providers:
+      type: array
+      items:
+        $ref: '../openapi.yaml#/components/schemas/ModelProviderResponse'
+    total_count:
+      type: integer
+    page:
+      type: integer
+    per_page:
+      type: integer
+    total_pages:
+      type: integer
+  required:
+    - model_providers
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+ValidateModelProviderRequest:
+  type: object
+  properties:
+    provider_type:
+      type: string
+      example: "openai_compatible"
+    model:
+      type: string
+      description: Chat/completion model to probe for reachability and auth.
+      example: "gpt-4o-mini"
+    base_url:
+      type: string
+      format: uri
+      example: "https://api.openai.com/v1"
+    api_key:
+      type: string
+      nullable: true
+    configuration:
+      type: object
+      additionalProperties: true
+  required:
+    - provider_type
+    - model
+    - base_url
+
+ValidateModelProviderResponse:
+  type: object
+  properties:
+    is_valid:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "Provider configuration is valid"
+    details:
+      type: object
+      properties:
+        response_time_ms:
+          type: integer
+          example: 150
+        status_code:
+          type: integer
+          example: 200
+        error_details:
+          type: string
+          example: "Connection timeout"
+  required:
+    - is_valid
+    - message

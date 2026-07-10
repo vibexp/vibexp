@@ -171,6 +171,14 @@ func ProvideEmbeddingProviderService(
 	return services.NewEmbeddingProviderService(repo, cfg.Security.EncryptionKey)
 }
 
+// ProvideModelProviderService creates a new ModelProviderService
+func ProvideModelProviderService(
+	repo repositories.ModelProviderRepository,
+	cfg *config.Config,
+) services.ModelProviderServiceInterface {
+	return services.NewModelProviderService(repo, cfg.Security.EncryptionKey)
+}
+
 // ProvideEmailService creates a new EmailService
 func ProvideEmailService(
 	provider external.EmailProvider,

@@ -26,6 +26,17 @@ var ErrProviderAlreadyExists = errors.New("embedding provider already exists")
 // ErrLastProviderDelete is returned when trying to delete the last embedding provider
 var ErrLastProviderDelete = errors.New("cannot delete the last embedding provider")
 
+// Model Provider Errors
+
+// ErrModelProviderNotFound is returned when a model provider is not found
+var ErrModelProviderNotFound = errors.New("model provider not found")
+
+// ErrModelProviderAlreadyExists is returned when trying to create a model provider that already exists
+var ErrModelProviderAlreadyExists = errors.New("model provider already exists")
+
+// ErrLastModelProviderDelete is returned when trying to delete the last model provider
+var ErrLastModelProviderDelete = errors.New("cannot delete the last model provider")
+
 // DuplicateMembersError represents an error when trying to invite members who are already in the team
 type DuplicateMembersError struct {
 	DuplicateEmails []string

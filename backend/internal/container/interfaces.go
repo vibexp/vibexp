@@ -29,6 +29,7 @@ type Container interface {
 	ArtifactRepository() repositories.ArtifactRepository
 	BlueprintRepository() repositories.BlueprintRepository
 	EmbeddingProviderRepository() repositories.EmbeddingProviderRepository
+	ModelProviderRepository() repositories.ModelProviderRepository
 	ActivityRepository() repositories.ActivityRepository
 	ResourceAccessRepository() repositories.ResourceAccessRepository
 	ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository
@@ -66,6 +67,7 @@ type Container interface {
 	TypeService() services.TypeServiceInterface
 	BlueprintService() services.BlueprintServiceInterface
 	EmbeddingProviderService() services.EmbeddingProviderServiceInterface
+	ModelProviderService() services.ModelProviderServiceInterface
 	EmailService() services.EmailServiceInterface
 	ActivityService() activities.ActivityService
 	ResourceAccessService() resourceaccess.ResourceAccessService

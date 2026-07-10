@@ -34,6 +34,7 @@ type WireContainer struct {
 	artifactRepo            repositories.ArtifactRepository
 	specLibraryRepo         repositories.BlueprintRepository
 	embeddingProviderRepo   repositories.EmbeddingProviderRepository
+	modelProviderRepo       repositories.ModelProviderRepository
 	activityRepo            repositories.ActivityRepository
 	resourceAccessRepo      repositories.ResourceAccessRepository
 	claudeCodeHooksRepo     repositories.ClaudeCodeHooksRepository
@@ -72,6 +73,7 @@ type WireContainer struct {
 	typeService              services.TypeServiceInterface
 	specLibraryService       services.BlueprintServiceInterface
 	embeddingProviderService services.EmbeddingProviderServiceInterface
+	modelProviderService     services.ModelProviderServiceInterface
 	emailService             services.EmailServiceInterface
 	activityService          activities.ActivityService
 	resourceAccessService    resourceaccess.ResourceAccessService
@@ -128,6 +130,7 @@ func NewWireContainer(
 	artifactRepo repositories.ArtifactRepository,
 	specLibraryRepo repositories.BlueprintRepository,
 	embeddingProviderRepo repositories.EmbeddingProviderRepository,
+	modelProviderRepo repositories.ModelProviderRepository,
 	activityRepo repositories.ActivityRepository,
 	resourceAccessRepo repositories.ResourceAccessRepository,
 	claudeCodeHooksRepo repositories.ClaudeCodeHooksRepository,
@@ -165,6 +168,7 @@ func NewWireContainer(
 	typeService services.TypeServiceInterface,
 	specLibraryService services.BlueprintServiceInterface,
 	embeddingProviderService services.EmbeddingProviderServiceInterface,
+	modelProviderService services.ModelProviderServiceInterface,
 	emailService services.EmailServiceInterface,
 	activityService activities.ActivityService,
 	resourceAccessService resourceaccess.ResourceAccessService,
@@ -214,6 +218,7 @@ func NewWireContainer(
 		artifactRepo:            artifactRepo,
 		specLibraryRepo:         specLibraryRepo,
 		embeddingProviderRepo:   embeddingProviderRepo,
+		modelProviderRepo:       modelProviderRepo,
 		activityRepo:            activityRepo,
 		resourceAccessRepo:      resourceAccessRepo,
 		claudeCodeHooksRepo:     claudeCodeHooksRepo,
@@ -251,6 +256,7 @@ func NewWireContainer(
 		typeService:              typeService,
 		specLibraryService:       specLibraryService,
 		embeddingProviderService: embeddingProviderService,
+		modelProviderService:     modelProviderService,
 		emailService:             emailService,
 		activityService:          activityService,
 		resourceAccessService:    resourceAccessService,
@@ -349,6 +355,10 @@ func (c *WireContainer) BlueprintRepository() repositories.BlueprintRepository {
 
 func (c *WireContainer) EmbeddingProviderRepository() repositories.EmbeddingProviderRepository {
 	return c.embeddingProviderRepo
+}
+
+func (c *WireContainer) ModelProviderRepository() repositories.ModelProviderRepository {
+	return c.modelProviderRepo
 }
 
 func (c *WireContainer) ActivityRepository() repositories.ActivityRepository {
@@ -470,6 +480,10 @@ func (c *WireContainer) BlueprintService() services.BlueprintServiceInterface {
 
 func (c *WireContainer) EmbeddingProviderService() services.EmbeddingProviderServiceInterface {
 	return c.embeddingProviderService
+}
+
+func (c *WireContainer) ModelProviderService() services.ModelProviderServiceInterface {
+	return c.modelProviderService
 }
 
 func (c *WireContainer) EmailService() services.EmailServiceInterface {

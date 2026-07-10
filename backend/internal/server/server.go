@@ -638,6 +638,16 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 		r.Use(s.teamValidationMiddleware())
 		s.setupEmbeddingProvidersRoutes(r)
 	})
+	// Model providers are scoped to a team (issue #110). Both the settings and
+	// bare route groups validate team membership from the {team_id} path segment.
+	r.Route("/api/v1/{team_id}/settings/model-providers", func(r chi.Router) {
+		r.Use(s.teamValidationMiddleware())
+		s.setupModelProvidersRoutes(r)
+	})
+	r.Route("/api/v1/{team_id}/model-providers", func(r chi.Router) {
+		r.Use(s.teamValidationMiddleware())
+		s.setupModelProvidersRoutes(r)
+	})
 	r.Route("/api/v1/preferences", s.setupPreferencesRoutes)
 }
 
@@ -655,6 +665,15 @@ func (s *Server) setupEmbeddingProvidersRoutes(r chi.Router) {
 	r.Delete("/{id}", s.handleDeleteEmbeddingProvider)
 	r.Post("/{id}/reprocess", s.handleReprocessEmbeddingProvider)
 	r.Post("/validate", s.handleValidateEmbeddingProvider)
+}
+
+func (s *Server) setupModelProvidersRoutes(r chi.Router) {
+	r.Post("/", s.handleCreateModelProvider)
+	r.Get("/", s.handleListModelProviders)
+	r.Get("/{id}", s.handleGetModelProvider)
+	r.Put("/{id}", s.handleUpdateModelProvider)
+	r.Delete("/{id}", s.handleDeleteModelProvider)
+	r.Post("/validate", s.handleValidateModelProvider)
 }
 
 // setupResourceRoutes is now split between JWT-only and flexible auth groups
