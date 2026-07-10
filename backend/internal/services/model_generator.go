@@ -131,7 +131,8 @@ func (p *OpenAICompatibleModelProvider) Validate(
 // this one function so gosec's SSRF/bodyclose analysers stay satisfied.
 func (p *OpenAICompatibleModelProvider) probeModels(ctx context.Context) (int, error) {
 	endpoint := p.baseURL + "/models"
-	// #nosec G107 -- endpoint is built from admin-configured provider base_url, not user input
+	// #nosec G107 -- base_url is a caller-supplied bring-your-own provider endpoint that
+	// VibeXP intentionally probes; connecting to it is the whole point of validation.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create models request: %w", err)
@@ -166,7 +167,8 @@ func (p *OpenAICompatibleModelProvider) probeChatCompletions(ctx context.Context
 	}
 
 	endpoint := p.baseURL + "/chat/completions"
-	// #nosec G107 -- endpoint is built from admin-configured provider base_url, not user input
+	// #nosec G107 -- base_url is a caller-supplied bring-your-own provider endpoint that
+	// VibeXP intentionally probes; connecting to it is the whole point of validation.
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return 0, fmt.Errorf("failed to create chat completions request: %w", err)

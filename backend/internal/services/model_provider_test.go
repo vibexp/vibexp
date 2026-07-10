@@ -245,6 +245,28 @@ func TestModelProviderService_Validate_Unauthorized(t *testing.T) {
 	assert.Contains(t, resp.Message, "Authentication failed")
 }
 
+// TestModelProviderService_Validate_Unreachable reports is_valid=false with a
+// reach-failure message when both probes fail at the transport layer (the host is
+// closed/unreachable), exercising the both-errors branch.
+func TestModelProviderService_Validate_Unreachable(t *testing.T) {
+	// Spin up a server only to grab a guaranteed-free URL, then close it so every
+	// connection attempt fails at the transport layer.
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	closedURL := server.URL
+	server.Close()
+
+	svc := createTestModelProviderService(nil)
+	resp, err := svc.ValidateModelProvider(context.Background(), models.ValidateModelProviderRequest{
+		ProviderType: "openai_compatible",
+		Model:        "gpt-4o-mini",
+		BaseURL:      closedURL,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsValid)
+	assert.Contains(t, resp.Message, "Failed to reach the model provider")
+	assert.NotEmpty(t, resp.Details.ErrorDetails)
+}
+
 // TestModelProviderService_Validate_UnsupportedType returns is_valid=false for an
 // unknown provider type without touching the network.
 func TestModelProviderService_Validate_UnsupportedType(t *testing.T) {
