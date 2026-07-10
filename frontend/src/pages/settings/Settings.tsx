@@ -2,6 +2,7 @@ import {
   Activity,
   ArrowRight,
   Bell,
+  Bot,
   Cpu,
   FolderKanban,
   Github,
@@ -58,6 +59,13 @@ const INTEGRATION: SettingItem[] = [
       'Configure embedding vector providers for your AI applications.',
     icon: Cpu,
     href: '/settings/embedding-providers',
+  },
+  {
+    title: 'Model Providers',
+    description:
+      'Configure OpenAI-compatible LLM providers for your AI applications.',
+    icon: Bot,
+    href: '/settings/model-providers',
   },
   {
     title: 'GitHub Integration',
