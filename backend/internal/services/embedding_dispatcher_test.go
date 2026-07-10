@@ -244,6 +244,36 @@ func TestEmbeddingDispatcher_TerminalFailureLogsEntityID(t *testing.T) {
 
 const nonEmbeddableFailID = "prompt-doomed-42"
 
+// erroringResolver always fails to resolve the active provider.
+type erroringResolver struct{}
+
+func (erroringResolver) ResolveActiveProvider(_ context.Context, _ string) (*ResolvedEmbeddingProvider, error) {
+	return nil, errors.New("provider resolution boom")
+}
+
+// A resolve-stage failure must also be logged at ERROR with the entity id — the
+// entity is left unembedded, never dropped silently.
+func TestEmbeddingDispatcher_ResolveFailureLogsEntityID(t *testing.T) {
+	t.Parallel()
+
+	svc := newRecordingEmbeddingService(func(string) string { return "team-1" })
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	d := newDispatcher(erroringResolver{}, svc, logger,
+		EmbeddingRetryConfig{MaxRetries: 2, BaseBackoff: time.Millisecond})
+	defer d.Stop()
+
+	require.NoError(t, d.ProcessEvent(context.Background(), promptEvent("prompt-resolve-99")))
+
+	waitFor(t, func() bool { return strings.Contains(logs.String(), "Failed to resolve embedding job") },
+		"resolve failure must be logged")
+	out := logs.String()
+	assert.Contains(t, out, "prompt-resolve-99", "resolve-failure log names the entity id")
+	assert.Contains(t, out, `"level":"ERROR"`)
+	assert.Equal(t, 0, svc.savedCount())
+}
+
 // dynamicConcurrencyResolver reports a concurrency that can change between
 // resolutions, exercising the executor-rebuild path.
 type dynamicConcurrencyResolver struct {

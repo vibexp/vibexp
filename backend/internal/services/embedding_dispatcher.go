@@ -126,12 +126,15 @@ func (d *EmbeddingDispatcher) resolveAndRoute(event events.Event) {
 	input, teamID, resolved, err := d.engine.resolveJob(ctx, event)
 	if err != nil {
 		// A real resolution failure (team lookup / provider decode). Surface it at
-		// ERROR — silently swallowing it would be exactly the invisible drop #142
-		// exists to eliminate.
+		// ERROR with the entity id — silently swallowing it would be exactly the
+		// invisible drop #142 exists to eliminate.
 		d.logger.With(
 			"service", "embedding",
 			"component", "embedding-dispatcher",
 			"event_type", event.Type(),
+			"entity_type", input.entityType,
+			"entity_id", input.entityID,
+			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to resolve embedding job; entity left unembedded")
 		return

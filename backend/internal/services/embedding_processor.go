@@ -85,14 +85,16 @@ func (p *EmbeddingGenerationProcessor) resolveJob(
 
 	teamID, err := p.embeddingService.ResolveEntityTeam(ctx, input.userID, input.entityType, input.entityID)
 	if err != nil {
-		return embeddingInput{}, "", nil, fmt.Errorf(
+		// Return the extracted input alongside the error so a caller can name the
+		// entity in a terminal log rather than dropping it anonymously.
+		return input, "", nil, fmt.Errorf(
 			"failed to resolve team for %s %s: %w", input.entityType, input.entityID, err,
 		)
 	}
 
 	resolved, err := p.resolver.ResolveActiveProvider(ctx, teamID)
 	if err != nil {
-		return embeddingInput{}, "", nil, fmt.Errorf("failed to resolve embedding provider: %w", err)
+		return input, teamID, nil, fmt.Errorf("failed to resolve embedding provider: %w", err)
 	}
 	if resolved == nil {
 		p.logger.With(
