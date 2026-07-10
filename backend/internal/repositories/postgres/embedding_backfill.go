@@ -29,12 +29,15 @@ func NewEmbeddingBackfillRepository(db *database.DB) repositories.EmbeddingBackf
 // created_at. Columns the entity lacks are emitted as an empty-string literal (or a
 // join, for prompt email) so every branch scans uniformly. orderBy gives the stable
 // total order. idExpr is the source row's id column, correlated against
-// embeddings.entity_id when filtering to only entities missing an embedding.
+// embeddings.entity_id when filtering to only entities missing an embedding. from is
+// the base "table alias" (no joins) used by the coverage COUNT query, which needs
+// only the source table, its id, and its team column.
 type backfillQuery struct {
 	selectFrom string
 	orderBy    string
 	idExpr     string
 	teamCol    string
+	from       string
 }
 
 // backfillQueries maps each singular embeddable entity type to the SQL that
@@ -53,6 +56,7 @@ var backfillQueries = map[string]backfillQuery{
 		orderBy: "p.created_at, p.id",
 		idExpr:  "p.id",
 		teamCol: "p.team_id",
+		from:    "prompts p",
 	},
 	"artifact": {
 		selectFrom: `
@@ -62,6 +66,7 @@ var backfillQueries = map[string]backfillQuery{
 		orderBy: "a.created_at, a.id",
 		idExpr:  "a.id",
 		teamCol: "a.team_id",
+		from:    "artifacts a",
 	},
 	"memory": {
 		selectFrom: `
@@ -72,6 +77,7 @@ var backfillQueries = map[string]backfillQuery{
 		orderBy: "m.created_at, m.id",
 		idExpr:  "m.id",
 		teamCol: "m.team_id",
+		from:    "memories m",
 	},
 	"blueprint": {
 		selectFrom: `
@@ -81,6 +87,7 @@ var backfillQueries = map[string]backfillQuery{
 		orderBy: "b.created_at, b.id",
 		idExpr:  "b.id",
 		teamCol: "b.team_id",
+		from:    "blueprints b",
 	},
 	"feed_item": {
 		selectFrom: `
@@ -91,6 +98,7 @@ var backfillQueries = map[string]backfillQuery{
 		orderBy: "f.posted_at, f.id",
 		idExpr:  "f.id",
 		teamCol: "f.team_id",
+		from:    "feed_items f",
 	},
 }
 

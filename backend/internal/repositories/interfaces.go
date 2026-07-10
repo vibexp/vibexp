@@ -804,6 +804,14 @@ type EmbeddingBackfillRepository interface {
 	ListEntities(
 		ctx context.Context, entityType, modelID, teamID string, missingOnly bool, limit, offset int,
 	) ([]models.BackfillEntity, error)
+	// CountCoverage returns, per embeddable entity type, how many of a team's
+	// entities exist (total) and how many have an embedding under modelID
+	// (embedded), using the same "has an embedding for this model" predicate as the
+	// missing-only backfill so the counts agree. An empty modelID reports 0 embedded
+	// (nothing matches), so a team with no active provider reads as all-pending.
+	CountCoverage(
+		ctx context.Context, modelID, teamID string,
+	) ([]models.EmbeddingCoverageCount, error)
 }
 
 // CursorIDEHooksRepository defines the interface for Cursor IDE hooks data access operations

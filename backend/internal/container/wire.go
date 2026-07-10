@@ -109,6 +109,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideEmbeddingProcessor,
 	providers.ProvideBackofficeService,
 	providers.ProvideEmbeddingBackfillService,
+	providers.ProvideEmbeddingStatusService,
 	providers.ProvideUserPreferencesService,
 	providers.ProvideTeamService,
 	providers.ProvideTeamInvitationService,

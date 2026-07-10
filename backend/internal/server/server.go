@@ -649,6 +649,7 @@ func (s *Server) setupPreferencesRoutes(r chi.Router) {
 func (s *Server) setupEmbeddingProvidersRoutes(r chi.Router) {
 	r.Post("/", s.handleCreateEmbeddingProvider)
 	r.Get("/", s.handleListEmbeddingProviders)
+	r.Get("/coverage", s.handleGetEmbeddingCoverage)
 	r.Get("/{id}", s.handleGetEmbeddingProvider)
 	r.Put("/{id}", s.handleUpdateEmbeddingProvider)
 	r.Delete("/{id}", s.handleDeleteEmbeddingProvider)

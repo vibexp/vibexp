@@ -736,3 +736,88 @@ api-v1-settings-embedding-providers-validate:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
       - Settings
+
+api-v1-embedding-providers-coverage:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team whose embedding coverage is reported.
+      schema:
+        type: string
+        format: uuid
+  get:
+    summary: Get embedding coverage
+    description: |
+      Returns derived, team-scoped embedding coverage per entity type under the
+      team's active provider model: how many entities exist (`total`), how many
+      have an embedding (`embedded`), how many are still pending, and the
+      embedded percentage. Counts are computed from existing rows — there is no
+      per-entity state. When the team has no active provider, the response
+      reports every type as all-pending (0%) rather than an error.
+    operationId: getEmbeddingCoverage
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Embedding coverage retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingCoverageResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to retrieve embedding coverage (`DATABASE_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Embedding Providers
+
+api-v1-settings-embedding-providers-coverage:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team whose embedding coverage is reported.
+      schema:
+        type: string
+        format: uuid
+  get:
+    summary: Get embedding coverage (Settings)
+    description: |
+      Returns derived, team-scoped embedding coverage per entity type under the
+      team's active provider model (settings route). See `getEmbeddingCoverage`
+      for the payload semantics.
+    operationId: getEmbeddingCoverageSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Embedding coverage retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingCoverageResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to retrieve embedding coverage (`DATABASE_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings

@@ -257,6 +257,33 @@ func (s *Server) handleListEmbeddingProviders(w http.ResponseWriter, r *http.Req
 	writeOK(w, providers, s.logger)
 }
 
+func (s *Server) handleGetEmbeddingCoverage(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
+
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleGetEmbeddingCoverage",
+		"user_id", userID,
+	).Info("Embedding coverage request received")
+
+	coverage, err := s.container.EmbeddingStatusService().GetCoverage(r.Context(), teamID)
+	if err != nil {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetEmbeddingCoverage",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get embedding coverage")
+		errors.WriteJSONError(w, r, errors.NewDatabaseError(
+			"Failed to retrieve embedding coverage. Please try again later.",
+		))
+		return
+	}
+
+	writeOK(w, coverage, s.logger)
+}
+
 func (s *Server) handleGetEmbeddingProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id")

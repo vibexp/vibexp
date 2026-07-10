@@ -254,3 +254,80 @@ ValidateEmbeddingProviderResponse:
   required:
     - is_valid
     - message
+
+EmbeddingCoverageItem:
+  type: object
+  description: >-
+    Embedding coverage for a single entity type: how many entities exist, how
+    many have an embedding under the team's active model, how many are still
+    pending, and the embedded percentage.
+  properties:
+    entity_type:
+      type: string
+      description: The embeddable entity type this row reports on.
+      enum:
+        - prompt
+        - artifact
+        - memory
+        - blueprint
+        - feed_item
+      example: "prompt"
+    total:
+      type: integer
+      format: int64
+      description: Total embeddable entities of this type owned by the team.
+      example: 120
+    embedded:
+      type: integer
+      format: int64
+      description: >-
+        Entities of this type that already have an embedding under the team's
+        active model.
+      example: 90
+    pending:
+      type: integer
+      format: int64
+      description: Entities still missing an embedding (total − embedded).
+      example: 30
+    embedded_percent:
+      type: integer
+      description: >-
+        Rounded percentage of entities embedded (embedded / total * 100); 0 when
+        there are no entities of this type.
+      example: 75
+  required:
+    - entity_type
+    - total
+    - embedded
+    - pending
+    - embedded_percent
+
+EmbeddingCoverageResponse:
+  type: object
+  description: >-
+    Derived, team-scoped embedding coverage per entity type under the team's
+    active provider model. Counts are computed from existing rows (no per-entity
+    state); a non-decreasing pending count is the signal that embedding is stuck.
+    When the team has no active provider, has_active_provider is false,
+    active_model is null, and every type reports all entities as pending (0%).
+  properties:
+    has_active_provider:
+      type: boolean
+      description: Whether the team has an active embedding provider configured.
+      example: true
+    active_model:
+      type: string
+      nullable: true
+      description: >-
+        The active provider's embedding model the embedded counts are measured
+        against, or null when no provider is configured.
+      example: "text-embedding-3-small"
+    coverage:
+      type: array
+      description: One entry per embeddable entity type, in a stable order.
+      items:
+        $ref: '../openapi.yaml#/components/schemas/EmbeddingCoverageItem'
+  required:
+    - has_active_provider
+    - active_model
+    - coverage

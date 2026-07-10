@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
@@ -31,10 +32,15 @@ type MockEmbeddingProviderContainer struct {
 	embeddingProviderService *svcmocks.MockEmbeddingProviderServiceInterface
 	embeddingRepository      *repomocks.MockEmbeddingRepository
 	embeddingBackfillService *svcmocks.MockEmbeddingBackfillServiceInterface
+	embeddingStatusService   *svcmocks.MockEmbeddingStatusServiceInterface
 }
 
 func (m *MockEmbeddingProviderContainer) EmbeddingProviderService() services.EmbeddingProviderServiceInterface {
 	return m.embeddingProviderService
+}
+
+func (m *MockEmbeddingProviderContainer) EmbeddingStatusService() services.EmbeddingStatusServiceInterface {
+	return m.embeddingStatusService
 }
 
 func (m *MockEmbeddingProviderContainer) EmbeddingRepository() repositories.EmbeddingRepository {
@@ -50,6 +56,7 @@ func newMockEmbeddingProviderContainer(t *testing.T) *MockEmbeddingProviderConta
 		embeddingProviderService: svcmocks.NewMockEmbeddingProviderServiceInterface(t),
 		embeddingRepository:      repomocks.NewMockEmbeddingRepository(t),
 		embeddingBackfillService: svcmocks.NewMockEmbeddingBackfillServiceInterface(t),
+		embeddingStatusService:   svcmocks.NewMockEmbeddingStatusServiceInterface(t),
 	}
 }
 
@@ -70,7 +77,7 @@ func createTestEmbeddingProviderServer(container *MockEmbeddingProviderContainer
 
 	// Register routes via the production setup under both prefixes (bare and
 	// settings) so tests exercise the same route tree the server mounts,
-	// including the reprocess endpoint under each.
+	// including the reprocess and coverage endpoints under each.
 	r.Route("/api/v1/{team_id}/embedding-providers", srv.setupEmbeddingProvidersRoutes)
 	r.Route("/api/v1/{team_id}/settings/embedding-providers", srv.setupEmbeddingProvidersRoutes)
 
@@ -1101,4 +1108,139 @@ func TestHandleReprocessEmbeddingProvider_InFlightGuardSkipsDuplicate(t *testing
 
 	close(release) // let the first run finish
 	mockContainer.embeddingBackfillService.AssertExpectations(t)
+}
+
+// TestHandleGetEmbeddingCoverage_Success verifies the coverage handler returns the
+// service payload and that the response conforms to the OpenAPI spec.
+func TestHandleGetEmbeddingCoverage_Success(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+
+	model := "text-embedding-3-small"
+	expected := &models.EmbeddingCoverageResponse{
+		HasActiveProvider: true,
+		ActiveModel:       &model,
+		Coverage: []models.EmbeddingCoverageItem{
+			{EntityType: "prompt", Total: 8, Embedded: 6, Pending: 2, EmbeddedPercent: 75},
+			{EntityType: "artifact", Total: 0, Embedded: 0, Pending: 0, EmbeddedPercent: 0},
+			{EntityType: "memory", Total: 4, Embedded: 4, Pending: 0, EmbeddedPercent: 100},
+			{EntityType: "blueprint", Total: 1, Embedded: 0, Pending: 1, EmbeddedPercent: 0},
+			{EntityType: "feed_item", Total: 3, Embedded: 1, Pending: 2, EmbeddedPercent: 33},
+		},
+	}
+
+	mockContainer.embeddingStatusService.On("GetCoverage", mock.Anything, "team-123").
+		Return(expected, nil)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"GET", "/api/v1/team-123/embedding-providers/coverage", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	var response models.EmbeddingCoverageResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.True(t, response.HasActiveProvider)
+	require.NotNil(t, response.ActiveModel)
+	assert.Equal(t, "text-embedding-3-small", *response.ActiveModel)
+	require.Len(t, response.Coverage, 5)
+	assert.Equal(t, "prompt", response.Coverage[0].EntityType)
+	assert.Equal(t, int64(2), response.Coverage[0].Pending)
+	assert.Equal(t, 75, response.Coverage[0].EmbeddedPercent)
+
+	mockContainer.embeddingStatusService.AssertExpectations(t)
+}
+
+// TestHandleGetEmbeddingCoverage_NoActiveProvider verifies the no-active-provider
+// shape (all pending, null model) is returned as 200 and conforms to the spec.
+func TestHandleGetEmbeddingCoverage_NoActiveProvider(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+
+	expected := &models.EmbeddingCoverageResponse{
+		HasActiveProvider: false,
+		ActiveModel:       nil,
+		Coverage: []models.EmbeddingCoverageItem{
+			{EntityType: "prompt", Total: 5, Embedded: 0, Pending: 5, EmbeddedPercent: 0},
+			{EntityType: "artifact", Total: 0, Embedded: 0, Pending: 0, EmbeddedPercent: 0},
+			{EntityType: "memory", Total: 0, Embedded: 0, Pending: 0, EmbeddedPercent: 0},
+			{EntityType: "blueprint", Total: 0, Embedded: 0, Pending: 0, EmbeddedPercent: 0},
+			{EntityType: "feed_item", Total: 0, Embedded: 0, Pending: 0, EmbeddedPercent: 0},
+		},
+	}
+
+	mockContainer.embeddingStatusService.On("GetCoverage", mock.Anything, "team-123").
+		Return(expected, nil)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"GET", "/api/v1/team-123/embedding-providers/coverage", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	var response models.EmbeddingCoverageResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.False(t, response.HasActiveProvider)
+	assert.Nil(t, response.ActiveModel)
+
+	mockContainer.embeddingStatusService.AssertExpectations(t)
+}
+
+// TestHandleGetEmbeddingCoverageSettings_Success covers the settings-prefixed variant
+// of the coverage endpoint so its distinct spec operation is conformance-validated.
+func TestHandleGetEmbeddingCoverageSettings_Success(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+
+	model := "text-embedding-3-small"
+	expected := &models.EmbeddingCoverageResponse{
+		HasActiveProvider: true,
+		ActiveModel:       &model,
+		Coverage: []models.EmbeddingCoverageItem{
+			{EntityType: "prompt", Total: 2, Embedded: 1, Pending: 1, EmbeddedPercent: 50},
+		},
+	}
+
+	mockContainer.embeddingStatusService.On("GetCoverage", mock.Anything, "team-123").
+		Return(expected, nil)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"GET", "/api/v1/team-123/settings/embedding-providers/coverage", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	mockContainer.embeddingStatusService.AssertExpectations(t)
+}
+
+// TestHandleGetEmbeddingCoverage_ServiceError verifies a service failure maps to 500.
+func TestHandleGetEmbeddingCoverage_ServiceError(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+
+	mockContainer.embeddingStatusService.On("GetCoverage", mock.Anything, "team-123").
+		Return((*models.EmbeddingCoverageResponse)(nil), errors.New("database error"))
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"GET", "/api/v1/team-123/embedding-providers/coverage", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+
+	mockContainer.embeddingStatusService.AssertExpectations(t)
 }

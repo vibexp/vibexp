@@ -86,6 +86,7 @@ type WireContainer struct {
 	featureFlagService       *feature_flags.FeatureFlagService
 	backofficeService        services.BackofficeServiceInterface
 	embeddingBackfillService services.EmbeddingBackfillServiceInterface
+	embeddingStatusService   services.EmbeddingStatusServiceInterface
 	userPreferencesService   services.UserPreferencesServiceInterface
 	teamService              services.TeamServiceInterface
 	teamInvitationService    *services.TeamInvitationService
@@ -178,6 +179,7 @@ func NewWireContainer(
 	featureFlagService *feature_flags.FeatureFlagService,
 	backofficeService services.BackofficeServiceInterface,
 	embeddingBackfillService services.EmbeddingBackfillServiceInterface,
+	embeddingStatusService services.EmbeddingStatusServiceInterface,
 	userPreferencesService services.UserPreferencesServiceInterface,
 	teamService services.TeamServiceInterface,
 	teamInvitationService *services.TeamInvitationService,
@@ -263,6 +265,7 @@ func NewWireContainer(
 		featureFlagService:       featureFlagService,
 		backofficeService:        backofficeService,
 		embeddingBackfillService: embeddingBackfillService,
+		embeddingStatusService:   embeddingStatusService,
 		userPreferencesService:   userPreferencesService,
 		teamService:              teamService,
 		teamInvitationService:    teamInvitationService,
@@ -520,6 +523,11 @@ func (c *WireContainer) BackofficeService() services.BackofficeServiceInterface 
 // EmbeddingBackfillService returns the embedding backfill service.
 func (c *WireContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
 	return c.embeddingBackfillService
+}
+
+// EmbeddingStatusService returns the embedding status (coverage) service.
+func (c *WireContainer) EmbeddingStatusService() services.EmbeddingStatusServiceInterface {
+	return c.embeddingStatusService
 }
 
 func (c *WireContainer) UserPreferencesService() services.UserPreferencesServiceInterface {
