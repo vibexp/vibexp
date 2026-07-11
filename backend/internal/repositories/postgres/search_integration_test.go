@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/pgvector/pgvector-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,6 +71,36 @@ func insertTestMemory(t *testing.T, userID, teamID, projectID, text string) stri
 	_, err := integrationDB.ExecContext(context.Background(),
 		"INSERT INTO memories (id, user_id, team_id, project_id, text) VALUES ($1, $2, $3, $4, $5)",
 		id, userID, teamID, projectID, text)
+	require.NoError(t, err)
+	return id
+}
+
+// embeddingDims matches the vector(1024) column declared in migration 001.
+const embeddingDims = 1024
+
+// testVector builds a 1024-dim embedding whose only non-zero components are the
+// supplied index→value pairs, so a test can place chunks at controlled cosine
+// angles from a query vector and thereby pin their relative distances.
+func testVector(components map[int]float32) []float32 {
+	v := make([]float32, embeddingDims)
+	for i, val := range components {
+		v[i] = val
+	}
+	return v
+}
+
+// insertTestEmbedding inserts one embedding chunk for an entity and returns its
+// chunk id. Inserting several chunks under the same entityID models a long
+// document split across multiple embeddings — the case per-entity dedup collapses.
+func insertTestEmbedding(
+	t *testing.T, userID, teamID, entityType, entityID, modelID, content string, vec []float32,
+) string {
+	t.Helper()
+	id := uuid.New().String()
+	_, err := integrationDB.ExecContext(context.Background(),
+		"INSERT INTO embeddings (id, entity_type, entity_id, vector_embeddings, model_id, user_id, content, team_id) "+
+			"VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+		id, entityType, entityID, pgvector.NewVector(vec), modelID, userID, content, teamID)
 	require.NoError(t, err)
 	return id
 }
@@ -371,4 +402,85 @@ func explainFTS(t *testing.T, ctx context.Context, tsv, tsquery, query string) s
 	}
 	require.NoError(t, rows.Err())
 	return plan.String()
+}
+
+// TestSearchRepository_SearchSimilar_Integration exercises the semantic (pgvector)
+// path against a real PostgreSQL, proving the per-entity dedup added for issue #172
+// behaves at runtime — something the sqlmock unit tests (which only pin SQL text)
+// cannot. It pins the two behavioural acceptance criteria: a document with several
+// matching chunks appears exactly once carrying its closest chunk, total_count
+// counts distinct entities, and pagination stays stable across pages on tied scores.
+func TestSearchRepository_SearchSimilar_Integration(t *testing.T) {
+	ctx := context.Background()
+	repo := NewSearchRepository(integrationDB).(*SearchRepository)
+	const model = "test-embed-1024"
+	allTypes := []string{"prompt", "artifact", "blueprint", "memory"}
+
+	t.Run("collapses many chunks of one entity to its closest chunk", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+
+		// Entity A is a long prompt split into two chunks; entity B a single-chunk artifact.
+		promptA := insertTestPrompt(t, user, team, project, "Alpha doc", "alpha body", "published")
+		artifactB := insertTestArtifact(t, user, team, project, "Bravo doc", "bravo body", "active")
+
+		query := testVector(map[int]float32{0: 1}) // points along axis 0
+
+		// A's best chunk sits exactly on the query axis (cosine distance 0); its other
+		// chunk is orthogonal (distance ~1). B's single chunk is slightly off-axis.
+		bestChunkA := insertTestEmbedding(t, user, team, "prompt", promptA, model,
+			"A best chunk", testVector(map[int]float32{0: 1}))
+		_ = insertTestEmbedding(t, user, team, "prompt", promptA, model,
+			"A far chunk", testVector(map[int]float32{1: 1}))
+		_ = insertTestEmbedding(t, user, team, "artifact", artifactB, model,
+			"B only chunk", testVector(map[int]float32{0: 1, 1: 0.2}))
+
+		rows, total, err := repo.SearchSimilar(ctx, team, query, model, allTypes, "", 10, 0)
+		require.NoError(t, err)
+
+		// Three chunks match, but only two distinct entities: A collapses to one row.
+		assert.Equal(t, 2, total, "total_count counts distinct entities, not chunks")
+		require.Len(t, rows, 2)
+
+		// A ranks first (best chunk exactly on-axis) and carries THAT chunk's id/content.
+		assert.Equal(t, promptA, rows[0].EntityID)
+		assert.Equal(t, "prompt", rows[0].EntityType)
+		assert.Equal(t, bestChunkA, rows[0].ChunkID)
+		assert.Equal(t, "A best chunk", rows[0].ChunkContent)
+		assert.InDelta(t, 0.0, rows[0].Distance, 1e-5)
+
+		// B appears exactly once; A's far chunk never surfaces as a duplicate second row.
+		assert.Equal(t, artifactB, rows[1].EntityID)
+		assert.ElementsMatch(t, []string{promptA, artifactB}, []string{rows[0].EntityID, rows[1].EntityID})
+	})
+
+	t.Run("stable pagination across pages on tied scores", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+
+		// Two single-chunk entities whose chunks sit at the identical distance (a tie).
+		p1 := insertTestPrompt(t, user, team, project, "Tie one", "one", "published")
+		p2 := insertTestPrompt(t, user, team, project, "Tie two", "two", "published")
+		query := testVector(map[int]float32{0: 1})
+		_ = insertTestEmbedding(t, user, team, "prompt", p1, model, "chunk one", testVector(map[int]float32{0: 1}))
+		_ = insertTestEmbedding(t, user, team, "prompt", p2, model, "chunk two", testVector(map[int]float32{0: 1}))
+
+		page1, total, err := repo.SearchSimilar(ctx, team, query, model, []string{"prompt"}, "", 1, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 2, total)
+		require.Len(t, page1, 1)
+
+		page2, _, err := repo.SearchSimilar(ctx, team, query, model, []string{"prompt"}, "", 1, 1)
+		require.NoError(t, err)
+		require.Len(t, page2, 1)
+
+		// The entity_id secondary sort key gives a deterministic split: the two pages
+		// carry different entities and together cover both — no repeat, no skip.
+		assert.NotEqual(t, page1[0].EntityID, page2[0].EntityID)
+		assert.ElementsMatch(t, []string{p1, p2}, []string{page1[0].EntityID, page2[0].EntityID})
+	})
 }
