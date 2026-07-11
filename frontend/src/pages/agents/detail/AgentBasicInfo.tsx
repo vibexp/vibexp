@@ -6,7 +6,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import type { Agent } from '@/services/agentService'
 
-import { agentStatusLabel, agentStatusVariant, formatDate } from '../helpers'
+import {
+  agentStatusLabel,
+  agentStatusVariant,
+  formatDate,
+  primaryInterface,
+} from '../helpers'
 
 interface AgentBasicInfoProps {
   agent: Agent
@@ -44,7 +49,11 @@ export function AgentBasicInfo({ agent }: AgentBasicInfoProps) {
               {agent.agent_card && (
                 <div className="text-muted-foreground mt-2 flex items-center gap-4 text-sm">
                   <span>Version: {agent.agent_card.version}</span>
-                  <span>Protocol: {agent.agent_card.protocolVersion}</span>
+                  <span>
+                    Protocol:{' '}
+                    {primaryInterface(agent.agent_card)?.protocolVersion ??
+                      'Not specified'}
+                  </span>
                 </div>
               )}
             </div>
