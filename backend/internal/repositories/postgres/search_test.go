@@ -138,6 +138,10 @@ func TestBuildCountUnion_OmitsDistanceAndRenumbersArgs(t *testing.T) {
 	assert.Contains(t, union, "e.team_id = $1")
 	assert.Contains(t, union, "e.model_id = $2")
 	assert.Contains(t, union, "($3::uuid IS NULL OR src.project_id = $3::uuid)")
+	// Each branch projects the entity key so the enclosing count query can COUNT(*)
+	// over DISTINCT entities and match the deduplicated page.
+	assert.Contains(t, union, "'prompt' AS entity_type")
+	assert.Contains(t, union, "e.entity_id AS entity_id")
 	// Scoping/visibility filters still apply.
 	assert.Contains(t, union, "e.entity_type = 'prompt'")
 	assert.Contains(t, union, "src.status = 'published'")
@@ -162,7 +166,9 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 	modelID := "all-MiniLM-L6-v2"
 
 	t.Run("returns page and total with filters applied", func(t *testing.T) {
-		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \(`).
+		// The count query counts DISTINCT entities (not chunks) so total_count matches
+		// the deduplicated page.
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \(SELECT DISTINCT entity_type, entity_id FROM \(`).
 			WithArgs(teamID, modelID, nil).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
@@ -175,10 +181,11 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 			AddRow("artifact", "a-1", "c-2", "Title 2", "artifact-slug", "proj-2",
 				"Project Two", "chunk 2", "body 2", now, now, 0.42)
 
-		// The outer projection must carry slug, project_id, project_name and created_at
-		// so the service can build UUID-based deep links, display the project, and
-		// re-rank by recency.
-		mock.ExpectQuery(`source_body, created_at, updated_at, distance .*ORDER BY distance ASC LIMIT \$5 OFFSET \$6`).
+		// The page query keeps only the best chunk per entity (ROW_NUMBER rank 1) and
+		// carries slug, project_id, project_name and created_at so the service can build
+		// UUID-based deep links, display the project, and re-rank by recency. entity_id
+		// is the stable secondary sort key for pagination.
+		mock.ExpectQuery(`ROW_NUMBER\(\) OVER \(PARTITION BY entity_type, entity_id ORDER BY distance ASC, chunk_id ASC\).*WHERE dedup_rank = 1.*ORDER BY distance ASC, entity_id ASC LIMIT \$5 OFFSET \$6`).
 			WithArgs(sqlmock.AnyArg(), teamID, modelID, nil, 10, 0).
 			WillReturnRows(resultRows)
 
@@ -211,7 +218,7 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 		}).
 			AddRow("artifact", "a-1", "c-1", "Title", "art-slug", projectID, "Scoped Project", "chunk", "body", now, now, 0.2)
 
-		mock.ExpectQuery(`ORDER BY distance ASC LIMIT \$5 OFFSET \$6`).
+		mock.ExpectQuery(`WHERE dedup_rank = 1.*ORDER BY distance ASC, entity_id ASC LIMIT \$5 OFFSET \$6`).
 			WithArgs(sqlmock.AnyArg(), teamID, modelID, projectID, 10, 0).
 			WillReturnRows(resultRows)
 
@@ -252,7 +259,7 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \(`).
 			WithArgs(teamID, modelID, nil).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-		mock.ExpectQuery(`ORDER BY distance ASC LIMIT \$5 OFFSET \$6`).
+		mock.ExpectQuery(`WHERE dedup_rank = 1.*ORDER BY distance ASC, entity_id ASC LIMIT \$5 OFFSET \$6`).
 			WithArgs(sqlmock.AnyArg(), teamID, modelID, nil, 10, 0).
 			WillReturnError(sql.ErrConnDone)
 

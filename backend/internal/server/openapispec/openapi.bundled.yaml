@@ -1755,7 +1755,7 @@ paths:
   /api/v1/{team_id}/search:
     post:
       summary: Semantic search across team resources
-      description: Performs a pgvector cosine-similarity semantic search over the team's prompts, artifacts, blueprints and memories, returning relevance-ranked chunk excerpts for RAG retrieval. One result is returned per matching embedding chunk.
+      description: Performs a pgvector cosine-similarity semantic search over the team's prompts, artifacts, blueprints and memories, returning relevance-ranked excerpts for RAG retrieval. One result is returned per matching entity, carrying its best-scoring (closest) chunk; `total_count`/`total_pages` count distinct matching resources, not chunks.
       operationId: searchTeamResources
       parameters:
         - name: team_id
@@ -15076,10 +15076,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SearchResultItem'
-          description: Relevance-ranked search results, one per matching chunk
+          description: Relevance-ranked search results, one per matching entity (carrying its best-scoring chunk)
         total_count:
           type: integer
-          description: Total number of matching chunks across all pages
+          description: Total number of matching resources (distinct entities) across all pages
           example: 42
         page:
           type: integer

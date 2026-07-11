@@ -110,10 +110,12 @@ SearchResultsResponse:
       type: array
       items:
         $ref: '#/SearchResultItem'
-      description: Relevance-ranked search results, one per matching chunk
+      description: >-
+        Relevance-ranked search results, one per matching entity (carrying its
+        best-scoring chunk)
     total_count:
       type: integer
-      description: Total number of matching chunks across all pages
+      description: Total number of matching resources (distinct entities) across all pages
       example: 42
     page:
       type: integer

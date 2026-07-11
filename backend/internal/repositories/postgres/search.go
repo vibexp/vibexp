@@ -131,13 +131,14 @@ func buildBranch(entityType string, src entitySource) string {
 	return b.String()
 }
 
-// buildCountBranch builds a COUNT-only SELECT for one entity type. It omits the
-// cosine-distance expression (and unused projections) so counting never runs the
-// <=> operator per row, and uses positional args: $1 = team_id, $2 = model_id,
+// buildCountBranch builds a COUNT-only SELECT for one entity type. It projects the
+// entity key (entity_type, entity_id) — not distance — so the enclosing count query
+// can COUNT(*) over DISTINCT entities and match the deduplicated page, never running
+// the <=> operator per row. Positional args: $1 = team_id, $2 = model_id,
 // $3 = project_id (NULL = no filter).
 func buildCountBranch(entityType string, src entitySource) string {
 	var b strings.Builder
-	b.WriteString("SELECT 1 ")
+	fmt.Fprintf(&b, "SELECT '%s' AS entity_type, e.entity_id AS entity_id ", entityType)
 	fmt.Fprintf(&b, "FROM embeddings e JOIN %s src ON e.entity_id = src.id ", src.table)
 	b.WriteString("WHERE e.entity_type = '" + entityType + "' AND e.team_id = $1 AND e.model_id = $2")
 	if src.statusFilter != "" {
@@ -157,6 +158,26 @@ func buildUnion(entityTypes []string) (string, error) {
 // distance computation, for the requested entity types.
 func buildCountUnion(entityTypes []string) (string, error) {
 	return buildUnionWith(entityTypes, buildCountBranch)
+}
+
+// buildDedupPageQuery wraps the relevance-ordered union with a per-entity dedup:
+// it ranks each entity's chunks by ascending distance (chunk_id as a deterministic
+// tie-break) and keeps only the best-scoring one, so a long document with several
+// matching chunks appears exactly once, carrying its closest chunk's excerpt and
+// score. entity_id is a stable secondary sort key on the outer ORDER BY so
+// pagination never repeats or skips a resource across pages when distances tie.
+// Positional args are unchanged: $5 = limit, $6 = offset.
+func buildDedupPageQuery(union string) string {
+	return fmt.Sprintf(
+		"SELECT entity_type, entity_id, chunk_id, title, slug, project_id, project_name, "+
+			"chunk_content, source_body, created_at, updated_at, distance "+
+			"FROM (SELECT results.*, ROW_NUMBER() OVER ("+
+			"PARTITION BY entity_type, entity_id ORDER BY distance ASC, chunk_id ASC) AS dedup_rank "+
+			"FROM (%s) AS results) AS ranked "+
+			"WHERE dedup_rank = 1 "+
+			"ORDER BY distance ASC, entity_id ASC LIMIT $5 OFFSET $6",
+		union,
+	)
 }
 
 // buildUnionWith assembles a UNION ALL body for the requested entity types in a
@@ -203,12 +224,7 @@ func (r *SearchRepository) queryPage(
 		return nil, err
 	}
 
-	query := fmt.Sprintf(
-		"SELECT entity_type, entity_id, chunk_id, title, slug, project_id, project_name, "+
-			"chunk_content, source_body, created_at, updated_at, distance "+
-			"FROM (%s) AS results ORDER BY distance ASC LIMIT $5 OFFSET $6",
-		union,
-	)
+	query := buildDedupPageQuery(union)
 
 	rows, err := r.db.QueryContext(ctx, query, searchVector, teamID, modelID, projectArg, limit, offset)
 	if err != nil {
@@ -261,7 +277,13 @@ func (r *SearchRepository) countSimilar(
 		return 0, err
 	}
 
-	query := fmt.Sprintf("SELECT COUNT(*) FROM (%s) AS results", union)
+	// Count distinct matching entities, not chunks: a document with many matching
+	// chunks contributes one row to the deduplicated page, so total_count/total_pages
+	// must count it once too.
+	query := fmt.Sprintf(
+		"SELECT COUNT(*) FROM (SELECT DISTINCT entity_type, entity_id FROM (%s) AS branch_rows) AS distinct_entities",
+		union,
+	)
 
 	var total int
 	if scanErr := r.db.QueryRowContext(ctx, query, teamID, modelID, projectArg).Scan(&total); scanErr != nil {
