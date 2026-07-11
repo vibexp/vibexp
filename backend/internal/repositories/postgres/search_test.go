@@ -323,16 +323,15 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 
 func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 	// Common fragments every keyword branch must carry: full-text match on the
-	// weighted title+body tsvector using the strict websearch_to_tsquery,
-	// ts_rank_cd scoring (mapped into distance), source table read directly (no
-	// embeddings join), team scope on the source row, and the optional project
-	// filter. Args are $1=query, $2=team_id, $3=project_id.
+	// combined title+body tsvector using the strict websearch_to_tsquery, ts_rank
+	// scoring (mapped into distance), source table read directly (no embeddings
+	// join), team scope on the source row, and the optional project filter. Args
+	// are $1=query, $2=team_id, $3=project_id.
 	commonFragments := []string{
 		"websearch_to_tsquery('english', $1)",
 		"@@ ",
-		"ts_rank_cd(",
-		"1 - ts_rank_cd(",
-		", 1|32)",
+		"ts_rank(",
+		"1 - ts_rank(",
 		"AS distance",
 		"WHERE src.team_id = $2",
 		"($3::uuid IS NULL OR src.project_id = $3::uuid)",
@@ -361,8 +360,7 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 				"src.name AS title",
 				"src.body AS source_body",
 				"src.slug AS slug",
-				"setweight(to_tsvector('english', coalesce(src.name, '')), 'A') || " +
-					"setweight(to_tsvector('english', coalesce(src.body, '')), 'D')",
+				"to_tsvector('english', coalesce(src.name, '') || ' ' || coalesce(src.body, ''))",
 			}, commonFragments...),
 			// The keyword path reads source tables, never the embeddings table.
 			mustNotContain: []string{"FROM embeddings", "<=>", "e.model_id"},
@@ -375,8 +373,7 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 				"FROM artifacts src",
 				"src.title AS title",
 				"src.content AS source_body",
-				"setweight(to_tsvector('english', coalesce(src.title, '')), 'A') || " +
-					"setweight(to_tsvector('english', coalesce(src.content, '')), 'D')",
+				"to_tsvector('english', coalesce(src.title, '') || ' ' || coalesce(src.content, ''))",
 			}, commonFragments...),
 			mustNotContain: []string{"FROM embeddings", "<=>"},
 		},
@@ -398,12 +395,8 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 				"LEFT(src.text, 100) AS title",
 				"src.text AS source_body",
 				"'' AS slug",
-				// No real title: a single D-weighted body vector (no A weight),
-				// so the LEFT(text, 100) display title is not double-counted.
-				"setweight(to_tsvector('english', coalesce(src.text, '')), 'D')",
 			}, commonFragments...),
-			// Memories carry no A-weighted title vector (hasTitle == false).
-			mustNotContain: []string{"FROM embeddings", "), 'A')"},
+			mustNotContain: []string{"FROM embeddings"},
 		},
 	}
 
@@ -425,22 +418,21 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 }
 
 // TestBuildKeywordBranch_RelaxedRewritesToOrSemantics proves the relaxed pass
-// reuses the identical weighted tsvector, ts_rank_cd and scoping but swaps in the
-// OR-rewrite tsquery expression (both in the ranking term and the @@ match), so a
-// multi-word query matches on ANY lexeme rather than ALL of them.
+// reuses the identical tsvector, ts_rank and scoping but swaps in the OR-rewrite
+// tsquery expression (both in the ranking term and the @@ match), so a multi-word
+// query matches on ANY lexeme rather than ALL of them.
 func TestBuildKeywordBranch_RelaxedRewritesToOrSemantics(t *testing.T) {
 	sqlText := buildKeywordBranch("prompt", entitySources["prompt"], keywordRelaxedTSQuery)
 
-	// The relaxed tsquery ORs the sanitised lexemes; it is used in BOTH the
-	// ts_rank_cd score and the @@ match so ranking and filtering stay consistent.
+	// The relaxed tsquery ORs the sanitised lexemes; it is used in BOTH the ts_rank
+	// score and the @@ match so ranking and filtering stay consistent.
 	assert.Contains(t, sqlText, "replace(websearch_to_tsquery('english', $1)::text, '&', '|')::tsquery")
 	assert.Equal(t, 2, countOccurrences(sqlText,
 		"replace(websearch_to_tsquery('english', $1)::text, '&', '|')::tsquery"))
-	// Same weighted tsvector expression as the strict branch keeps the
-	// migration-006 GIN index usable, and the distance mapping is unchanged.
-	assert.Contains(t, sqlText, "setweight(to_tsvector('english', coalesce(src.name, '')), 'A') || "+
-		"setweight(to_tsvector('english', coalesce(src.body, '')), 'D')")
-	assert.Contains(t, sqlText, "1 - ts_rank_cd(")
+	// Same tsvector expression as the strict branch keeps the FTS GIN index usable,
+	// and the distance mapping is unchanged.
+	assert.Contains(t, sqlText, "to_tsvector('english', coalesce(src.name, '') || ' ' || coalesce(src.body, ''))")
+	assert.Contains(t, sqlText, "1 - ts_rank(")
 	assert.NotContains(t, sqlText, "plainto_tsquery")
 }
 
@@ -526,26 +518,6 @@ func TestBuildKeywordTrgmCountUnion_OmitsScoreAndBindsThreeArgs(t *testing.T) {
 
 	_, err = buildKeywordTrgmCountUnion(nil)
 	assert.Error(t, err)
-}
-
-// TestFtsExpr_WeightsTitleAndBody pins the weighted-vector contract: entities with
-// a real title (hasTitle) get an A-weighted title vector concatenated with a
-// D-weighted body vector, while title-less entities (memories) get a single
-// D-weighted body vector — so the LEFT(text, 100) display title is never
-// double-weighted. The expression must stay in sync with migration 006's indexes.
-func TestFtsExpr_WeightsTitleAndBody(t *testing.T) {
-	titled := ftsExpr(entitySources["prompt"])
-	assert.Equal(t,
-		"setweight(to_tsvector('english', coalesce(src.name, '')), 'A') || "+
-			"setweight(to_tsvector('english', coalesce(src.body, '')), 'D')",
-		titled)
-
-	memory := ftsExpr(entitySources["memory"])
-	assert.Equal(t,
-		"setweight(to_tsvector('english', coalesce(src.text, '')), 'D')",
-		memory)
-	// No A-weighted vector for the title-less memory entity.
-	assert.NotContains(t, memory, "'A'")
 }
 
 //nolint:funlen // Test function with comprehensive scenarios
