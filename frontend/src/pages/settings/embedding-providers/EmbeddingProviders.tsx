@@ -227,6 +227,93 @@ function EmbeddingCoverageCards({
   )
 }
 
+interface CoverageSectionProps {
+  coverage: EmbeddingCoverageResponse | null
+  coverageLoading: boolean
+  coverageError: string | null
+  canReprocess: boolean
+  reprocessing: boolean
+  onReprocess: () => void
+  canClear: boolean
+  clearing: boolean
+  onClear: () => void
+}
+
+// Coverage summary plus its two maintenance actions (reprocess missing, clear
+// all). Extracted from EmbeddingProviders so the page component stays within the
+// max-lines-per-function budget.
+function CoverageSection({
+  coverage,
+  coverageLoading,
+  coverageError,
+  canReprocess,
+  reprocessing,
+  onReprocess,
+  canClear,
+  clearing,
+  onClear,
+}: CoverageSectionProps) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Embedding coverage</h2>
+          <p className="text-muted-foreground text-sm">
+            {coverage?.has_active_provider && coverage.active_model
+              ? `Measured against ${coverage.active_model}.`
+              : 'Embedding status across your content.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!canReprocess || reprocessing}
+            onClick={onReprocess}
+          >
+            {reprocessing ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 size-4" />
+            )}
+            Reprocess pending
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            disabled={!canClear || clearing}
+            onClick={onClear}
+          >
+            {clearing ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 size-4" />
+            )}
+            Clear all embeddings
+          </Button>
+        </div>
+      </div>
+
+      {coverageLoading ? (
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+      ) : coverageError ? (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Couldn&rsquo;t load embedding coverage</AlertTitle>
+          <AlertDescription>{coverageError}</AlertDescription>
+        </Alert>
+      ) : coverage ? (
+        <EmbeddingCoverageCards coverage={coverage} />
+      ) : null}
+    </div>
+  )
+}
+
 export function EmbeddingProviders() {
   const { handleError } = useErrorHandler()
   const { currentTeam } = useTeam()
@@ -249,6 +336,8 @@ export function EmbeddingProviders() {
   const [coverageLoading, setCoverageLoading] = useState(true)
   const [coverageError, setCoverageError] = useState<string | null>(null)
   const [reprocessing, setReprocessing] = useState(false)
+  const [clearOpen, setClearOpen] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
   const loadProviders = useCallback(async () => {
     if (!currentTeam) return
@@ -370,6 +459,33 @@ export function EmbeddingProviders() {
     }
   }
 
+  // Clearing is allowed whenever there is something embedded to remove; it is a
+  // team-wide truncate, so it does not depend on an active provider.
+  const embeddedTotal =
+    coverage?.coverage.reduce((sum, item) => sum + item.embedded, 0) ?? 0
+  const canClear = embeddedTotal > 0 && !coverageLoading
+
+  const handleClearEmbeddings = async () => {
+    if (!currentTeam) return
+    try {
+      setClearing(true)
+      const { deleted_count } = await embeddingProviderService.clearEmbeddings(
+        currentTeam.id
+      )
+      toast.success('Embeddings cleared', {
+        description: `Removed ${deleted_count.toLocaleString()} embedding${
+          deleted_count === 1 ? '' : 's'
+        }. Content stays unembedded until you reprocess.`,
+      })
+      await loadCoverage()
+    } catch (error) {
+      handleError(error, 'Failed to clear embeddings')
+    } finally {
+      setClearing(false)
+      setClearOpen(false)
+    }
+  }
+
   const columns = useMemo<ColumnDef<EmbeddingProviderResponse>[]>(
     () =>
       buildProviderColumns(
@@ -403,49 +519,21 @@ export function EmbeddingProviders() {
       />
 
       {!loading && providers.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Embedding coverage</h2>
-              <p className="text-muted-foreground text-sm">
-                {coverage?.has_active_provider && coverage.active_model
-                  ? `Measured against ${coverage.active_model}.`
-                  : 'Embedding status across your content.'}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!canReprocess || reprocessing}
-              onClick={() => {
-                void handleReprocess()
-              }}
-            >
-              {reprocessing ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 size-4" />
-              )}
-              Reprocess pending
-            </Button>
-          </div>
-
-          {coverageLoading ? (
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-24 w-full" />
-              ))}
-            </div>
-          ) : coverageError ? (
-            <Alert variant="destructive">
-              <AlertCircle className="size-4" />
-              <AlertTitle>Couldn&rsquo;t load embedding coverage</AlertTitle>
-              <AlertDescription>{coverageError}</AlertDescription>
-            </Alert>
-          ) : coverage ? (
-            <EmbeddingCoverageCards coverage={coverage} />
-          ) : null}
-        </div>
+        <CoverageSection
+          coverage={coverage}
+          coverageLoading={coverageLoading}
+          coverageError={coverageError}
+          canReprocess={canReprocess}
+          reprocessing={reprocessing}
+          onReprocess={() => {
+            void handleReprocess()
+          }}
+          canClear={canClear}
+          clearing={clearing}
+          onClear={() => {
+            setClearOpen(true)
+          }}
+        />
       )}
 
       {loading ? (
@@ -512,6 +600,26 @@ export function EmbeddingProviders() {
         variant="destructive"
         loading={deleting}
         onConfirm={handleDelete}
+      />
+
+      <ConfirmDialog
+        open={clearOpen}
+        onOpenChange={open => {
+          if (!clearing) setClearOpen(open)
+        }}
+        title="Clear all embeddings?"
+        description={
+          <>
+            This permanently deletes{' '}
+            <span className="font-medium">every stored embedding</span> for this
+            team. Semantic search will return nothing until you re-embed with
+            &ldquo;Reprocess pending&rdquo;. This can&rsquo;t be undone.
+          </>
+        }
+        confirmLabel="Clear all"
+        variant="destructive"
+        loading={clearing}
+        onConfirm={handleClearEmbeddings}
       />
     </div>
   )
