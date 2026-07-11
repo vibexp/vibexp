@@ -821,3 +821,49 @@ api-v1-settings-embedding-providers-coverage:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
       - Settings
+
+api-v1-settings-embedding-providers-embeddings:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team whose stored embeddings are cleared.
+      schema:
+        type: string
+        format: uuid
+  delete:
+    summary: Clear all embeddings (Settings)
+    description: |
+      Permanently deletes every stored embedding for the team (a destructive
+      truncate), returning how many rows were removed. Unlike reprocess, this
+      does not regenerate anything: the team's content stays unembedded — and
+      semantic search returns nothing for it — until a provider reprocess or an
+      identity-changing provider update re-embeds the team. It is team-scoped:
+      only the authenticated team's embeddings are affected. Exposed on the
+      settings route only (the destructive maintenance action lives in the
+      embedding settings UI).
+    operationId: clearEmbeddingsSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Embeddings cleared; body reports how many rows were deleted.
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ClearEmbeddingsResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to clear embeddings (`DATABASE_ERROR`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Settings

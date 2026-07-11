@@ -257,6 +257,8 @@ components:
       $ref: "./schemas/embedding-providers.yaml#/EmbeddingCoverageItem"
     EmbeddingCoverageResponse:
       $ref: "./schemas/embedding-providers.yaml#/EmbeddingCoverageResponse"
+    ClearEmbeddingsResponse:
+      $ref: "./schemas/embedding-providers.yaml#/ClearEmbeddingsResponse"
 
     # Import model provider schemas
     ModelProvider:
@@ -1030,6 +1032,8 @@ paths:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-id-reprocess"
   /api/v1/{team_id}/settings/embedding-providers/validate:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-validate"
+  /api/v1/{team_id}/settings/embedding-providers/embeddings:
+    $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-embeddings"
   /api/v1/{team_id}/model-providers:
     $ref: "./paths/model-providers.yaml#/api-v1-model-providers"
   /api/v1/{team_id}/model-providers/{id}:

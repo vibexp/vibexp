@@ -585,6 +585,51 @@ func (s *Server) handleReprocessEmbeddingProvider(w http.ResponseWriter, r *http
 	}, s.logger)
 }
 
+// handleClearEmbeddings handles DELETE .../settings/embedding-providers/embeddings.
+// It permanently deletes every stored embedding for the team (a destructive
+// truncate) and returns 200 with the number of rows removed. Unlike reprocess it
+// deletes directly via the repository and deliberately does NOT re-enqueue
+// generation — the team's content stays unembedded until a later reprocess or an
+// identity-changing provider update re-embeds it. The work is team-scoped
+// (team middleware validates {team_id}); only the authenticated team's rows are
+// touched.
+func (s *Server) handleClearEmbeddings(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
+
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleClearEmbeddings",
+		"user_id", userID,
+		"team_id", teamID,
+	).Info("Clear embeddings request received")
+
+	deleted, err := s.container.EmbeddingRepository().DeleteByTeam(r.Context(), teamID)
+	if err != nil {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleClearEmbeddings",
+			"user_id", userID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to clear team embeddings")
+		errors.WriteJSONError(w, r, errors.NewDatabaseError(
+			"Failed to clear embeddings. Please try again later.",
+		))
+		return
+	}
+
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleClearEmbeddings",
+		"user_id", userID,
+		"team_id", teamID,
+		"deleted", deleted,
+	).Info("Cleared team embeddings")
+
+	writeOK(w, models.ClearEmbeddingsResponse{DeletedCount: deleted}, s.logger)
+}
+
 func (s *Server) handleValidateEmbeddingProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 

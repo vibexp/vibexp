@@ -381,3 +381,19 @@ EmbeddingCoverageResponse:
     - has_active_provider
     - active_model
     - coverage
+
+ClearEmbeddingsResponse:
+  type: object
+  description: >-
+    Result of clearing (truncating) all of a team's stored embeddings. Reports
+    how many embedding rows were removed. Clearing does not regenerate anything —
+    the team's content stays unembedded (and semantic search returns nothing for
+    it) until a provider reprocess/re-embed runs.
+  properties:
+    deleted_count:
+      type: integer
+      format: int64
+      description: Number of embedding rows deleted for the team (0 if there were none).
+      example: 157
+  required:
+    - deleted_count

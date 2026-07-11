@@ -15245,6 +15245,68 @@
         ]
       }
     },
+    "/api/v1/{team_id}/settings/embedding-providers/embeddings": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team whose stored embeddings are cleared.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "Clear all embeddings (Settings)",
+        "description": "Permanently deletes every stored embedding for the team (a destructive\ntruncate), returning how many rows were removed. Unlike reprocess, this\ndoes not regenerate anything: the team's content stays unembedded — and\nsemantic search returns nothing for it — until a provider reprocess or an\nidentity-changing provider update re-embeds the team. It is team-scoped:\nonly the authenticated team's embeddings are affected. Exposed on the\nsettings route only (the destructive maintenance action lives in the\nembedding settings UI).\n",
+        "operationId": "clearEmbeddingsSettings",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Embeddings cleared; body reports how many rows were deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearEmbeddingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to clear embeddings (`DATABASE_ERROR`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
     "/api/v1/{team_id}/model-providers": {
       "parameters": [
         {
@@ -20377,6 +20439,21 @@
           "has_active_provider",
           "active_model",
           "coverage"
+        ]
+      },
+      "ClearEmbeddingsResponse": {
+        "type": "object",
+        "description": "Result of clearing (truncating) all of a team's stored embeddings. Reports how many embedding rows were removed. Clearing does not regenerate anything — the team's content stays unembedded (and semantic search returns nothing for it) until a provider reprocess/re-embed runs.",
+        "properties": {
+          "deleted_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of embedding rows deleted for the team (0 if there were none).",
+            "example": 157
+          }
+        },
+        "required": [
+          "deleted_count"
         ]
       },
       "ModelProvider": {
