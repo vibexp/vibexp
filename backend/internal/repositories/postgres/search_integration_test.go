@@ -4,6 +4,7 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -126,7 +127,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		}
 	})
 
-	t.Run("multi-word query stems via plainto_tsquery (english)", func(t *testing.T) {
+	t.Run("multi-word query stems via websearch_to_tsquery (english)", func(t *testing.T) {
 		resetSearchTables(t)
 		user := insertTestUser(t)
 		team := insertTestTeam(t, user)
@@ -134,7 +135,8 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		_ = insertTestPrompt(t, user, team, project,
 			"indexing guide", "guidance on indexing documents for searching", "published")
 
-		// "index searches" stems to index/search and matches "indexing"/"searching".
+		// "index searches" stems to index/search and matches "indexing"/"searching"
+		// on the strict pass (both terms present, so AND semantics still hit).
 		rows, total, err := repo.SearchKeyword(ctx, team, "index searches", []string{"prompt"}, "", 10, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
@@ -228,12 +230,145 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		project := insertTestProject(t, user, team)
 		_ = insertTestPrompt(t, user, team, project, "doc", "the quick brown fox", "published")
 
-		// plainto_tsquery('english', 'the and of') produces an empty tsquery (all
-		// stopwords), which matches nothing — the repo must return an empty page, not
+		// websearch_to_tsquery('english', 'the and of') produces an empty tsquery (all
+		// stopwords) on both passes: the relaxed OR-rewrite of an empty tsquery is
+		// still empty, so it matches nothing. The repo must return an empty page, not
 		// error, so the endpoint still answers HTTP 200.
 		rows, total, err := repo.SearchKeyword(ctx, team, "the and of", allTypes, "", 10, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, rows)
 	})
+
+	t.Run("multi-word natural-language question falls back to the relaxed OR pass", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+		// The document only covers postgres full-text search; it says nothing about
+		// "performance", "large" or "tables".
+		relevant := insertTestPrompt(t, user, team, project,
+			"Postgres full text search", "how to configure postgres tsvector and ts_rank for document search", "published")
+		// An unrelated published prompt that shares none of the query's content words.
+		_ = insertTestPrompt(t, user, team, project,
+			"Frontend routing", "react router navigation and lazy loading", "published")
+
+		// AC #1: a 5+ word natural-language question with no exact phrase match. Under
+		// strict AND semantics every content word must appear, so the extra words
+		// ("performance", "large", "tables") drive the strict pass to zero; the relaxed
+		// OR pass then matches on the shared postgres/search/document lexemes.
+		q := "how do I tune postgres full text search performance for large tables"
+		rows, total, err := repo.SearchKeyword(ctx, team, q, allTypes, "", 10, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, rows, 1)
+		assert.Equal(t, relevant, rows[0].EntityID)
+		// Distance stays in the [0,1) score band the service maps back to a score.
+		assert.GreaterOrEqual(t, rows[0].Distance, 0.0)
+		assert.Less(t, rows[0].Distance, 1.0)
+	})
+
+	t.Run("strict pass wins so precise queries stay precise", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+		// One prompt contains BOTH terms; another contains only one. Under the strict
+		// AND pass only the first matches — the relaxed OR pass (which would also
+		// return the second) must NOT run because the strict pass already has a hit.
+		both := insertTestPrompt(t, user, team, project,
+			"alpha", "alpha bravo together", "published")
+		_ = insertTestPrompt(t, user, team, project,
+			"bravo only", "bravo appears here without the other word", "published")
+
+		rows, total, err := repo.SearchKeyword(ctx, team, "alpha bravo", []string{"prompt"}, "", 10, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, rows, 1)
+		assert.Equal(t, both, rows[0].EntityID)
+	})
+
+	t.Run("honours websearch quoted-phrase semantics", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+		adjacent := insertTestPrompt(t, user, team, project,
+			"adjacent", "the full text search pipeline", "published")
+		// Same two words, but not adjacent and in the wrong order — a phrase query
+		// must not match this one.
+		_ = insertTestPrompt(t, user, team, project,
+			"scattered", "text is processed, then later we do a full rebuild", "published")
+
+		// AC #2: a quoted phrase matches only adjacency (websearch <-> phrase operator).
+		rows, total, err := repo.SearchKeyword(ctx, team, `"full text"`, []string{"prompt"}, "", 10, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, rows, 1)
+		assert.Equal(t, adjacent, rows[0].EntityID)
+	})
+
+	t.Run("query plan uses the GIN full-text index (EXPLAIN)", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+		// Seed many rows where the full-text predicate is the SELECTIVE one: only two
+		// carry the rare term, the rest are filler. That makes the GIN the planner's
+		// natural choice for the tsvector @@ tsquery match, so the EXPLAIN proves the
+		// migration-002 index is eligible for the swapped tsquery expressions — the
+		// assertion fails only if ftsExpr diverges from the indexed expression.
+		for i := 0; i < 2; i++ {
+			insertTestPrompt(t, user, team, project,
+				"rare hit", "zqzxqterm keyword lives here", "published")
+		}
+		for i := 0; i < 300; i++ {
+			insertTestPrompt(t, user, team, project,
+				"filler", "unrelated lorem ipsum filler body text", "published")
+		}
+		_, err := integrationDB.ExecContext(ctx, "ANALYZE prompts")
+		require.NoError(t, err)
+
+		// AC #3: EXPLAIN the exact (tsvector, tsquery) pairing the repository emits.
+		// Isolating the FTS predicate (no competing team/status filter) keeps the plan
+		// about index eligibility for the operator, which is what the tsquery swap
+		// could have broken.
+		tsv := ftsExpr(entitySources["prompt"])
+		strictPlan := explainFTS(t, ctx, tsv, keywordStrictTSQuery, "zqzxqterm")
+		assert.Contains(t, strictPlan, "idx_prompts_fts",
+			"strict tsquery should use the migration-002 GIN index, got plan:\n%s", strictPlan)
+
+		relaxedPlan := explainFTS(t, ctx, tsv, keywordRelaxedTSQuery, "zqzxqterm please")
+		assert.Contains(t, relaxedPlan, "idx_prompts_fts",
+			"relaxed OR-rewrite tsquery should use the migration-002 GIN index, got plan:\n%s", relaxedPlan)
+	})
+}
+
+// explainFTS EXPLAINs the isolated `tsv @@ tsquery` predicate the repository
+// emits against the prompts table, binding $1=query, and returns the plan text.
+// Sequential scans are disabled inside a rolled-back transaction so a divergence
+// between ftsExpr and the indexed expression surfaces as a non-index plan.
+func explainFTS(t *testing.T, ctx context.Context, tsv, tsquery, query string) string {
+	t.Helper()
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+
+	_, err = tx.ExecContext(ctx, "SET LOCAL enable_seqscan = off")
+	require.NoError(t, err)
+
+	explainSQL := "EXPLAIN (FORMAT TEXT) SELECT 1 FROM prompts src WHERE " + tsv + " @@ " + tsquery
+	rows, err := tx.QueryContext(ctx, explainSQL, query)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, rows.Close()) }()
+
+	var plan strings.Builder
+	for rows.Next() {
+		var line string
+		require.NoError(t, rows.Scan(&line))
+		plan.WriteString(line)
+		plan.WriteString("\n")
+	}
+	require.NoError(t, rows.Err())
+	return plan.String()
 }

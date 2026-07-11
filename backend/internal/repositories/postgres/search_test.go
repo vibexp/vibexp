@@ -316,11 +316,12 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 
 func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 	// Common fragments every keyword branch must carry: full-text match on the
-	// combined title+body tsvector, ts_rank scoring (mapped into distance), source
-	// table read directly (no embeddings join), team scope on the source row, and the
-	// optional project filter. Args are $1=query, $2=team_id, $3=project_id.
+	// combined title+body tsvector using the strict websearch_to_tsquery, ts_rank
+	// scoring (mapped into distance), source table read directly (no embeddings
+	// join), team scope on the source row, and the optional project filter. Args
+	// are $1=query, $2=team_id, $3=project_id.
 	commonFragments := []string{
-		"plainto_tsquery('english', $1)",
+		"websearch_to_tsquery('english', $1)",
 		"@@ ",
 		"ts_rank(",
 		"1 - ts_rank(",
@@ -394,26 +395,50 @@ func TestBuildKeywordBranch_AppliesFTSVisibilityAndScoping(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlText := buildKeywordBranch(tt.entityType, entitySources[tt.entityType])
+			sqlText := buildKeywordBranch(tt.entityType, entitySources[tt.entityType], keywordStrictTSQuery)
 			for _, fragment := range tt.mustContain {
 				assert.Contains(t, sqlText, fragment)
 			}
 			for _, fragment := range tt.mustNotContain {
 				assert.NotContains(t, sqlText, fragment)
 			}
+			// The strict branch must not carry the AND->OR relaxation or the old
+			// plainto_tsquery: those belong only to the relaxed fallback pass.
+			assert.NotContains(t, sqlText, "plainto_tsquery")
+			assert.NotContains(t, sqlText, "replace(")
 		})
 	}
 }
 
+// TestBuildKeywordBranch_RelaxedRewritesToOrSemantics proves the relaxed pass
+// reuses the identical tsvector, ts_rank and scoping but swaps in the OR-rewrite
+// tsquery expression (both in the ranking term and the @@ match), so a multi-word
+// query matches on ANY lexeme rather than ALL of them.
+func TestBuildKeywordBranch_RelaxedRewritesToOrSemantics(t *testing.T) {
+	sqlText := buildKeywordBranch("prompt", entitySources["prompt"], keywordRelaxedTSQuery)
+
+	// The relaxed tsquery ORs the sanitised lexemes; it is used in BOTH the ts_rank
+	// score and the @@ match so ranking and filtering stay consistent.
+	assert.Contains(t, sqlText, "replace(websearch_to_tsquery('english', $1)::text, '&', '|')::tsquery")
+	assert.Equal(t, 2, countOccurrences(sqlText,
+		"replace(websearch_to_tsquery('english', $1)::text, '&', '|')::tsquery"))
+	// Same tsvector expression as the strict branch keeps the migration-002 GIN
+	// index usable, and the distance mapping is unchanged.
+	assert.Contains(t, sqlText, "to_tsvector('english', coalesce(src.name, '') || ' ' || coalesce(src.body, ''))")
+	assert.Contains(t, sqlText, "1 - ts_rank(")
+	assert.NotContains(t, sqlText, "plainto_tsquery")
+}
+
 func TestBuildKeywordCountUnion_OmitsRankAndBindsThreeArgs(t *testing.T) {
-	union, err := buildKeywordCountUnion([]string{"prompt", "memory"})
+	union, err := buildKeywordCountUnion([]string{"prompt", "memory"}, keywordStrictTSQuery)
 	require.NoError(t, err)
 
 	// The count path must not compute ts_rank per row and binds only query ($1),
 	// team_id ($2) and project_id ($3) — no LIMIT/OFFSET args.
 	assert.NotContains(t, union, "ts_rank")
 	assert.NotContains(t, union, "$4")
-	assert.Contains(t, union, "plainto_tsquery('english', $1)")
+	assert.Contains(t, union, "websearch_to_tsquery('english', $1)")
+	assert.NotContains(t, union, "plainto_tsquery")
 	assert.Contains(t, union, "WHERE src.team_id = $2")
 	assert.Contains(t, union, "($3::uuid IS NULL OR src.project_id = $3::uuid)")
 	// Visibility filters still apply, and prompt precedes memory deterministically.
@@ -421,7 +446,12 @@ func TestBuildKeywordCountUnion_OmitsRankAndBindsThreeArgs(t *testing.T) {
 	assert.Less(t, indexOf(union, "FROM prompts src"), indexOf(union, "FROM memories src"))
 	assert.Equal(t, 1, countOccurrences(union, "UNION ALL"))
 
-	_, err = buildKeywordCountUnion(nil)
+	// The relaxed count union carries the OR-rewrite tsquery instead.
+	relaxed, err := buildKeywordCountUnion([]string{"prompt"}, keywordRelaxedTSQuery)
+	require.NoError(t, err)
+	assert.Contains(t, relaxed, "replace(websearch_to_tsquery('english', $1)::text, '&', '|')::tsquery")
+
+	_, err = buildKeywordCountUnion(nil, keywordStrictTSQuery)
 	assert.Error(t, err)
 }
 
@@ -495,8 +525,13 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("short-circuits when count is zero", func(t *testing.T) {
+	t.Run("returns empty when both strict and relaxed passes count zero", func(t *testing.T) {
+		// Strict pass counts zero, so the relaxed pass runs; it also counts zero, so
+		// the result is an empty page (true-zero-result case).
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \(`).
+			WithArgs(query, teamID, nil).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`replace\(websearch_to_tsquery\('english', \$1\)::text, '&', '\|'\)::tsquery`).
 			WithArgs(query, teamID, nil).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
@@ -505,6 +540,33 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, rows)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("falls back to the relaxed OR pass when the strict pass finds nothing", func(t *testing.T) {
+		// Strict pass (AND semantics) counts zero for a multi-word query, so the
+		// relaxed OR pass runs, matches, and its page is returned. The relaxed pass's
+		// count and page carry the OR-rewrite tsquery expression.
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \(`).
+			WithArgs(query, teamID, nil).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`replace\(websearch_to_tsquery\('english', \$1\)::text, '&', '\|'\)::tsquery`).
+			WithArgs(query, teamID, nil).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+		resultRows := sqlmock.NewRows(resultCols).
+			AddRow("prompt", "p-9", "p-9", "Relaxed hit", "prompt-slug", "proj-1",
+				"Project One", "", "body", now, now, 0.6)
+		mock.ExpectQuery(`replace\(websearch_to_tsquery.*ORDER BY distance ASC, entity_id ASC LIMIT \$4 OFFSET \$5`).
+			WithArgs(query, teamID, nil, 10, 0).
+			WillReturnRows(resultRows)
+
+		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", 10, 0)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, rows, 1)
+		assert.Equal(t, "p-9", rows[0].EntityID)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 

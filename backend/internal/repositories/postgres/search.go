@@ -271,9 +271,34 @@ func (r *SearchRepository) countSimilar(
 	return total, nil
 }
 
+const (
+	// keywordStrictTSQuery is the precise full-text match. websearch_to_tsquery
+	// ANDs plain words (like the old plainto_tsquery) but additionally honours
+	// quoted phrases and explicit OR / "-" operators, so exact-term and operator
+	// queries stay precise. The explicit 'english' regconfig keeps it IMMUTABLE so
+	// the migration-002 GIN indexes still apply.
+	keywordStrictTSQuery = "websearch_to_tsquery('english', $1)"
+	// keywordRelaxedTSQuery loosens the strict query to OR semantics by rewriting
+	// every AND (&) between lexemes into an OR (|). websearch_to_tsquery first
+	// normalises the raw input into sanitised lexemes (and, unlike to_tsquery over
+	// raw words, never errors on arbitrary punctuation), so this yields an
+	// OR-joined tsquery of exactly those lexemes while leaving quoted phrases
+	// (<->) intact. It is used only as a second pass when the strict match returns
+	// nothing, keeping precise queries precise while making multi-word,
+	// question-style queries return results. Still composed of IMMUTABLE functions,
+	// so the GIN indexes apply here too.
+	keywordRelaxedTSQuery = "replace(websearch_to_tsquery('english', $1)::text, '&', '|')::tsquery"
+)
+
 // SearchKeyword runs a UNION ALL full-text search across the requested entity
 // types, reading the source tables directly. It is the fallback for when no
 // embedding provider is configured, so the embeddings table is empty.
+//
+// It runs up to two passes. The strict pass (websearch_to_tsquery) ANDs plain
+// words, so precise/exact-term queries stay precise; multi-word natural-language
+// questions, though, AND to nothing. When the strict pass yields zero rows a
+// relaxed pass retries with OR semantics over the same sanitised lexemes so the
+// fallback still returns relevant results instead of nothing.
 func (r *SearchRepository) SearchKeyword(
 	ctx context.Context,
 	teamID string,
@@ -284,7 +309,33 @@ func (r *SearchRepository) SearchKeyword(
 ) ([]models.SearchResultRow, int, error) {
 	projectArg := projectFilterArg(projectID)
 
-	total, err := r.countKeyword(ctx, teamID, query, entityTypes, projectArg)
+	rows, total, err := r.runKeywordPass(
+		ctx, teamID, query, entityTypes, projectArg, limit, offset, keywordStrictTSQuery)
+	if err != nil {
+		return nil, 0, err
+	}
+	if total > 0 {
+		return rows, total, nil
+	}
+
+	return r.runKeywordPass(
+		ctx, teamID, query, entityTypes, projectArg, limit, offset, keywordRelaxedTSQuery)
+}
+
+// runKeywordPass executes one full-text pass with the given tsquery expression:
+// it counts matches, short-circuits to an empty page when there are none, and
+// otherwise fetches the requested page. Both passes share this logic; only the
+// tsquery expression (strict vs relaxed) differs.
+func (r *SearchRepository) runKeywordPass(
+	ctx context.Context,
+	teamID string,
+	query string,
+	entityTypes []string,
+	projectArg interface{},
+	limit, offset int,
+	tsquery string,
+) ([]models.SearchResultRow, int, error) {
+	total, err := r.countKeyword(ctx, teamID, query, entityTypes, projectArg, tsquery)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -292,7 +343,7 @@ func (r *SearchRepository) SearchKeyword(
 		return []models.SearchResultRow{}, 0, nil
 	}
 
-	rows, err := r.queryKeywordPage(ctx, teamID, query, entityTypes, projectArg, limit, offset)
+	rows, err := r.queryKeywordPage(ctx, teamID, query, entityTypes, projectArg, limit, offset, tsquery)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -312,12 +363,13 @@ func ftsExpr(src entitySource) string {
 }
 
 // buildKeywordBranch builds the page SELECT for one entity type, matching the
-// source table directly via full-text search. It uses positional args:
-// $1 = query, $2 = team_id, $3 = project_id (NULL = no filter), shared across every
-// branch. chunk_content is the empty literal (there are no embedding chunks here);
-// distance is 1 - ts_rank so the outer ORDER BY distance ASC yields the most
-// relevant rows first and the service derives Score = 1 - distance = ts_rank.
-func buildKeywordBranch(entityType string, src entitySource) string {
+// source table directly via full-text search with the given tsquery expression
+// (strict or relaxed). It uses positional args: $1 = query, $2 = team_id,
+// $3 = project_id (NULL = no filter), shared across every branch. chunk_content is
+// the empty literal (there are no embedding chunks here); distance is 1 - ts_rank
+// so the outer ORDER BY distance ASC yields the most relevant rows first and the
+// service derives Score = 1 - distance = ts_rank.
+func buildKeywordBranch(entityType string, src entitySource, tsquery string) string {
 	tsv := ftsExpr(src)
 	var b strings.Builder
 	fmt.Fprintf(&b, "SELECT '%s' AS entity_type, src.id AS entity_id, src.id AS chunk_id, ", entityType)
@@ -325,7 +377,7 @@ func buildKeywordBranch(entityType string, src entitySource) string {
 	b.WriteString("src.project_id::text AS project_id, COALESCE(proj.name, '') AS project_name, ")
 	fmt.Fprintf(&b, "'' AS chunk_content, %s AS source_body, ", src.bodyExpr)
 	b.WriteString("src.created_at AS created_at, src.updated_at AS updated_at, ")
-	fmt.Fprintf(&b, "1 - ts_rank(%s, plainto_tsquery('english', $1)) AS distance ", tsv)
+	fmt.Fprintf(&b, "1 - ts_rank(%s, %s) AS distance ", tsv, tsquery)
 	fmt.Fprintf(&b, "FROM %s src ", src.table)
 	b.WriteString("LEFT JOIN projects proj ON src.project_id = proj.id ")
 	b.WriteString("WHERE src.team_id = $2")
@@ -333,14 +385,16 @@ func buildKeywordBranch(entityType string, src entitySource) string {
 		b.WriteString(" AND " + src.statusFilter)
 	}
 	b.WriteString(" AND ($3::uuid IS NULL OR src.project_id = $3::uuid)")
-	fmt.Fprintf(&b, " AND %s @@ plainto_tsquery('english', $1)", tsv)
+	fmt.Fprintf(&b, " AND %s @@ %s", tsv, tsquery)
 	return b.String()
 }
 
 // buildKeywordCountBranch builds a COUNT-only SELECT for one entity type. It omits
 // the ts_rank score (and unused projections) and uses the same positional args as
 // buildKeywordBranch: $1 = query, $2 = team_id, $3 = project_id (NULL = no filter).
-func buildKeywordCountBranch(entityType string, src entitySource) string {
+// The tsquery expression (strict or relaxed) matches the page branch's. Unlike the
+// page branch it reads no entity_type literal, so it needs only the source metadata.
+func buildKeywordCountBranch(src entitySource, tsquery string) string {
 	var b strings.Builder
 	b.WriteString("SELECT 1 ")
 	fmt.Fprintf(&b, "FROM %s src ", src.table)
@@ -349,20 +403,24 @@ func buildKeywordCountBranch(entityType string, src entitySource) string {
 		b.WriteString(" AND " + src.statusFilter)
 	}
 	b.WriteString(" AND ($3::uuid IS NULL OR src.project_id = $3::uuid)")
-	fmt.Fprintf(&b, " AND %s @@ plainto_tsquery('english', $1)", ftsExpr(src))
+	fmt.Fprintf(&b, " AND %s @@ %s", ftsExpr(src), tsquery)
 	return b.String()
 }
 
 // buildKeywordUnion assembles the page-query UNION ALL body (including the ts_rank
-// score) for the requested entity types.
-func buildKeywordUnion(entityTypes []string) (string, error) {
-	return buildUnionWith(entityTypes, buildKeywordBranch)
+// score) for the requested entity types, using the given tsquery expression.
+func buildKeywordUnion(entityTypes []string, tsquery string) (string, error) {
+	return buildUnionWith(entityTypes, func(entityType string, src entitySource) string {
+		return buildKeywordBranch(entityType, src, tsquery)
+	})
 }
 
 // buildKeywordCountUnion assembles the count-query UNION ALL body for the requested
-// entity types.
-func buildKeywordCountUnion(entityTypes []string) (string, error) {
-	return buildUnionWith(entityTypes, buildKeywordCountBranch)
+// entity types, using the given tsquery expression.
+func buildKeywordCountUnion(entityTypes []string, tsquery string) (string, error) {
+	return buildUnionWith(entityTypes, func(_ string, src entitySource) string {
+		return buildKeywordCountBranch(src, tsquery)
+	})
 }
 
 func (r *SearchRepository) queryKeywordPage(
@@ -372,8 +430,9 @@ func (r *SearchRepository) queryKeywordPage(
 	entityTypes []string,
 	projectArg interface{},
 	limit, offset int,
+	tsquery string,
 ) ([]models.SearchResultRow, error) {
-	union, err := buildKeywordUnion(entityTypes)
+	union, err := buildKeywordUnion(entityTypes, tsquery)
 	if err != nil {
 		return nil, err
 	}
@@ -434,8 +493,9 @@ func (r *SearchRepository) countKeyword(
 	query string,
 	entityTypes []string,
 	projectArg interface{},
+	tsquery string,
 ) (int, error) {
-	union, err := buildKeywordCountUnion(entityTypes)
+	union, err := buildKeywordCountUnion(entityTypes, tsquery)
 	if err != nil {
 		return 0, err
 	}
