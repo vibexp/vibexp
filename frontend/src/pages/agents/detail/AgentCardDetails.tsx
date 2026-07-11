@@ -5,6 +5,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import type { Agent } from '@/services/agentService'
 
+import { primaryInterface } from '../helpers'
+
 interface AgentCardDetailsProps {
   agent: Agent
 }
@@ -32,6 +34,8 @@ function MetaTile({
 export function AgentCardDetails({ agent }: AgentCardDetailsProps) {
   if (!agent.agent_card) return null
 
+  const iface = primaryInterface(agent.agent_card)
+
   return (
     <Card>
       <CardContent className="space-y-6 p-6">
@@ -54,7 +58,7 @@ export function AgentCardDetails({ agent }: AgentCardDetailsProps) {
           <MetaTile
             icon={Globe}
             label="Transport"
-            value={agent.agent_card.preferredTransport ?? 'Not specified'}
+            value={iface?.protocolBinding ?? 'Not specified'}
           />
           <MetaTile
             icon={Zap}

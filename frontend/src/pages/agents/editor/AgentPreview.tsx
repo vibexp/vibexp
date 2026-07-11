@@ -8,6 +8,8 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { AgentCard } from '@/services/agentService'
 
+import { primaryInterface } from '../helpers'
+
 interface AgentPreviewProps {
   loading: boolean
   data: AgentCard | null
@@ -62,6 +64,8 @@ export function AgentPreview({
     )
   }
 
+  const iface = primaryInterface(data)
+
   return (
     <div className="space-y-4">
       <Card>
@@ -75,7 +79,9 @@ export function AgentPreview({
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-muted-foreground">Protocol:</span>{' '}
-              <span className="font-medium">{data.protocolVersion}</span>
+              <span className="font-medium">
+                {iface?.protocolVersion ?? 'Not specified'}
+              </span>
             </div>
             <div>
               <span className="text-muted-foreground">Version:</span>{' '}
@@ -83,7 +89,9 @@ export function AgentPreview({
             </div>
             <div>
               <span className="text-muted-foreground">Transport:</span>{' '}
-              <span className="font-medium">{data.preferredTransport}</span>
+              <span className="font-medium">
+                {iface?.protocolBinding ?? 'Not specified'}
+              </span>
             </div>
             <div>
               <span className="text-muted-foreground">Streaming:</span>{' '}
@@ -170,13 +178,13 @@ export function AgentPreview({
         </Card>
       )}
 
-      {data.security &&
-        Array.isArray(data.security) &&
-        data.security.length > 0 && (
+      {data.securityRequirements &&
+        Array.isArray(data.securityRequirements) &&
+        data.securityRequirements.length > 0 && (
           <Card>
             <CardContent className="space-y-3 p-6">
               <h5 className="font-semibold">Security</h5>
-              {data.security.map(
+              {data.securityRequirements.map(
                 (sec: Record<string, unknown>, idx: number) => (
                   <div
                     key={idx}
