@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -75,7 +76,9 @@ func TestA2AHTTPClient_InvokeAgent_Success(t *testing.T) {
 		Name:   "Test Agent",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: server.URL,
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -118,11 +121,9 @@ func TestA2AHTTPClient_InvokeAgent_HTTPInterface(t *testing.T) {
 		UserID: "user-1",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: "http://should-not-use.com",
-			AdditionalInterfaces: &models.AgentInterfaces{
-				HTTP: &models.AgentHTTPInterface{
-					URL: server.URL,
-				},
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: "http://should-not-use.com", ProtocolBinding: a2a.TransportProtocolJSONRPC},
+				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
 			},
 		},
 	}
@@ -165,7 +166,9 @@ func TestA2AHTTPClient_InvokeAgent_JSONRPCError(t *testing.T) {
 		UserID: "user-1",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: server.URL,
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -197,7 +200,9 @@ func TestA2AHTTPClient_InvokeAgent_HTTPError(t *testing.T) {
 		UserID: "user-1",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: server.URL,
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -227,7 +232,9 @@ func TestA2AHTTPClient_InvokeAgent_InvalidJSON(t *testing.T) {
 		UserID: "user-1",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: server.URL,
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -260,7 +267,9 @@ func TestA2AHTTPClient_InvokeAgent_Timeout(t *testing.T) {
 		UserID: "user-1",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: server.URL,
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -299,7 +308,7 @@ func TestA2AHTTPClient_InvokeAgent_MissingAgentCard(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, execution)
-	assert.Contains(t, err.Error(), "agent card or URL is missing")
+	assert.Contains(t, err.Error(), "agent card or endpoint URL is missing")
 }
 
 func TestA2AHTTPClient_InvokeAgent_A2AMessageFormat(t *testing.T) {
@@ -330,7 +339,9 @@ func TestA2AHTTPClient_InvokeAgent_A2AMessageFormat(t *testing.T) {
 		UserID: "user-1",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: server.URL,
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -364,15 +375,16 @@ func TestA2AHTTPClient_InvokeAgent_AuthenticationFails(t *testing.T) {
 		UserID: "user-1",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: server.URL,
-			Security: []map[string]interface{}{
-				{"scheme": "apiKey"},
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
 			},
-			SecuritySchemes: map[string]models.AgentSecurityScheme{
-				"apiKey": {
-					Type: "apiKey",
-					Name: "X-API-Key",
-					In:   "header",
+			SecurityRequirements: a2a.SecurityRequirementsOptions{
+				{"apiKey": {}},
+			},
+			SecuritySchemes: a2a.NamedSecuritySchemes{
+				"apiKey": a2a.APIKeySecurityScheme{
+					Name:     "X-API-Key",
+					Location: a2a.APIKeySecuritySchemeLocationHeader,
 				},
 			},
 		},

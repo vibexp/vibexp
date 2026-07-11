@@ -88,7 +88,9 @@ Agent:
 
 AgentCard:
   type: object
-  description: A2A (Agent-to-Agent) protocol agent card
+  description: >-
+    A2A (Agent-to-Agent) protocol agent card (protocol v1.0), mirroring the
+    official a2a-go SDK's a2a.AgentCard type.
   properties:
     name:
       type: string
@@ -98,27 +100,38 @@ AgentCard:
     version:
       type: string
       example: "1.0.0"
-    protocolVersion:
-      type: string
-      example: "0.2.5"
-    url:
-      type: string
-      format: uri
-    preferredTransport:
-      type: string
-      example: "JSONRPC"
+    supportedInterfaces:
+      type: array
+      nullable: true
+      description: Supported transport/protocol/URL combinations for interacting with the agent.
+      items:
+        type: object
+        properties:
+          url:
+            type: string
+            format: uri
+          protocolBinding:
+            type: string
+            description: Transport protocol available at this URL (e.g. JSONRPC, GRPC, HTTP+JSON).
+            example: "JSONRPC"
+          protocolVersion:
+            type: string
+            example: "1.0"
+          tenant:
+            type: string
+            nullable: true
     defaultInputModes:
       type: array
       nullable: true
       items:
         type: string
-      example: ["text"]
+      example: ["text/plain"]
     defaultOutputModes:
       type: array
       nullable: true
       items:
         type: string
-      example: ["text"]
+      example: ["text/plain"]
     iconUrl:
       type: string
       format: uri
@@ -131,35 +144,36 @@ AgentCard:
       type: object
       nullable: true
       properties:
-        name:
+        organization:
           type: string
         url:
           type: string
           format: uri
     capabilities:
       type: object
-      nullable: true
       properties:
         streaming:
           type: boolean
         pushNotifications:
-          type: object
-          nullable: true
-          properties:
-            enabled:
-              type: boolean
-        stateTransitionHistory:
-          type: object
-          nullable: true
-          properties:
-            enabled:
-              type: boolean
+          type: boolean
+        extendedAgentCard:
+          type: boolean
         extensions:
-          type: object
+          type: array
           nullable: true
-          properties:
-            enabled:
-              type: boolean
+          items:
+            type: object
+            properties:
+              uri:
+                type: string
+              description:
+                type: string
+              required:
+                type: boolean
+              params:
+                type: object
+                additionalProperties: true
+                nullable: true
     skills:
       type: array
       nullable: true
@@ -192,64 +206,40 @@ AgentCard:
             nullable: true
             items:
               type: string
-          security:
-            type: string
+          securityRequirements:
+            type: array
             nullable: true
-    security:
+            items:
+              type: object
+              additionalProperties: true
+    securityRequirements:
       type: array
       nullable: true
+      description: Security requirement options (OR of ANDs) applying to all agent interactions.
       items:
         type: object
         additionalProperties: true
     securitySchemes:
       type: object
       nullable: true
+      description: Security schemes available to authorize requests, keyed by scheme name.
       additionalProperties:
         type: object
-        properties:
-          type:
-            type: string
-          description:
-            type: string
-          name:
-            type: string
-          in:
-            type: string
-          flows:
-            type: string
-    additionalInterfaces:
-      type: object
-      nullable: true
-      properties:
-        webSocket:
-          type: object
-          nullable: true
-          properties:
-            url:
-              type: string
-              format: uri
-        http:
-          type: object
-          nullable: true
-          properties:
-            url:
-              type: string
-              format: uri
-    supportsAuthenticatedExtendedCard:
-      type: boolean
-      nullable: true
+        additionalProperties: true
     signatures:
-      type: object
+      type: array
       nullable: true
-      properties:
-        card:
-          type: object
-          nullable: true
-          properties:
-            algorithm:
-              type: string
-            value:
-              type: string
+      items:
+        type: object
+        properties:
+          protected:
+            type: string
+          signature:
+            type: string
+          header:
+            type: object
+            additionalProperties: true
+            nullable: true
 
 CreateAgentRequest:
   type: object

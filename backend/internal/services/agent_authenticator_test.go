@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,14 +44,13 @@ func TestAgentAuthenticator_ApplyAuthentication(t *testing.T) {
 		agent := &models.Agent{
 			AgentCard: &models.AgentCard{
 				Name: "Test Agent",
-				Security: []map[string]interface{}{
-					{"apiKey": []string{}},
+				SecurityRequirements: a2a.SecurityRequirementsOptions{
+					{"apiKey": {}},
 				},
-				SecuritySchemes: map[string]models.AgentSecurityScheme{
-					"apiKey": {
-						Type: "apiKey",
-						Name: "X-API-Key",
-						In:   "header",
+				SecuritySchemes: a2a.NamedSecuritySchemes{
+					"apiKey": a2a.APIKeySecurityScheme{
+						Name:     "X-API-Key",
+						Location: a2a.APIKeySecuritySchemeLocationHeader,
 					},
 				},
 			},
@@ -78,14 +78,13 @@ func TestAgentAuthenticator_ApplyAuthentication(t *testing.T) {
 		agent := &models.Agent{
 			AgentCard: &models.AgentCard{
 				Name: "Test Agent",
-				Security: []map[string]interface{}{
-					{"queryAuth": []string{}},
+				SecurityRequirements: a2a.SecurityRequirementsOptions{
+					{"queryAuth": {}},
 				},
-				SecuritySchemes: map[string]models.AgentSecurityScheme{
-					"queryAuth": {
-						Type: "apiKey",
-						Name: "api_key",
-						In:   "query",
+				SecuritySchemes: a2a.NamedSecuritySchemes{
+					"queryAuth": a2a.APIKeySecurityScheme{
+						Name:     "api_key",
+						Location: a2a.APIKeySecuritySchemeLocationQuery,
 					},
 				},
 			},
@@ -113,13 +112,12 @@ func TestAgentAuthenticator_ApplyAuthentication(t *testing.T) {
 		agent := &models.Agent{
 			AgentCard: &models.AgentCard{
 				Name: "Test Agent",
-				Security: []map[string]interface{}{
-					{"bearerAuth": []string{}},
+				SecurityRequirements: a2a.SecurityRequirementsOptions{
+					{"bearerAuth": {}},
 				},
-				SecuritySchemes: map[string]models.AgentSecurityScheme{
-					"bearerAuth": {
-						Type: "http",
-						Name: "bearer",
+				SecuritySchemes: a2a.NamedSecuritySchemes{
+					"bearerAuth": a2a.HTTPAuthSecurityScheme{
+						Scheme: "bearer",
 					},
 				},
 			},
@@ -138,14 +136,13 @@ func TestAgentAuthenticator_ApplyAuthentication(t *testing.T) {
 		agent := &models.Agent{
 			AgentCard: &models.AgentCard{
 				Name: "Test Agent",
-				Security: []map[string]interface{}{
-					{"apiKey": []string{}},
+				SecurityRequirements: a2a.SecurityRequirementsOptions{
+					{"apiKey": {}},
 				},
-				SecuritySchemes: map[string]models.AgentSecurityScheme{
-					"apiKey": {
-						Type: "apiKey",
-						Name: "X-API-Key",
-						In:   "header",
+				SecuritySchemes: a2a.NamedSecuritySchemes{
+					"apiKey": a2a.APIKeySecurityScheme{
+						Name:     "X-API-Key",
+						Location: a2a.APIKeySecuritySchemeLocationHeader,
 					},
 				},
 			},
@@ -183,7 +180,7 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 	tests := []struct {
 		name                string
 		credentialValue     string
-		securityScheme      models.AgentSecurityScheme
+		securityScheme      a2a.SecurityScheme
 		expectedHeaderName  string
 		expectedHeaderValue string
 		expectedQueryParam  string
@@ -194,10 +191,9 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 		{
 			name:            "API Key in custom header",
 			credentialValue: "custom-api-key-123", // #nosec G101 - test credential
-			securityScheme: models.AgentSecurityScheme{
-				Type: "apiKey",
-				Name: "X-Custom-API-Key",
-				In:   "header",
+			securityScheme: a2a.APIKeySecurityScheme{
+				Name:     "X-Custom-API-Key",
+				Location: a2a.APIKeySecuritySchemeLocationHeader,
 			},
 			expectedHeaderName:  "X-Custom-API-Key",
 			expectedHeaderValue: "custom-api-key-123",
@@ -206,10 +202,9 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 		{
 			name:            "API Key in Authorization header (should add Bearer prefix)",
 			credentialValue: "secret-token-456",
-			securityScheme: models.AgentSecurityScheme{
-				Type: "apiKey",
-				Name: "Authorization",
-				In:   "header",
+			securityScheme: a2a.APIKeySecurityScheme{
+				Name:     "Authorization",
+				Location: a2a.APIKeySecuritySchemeLocationHeader,
 			},
 			expectedHeaderName:  "Authorization",
 			expectedHeaderValue: "Bearer secret-token-456",
@@ -218,10 +213,9 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 		{
 			name:            "API Key in Authorization header with existing Bearer prefix",
 			credentialValue: "Bearer existing-prefix-789",
-			securityScheme: models.AgentSecurityScheme{
-				Type: "apiKey",
-				Name: "Authorization",
-				In:   "header",
+			securityScheme: a2a.APIKeySecurityScheme{
+				Name:     "Authorization",
+				Location: a2a.APIKeySecuritySchemeLocationHeader,
 			},
 			expectedHeaderName:  "Authorization",
 			expectedHeaderValue: "Bearer existing-prefix-789",
@@ -230,10 +224,9 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 		{
 			name:            "API Key in query parameter",
 			credentialValue: "query-key-abc",
-			securityScheme: models.AgentSecurityScheme{
-				Type: "apiKey",
-				Name: "apiKey",
-				In:   "query",
+			securityScheme: a2a.APIKeySecurityScheme{
+				Name:     "apiKey",
+				Location: a2a.APIKeySecuritySchemeLocationQuery,
 			},
 			expectedQueryParam: "apiKey",
 			expectedQueryValue: "query-key-abc",
@@ -242,10 +235,9 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 		{
 			name:            "API Key in query with special characters",
 			credentialValue: "key-with-special-chars!@#",
-			securityScheme: models.AgentSecurityScheme{
-				Type: "apiKey",
-				Name: "api_key",
-				In:   "query",
+			securityScheme: a2a.APIKeySecurityScheme{
+				Name:     "api_key",
+				Location: a2a.APIKeySecuritySchemeLocationQuery,
 			},
 			expectedQueryParam: "api_key",
 			expectedQueryValue: "key-with-special-chars!@#",
@@ -260,17 +252,17 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 
 			credentials := models.AgentCredentials{
 				"testScheme": models.AgentCredential{
-					Type:  tt.securityScheme.Type,
+					Type:  "apiKey",
 					Value: encrypted,
 				},
 			}
 
 			agent := &models.Agent{
 				AgentCard: &models.AgentCard{
-					Security: []map[string]interface{}{
-						{"testScheme": []string{}},
+					SecurityRequirements: a2a.SecurityRequirementsOptions{
+						{"testScheme": {}},
 					},
-					SecuritySchemes: map[string]models.AgentSecurityScheme{
+					SecuritySchemes: a2a.NamedSecuritySchemes{
 						"testScheme": tt.securityScheme,
 					},
 				},
@@ -306,8 +298,6 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 	}
 }
 
-//nolint:funlen // Test function requires comprehensive setup and assertions
-
 // TestAgentAuthenticator_HTTPAuthentication_TableDriven tests HTTP Bearer token authentication
 //
 //nolint:funlen // Test function requires comprehensive setup and assertions
@@ -318,16 +308,15 @@ func TestAgentAuthenticator_HTTPAuthentication_TableDriven(t *testing.T) {
 	tests := []struct {
 		name                string
 		credentialValue     string
-		securityScheme      models.AgentSecurityScheme
+		securityScheme      a2a.HTTPAuthSecurityScheme
 		expectedHeaderValue string
 		shouldError         bool
 	}{
 		{
 			name:            "Bearer token without prefix",
 			credentialValue: "token-abc-123",
-			securityScheme: models.AgentSecurityScheme{
-				Type: "http",
-				Name: "bearer",
+			securityScheme: a2a.HTTPAuthSecurityScheme{
+				Scheme: "bearer",
 			},
 			expectedHeaderValue: "Bearer token-abc-123",
 			shouldError:         false,
@@ -335,9 +324,8 @@ func TestAgentAuthenticator_HTTPAuthentication_TableDriven(t *testing.T) {
 		{
 			name:            "Bearer token with existing Bearer prefix",
 			credentialValue: "Bearer token-xyz-789",
-			securityScheme: models.AgentSecurityScheme{
-				Type: "http",
-				Name: "bearer",
+			securityScheme: a2a.HTTPAuthSecurityScheme{
+				Scheme: "bearer",
 			},
 			expectedHeaderValue: "Bearer token-xyz-789",
 			shouldError:         false,
@@ -345,9 +333,8 @@ func TestAgentAuthenticator_HTTPAuthentication_TableDriven(t *testing.T) {
 		{
 			name:            "Long bearer token",
 			credentialValue: "very-long-token-" + string(make([]byte, 100)),
-			securityScheme: models.AgentSecurityScheme{
-				Type: "http",
-				Name: "bearer",
+			securityScheme: a2a.HTTPAuthSecurityScheme{
+				Scheme: "bearer",
 			},
 			expectedHeaderValue: "Bearer very-long-token-" + string(make([]byte, 100)),
 			shouldError:         false,
@@ -368,10 +355,10 @@ func TestAgentAuthenticator_HTTPAuthentication_TableDriven(t *testing.T) {
 
 			agent := &models.Agent{
 				AgentCard: &models.AgentCard{
-					Security: []map[string]interface{}{
-						{"bearerAuth": []string{}},
+					SecurityRequirements: a2a.SecurityRequirementsOptions{
+						{"bearerAuth": {}},
 					},
-					SecuritySchemes: map[string]models.AgentSecurityScheme{
+					SecuritySchemes: a2a.NamedSecuritySchemes{
 						"bearerAuth": tt.securityScheme,
 					},
 				},
@@ -391,7 +378,6 @@ func TestAgentAuthenticator_HTTPAuthentication_TableDriven(t *testing.T) {
 			}
 		})
 	}
-	//nolint:funlen // Test function requires comprehensive setup and assertions
 }
 
 // TestAgentAuthenticator_MissingCredentials_TableDriven tests error scenarios
@@ -410,14 +396,13 @@ func TestAgentAuthenticator_MissingCredentials_TableDriven(t *testing.T) {
 			name: "Missing credentials for required scheme",
 			agent: &models.Agent{
 				AgentCard: &models.AgentCard{
-					Security: []map[string]interface{}{
-						{"apiKey": []string{}},
+					SecurityRequirements: a2a.SecurityRequirementsOptions{
+						{"apiKey": {}},
 					},
-					SecuritySchemes: map[string]models.AgentSecurityScheme{
-						"apiKey": {
-							Type: "apiKey",
-							Name: "X-API-Key",
-							In:   "header",
+					SecuritySchemes: a2a.NamedSecuritySchemes{
+						"apiKey": a2a.APIKeySecurityScheme{
+							Name:     "X-API-Key",
+							Location: a2a.APIKeySecuritySchemeLocationHeader,
 						},
 					},
 				},
@@ -429,14 +414,13 @@ func TestAgentAuthenticator_MissingCredentials_TableDriven(t *testing.T) {
 			name: "Credentials present but wrong scheme name",
 			agent: &models.Agent{
 				AgentCard: &models.AgentCard{
-					Security: []map[string]interface{}{
-						{"apiKey": []string{}},
+					SecurityRequirements: a2a.SecurityRequirementsOptions{
+						{"apiKey": {}},
 					},
-					SecuritySchemes: map[string]models.AgentSecurityScheme{
-						"apiKey": {
-							Type: "apiKey",
-							Name: "X-API-Key",
-							In:   "header",
+					SecuritySchemes: a2a.NamedSecuritySchemes{
+						"apiKey": a2a.APIKeySecurityScheme{
+							Name:     "X-API-Key",
+							Location: a2a.APIKeySecuritySchemeLocationHeader,
 						},
 					},
 				},
@@ -486,14 +470,13 @@ func TestAgentAuthenticator_DecryptionErrors(t *testing.T) {
 
 	agent := &models.Agent{
 		AgentCard: &models.AgentCard{
-			Security: []map[string]interface{}{
-				{"apiKey": []string{}},
+			SecurityRequirements: a2a.SecurityRequirementsOptions{
+				{"apiKey": {}},
 			},
-			SecuritySchemes: map[string]models.AgentSecurityScheme{
-				"apiKey": {
-					Type: "apiKey",
-					Name: "X-API-Key",
-					In:   "header",
+			SecuritySchemes: a2a.NamedSecuritySchemes{
+				"apiKey": a2a.APIKeySecurityScheme{
+					Name:     "X-API-Key",
+					Location: a2a.APIKeySecuritySchemeLocationHeader,
 				},
 			},
 		},
