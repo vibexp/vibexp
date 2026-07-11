@@ -33,9 +33,10 @@ func newSyncTestFixture(t *testing.T) *syncTestFixture {
 	t.Helper()
 	agentRepo := new(mocks.MockAgentRepository)
 	execRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
-	service := NewAgentInvocationService(agentRepo, execRepo, a2aClient, streamProcessor, slog.New(slog.DiscardHandler))
+	service := NewAgentInvocationService(agentRepo, execRepo, eventRepo, a2aClient, streamProcessor, slog.New(slog.DiscardHandler))
 
 	agent := &models.Agent{ID: "agent-1", UserID: "user-1", Status: "active", AgentCard: &models.AgentCard{}}
 	input := map[string]interface{}{"text": "question"}

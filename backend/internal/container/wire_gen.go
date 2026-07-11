@@ -98,7 +98,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	agentAuthenticator := providers.ProvideAgentAuthenticator(encryptionServiceInterface)
 	a2AHTTPClientInterface := providers.ProvideA2AHTTPClient(agentAuthenticator, cfg)
 	a2AStreamProcessorInterface := providers.ProvideA2AStreamProcessor(agentExecutionEventRepository, agentExecutionRepository, logger)
-	agentInvocationServiceInterface := providers.ProvideAgentInvocationService(agentRepository, agentExecutionRepository, a2AHTTPClientInterface, a2AStreamProcessorInterface, logger)
+	agentInvocationServiceInterface := providers.ProvideAgentInvocationService(agentRepository, agentExecutionRepository, agentExecutionEventRepository, a2AHTTPClientInterface, a2AStreamProcessorInterface, logger)
 	memoryServiceInterface := providers.ProvideMemoryService(memoryRepository, teamServiceInterface, eventManager, logger, contentVersionServiceInterface)
 	embeddingServiceInterface := providers.ProvideEmbeddingService(embeddingRepository, promptRepository, artifactRepository, memoryRepository, blueprintRepository, feedItemRepository, feedItemReplyRepository, logger)
 	searchRepository := providers.ProvideSearchRepository(db)

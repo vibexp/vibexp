@@ -289,11 +289,12 @@ func ProvideA2AStreamProcessor(
 func ProvideAgentInvocationService(
 	agentRepo repositories.AgentRepository,
 	executionRepo repositories.AgentExecutionRepository,
+	eventRepo repositories.AgentExecutionEventRepository,
 	a2aClient services.A2AHTTPClientInterface,
 	streamProcessor services.A2AStreamProcessorInterface,
 	logger *slog.Logger,
 ) services.AgentInvocationServiceInterface {
-	return services.NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	return services.NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 }
 
 // ProvideMemoryService creates a new MemoryService

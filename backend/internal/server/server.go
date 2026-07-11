@@ -905,6 +905,7 @@ func (s *Server) setupAgentsRoutes(r chi.Router) {
 		r.Get("/{id}/conversations", s.handleListAgentConversations)
 		r.Put("/executions/{execution_id}", s.handleCompleteAgentExecution)
 		r.Get("/executions/{execution_id}", s.handleGetAgentExecution)
+		r.Post("/executions/{execution_id}/cancel", s.handleCancelExecution)
 		r.Get("/executions/{id}/status", s.handleGetExecutionStatus)
 		r.Get("/executions/{id}/events", s.handleGetExecutionEvents)
 		r.Get("/conversations/{conversation_id}/executions", s.handleGetConversationExecutions)

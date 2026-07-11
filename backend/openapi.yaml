@@ -942,6 +942,8 @@ paths:
     $ref: "./paths/agents.yaml#/api-v1-team_id-agents-id-conversations"
   /api/v1/{team_id}/agents/executions/{execution_id}:
     $ref: "./paths/agents.yaml#/api-v1-team_id-agents-executions-execution_id"
+  /api/v1/{team_id}/agents/executions/{execution_id}/cancel:
+    $ref: "./paths/agents.yaml#/api-v1-team_id-agents-executions-execution_id-cancel"
   /api/v1/{team_id}/agents/executions/{id}/status:
     $ref: "./paths/agents.yaml#/api-v1-team_id-agents-executions-id-status"
   /api/v1/{team_id}/agents/executions/{id}/events:

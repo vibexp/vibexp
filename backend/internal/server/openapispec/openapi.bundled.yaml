@@ -6703,6 +6703,83 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Agents
+  /api/v1/{team_id}/agents/executions/{execution_id}/cancel:
+    post:
+      summary: Cancel an agent execution
+      description: |
+        Cancels a running agent execution: aborts local streaming, asks the remote
+        agent to cancel its task (A2A `tasks/cancel`) when there is one, and marks
+        the execution `cancelled`. The execution's agent must belong to the
+        specified team.
+      operationId: cancelAgentExecution
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Team identifier
+        - name: execution_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Execution identifier
+      responses:
+        '200':
+          description: Execution cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentExecution'
+        '400':
+          description: Invalid team_id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '402':
+          description: Payment required — active subscription required
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — not a team member
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Execution not found, or its agent does not belong to the specified team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Execution is already terminal or its task cannot be cancelled
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Agents
   /api/v1/{team_id}/agents/executions/{id}/status:
     get:
       summary: Get execution status
@@ -12790,15 +12867,8 @@ components:
         current_state:
           type: string
           nullable: true
-          enum:
-            - submitted
-            - working
-            - input-required
-            - auth-required
-            - completed
-            - failed
-            - cancelled
-          description: A2A task state for streaming executions
+          description: Raw A2A task state as reported by the agent (A2A v1.0 values, e.g. TASK_STATE_WORKING / TASK_STATE_COMPLETED / TASK_STATE_CANCELED). Left as an open string because it mirrors the official SDK's states.
+          example: TASK_STATE_WORKING
         artifacts:
           type: array
           nullable: true

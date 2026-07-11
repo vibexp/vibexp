@@ -63,6 +63,18 @@ func (m *MockA2AHTTPClient) GetTask(
 	return args.Get(0).(*models.AgentExecution), args.Error(1)
 }
 
+func (m *MockA2AHTTPClient) CancelTask(
+	ctx context.Context, agent *models.Agent, taskID string,
+) (*models.AgentExecution, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	args := m.Called(ctx, agent, taskID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.AgentExecution), args.Error(1)
+}
+
 func (m *MockA2AHTTPClient) SupportsStreaming(agent *models.Agent) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -88,11 +100,12 @@ func (m *MockA2AStreamProcessor) ProcessStream(
 func TestAgentInvocationService_InvokeAgent_Success(t *testing.T) {
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agent := &models.Agent{
 		ID:     "agent-1",
@@ -156,11 +169,12 @@ func TestAgentInvocationService_InvokeAgent_Success(t *testing.T) {
 func TestAgentInvocationService_InvokeAgent_AgentNotFound(t *testing.T) {
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agentRepo.On("GetByIDCrossTeam", mock.Anything, "user-1", "agent-1").Return(nil, fmt.Errorf("agent not found"))
 
@@ -178,11 +192,12 @@ func TestAgentInvocationService_InvokeAgent_AgentNotFound(t *testing.T) {
 func TestAgentInvocationService_InvokeAgent_AgentNotActive(t *testing.T) {
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agent := &models.Agent{
 		ID:     "agent-1",
@@ -206,11 +221,12 @@ func TestAgentInvocationService_InvokeAgent_AgentNotActive(t *testing.T) {
 func TestAgentInvocationService_InvokeAgent_CreateExecutionFails(t *testing.T) {
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agent := &models.Agent{
 		ID:     "agent-1",
@@ -236,11 +252,12 @@ func TestAgentInvocationService_InvokeAgent_CreateExecutionFails(t *testing.T) {
 func TestAgentInvocationService_InvokeAgent_InvocationError(t *testing.T) {
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agent := &models.Agent{
 		ID:     "agent-1",
@@ -286,11 +303,12 @@ func TestAgentInvocationService_InvokeAgent_InvocationError(t *testing.T) {
 func TestAgentInvocationService_InvokeAgent_UpdateExecutionFails(t *testing.T) {
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agent := &models.Agent{
 		ID:     "agent-1",
@@ -331,11 +349,12 @@ func TestAgentInvocationService_InvokeAgent_StatsUpdateFails(t *testing.T) {
 	// Stats update failure should not fail the request
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agent := &models.Agent{
 		ID:     "agent-1",
@@ -380,11 +399,12 @@ func TestAgentInvocationService_InvokeAgent_StatsUpdateFails(t *testing.T) {
 func TestAgentInvocationService_InvokeAgent_Streaming(t *testing.T) {
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agent := &models.Agent{
 		ID:     "agent-1",
@@ -466,11 +486,12 @@ func TestAgentInvocationService_InvokeAgent_StreamingError(t *testing.T) {
 
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agent := &models.Agent{
 		ID:     "agent-1",
@@ -527,11 +548,12 @@ func TestAgentInvocationService_InvokeAgent_StreamingError(t *testing.T) {
 func TestAgentInvocationService_InvokeAgent_ChannelClosing(t *testing.T) {
 	agentRepo := new(mocks.MockAgentRepository)
 	executionRepo := new(mocks.MockAgentExecutionRepository)
+	eventRepo := new(mocks.MockAgentExecutionEventRepository)
 	a2aClient := new(MockA2AHTTPClient)
 	streamProcessor := new(MockA2AStreamProcessor)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewAgentInvocationService(agentRepo, executionRepo, a2aClient, streamProcessor, logger)
+	service := NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
 
 	agent := &models.Agent{
 		ID:     "agent-1",
