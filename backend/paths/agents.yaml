@@ -1110,6 +1110,84 @@ api-v1-team_id-agents-executions-id-status:
     tags:
       - Agents
 
+api-v1-team_id-agents-executions-execution_id-cancel:
+  post:
+    summary: Cancel an agent execution
+    description: |
+      Cancels a running agent execution: aborts local streaming, asks the remote
+      agent to cancel its task (A2A `tasks/cancel`) when there is one, and marks
+      the execution `cancelled`. The execution's agent must belong to the
+      specified team.
+    operationId: cancelAgentExecution
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Execution identifier
+    responses:
+      '200':
+        description: Execution cancelled successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AgentExecution'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '402':
+        description: Payment required — active subscription required
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — not a team member
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Execution not found, or its agent does not belong to the specified team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Execution is already terminal or its task cannot be cancelled
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Agents
+
 api-v1-team_id-agents-executions-id-events:
   get:
     summary: Get execution events

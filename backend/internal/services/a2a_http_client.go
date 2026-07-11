@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -42,6 +43,9 @@ type A2AHTTPClientInterface interface {
 	// GetTask fetches the current state of a remote task (used to poll a
 	// non-terminal sync send until it reaches a terminal state).
 	GetTask(ctx context.Context, agent *models.Agent, taskID string) (*models.AgentExecution, error)
+	// CancelTask asks the remote agent to cancel a task (A2A tasks/cancel).
+	// Returns ErrTaskNotCancelable when the task is already terminal/uncancelable.
+	CancelTask(ctx context.Context, agent *models.Agent, taskID string) (*models.AgentExecution, error)
 	SupportsStreaming(agent *models.Agent) bool
 }
 
@@ -306,6 +310,28 @@ func (c *A2AHTTPClient) GetTask(
 	task, err := client.GetTask(ctx, &a2a.GetTaskRequest{ID: a2a.TaskID(taskID)})
 	if err != nil {
 		return nil, fmt.Errorf("agent get task failed: %w", err)
+	}
+	return taskToExecution(task, 0), nil
+}
+
+// CancelTask asks the remote agent to cancel a task and returns the resulting
+// task snapshot. a2a.ErrTaskNotCancelable is returned unwrapped so the caller
+// can map it to a conflict response.
+func (c *A2AHTTPClient) CancelTask(
+	ctx context.Context, agent *models.Agent, taskID string,
+) (*models.AgentExecution, error) {
+	client, err := c.buildClient(ctx, agent)
+	if err != nil {
+		return nil, err
+	}
+	defer destroyClient(client)
+
+	task, err := client.CancelTask(ctx, &a2a.CancelTaskRequest{ID: a2a.TaskID(taskID)})
+	if err != nil {
+		if errors.Is(err, a2a.ErrTaskNotCancelable) {
+			return nil, a2a.ErrTaskNotCancelable
+		}
+		return nil, fmt.Errorf("agent cancel task failed: %w", err)
 	}
 	return taskToExecution(task, 0), nil
 }

@@ -7,10 +7,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services"
 )
 
 // handleGetExecutionStatus handles GET /api/v1/{team_id}/agents/executions/{id}/status
@@ -87,6 +89,69 @@ func (s *Server) handleGetExecutionStatus(w http.ResponseWriter, r *http.Request
 
 	// Return full execution with all A2A fields
 	writeOK(w, execution, s.logger)
+}
+
+// handleCancelExecution handles POST /api/v1/{team_id}/agents/executions/{execution_id}/cancel
+// Cancels a running execution: aborts local streaming, cancels the remote task,
+// and marks the execution cancelled.
+func (s *Server) handleCancelExecution(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
+	executionID := chi.URLParam(r, "execution_id")
+
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleCancelExecution",
+		"user_id", userID,
+		"team_id", teamID,
+		"execution_id", executionID,
+	).Info("Cancel execution request received")
+
+	execution, err := s.container.AgentExecutionRepository().GetByID(r.Context(), userID, executionID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrAgentExecutionNotFound) {
+			writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
+			return
+		}
+		writeErrorResponse(w, nil, "internal_error", "Failed to retrieve execution", http.StatusInternalServerError)
+		return
+	}
+
+	// Verify the execution's agent belongs to the specified team (cross-team 404).
+	agent, err := s.container.AgentRepository().GetByID(r.Context(), userID, teamID, execution.AgentID)
+	if err != nil {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleCancelExecution",
+			"execution_id", executionID,
+			"team_id", teamID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Execution's agent not found in specified team")
+		writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
+		return
+	}
+
+	updated, err := s.container.AgentInvocationService().CancelExecution(r.Context(), execution, agent)
+	if err != nil {
+		if errors.Is(err, services.ErrExecutionNotCancelable) || errors.Is(err, a2a.ErrTaskNotCancelable) {
+			writeErrorResponse(
+				w, nil, "conflict",
+				"Execution cannot be cancelled: it is already terminal or the task is not cancelable",
+				http.StatusConflict,
+			)
+			return
+		}
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleCancelExecution",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to cancel execution")
+		writeErrorResponse(w, nil, "internal_error", "Failed to cancel execution", http.StatusInternalServerError)
+		return
+	}
+
+	writeOK(w, updated, s.logger)
 }
 
 // handleGetExecutionEvents handles GET /api/v1/agents/executions/{id}/events

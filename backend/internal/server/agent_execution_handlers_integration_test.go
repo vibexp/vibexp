@@ -18,6 +18,8 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services"
+	servicemocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
@@ -28,6 +30,7 @@ type MockAgentExecutionContainer struct {
 	agentExecutionRepo      *MockAgentExecutionRepository
 	agentExecutionEventRepo *MockAgentExecutionEventRepository
 	agentRepo               *MockAgentRepository
+	agentInvocationService  *servicemocks.MockAgentInvocationServiceInterface
 }
 
 // MockAgentExecutionRepository mocks the AgentExecutionRepository interface
@@ -286,11 +289,16 @@ func (m *MockAgentExecutionContainer) AgentRepository() repositories.AgentReposi
 	return m.agentRepo
 }
 
+func (m *MockAgentExecutionContainer) AgentInvocationService() services.AgentInvocationServiceInterface {
+	return m.agentInvocationService
+}
+
 func newMockAgentExecutionContainer() *MockAgentExecutionContainer {
 	return &MockAgentExecutionContainer{
 		agentExecutionRepo:      &MockAgentExecutionRepository{},
 		agentExecutionEventRepo: &MockAgentExecutionEventRepository{},
 		agentRepo:               &MockAgentRepository{},
+		agentInvocationService:  &servicemocks.MockAgentInvocationServiceInterface{},
 	}
 }
 
@@ -313,6 +321,7 @@ func createTestExecutionServer(container *MockAgentExecutionContainer) *Server {
 	r.Route("/api/v1/{team_id}/agents/executions", func(r chi.Router) {
 		r.Get("/{id}/status", srv.handleGetExecutionStatus)
 		r.Get("/{id}/events", srv.handleGetExecutionEvents)
+		r.Post("/{execution_id}/cancel", srv.handleCancelExecution)
 	})
 
 	r.Route("/api/v1/{team_id}/agents/conversations", func(r chi.Router) {
@@ -1174,4 +1183,83 @@ func TestHandleGetExecutionStatus_CrossTeamAccess(t *testing.T) {
 
 	mockContainer.agentExecutionRepo.AssertExpectations(t)
 	mockContainer.agentRepo.AssertExpectations(t)
+}
+
+// makeExecutionPostRequest builds an authenticated POST request for cancel tests.
+func makeExecutionPostRequest(path string, userID string) *http.Request {
+	req := httptest.NewRequest("POST", path, nil)
+	req.Header.Set("Content-Type", "application/json")
+	return req.WithContext(context.WithValue(req.Context(), contextKeyUserID, userID))
+}
+
+func TestHandleCancelExecution_Success(t *testing.T) {
+	mockContainer := newMockAgentExecutionContainer()
+	executionID, userID, teamID, agentID := "exec-1", "user-1", "team-1", "agent-1"
+
+	execution := &models.AgentExecution{
+		ID: executionID, AgentID: agentID, UserID: userID, Status: "pending",
+		StartedAt: time.Now().Add(-time.Minute),
+	}
+	agent := &models.Agent{ID: agentID, UserID: userID, TeamID: teamID, Name: "A"}
+	cancelledState := "TASK_STATE_CANCELED"
+	cancelled := &models.AgentExecution{
+		ID: executionID, AgentID: agentID, UserID: userID, Status: "cancelled",
+		CurrentState: &cancelledState, StartedAt: execution.StartedAt, Artifacts: []map[string]interface{}{},
+	}
+
+	mockContainer.agentExecutionRepo.On("GetByID", mock.Anything, userID, executionID).Return(execution, nil)
+	mockContainer.agentRepo.On("GetByID", mock.Anything, userID, teamID, agentID).Return(agent, nil)
+	mockContainer.agentInvocationService.On("CancelExecution", mock.Anything, execution, agent).Return(cancelled, nil)
+
+	srv := createTestExecutionServer(mockContainer)
+	req := makeExecutionPostRequest("/api/v1/"+teamID+"/agents/executions/"+executionID+"/cancel", userID)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	specconformance.AssertConformsToSpec(t, req, w)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var response models.AgentExecution
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "cancelled", response.Status)
+	mockContainer.agentInvocationService.AssertExpectations(t)
+}
+
+func TestHandleCancelExecution_AlreadyTerminal(t *testing.T) {
+	mockContainer := newMockAgentExecutionContainer()
+	executionID, userID, teamID, agentID := "exec-1", "user-1", "team-1", "agent-1"
+
+	execution := &models.AgentExecution{ID: executionID, AgentID: agentID, UserID: userID, Status: "success"}
+	agent := &models.Agent{ID: agentID, UserID: userID, TeamID: teamID}
+
+	mockContainer.agentExecutionRepo.On("GetByID", mock.Anything, userID, executionID).Return(execution, nil)
+	mockContainer.agentRepo.On("GetByID", mock.Anything, userID, teamID, agentID).Return(agent, nil)
+	mockContainer.agentInvocationService.On("CancelExecution", mock.Anything, execution, agent).
+		Return(nil, services.ErrExecutionNotCancelable)
+
+	srv := createTestExecutionServer(mockContainer)
+	req := makeExecutionPostRequest("/api/v1/"+teamID+"/agents/executions/"+executionID+"/cancel", userID)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	specconformance.AssertConformsToSpec(t, req, w)
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestHandleCancelExecution_CrossTeamNotFound(t *testing.T) {
+	mockContainer := newMockAgentExecutionContainer()
+	executionID, userID, teamID, agentID := "exec-1", "user-1", "other-team", "agent-1"
+
+	execution := &models.AgentExecution{ID: executionID, AgentID: agentID, UserID: userID, Status: "pending"}
+	mockContainer.agentExecutionRepo.On("GetByID", mock.Anything, userID, executionID).Return(execution, nil)
+	mockContainer.agentRepo.On("GetByID", mock.Anything, userID, teamID, agentID).
+		Return(nil, fmt.Errorf("agent not found in team"))
+
+	srv := createTestExecutionServer(mockContainer)
+	req := makeExecutionPostRequest("/api/v1/"+teamID+"/agents/executions/"+executionID+"/cancel", userID)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	specconformance.AssertConformsToSpec(t, req, w)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	mockContainer.agentInvocationService.AssertNotCalled(t, "CancelExecution", mock.Anything, mock.Anything, mock.Anything)
 }

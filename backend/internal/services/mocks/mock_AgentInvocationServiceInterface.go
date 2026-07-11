@@ -22,6 +22,66 @@ func (_m *MockAgentInvocationServiceInterface) EXPECT() *MockAgentInvocationServ
 	return &MockAgentInvocationServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// CancelExecution provides a mock function with given fields: ctx, execution, agent
+func (_m *MockAgentInvocationServiceInterface) CancelExecution(ctx context.Context, execution *models.AgentExecution, agent *models.Agent) (*models.AgentExecution, error) {
+	ret := _m.Called(ctx, execution, agent)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CancelExecution")
+	}
+
+	var r0 *models.AgentExecution
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.AgentExecution, *models.Agent) (*models.AgentExecution, error)); ok {
+		return rf(ctx, execution, agent)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *models.AgentExecution, *models.Agent) *models.AgentExecution); ok {
+		r0 = rf(ctx, execution, agent)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AgentExecution)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *models.AgentExecution, *models.Agent) error); ok {
+		r1 = rf(ctx, execution, agent)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAgentInvocationServiceInterface_CancelExecution_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelExecution'
+type MockAgentInvocationServiceInterface_CancelExecution_Call struct {
+	*mock.Call
+}
+
+// CancelExecution is a helper method to define mock.On call
+//   - ctx context.Context
+//   - execution *models.AgentExecution
+//   - agent *models.Agent
+func (_e *MockAgentInvocationServiceInterface_Expecter) CancelExecution(ctx interface{}, execution interface{}, agent interface{}) *MockAgentInvocationServiceInterface_CancelExecution_Call {
+	return &MockAgentInvocationServiceInterface_CancelExecution_Call{Call: _e.mock.On("CancelExecution", ctx, execution, agent)}
+}
+
+func (_c *MockAgentInvocationServiceInterface_CancelExecution_Call) Run(run func(ctx context.Context, execution *models.AgentExecution, agent *models.Agent)) *MockAgentInvocationServiceInterface_CancelExecution_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*models.AgentExecution), args[2].(*models.Agent))
+	})
+	return _c
+}
+
+func (_c *MockAgentInvocationServiceInterface_CancelExecution_Call) Return(_a0 *models.AgentExecution, _a1 error) *MockAgentInvocationServiceInterface_CancelExecution_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAgentInvocationServiceInterface_CancelExecution_Call) RunAndReturn(run func(context.Context, *models.AgentExecution, *models.Agent) (*models.AgentExecution, error)) *MockAgentInvocationServiceInterface_CancelExecution_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // InvokeAgent provides a mock function with given fields: ctx, userID, agentID, input, conversationID
 func (_m *MockAgentInvocationServiceInterface) InvokeAgent(ctx context.Context, userID string, agentID string, input map[string]interface{}, conversationID *string) (*models.AgentExecution, error) {
 	ret := _m.Called(ctx, userID, agentID, input, conversationID)

@@ -25,6 +25,66 @@ func (_m *MockA2AHTTPClientInterface) EXPECT() *MockA2AHTTPClientInterface_Expec
 	return &MockA2AHTTPClientInterface_Expecter{mock: &_m.Mock}
 }
 
+// CancelTask provides a mock function with given fields: ctx, agent, taskID
+func (_m *MockA2AHTTPClientInterface) CancelTask(ctx context.Context, agent *models.Agent, taskID string) (*models.AgentExecution, error) {
+	ret := _m.Called(ctx, agent, taskID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CancelTask")
+	}
+
+	var r0 *models.AgentExecution
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Agent, string) (*models.AgentExecution, error)); ok {
+		return rf(ctx, agent, taskID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Agent, string) *models.AgentExecution); ok {
+		r0 = rf(ctx, agent, taskID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AgentExecution)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *models.Agent, string) error); ok {
+		r1 = rf(ctx, agent, taskID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockA2AHTTPClientInterface_CancelTask_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelTask'
+type MockA2AHTTPClientInterface_CancelTask_Call struct {
+	*mock.Call
+}
+
+// CancelTask is a helper method to define mock.On call
+//   - ctx context.Context
+//   - agent *models.Agent
+//   - taskID string
+func (_e *MockA2AHTTPClientInterface_Expecter) CancelTask(ctx interface{}, agent interface{}, taskID interface{}) *MockA2AHTTPClientInterface_CancelTask_Call {
+	return &MockA2AHTTPClientInterface_CancelTask_Call{Call: _e.mock.On("CancelTask", ctx, agent, taskID)}
+}
+
+func (_c *MockA2AHTTPClientInterface_CancelTask_Call) Run(run func(ctx context.Context, agent *models.Agent, taskID string)) *MockA2AHTTPClientInterface_CancelTask_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*models.Agent), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockA2AHTTPClientInterface_CancelTask_Call) Return(_a0 *models.AgentExecution, _a1 error) *MockA2AHTTPClientInterface_CancelTask_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockA2AHTTPClientInterface_CancelTask_Call) RunAndReturn(run func(context.Context, *models.Agent, string) (*models.AgentExecution, error)) *MockA2AHTTPClientInterface_CancelTask_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetTask provides a mock function with given fields: ctx, agent, taskID
 func (_m *MockA2AHTTPClientInterface) GetTask(ctx context.Context, agent *models.Agent, taskID string) (*models.AgentExecution, error) {
 	ret := _m.Called(ctx, agent, taskID)

@@ -442,8 +442,11 @@ AgentExecution:
     current_state:
       type: string
       nullable: true
-      enum: [submitted, working, input-required, auth-required, completed, failed, cancelled]
-      description: A2A task state for streaming executions
+      description: >-
+        Raw A2A task state as reported by the agent (A2A v1.0 values, e.g.
+        TASK_STATE_WORKING / TASK_STATE_COMPLETED / TASK_STATE_CANCELED). Left as
+        an open string because it mirrors the official SDK's states.
+      example: "TASK_STATE_WORKING"
     artifacts:
       type: array
       nullable: true

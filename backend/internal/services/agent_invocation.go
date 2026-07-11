@@ -2,15 +2,22 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/google/uuid"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
+
+// ErrExecutionNotCancelable indicates a cancel request targeted an execution
+// that is already terminal (mapped to a 409 by the handler).
+var ErrExecutionNotCancelable = errors.New("execution is already terminal and cannot be cancelled")
 
 // AgentInvocationServiceInterface defines the interface for agent invocation
 type AgentInvocationServiceInterface interface {
@@ -18,21 +25,33 @@ type AgentInvocationServiceInterface interface {
 		ctx context.Context, userID, agentID string,
 		input map[string]interface{}, conversationID *string,
 	) (*models.AgentExecution, error)
+	// CancelExecution cancels a running execution: it aborts local streaming,
+	// asks the remote agent to cancel the task (when there is one), and marks the
+	// execution cancelled. Returns ErrExecutionNotCancelable / a2a.ErrTaskNotCancelable
+	// when the execution/task is already terminal.
+	CancelExecution(
+		ctx context.Context, execution *models.AgentExecution, agent *models.Agent,
+	) (*models.AgentExecution, error)
 }
 
 // AgentInvocationService handles agent invocation logic
 type AgentInvocationService struct {
 	agentRepo       repositories.AgentRepository
 	executionRepo   repositories.AgentExecutionRepository
+	eventRepo       repositories.AgentExecutionEventRepository
 	a2aClient       A2AHTTPClientInterface
 	streamProcessor A2AStreamProcessorInterface
 	logger          *slog.Logger
+	// execCancels holds the cancel func for each in-flight streaming execution
+	// (keyed by execution ID) so a cancel request can abort local goroutines.
+	execCancels sync.Map
 }
 
 // NewAgentInvocationService creates a new agent invocation service
 func NewAgentInvocationService(
 	agentRepo repositories.AgentRepository,
 	executionRepo repositories.AgentExecutionRepository,
+	eventRepo repositories.AgentExecutionEventRepository,
 	a2aClient A2AHTTPClientInterface,
 	streamProcessor A2AStreamProcessorInterface,
 	logger *slog.Logger,
@@ -40,6 +59,7 @@ func NewAgentInvocationService(
 	return &AgentInvocationService{
 		agentRepo:       agentRepo,
 		executionRepo:   executionRepo,
+		eventRepo:       eventRepo,
 		a2aClient:       a2aClient,
 		streamProcessor: streamProcessor,
 		logger:          logger,
@@ -486,6 +506,117 @@ func (s *AgentInvocationService) mapA2AStatusToDBStatus(a2aStatus string) string
 	}
 }
 
+// isTerminalStatus reports whether an execution has already finished.
+func isTerminalStatus(status string) bool {
+	switch status {
+	case "success", "error", "cancelled", "completed", "failed":
+		return true
+	default:
+		return false
+	}
+}
+
+// CancelExecution cancels a running execution: it aborts local streaming
+// goroutines, asks the remote agent to cancel the task (when there is one), and
+// marks the execution cancelled with a final status-update event.
+func (s *AgentInvocationService) CancelExecution(
+	ctx context.Context,
+	execution *models.AgentExecution,
+	agent *models.Agent,
+) (*models.AgentExecution, error) {
+	if isTerminalStatus(execution.Status) {
+		return nil, ErrExecutionNotCancelable
+	}
+
+	// Abort any local streaming goroutines for this execution.
+	if c, ok := s.execCancels.LoadAndDelete(execution.ID); ok {
+		c.(context.CancelFunc)()
+	}
+
+	// Ask the remote agent to cancel its task, when we have one.
+	if execution.TaskID != nil && *execution.TaskID != "" {
+		if _, err := s.a2aClient.CancelTask(ctx, agent, *execution.TaskID); err != nil {
+			if errors.Is(err, a2a.ErrTaskNotCancelable) {
+				return nil, a2a.ErrTaskNotCancelable
+			}
+			// The user asked to stop; log the remote failure but still cancel locally.
+			s.logger.With(
+				"service", "vibexp-api",
+				"method", "CancelExecution",
+				"execution_id", execution.ID,
+				"task_id", *execution.TaskID,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Remote task cancel failed; cancelling locally")
+		}
+	}
+
+	return s.finalizeCancelled(ctx, execution)
+}
+
+// finalizeCancelled marks the execution cancelled and emits a terminal
+// status-update event so the polling frontend converges.
+func (s *AgentInvocationService) finalizeCancelled(
+	ctx context.Context, execution *models.AgentExecution,
+) (*models.AgentExecution, error) {
+	endedAt := time.Now()
+	execution.Status = "cancelled"
+	execution.Error = nil
+	execution.EndedAt = &endedAt
+	durationMs := int(endedAt.Sub(execution.StartedAt).Milliseconds())
+	execution.Duration = &durationMs
+	state := string(a2a.TaskStateCanceled)
+	execution.CurrentState = &state
+
+	if err := s.executionRepo.Update(ctx, execution); err != nil {
+		return nil, fmt.Errorf("failed to mark execution cancelled: %w", err)
+	}
+	s.persistTaskProgress(ctx, execution, execution)
+	s.emitCancelledEvent(ctx, execution)
+
+	s.logger.With(
+		"service", "vibexp-api",
+		"method", "CancelExecution",
+		"execution_id", execution.ID,
+	).Info("Execution cancelled")
+
+	return execution, nil
+}
+
+// emitCancelledEvent appends a terminal status-update event with the cancelled state.
+func (s *AgentInvocationService) emitCancelledEvent(ctx context.Context, execution *models.AgentExecution) {
+	seq, err := s.eventRepo.CountByExecutionID(ctx, execution.ID)
+	if err != nil {
+		seq = 0
+	}
+	taskID, contextID := "", ""
+	if execution.TaskID != nil {
+		taskID = *execution.TaskID
+	}
+	if execution.ContextID != nil {
+		contextID = *execution.ContextID
+	}
+	event := &models.AgentExecutionEvent{
+		ID:          uuid.New().String(),
+		ExecutionID: execution.ID,
+		EventType:   "status-update",
+		EventData: map[string]interface{}{
+			"taskId":    taskID,
+			"contextId": contextID,
+			"status":    map[string]interface{}{"state": string(a2a.TaskStateCanceled)},
+		},
+		SequenceNumber: seq,
+		ReceivedAt:     time.Now(),
+	}
+	if createErr := s.eventRepo.Create(ctx, event); createErr != nil {
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "CancelExecution",
+			"execution_id", execution.ID,
+			"error", fmt.Sprintf("%+v", createErr),
+		).Warn("Failed to emit cancelled event")
+	}
+}
+
 // invokeAgentStreaming handles asynchronous agent invocation with streaming
 func (s *AgentInvocationService) invokeAgentStreaming(
 	_ctx context.Context,
@@ -497,11 +628,17 @@ func (s *AgentInvocationService) invokeAgentStreaming(
 	// Create buffered channel for streaming events
 	eventChan := make(chan a2a.Event, 100)
 
+	// A cancellable background context (won't cancel when the request ends) so a
+	// cancel request can abort the streaming goroutines.
+	streamCtx, cancel := context.WithCancel(context.Background())
+	s.execCancels.Store(execution.ID, cancel)
+
 	// Start stream processor in a separate goroutine
-	go s.startStreamProcessor(execution.ID, eventChan) // #nosec G118 -- intentional: outlives request
+	go s.startStreamProcessor(streamCtx, execution.ID, eventChan) // #nosec G118 -- intentional: outlives request
 
 	// Start HTTP streaming in another goroutine
 	go s.startHTTPStreaming(
+		streamCtx,
 		agent,
 		execution,
 		input,
@@ -520,9 +657,17 @@ func (s *AgentInvocationService) invokeAgentStreaming(
 	return execution, nil
 }
 
-// startStreamProcessor starts the stream processor goroutine
-func (s *AgentInvocationService) startStreamProcessor(executionID string, eventChan <-chan a2a.Event) {
-	bgCtx := context.Background()
+// startStreamProcessor starts the stream processor goroutine. It is the last
+// goroutine to finish (the producer closes the channel), so it releases the
+// execution's cancel func when done.
+func (s *AgentInvocationService) startStreamProcessor(
+	ctx context.Context, executionID string, eventChan <-chan a2a.Event,
+) {
+	defer func() {
+		if c, ok := s.execCancels.LoadAndDelete(executionID); ok {
+			c.(context.CancelFunc)()
+		}
+	}()
 
 	s.logger.With(
 		"service", "vibexp-api",
@@ -532,7 +677,7 @@ func (s *AgentInvocationService) startStreamProcessor(executionID string, eventC
 		Info("Starting stream processor")
 
 	// Process stream events as they arrive
-	if err := s.streamProcessor.ProcessStream(bgCtx, executionID, eventChan); err != nil {
+	if err := s.streamProcessor.ProcessStream(ctx, executionID, eventChan); err != nil {
 		s.logger.With(
 			"service", "vibexp-api",
 			"method", "invokeAgentStreaming",
@@ -550,15 +695,13 @@ func (s *AgentInvocationService) startStreamProcessor(executionID string, eventC
 
 // startHTTPStreaming starts the HTTP streaming goroutine
 func (s *AgentInvocationService) startHTTPStreaming(
+	ctx context.Context,
 	agent *models.Agent,
 	execution *models.AgentExecution,
 	input map[string]interface{},
 	contextID *string,
 	eventChan chan<- a2a.Event,
 ) {
-	// Create background context (won't cancel when request ends)
-	bgCtx := context.Background()
-
 	// Ensure channel is closed when this goroutine exits (with panic recovery)
 	defer s.closeEventChannelSafely(execution.ID, eventChan)
 
@@ -570,10 +713,10 @@ func (s *AgentInvocationService) startHTTPStreaming(
 	).Info("Starting HTTP streaming invocation")
 
 	// Invoke agent with streaming (contextID will be used by A2A client)
-	err := s.a2aClient.InvokeAgentStreaming(bgCtx, agent, input, contextID, eventChan)
+	err := s.a2aClient.InvokeAgentStreaming(ctx, agent, input, contextID, eventChan)
 
 	if err != nil {
-		s.handleStreamingError(bgCtx, execution, err)
+		s.handleStreamingError(ctx, execution, err)
 		return
 	}
 
@@ -617,6 +760,17 @@ func (s *AgentInvocationService) handleStreamingError(
 	execution *models.AgentExecution,
 	err error,
 ) {
+	// A cancelled stream context means CancelExecution aborted us; it owns the
+	// final (cancelled) status, so do not overwrite it with "error".
+	if errors.Is(err, context.Canceled) {
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "invokeAgentStreaming",
+			"execution_id", execution.ID,
+		).Info("Streaming aborted by cancellation")
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"method", "invokeAgentStreaming",
