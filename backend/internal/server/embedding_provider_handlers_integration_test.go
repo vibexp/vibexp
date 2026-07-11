@@ -80,7 +80,13 @@ func createTestEmbeddingProviderServer(container *MockEmbeddingProviderContainer
 	// settings) so tests exercise the same route tree the server mounts,
 	// including the reprocess and coverage endpoints under each.
 	r.Route("/api/v1/{team_id}/embedding-providers", srv.setupEmbeddingProvidersRoutes)
-	r.Route("/api/v1/{team_id}/settings/embedding-providers", srv.setupEmbeddingProvidersRoutes)
+	r.Route("/api/v1/{team_id}/settings/embedding-providers", func(r chi.Router) {
+		srv.setupEmbeddingProvidersRoutes(r)
+		// Mirror the production settings-only clear route (issue #182) so tests
+		// exercise the real route tree — it is deliberately not part of the
+		// shared setupEmbeddingProvidersRoutes.
+		r.Delete("/embeddings", srv.handleClearEmbeddings)
+	})
 
 	return srv
 }
@@ -1365,4 +1371,107 @@ func TestHandleGetEmbeddingCoverage_ServiceError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 
 	mockContainer.embeddingStatusService.AssertExpectations(t)
+}
+
+// TestHandleClearEmbeddings_Success verifies the settings-only clear action
+// truncates the team's embeddings via DeleteByTeam, returns a spec-conforming
+// 200 with the deleted count, and — unlike reprocess — never enqueues a
+// background re-embed (Backfill must not be called).
+func TestHandleClearEmbeddings_Success(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+	mockContainer.embeddingRepository.
+		On("DeleteByTeam", mock.Anything, "team-123").
+		Return(int64(157), nil)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"DELETE", "/api/v1/team-123/settings/embedding-providers/embeddings", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	var response models.ClearEmbeddingsResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, int64(157), response.DeletedCount)
+
+	mockContainer.embeddingRepository.AssertExpectations(t)
+	// Clearing must not regenerate: no team re-embed is enqueued.
+	mockContainer.embeddingBackfillService.AssertNotCalled(t, "Backfill", mock.Anything, mock.Anything)
+}
+
+// TestHandleClearEmbeddings_ZeroDeleted verifies clearing a team with no stored
+// embeddings succeeds and reports deleted_count 0.
+func TestHandleClearEmbeddings_ZeroDeleted(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+	mockContainer.embeddingRepository.
+		On("DeleteByTeam", mock.Anything, "team-123").
+		Return(int64(0), nil)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"DELETE", "/api/v1/team-123/settings/embedding-providers/embeddings", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	var response models.ClearEmbeddingsResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, int64(0), response.DeletedCount)
+
+	mockContainer.embeddingRepository.AssertExpectations(t)
+}
+
+// TestHandleClearEmbeddings_DBError verifies a repository failure surfaces a
+// spec-conforming 500 (DATABASE_ERROR).
+func TestHandleClearEmbeddings_DBError(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+	mockContainer.embeddingRepository.
+		On("DeleteByTeam", mock.Anything, "team-123").
+		Return(int64(0), errors.New("database error"))
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"DELETE", "/api/v1/team-123/settings/embedding-providers/embeddings", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	mockContainer.embeddingRepository.AssertExpectations(t)
+}
+
+// TestHandleClearEmbeddings_SettingsOnly verifies the clear action is exposed on
+// the settings mount only: DELETE .../embedding-providers/embeddings on the bare
+// (non-settings) mount is routed to the per-id provider delete (id "embeddings"),
+// so the team-wide DeleteByTeam truncate is never reached from the bare path.
+func TestHandleClearEmbeddings_SettingsOnly(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+	// The bare path matches DELETE /{id} -> provider delete with id "embeddings".
+	mockContainer.embeddingProviderService.
+		On("DeleteEmbeddingProvider", mock.Anything, "team-123", "embeddings").
+		Return(services.ErrProviderNotFound)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"DELETE", "/api/v1/team-123/embedding-providers/embeddings", nil, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	// Routed to provider-delete (404 for the unknown id), not the truncate.
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	mockContainer.embeddingRepository.AssertNotCalled(t, "DeleteByTeam", mock.Anything, mock.Anything)
+	mockContainer.embeddingProviderService.AssertExpectations(t)
 }

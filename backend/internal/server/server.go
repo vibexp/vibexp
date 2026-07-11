@@ -633,6 +633,13 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 	r.Route("/api/v1/{team_id}/settings/embedding-providers", func(r chi.Router) {
 		r.Use(s.teamValidationMiddleware())
 		s.setupEmbeddingProvidersRoutes(r)
+		// Clear-all-embeddings is a destructive maintenance action surfaced only
+		// in the embedding settings UI, so it is registered on the settings mount
+		// alone — not in the shared setupEmbeddingProvidersRoutes (which serves
+		// both the settings and bare groups). The static "/embeddings" segment
+		// sits beside the "/{id}" routes; chi matches the literal path first
+		// (issue #182).
+		r.Delete("/embeddings", s.handleClearEmbeddings)
 	})
 	r.Route("/api/v1/{team_id}/embedding-providers", func(r chi.Router) {
 		r.Use(s.teamValidationMiddleware())
