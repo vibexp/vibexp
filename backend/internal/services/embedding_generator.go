@@ -60,6 +60,12 @@ type ResolvedEmbeddingProvider struct {
 	ChunkSize    int
 	ChunkOverlap int
 	Concurrency  int
+	// QueryPrefix / DocumentPrefix are the stored provider instruction prefixes,
+	// applied only to the text sent to the provider: QueryPrefix is prepended to
+	// each search query, DocumentPrefix to each document chunk. Empty means no
+	// prefix (the default for symmetric models).
+	QueryPrefix    string
+	DocumentPrefix string
 }
 
 // ActiveEmbeddingProviderResolver resolves the embedding provider used to embed a

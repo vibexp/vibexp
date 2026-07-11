@@ -14,6 +14,8 @@ type EmbeddingProvider struct {
 	ChunkSize       int       `json:"chunk_size" db:"chunk_size"`
 	ChunkOverlap    int       `json:"chunk_overlap" db:"chunk_overlap"`
 	Concurrency     int       `json:"concurrency" db:"concurrency"`
+	QueryPrefix     *string   `json:"query_prefix,omitempty" db:"query_prefix"`
+	DocumentPrefix  *string   `json:"document_prefix,omitempty" db:"document_prefix"`
 	IsDefault       bool      `json:"is_default" db:"is_default"`
 	BaseURL         *string   `json:"base_url,omitempty" db:"base_url"`
 	APIKeyEncrypted *string   `json:"-" db:"api_key_encrypted"`
@@ -24,28 +26,35 @@ type EmbeddingProvider struct {
 }
 
 type CreateEmbeddingProviderRequest struct {
-	Name         string  `json:"name" validate:"required,min=1,max=255"`
-	ProviderType string  `json:"provider_type" validate:"required"`
-	Model        string  `json:"model" validate:"required,min=1,max=255"`
-	ChunkSize    *int    `json:"chunk_size,omitempty" validate:"omitempty,min=1"`
-	ChunkOverlap *int    `json:"chunk_overlap,omitempty" validate:"omitempty,min=0"`
-	Concurrency  *int    `json:"concurrency,omitempty" validate:"omitempty,min=1"`
-	IsDefault    *bool   `json:"is_default,omitempty"`
-	BaseURL      *string `json:"base_url,omitempty" validate:"omitempty,url"`
+	Name         string `json:"name" validate:"required,min=1,max=255"`
+	ProviderType string `json:"provider_type" validate:"required"`
+	Model        string `json:"model" validate:"required,min=1,max=255"`
+	ChunkSize    *int   `json:"chunk_size,omitempty" validate:"omitempty,min=1"`
+	ChunkOverlap *int   `json:"chunk_overlap,omitempty" validate:"omitempty,min=0"`
+	Concurrency  *int   `json:"concurrency,omitempty" validate:"omitempty,min=1"`
+	// QueryPrefix / DocumentPrefix are instruction prefixes for asymmetric
+	// embedding models, applied only to the text sent to the provider. Capped
+	// at 256 chars; nil (omitted) leaves the current value / empty default.
+	QueryPrefix    *string `json:"query_prefix,omitempty" validate:"omitempty,max=256"`
+	DocumentPrefix *string `json:"document_prefix,omitempty" validate:"omitempty,max=256"`
+	IsDefault      *bool   `json:"is_default,omitempty"`
+	BaseURL        *string `json:"base_url,omitempty" validate:"omitempty,url"`
 	// #nosec G117 - Request struct field for API key input, not a hardcoded secret
 	APIKey        *string                `json:"api_key,omitempty"`
 	Configuration map[string]interface{} `json:"configuration,omitempty"`
 }
 
 type UpdateEmbeddingProviderRequest struct {
-	Name         *string `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
-	ProviderType *string `json:"provider_type,omitempty"`
-	Model        *string `json:"model,omitempty" validate:"omitempty,min=1,max=255"`
-	ChunkSize    *int    `json:"chunk_size,omitempty" validate:"omitempty,min=1"`
-	ChunkOverlap *int    `json:"chunk_overlap,omitempty" validate:"omitempty,min=0"`
-	Concurrency  *int    `json:"concurrency,omitempty" validate:"omitempty,min=1"`
-	IsDefault    *bool   `json:"is_default,omitempty"`
-	BaseURL      *string `json:"base_url,omitempty" validate:"omitempty,url"`
+	Name           *string `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	ProviderType   *string `json:"provider_type,omitempty"`
+	Model          *string `json:"model,omitempty" validate:"omitempty,min=1,max=255"`
+	ChunkSize      *int    `json:"chunk_size,omitempty" validate:"omitempty,min=1"`
+	ChunkOverlap   *int    `json:"chunk_overlap,omitempty" validate:"omitempty,min=0"`
+	Concurrency    *int    `json:"concurrency,omitempty" validate:"omitempty,min=1"`
+	QueryPrefix    *string `json:"query_prefix,omitempty" validate:"omitempty,max=256"`
+	DocumentPrefix *string `json:"document_prefix,omitempty" validate:"omitempty,max=256"`
+	IsDefault      *bool   `json:"is_default,omitempty"`
+	BaseURL        *string `json:"base_url,omitempty" validate:"omitempty,url"`
 	// #nosec G117 - Request struct field for API key input, not a hardcoded secret
 	APIKey        *string                `json:"api_key,omitempty"`
 	Configuration map[string]interface{} `json:"configuration,omitempty"`

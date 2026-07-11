@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -984,6 +985,127 @@ func TestHandleUpdateEmbeddingProvider_ReembedsOnModelChange(t *testing.T) {
 
 	mockContainer.embeddingRepository.AssertExpectations(t)
 	mockContainer.embeddingBackfillService.AssertExpectations(t)
+}
+
+// TestHandleUpdateEmbeddingProvider_ReembedsOnDocumentPrefixChange verifies that
+// changing document_prefix — which alters the text every document is embedded
+// with — wipes the team's embeddings and triggers a background re-embed, exactly
+// like a model change (issue #171).
+func TestHandleUpdateEmbeddingProvider_ReembedsOnDocumentPrefixChange(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+
+	baseURL := "https://api.openai.com/v1"
+	oldProvider := &models.EmbeddingProviderResponse{
+		EmbeddingProvider: models.EmbeddingProvider{
+			ID: "provider-1", ProviderType: "openai_compatible",
+			Model: "same-model", BaseURL: &baseURL,
+		},
+	}
+	newDocPrefix := "passage: "
+	reqBody := models.UpdateEmbeddingProviderRequest{DocumentPrefix: &newDocPrefix}
+	updatedProvider := &models.EmbeddingProvider{
+		ID: "provider-1", ProviderType: "openai_compatible",
+		Model: "same-model", BaseURL: &baseURL, DocumentPrefix: &newDocPrefix,
+	}
+
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+		Return(oldProvider, nil)
+	mockContainer.embeddingProviderService.
+		On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
+		Return(updatedProvider, nil)
+	mockContainer.embeddingRepository.
+		On("DeleteByTeam", mock.Anything, "team-123").
+		Return(int64(3), nil)
+
+	backfillDone := make(chan struct{})
+	mockContainer.embeddingBackfillService.
+		On("Backfill", mock.Anything, mock.MatchedBy(func(r services.EmbeddingBackfillRequest) bool {
+			return r.TeamID == "team-123" && r.All
+		})).
+		Return(&services.EmbeddingBackfillResult{}, nil).
+		Run(func(mock.Arguments) { close(backfillDone) })
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"PUT", "/api/v1/team-123/embedding-providers/provider-1", reqBody, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	select {
+	case <-backfillDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("background re-embed was not triggered on a document_prefix change")
+	}
+
+	mockContainer.embeddingRepository.AssertExpectations(t)
+	mockContainer.embeddingBackfillService.AssertExpectations(t)
+}
+
+// TestHandleUpdateEmbeddingProvider_NoReembedOnQueryPrefixChange verifies that a
+// query_prefix-only edit does NOT wipe or re-embed: the query prefix affects only
+// the query side, so stored document vectors stay valid (issue #171). The absence
+// of DeleteByTeam / Backfill expectations means either call would fail the mock.
+func TestHandleUpdateEmbeddingProvider_NoReembedOnQueryPrefixChange(t *testing.T) {
+	mockContainer := newMockEmbeddingProviderContainer(t)
+
+	baseURL := "https://api.openai.com/v1"
+	oldProvider := &models.EmbeddingProviderResponse{
+		EmbeddingProvider: models.EmbeddingProvider{
+			ID: "provider-1", ProviderType: "openai_compatible",
+			Model: "same-model", BaseURL: &baseURL,
+		},
+	}
+	newQueryPrefix := "query: "
+	reqBody := models.UpdateEmbeddingProviderRequest{QueryPrefix: &newQueryPrefix}
+	updatedProvider := &models.EmbeddingProvider{
+		ID: "provider-1", ProviderType: "openai_compatible",
+		Model: "same-model", BaseURL: &baseURL, QueryPrefix: &newQueryPrefix,
+	}
+
+	mockContainer.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+		Return(oldProvider, nil)
+	mockContainer.embeddingProviderService.
+		On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
+		Return(updatedProvider, nil)
+
+	srv := createTestEmbeddingProviderServer(mockContainer)
+	req := makeAuthenticatedEmbeddingProviderRequest(
+		"PUT", "/api/v1/team-123/embedding-providers/provider-1", reqBody, "user-123",
+	)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	mockContainer.embeddingRepository.AssertNotCalled(t, "DeleteByTeam", mock.Anything, mock.Anything)
+	mockContainer.embeddingBackfillService.AssertNotCalled(t, "Backfill", mock.Anything, mock.Anything)
+}
+
+// TestAppendPrefixLengthErrors_CountsRunesNotBytes verifies the prefix length cap
+// is measured in characters (runes), matching the OpenAPI maxLength and the
+// frontend, so a multi-byte prefix is accepted up to the same documented limit
+// (issue #171).
+func TestAppendPrefixLengthErrors_CountsRunesNotBytes(t *testing.T) {
+	s := func(v string) *string { return &v }
+
+	// 256 two-byte runes = 512 bytes but exactly maxEmbeddingPrefixLen characters:
+	// must be accepted (a byte-based check would wrongly reject it).
+	within := strings.Repeat("é", maxEmbeddingPrefixLen)
+	assert.Empty(t, appendPrefixLengthErrors(nil, s(within), s(within)))
+
+	// 257 characters exceeds the cap on both fields.
+	over := strings.Repeat("a", maxEmbeddingPrefixLen+1)
+	assert.Len(t, appendPrefixLengthErrors(nil, s(over), s(over)), 2)
+
+	// nil (omitted) prefixes are skipped.
+	assert.Empty(t, appendPrefixLengthErrors(nil, nil, nil))
 }
 
 // providerForReprocess is the minimal provider the reprocess existence check

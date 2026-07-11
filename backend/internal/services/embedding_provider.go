@@ -169,6 +169,8 @@ func (eps *EmbeddingProviderService) buildEmbeddingProvider(
 		ChunkSize:       chunkSize,
 		ChunkOverlap:    chunkOverlap,
 		Concurrency:     concurrency,
+		QueryPrefix:     req.QueryPrefix,
+		DocumentPrefix:  req.DocumentPrefix,
 		IsDefault:       isDefault,
 		BaseURL:         req.BaseURL,
 		APIKeyEncrypted: encryptedAPIKey,
@@ -315,6 +317,14 @@ func (eps *EmbeddingProviderService) updateProviderFields(
 	}
 	if req.Concurrency != nil {
 		provider.Concurrency = *req.Concurrency
+	}
+	// A non-nil prefix (including an explicit empty string) is applied, so sending
+	// "" clears a previously configured prefix; omitting the field leaves it as-is.
+	if req.QueryPrefix != nil {
+		provider.QueryPrefix = req.QueryPrefix
+	}
+	if req.DocumentPrefix != nil {
+		provider.DocumentPrefix = req.DocumentPrefix
 	}
 	if req.IsDefault != nil {
 		provider.IsDefault = *req.IsDefault
@@ -484,11 +494,22 @@ func (eps *EmbeddingProviderService) ResolveActiveProvider(
 	}
 
 	return &ResolvedEmbeddingProvider{
-		Provider:     provider,
-		ChunkSize:    row.ChunkSize,
-		ChunkOverlap: row.ChunkOverlap,
-		Concurrency:  row.Concurrency,
+		Provider:       provider,
+		ChunkSize:      row.ChunkSize,
+		ChunkOverlap:   row.ChunkOverlap,
+		Concurrency:    row.Concurrency,
+		QueryPrefix:    derefString(row.QueryPrefix),
+		DocumentPrefix: derefString(row.DocumentPrefix),
 	}, nil
+}
+
+// derefString returns the pointed-to string, or "" for a nil pointer. Used to
+// flatten the nullable prefix columns into the resolved provider.
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func (eps *EmbeddingProviderService) ValidateEmbeddingProvider(

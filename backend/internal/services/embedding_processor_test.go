@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,10 +35,12 @@ func (f *fakeProvider) Dimensions() int { return 3 }
 func (f *fakeProvider) Type() string    { return ProviderTypeOpenAICompatible }
 
 type fakeResolver struct {
-	provider  EmbeddingProvider
-	err       error
-	calls     int
-	gotTeamID string
+	provider       EmbeddingProvider
+	err            error
+	calls          int
+	gotTeamID      string
+	queryPrefix    string
+	documentPrefix string
 }
 
 func (f *fakeResolver) ResolveActiveProvider(
@@ -51,7 +54,13 @@ func (f *fakeResolver) ResolveActiveProvider(
 	if f.provider == nil {
 		return nil, nil
 	}
-	return &ResolvedEmbeddingProvider{Provider: f.provider, ChunkSize: 1000, ChunkOverlap: 200}, nil
+	return &ResolvedEmbeddingProvider{
+		Provider:       f.provider,
+		ChunkSize:      1000,
+		ChunkOverlap:   200,
+		QueryPrefix:    f.queryPrefix,
+		DocumentPrefix: f.documentPrefix,
+	}, nil
 }
 
 type fakeEmbeddingService struct {
@@ -113,6 +122,35 @@ func TestProcessEvent_HappyPath_SavesChunks(t *testing.T) {
 	assert.Contains(t, svc.chunks[0].Content, "Title")
 	assert.Contains(t, svc.chunks[0].Content, "Body text")
 	assert.Equal(t, []string{provider.gotTexts[0]}, provider.gotTexts)
+}
+
+func TestProcessEvent_AppliesDocumentPrefix_StoresRawContent(t *testing.T) {
+	provider := &fakeProvider{vectors: [][]float32{{0.1, 0.2, 0.3}}}
+	resolver := &fakeResolver{provider: provider, documentPrefix: "passage: "}
+	svc := &fakeEmbeddingService{team: "team-9"}
+	p := newProcessor(resolver, svc)
+
+	event := events.NewPromptCreatedEvent(
+		"prompt-1", "user-1", "u@example.com", "proj", "slug", "Title", "Body text", time.Now(),
+	)
+
+	require.NoError(t, p.ProcessEvent(context.Background(), event))
+
+	// The text SENT to the provider must carry the document prefix...
+	require.Len(t, provider.gotTexts, 1)
+	assert.True(t,
+		strings.HasPrefix(provider.gotTexts[0], "passage: "),
+		"embedded text must be prefixed with document_prefix",
+	)
+	// ...but the STORED chunk content must stay raw (the prefix is a model
+	// instruction, not part of the document — it must not pollute snippets or
+	// keyword-search fallback).
+	require.Len(t, svc.chunks, 1)
+	assert.False(t,
+		strings.HasPrefix(svc.chunks[0].Content, "passage: "),
+		"stored content must not include the prefix",
+	)
+	assert.Contains(t, svc.chunks[0].Content, "Title")
 }
 
 func TestProcessEvent_NoProvider_NoOp(t *testing.T) {

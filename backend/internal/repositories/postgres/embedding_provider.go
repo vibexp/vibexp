@@ -29,16 +29,17 @@ func (r *EmbeddingProviderRepository) Create(ctx context.Context, provider *mode
 	query := `
 		INSERT INTO embedding_providers
 		(user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
-		concurrency, is_default, base_url, api_key_encrypted, configuration, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		concurrency, query_prefix, document_prefix, is_default, base_url, api_key_encrypted,
+		configuration, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING id, created_at, updated_at
 	`
 
 	err := r.db.QueryRowContext(ctx, query,
 		provider.UserID, provider.TeamID, provider.Name, provider.ProviderType,
 		provider.Model, provider.ChunkSize, provider.ChunkOverlap, provider.Concurrency,
-		provider.IsDefault, provider.BaseURL, provider.APIKeyEncrypted, provider.Configuration,
-		provider.CreatedAt, provider.UpdatedAt,
+		provider.QueryPrefix, provider.DocumentPrefix, provider.IsDefault, provider.BaseURL,
+		provider.APIKeyEncrypted, provider.Configuration, provider.CreatedAt, provider.UpdatedAt,
 	).Scan(&provider.ID, &provider.CreatedAt, &provider.UpdatedAt)
 
 	if err != nil {
@@ -54,7 +55,8 @@ func (r *EmbeddingProviderRepository) GetByID(
 ) (*models.EmbeddingProvider, error) {
 	query := `
 		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
-		concurrency, is_default, base_url, api_key_encrypted, configuration, created_at, updated_at, version
+		concurrency, query_prefix, document_prefix, is_default, base_url, api_key_encrypted,
+		configuration, created_at, updated_at, version
 		FROM embedding_providers
 		WHERE id = $1 AND team_id = $2
 	`
@@ -63,6 +65,7 @@ func (r *EmbeddingProviderRepository) GetByID(
 	err := r.db.QueryRowContext(ctx, query, providerID, teamID).Scan(
 		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap, &provider.Concurrency,
+		&provider.QueryPrefix, &provider.DocumentPrefix,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt, &provider.Version,
 	)
@@ -125,8 +128,8 @@ func (r *EmbeddingProviderRepository) queryList(
 	query, args, err := psql.
 		Select(
 			"id", "user_id", "team_id", "name", "provider_type", "model", "chunk_size",
-			"chunk_overlap", "concurrency", "is_default", "base_url",
-			"api_key_encrypted", "configuration", "created_at", "updated_at",
+			"chunk_overlap", "concurrency", "query_prefix", "document_prefix", "is_default",
+			"base_url", "api_key_encrypted", "configuration", "created_at", "updated_at",
 		).
 		From("embedding_providers").
 		Where(where).
@@ -154,6 +157,7 @@ func (r *EmbeddingProviderRepository) queryList(
 		scanErr := rows.Scan(
 			&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 			&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap, &provider.Concurrency,
+			&provider.QueryPrefix, &provider.DocumentPrefix,
 			&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 			&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt,
 		)
@@ -195,15 +199,17 @@ func (r *EmbeddingProviderRepository) Update(ctx context.Context, provider *mode
 	query := `
 		UPDATE embedding_providers
 		SET name = $2, provider_type = $3, model = $4, chunk_size = $5, chunk_overlap = $6,
-		concurrency = $7, is_default = $8, base_url = $9, api_key_encrypted = $10, configuration = $11,
-		updated_at = $12, version = version + 1
-		WHERE id = $1 AND team_id = $13 AND version = $14
+		concurrency = $7, query_prefix = $8, document_prefix = $9, is_default = $10, base_url = $11,
+		api_key_encrypted = $12, configuration = $13,
+		updated_at = $14, version = version + 1
+		WHERE id = $1 AND team_id = $15 AND version = $16
 		RETURNING updated_at, version
 	`
 
 	err := r.db.QueryRowContext(ctx, query,
 		provider.ID, provider.Name, provider.ProviderType, provider.Model,
-		provider.ChunkSize, provider.ChunkOverlap, provider.Concurrency, provider.IsDefault,
+		provider.ChunkSize, provider.ChunkOverlap, provider.Concurrency,
+		provider.QueryPrefix, provider.DocumentPrefix, provider.IsDefault,
 		provider.BaseURL, provider.APIKeyEncrypted, provider.Configuration,
 		provider.UpdatedAt, provider.TeamID, provider.Version,
 	).Scan(&provider.UpdatedAt, &provider.Version)
@@ -245,7 +251,8 @@ func (r *EmbeddingProviderRepository) GetDefault(
 ) (*models.EmbeddingProvider, error) {
 	query := `
 		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
-		concurrency, is_default, base_url, api_key_encrypted, configuration, created_at, updated_at
+		concurrency, query_prefix, document_prefix, is_default, base_url, api_key_encrypted,
+		configuration, created_at, updated_at
 		FROM embedding_providers
 		WHERE team_id = $1 AND is_default = true
 		LIMIT 1
@@ -255,6 +262,7 @@ func (r *EmbeddingProviderRepository) GetDefault(
 	err := r.db.QueryRowContext(ctx, query, teamID).Scan(
 		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap, &provider.Concurrency,
+		&provider.QueryPrefix, &provider.DocumentPrefix,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt,
 	)
@@ -279,7 +287,8 @@ func (r *EmbeddingProviderRepository) GetActiveProvider(
 ) (*models.EmbeddingProvider, error) {
 	query := `
 		SELECT id, user_id, team_id, name, provider_type, model, chunk_size, chunk_overlap,
-		concurrency, is_default, base_url, api_key_encrypted, configuration, created_at, updated_at, version
+		concurrency, query_prefix, document_prefix, is_default, base_url, api_key_encrypted,
+		configuration, created_at, updated_at, version
 		FROM embedding_providers
 		WHERE team_id = $1
 		ORDER BY is_default DESC, updated_at DESC
@@ -290,6 +299,7 @@ func (r *EmbeddingProviderRepository) GetActiveProvider(
 	err := r.db.QueryRowContext(ctx, query, teamID).Scan(
 		&provider.ID, &provider.UserID, &provider.TeamID, &provider.Name, &provider.ProviderType,
 		&provider.Model, &provider.ChunkSize, &provider.ChunkOverlap, &provider.Concurrency,
+		&provider.QueryPrefix, &provider.DocumentPrefix,
 		&provider.IsDefault, &provider.BaseURL, &provider.APIKeyEncrypted,
 		&provider.Configuration, &provider.CreatedAt, &provider.UpdatedAt, &provider.Version,
 	)

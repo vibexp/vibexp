@@ -225,4 +225,91 @@ describe('EmbeddingProviderDialog', () => {
     })
     expect(onSubmit).toHaveBeenCalled()
   })
+
+  it('applies a family preset to both prefix fields and submits them verbatim', async () => {
+    const user = userEvent.setup()
+    mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
+    const onSubmit = renderDialog()
+
+    await fillValidForm(user)
+    // The E5 preset sets query "query: " and document "passage: " (trailing
+    // spaces are significant and must be preserved, not trimmed).
+    await user.click(screen.getByRole('button', { name: 'E5' }))
+
+    expect(screen.getByLabelText('Query prefix')).toHaveValue('query: ')
+    expect(screen.getByLabelText('Document prefix')).toHaveValue('passage: ')
+
+    await user.click(screen.getByRole('button', { name: 'Add provider' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query_prefix: 'query: ',
+          document_prefix: 'passage: ',
+        })
+      )
+    })
+  })
+
+  it('confirms re-embed and skips validation on a document-prefix-only edit', async () => {
+    const user = userEvent.setup()
+    const onSubmit = jest.fn().mockResolvedValue(undefined)
+    render(
+      <EmbeddingProviderDialog
+        teamId="team-1"
+        open
+        onOpenChange={jest.fn()}
+        submitting={false}
+        provider={existingProvider}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await user.type(screen.getByLabelText('Document prefix'), 'passage: ')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    // A document-prefix change re-indexes documents, so it prompts the same
+    // re-embed confirmation as an identity change.
+    const confirm = await screen.findByRole('button', {
+      name: 'Save & re-embed',
+    })
+    await user.click(confirm)
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ document_prefix: 'passage: ' })
+      )
+    })
+    // The embedding identity did not change, so no validate probe is needed.
+    expect(mockedValidate).not.toHaveBeenCalled()
+  })
+
+  it('does not re-embed for a query-prefix-only edit and submits directly', async () => {
+    const user = userEvent.setup()
+    const onSubmit = jest.fn().mockResolvedValue(undefined)
+    render(
+      <EmbeddingProviderDialog
+        teamId="team-1"
+        open
+        onOpenChange={jest.fn()}
+        submitting={false}
+        provider={existingProvider}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await user.type(screen.getByLabelText('Query prefix'), 'query: ')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ query_prefix: 'query: ' })
+      )
+    })
+    // A query-prefix change affects only the query side: no confirmation, no probe.
+    expect(
+      screen.queryByRole('button', { name: 'Save & re-embed' })
+    ).not.toBeInTheDocument()
+    expect(mockedValidate).not.toHaveBeenCalled()
+  })
 })
