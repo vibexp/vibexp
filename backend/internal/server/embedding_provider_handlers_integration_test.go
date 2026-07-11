@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -1085,6 +1086,26 @@ func TestHandleUpdateEmbeddingProvider_NoReembedOnQueryPrefixChange(t *testing.T
 
 	mockContainer.embeddingRepository.AssertNotCalled(t, "DeleteByTeam", mock.Anything, mock.Anything)
 	mockContainer.embeddingBackfillService.AssertNotCalled(t, "Backfill", mock.Anything, mock.Anything)
+}
+
+// TestAppendPrefixLengthErrors_CountsRunesNotBytes verifies the prefix length cap
+// is measured in characters (runes), matching the OpenAPI maxLength and the
+// frontend, so a multi-byte prefix is accepted up to the same documented limit
+// (issue #171).
+func TestAppendPrefixLengthErrors_CountsRunesNotBytes(t *testing.T) {
+	s := func(v string) *string { return &v }
+
+	// 256 two-byte runes = 512 bytes but exactly maxEmbeddingPrefixLen characters:
+	// must be accepted (a byte-based check would wrongly reject it).
+	within := strings.Repeat("é", maxEmbeddingPrefixLen)
+	assert.Empty(t, appendPrefixLengthErrors(nil, s(within), s(within)))
+
+	// 257 characters exceeds the cap on both fields.
+	over := strings.Repeat("a", maxEmbeddingPrefixLen+1)
+	assert.Len(t, appendPrefixLengthErrors(nil, s(over), s(over)), 2)
+
+	// nil (omitted) prefixes are skipped.
+	assert.Empty(t, appendPrefixLengthErrors(nil, nil, nil))
 }
 
 // providerForReprocess is the minimal provider the reprocess existence check

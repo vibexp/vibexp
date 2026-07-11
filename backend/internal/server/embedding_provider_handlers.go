@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"net/http"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 
@@ -23,14 +24,16 @@ const maxEmbeddingPrefixLen = 256
 // appendPrefixLengthErrors appends a max-length validation error for each
 // instruction prefix that exceeds maxEmbeddingPrefixLen. A nil pointer (field
 // omitted) is skipped. Shared by the create and update handlers so both enforce
-// the same cap.
+// the same cap. Length is counted in characters (runes), matching the OpenAPI
+// maxLength and the frontend validation — not bytes — so a multi-byte prefix is
+// accepted up to the same documented limit.
 func appendPrefixLengthErrors(
 	ve []errors.ValidationError, queryPrefix, documentPrefix *string,
 ) []errors.ValidationError {
-	if queryPrefix != nil && len(*queryPrefix) > maxEmbeddingPrefixLen {
+	if queryPrefix != nil && utf8.RuneCountInString(*queryPrefix) > maxEmbeddingPrefixLen {
 		ve = append(ve, errors.NewMaxLengthError("query_prefix", maxEmbeddingPrefixLen))
 	}
-	if documentPrefix != nil && len(*documentPrefix) > maxEmbeddingPrefixLen {
+	if documentPrefix != nil && utf8.RuneCountInString(*documentPrefix) > maxEmbeddingPrefixLen {
 		ve = append(ve, errors.NewMaxLengthError("document_prefix", maxEmbeddingPrefixLen))
 	}
 	return ve
