@@ -3,13 +3,16 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
+
+	"github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2aclient/agentcard"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -19,6 +22,15 @@ const (
 	MaxResponseSize = 1024 * 1024 // 1MB
 	// RequestTimeout defines the maximum time to wait for agent card responses
 	RequestTimeout = 30 * time.Second
+	// wellKnownAgentCardPath is the A2A-mandated location of the agent card.
+	wellKnownAgentCardPath = "/.well-known/agent-card.json"
+)
+
+// Sentinel errors surfaced by the card HTTP transport / parser so FetchAgentCard
+// can translate them into stable, user-facing messages via errors.Is.
+var (
+	errResponseTooLarge = errors.New("agent card response exceeds maximum allowed size")
+	errInvalidCardJSON  = errors.New("agent card response is not valid JSON")
 )
 
 // AgentCardFetcherInterface defines methods for fetching agent cards
@@ -26,10 +38,61 @@ type AgentCardFetcherInterface interface {
 	FetchAgentCard(ctx context.Context, cardURL string) (*models.AgentCard, error)
 }
 
+// cardParser is the a2a-go card parser. It delegates to the SDK's typed
+// unmarshal but returns a sentinel error on malformed JSON so callers can map
+// it to a stable user-facing message.
+var cardParser agentcard.Parser = func(body []byte) (*a2a.AgentCard, error) {
+	var card a2a.AgentCard
+	if err := json.Unmarshal(body, &card); err != nil {
+		return nil, errInvalidCardJSON
+	}
+	return &card, nil
+}
+
+// limitedResponseTransport caps the size of the response body read from the
+// wrapped transport, defeating memory-exhaustion via an oversized agent card.
+type limitedResponseTransport struct {
+	base  http.RoundTripper
+	limit int64
+}
+
+func (t *limitedResponseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	resp.Body = &limitedReadCloser{
+		reader: io.LimitReader(resp.Body, t.limit+1),
+		closer: resp.Body,
+		limit:  t.limit,
+	}
+	return resp, nil
+}
+
+// limitedReadCloser returns errResponseTooLarge once more than limit bytes have
+// been read, so an unbounded body never fills memory.
+type limitedReadCloser struct {
+	reader io.Reader
+	closer io.Closer
+	limit  int64
+	read   int64
+}
+
+func (l *limitedReadCloser) Read(p []byte) (int, error) {
+	n, err := l.reader.Read(p)
+	l.read += int64(n)
+	if l.read > l.limit {
+		return n, errResponseTooLarge
+	}
+	return n, err
+}
+
+func (l *limitedReadCloser) Close() error { return l.closer.Close() }
+
 // newAgentCardHTTPClient builds the HTTP client used to fetch agent cards. The
 // transport uses an SSRF-safe dialer (from guard) that rejects connections to
 // reserved IP ranges at connect time, defeating DNS rebinding on top of URL host
-// validation.
+// validation, and caps the response body at MaxResponseSize.
 func newAgentCardHTTPClient(guard *ssrfGuard) *http.Client {
 	transport := guard.newSSRFSafeTransport(&http.Transport{
 		MaxIdleConns:          100,
@@ -43,29 +106,42 @@ func newAgentCardHTTPClient(guard *ssrfGuard) *http.Client {
 	})
 	return &http.Client{
 		Timeout:   RequestTimeout,
-		Transport: transport,
+		Transport: &limitedResponseTransport{base: transport, limit: MaxResponseSize},
 	}
 }
 
-// AgentCardFetcher is responsible for fetching agent cards from URLs
+// AgentCardFetcher discovers agent cards through the official a2a-go SDK's
+// agentcard.Resolver, layering VibeXP's SSRF protections, response-size cap, and
+// user-facing required-field validation on top.
 type AgentCardFetcher struct {
+	resolver   *agentcard.Resolver
 	httpClient *http.Client
 	guard      *ssrfGuard
 }
 
 // NewAgentCardFetcher creates a new AgentCardFetcher instance
 func NewAgentCardFetcher() *AgentCardFetcher {
+	return newAgentCardFetcher(defaultSSRFGuard)
+}
+
+// newAgentCardFetcher wires a fetcher around the supplied SSRF guard. Tests use
+// this with a private-allowing guard to target loopback httptest servers.
+func newAgentCardFetcher(guard *ssrfGuard) *AgentCardFetcher {
+	client := newAgentCardHTTPClient(guard)
 	return &AgentCardFetcher{
-		httpClient: newAgentCardHTTPClient(defaultSSRFGuard),
-		guard:      defaultSSRFGuard,
+		resolver:   &agentcard.Resolver{Client: client, CardParser: cardParser},
+		httpClient: client,
+		guard:      guard,
 	}
 }
 
 // Close gracefully shuts down the HTTP client connections
 // This method should be called when the service is shutting down
 func (f *AgentCardFetcher) Close() {
-	if transport, ok := f.httpClient.Transport.(*http.Transport); ok {
-		transport.CloseIdleConnections()
+	if lt, ok := f.httpClient.Transport.(*limitedResponseTransport); ok {
+		if transport, ok := lt.base.(*http.Transport); ok {
+			transport.CloseIdleConnections()
+		}
 	}
 }
 
@@ -81,7 +157,7 @@ func (f *AgentCardFetcher) validateAgentCardURL(ctx context.Context, cardURL str
 		return fmt.Errorf("invalid URL scheme: agent card URL must use HTTP or HTTPS protocol")
 	}
 
-	if parsedURL.Path != "/.well-known/agent-card.json" {
+	if parsedURL.Path != wellKnownAgentCardPath {
 		return fmt.Errorf("invalid URL path: agent card must be served from " +
 			"'/.well-known/agent-card.json' path according to A2A specification")
 	}
@@ -117,53 +193,37 @@ func handleHTTPError(statusCode int) error {
 
 // handleRequestError converts network errors to user-friendly error messages
 func handleRequestError(err error) error {
-	if urlErr, ok := err.(*url.Error); ok {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
 		if urlErr.Timeout() {
 			return fmt.Errorf("request timeout: agent card URL took too long to respond")
 		}
-		if urlErr.Temporary() {
+		if urlErr.Temporary() { //nolint:staticcheck // Temporary() still meaningful for net timeouts
 			return fmt.Errorf("temporary network error: unable to connect to agent card URL")
 		}
 	}
 	return fmt.Errorf("network error: unable to fetch agent card")
 }
 
-// readAndValidateResponseBody reads the response body with size limits and decodes JSON
-func (f *AgentCardFetcher) readAndValidateResponseBody(resp *http.Response, cardURL string) (*models.AgentCard, error) {
-	// Create a limited reader that prevents reading more than MaxResponseSize
-	limitedReader := io.LimitReader(resp.Body, MaxResponseSize+1)
-
-	// Try to read with size limit detection
-	peekBuffer := make([]byte, MaxResponseSize+1)
-	n, err := io.ReadFull(limitedReader, peekBuffer)
-
-	// If we read exactly MaxResponseSize+1 bytes, response is too large
-	if n == MaxResponseSize+1 {
-		return nil, fmt.Errorf("agent card response too large: maximum allowed size is %d bytes", MaxResponseSize)
+// translateResolveError maps errors returned by agentcard.Resolver.Resolve into
+// the stable, user-facing messages VibeXP surfaces in the card preview.
+func translateResolveError(err error) error {
+	if errors.Is(err, errResponseTooLarge) {
+		return fmt.Errorf("agent card response too large: maximum allowed size is %d bytes", MaxResponseSize)
 	}
-
-	// Handle read errors other than EOF
-	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+	if errors.Is(err, errInvalidCardJSON) {
+		return fmt.Errorf("invalid JSON format: unable to parse agent card response")
 	}
-
-	// Decode JSON from the data we read
-	actualData := peekBuffer[:n]
-	decoder := json.NewDecoder(strings.NewReader(string(actualData)))
-
-	var agentCard models.AgentCard
-	if err := decoder.Decode(&agentCard); err != nil {
-		return nil, fmt.Errorf("invalid JSON format: unable to parse agent card response")
+	var statusErr *agentcard.ErrStatusNotOK
+	if errors.As(err, &statusErr) {
+		return handleHTTPError(statusErr.StatusCode)
 	}
-
-	// Validate the agent card
-	if err := f.validateAgentCard(&agentCard, cardURL); err != nil {
-		return nil, fmt.Errorf("invalid agent card format: %v", err)
-	}
-
-	return &agentCard, nil
+	return handleRequestError(err)
 }
 
+// FetchAgentCard discovers an agent card via the a2a-go resolver. The stored
+// cardURL is the full well-known URL; the resolver appends the well-known path
+// to a base URL, so we validate then hand it the origin.
 func (f *AgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (*models.AgentCard, error) {
 	// Validate URL (scheme, path, and SSRF-safe host)
 	if err := f.validateAgentCardURL(ctx, cardURL); err != nil {
@@ -175,60 +235,35 @@ func (f *AgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (
 		"url", cardURL,
 	).Info("Fetching agent card")
 
-	// Create and execute HTTP request
-	req, err := http.NewRequestWithContext(ctx, "GET", cardURL, nil)
+	parsedURL, err := url.Parse(cardURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("invalid agent card URL format: not a valid URL")
 	}
+	baseURL := parsedURL.Scheme + "://" + parsedURL.Host
 
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "VibExp-Agent-Discovery/1.0")
-
-	// #nosec G704 - URL is validated via validateAgentCardURL before this call
-	resp, err := f.httpClient.Do(req)
+	card, err := f.resolver.Resolve(ctx, baseURL,
+		agentcard.WithRequestHeader("Accept", "application/json"),
+		agentcard.WithRequestHeader("User-Agent", "VibExp-Agent-Discovery/1.0"),
+	)
 	if err != nil {
-		return nil, handleRequestError(err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			slog.With("error", closeErr).Error("Failed to close response body")
-		}
-	}()
-
-	// Check status code
-	if resp.StatusCode != http.StatusOK {
-		return nil, handleHTTPError(resp.StatusCode)
+		return nil, translateResolveError(err)
 	}
 
-	// Validate content type
-	contentType := resp.Header.Get("Content-Type")
-	if contentType != "application/json" && contentType != "application/json; charset=utf-8" {
-		slog.With(
-			"service", "agent-card-fetcher",
-			"url", cardURL,
-			"content_type", contentType,
-		).
-			Warn("Unexpected content type for agent card")
-	}
-
-	// Read and validate response body
-	agentCard, err := f.readAndValidateResponseBody(resp, cardURL)
-	if err != nil {
-		return nil, err
+	if err := validateAgentCard(card); err != nil {
+		return nil, fmt.Errorf("invalid agent card format: %v", err)
 	}
 
 	slog.With(
 		"service", "agent-card-fetcher",
 		"url", cardURL,
-		"name", agentCard.Name,
-		"version", agentCard.Version,
-	).
-		Info("Successfully fetched agent card")
+		"name", card.Name,
+		"version", card.Version,
+	).Info("Successfully fetched agent card")
 
-	return agentCard, nil
+	return card, nil
 }
 
-// validateAgentCard performs validation on the fetched agent card based on A2A specification
+// validateAgentCardStringField reports a user-facing error for an empty required field.
 func validateAgentCardStringField(fieldValue, fieldName string) error {
 	if fieldValue == "" {
 		return fmt.Errorf("the '%s' field is required in the agent card but was not found or is empty", fieldName)
@@ -236,13 +271,13 @@ func validateAgentCardStringField(fieldValue, fieldName string) error {
 	return nil
 }
 
-func validateAgentCardRequiredFields(card *models.AgentCard) error {
+// validateAgentCardRequiredFields enforces the required fields of an A2A v1.0
+// agent card that VibeXP surfaces to users.
+func validateAgentCardRequiredFields(card *a2a.AgentCard) error {
 	stringFields := map[string]string{
-		"protocolVersion": card.ProtocolVersion,
-		"name":            card.Name,
-		"description":     card.Description,
-		"url":             card.URL,
-		"version":         card.Version,
+		"name":        card.Name,
+		"description": card.Description,
+		"version":     card.Version,
 	}
 
 	for fieldName, fieldValue := range stringFields {
@@ -251,8 +286,17 @@ func validateAgentCardRequiredFields(card *models.AgentCard) error {
 		}
 	}
 
-	if card.Capabilities == nil {
-		return fmt.Errorf("the 'capabilities' field is required in the agent card but was not found")
+	if len(card.SupportedInterfaces) == 0 {
+		return fmt.Errorf(
+			"the 'supportedInterfaces' field is required in the agent card but was not found or is empty",
+		)
+	}
+	for i, iface := range card.SupportedInterfaces {
+		if iface == nil || iface.URL == "" {
+			return fmt.Errorf(
+				"supportedInterfaces #%d: the 'url' field is required but was not found or is empty", i+1,
+			)
+		}
 	}
 	if card.DefaultInputModes == nil {
 		return fmt.Errorf("the 'defaultInputModes' field is required in the agent card but was not found")
@@ -267,7 +311,8 @@ func validateAgentCardRequiredFields(card *models.AgentCard) error {
 	return nil
 }
 
-func validateAgentCardSkill(i int, skill models.AgentSkill) error {
+// validateAgentCardSkill enforces the required per-skill fields.
+func validateAgentCardSkill(i int, skill a2a.AgentSkill) error {
 	if skill.ID == "" {
 		return fmt.Errorf("skill #%d: the 'id' field is required but was not found or is empty", i+1)
 	}
@@ -289,7 +334,8 @@ func validateAgentCardSkill(i int, skill models.AgentSkill) error {
 	return nil
 }
 
-func (f *AgentCardFetcher) validateAgentCard(card *models.AgentCard, _cardURL string) error {
+// validateAgentCard performs validation on the fetched agent card based on the A2A specification
+func validateAgentCard(card *a2a.AgentCard) error {
 	if err := validateAgentCardRequiredFields(card); err != nil {
 		return err
 	}

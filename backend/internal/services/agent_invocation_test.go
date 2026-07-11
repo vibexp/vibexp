@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -87,7 +88,9 @@ func TestAgentInvocationService_InvokeAgent_Success(t *testing.T) {
 		Name:   "Test Agent",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: "http://test-agent.com",
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: "http://test-agent.com", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -232,7 +235,9 @@ func TestAgentInvocationService_InvokeAgent_InvocationError(t *testing.T) {
 		UserID: "user-1",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: "http://test-agent.com",
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: "http://test-agent.com", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -375,7 +380,9 @@ func TestAgentInvocationService_InvokeAgent_Streaming(t *testing.T) {
 		Name:   "Test Agent",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: "http://test-agent.com",
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: "http://test-agent.com", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -475,7 +482,9 @@ func TestAgentInvocationService_InvokeAgent_StreamingError(t *testing.T) {
 		Name:   "Test Agent",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: "http://test-agent.com",
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: "http://test-agent.com", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 
@@ -534,7 +543,9 @@ func TestAgentInvocationService_InvokeAgent_ChannelClosing(t *testing.T) {
 		Name:   "Test Agent",
 		Status: "active",
 		AgentCard: &models.AgentCard{
-			URL: "http://test-agent.com",
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: "http://test-agent.com", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 		},
 	}
 

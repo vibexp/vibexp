@@ -32,11 +32,7 @@ func newTestA2AHTTPClient(authenticator *AgentAuthenticator, cfg *config.Config)
 // tests can target httptest servers (which bind to 127.0.0.1). Production code uses
 // NewAgentCardFetcher with the strict default guard.
 func newTestAgentCardFetcher() *AgentCardFetcher {
-	guard := &ssrfGuard{allowPrivate: true}
-	return &AgentCardFetcher{
-		httpClient: newAgentCardHTTPClient(guard),
-		guard:      guard,
-	}
+	return newAgentCardFetcher(&ssrfGuard{allowPrivate: true})
 }
 
 func TestSSRFGuard_IsBlockedIP(t *testing.T) {

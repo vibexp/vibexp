@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -52,15 +53,16 @@ func createTestAgent() *models.Agent {
 		Status:      "active",
 		CardURL:     agentStringPtr("http://localhost:8000/.well-known/agent-card.json"),
 		AgentCard: &models.AgentCard{
-			ProtocolVersion:    "0.3.0",
-			Name:               "Test Agent",
-			Description:        "A test agent for unit testing",
-			URL:                "http://localhost:8000",
+			Name:        "Test Agent",
+			Description: "A test agent for unit testing",
+			SupportedInterfaces: []*a2a.AgentInterface{
+				{URL: "http://localhost:8000", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+			},
 			Version:            "1.0.0",
-			Capabilities:       &models.AgentCapabilities{},
+			Capabilities:       a2a.AgentCapabilities{},
 			DefaultInputModes:  []string{"text/plain"},
 			DefaultOutputModes: []string{"text/plain"},
-			Skills: []models.AgentSkill{
+			Skills: []a2a.AgentSkill{
 				{
 					ID:          "test-skill",
 					Name:        "Test Skill",
@@ -165,15 +167,16 @@ func TestAgentService_CreateAgent(t *testing.T) {
 			) {
 				// Mock card fetcher returning a valid agent card
 				testAgentCard := &models.AgentCard{
-					ProtocolVersion:    "0.3.0",
-					Name:               "Test Agent",
-					Description:        "A test agent for unit testing",
-					URL:                "http://localhost:8000",
+					Name:        "Test Agent",
+					Description: "A test agent for unit testing",
+					SupportedInterfaces: []*a2a.AgentInterface{
+						{URL: "http://localhost:8000", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+					},
 					Version:            "1.0.0",
-					Capabilities:       &models.AgentCapabilities{},
+					Capabilities:       a2a.AgentCapabilities{},
 					DefaultInputModes:  []string{"text/plain"},
 					DefaultOutputModes: []string{"text/plain"},
-					Skills: []models.AgentSkill{
+					Skills: []a2a.AgentSkill{
 						{
 							ID:          "test-skill",
 							Name:        "Test Skill",
@@ -216,15 +219,16 @@ func TestAgentService_CreateAgent(t *testing.T) {
 			) {
 				// Mock card fetcher returning a valid agent card
 				testAgentCard := &models.AgentCard{
-					ProtocolVersion:    "0.3.0",
-					Name:               "Test Agent",
-					Description:        "A test agent for unit testing",
-					URL:                "http://localhost:8000",
+					Name:        "Test Agent",
+					Description: "A test agent for unit testing",
+					SupportedInterfaces: []*a2a.AgentInterface{
+						{URL: "http://localhost:8000", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+					},
 					Version:            "1.0.0",
-					Capabilities:       &models.AgentCapabilities{},
+					Capabilities:       a2a.AgentCapabilities{},
 					DefaultInputModes:  []string{"text/plain"},
 					DefaultOutputModes: []string{"text/plain"},
-					Skills:             []models.AgentSkill{},
+					Skills:             []a2a.AgentSkill{},
 				}
 				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json").
 					Return(testAgentCard, nil)
@@ -251,15 +255,16 @@ func TestAgentService_CreateAgent(t *testing.T) {
 			) {
 				// Mock card fetcher returning a valid agent card
 				testAgentCard := &models.AgentCard{
-					ProtocolVersion:    "0.3.0",
-					Name:               "Test Agent",
-					Description:        "A test agent for unit testing",
-					URL:                "http://localhost:8000",
+					Name:        "Test Agent",
+					Description: "A test agent for unit testing",
+					SupportedInterfaces: []*a2a.AgentInterface{
+						{URL: "http://localhost:8000", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+					},
 					Version:            "1.0.0",
-					Capabilities:       &models.AgentCapabilities{},
+					Capabilities:       a2a.AgentCapabilities{},
 					DefaultInputModes:  []string{"text/plain"},
 					DefaultOutputModes: []string{"text/plain"},
-					Skills:             []models.AgentSkill{},
+					Skills:             []a2a.AgentSkill{},
 				}
 				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json").
 					Return(testAgentCard, nil)
@@ -331,12 +336,13 @@ func TestAgentService_GetAgentByID(t *testing.T) {
 
 				// Mock card fetcher to return updated agent card
 				updatedCard := &models.AgentCard{
-					Name:               "Updated Test Agent",
-					Description:        "Updated test agent",
-					Version:            "1.1.0",
-					ProtocolVersion:    "0.3.0",
-					URL:                "http://localhost:8000",
-					Capabilities:       &models.AgentCapabilities{},
+					Name:        "Updated Test Agent",
+					Description: "Updated test agent",
+					Version:     "1.1.0",
+					SupportedInterfaces: []*a2a.AgentInterface{
+						{URL: "http://localhost:8000", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+					},
+					Capabilities:       a2a.AgentCapabilities{},
 					DefaultInputModes:  []string{"text/plain"},
 					DefaultOutputModes: []string{"text/plain"},
 				}
@@ -592,15 +598,16 @@ func TestAgentService_UpdateAgent(t *testing.T) {
 
 				// Mock card fetcher for the updated card URL
 				updatedAgentCard := &models.AgentCard{
-					ProtocolVersion:    "0.3.0",
-					Name:               "Updated Test Agent",
-					Description:        "An updated test agent",
-					URL:                "http://localhost:8000",
+					Name:        "Updated Test Agent",
+					Description: "An updated test agent",
+					SupportedInterfaces: []*a2a.AgentInterface{
+						{URL: "http://localhost:8000", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+					},
 					Version:            "1.1.0",
-					Capabilities:       &models.AgentCapabilities{},
+					Capabilities:       a2a.AgentCapabilities{},
 					DefaultInputModes:  []string{"text/plain"},
 					DefaultOutputModes: []string{"text/plain"},
-					Skills:             []models.AgentSkill{},
+					Skills:             []a2a.AgentSkill{},
 				}
 				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/updated-agent-card.json").
 					Return(updatedAgentCard, nil)

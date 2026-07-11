@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
+
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -128,16 +130,27 @@ func buildA2AMessage(requestID string, input map[string]interface{}, contextID *
 }
 
 func determineA2AEndpoint(agent *models.Agent) (string, error) {
-	switch {
-	case agent.AgentCard != nil &&
-		agent.AgentCard.AdditionalInterfaces != nil &&
-		agent.AgentCard.AdditionalInterfaces.HTTP != nil:
-		return agent.AgentCard.AdditionalInterfaces.HTTP.URL, nil
-	case agent.AgentCard != nil:
-		return agent.AgentCard.URL, nil
-	default:
-		return "", fmt.Errorf("agent card or URL is missing")
+	if agent.AgentCard == nil || len(agent.AgentCard.SupportedInterfaces) == 0 {
+		return "", fmt.Errorf("agent card or endpoint URL is missing")
 	}
+
+	// Prefer an HTTP+JSON interface; otherwise fall back to the first declared URL.
+	fallback := ""
+	for _, iface := range agent.AgentCard.SupportedInterfaces {
+		if iface == nil || iface.URL == "" {
+			continue
+		}
+		if fallback == "" {
+			fallback = iface.URL
+		}
+		if iface.ProtocolBinding == a2a.TransportProtocolHTTPJSON {
+			return iface.URL, nil
+		}
+	}
+	if fallback == "" {
+		return "", fmt.Errorf("agent card or endpoint URL is missing")
+	}
+	return fallback, nil
 }
 
 func (c *A2AHTTPClient) createA2AHTTPRequest(
@@ -264,7 +277,7 @@ func intPtr(i int) *int {
 
 // SupportsStreaming checks if the agent supports streaming based on agent card capabilities
 func (c *A2AHTTPClient) SupportsStreaming(agent *models.Agent) bool {
-	if agent.AgentCard == nil || agent.AgentCard.Capabilities == nil {
+	if agent.AgentCard == nil {
 		return false
 	}
 	return agent.AgentCard.Capabilities.Streaming

@@ -2,95 +2,14 @@ package models
 
 import (
 	"time"
+
+	"github.com/a2aproject/a2a-go/v2/a2a"
 )
 
-// AgentCard represents the A2A agent card specification
-type AgentCard struct {
-	Name                              string                         `json:"name"`
-	Description                       string                         `json:"description"`
-	Version                           string                         `json:"version"`
-	ProtocolVersion                   string                         `json:"protocolVersion"`
-	URL                               string                         `json:"url"`
-	PreferredTransport                string                         `json:"preferredTransport"`
-	DefaultInputModes                 []string                       `json:"defaultInputModes"`
-	DefaultOutputModes                []string                       `json:"defaultOutputModes"`
-	IconURL                           *string                        `json:"iconUrl"`
-	DocumentationURL                  *string                        `json:"documentationUrl"`
-	Provider                          *AgentProvider                 `json:"provider"`
-	Capabilities                      *AgentCapabilities             `json:"capabilities"`
-	Skills                            []AgentSkill                   `json:"skills"`
-	Security                          []map[string]interface{}       `json:"security"`
-	SecuritySchemes                   map[string]AgentSecurityScheme `json:"securitySchemes"`
-	AdditionalInterfaces              *AgentInterfaces               `json:"additionalInterfaces"`
-	SupportsAuthenticatedExtendedCard *bool                          `json:"supportsAuthenticatedExtendedCard"`
-	Signatures                        *AgentSignatures               `json:"signatures"`
-}
-
-type AgentProvider struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
-}
-
-type AgentCapabilities struct {
-	Streaming              bool                    `json:"streaming"`
-	PushNotifications      *AgentPushNotifications `json:"pushNotifications"`
-	StateTransitionHistory *AgentStateHistory      `json:"stateTransitionHistory"`
-	Extensions             *AgentExtensions        `json:"extensions"`
-}
-
-type AgentPushNotifications struct {
-	Enabled bool `json:"enabled"`
-}
-
-type AgentStateHistory struct {
-	Enabled bool `json:"enabled"`
-}
-
-type AgentExtensions struct {
-	Enabled bool `json:"enabled"`
-}
-
-type AgentSkill struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
-	Examples    []string `json:"examples"`
-	InputModes  []string `json:"inputModes"`
-	OutputModes []string `json:"outputModes"`
-	Security    *string  `json:"security"`
-}
-
-// AgentSecurityScheme represents a security scheme (can be apiKey, oauth2, etc.)
-type AgentSecurityScheme struct {
-	Type        string `json:"type"`
-	Description string `json:"description"`
-	Name        string `json:"name"`
-	In          string `json:"in"`
-	Flows       string `json:"flows"`
-}
-
-type AgentInterfaces struct {
-	WebSocket *AgentWebSocketInterface `json:"webSocket"`
-	HTTP      *AgentHTTPInterface      `json:"http"`
-}
-
-type AgentWebSocketInterface struct {
-	URL string `json:"url"`
-}
-
-type AgentHTTPInterface struct {
-	URL string `json:"url"`
-}
-
-type AgentSignatures struct {
-	Card *AgentCardSignature `json:"card"`
-}
-
-type AgentCardSignature struct {
-	Algorithm string `json:"algorithm"`
-	Value     string `json:"value"`
-}
+// AgentCard is the A2A agent card. VibeXP tracks the official A2A specification
+// via the a2a-go SDK, so the SDK's typed card (A2A protocol v1.0) is the
+// canonical representation used for discovery, storage, and the API surface.
+type AgentCard = a2a.AgentCard
 
 // Agent represents an AI agent with configuration and execution metadata
 type Agent struct {

@@ -11,17 +11,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Helper function to create a valid agent card JSON
+// createValidAgentCardJSON returns a valid A2A v1.0 agent card as served by an
+// agent's /.well-known/agent-card.json endpoint.
 func createValidAgentCardJSON() string {
 	return `{
-		"protocolVersion": "0.3.0",
 		"name": "Test Agent",
 		"description": "A test agent for unit testing",
-		"url": "http://localhost:8000",
 		"version": "1.0.0",
-		"capabilities": {},
+		"capabilities": {"streaming": true},
 		"defaultInputModes": ["text/plain"],
 		"defaultOutputModes": ["text/plain"],
+		"supportedInterfaces": [
+			{"url": "http://localhost:8000", "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}
+		],
 		"skills": [
 			{
 				"id": "test-skill",
@@ -38,6 +40,7 @@ func TestNewAgentCardFetcher(t *testing.T) {
 
 	assert.NotNil(t, fetcher)
 	assert.NotNil(t, fetcher.httpClient)
+	assert.NotNil(t, fetcher.resolver)
 	assert.Equal(t, 30*time.Second, fetcher.httpClient.Timeout)
 }
 
@@ -63,13 +66,13 @@ func TestAgentCardFetcher_FetchAgentCard_Success(t *testing.T) {
 		card, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json")
 
 		assert.NoError(t, err)
-		assert.NotNil(t, card)
-		assert.Equal(t, "0.3.0", card.ProtocolVersion)
+		require.NotNil(t, card)
 		assert.Equal(t, "Test Agent", card.Name)
 		assert.Equal(t, "A test agent for unit testing", card.Description)
-		assert.Equal(t, "http://localhost:8000", card.URL)
 		assert.Equal(t, "1.0.0", card.Version)
-		assert.NotNil(t, card.Capabilities)
+		require.Len(t, card.SupportedInterfaces, 1)
+		assert.Equal(t, "http://localhost:8000", card.SupportedInterfaces[0].URL)
+		assert.True(t, card.Capabilities.Streaming)
 		assert.Len(t, card.DefaultInputModes, 1)
 		assert.Len(t, card.DefaultOutputModes, 1)
 		assert.Len(t, card.Skills, 1)
@@ -230,8 +233,6 @@ func TestAgentCardFetcher_FetchAgentCard_InvalidJSON(t *testing.T) {
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions
-
-//nolint:funlen // Test function requires comprehensive setup and assertions
 func TestAgentCardFetcher_FetchAgentCard_ValidationErrors(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -239,29 +240,14 @@ func TestAgentCardFetcher_FetchAgentCard_ValidationErrors(t *testing.T) {
 		errorMsg string
 	}{
 		{
-			name: "Missing protocol version",
-			cardJSON: `{
-				"name": "Test Agent",
-				"description": "A test agent",
-				"url": "http://localhost:8000",
-				"version": "1.0.0",
-				"capabilities": {},
-				"defaultInputModes": ["text/plain"],
-				"defaultOutputModes": ["text/plain"],
-				"skills": [{"id": "test", "name": "Test", "description": "Test", "tags": ["test"]}]
-			}`,
-			errorMsg: "the 'protocolVersion' field is required",
-		},
-		{
 			name: "Missing name",
 			cardJSON: `{
-				"protocolVersion": "0.3.0",
 				"description": "A test agent",
-				"url": "http://localhost:8000",
 				"version": "1.0.0",
 				"capabilities": {},
 				"defaultInputModes": ["text/plain"],
 				"defaultOutputModes": ["text/plain"],
+				"supportedInterfaces": [{"url": "http://localhost:8000", "protocolBinding": "JSONRPC"}],
 				"skills": [{"id": "test", "name": "Test", "description": "Test", "tags": ["test"]}]
 			}`,
 			errorMsg: "the 'name' field is required",
@@ -269,28 +255,66 @@ func TestAgentCardFetcher_FetchAgentCard_ValidationErrors(t *testing.T) {
 		{
 			name: "Missing description",
 			cardJSON: `{
-				"protocolVersion": "0.3.0",
 				"name": "Test Agent",
-				"url": "http://localhost:8000",
+				"version": "1.0.0",
+				"capabilities": {},
+				"defaultInputModes": ["text/plain"],
+				"defaultOutputModes": ["text/plain"],
+				"supportedInterfaces": [{"url": "http://localhost:8000", "protocolBinding": "JSONRPC"}],
+				"skills": [{"id": "test", "name": "Test", "description": "Test", "tags": ["test"]}]
+			}`,
+			errorMsg: "the 'description' field is required",
+		},
+		{
+			name: "Missing version",
+			cardJSON: `{
+				"name": "Test Agent",
+				"description": "A test agent",
+				"capabilities": {},
+				"defaultInputModes": ["text/plain"],
+				"defaultOutputModes": ["text/plain"],
+				"supportedInterfaces": [{"url": "http://localhost:8000", "protocolBinding": "JSONRPC"}],
+				"skills": [{"id": "test", "name": "Test", "description": "Test", "tags": ["test"]}]
+			}`,
+			errorMsg: "the 'version' field is required",
+		},
+		{
+			name: "Missing supported interfaces",
+			cardJSON: `{
+				"name": "Test Agent",
+				"description": "A test agent",
 				"version": "1.0.0",
 				"capabilities": {},
 				"defaultInputModes": ["text/plain"],
 				"defaultOutputModes": ["text/plain"],
 				"skills": [{"id": "test", "name": "Test", "description": "Test", "tags": ["test"]}]
 			}`,
-			errorMsg: "the 'description' field is required",
+			errorMsg: "the 'supportedInterfaces' field is required",
 		},
 		{
-			name: "Skill missing ID",
+			name: "Supported interface missing url",
 			cardJSON: `{
-				"protocolVersion": "0.3.0",
 				"name": "Test Agent",
 				"description": "A test agent",
-				"url": "http://localhost:8000",
 				"version": "1.0.0",
 				"capabilities": {},
 				"defaultInputModes": ["text/plain"],
 				"defaultOutputModes": ["text/plain"],
+				"supportedInterfaces": [{"protocolBinding": "JSONRPC"}],
+				"skills": [{"id": "test", "name": "Test", "description": "Test", "tags": ["test"]}]
+			}`,
+			errorMsg: "supportedInterfaces #1: the 'url' field is required",
+		},
+		{
+			name: "Skill missing ID",
+			cardJSON: `{
+				"name": "Test Agent",
+				"description": "A test agent",
+				"version": "1.0.0",
+				"capabilities": {},
+				"defaultInputModes": ["text/plain"],
+				"defaultOutputModes": ["text/plain"],
+				"supportedInterfaces": [{"url": "http://localhost:8000", "protocolBinding": "JSONRPC"}],
 				"skills": [{"name": "Test", "description": "Test", "tags": ["test"]}]
 			}`,
 			errorMsg: "skill #1: the 'id' field is required",
@@ -298,14 +322,13 @@ func TestAgentCardFetcher_FetchAgentCard_ValidationErrors(t *testing.T) {
 		{
 			name: "Skill missing tags",
 			cardJSON: `{
-				"protocolVersion": "0.3.0",
 				"name": "Test Agent",
 				"description": "A test agent",
-				"url": "http://localhost:8000",
 				"version": "1.0.0",
 				"capabilities": {},
 				"defaultInputModes": ["text/plain"],
 				"defaultOutputModes": ["text/plain"],
+				"supportedInterfaces": [{"url": "http://localhost:8000", "protocolBinding": "JSONRPC"}],
 				"skills": [{"id": "test", "name": "Test", "description": "Test"}]
 			}`,
 			errorMsg: "skill #1 ('test'): the 'tags' field is required",
@@ -349,7 +372,7 @@ func TestAgentCardFetcher_FetchAgentCard_ContentTypeWarning(t *testing.T) {
 
 		// Should succeed despite unexpected content type
 		assert.NoError(t, err)
-		assert.NotNil(t, card)
+		require.NotNil(t, card)
 		assert.Equal(t, "Test Agent", card.Name)
 	})
 }

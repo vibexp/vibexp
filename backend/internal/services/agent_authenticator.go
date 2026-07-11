@@ -3,6 +3,9 @@ package services
 import (
 	"fmt"
 	"net/http"
+	"strings"
+
+	"github.com/a2aproject/a2a-go/v2/a2a"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -30,24 +33,25 @@ func (a *AgentAuthenticator) ApplyAuthentication(req *http.Request, agent *model
 		return nil
 	}
 
+	authRequired := len(agent.AgentCard.SecurityRequirements) > 0
+
 	// If no credentials are stored, return error if security is required
 	if agent.Credentials == nil || len(*agent.Credentials) == 0 {
-		// Check if authentication is actually required
-		if len(agent.AgentCard.Security) > 0 {
+		if authRequired {
 			return fmt.Errorf("authentication required but no credentials found")
 		}
 		return nil
 	}
 
-	// Apply authentication based on the first security scheme and available credentials
+	// Apply authentication based on the first security scheme with a matching credential
 	for schemeName, scheme := range agent.AgentCard.SecuritySchemes {
-		if credential, exists := (*agent.Credentials)[schemeName]; exists {
+		if credential, exists := (*agent.Credentials)[string(schemeName)]; exists {
 			return a.applySchemeAuthentication(req, scheme, credential)
 		}
 	}
 
 	// If we have security schemes but no matching credentials, check if auth is required
-	if len(agent.AgentCard.Security) > 0 {
+	if authRequired {
 		return fmt.Errorf("authentication required but no matching credentials found")
 	}
 
@@ -56,7 +60,7 @@ func (a *AgentAuthenticator) ApplyAuthentication(req *http.Request, agent *model
 
 // applySchemeAuthentication applies a specific security scheme to the request
 func (a *AgentAuthenticator) applySchemeAuthentication(
-	req *http.Request, scheme models.AgentSecurityScheme, credential models.AgentCredential,
+	req *http.Request, scheme a2a.SecurityScheme, credential models.AgentCredential,
 ) error {
 	// Decrypt the credential value
 	decrypted, err := a.encryptionService.Decrypt(credential.Value)
@@ -64,36 +68,38 @@ func (a *AgentAuthenticator) applySchemeAuthentication(
 		return fmt.Errorf("failed to decrypt credential: %w", err)
 	}
 
-	switch scheme.Type {
-	case "apiKey":
-		return a.applyAPIKeyAuth(req, scheme, decrypted)
-	case "http":
-		return a.applyHTTPAuth(req, scheme, decrypted)
+	switch s := scheme.(type) {
+	case a2a.APIKeySecurityScheme:
+		return a.applyAPIKeyAuth(req, s, decrypted)
+	case a2a.HTTPAuthSecurityScheme:
+		return a.applyHTTPAuth(req, s, decrypted)
 	default:
-		return fmt.Errorf("unsupported security scheme type: %s", scheme.Type)
+		return fmt.Errorf("unsupported security scheme type: %T", scheme)
 	}
 }
 
 // applyAPIKeyAuth applies API key authentication
-func (a *AgentAuthenticator) applyAPIKeyAuth(req *http.Request, scheme models.AgentSecurityScheme, value string) error {
-	switch scheme.In {
-	case "header":
+func (a *AgentAuthenticator) applyAPIKeyAuth(
+	req *http.Request, scheme a2a.APIKeySecurityScheme, value string,
+) error {
+	switch scheme.Location {
+	case a2a.APIKeySecuritySchemeLocationHeader:
 		// Special handling for Authorization header - add Bearer prefix if not already present
 		if scheme.Name == "Authorization" && !hasAuthPrefix(value) {
 			value = "Bearer " + value
 		}
 		req.Header.Set(scheme.Name, value)
-	case "query":
+	case a2a.APIKeySecuritySchemeLocationQuery:
 		q := req.URL.Query()
 		q.Set(scheme.Name, value)
 		req.URL.RawQuery = q.Encode()
-	case "cookie":
+	case a2a.APIKeySecuritySchemeLocationCookie:
 		req.AddCookie(&http.Cookie{
 			Name:  scheme.Name,
 			Value: value,
 		})
 	default:
-		return fmt.Errorf("unsupported API key location: %s", scheme.In)
+		return fmt.Errorf("unsupported API key location: %s", scheme.Location)
 	}
 	return nil
 }
@@ -109,26 +115,19 @@ func hasAuthPrefix(value string) bool {
 	return false
 }
 
-// applyHTTPAuth applies HTTP authentication (Basic or Bearer)
-func (a *AgentAuthenticator) applyHTTPAuth(req *http.Request, scheme models.AgentSecurityScheme, value string) error {
-	// For HTTP auth, the scheme name in the spec typically indicates the auth type
-	// For bearer tokens, value should be the token
-	// For basic auth, value should be "username:password"
-	switch scheme.Name {
-	case "bearer", "Bearer":
-		// Don't add Bearer prefix if already present
-		if !hasAuthPrefix(value) {
-			value = "Bearer " + value
-		}
-		req.Header.Set("Authorization", value)
-	case "basic", "Basic":
-		// Don't add Basic prefix if already present
+// applyHTTPAuth applies HTTP authentication (Basic or Bearer) based on the scheme's
+// RFC 7235 HTTP Authentication scheme name.
+func (a *AgentAuthenticator) applyHTTPAuth(
+	req *http.Request, scheme a2a.HTTPAuthSecurityScheme, value string,
+) error {
+	switch strings.ToLower(scheme.Scheme) {
+	case "basic":
 		if !hasAuthPrefix(value) {
 			value = "Basic " + value
 		}
 		req.Header.Set("Authorization", value)
 	default:
-		// Default to bearer if not specified
+		// Default to bearer for "bearer" and any unspecified scheme
 		if !hasAuthPrefix(value) {
 			value = "Bearer " + value
 		}
