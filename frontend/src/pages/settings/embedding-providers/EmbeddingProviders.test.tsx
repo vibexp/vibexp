@@ -34,6 +34,7 @@ jest.mock('@/services/embeddingProviderService', () => ({
     getEmbeddingProviders: jest.fn(),
     getEmbeddingCoverage: jest.fn(),
     reprocessEmbeddingProvider: jest.fn(),
+    clearEmbeddings: jest.fn(),
     validateEmbeddingProvider: jest.fn(),
   },
 }))
@@ -91,6 +92,7 @@ beforeEach(() => {
   service.getEmbeddingProviders.mockResolvedValue([provider])
   service.getEmbeddingCoverage.mockResolvedValue(coverage)
   service.reprocessEmbeddingProvider.mockResolvedValue(undefined)
+  service.clearEmbeddings.mockResolvedValue({ deleted_count: 160 })
 })
 
 describe('EmbeddingProviders coverage', () => {
@@ -179,6 +181,63 @@ describe('EmbeddingProviders coverage', () => {
     await waitFor(() => {
       expect(button).toBeEnabled()
     })
+  })
+
+  it('clears all embeddings after confirmation and refetches coverage', async () => {
+    const user = userEvent.setup()
+
+    render(<EmbeddingProviders />)
+
+    const clearButton = await screen.findByRole('button', {
+      name: /clear all embeddings/i,
+    })
+    // Enabled because the team has embedded content (160 embedded).
+    await waitFor(() => {
+      expect(clearButton).toBeEnabled()
+    })
+
+    await user.click(clearButton)
+
+    // Confirmation dialog gates the destructive action.
+    const confirm = await screen.findByRole('button', { name: /^clear all$/i })
+    expect(service.clearEmbeddings).not.toHaveBeenCalled()
+
+    await user.click(confirm)
+
+    expect(service.clearEmbeddings).toHaveBeenCalledWith('team-1')
+    await waitFor(() => {
+      expect(mockedToast.success).toHaveBeenCalledWith(
+        'Embeddings cleared',
+        expect.any(Object)
+      )
+    })
+    // Mount fetch + post-clear refetch.
+    await waitFor(() => {
+      expect(service.getEmbeddingCoverage).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('disables clear all embeddings when nothing is embedded', async () => {
+    service.getEmbeddingCoverage.mockResolvedValue({
+      has_active_provider: true,
+      active_model: 'text-embedding-3-small',
+      coverage: [
+        {
+          entity_type: 'prompt',
+          total: 10,
+          embedded: 0,
+          pending: 10,
+          embedded_percent: 0,
+        },
+      ],
+    })
+
+    render(<EmbeddingProviders />)
+
+    const clearButton = await screen.findByRole('button', {
+      name: /clear all embeddings/i,
+    })
+    expect(clearButton).toBeDisabled()
   })
 
   it('renders an inline error alert when coverage fails to load', async () => {
