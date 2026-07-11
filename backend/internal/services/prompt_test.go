@@ -1080,6 +1080,11 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 		// Verify it's NOT the raw body with unresolved @reference
 		assert.NotContains(t, payload.Body, "@base-prompt",
 			"Event body should not contain unresolved @references")
+
+		// The description must be carried so the embedding pipeline can build the
+		// per-chunk context header (issue #173).
+		assert.Equal(t, "Test with reference", payload.Description,
+			"Event should carry the prompt description for the embedding context header")
 	})
 
 	t.Run("publishes rendered body with @references resolved in prompt.updated event", func(t *testing.T) {
@@ -1158,6 +1163,11 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 		// Verify it's NOT the raw body with unresolved @reference
 		assert.NotContains(t, payload.Body, "@footer-prompt",
 			"Event body should not contain unresolved @references")
+
+		// A body-only update must still carry the resource description, so the
+		// updated embedding re-includes it in the context header (issue #173).
+		assert.Equal(t, "Test Description", payload.Description,
+			"Update event should carry the prompt description for the embedding context header")
 	})
 
 	t.Run("publishes raw body when prompt has no @references", func(t *testing.T) {
