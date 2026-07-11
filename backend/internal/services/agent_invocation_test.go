@@ -51,6 +51,18 @@ func (m *MockA2AHTTPClient) InvokeAgentStreaming(
 	return args.Error(0)
 }
 
+func (m *MockA2AHTTPClient) GetTask(
+	ctx context.Context, agent *models.Agent, taskID string,
+) (*models.AgentExecution, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	args := m.Called(ctx, agent, taskID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.AgentExecution), args.Error(1)
+}
+
 func (m *MockA2AHTTPClient) SupportsStreaming(agent *models.Agent) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()

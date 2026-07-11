@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -38,6 +39,9 @@ type A2AHTTPClientInterface interface {
 		ctx context.Context, agent *models.Agent, input map[string]interface{},
 		contextID *string, eventChan chan<- a2a.Event,
 	) error
+	// GetTask fetches the current state of a remote task (used to poll a
+	// non-terminal sync send until it reaches a terminal state).
+	GetTask(ctx context.Context, agent *models.Agent, taskID string) (*models.AgentExecution, error)
 	SupportsStreaming(agent *models.Agent) bool
 }
 
@@ -178,20 +182,60 @@ func mapTaskStateToStatus(state a2a.TaskState) string {
 	}
 }
 
-// mapSendResultToExecution turns the SDK's SendMessage result (a *a2a.Message or
-// *a2a.Task) into an execution snapshot. Persisting the reply body itself is #163.
-func mapSendResultToExecution(result a2a.SendMessageResult, duration time.Duration) *models.AgentExecution {
-	execution := &models.AgentExecution{
-		Status:   "completed",
-		Duration: intPtr(int(duration.Milliseconds())),
+// jsonToMap marshals v and decodes it into a generic map (the shape stored in
+// the agent_executions.artifacts jsonb).
+func jsonToMap(v any) (map[string]interface{}, error) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
-
-	task, ok := result.(*a2a.Task)
-	if !ok {
-		// A direct *a2a.Message reply — the agent answered synchronously.
-		return execution
+	var m map[string]interface{}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
 	}
+	return m, nil
+}
 
+// artifactsFromMessage wraps a direct message reply's parts as a single artifact,
+// using the same A2A v1.0 artifact JSON the streaming path writes, so both sync
+// and streaming replies persist an identical shape.
+func artifactsFromMessage(msg *a2a.Message) []map[string]interface{} {
+	if msg == nil || len(msg.Parts) == 0 {
+		return nil
+	}
+	id := msg.ID
+	if id == "" {
+		id = "response"
+	}
+	m, err := jsonToMap(&a2a.Artifact{ID: a2a.ArtifactID(id), Parts: msg.Parts})
+	if err != nil {
+		return nil
+	}
+	return []map[string]interface{}{m}
+}
+
+// artifactsFromTask serializes a task's artifacts (falling back to the final
+// status message's parts when the task carries no artifacts).
+func artifactsFromTask(task *a2a.Task) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(task.Artifacts))
+	for _, artifact := range task.Artifacts {
+		if artifact == nil || len(artifact.Parts) == 0 {
+			continue
+		}
+		if m, err := jsonToMap(artifact); err == nil {
+			out = append(out, m)
+		}
+	}
+	if len(out) == 0 && task.Status.Message != nil {
+		return artifactsFromMessage(task.Status.Message)
+	}
+	return out
+}
+
+// taskToExecution snapshots a task's status/ids and, when terminal, its reply
+// artifacts, into an execution.
+func taskToExecution(task *a2a.Task, duration time.Duration) *models.AgentExecution {
+	execution := &models.AgentExecution{Duration: intPtr(int(duration.Milliseconds()))}
 	if id := string(task.ID); id != "" {
 		execution.TaskID = &id
 	}
@@ -201,6 +245,27 @@ func mapSendResultToExecution(result a2a.SendMessageResult, duration time.Durati
 	state := string(task.Status.State)
 	execution.CurrentState = &state
 	execution.Status = mapTaskStateToStatus(task.Status.State)
+	if task.Status.State.Terminal() {
+		execution.Artifacts = artifactsFromTask(task)
+	}
+	return execution
+}
+
+// mapSendResultToExecution turns the SDK's SendMessage result (a *a2a.Message or
+// *a2a.Task) into an execution snapshot, persisting the reply as artifacts.
+func mapSendResultToExecution(result a2a.SendMessageResult, duration time.Duration) *models.AgentExecution {
+	if task, ok := result.(*a2a.Task); ok {
+		return taskToExecution(task, duration)
+	}
+
+	// A direct *a2a.Message reply — the agent answered synchronously.
+	execution := &models.AgentExecution{
+		Status:   "completed",
+		Duration: intPtr(int(duration.Milliseconds())),
+	}
+	if msg, ok := result.(*a2a.Message); ok {
+		execution.Artifacts = artifactsFromMessage(msg)
+	}
 	return execution
 }
 
@@ -225,6 +290,24 @@ func (c *A2AHTTPClient) InvokeAgent(
 	}
 
 	return mapSendResultToExecution(result, duration), nil
+}
+
+// GetTask fetches the current state of a remote task and snapshots it into an
+// execution (used by the sync poll loop for non-terminal tasks).
+func (c *A2AHTTPClient) GetTask(
+	ctx context.Context, agent *models.Agent, taskID string,
+) (*models.AgentExecution, error) {
+	client, err := c.buildClient(ctx, agent)
+	if err != nil {
+		return nil, err
+	}
+	defer destroyClient(client)
+
+	task, err := client.GetTask(ctx, &a2a.GetTaskRequest{ID: a2a.TaskID(taskID)})
+	if err != nil {
+		return nil, fmt.Errorf("agent get task failed: %w", err)
+	}
+	return taskToExecution(task, 0), nil
 }
 
 // intPtr returns a pointer to an int
