@@ -52,12 +52,14 @@ export function AgentChat() {
     executionMetadata,
     setExecutionMetadata,
     currentState,
+    currentExecutionId,
     hasEarlierMessages,
     isLoadingEarlier,
     totalMessageCount,
     loadConversation,
     loadEarlierMessages,
     sendMessage,
+    cancelExecution,
     reset,
   } = useChatMessages({
     teamId: currentTeam?.id,
@@ -235,6 +237,20 @@ export function AgentChat() {
             isExecuting={isExecuting}
             currentState={currentState}
           />
+          {currentExecutionId && (
+            <div className="flex justify-end px-1 pb-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void cancelExecution()
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
           <MessageInput
             value={inputText}
             onChange={setInputText}

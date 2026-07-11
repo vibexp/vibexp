@@ -121,7 +121,8 @@ export function useEventPolling({
       const isComplete =
         execStatus === 'success' ||
         execStatus === 'error' ||
-        execStatus === 'failed'
+        execStatus === 'failed' ||
+        execStatus === 'cancelled'
 
       if (isComplete) {
         const currentOnComplete = onCompleteRef.current
