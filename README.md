@@ -198,6 +198,15 @@ make backend-run-dev
 make frontend-run-dev
 ```
 
+**Local embedding backend.** `make backend-run-dev` (and a plain `docker compose up` in `backend/`) also starts an `embeddings` service — HuggingFace [text-embeddings-inference](https://github.com/huggingface/text-embeddings-inference) serving `mixedbread-ai/mxbai-embed-large-v1` (1024-dim) with an OpenAI-compatible `/v1/embeddings` — so semantic search works out of the box with no external endpoint. The first start downloads ~670MB of model weights into the `tei_data` volume (persisted across restarts); check readiness with `curl http://localhost:8000/health`. Override the host port with `TEI_PORT` if 8000 collides. Register it in the app as a **team embedding provider**:
+
+- **Provider type:** `openai_compatible`
+- **Base URL:** `http://localhost:8000/v1`
+- **Model:** `mixedbread-ai/mxbai-embed-large-v1`
+- **API key:** any value (or leave empty — TEI ignores it)
+
+The recommended query prefix for this model is `Represent this sentence for searching relevant passages: `.
+
 Common checks:
 
 ```sh

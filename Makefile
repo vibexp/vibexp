@@ -224,13 +224,14 @@ backend-run-dev:
 	echo "✓ Using: $$COMPOSE_CMD" && \
 	echo "🔧 Loading environment variables from .env..." && \
 	bash scripts/sync-env.sh backend && \
-	echo "🐘 Starting PostgreSQL and Mailpit..." && \
-	cd backend && $$COMPOSE_CMD up postgres mailpit -d && \
+	echo "🐘 Starting PostgreSQL, Mailpit and the local embeddings service..." && \
+	cd backend && $$COMPOSE_CMD up postgres mailpit embeddings -d && \
 	echo "⏳ Waiting for PostgreSQL to be ready..." && \
 	sleep 3 && \
 	echo "🔥 Starting backend with hot reload..." && \
 	echo "📝 Watching for .go file changes..." && \
 	echo "📬 Mailpit (local email inbox) UI: http://localhost:8025" && \
+	echo "🧬 Embeddings service (mxbai-embed-large-v1) health: http://localhost:$${TEI_PORT:-8000}/health (first start downloads ~670MB)" && \
 	echo "Press Ctrl+C to stop" && \
 	echo "" && \
 	export $$(grep -v '^#' .env | xargs) && air -c .air.toml
