@@ -31,6 +31,24 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
 
+  # HuggingFace text-embeddings-inference serving mixedbread-ai/mxbai-embed-large-v1
+  # (1024-dim) with an OpenAI-compatible /v1/embeddings — a zero-config local
+  # backend for the embedding/semantic-search pipeline. Register it as a team
+  # embedding provider (type openai_compatible, base_url http://localhost:8000/v1,
+  # model mixedbread-ai/mxbai-embed-large-v1, any/empty API key); see the README.
+  # First start downloads ~670MB of model weights into the tei_data volume.
+  # --auto-truncate clips over-length input at 512 tokens instead of erroring;
+  # --max-client-batch-size 64 bounds request batch size.
+  # No healthcheck: the image has no shell/curl to probe with; check
+  # http://localhost:8000/health from the host instead.
+  embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+    command: --model-id mixedbread-ai/mxbai-embed-large-v1 --auto-truncate --max-client-batch-size 64
+    ports:
+      - "${TEI_PORT:-8000}:80"
+    volumes:
+      - tei_data:/data
+
   vibexp:
     build: .
     ports:
@@ -47,3 +65,4 @@ services:
 
 volumes:
   postgres_data:
+  tei_data:
