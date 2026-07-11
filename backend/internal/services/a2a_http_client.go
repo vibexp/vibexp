@@ -1,273 +1,230 @@
 package services
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
+	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2aclient"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
+// destroyClient releases the SDK client's resources, logging any error since it
+// is not actionable at teardown.
+func destroyClient(client *a2aclient.Client) {
+	if err := client.Destroy(); err != nil {
+		slog.With("service", "a2a-client", "error", err).Warn("failed to destroy A2A client")
+	}
+}
+
 const (
-	// DefaultA2ATimeout is the default timeout for A2A HTTP requests (5 minutes)
+	// DefaultA2ATimeout is the default timeout for A2A requests (5 minutes)
 	DefaultA2ATimeout = 5 * time.Minute
-	// MaxA2AResponseSize is the maximum size of A2A response (10MB)
-	MaxA2AResponseSize = 10 * 1024 * 1024
 )
 
-// JSONRPC2Request represents a JSON-RPC 2.0 request
-type JSONRPC2Request struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      string      `json:"id"`
-	Method  string      `json:"method"`
-	Params  interface{} `json:"params"`
-}
-
-// JSONRPC2Response represents a JSON-RPC 2.0 response
-type JSONRPC2Response struct {
-	JSONRPC string                 `json:"jsonrpc"`
-	ID      string                 `json:"id"`
-	Result  map[string]interface{} `json:"result,omitempty"`
-	Error   *JSONRPC2Error         `json:"error,omitempty"`
-}
-
-// JSONRPC2Error represents a JSON-RPC 2.0 error
-type JSONRPC2Error struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
-}
-
-// A2AStreamEvent represents a streaming event from an A2A agent
-type A2AStreamEvent struct {
-	Type      string                 // "task", "status-update", "artifact-update"
-	Data      map[string]interface{} // Full event data
-	Timestamp time.Time
-}
-
-// A2AHTTPClientInterface defines the interface for A2A HTTP communication
+// A2AHTTPClientInterface defines the interface for A2A communication. Outbound
+// traffic goes through the official a2a-go SDK client (protocol v1.0 with v0.x
+// negotiation); events are the SDK's typed a2a.Event union.
 type A2AHTTPClientInterface interface {
 	InvokeAgent(
 		ctx context.Context, agent *models.Agent, input map[string]interface{}, contextID *string,
 	) (*models.AgentExecution, error)
 	InvokeAgentStreaming(
 		ctx context.Context, agent *models.Agent, input map[string]interface{},
-		contextID *string, eventChan chan<- *A2AStreamEvent,
+		contextID *string, eventChan chan<- a2a.Event,
 	) error
 	SupportsStreaming(agent *models.Agent) bool
 }
 
-// A2AHTTPClient handles A2A protocol communication over HTTP
+// A2AHTTPClient talks to remote A2A agents through the official a2a-go SDK,
+// layering VibeXP's SSRF guard and encrypted-credential authentication onto the
+// SDK's transport.
 type A2AHTTPClient struct {
-	httpClient    *http.Client
 	authenticator *AgentAuthenticator
 	timeout       time.Duration
 	guard         *ssrfGuard
+	baseTransport http.RoundTripper
 }
 
-// NewA2AHTTPClient creates a new A2A HTTP client
+// NewA2AHTTPClient creates a new A2A client. The shared base transport uses an
+// SSRF-safe dialer that rejects connections to reserved IP ranges at connect
+// time, defeating DNS rebinding on top of endpoint validation.
 func NewA2AHTTPClient(authenticator *AgentAuthenticator, cfg *config.Config) *A2AHTTPClient {
-	timeout := DefaultA2ATimeout
+	return newA2AHTTPClient(authenticator, cfg, defaultSSRFGuard)
+}
 
-	// Use timeout from config if set (defaults to 5m)
+// newA2AHTTPClient builds a client around the supplied SSRF guard. Tests use a
+// private-allowing guard to target loopback httptest servers.
+func newA2AHTTPClient(authenticator *AgentAuthenticator, cfg *config.Config, guard *ssrfGuard) *A2AHTTPClient {
+	timeout := DefaultA2ATimeout
 	if cfg != nil && cfg.A2A.DefaultTimeout > 0 {
 		timeout = cfg.A2A.DefaultTimeout
 	}
 
-	// The transport uses an SSRF-safe dialer that rejects connections to reserved IP
-	// ranges at connect time, defeating DNS rebinding on top of endpoint validation.
-	transport := defaultSSRFGuard.newSSRFSafeTransport(&http.Transport{
+	transport := guard.newSSRFSafeTransport(&http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
 	})
 
 	return &A2AHTTPClient{
-		httpClient: &http.Client{
-			Timeout:   timeout,
-			Transport: transport,
-		},
 		authenticator: authenticator,
 		timeout:       timeout,
-		guard:         defaultSSRFGuard,
+		guard:         guard,
+		baseTransport: transport,
 	}
 }
 
-// InvokeAgent sends a task to an A2A agent and returns the result
-func buildA2AMessage(requestID string, input map[string]interface{}, contextID *string) map[string]interface{} {
-	message := map[string]interface{}{
-		"kind":      "message",
-		"role":      "user",
-		"messageId": requestID,
-		"parts":     []map[string]interface{}{},
-		"metadata":  map[string]interface{}{},
-	}
-
-	if contextID != nil && *contextID != "" {
-		message["contextId"] = *contextID
-	}
-
-	if text, ok := input["text"].(string); ok {
-		message["parts"] = []map[string]interface{}{
-			{"kind": "text", "text": text},
-		}
-	} else {
-		message["parts"] = []map[string]interface{}{
-			{"kind": "text", "text": fmt.Sprintf("%v", input)},
-		}
-	}
-
-	return message
+// agentAuthRoundTripper applies an agent's stored credentials to every outbound
+// A2A request (apiKey header/query/cookie, http bearer/basic, prefix detection)
+// on top of the SSRF-safe base transport. This reuses AgentAuthenticator so the
+// SDK client authenticates exactly as before — including query/cookie schemes
+// that the SDK's header-only ServiceParams/interceptors cannot express.
+type agentAuthRoundTripper struct {
+	base          http.RoundTripper
+	authenticator *AgentAuthenticator
+	agent         *models.Agent
 }
 
-func determineA2AEndpoint(agent *models.Agent) (string, error) {
-	if agent.AgentCard == nil || len(agent.AgentCard.SupportedInterfaces) == 0 {
-		return "", fmt.Errorf("agent card or endpoint URL is missing")
+func (rt *agentAuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone so we never mutate a request the SDK may retain/reuse.
+	cloned := req.Clone(req.Context())
+	if err := rt.authenticator.ApplyAuthentication(cloned, rt.agent); err != nil {
+		return nil, fmt.Errorf("failed to apply authentication: %w", err)
 	}
+	return rt.base.RoundTrip(cloned)
+}
 
-	// Prefer an HTTP+JSON interface; otherwise fall back to the first declared URL.
-	fallback := ""
+// buildClient constructs a per-agent SDK client whose transport carries the SSRF
+// guard and the agent's credentials. The dial-time SSRF Control hook is the
+// authoritative guard; the pre-flight host check just yields a clearer error.
+func (c *A2AHTTPClient) buildClient(ctx context.Context, agent *models.Agent) (*a2aclient.Client, error) {
+	if agent.AgentCard == nil {
+		return nil, fmt.Errorf("agent card is missing")
+	}
+	if len(agent.AgentCard.SupportedInterfaces) == 0 {
+		return nil, fmt.Errorf("agent card has no supported interfaces")
+	}
 	for _, iface := range agent.AgentCard.SupportedInterfaces {
 		if iface == nil || iface.URL == "" {
 			continue
 		}
-		if fallback == "" {
-			fallback = iface.URL
-		}
-		if iface.ProtocolBinding == a2a.TransportProtocolHTTPJSON {
-			return iface.URL, nil
+		if err := c.guard.validateOutboundHost(ctx, iface.URL); err != nil {
+			return nil, fmt.Errorf("agent endpoint is not allowed: %w", err)
 		}
 	}
-	if fallback == "" {
-		return "", fmt.Errorf("agent card or endpoint URL is missing")
+
+	httpClient := &http.Client{
+		Timeout: c.timeout,
+		Transport: &agentAuthRoundTripper{
+			base:          c.baseTransport,
+			authenticator: c.authenticator,
+			agent:         agent,
+		},
 	}
-	return fallback, nil
+
+	client, err := a2aclient.NewFromCard(ctx, agent.AgentCard,
+		a2aclient.WithJSONRPCTransport(httpClient),
+		a2aclient.WithRESTTransport(httpClient),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build A2A client: %w", err)
+	}
+	return client, nil
 }
 
-func (c *A2AHTTPClient) createA2AHTTPRequest(
-	ctx context.Context, agent *models.Agent, body []byte,
-) (*http.Request, error) {
-	endpoint, err := determineA2AEndpoint(agent)
-	if err != nil {
-		return nil, err
+// buildA2AMessage builds a v1.0 user message from the invocation input,
+// threading the conversation contextId when continuing a conversation.
+func buildA2AMessage(input map[string]interface{}, contextID *string) *a2a.Message {
+	text, ok := input["text"].(string)
+	if !ok {
+		text = fmt.Sprintf("%v", input)
 	}
-
-	if err = c.guard.validateOutboundHost(ctx, endpoint); err != nil {
-		return nil, fmt.Errorf("agent endpoint is not allowed: %w", err)
+	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(text))
+	if contextID != nil && *contextID != "" {
+		msg.ContextID = *contextID
 	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	return req, nil
+	return msg
 }
 
-func executeA2AHTTPRequest(httpClient *http.Client, req *http.Request) ([]byte, time.Duration, error) {
-	startTime := time.Now()
-	// #nosec G704 - Request is constructed by caller with agent endpoint URL from configuration
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, 0, fmt.Errorf("request failed: %w", err)
+func newSendMessageRequest(input map[string]interface{}, contextID *string) *a2a.SendMessageRequest {
+	return &a2a.SendMessageRequest{
+		Message: buildA2AMessage(input, contextID),
+		Config: &a2a.SendMessageConfig{
+			AcceptedOutputModes: []string{"text/plain"},
+		},
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			// Log the error but don't fail the operation since we already got the response
-			fmt.Printf("Warning: failed to close response body: %v\n", closeErr)
-		}
-	}()
-
-	duration := time.Since(startTime)
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxA2AResponseSize))
-	if err != nil {
-		return nil, duration, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, duration, fmt.Errorf("agent returned status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	return respBody, duration, nil
 }
 
-func processA2AResponse(respBody []byte, duration time.Duration) (*models.AgentExecution, error) {
-	var rpcResponse JSONRPC2Response
-	if err := json.Unmarshal(respBody, &rpcResponse); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+// mapTaskStateToStatus maps an A2A task state to a VibeXP execution status.
+// Non-terminal states are reported as "working"; #163 adds task polling and
+// #164 finalizes the cancelled flow.
+func mapTaskStateToStatus(state a2a.TaskState) string {
+	switch state {
+	case a2a.TaskStateCompleted:
+		return "completed"
+	case a2a.TaskStateFailed, a2a.TaskStateRejected:
+		return "failed"
+	case a2a.TaskStateCanceled:
+		return "cancelled"
+	default:
+		// submitted / working / input-required / auth-required — accepted, still running
+		return "working"
 	}
+}
 
-	if rpcResponse.Error != nil {
-		errorMsg := rpcResponse.Error.Message
-		return &models.AgentExecution{
-			Status:   "error",
-			Error:    &errorMsg,
-			Duration: intPtr(int(duration.Milliseconds())),
-		}, nil
-	}
-
+// mapSendResultToExecution turns the SDK's SendMessage result (a *a2a.Message or
+// *a2a.Task) into an execution snapshot. Persisting the reply body itself is #163.
+func mapSendResultToExecution(result a2a.SendMessageResult, duration time.Duration) *models.AgentExecution {
 	execution := &models.AgentExecution{
 		Status:   "completed",
 		Duration: intPtr(int(duration.Milliseconds())),
 	}
 
-	return execution, nil
+	task, ok := result.(*a2a.Task)
+	if !ok {
+		// A direct *a2a.Message reply — the agent answered synchronously.
+		return execution
+	}
+
+	if id := string(task.ID); id != "" {
+		execution.TaskID = &id
+	}
+	if task.ContextID != "" {
+		execution.ContextID = &task.ContextID
+	}
+	state := string(task.Status.State)
+	execution.CurrentState = &state
+	execution.Status = mapTaskStateToStatus(task.Status.State)
+	return execution
 }
 
+// InvokeAgent sends a message to an A2A agent synchronously and returns the result.
 func (c *A2AHTTPClient) InvokeAgent(
 	ctx context.Context,
 	agent *models.Agent,
 	input map[string]interface{},
 	contextID *string,
 ) (*models.AgentExecution, error) {
-	requestID := fmt.Sprintf("msg-%d", time.Now().UnixNano())
-	message := buildA2AMessage(requestID, input, contextID)
-
-	rpcRequest := JSONRPC2Request{
-		JSONRPC: "2.0",
-		ID:      requestID,
-		Method:  "message/send",
-		Params: map[string]interface{}{
-			"message": message,
-			"configuration": map[string]interface{}{
-				"acceptedOutputModes": []string{"text/plain"},
-			},
-		},
-	}
-
-	body, err := json.Marshal(rpcRequest)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := c.createA2AHTTPRequest(ctx, agent, body)
+	client, err := c.buildClient(ctx, agent)
 	if err != nil {
 		return nil, err
 	}
+	defer destroyClient(client)
 
-	if authErr := c.authenticator.ApplyAuthentication(req, agent); authErr != nil {
-		return nil, fmt.Errorf("failed to apply authentication: %w", authErr)
-	}
-
-	respBody, duration, err := executeA2AHTTPRequest(c.httpClient, req)
+	start := time.Now()
+	result, err := client.SendMessage(ctx, newSendMessageRequest(input, contextID))
+	duration := time.Since(start)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("agent message send failed: %w", err)
 	}
 
-	return processA2AResponse(respBody, duration)
+	return mapSendResultToExecution(result, duration), nil
 }
 
 // intPtr returns a pointer to an int
@@ -275,7 +232,7 @@ func intPtr(i int) *int {
 	return &i
 }
 
-// SupportsStreaming checks if the agent supports streaming based on agent card capabilities
+// SupportsStreaming checks if the agent supports streaming based on card capabilities.
 func (c *A2AHTTPClient) SupportsStreaming(agent *models.Agent) bool {
 	if agent.AgentCard == nil {
 		return false
@@ -283,216 +240,31 @@ func (c *A2AHTTPClient) SupportsStreaming(agent *models.Agent) bool {
 	return agent.AgentCard.Capabilities.Streaming
 }
 
-func buildA2AStreamMessage(requestID string, input map[string]interface{}, contextID *string) map[string]interface{} {
-	message := map[string]interface{}{
-		"kind":      "message",
-		"role":      "user",
-		"messageId": requestID,
-		"parts":     []map[string]interface{}{},
-		"metadata":  map[string]interface{}{},
-	}
-
-	if contextID != nil && *contextID != "" {
-		message["contextId"] = *contextID
-	}
-
-	if text, ok := input["text"].(string); ok {
-		message["parts"] = []map[string]interface{}{
-			{
-				"kind": "text",
-				"text": text,
-			},
-		}
-	} else {
-		message["parts"] = []map[string]interface{}{
-			{
-				"kind": "text",
-				"text": fmt.Sprintf("%v", input),
-			},
-		}
-	}
-
-	return message
-}
-
-func (c *A2AHTTPClient) createStreamingRequest(
-	ctx context.Context, agent *models.Agent, body []byte,
-) (*http.Request, error) {
-	endpoint, err := determineA2AEndpoint(agent)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = c.guard.validateOutboundHost(ctx, endpoint); err != nil {
-		return nil, fmt.Errorf("agent endpoint is not allowed: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
-
-	return req, nil
-}
-
-func validateStreamingResponse(resp *http.Response) error {
-	if resp.StatusCode != http.StatusOK {
-		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, MaxA2AResponseSize))
-		if readErr != nil {
-			return fmt.Errorf("agent returned status %d, failed to read error response: %w", resp.StatusCode, readErr)
-		}
-		return fmt.Errorf("agent returned status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	contentType := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "text/event-stream") {
-		return fmt.Errorf("expected text/event-stream, got %s", contentType)
-	}
-
-	return nil
-}
-
-// InvokeAgentStreaming sends a task to an A2A agent with streaming support
+// InvokeAgentStreaming sends a message with streaming and forwards each typed SDK
+// event to eventChan. The SDK auto-falls back to a unary send for non-streaming
+// cards. The caller owns closing eventChan.
 func (c *A2AHTTPClient) InvokeAgentStreaming(
 	ctx context.Context,
 	agent *models.Agent,
 	input map[string]interface{},
 	contextID *string,
-	eventChan chan<- *A2AStreamEvent,
+	eventChan chan<- a2a.Event,
 ) error {
-	defer close(eventChan)
-
-	requestID := fmt.Sprintf("msg-%d", time.Now().UnixNano())
-	message := buildA2AStreamMessage(requestID, input, contextID)
-
-	rpcRequest := JSONRPC2Request{
-		JSONRPC: "2.0",
-		ID:      requestID,
-		Method:  "message/stream",
-		Params: map[string]interface{}{
-			"message": message,
-			"configuration": map[string]interface{}{
-				"acceptedOutputModes": []string{"text/plain"},
-			},
-		},
-	}
-
-	body, err := json.Marshal(rpcRequest)
-	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := c.createStreamingRequest(ctx, agent, body)
+	client, err := c.buildClient(ctx, agent)
 	if err != nil {
 		return err
 	}
+	defer destroyClient(client)
 
-	if authErr := c.authenticator.ApplyAuthentication(req, agent); authErr != nil {
-		return fmt.Errorf("failed to apply authentication: %w", authErr)
-	}
-
-	// #nosec G704 - URL is from agent configuration endpoint, admin-controlled
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			// Log the error but don't fail the operation since we already got the response
-			fmt.Printf("Warning: failed to close response body: %v\n", closeErr)
+	for event, streamErr := range client.SendStreamingMessage(ctx, newSendMessageRequest(input, contextID)) {
+		if streamErr != nil {
+			return fmt.Errorf("agent streaming failed: %w", streamErr)
 		}
-	}()
-
-	if err := validateStreamingResponse(resp); err != nil {
-		return err
-	}
-
-	return c.parseSSEStream(ctx, resp.Body, eventChan)
-}
-
-// parseSSEStream parses Server-Sent Events from the response stream
-func (c *A2AHTTPClient) parseSSEStream(
-	ctx context.Context,
-	reader io.Reader,
-	eventChan chan<- *A2AStreamEvent,
-) error {
-	scanner := bufio.NewScanner(reader)
-	var eventData strings.Builder
-
-	for scanner.Scan() {
-		// Check for context cancellation
 		select {
+		case eventChan <- event:
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
 		}
-
-		line := scanner.Text()
-
-		// Empty line signals end of event
-		if line == "" {
-			if eventData.Len() > 0 {
-				// Process the accumulated event data
-				if err := c.processSSEEvent(eventData.String(), eventChan); err != nil {
-					// Log error but continue processing (don't fail entire stream)
-					// The error is already logged in processSSEEvent
-					eventData.Reset()
-					continue
-				}
-				eventData.Reset()
-			}
-			continue
-		}
-
-		// Parse SSE line format: "field: value"
-		if strings.HasPrefix(line, "data: ") {
-			eventData.WriteString(strings.TrimPrefix(line, "data: "))
-		}
-		// Ignore other SSE fields (event:, id:, retry:) for now
 	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("stream reading error: %w", err)
-	}
-
-	return nil
-}
-
-// processSSEEvent processes a single SSE event
-func (c *A2AHTTPClient) processSSEEvent(data string, eventChan chan<- *A2AStreamEvent) error {
-	// Parse JSON-RPC response from data
-	var rpcResponse JSONRPC2Response
-	if err := json.Unmarshal([]byte(data), &rpcResponse); err != nil {
-		// Skip malformed events
-		return fmt.Errorf("failed to parse SSE data as JSON-RPC: %w", err)
-	}
-
-	// Check for JSON-RPC error
-	if rpcResponse.Error != nil {
-		return fmt.Errorf("JSON-RPC error: %s", rpcResponse.Error.Message)
-	}
-
-	// Extract event from result
-	if rpcResponse.Result == nil {
-		return fmt.Errorf("JSON-RPC response missing result")
-	}
-
-	// Determine event type from "kind" field
-	eventType := "unknown"
-	if kind, ok := rpcResponse.Result["kind"].(string); ok {
-		eventType = kind
-	}
-
-	// Create and send stream event
-	event := &A2AStreamEvent{
-		Type:      eventType,
-		Data:      rpcResponse.Result,
-		Timestamp: time.Now(),
-	}
-
-	eventChan <- event
 	return nil
 }

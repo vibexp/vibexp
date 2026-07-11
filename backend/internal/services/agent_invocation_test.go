@@ -43,7 +43,7 @@ func (m *MockA2AHTTPClient) InvokeAgentStreaming(
 	agent *models.Agent,
 	input map[string]interface{},
 	contextID *string,
-	eventChan chan<- *A2AStreamEvent,
+	eventChan chan<- a2a.Event,
 ) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -66,7 +66,7 @@ type MockA2AStreamProcessor struct {
 func (m *MockA2AStreamProcessor) ProcessStream(
 	ctx context.Context,
 	executionID string,
-	eventChan <-chan *A2AStreamEvent,
+	eventChan <-chan a2a.Event,
 ) error {
 	args := m.Called(ctx, executionID, eventChan)
 	return args.Error(0)
@@ -405,32 +405,16 @@ func TestAgentInvocationService_InvokeAgent_Streaming(t *testing.T) {
 	// Mock streaming behavior: send events to channel
 	a2aClient.On("InvokeAgentStreaming", mock.Anything, agent, input, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
-			eventChan := args.Get(4).(chan<- *A2AStreamEvent)
+			eventChan := args.Get(4).(chan<- a2a.Event)
 			// Simulate agent sending events
-			eventChan <- &A2AStreamEvent{
-				Type: "status-update",
-				Data: map[string]interface{}{
-					"status": map[string]interface{}{
-						"state": "working",
-					},
-				},
-				Timestamp: time.Now(),
+			eventChan <- &a2a.TaskStatusUpdateEvent{
+				TaskID:    "t1",
+				ContextID: "c1",
+				Status:    a2a.TaskStatus{State: a2a.TaskStateWorking},
 			}
-			eventChan <- &A2AStreamEvent{
-				Type: "artifact-update",
-				Data: map[string]interface{}{
-					"artifactId": "art-1",
-					"append":     false,
-					"artifact": map[string]interface{}{
-						"parts": []interface{}{
-							map[string]interface{}{
-								"kind": "text",
-								"text": "Response",
-							},
-						},
-					},
-				},
-				Timestamp: time.Now(),
+			eventChan <- &a2a.TaskArtifactUpdateEvent{
+				TaskID:   "t1",
+				Artifact: &a2a.Artifact{ID: "art-1", Parts: a2a.ContentParts{a2a.NewTextPart("Response")}},
 			}
 			// Note: channel will be closed by invokeAgentStreaming
 		}).Return(nil)
@@ -438,7 +422,7 @@ func TestAgentInvocationService_InvokeAgent_Streaming(t *testing.T) {
 	// Mock stream processor consuming events
 	streamProcessor.On("ProcessStream", mock.Anything, "exec-1", mock.Anything).
 		Run(func(args mock.Arguments) {
-			eventChan := args.Get(2).(<-chan *A2AStreamEvent)
+			eventChan := args.Get(2).(<-chan a2a.Event)
 			// Consume all events from channel
 			for range eventChan {
 				// Process events
@@ -509,7 +493,7 @@ func TestAgentInvocationService_InvokeAgent_StreamingError(t *testing.T) {
 
 	streamProcessor.On("ProcessStream", mock.Anything, "exec-1", mock.Anything).
 		Run(func(args mock.Arguments) {
-			eventChan := args.Get(2).(<-chan *A2AStreamEvent)
+			eventChan := args.Get(2).(<-chan a2a.Event)
 			for range eventChan {
 			}
 		}).Return(nil)
@@ -563,17 +547,16 @@ func TestAgentInvocationService_InvokeAgent_ChannelClosing(t *testing.T) {
 
 	a2aClient.On("InvokeAgentStreaming", mock.Anything, agent, mock.Anything, mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
-			eventChan := args.Get(4).(chan<- *A2AStreamEvent)
-			eventChan <- &A2AStreamEvent{
-				Type:      "status-update",
-				Data:      map[string]interface{}{"state": "working"},
-				Timestamp: time.Now(),
+			eventChan := args.Get(4).(chan<- a2a.Event)
+			eventChan <- &a2a.TaskStatusUpdateEvent{
+				TaskID: "t1",
+				Status: a2a.TaskStatus{State: a2a.TaskStateWorking},
 			}
 		}).Return(nil)
 
 	streamProcessor.On("ProcessStream", mock.Anything, "exec-1", mock.Anything).
 		Run(func(args mock.Arguments) {
-			eventChan := args.Get(2).(<-chan *A2AStreamEvent)
+			eventChan := args.Get(2).(<-chan a2a.Event)
 			// Read all events
 			for range eventChan {
 			}
