@@ -41,6 +41,26 @@ EmbeddingProvider:
         Maximum number of simultaneous embedding requests VibeXP issues to this
         provider. Keep at 1 for single-threaded providers.
       example: 1
+    query_prefix:
+      type: string
+      nullable: true
+      description: >-
+        Instruction prefix prepended to search queries before they are embedded
+        (only the text sent to the provider; nothing extra is stored).
+        Asymmetric models require this — e.g. mxbai/BGE English expect
+        "Represent this sentence for searching relevant passages: ", E5 expects
+        "query: ". Empty/null means no prefix (default behaviour).
+      example: "Represent this sentence for searching relevant passages: "
+    document_prefix:
+      type: string
+      nullable: true
+      description: >-
+        Instruction prefix prepended to document chunks before they are embedded
+        (applied only to the text sent to the provider; the stored chunk content
+        is unchanged). E5 expects "passage: "; mxbai/BGE embed documents raw.
+        Changing this invalidates stored vectors and triggers a team re-embed.
+        Empty/null means no prefix (default behaviour).
+      example: "passage: "
     is_default:
       type: boolean
       example: false
@@ -126,6 +146,22 @@ CreateEmbeddingProviderRequest:
         Optional max simultaneous embedding requests to this provider; defaults
         to 1 when omitted.
       example: 1
+    query_prefix:
+      type: string
+      nullable: true
+      maxLength: 256
+      description: >-
+        Optional instruction prefix prepended to search queries before
+        embedding. Defaults to empty (no prefix) when omitted.
+      example: "Represent this sentence for searching relevant passages: "
+    document_prefix:
+      type: string
+      nullable: true
+      maxLength: 256
+      description: >-
+        Optional instruction prefix prepended to document chunks before
+        embedding. Defaults to empty (no prefix) when omitted.
+      example: "passage: "
     is_default:
       type: boolean
       example: false
@@ -166,6 +202,20 @@ UpdateEmbeddingProviderRequest:
     concurrency:
       type: integer
       minimum: 1
+    query_prefix:
+      type: string
+      nullable: true
+      maxLength: 256
+      description: >-
+        Instruction prefix prepended to search queries before embedding.
+        Send an empty string to clear a previously configured prefix.
+    document_prefix:
+      type: string
+      nullable: true
+      maxLength: 256
+      description: >-
+        Instruction prefix prepended to document chunks before embedding.
+        Changing it triggers a team re-embed. Send an empty string to clear.
     is_default:
       type: boolean
     base_url:

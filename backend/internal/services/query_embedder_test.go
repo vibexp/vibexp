@@ -23,6 +23,35 @@ func TestProviderQueryEmbedder_HappyPath(t *testing.T) {
 	assert.Equal(t, "team-9", resolver.gotTeamID)
 }
 
+func TestProviderQueryEmbedder_AppliesQueryPrefix(t *testing.T) {
+	provider := &fakeProvider{vectors: [][]float32{{0.1, 0.2, 0.3}}}
+	resolver := &fakeResolver{
+		provider:    provider,
+		queryPrefix: "Represent this sentence for searching relevant passages: ",
+	}
+	e := NewProviderQueryEmbedder(resolver, slog.New(slog.DiscardHandler))
+
+	_, _, err := e.EmbedQuery(context.Background(), "team-9", "find me")
+	require.NoError(t, err)
+	// The provider's query_prefix must be prepended to the exact text sent to the
+	// provider — asymmetric models depend on it for ranking quality.
+	assert.Equal(t,
+		[]string{"Represent this sentence for searching relevant passages: find me"},
+		provider.gotTexts,
+	)
+}
+
+func TestProviderQueryEmbedder_EmptyPrefix_UnchangedQuery(t *testing.T) {
+	provider := &fakeProvider{vectors: [][]float32{{0.1, 0.2, 0.3}}}
+	resolver := &fakeResolver{provider: provider} // no prefix configured
+	e := NewProviderQueryEmbedder(resolver, slog.New(slog.DiscardHandler))
+
+	_, _, err := e.EmbedQuery(context.Background(), "team-9", "find me")
+	require.NoError(t, err)
+	// An empty prefix must send the query verbatim — exact prior behaviour.
+	assert.Equal(t, []string{"find me"}, provider.gotTexts)
+}
+
 func TestProviderQueryEmbedder_NoProvider_ReturnsSentinel(t *testing.T) {
 	resolver := &fakeResolver{provider: nil}
 	e := NewProviderQueryEmbedder(resolver, slog.New(slog.DiscardHandler))

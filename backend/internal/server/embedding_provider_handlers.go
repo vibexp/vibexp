@@ -14,12 +14,36 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 )
 
+// maxEmbeddingPrefixLen caps query_prefix / document_prefix. They are prepended
+// to every embedded query and document chunk, so a short instruction prefix is
+// all that is intended; the cap keeps a stray large value from bloating every
+// embed request.
+const maxEmbeddingPrefixLen = 256
+
+// appendPrefixLengthErrors appends a max-length validation error for each
+// instruction prefix that exceeds maxEmbeddingPrefixLen. A nil pointer (field
+// omitted) is skipped. Shared by the create and update handlers so both enforce
+// the same cap.
+func appendPrefixLengthErrors(
+	ve []errors.ValidationError, queryPrefix, documentPrefix *string,
+) []errors.ValidationError {
+	if queryPrefix != nil && len(*queryPrefix) > maxEmbeddingPrefixLen {
+		ve = append(ve, errors.NewMaxLengthError("query_prefix", maxEmbeddingPrefixLen))
+	}
+	if documentPrefix != nil && len(*documentPrefix) > maxEmbeddingPrefixLen {
+		ve = append(ve, errors.NewMaxLengthError("document_prefix", maxEmbeddingPrefixLen))
+	}
+	return ve
+}
+
 // reembedTeamIfProviderIdentityChanged wipes and re-generates a team's embeddings
 // when an update changed the provider's embedding identity (model, provider type,
-// or base URL). Vectors from a different model are not comparable to new queries,
-// so the old ones are deleted and the team's entities are re-embedded in the
+// base URL, or document_prefix). Vectors produced by a different model — or with a
+// different document instruction prefix — are not comparable to new queries, so
+// the old ones are deleted and the team's entities are re-embedded in the
 // background (the update response must not block on a large regeneration). A
-// name/default/key-only edit leaves the identity unchanged and is a no-op.
+// name/default/key/query_prefix-only edit leaves the stored vectors valid and is a
+// no-op (query_prefix affects only the query side, never stored documents).
 func (s *Server) reembedTeamIfProviderIdentityChanged(
 	teamID string, old *models.EmbeddingProviderResponse, updated *models.EmbeddingProvider,
 ) {
@@ -34,7 +58,8 @@ func (s *Server) reembedTeamIfProviderIdentityChanged(
 	}
 	if old.Model == updated.Model &&
 		old.ProviderType == updated.ProviderType &&
-		derefStr(old.BaseURL) == derefStr(updated.BaseURL) {
+		derefStr(old.BaseURL) == derefStr(updated.BaseURL) &&
+		derefStr(old.DocumentPrefix) == derefStr(updated.DocumentPrefix) {
 		return
 	}
 
@@ -190,6 +215,8 @@ func (s *Server) validateCreateEmbeddingProviderRequest(
 		).Error("Model is required")
 		validationErrors = append(validationErrors, errors.NewRequiredFieldError("model"))
 	}
+
+	validationErrors = appendPrefixLengthErrors(validationErrors, req.QueryPrefix, req.DocumentPrefix)
 
 	if len(validationErrors) > 0 {
 		apiErr := errors.NewProviderValidationError(
@@ -358,16 +385,8 @@ func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	var req models.UpdateEmbeddingProviderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logEmbeddingProviderError(
-			"handleUpdateEmbeddingProvider", userID, providerID, err,
-			"Failed to decode request body",
-		)
-		apiErr := errors.NewBadRequestError(
-			"Invalid request body. Please ensure the JSON is well-formed.",
-		)
-		errors.WriteJSONError(w, r, apiErr)
+	req, ok := s.decodeAndValidateUpdateEmbeddingProviderRequest(w, r, userID, providerID)
+	if !ok {
 		return
 	}
 
@@ -395,6 +414,35 @@ func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	).Info("Embedding provider updated successfully")
 
 	s.writeEmbeddingProviderResponse(w, provider)
+}
+
+// decodeAndValidateUpdateEmbeddingProviderRequest decodes the update body and
+// enforces the instruction-prefix length cap, writing the appropriate error and
+// returning ok=false on failure. Extracted from handleUpdateEmbeddingProvider to
+// keep it within the function-length limit.
+func (s *Server) decodeAndValidateUpdateEmbeddingProviderRequest(
+	w http.ResponseWriter, r *http.Request, userID, providerID string,
+) (models.UpdateEmbeddingProviderRequest, bool) {
+	var req models.UpdateEmbeddingProviderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logEmbeddingProviderError(
+			"handleUpdateEmbeddingProvider", userID, providerID, err,
+			"Failed to decode request body",
+		)
+		errors.WriteJSONError(w, r, errors.NewBadRequestError(
+			"Invalid request body. Please ensure the JSON is well-formed.",
+		))
+		return req, false
+	}
+
+	if ve := appendPrefixLengthErrors(nil, req.QueryPrefix, req.DocumentPrefix); len(ve) > 0 {
+		errors.WriteJSONError(w, r, errors.NewProviderValidationError(
+			"Embedding provider validation failed. Please check the prefix fields.", ve,
+		))
+		return req, false
+	}
+
+	return req, true
 }
 
 func (s *Server) handleUpdateEmbeddingProviderError(

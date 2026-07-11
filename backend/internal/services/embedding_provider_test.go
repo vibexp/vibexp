@@ -1065,3 +1065,77 @@ func TestEmbeddingProviderService_validateOpenAICompatibleProvider_DimensionEnfo
 		assert.False(t, resp.IsValid)
 	})
 }
+
+// TestEmbeddingProviderService_CreateEmbeddingProvider_PersistsPrefixes verifies
+// the instruction prefixes from the create request reach the persisted model
+// (issue #171).
+func TestEmbeddingProviderService_CreateEmbeddingProvider_PersistsPrefixes(t *testing.T) {
+	mockRepo := mocks.NewMockEmbeddingProviderRepository(t)
+	service := createTestEmbeddingProviderService(mockRepo)
+
+	var captured *models.EmbeddingProvider
+	mockRepo.EXPECT().
+		Create(context.Background(), mock.AnythingOfType("*models.EmbeddingProvider")).
+		RunAndReturn(func(_ context.Context, p *models.EmbeddingProvider) error {
+			captured = p
+			p.ID = "provider-1"
+			return nil
+		})
+
+	req := models.CreateEmbeddingProviderRequest{
+		Name:           "mxbai",
+		ProviderType:   "openai_compatible",
+		Model:          "mxbai-embed-large-v1",
+		QueryPrefix:    stringPtr("Represent this sentence for searching relevant passages: "),
+		DocumentPrefix: stringPtr("passage: "),
+	}
+	_, err := service.CreateEmbeddingProvider(context.Background(), "team-1", "user-1", req)
+	require.NoError(t, err)
+
+	require.NotNil(t, captured)
+	require.NotNil(t, captured.QueryPrefix)
+	assert.Equal(t, "Represent this sentence for searching relevant passages: ", *captured.QueryPrefix)
+	require.NotNil(t, captured.DocumentPrefix)
+	assert.Equal(t, "passage: ", *captured.DocumentPrefix)
+}
+
+// TestEmbeddingProviderService_UpdateEmbeddingProvider_AppliesAndClearsPrefixes
+// verifies an update sets a new prefix and that an explicit empty string clears a
+// previously-configured one (issue #171).
+func TestEmbeddingProviderService_UpdateEmbeddingProvider_AppliesAndClearsPrefixes(t *testing.T) {
+	mockRepo := mocks.NewMockEmbeddingProviderRepository(t)
+	service := createTestEmbeddingProviderService(mockRepo)
+
+	existing := &models.EmbeddingProvider{
+		ID:             "provider-1",
+		UserID:         "user-1",
+		Name:           "p",
+		ProviderType:   "openai_compatible",
+		Model:          "m",
+		Configuration:  "{}",
+		QueryPrefix:    stringPtr("old query prefix"),
+		DocumentPrefix: nil,
+	}
+	mockRepo.EXPECT().GetByID(context.Background(), "user-1", "provider-1").Return(existing, nil)
+
+	var captured *models.EmbeddingProvider
+	mockRepo.EXPECT().
+		Update(context.Background(), mock.AnythingOfType("*models.EmbeddingProvider")).
+		RunAndReturn(func(_ context.Context, p *models.EmbeddingProvider) error {
+			captured = p
+			return nil
+		})
+
+	req := models.UpdateEmbeddingProviderRequest{
+		QueryPrefix:    stringPtr(""),          // explicit empty string clears it
+		DocumentPrefix: stringPtr("passage: "), // set a new document prefix
+	}
+	_, err := service.UpdateEmbeddingProvider(context.Background(), "user-1", "provider-1", req)
+	require.NoError(t, err)
+
+	require.NotNil(t, captured)
+	require.NotNil(t, captured.QueryPrefix)
+	assert.Equal(t, "", *captured.QueryPrefix, "explicit empty string clears the prefix")
+	require.NotNil(t, captured.DocumentPrefix)
+	assert.Equal(t, "passage: ", *captured.DocumentPrefix)
+}

@@ -58,7 +58,13 @@ func (e *ProviderQueryEmbedder) EmbedQuery(
 		return nil, "", ErrNoEmbeddingProvider
 	}
 
-	vectors, err := resolved.Provider.GenerateEmbeddings(ctx, []string{query})
+	// Prepend the provider's configured query instruction prefix (empty for
+	// symmetric models) so an asymmetric model scores the query the way it was
+	// trained. Only the text sent to the provider carries the prefix; nothing
+	// extra is stored, and an empty prefix reproduces the exact prior behaviour.
+	queryText := resolved.QueryPrefix + query
+
+	vectors, err := resolved.Provider.GenerateEmbeddings(ctx, []string{queryText})
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to embed query: %w", err)
 	}

@@ -121,7 +121,20 @@ func (p *EmbeddingGenerationProcessor) generateAndSave(
 		return nil
 	}
 
-	vectors, err := resolved.Provider.GenerateEmbeddings(ctx, chunkTexts)
+	// Prepend the provider's configured document instruction prefix (empty for
+	// symmetric models) to the text sent to the provider, while storing each chunk
+	// unchanged. The prefix is a model instruction, not part of the document, so it
+	// must not pollute the stored content (used for keyword-search fallback and
+	// result snippets). An empty prefix reproduces the exact prior behaviour.
+	embedTexts := chunkTexts
+	if resolved.DocumentPrefix != "" {
+		embedTexts = make([]string, len(chunkTexts))
+		for i, text := range chunkTexts {
+			embedTexts[i] = resolved.DocumentPrefix + text
+		}
+	}
+
+	vectors, err := resolved.Provider.GenerateEmbeddings(ctx, embedTexts)
 	if err != nil {
 		return fmt.Errorf("failed to generate embeddings for %s %s: %w", input.entityType, input.entityID, err)
 	}
