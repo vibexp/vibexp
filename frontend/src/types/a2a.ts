@@ -2,18 +2,28 @@
 // Reference: backend-api/internal/services/a2a_http_client.go, a2a_stream_processor.go
 
 /**
- * Base part type - all content parts must have a 'kind' field
+ * Base part type. A2A v1.0 parts are flattened (e.g. a text part serializes as
+ * `{ "text": "..." }`) and no longer carry a `kind` discriminator, so it is optional.
  */
 export interface A2ABasePart {
-  kind: string
+  kind?: string
 }
 
 /**
- * Text content part
+ * Text content part. In A2A v1.0 the part is `{ text }` with no `kind`, so text
+ * parts are detected by the presence of a `text` string (see isTextPart).
  */
 export interface A2ATextPart extends A2ABasePart {
-  kind: 'text'
+  kind?: 'text'
   text: string
+}
+
+/**
+ * isTextPart detects an A2A text part across protocol versions: v1.0 (`{ text }`)
+ * and legacy v0.x (`{ kind: 'text', text }`).
+ */
+export function isTextPart(part: A2APart): part is A2ATextPart {
+  return typeof (part as A2ATextPart).text === 'string'
 }
 
 /**

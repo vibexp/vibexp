@@ -247,6 +247,20 @@ class AgentService {
     )
   }
 
+  async cancelExecution(
+    teamId: string,
+    executionId: string
+  ): Promise<AgentExecution> {
+    return unwrap(
+      generatedClient.POST(
+        '/api/v1/{team_id}/agents/executions/{execution_id}/cancel',
+        {
+          params: { path: { team_id: teamId, execution_id: executionId } },
+        }
+      )
+    )
+  }
+
   async getExecutionEvents(
     teamId: string,
     executionId: string,

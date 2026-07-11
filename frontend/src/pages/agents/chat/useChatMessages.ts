@@ -7,11 +7,11 @@ import {
 import { toast } from '@/lib/toast'
 import type { Agent, AgentExecution } from '@/services/agentService'
 import { agentService } from '@/services/agentService'
-import type {
-  A2AArtifact,
-  A2AArtifactUpdateEventData,
-  A2APart,
-  A2ATextPart,
+import {
+  type A2AArtifact,
+  type A2AArtifactUpdateEventData,
+  type A2APart,
+  isTextPart,
 } from '@/types/a2a'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -88,10 +88,11 @@ function extractResponseText(execution: AgentExecution): string {
   if (execution.artifacts && Array.isArray(execution.artifacts)) {
     const textParts = (execution.artifacts as A2AArtifact[])
       .flatMap((artifact: A2AArtifact) => artifact.parts ?? [])
-      .filter((part: A2APart): part is A2ATextPart => part.kind === 'text')
-      .map((part: A2ATextPart) => part.text)
+      .filter(isTextPart)
+      .map(part => part.text)
     if (textParts.length > 0) return textParts.join('\n')
   }
+  if (execution.status === 'cancelled') return 'Cancelled'
   return 'No response received'
 }
 
@@ -129,9 +130,7 @@ export function useChatMessages({
     }
     const parts: A2APart[] = artifactData.parts ?? []
 
-    const textParts = parts
-      .filter((part): part is A2ATextPart => part.kind === 'text')
-      .map(part => part.text)
+    const textParts = parts.filter(isTextPart).map(part => part.text)
     if (textParts.length === 0) return
 
     const newText = textParts.join('\n')
@@ -328,6 +327,20 @@ export function useChatMessages({
     [agent, teamId, conversationId, handleExecutionComplete]
   )
 
+  const cancelExecution = useCallback(async () => {
+    if (!teamId || !currentExecutionId) return
+    try {
+      const execution = await agentService.cancelExecution(
+        teamId,
+        currentExecutionId
+      )
+      handleExecutionComplete(execution)
+      setCurrentExecutionId(null)
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to cancel execution'))
+    }
+  }, [teamId, currentExecutionId, handleExecutionComplete])
+
   const reset = useCallback(() => {
     setMessages([])
     setHasEarlierMessages(false)
@@ -343,12 +356,14 @@ export function useChatMessages({
     executionMetadata,
     setExecutionMetadata,
     currentState,
+    currentExecutionId,
     hasEarlierMessages,
     isLoadingEarlier,
     totalMessageCount,
     loadConversation,
     loadEarlierMessages,
     sendMessage,
+    cancelExecution,
     reset,
   }
 }
