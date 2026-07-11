@@ -34,6 +34,23 @@ func (f *fakeProvider) Model() string   { return "fake-model" }
 func (f *fakeProvider) Dimensions() int { return 3 }
 func (f *fakeProvider) Type() string    { return ProviderTypeOpenAICompatible }
 
+// echoCountProvider returns one vector per input text, so it works for
+// multi-chunk inputs (the processor requires len(vectors) == len(chunks)). It
+// records the exact texts it was asked to embed.
+type echoCountProvider struct{ gotTexts []string }
+
+func (e *echoCountProvider) GenerateEmbeddings(_ context.Context, texts []string) ([][]float32, error) {
+	e.gotTexts = texts
+	vectors := make([][]float32, len(texts))
+	for i := range texts {
+		vectors[i] = []float32{0.1, 0.2, 0.3}
+	}
+	return vectors, nil
+}
+func (e *echoCountProvider) Model() string   { return "fake-model" }
+func (e *echoCountProvider) Dimensions() int { return 3 }
+func (e *echoCountProvider) Type() string    { return ProviderTypeOpenAICompatible }
+
 type fakeResolver struct {
 	provider       EmbeddingProvider
 	err            error
@@ -106,7 +123,7 @@ func TestProcessEvent_HappyPath_SavesChunks(t *testing.T) {
 	p := newProcessor(resolver, svc)
 
 	event := events.NewPromptCreatedEvent(
-		"prompt-1", "user-1", "u@example.com", "proj", "slug", "Title", "Body text", time.Now(),
+		"prompt-1", "user-1", "u@example.com", "proj", "slug", "Title", "", "Body text", time.Now(),
 	)
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
@@ -131,7 +148,7 @@ func TestProcessEvent_AppliesDocumentPrefix_StoresRawContent(t *testing.T) {
 	p := newProcessor(resolver, svc)
 
 	event := events.NewPromptCreatedEvent(
-		"prompt-1", "user-1", "u@example.com", "proj", "slug", "Title", "Body text", time.Now(),
+		"prompt-1", "user-1", "u@example.com", "proj", "slug", "Title", "", "Body text", time.Now(),
 	)
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
@@ -187,6 +204,105 @@ func TestProcessEvent_EmptyText_NoOp(t *testing.T) {
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 	assert.Equal(t, 0, resolver.calls)
 	assert.Equal(t, 0, svc.saveCalls)
+}
+
+// --- context header (issue #173) ---
+
+func TestProcessEvent_ContextHeader_MultiChunk_EveryChunkPrefixed(t *testing.T) {
+	provider := &echoCountProvider{}
+	resolver := &fakeResolver{provider: provider}
+	svc := &fakeEmbeddingService{team: "team-1"}
+	p := newProcessor(resolver, svc)
+
+	// Body well over the 1000-rune window so it spans several chunks.
+	body := strings.Repeat("lorem ipsum dolor sit amet ", 200)
+	event := events.NewArtifactCreatedEvent(
+		"art-1", "user-1", "proj", "slug", "My Title", "A short description", "note", body, time.Now(),
+	)
+
+	require.NoError(t, p.ProcessEvent(context.Background(), event))
+
+	require.Greater(t, len(svc.chunks), 1, "body should span multiple chunks")
+	header := "My Title\nA short description"
+	for i, c := range svc.chunks {
+		assert.Truef(t, strings.HasPrefix(c.Content, header),
+			"chunk %d must start with the title+description header", i)
+	}
+	// With no document prefix, the stored content is exactly the embedded text.
+	require.Equal(t, len(svc.chunks), len(provider.gotTexts))
+	for i := range svc.chunks {
+		assert.Equal(t, svc.chunks[i].Content, provider.gotTexts[i],
+			"stored chunk content must equal the embedded text")
+	}
+}
+
+func TestProcessEvent_ContextHeader_TitleOnly(t *testing.T) {
+	provider := &echoCountProvider{}
+	resolver := &fakeResolver{provider: provider}
+	svc := &fakeEmbeddingService{team: "team-1"}
+	p := newProcessor(resolver, svc)
+
+	body := strings.Repeat("lorem ipsum dolor sit amet ", 200)
+	// Empty description: header is the title alone.
+	event := events.NewArtifactCreatedEvent(
+		"art-1", "user-1", "proj", "slug", "My Title", "", "note", body, time.Now(),
+	)
+
+	require.NoError(t, p.ProcessEvent(context.Background(), event))
+
+	require.Greater(t, len(svc.chunks), 1)
+	for i, c := range svc.chunks {
+		assert.Truef(t, strings.HasPrefix(c.Content, "My Title"),
+			"chunk %d must start with the title header", i)
+	}
+	// No description means the header line has no second line before the body.
+	assert.True(t, strings.HasPrefix(svc.chunks[0].Content, "My Title\n\n"))
+}
+
+func TestProcessEvent_ContextHeader_SingleChunk_HeaderPlusBody(t *testing.T) {
+	provider := &echoCountProvider{}
+	resolver := &fakeResolver{provider: provider}
+	svc := &fakeEmbeddingService{team: "team-1"}
+	p := newProcessor(resolver, svc)
+
+	event := events.NewArtifactCreatedEvent(
+		"art-1", "user-1", "proj", "slug", "My Title", "Desc", "note", "short body", time.Now(),
+	)
+
+	require.NoError(t, p.ProcessEvent(context.Background(), event))
+
+	require.Len(t, svc.chunks, 1)
+	assert.Equal(t, "My Title\nDesc\n\nshort body", svc.chunks[0].Content)
+}
+
+func TestProcessEvent_UntitledMemory_ByteIdentical_NoHeader(t *testing.T) {
+	provider := &echoCountProvider{}
+	resolver := &fakeResolver{provider: provider}
+	svc := &fakeEmbeddingService{team: "team-1"}
+	p := newProcessor(resolver, svc)
+
+	event := events.NewMemoryCreatedEvent("mem-1", "user-1", "proj", "just the memory text", time.Now())
+
+	require.NoError(t, p.ProcessEvent(context.Background(), event))
+
+	require.Len(t, svc.chunks, 1)
+	// Untitled/undescribed entities carry no header — stored content is the raw body.
+	assert.Equal(t, "just the memory text", svc.chunks[0].Content)
+}
+
+func TestEmbeddingInputHeader_Truncation(t *testing.T) {
+	// Description is truncated to maxHeaderDescriptionRunes.
+	longDesc := strings.Repeat("x", 500)
+	got := embeddingInput{title: "T", description: longDesc}.header()
+	assert.Equal(t, "T\n"+strings.Repeat("x", maxHeaderDescriptionRunes), got)
+
+	// The whole header is capped at maxHeaderRunes even with a pathological title.
+	longTitle := strings.Repeat("y", 600)
+	capped := embeddingInput{title: longTitle}.header()
+	assert.Equal(t, maxHeaderRunes, len([]rune(capped)))
+
+	// Neither title nor description → no header.
+	assert.Equal(t, "", embeddingInput{body: "b"}.header())
 }
 
 func TestProcessEvent_ResolverError_Propagates(t *testing.T) {

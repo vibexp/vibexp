@@ -54,10 +54,11 @@ func TestPromptCreatedEvent(t *testing.T) {
 	slug := "test-slug"
 	email := "test@example.com"
 	title := "Test Prompt"
+	description := "A test prompt description"
 	body := "This is the rendered prompt body"
 	createdAt := time.Now()
 
-	event := NewPromptCreatedEvent(promptID, userID, email, projectName, slug, title, body, createdAt)
+	event := NewPromptCreatedEvent(promptID, userID, email, projectName, slug, title, description, body, createdAt)
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypePromptCreated, event.Type())
@@ -70,6 +71,7 @@ func TestPromptCreatedEvent(t *testing.T) {
 	assert.Equal(t, projectName, payload.ProjectName)
 	assert.Equal(t, slug, payload.Slug)
 	assert.Equal(t, title, payload.Title)
+	assert.Equal(t, description, payload.Description)
 	assert.Equal(t, body, payload.Body)
 	assert.Equal(t, createdAt, payload.CreatedAt)
 }
@@ -80,10 +82,11 @@ func TestPromptUpdatedEvent(t *testing.T) {
 	projectName := "test-project"
 	slug := "test-slug"
 	title := "Updated Prompt"
+	description := "An updated prompt description"
 	body := "This is the updated rendered prompt body"
 	updatedAt := time.Now()
 
-	event := NewPromptUpdatedEvent(promptID, userID, projectName, slug, title, body, updatedAt)
+	event := NewPromptUpdatedEvent(promptID, userID, projectName, slug, title, description, body, updatedAt)
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypePromptUpdated, event.Type())
@@ -96,6 +99,7 @@ func TestPromptUpdatedEvent(t *testing.T) {
 	assert.Equal(t, projectName, payload.ProjectName)
 	assert.Equal(t, slug, payload.Slug)
 	assert.Equal(t, title, payload.Title)
+	assert.Equal(t, description, payload.Description)
 	assert.Equal(t, body, payload.Body)
 	assert.Equal(t, updatedAt, payload.UpdatedAt)
 }
@@ -106,11 +110,14 @@ func TestArtifactCreatedEvent(t *testing.T) {
 	projectName := "test-project"
 	slug := "test-slug"
 	title := "Test Artifact"
+	description := "A test artifact description"
 	artifactType := "general"
 	body := "This is the artifact content used for embeddings"
 	createdAt := time.Now()
 
-	event := NewArtifactCreatedEvent(artifactID, userID, projectName, slug, title, artifactType, body, createdAt)
+	event := NewArtifactCreatedEvent(
+		artifactID, userID, projectName, slug, title, description, artifactType, body, createdAt,
+	)
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeArtifactCreated, event.Type())
@@ -123,6 +130,7 @@ func TestArtifactCreatedEvent(t *testing.T) {
 	assert.Equal(t, projectName, payload.ProjectName)
 	assert.Equal(t, slug, payload.Slug)
 	assert.Equal(t, title, payload.Title)
+	assert.Equal(t, description, payload.Description)
 	assert.Equal(t, artifactType, payload.Type)
 	assert.Equal(t, body, payload.Body)
 	assert.Equal(t, createdAt, payload.CreatedAt)
@@ -134,11 +142,14 @@ func TestArtifactUpdatedEvent(t *testing.T) {
 	projectName := "test-project"
 	slug := "test-slug"
 	title := "Updated Artifact"
+	description := "An updated artifact description"
 	artifactType := "general"
 	body := "Updated artifact content"
 	updatedAt := time.Now()
 
-	event := NewArtifactUpdatedEvent(artifactID, userID, projectName, slug, title, artifactType, body, updatedAt)
+	event := NewArtifactUpdatedEvent(
+		artifactID, userID, projectName, slug, title, description, artifactType, body, updatedAt,
+	)
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeArtifactUpdated, event.Type())
@@ -151,6 +162,7 @@ func TestArtifactUpdatedEvent(t *testing.T) {
 	assert.Equal(t, projectName, payload.ProjectName)
 	assert.Equal(t, slug, payload.Slug)
 	assert.Equal(t, title, payload.Title)
+	assert.Equal(t, description, payload.Description)
 	assert.Equal(t, artifactType, payload.Type)
 	assert.Equal(t, body, payload.Body)
 	assert.Equal(t, updatedAt, payload.UpdatedAt)
@@ -158,7 +170,7 @@ func TestArtifactUpdatedEvent(t *testing.T) {
 
 func TestArtifactCreatedPayload_IncludesBody(t *testing.T) {
 	body := "Substantive artifact content for embedding"
-	event := NewArtifactCreatedEvent("a1", "u1", "p1", "s1", "t1", "general", body, time.Now())
+	event := NewArtifactCreatedEvent("a1", "u1", "p1", "s1", "t1", "desc", "general", body, time.Now())
 
 	payload, ok := event.Payload().(*ArtifactCreatedPayload)
 	assert.True(t, ok)
@@ -167,7 +179,7 @@ func TestArtifactCreatedPayload_IncludesBody(t *testing.T) {
 
 func TestArtifactUpdatedPayload_IncludesBody(t *testing.T) {
 	body := "Updated artifact body for re-embedding"
-	event := NewArtifactUpdatedEvent("a1", "u1", "p1", "s1", "t1", "general", body, time.Now())
+	event := NewArtifactUpdatedEvent("a1", "u1", "p1", "s1", "t1", "desc", "general", body, time.Now())
 
 	payload, ok := event.Payload().(*ArtifactUpdatedPayload)
 	assert.True(t, ok)
@@ -180,11 +192,14 @@ func TestBlueprintCreatedEvent(t *testing.T) {
 	projectName := "test-project"
 	slug := "test-spec"
 	title := "Test Blueprint"
+	description := "A test blueprint description"
 	blueprintType := "spec"
 	body := "Blueprint content for embedding"
 	createdAt := time.Now()
 
-	event := NewBlueprintCreatedEvent(blueprintID, userID, projectName, slug, title, blueprintType, body, createdAt)
+	event := NewBlueprintCreatedEvent(
+		blueprintID, userID, projectName, slug, title, description, blueprintType, body, createdAt,
+	)
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeBlueprintCreated, event.Type())
@@ -197,6 +212,7 @@ func TestBlueprintCreatedEvent(t *testing.T) {
 	assert.Equal(t, projectName, payload.ProjectName)
 	assert.Equal(t, slug, payload.Slug)
 	assert.Equal(t, title, payload.Title)
+	assert.Equal(t, description, payload.Description)
 	assert.Equal(t, blueprintType, payload.Type)
 	assert.Equal(t, body, payload.Body)
 	assert.Equal(t, createdAt, payload.CreatedAt)
@@ -208,11 +224,14 @@ func TestBlueprintUpdatedEvent(t *testing.T) {
 	projectName := "test-project"
 	slug := "test-spec"
 	title := "Updated Blueprint"
+	description := "An updated blueprint description"
 	blueprintType := "spec"
 	body := "Updated blueprint content"
 	updatedAt := time.Now()
 
-	event := NewBlueprintUpdatedEvent(blueprintID, userID, projectName, slug, title, blueprintType, body, updatedAt)
+	event := NewBlueprintUpdatedEvent(
+		blueprintID, userID, projectName, slug, title, description, blueprintType, body, updatedAt,
+	)
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeBlueprintUpdated, event.Type())
@@ -225,6 +244,7 @@ func TestBlueprintUpdatedEvent(t *testing.T) {
 	assert.Equal(t, projectName, payload.ProjectName)
 	assert.Equal(t, slug, payload.Slug)
 	assert.Equal(t, title, payload.Title)
+	assert.Equal(t, description, payload.Description)
 	assert.Equal(t, blueprintType, payload.Type)
 	assert.Equal(t, body, payload.Body)
 	assert.Equal(t, updatedAt, payload.UpdatedAt)
@@ -232,7 +252,7 @@ func TestBlueprintUpdatedEvent(t *testing.T) {
 
 func TestBlueprintCreatedPayload_IncludesBody(t *testing.T) {
 	body := "Substantive blueprint content for embedding"
-	event := NewBlueprintCreatedEvent("b1", "u1", "p1", "s1", "t1", "spec", body, time.Now())
+	event := NewBlueprintCreatedEvent("b1", "u1", "p1", "s1", "t1", "desc", "spec", body, time.Now())
 
 	payload, ok := event.Payload().(*BlueprintCreatedPayload)
 	assert.True(t, ok)
@@ -241,7 +261,7 @@ func TestBlueprintCreatedPayload_IncludesBody(t *testing.T) {
 
 func TestBlueprintUpdatedPayload_IncludesBody(t *testing.T) {
 	body := "Updated blueprint body for re-embedding"
-	event := NewBlueprintUpdatedEvent("b1", "u1", "p1", "s1", "t1", "spec", body, time.Now())
+	event := NewBlueprintUpdatedEvent("b1", "u1", "p1", "s1", "t1", "desc", "spec", body, time.Now())
 
 	payload, ok := event.Payload().(*BlueprintUpdatedPayload)
 	assert.True(t, ok)

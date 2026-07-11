@@ -171,7 +171,7 @@ func TestTeamCreationListener_Handle_WrongEventType(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	listener := NewTeamCreationListener(mockTeamSvc, mockProjectSvc, logger)
-	event := NewPromptCreatedEvent("prompt-123", "user-123", "", "", "", "", "", time.Now())
+	event := NewPromptCreatedEvent("prompt-123", "user-123", "", "", "", "", "", "", time.Now())
 
 	err := listener.Handle(context.Background(), event)
 

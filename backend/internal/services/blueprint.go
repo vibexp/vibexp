@@ -119,7 +119,7 @@ func (s *BlueprintService) CreateBlueprint(
 	if s.eventManager != nil {
 		event := events.NewBlueprintCreatedEvent(
 			blueprint.ID, blueprint.UserID, blueprint.ProjectID, blueprint.Slug,
-			blueprint.Title, blueprint.Type, blueprint.Content, blueprint.CreatedAt,
+			blueprint.Title, blueprint.Description, blueprint.Type, blueprint.Content, blueprint.CreatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish blueprint created event")
@@ -357,7 +357,7 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	if s.eventManager != nil {
 		event := events.NewBlueprintUpdatedEvent(
 			blueprint.ID, blueprint.UserID, blueprint.ProjectID, blueprint.Slug,
-			blueprint.Title, blueprint.Type, blueprint.Content, blueprint.UpdatedAt,
+			blueprint.Title, blueprint.Description, blueprint.Type, blueprint.Content, blueprint.UpdatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish blueprint updated event")

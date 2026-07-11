@@ -174,7 +174,7 @@ func testManagerMultipleEventTypes(t *testing.T, logger *slog.Logger) {
 	assert.NoError(t, manager.Publish(context.Background(), userEvent))
 
 	promptEvent := NewPromptCreatedEvent(
-		"prompt123", "user123", "test@example.com", "project", "slug", "title", "Test prompt body", time.Now(),
+		"prompt123", "user123", "test@example.com", "project", "slug", "title", "", "Test prompt body", time.Now(),
 	)
 	assert.NoError(t, manager.Publish(context.Background(), promptEvent))
 

@@ -42,6 +42,7 @@ type BackfillEntity struct {
 	FeedID      string
 	Slug        string
 	Title       string
+	Description string
 	Body        string
 	Type        string
 	Email       string
