@@ -106,10 +106,11 @@ func insertTestEmbedding(
 }
 
 // TestSearchRepository_SearchKeyword_Integration exercises the full-text fallback
-// against a real PostgreSQL: it proves the generated SQL is valid, that ts_rank
-// ordering, status filtering, team/project scoping and pagination behave as the
-// acceptance criteria for issue #18 require, and (via TestMain applying migration
-// 002) that the FTS index migration is sound.
+// against a real PostgreSQL: it proves the generated SQL is valid, that ts_rank_cd
+// ordering (with title weighting and length normalization), status filtering,
+// team/project scoping and pagination behave as the acceptance criteria for issues
+// #18/#174/#183 require, and (via TestMain applying migrations 002 + 006) that the
+// weighted FTS index migration is sound.
 func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 	ctx := context.Background()
 	repo := NewSearchRepository(integrationDB).(*SearchRepository)
@@ -339,6 +340,62 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		assert.Equal(t, adjacent, rows[0].EntityID)
 	})
 
+	t.Run("a title match outranks a body-only match (title weighting)", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+
+		// AC: "a query term appearing in a resource title ranks that resource above
+		// body-only matches of otherwise similar rank." The term "widget" lives in
+		// exactly one field per prompt (title vs body), so the only thing separating
+		// them is the setweight A-vs-D weighting.
+		titleMatch := insertTestPrompt(t, user, team, project,
+			"widget configuration guide", "general instructions and setup notes for the system", "published")
+		bodyMatch := insertTestPrompt(t, user, team, project,
+			"general reference manual", "detailed notes about widget behaviour and tuning", "published")
+
+		rows, total, err := repo.SearchKeyword(ctx, team, "widget", []string{"prompt"}, "", 10, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 2, total)
+		require.Len(t, rows, 2)
+
+		// The title match sorts first with a strictly smaller distance (= higher
+		// ts_rank_cd) purely because its match is weight A, not weight D.
+		assert.Equal(t, titleMatch, rows[0].EntityID, "title match should rank first")
+		assert.Equal(t, bodyMatch, rows[1].EntityID)
+		assert.Less(t, rows[0].Distance, rows[1].Distance,
+			"title-weighted match must score higher (smaller distance) than the body-only match")
+	})
+
+	t.Run("a concise document outranks a verbose one on the same single match (length normalization)", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+
+		// AC: "long documents no longer dominate purely by length (normalized
+		// ranking)." Both prompts match "widget" exactly once in the body (title has
+		// no match, so weighting is identical); they differ only in body length. The
+		// old unnormalized ts_rank scored them equally (length-blind); ts_rank_cd with
+		// normalization flag 1 divides by 1 + log(document length), so the padded
+		// document ranks strictly below the concise one.
+		concise := insertTestPrompt(t, user, team, project,
+			"concise note", "widget", "published")
+		verbose := insertTestPrompt(t, user, team, project,
+			"verbose note", "widget "+strings.Repeat("lorem ipsum dolor sit amet consectetur ", 100), "published")
+
+		rows, total, err := repo.SearchKeyword(ctx, team, "widget", []string{"prompt"}, "", 10, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 2, total)
+		require.Len(t, rows, 2)
+
+		assert.Equal(t, concise, rows[0].EntityID, "the concise document should rank first")
+		assert.Equal(t, verbose, rows[1].EntityID)
+		assert.Less(t, rows[0].Distance, rows[1].Distance,
+			"length normalization must rank the concise document above the verbose one")
+	})
+
 	t.Run("query plan uses the GIN full-text index (EXPLAIN)", func(t *testing.T) {
 		resetSearchTables(t)
 		user := insertTestUser(t)
@@ -347,7 +404,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		// Seed many rows where the full-text predicate is the SELECTIVE one: only two
 		// carry the rare term, the rest are filler. That makes the GIN the planner's
 		// natural choice for the tsvector @@ tsquery match, so the EXPLAIN proves the
-		// migration-002 index is eligible for the swapped tsquery expressions — the
+		// migration-006 weighted index is eligible for both tsquery expressions — the
 		// assertion fails only if ftsExpr diverges from the indexed expression.
 		for i := 0; i < 2; i++ {
 			insertTestPrompt(t, user, team, project,
@@ -367,11 +424,11 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		tsv := ftsExpr(entitySources["prompt"])
 		strictPlan := explainFTS(t, ctx, tsv, keywordStrictTSQuery, "zqzxqterm")
 		assert.Contains(t, strictPlan, "idx_prompts_fts",
-			"strict tsquery should use the migration-002 GIN index, got plan:\n%s", strictPlan)
+			"strict tsquery should use the migration-006 weighted GIN index, got plan:\n%s", strictPlan)
 
 		relaxedPlan := explainFTS(t, ctx, tsv, keywordRelaxedTSQuery, "zqzxqterm please")
 		assert.Contains(t, relaxedPlan, "idx_prompts_fts",
-			"relaxed OR-rewrite tsquery should use the migration-002 GIN index, got plan:\n%s", relaxedPlan)
+			"relaxed OR-rewrite tsquery should use the migration-006 weighted GIN index, got plan:\n%s", relaxedPlan)
 	})
 }
 

@@ -1,8 +1,13 @@
-import { Search as SearchIcon } from 'lucide-react'
+import { Info, Search as SearchIcon } from 'lucide-react'
 import { type KeyboardEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -67,8 +72,42 @@ export function SearchFilters({
           onKeyDown={handleKeyDown}
           placeholder="Search prompts, artifacts, blueprints, memories…"
           aria-label="Search query"
-          className="pl-8"
+          className="pl-8 pr-9"
         />
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label="Search tips"
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute right-2.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm focus:outline-none focus-visible:ring-2"
+            >
+              <Info className="size-4" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80 text-sm">
+            <p className="mb-2 font-medium">Search tips</p>
+            <ul className="text-muted-foreground space-y-1.5">
+              <li>
+                <code className="text-foreground">
+                  &quot;exact phrase&quot;
+                </code>{' '}
+                — match an exact phrase
+              </li>
+              <li>
+                <code className="text-foreground">cat OR dog</code> — match
+                either term
+              </li>
+              <li>
+                <code className="text-foreground">cats -dogs</code> — exclude a
+                term
+              </li>
+            </ul>
+            <p className="text-muted-foreground mt-2 text-xs">
+              Operators apply to keyword search (used when no embedding provider
+              is configured).
+            </p>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <Select

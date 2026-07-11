@@ -38,6 +38,12 @@ type entitySource struct {
 	slugExpr string
 	// statusFilter is empty when the entity has no status column.
 	statusFilter string
+	// hasTitle is true when titleExpr is a real, distinct title column that should
+	// be weighted above the body in the keyword-mode full-text vector (weight A vs
+	// D). It is false for entities whose "title" is only a prefix of the body
+	// (memories: LEFT(text, 100)), which therefore use a single body-weighted
+	// vector to avoid double-counting the leading text. See ftsExpr.
+	hasTitle bool
 }
 
 // entitySources maps the singular embeddings entity_type to its source-table metadata.
@@ -48,6 +54,7 @@ var entitySources = map[string]entitySource{
 		bodyExpr:     "src.body",
 		slugExpr:     "src.slug",
 		statusFilter: "src.status = 'published'",
+		hasTitle:     true,
 	},
 	"artifact": {
 		table:        "artifacts",
@@ -55,6 +62,7 @@ var entitySources = map[string]entitySource{
 		bodyExpr:     "src.content",
 		slugExpr:     "src.slug",
 		statusFilter: "src.status = 'active'",
+		hasTitle:     true,
 	},
 	"blueprint": {
 		table:        "blueprints",
@@ -62,6 +70,7 @@ var entitySources = map[string]entitySource{
 		bodyExpr:     "src.content",
 		slugExpr:     "src.slug",
 		statusFilter: "src.status = 'active'",
+		hasTitle:     true,
 	},
 	"memory": {
 		table:        "memories",
@@ -298,7 +307,7 @@ const (
 	// ANDs plain words (like the old plainto_tsquery) but additionally honours
 	// quoted phrases and explicit OR / "-" operators, so exact-term and operator
 	// queries stay precise. The explicit 'english' regconfig keeps it IMMUTABLE so
-	// the migration-002 GIN indexes still apply.
+	// the migration-006 weighted GIN indexes still apply.
 	keywordStrictTSQuery = "websearch_to_tsquery('english', $1)"
 	// keywordRelaxedTSQuery loosens the strict query to OR semantics by rewriting
 	// every AND (&) between lexemes into an OR (|). websearch_to_tsquery first
@@ -373,13 +382,26 @@ func (r *SearchRepository) runKeywordPass(
 	return rows, total, nil
 }
 
-// ftsExpr renders the combined title+body tsvector used for both the WHERE match
-// and the ts_rank score, in the 'english' text-search configuration. Using the
-// two-argument to_tsvector (explicit regconfig) keeps the expression IMMUTABLE so
-// the matching GIN index in migration 002 can satisfy it.
+// ftsExpr renders the weighted title+body tsvector used for both the WHERE match
+// and the ts_rank_cd score, in the 'english' text-search configuration. The title
+// is tagged weight A and the body weight D via setweight(), so a term appearing in
+// a resource's title outranks the same term buried in its body (see ts_rank_cd's
+// default {A,B,C,D} weights of {1.0, 0.4, 0.2, 0.1}). Entities without a real
+// title (memories, whose "title" is just LEFT(text, 100)) use a single
+// D-weighted body vector to avoid double-weighting the leading text. Using the
+// two-argument to_tsvector (explicit regconfig) keeps the expression IMMUTABLE, and
+// it must stay byte-for-byte in sync with the weighted GIN indexes in migration 006
+// (with src.* qualifiers resolving to the same columns) so the index still applies.
 func ftsExpr(src entitySource) string {
+	if !src.hasTitle {
+		return fmt.Sprintf(
+			"setweight(to_tsvector('english', coalesce(%s, '')), 'D')",
+			src.bodyExpr,
+		)
+	}
 	return fmt.Sprintf(
-		"to_tsvector('english', coalesce(%s, '') || ' ' || coalesce(%s, ''))",
+		"setweight(to_tsvector('english', coalesce(%s, '')), 'A') || "+
+			"setweight(to_tsvector('english', coalesce(%s, '')), 'D')",
 		src.titleExpr, src.bodyExpr,
 	)
 }
@@ -388,9 +410,16 @@ func ftsExpr(src entitySource) string {
 // source table directly via full-text search with the given tsquery expression
 // (strict or relaxed). It uses positional args: $1 = query, $2 = team_id,
 // $3 = project_id (NULL = no filter), shared across every branch. chunk_content is
-// the empty literal (there are no embedding chunks here); distance is 1 - ts_rank
-// so the outer ORDER BY distance ASC yields the most relevant rows first and the
-// service derives Score = 1 - distance = ts_rank.
+// the empty literal (there are no embedding chunks here); distance is
+// 1 - ts_rank_cd so the outer ORDER BY distance ASC yields the most relevant rows
+// first and the service derives Score = 1 - distance = ts_rank_cd.
+//
+// Ranking uses ts_rank_cd (cover density) over the weighted title/body vector with
+// normalization flags 1|32: flag 1 divides the rank by 1 + log(document length) so
+// long documents no longer dominate purely by length, and flag 32 (rank/(rank+1))
+// keeps the score in [0, 1) so 1 - rank stays a valid, non-negative distance.
+// (The issue's HOW named 32 alone, but 32 does not length-normalize; flag 1 is
+// added to satisfy the "long documents no longer dominate by length" criterion.)
 func buildKeywordBranch(entityType string, src entitySource, tsquery string) string {
 	tsv := ftsExpr(src)
 	var b strings.Builder
@@ -399,7 +428,7 @@ func buildKeywordBranch(entityType string, src entitySource, tsquery string) str
 	b.WriteString("src.project_id::text AS project_id, COALESCE(proj.name, '') AS project_name, ")
 	fmt.Fprintf(&b, "'' AS chunk_content, %s AS source_body, ", src.bodyExpr)
 	b.WriteString("src.created_at AS created_at, src.updated_at AS updated_at, ")
-	fmt.Fprintf(&b, "1 - ts_rank(%s, %s) AS distance ", tsv, tsquery)
+	fmt.Fprintf(&b, "1 - ts_rank_cd(%s, %s, 1|32) AS distance ", tsv, tsquery)
 	fmt.Fprintf(&b, "FROM %s src ", src.table)
 	b.WriteString("LEFT JOIN projects proj ON src.project_id = proj.id ")
 	b.WriteString("WHERE src.team_id = $2")
