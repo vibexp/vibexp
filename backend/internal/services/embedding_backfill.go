@@ -282,18 +282,18 @@ func (s *EmbeddingBackfillService) buildCreatedEvent(e *models.BackfillEntity) (
 	switch e.EntityType {
 	case "prompt":
 		return events.NewPromptCreatedEvent(
-			e.EntityID, e.UserID, e.Email, e.ProjectName, e.Slug, e.Title,
+			e.EntityID, e.UserID, e.Email, e.ProjectName, e.Slug, e.Title, e.Description,
 			s.renderPromptBody(e), e.CreatedAt,
 		), nil
 	case "artifact":
 		return events.NewArtifactCreatedEvent(
-			e.EntityID, e.UserID, e.ProjectName, e.Slug, e.Title, e.Type, e.Body, e.CreatedAt,
+			e.EntityID, e.UserID, e.ProjectName, e.Slug, e.Title, e.Description, e.Type, e.Body, e.CreatedAt,
 		), nil
 	case "memory":
 		return events.NewMemoryCreatedEvent(e.EntityID, e.UserID, e.ProjectName, e.Body, e.CreatedAt), nil
 	case "blueprint":
 		return events.NewBlueprintCreatedEvent(
-			e.EntityID, e.UserID, e.ProjectName, e.Slug, e.Title, e.Type, e.Body, e.CreatedAt,
+			e.EntityID, e.UserID, e.ProjectName, e.Slug, e.Title, e.Description, e.Type, e.Body, e.CreatedAt,
 		), nil
 	case "feed_item":
 		return events.NewFeedItemCreatedEvent(

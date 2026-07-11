@@ -98,7 +98,8 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 	}
 
 	event := events.NewPromptCreatedEvent(
-		prompt.ID, prompt.UserID, userEmail, "default", prompt.Slug, prompt.Name, renderedBody, prompt.CreatedAt,
+		prompt.ID, prompt.UserID, userEmail, "default", prompt.Slug, prompt.Name,
+		prompt.Description, renderedBody, prompt.CreatedAt,
 	)
 	if err := s.eventManager.Publish(ctx, event); err != nil {
 		s.logger.With("error", err).Warn("Failed to publish prompt created event")
@@ -407,7 +408,7 @@ func (s *PromptService) updatePromptInternal(
 
 		event := events.NewPromptUpdatedEvent(
 			updatedPrompt.ID, updatedPrompt.UserID, "default", updatedPrompt.Slug,
-			updatedPrompt.Name, renderedBody, updatedPrompt.UpdatedAt,
+			updatedPrompt.Name, updatedPrompt.Description, renderedBody, updatedPrompt.UpdatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish prompt updated event")

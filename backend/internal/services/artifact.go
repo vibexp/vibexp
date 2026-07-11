@@ -144,7 +144,7 @@ func (s *ArtifactService) CreateArtifact(
 	if s.eventManager != nil {
 		event := events.NewArtifactCreatedEvent(
 			artifact.ID, artifact.UserID, artifact.ProjectID, artifact.Slug,
-			artifact.Title, artifact.Type, artifact.Content, artifact.CreatedAt,
+			artifact.Title, artifact.Description, artifact.Type, artifact.Content, artifact.CreatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish artifact created event")
@@ -437,7 +437,7 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 	if s.eventManager != nil {
 		event := events.NewArtifactUpdatedEvent(
 			artifact.ID, artifact.UserID, artifact.ProjectID, artifact.Slug,
-			artifact.Title, artifact.Type, artifact.Content, artifact.UpdatedAt,
+			artifact.Title, artifact.Description, artifact.Type, artifact.Content, artifact.UpdatedAt,
 		)
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish artifact updated event")

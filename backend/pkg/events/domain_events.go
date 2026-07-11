@@ -117,6 +117,7 @@ type PromptCreatedPayload struct {
 	ProjectName string
 	Slug        string
 	Title       string
+	Description string // Short summary embedded as part of the per-chunk context header
 	Body        string // Rendered body with all references resolved
 	CreatedAt   time.Time
 }
@@ -127,7 +128,9 @@ type PromptCreatedEvent struct {
 }
 
 // NewPromptCreatedEvent creates a new prompt created event
-func NewPromptCreatedEvent(promptID, userID, email, projectName, slug, title, body string, createdAt time.Time) Event {
+func NewPromptCreatedEvent(
+	promptID, userID, email, projectName, slug, title, description, body string, createdAt time.Time,
+) Event {
 	payload := &PromptCreatedPayload{
 		PromptID:    promptID,
 		UserID:      userID,
@@ -135,6 +138,7 @@ func NewPromptCreatedEvent(promptID, userID, email, projectName, slug, title, bo
 		ProjectName: projectName,
 		Slug:        slug,
 		Title:       title,
+		Description: description,
 		Body:        body,
 		CreatedAt:   createdAt,
 	}
@@ -150,6 +154,7 @@ type PromptUpdatedPayload struct {
 	ProjectName string
 	Slug        string
 	Title       string
+	Description string // Short summary embedded as part of the per-chunk context header
 	Body        string // Rendered body with all references resolved
 	UpdatedAt   time.Time
 }
@@ -160,13 +165,16 @@ type PromptUpdatedEvent struct {
 }
 
 // NewPromptUpdatedEvent creates a new prompt updated event
-func NewPromptUpdatedEvent(promptID, userID, projectName, slug, title, body string, updatedAt time.Time) Event {
+func NewPromptUpdatedEvent(
+	promptID, userID, projectName, slug, title, description, body string, updatedAt time.Time,
+) Event {
 	payload := &PromptUpdatedPayload{
 		PromptID:    promptID,
 		UserID:      userID,
 		ProjectName: projectName,
 		Slug:        slug,
 		Title:       title,
+		Description: description,
 		Body:        body,
 		UpdatedAt:   updatedAt,
 	}
@@ -182,6 +190,7 @@ type ArtifactCreatedPayload struct {
 	ProjectName string
 	Slug        string
 	Title       string
+	Description string // Short summary embedded as part of the per-chunk context header
 	Type        string
 	Body        string // Artifact content used by the embedding pipeline
 	CreatedAt   time.Time
@@ -194,7 +203,7 @@ type ArtifactCreatedEvent struct {
 
 // NewArtifactCreatedEvent creates a new artifact created event
 func NewArtifactCreatedEvent(
-	artifactID, userID, projectName, slug, title, artifactType, body string, createdAt time.Time,
+	artifactID, userID, projectName, slug, title, description, artifactType, body string, createdAt time.Time,
 ) Event {
 	payload := &ArtifactCreatedPayload{
 		ArtifactID:  artifactID,
@@ -202,6 +211,7 @@ func NewArtifactCreatedEvent(
 		ProjectName: projectName,
 		Slug:        slug,
 		Title:       title,
+		Description: description,
 		Type:        artifactType,
 		Body:        body,
 		CreatedAt:   createdAt,
@@ -218,6 +228,7 @@ type ArtifactUpdatedPayload struct {
 	ProjectName string
 	Slug        string
 	Title       string
+	Description string // Short summary embedded as part of the per-chunk context header
 	Type        string
 	Body        string // Artifact content used by the embedding pipeline
 	UpdatedAt   time.Time
@@ -230,7 +241,7 @@ type ArtifactUpdatedEvent struct {
 
 // NewArtifactUpdatedEvent creates a new artifact updated event
 func NewArtifactUpdatedEvent(
-	artifactID, userID, projectName, slug, title, artifactType, body string, updatedAt time.Time,
+	artifactID, userID, projectName, slug, title, description, artifactType, body string, updatedAt time.Time,
 ) Event {
 	payload := &ArtifactUpdatedPayload{
 		ArtifactID:  artifactID,
@@ -238,6 +249,7 @@ func NewArtifactUpdatedEvent(
 		ProjectName: projectName,
 		Slug:        slug,
 		Title:       title,
+		Description: description,
 		Type:        artifactType,
 		Body:        body,
 		UpdatedAt:   updatedAt,
@@ -386,6 +398,7 @@ type BlueprintCreatedPayload struct {
 	ProjectName string
 	Slug        string
 	Title       string
+	Description string // Short summary embedded as part of the per-chunk context header
 	Type        string
 	Body        string // Blueprint content used by the embedding pipeline
 	CreatedAt   time.Time
@@ -398,7 +411,7 @@ type BlueprintCreatedEvent struct {
 
 // NewBlueprintCreatedEvent creates a new spec library created event
 func NewBlueprintCreatedEvent(
-	blueprintID, userID, projectName, slug, title, blueprintType, body string, createdAt time.Time,
+	blueprintID, userID, projectName, slug, title, description, blueprintType, body string, createdAt time.Time,
 ) Event {
 	payload := &BlueprintCreatedPayload{
 		BlueprintID: blueprintID,
@@ -406,6 +419,7 @@ func NewBlueprintCreatedEvent(
 		ProjectName: projectName,
 		Slug:        slug,
 		Title:       title,
+		Description: description,
 		Type:        blueprintType,
 		Body:        body,
 		CreatedAt:   createdAt,
@@ -422,6 +436,7 @@ type BlueprintUpdatedPayload struct {
 	ProjectName string
 	Slug        string
 	Title       string
+	Description string // Short summary embedded as part of the per-chunk context header
 	Type        string
 	Body        string // Blueprint content used by the embedding pipeline
 	UpdatedAt   time.Time
@@ -434,7 +449,7 @@ type BlueprintUpdatedEvent struct {
 
 // NewBlueprintUpdatedEvent creates a new spec library updated event
 func NewBlueprintUpdatedEvent(
-	blueprintID, userID, projectName, slug, title, blueprintType, body string, updatedAt time.Time,
+	blueprintID, userID, projectName, slug, title, description, blueprintType, body string, updatedAt time.Time,
 ) Event {
 	payload := &BlueprintUpdatedPayload{
 		BlueprintID: blueprintID,
@@ -442,6 +457,7 @@ func NewBlueprintUpdatedEvent(
 		ProjectName: projectName,
 		Slug:        slug,
 		Title:       title,
+		Description: description,
 		Type:        blueprintType,
 		Body:        body,
 		UpdatedAt:   updatedAt,

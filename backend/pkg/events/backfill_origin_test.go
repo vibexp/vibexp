@@ -21,12 +21,12 @@ func (eventWithoutMarker) UserID() string           { return "" }
 func (eventWithoutMarker) RetryPolicy() RetryPolicy { return RetryPolicyNone }
 
 func TestIsBackfillOrigin_UnmarkedEvent(t *testing.T) {
-	event := NewPromptCreatedEvent("p1", "u1", "e@x.com", "proj", "slug", "title", "body", time.Now())
+	event := NewPromptCreatedEvent("p1", "u1", "e@x.com", "proj", "slug", "title", "", "body", time.Now())
 	assert.False(t, IsBackfillOrigin(event), "a freshly built event must not be backfill-origin")
 }
 
 func TestMarkBackfillOrigin_MarksEvent(t *testing.T) {
-	event := NewPromptCreatedEvent("p1", "u1", "e@x.com", "proj", "slug", "title", "body", time.Now())
+	event := NewPromptCreatedEvent("p1", "u1", "e@x.com", "proj", "slug", "title", "", "body", time.Now())
 
 	returned := MarkBackfillOrigin(event)
 
@@ -44,8 +44,8 @@ func TestMarkBackfillOrigin_IsIdempotent(t *testing.T) {
 }
 
 func TestMarkBackfillOrigin_DoesNotAffectOtherEvents(t *testing.T) {
-	marked := NewPromptCreatedEvent("p1", "u1", "e@x.com", "proj", "slug", "title", "body", time.Now())
-	unmarked := NewPromptCreatedEvent("p2", "u1", "e@x.com", "proj", "slug", "title", "body", time.Now())
+	marked := NewPromptCreatedEvent("p1", "u1", "e@x.com", "proj", "slug", "title", "", "body", time.Now())
+	unmarked := NewPromptCreatedEvent("p2", "u1", "e@x.com", "proj", "slug", "title", "", "body", time.Now())
 
 	MarkBackfillOrigin(marked)
 
@@ -84,7 +84,7 @@ func TestBackfillOrigin_BusDispatch_MarkerSurvives(t *testing.T) {
 	require.NoError(t, bus.Subscribe(forwarder))
 
 	backfillEvent := NewPromptCreatedEvent(
-		"prompt-1", "user-1", "test@example.com", "proj", "slug", "title", "body", time.Now(),
+		"prompt-1", "user-1", "test@example.com", "proj", "slug", "title", "", "body", time.Now(),
 	)
 	MarkBackfillOrigin(backfillEvent)
 	require.NoError(t, bus.Publish(context.Background(), backfillEvent))

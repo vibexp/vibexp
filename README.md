@@ -207,6 +207,16 @@ make frontend-run-dev
 
 The recommended query prefix for this model is `Represent this sentence for searching relevant passages: `.
 
+> **Applying embedding-pipeline improvements to existing data.** Changes to how
+> content is embedded (for example, the per-chunk title + description context
+> header) take effect automatically for resources created or edited afterwards,
+> but already-embedded resources keep their old vectors until they are
+> regenerated. The **Reprocess** action on a team's embedding-provider settings
+> only fills in *missing* embeddings; a full regeneration of existing vectors is
+> triggered when the team's embedding provider identity changes (model, base URL,
+> or instruction prefix). To adopt a pipeline improvement across a team's existing
+> data, trigger that full re-embed.
+
 Common checks:
 
 ```sh

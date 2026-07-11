@@ -15,10 +15,10 @@ import (
 
 const testModelID = "gemini-embedding-001"
 
-// backfillColumns mirrors the 12 columns every backfill query projects, in order.
+// backfillColumns mirrors the 13 columns every backfill query projects, in order.
 var backfillColumns = []string{
 	"entity_id", "user_id", "team_id", "project_name", "feed_id", "slug",
-	"title", "body", "type", "email", "excerpt", "created_at",
+	"title", "description", "body", "type", "email", "excerpt", "created_at",
 }
 
 func TestEmbeddingBackfillRepository_ListEntities_Prompt(t *testing.T) {
@@ -35,7 +35,7 @@ func TestEmbeddingBackfillRepository_ListEntities_Prompt(t *testing.T) {
 
 	rows := sqlmock.NewRows(backfillColumns).AddRow(
 		"p1", "user-1", "team-1", "proj-1", "", "my-prompt",
-		"Prompt Name", "prompt body", "", "user@example.com", "", now,
+		"Prompt Name", "prompt summary", "prompt body", "", "user@example.com", "", now,
 	)
 	mock.ExpectQuery("FROM prompts").
 		WithArgs(500, 0).
@@ -49,6 +49,7 @@ func TestEmbeddingBackfillRepository_ListEntities_Prompt(t *testing.T) {
 	assert.Equal(t, "p1", got[0].EntityID)
 	assert.Equal(t, "user@example.com", got[0].Email)
 	assert.Equal(t, "Prompt Name", got[0].Title)
+	assert.Equal(t, "prompt summary", got[0].Description)
 	assert.Equal(t, "prompt body", got[0].Body)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -67,7 +68,7 @@ func TestEmbeddingBackfillRepository_ListEntities_FeedItem(t *testing.T) {
 
 	rows := sqlmock.NewRows(backfillColumns).AddRow(
 		"f1", "poster-1", "team-9", "", "feed-1", "",
-		"Item Title", "item content", "", "", "short excerpt", now,
+		"Item Title", "", "item content", "", "", "short excerpt", now,
 	)
 	mock.ExpectQuery("FROM feed_items").
 		WithArgs(500, 0).
@@ -97,7 +98,7 @@ func TestEmbeddingBackfillRepository_ListEntities_MissingOnly_FiltersAndBindsMod
 
 	rows := sqlmock.NewRows(backfillColumns).AddRow(
 		"m1", "user-1", "team-1", "proj-1", "", "",
-		"", "memory text", "", "", "", now,
+		"", "", "memory text", "", "", "", now,
 	)
 	// The missing-only query must add the NOT EXISTS embeddings filter keyed by the
 	// configured model id (bound as the third arg).

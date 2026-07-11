@@ -24,10 +24,10 @@ func NewEmbeddingBackfillRepository(db *database.DB) repositories.EmbeddingBackf
 
 // backfillQuery describes how to read one entity type's source table into a
 // BackfillEntity. selectFrom is the SELECT … FROM (… JOIN) body, projecting
-// exactly the twelve columns scanned in ListEntities, in this order: entity_id,
-// user_id, team_id, project_name, feed_id, slug, title, body, type, email, excerpt,
-// created_at. Columns the entity lacks are emitted as an empty-string literal (or a
-// join, for prompt email) so every branch scans uniformly. orderBy gives the stable
+// exactly the thirteen columns scanned in ListEntities, in this order: entity_id,
+// user_id, team_id, project_name, feed_id, slug, title, description, body, type,
+// email, excerpt, created_at. Columns the entity lacks are emitted as an empty-string
+// literal (or a join, for prompt email) so every branch scans uniformly. orderBy gives the stable
 // total order. idExpr is the source row's id column, correlated against
 // embeddings.entity_id when filtering to only entities missing an embedding. from is
 // the base "table alias" (no joins) used by the coverage COUNT query, which needs
@@ -49,8 +49,8 @@ var backfillQueries = map[string]backfillQuery{
 	"prompt": {
 		selectFrom: `
 		SELECT p.id, p.user_id, COALESCE(p.team_id::text, ''), COALESCE(p.project_id::text, ''),
-		       '' AS feed_id, p.slug, p.name AS title, p.body, '' AS type,
-		       COALESCE(u.email, '') AS email, '' AS excerpt, p.created_at
+		       '' AS feed_id, p.slug, p.name AS title, COALESCE(p.description, '') AS description,
+		       p.body, '' AS type, COALESCE(u.email, '') AS email, '' AS excerpt, p.created_at
 		FROM prompts p
 		LEFT JOIN users u ON u.id = p.user_id`,
 		orderBy: "p.created_at, p.id",
@@ -61,7 +61,8 @@ var backfillQueries = map[string]backfillQuery{
 	"artifact": {
 		selectFrom: `
 		SELECT a.id, a.user_id, COALESCE(a.team_id::text, ''), COALESCE(a.project_id::text, ''),
-		       '' AS feed_id, a.slug, a.title, a.content AS body, a.type, '' AS email, '' AS excerpt, a.created_at
+		       '' AS feed_id, a.slug, a.title, COALESCE(a.description, '') AS description,
+		       a.content AS body, a.type, '' AS email, '' AS excerpt, a.created_at
 		FROM artifacts a`,
 		orderBy: "a.created_at, a.id",
 		idExpr:  "a.id",
@@ -71,8 +72,8 @@ var backfillQueries = map[string]backfillQuery{
 	"memory": {
 		selectFrom: `
 		SELECT m.id, m.user_id, COALESCE(m.team_id::text, ''), COALESCE(m.project_id::text, ''),
-		       '' AS feed_id, '' AS slug, '' AS title, m.text AS body, '' AS type, '' AS email,
-		       '' AS excerpt, m.created_at
+		       '' AS feed_id, '' AS slug, '' AS title, '' AS description, m.text AS body, '' AS type,
+		       '' AS email, '' AS excerpt, m.created_at
 		FROM memories m`,
 		orderBy: "m.created_at, m.id",
 		idExpr:  "m.id",
@@ -82,7 +83,8 @@ var backfillQueries = map[string]backfillQuery{
 	"blueprint": {
 		selectFrom: `
 		SELECT b.id, b.user_id, COALESCE(b.team_id::text, ''), COALESCE(b.project_id::text, ''),
-		       '' AS feed_id, b.slug, b.title, b.content AS body, b.type, '' AS email, '' AS excerpt, b.created_at
+		       '' AS feed_id, b.slug, b.title, COALESCE(b.description, '') AS description,
+		       b.content AS body, b.type, '' AS email, '' AS excerpt, b.created_at
 		FROM blueprints b`,
 		orderBy: "b.created_at, b.id",
 		idExpr:  "b.id",
@@ -93,7 +95,8 @@ var backfillQueries = map[string]backfillQuery{
 		selectFrom: `
 		SELECT f.id, f.posted_by_user_id AS user_id, COALESCE(f.team_id::text, ''),
 		       '' AS project_name, COALESCE(f.feed_id::text, '') AS feed_id, '' AS slug,
-		       f.title, f.content AS body, '' AS type, '' AS email, f.excerpt, f.posted_at AS created_at
+		       f.title, '' AS description, f.content AS body, '' AS type, '' AS email,
+		       f.excerpt, f.posted_at AS created_at
 		FROM feed_items f`,
 		orderBy: "f.posted_at, f.id",
 		idExpr:  "f.id",
@@ -170,6 +173,7 @@ func (r *EmbeddingBackfillRepository) ListEntities(
 			&entity.FeedID,
 			&entity.Slug,
 			&entity.Title,
+			&entity.Description,
 			&entity.Body,
 			&entity.Type,
 			&entity.Email,

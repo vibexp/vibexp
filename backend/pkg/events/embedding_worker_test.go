@@ -34,7 +34,7 @@ func TestEmbeddingWorker_HandleDelegates(t *testing.T) {
 	proc := &fakeEmbeddingProcessor{}
 	w := NewEmbeddingWorker(proc, slog.New(slog.DiscardHandler))
 
-	event := NewPromptCreatedEvent("p1", "u1", "e", "proj", "slug", "t", "b", time.Now())
+	event := NewPromptCreatedEvent("p1", "u1", "e", "proj", "slug", "t", "", "b", time.Now())
 	require.NoError(t, w.Handle(context.Background(), event))
 
 	require.Equal(t, 1, proc.callCount())
@@ -67,7 +67,7 @@ func TestEmbeddingWorker_AsyncOnBus(t *testing.T) {
 	proc := &fakeEmbeddingProcessor{}
 	require.NoError(t, bus.Subscribe(NewEmbeddingWorker(proc, logger)))
 
-	event := NewPromptCreatedEvent("p1", "u1", "e", "proj", "slug", "Title", "Body", time.Now())
+	event := NewPromptCreatedEvent("p1", "u1", "e", "proj", "slug", "Title", "", "Body", time.Now())
 	require.NoError(t, bus.Publish(context.Background(), event))
 
 	require.Eventually(t, func() bool { return proc.callCount() == 1 }, 2*time.Second, 5*time.Millisecond)
