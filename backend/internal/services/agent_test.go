@@ -22,8 +22,10 @@ type MockAgentCardFetcher struct {
 	mock.Mock
 }
 
-func (m *MockAgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (*models.AgentCard, error) {
-	args := m.Called(ctx, cardURL)
+func (m *MockAgentCardFetcher) FetchAgentCard(
+	ctx context.Context, cardURL string, authHeaders map[string]string,
+) (*models.AgentCard, error) {
+	args := m.Called(ctx, cardURL, authHeaders)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -185,7 +187,7 @@ func TestAgentService_CreateAgent(t *testing.T) {
 						},
 					},
 				}
-				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json").
+				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json", mock.Anything).
 					Return(testAgentCard, nil)
 
 				// Mock successful agent creation
@@ -230,7 +232,7 @@ func TestAgentService_CreateAgent(t *testing.T) {
 					DefaultOutputModes: []string{"text/plain"},
 					Skills:             []a2a.AgentSkill{},
 				}
-				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json").
+				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json", mock.Anything).
 					Return(testAgentCard, nil)
 
 				mockAgentRepo.On("Create", mock.Anything, mock.MatchedBy(func(agent *models.Agent) bool {
@@ -266,7 +268,7 @@ func TestAgentService_CreateAgent(t *testing.T) {
 					DefaultOutputModes: []string{"text/plain"},
 					Skills:             []a2a.AgentSkill{},
 				}
-				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json").
+				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json", mock.Anything).
 					Return(testAgentCard, nil)
 
 				mockAgentRepo.On("Create", mock.Anything, mock.Anything).
@@ -346,7 +348,7 @@ func TestAgentService_GetAgentByID(t *testing.T) {
 					DefaultInputModes:  []string{"text/plain"},
 					DefaultOutputModes: []string{"text/plain"},
 				}
-				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json").
+				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json", mock.Anything).
 					Return(updatedCard, nil)
 
 				// Mock update call to save the re-fetched card
@@ -394,7 +396,7 @@ func TestAgentService_GetAgentByID(t *testing.T) {
 					Return(agent, nil)
 
 				// Mock card fetcher to fail
-				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json").
+				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json", mock.Anything).
 					Return((*models.AgentCard)(nil), fmt.Errorf("network error"))
 			},
 			expectError: false,
@@ -609,7 +611,7 @@ func TestAgentService_UpdateAgent(t *testing.T) {
 					DefaultOutputModes: []string{"text/plain"},
 					Skills:             []a2a.AgentSkill{},
 				}
-				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/updated-agent-card.json").
+				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/updated-agent-card.json", mock.Anything).
 					Return(updatedAgentCard, nil)
 
 				mockAgentRepo.On("Update", mock.Anything, mock.MatchedBy(func(agent *models.Agent) bool {

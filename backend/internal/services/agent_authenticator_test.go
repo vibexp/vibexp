@@ -491,3 +491,137 @@ func TestAgentAuthenticator_DecryptionErrors(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to decrypt credential")
 }
+
+// agentWithScheme builds an agent whose card declares a single named security
+// scheme with a matching stored credential encrypted under encryptionSvc.
+func agentWithScheme(
+	t *testing.T, encryptionSvc EncryptionServiceInterface,
+	schemeName string, scheme a2a.SecurityScheme, plaintext string,
+) *models.Agent {
+	t.Helper()
+	encrypted, err := encryptionSvc.Encrypt(plaintext)
+	require.NoError(t, err)
+	credentials := models.AgentCredentials{
+		schemeName: models.AgentCredential{Type: "apiKey", Value: encrypted},
+	}
+	return &models.Agent{
+		AgentCard: &models.AgentCard{
+			Name:            "Test Agent",
+			SecuritySchemes: a2a.NamedSecuritySchemes{a2a.SecuritySchemeName(schemeName): scheme},
+		},
+		Credentials: &credentials,
+	}
+}
+
+//nolint:funlen // Table-driven test with comprehensive scheme coverage
+func TestAgentAuthenticator_AuthHeaders(t *testing.T) {
+	encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
+	require.NoError(t, err)
+	authenticator := NewAgentAuthenticator(encryptionSvc)
+
+	t.Run("API key in header", func(t *testing.T) {
+		agent := agentWithScheme(t, encryptionSvc, "apiKey",
+			a2a.APIKeySecurityScheme{Name: "X-API-Key", Location: a2a.APIKeySecuritySchemeLocationHeader},
+			"secret-key-123")
+
+		headers, err := authenticator.AuthHeaders(agent)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"X-API-Key": "secret-key-123"}, headers)
+	})
+
+	t.Run("API key in Authorization header gets Bearer prefix", func(t *testing.T) {
+		agent := agentWithScheme(t, encryptionSvc, "apiKey",
+			a2a.APIKeySecurityScheme{Name: "Authorization", Location: a2a.APIKeySecuritySchemeLocationHeader},
+			"raw-token")
+
+		headers, err := authenticator.AuthHeaders(agent)
+		require.NoError(t, err)
+		assert.Equal(t, "Bearer raw-token", headers["Authorization"])
+	})
+
+	t.Run("HTTP bearer scheme", func(t *testing.T) {
+		agent := agentWithScheme(t, encryptionSvc, "bearerAuth",
+			a2a.HTTPAuthSecurityScheme{Scheme: "bearer"}, "jwt-token")
+
+		headers, err := authenticator.AuthHeaders(agent)
+		require.NoError(t, err)
+		assert.Equal(t, "Bearer jwt-token", headers["Authorization"])
+	})
+
+	t.Run("HTTP basic scheme", func(t *testing.T) {
+		agent := agentWithScheme(t, encryptionSvc, "basicAuth",
+			a2a.HTTPAuthSecurityScheme{Scheme: "basic"}, "dXNlcjpwYXNz")
+
+		headers, err := authenticator.AuthHeaders(agent)
+		require.NoError(t, err)
+		assert.Equal(t, "Basic dXNlcjpwYXNz", headers["Authorization"])
+	})
+
+	t.Run("API key in query is not applied as a header", func(t *testing.T) {
+		agent := agentWithScheme(t, encryptionSvc, "queryAuth",
+			a2a.APIKeySecurityScheme{Name: "api_key", Location: a2a.APIKeySecuritySchemeLocationQuery},
+			"query-key")
+
+		headers, err := authenticator.AuthHeaders(agent)
+		require.NoError(t, err)
+		assert.Empty(t, headers)
+	})
+
+	t.Run("API key in cookie is not applied as a header", func(t *testing.T) {
+		agent := agentWithScheme(t, encryptionSvc, "cookieAuth",
+			a2a.APIKeySecurityScheme{Name: "session", Location: a2a.APIKeySecuritySchemeLocationCookie},
+			"cookie-val")
+
+		headers, err := authenticator.AuthHeaders(agent)
+		require.NoError(t, err)
+		assert.Empty(t, headers)
+	})
+
+	t.Run("no card yields empty headers", func(t *testing.T) {
+		headers, err := authenticator.AuthHeaders(&models.Agent{})
+		require.NoError(t, err)
+		assert.Empty(t, headers)
+	})
+
+	t.Run("nil agent yields empty headers", func(t *testing.T) {
+		headers, err := authenticator.AuthHeaders(nil)
+		require.NoError(t, err)
+		assert.Empty(t, headers)
+	})
+
+	t.Run("scheme without a matching credential is skipped", func(t *testing.T) {
+		agent := &models.Agent{
+			AgentCard: &models.AgentCard{
+				SecuritySchemes: a2a.NamedSecuritySchemes{
+					"apiKey": a2a.APIKeySecurityScheme{
+						Name: "X-API-Key", Location: a2a.APIKeySecuritySchemeLocationHeader,
+					},
+				},
+			},
+			Credentials: &models.AgentCredentials{}, // no credential for "apiKey"
+		}
+
+		headers, err := authenticator.AuthHeaders(agent)
+		require.NoError(t, err)
+		assert.Empty(t, headers)
+	})
+
+	t.Run("undecryptable credential returns an error", func(t *testing.T) {
+		agent := &models.Agent{
+			AgentCard: &models.AgentCard{
+				SecuritySchemes: a2a.NamedSecuritySchemes{
+					"apiKey": a2a.APIKeySecurityScheme{
+						Name: "X-API-Key", Location: a2a.APIKeySecuritySchemeLocationHeader,
+					},
+				},
+			},
+			Credentials: &models.AgentCredentials{
+				"apiKey": models.AgentCredential{Type: "apiKey", Value: "not-encrypted"},
+			},
+		}
+
+		_, err := authenticator.AuthHeaders(agent)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decrypt credential")
+	})
+}

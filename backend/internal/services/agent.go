@@ -16,6 +16,7 @@ type AgentService struct {
 	executionRepo     repositories.AgentExecutionRepository
 	cardFetcher       AgentCardFetcherInterface
 	encryptionService EncryptionServiceInterface
+	authenticator     *AgentAuthenticator
 	teamService       TeamServiceInterface
 	logger            *slog.Logger
 }
@@ -35,6 +36,7 @@ func NewAgentService(
 		executionRepo:     executionRepo,
 		cardFetcher:       NewAgentCardFetcher(),
 		encryptionService: encryptionService,
+		authenticator:     NewAgentAuthenticator(encryptionService),
 		teamService:       teamService,
 		logger:            logger,
 	}
@@ -54,6 +56,7 @@ func NewAgentServiceWithCardFetcher(
 		executionRepo:     executionRepo,
 		cardFetcher:       cardFetcher,
 		encryptionService: encryptionService,
+		authenticator:     NewAgentAuthenticator(encryptionService),
 		teamService:       teamService,
 		logger:            logger,
 	}
@@ -129,6 +132,27 @@ func (s *AgentService) validateTeamReassignment(
 	return nil
 }
 
+// cardFetchAuthHeaders derives the header-based authentication to attach when
+// (re-)fetching the given agent's card, from its stored security schemes and
+// decrypted credentials. A nil authenticator or a derivation error degrades to no
+// auth headers so card discovery is never blocked by a credential problem.
+func (s *AgentService) cardFetchAuthHeaders(agent *models.Agent) map[string]string {
+	if s.authenticator == nil {
+		return nil
+	}
+	headers, err := s.authenticator.AuthHeaders(agent)
+	if err != nil {
+		s.logger.With(
+			"service", "agent-service",
+			"method", "cardFetchAuthHeaders",
+			"agent_id", agent.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to derive card-fetch auth headers; fetching without authentication")
+		return nil
+	}
+	return headers
+}
+
 func (s *AgentService) CreateAgent(
 	ctx context.Context, userID, teamID string, req *models.CreateAgentRequest,
 ) (*models.Agent, error) {
@@ -138,7 +162,10 @@ func (s *AgentService) CreateAgent(
 		req.Status = "active"
 	}
 
-	agentCard, err := s.cardFetcher.FetchAgentCard(ctx, req.CardURL)
+	// No stored card/credentials exist yet at create time, so there are no header
+	// schemes to derive; the initial discovery fetch is unauthenticated. Cards
+	// behind header auth are picked up on the re-fetch in GetAgentByID/UpdateAgent.
+	agentCard, err := s.cardFetcher.FetchAgentCard(ctx, req.CardURL, nil)
 	if err != nil {
 		s.logger.With(
 			"service", "agent-service",
@@ -205,7 +232,7 @@ func (s *AgentService) GetAgentByID(ctx context.Context, userID, teamID, agentID
 
 	// Re-fetch agent card if card_url exists
 	if agent.CardURL != nil && *agent.CardURL != "" {
-		agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *agent.CardURL)
+		agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *agent.CardURL, s.cardFetchAuthHeaders(agent))
 		if err != nil {
 			s.logger.With(
 				"service", "agent-service",
@@ -307,8 +334,9 @@ func (s *AgentService) UpdateAgent(
 
 	// Handle agent card URL update
 	if req.CardURL != nil && *req.CardURL != "" {
-		// Fetch new agent card
-		agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *req.CardURL)
+		// Fetch new agent card, applying the agent's stored header credentials so a
+		// card behind header auth can be re-discovered.
+		agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *req.CardURL, s.cardFetchAuthHeaders(agent))
 		if err != nil {
 			s.logger.With(
 				"service", "agent-service",
