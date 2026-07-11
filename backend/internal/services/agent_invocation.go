@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
+
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -341,13 +343,18 @@ func (s *AgentInvocationService) handleSyncInvocationSuccess(
 	return execution, nil
 }
 
-// mapA2AStatusToDBStatus maps A2A status to database-allowed values
-// Database allows: running, success, error
-// A2A can return: completed, failed, rejected, etc.
+// mapA2AStatusToDBStatus maps the A2A-derived status returned by the client to a
+// database-allowed execution status (agent_executions_status_check).
+// A2A can return: completed, failed, rejected, cancelled, working, etc.
 func (s *AgentInvocationService) mapA2AStatusToDBStatus(a2aStatus string) string {
 	switch a2aStatus {
 	case "completed":
 		return "success"
+	case "cancelled":
+		return "cancelled"
+	case "working", "submitted", "running":
+		// Non-terminal task from a sync send — still running; polled in #163.
+		return "running"
 	case "error", "failed", "rejected":
 		return "error"
 	default:
@@ -364,7 +371,7 @@ func (s *AgentInvocationService) invokeAgentStreaming(
 	contextID *string,
 ) (*models.AgentExecution, error) {
 	// Create buffered channel for streaming events
-	eventChan := make(chan *A2AStreamEvent, 100)
+	eventChan := make(chan a2a.Event, 100)
 
 	// Start stream processor in a separate goroutine
 	go s.startStreamProcessor(execution.ID, eventChan) // #nosec G118 -- intentional: outlives request
@@ -390,7 +397,7 @@ func (s *AgentInvocationService) invokeAgentStreaming(
 }
 
 // startStreamProcessor starts the stream processor goroutine
-func (s *AgentInvocationService) startStreamProcessor(executionID string, eventChan <-chan *A2AStreamEvent) {
+func (s *AgentInvocationService) startStreamProcessor(executionID string, eventChan <-chan a2a.Event) {
 	bgCtx := context.Background()
 
 	s.logger.With(
@@ -423,7 +430,7 @@ func (s *AgentInvocationService) startHTTPStreaming(
 	execution *models.AgentExecution,
 	input map[string]interface{},
 	contextID *string,
-	eventChan chan<- *A2AStreamEvent,
+	eventChan chan<- a2a.Event,
 ) {
 	// Create background context (won't cancel when request ends)
 	bgCtx := context.Background()
@@ -455,7 +462,7 @@ func (s *AgentInvocationService) startHTTPStreaming(
 }
 
 // closeEventChannelSafely closes the event channel with panic recovery
-func (s *AgentInvocationService) closeEventChannelSafely(executionID string, eventChan chan<- *A2AStreamEvent) {
+func (s *AgentInvocationService) closeEventChannelSafely(executionID string, eventChan chan<- a2a.Event) {
 	if r := recover(); r != nil {
 		s.logger.With(
 			"service", "vibexp-api",

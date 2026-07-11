@@ -3,30 +3,11 @@ package services
 import (
 	"context"
 	"net"
-	"net/http"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/vibexp/vibexp/internal/config"
 )
-
-// newTestA2AHTTPClient builds an A2A client that permits private/loopback hosts so
-// tests can target httptest servers. Production uses NewA2AHTTPClient with the
-// strict default guard.
-func newTestA2AHTTPClient(authenticator *AgentAuthenticator, cfg *config.Config) *A2AHTTPClient {
-	c := NewA2AHTTPClient(authenticator, cfg)
-	guard := &ssrfGuard{allowPrivate: true}
-	c.guard = guard
-	c.httpClient.Transport = guard.newSSRFSafeTransport(&http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-	})
-	return c
-}
 
 // newTestAgentCardFetcher builds a fetcher that permits private/loopback hosts so
 // tests can target httptest servers (which bind to 127.0.0.1). Production code uses

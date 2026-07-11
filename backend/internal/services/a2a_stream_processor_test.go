@@ -2,318 +2,135 @@ package services
 
 import (
 	"context"
-	"testing"
-	"time"
-
 	"log/slog"
+	"testing"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
-//nolint:funlen // Test function requires comprehensive setup and assertions
-func TestA2AStreamProcessor_HandleArtifactUpdate_AppendTrue(t *testing.T) {
-	executionRepo := new(mocks.MockAgentExecutionRepository)
+func newTestStreamProcessor() (*A2AStreamProcessor, *mocks.MockAgentExecutionEventRepository, *mocks.MockAgentExecutionRepository) {
 	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := slog.New(slog.DiscardHandler)
-
-	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
-
-	executionID := uuid.New().String()
-	artifactID := "artifact-1"
-
-	// Create map to track artifacts (simulating internal state)
-	artifacts := make(map[string]map[string]interface{})
-
-	// First event: append=false (creates new artifact)
-	event1 := &A2AStreamEvent{
-		Type: "artifact-update",
-		Data: map[string]interface{}{
-			"artifactId": artifactID,
-			"append":     false,
-			"artifact": map[string]interface{}{
-				"artifactId": artifactID,
-				"parts": []interface{}{
-					map[string]interface{}{
-						"kind": "text",
-						"text": "First chunk ",
-					},
-				},
-			},
-		},
-		Timestamp: time.Now(),
-	}
-
-	processor.handleArtifactUpdate(executionID, event1, artifacts)
-
-	// Verify first chunk is added
-	assert.Contains(t, artifacts, artifactID)
-	artifact := artifacts[artifactID]
-	parts := artifact["parts"].([]interface{})
-	assert.Equal(t, 1, len(parts))
-
-	// Second event: append=true (appends to existing artifact)
-	event2 := &A2AStreamEvent{
-		Type: "artifact-update",
-		Data: map[string]interface{}{
-			"artifactId": artifactID,
-			"append":     true,
-			"artifact": map[string]interface{}{
-				"artifactId": artifactID,
-				"parts": []interface{}{
-					map[string]interface{}{
-						"kind": "text",
-						"text": "Second chunk ",
-					},
-				},
-			},
-		},
-		Timestamp: time.Now(),
-	}
-
-	processor.handleArtifactUpdate(executionID, event2, artifacts)
-
-	// Verify second chunk is appended
-	artifact = artifacts[artifactID]
-	parts = artifact["parts"].([]interface{})
-	assert.Equal(t, 2, len(parts))
-	assert.Equal(t, "First chunk ", parts[0].(map[string]interface{})["text"])
-	assert.Equal(t, "Second chunk ", parts[1].(map[string]interface{})["text"])
+	executionRepo := new(mocks.MockAgentExecutionRepository)
+	processor := NewA2AStreamProcessor(eventRepo, executionRepo, slog.New(slog.DiscardHandler))
+	return processor, eventRepo, executionRepo
 }
 
-func TestA2AStreamProcessor_HandleArtifactUpdate_AppendFalse(t *testing.T) {
-	executionRepo := new(mocks.MockAgentExecutionRepository)
-	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := slog.New(slog.DiscardHandler)
-
-	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
-
-	executionID := uuid.New().String()
-	artifactID := "artifact-1"
-	artifacts := make(map[string]map[string]interface{})
-
-	// First artifact
-	event1 := &A2AStreamEvent{
-		Type: "artifact-update",
-		Data: map[string]interface{}{
-			"artifactId": artifactID,
-			"append":     false,
-			"artifact": map[string]interface{}{
-				"artifactId": artifactID,
-				"parts": []interface{}{
-					map[string]interface{}{
-						"kind": "text",
-						"text": "First artifact",
-					},
-				},
-			},
-		},
-		Timestamp: time.Now(),
+func runStream(t *testing.T, p *A2AStreamProcessor, execID string, events ...a2a.Event) {
+	t.Helper()
+	ch := make(chan a2a.Event, len(events))
+	for _, e := range events {
+		ch <- e
 	}
-
-	processor.handleArtifactUpdate(executionID, event1, artifacts)
-
-	// Second artifact with append=false (should replace, not append)
-	event2 := &A2AStreamEvent{
-		Type: "artifact-update",
-		Data: map[string]interface{}{
-			"artifactId": artifactID,
-			"append":     false,
-			"artifact": map[string]interface{}{
-				"artifactId": artifactID,
-				"parts": []interface{}{
-					map[string]interface{}{
-						"kind": "text",
-						"text": "Replaced artifact",
-					},
-				},
-			},
-		},
-		Timestamp: time.Now(),
-	}
-
-	processor.handleArtifactUpdate(executionID, event2, artifacts)
-
-	// Verify artifact was replaced, not appended
-	artifact := artifacts[artifactID]
-	parts := artifact["parts"].([]interface{})
-	assert.Equal(t, 1, len(parts))
-	assert.Equal(t, "Replaced artifact", parts[0].(map[string]interface{})["text"])
+	close(ch)
+	require.NoError(t, p.ProcessStream(context.Background(), execID, ch))
 }
 
-func TestA2AStreamProcessor_HandleArtifactUpdate_MultipleArtifacts(t *testing.T) {
-	executionRepo := new(mocks.MockAgentExecutionRepository)
-	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := slog.New(slog.DiscardHandler)
+func TestProcessStream_TaskEvent(t *testing.T) {
+	p, eventRepo, execRepo := newTestStreamProcessor()
+	execID := uuid.New().String()
 
-	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
-
-	executionID := uuid.New().String()
-	artifacts := make(map[string]map[string]interface{})
-
-	// Create first artifact
-	event1 := &A2AStreamEvent{
-		Type: "artifact-update",
-		Data: map[string]interface{}{
-			"artifactId": "artifact-1",
-			"append":     false,
-			"artifact": map[string]interface{}{
-				"artifactId": "artifact-1",
-				"parts": []interface{}{
-					map[string]interface{}{
-						"kind": "text",
-						"text": "First artifact",
-					},
-				},
-			},
-		},
-		Timestamp: time.Now(),
-	}
-
-	processor.handleArtifactUpdate(executionID, event1, artifacts)
-
-	// Create second artifact
-	event2 := &A2AStreamEvent{
-		Type: "artifact-update",
-		Data: map[string]interface{}{
-			"artifactId": "artifact-2",
-			"append":     false,
-			"artifact": map[string]interface{}{
-				"artifactId": "artifact-2",
-				"parts": []interface{}{
-					map[string]interface{}{
-						"kind": "text",
-						"text": "Second artifact",
-					},
-				},
-			},
-		},
-		Timestamp: time.Now(),
-	}
-
-	processor.handleArtifactUpdate(executionID, event2, artifacts)
-
-	// Verify both artifacts exist independently
-	assert.Equal(t, 2, len(artifacts))
-	assert.Contains(t, artifacts, "artifact-1")
-	assert.Contains(t, artifacts, "artifact-2")
-
-	parts1 := artifacts["artifact-1"]["parts"].([]interface{})
-	parts2 := artifacts["artifact-2"]["parts"].([]interface{})
-
-	assert.Equal(t, "First artifact", parts1[0].(map[string]interface{})["text"])
-	assert.Equal(t, "Second artifact", parts2[0].(map[string]interface{})["text"])
-}
-
-func TestA2AStreamProcessor_ProcessStream_SavesEvents(t *testing.T) {
-	executionRepo := new(mocks.MockAgentExecutionRepository)
-	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := slog.New(slog.DiscardHandler)
-
-	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
-
-	executionID := uuid.New().String()
-	eventChan := make(chan *A2AStreamEvent, 10)
-
-	// Setup expectations
-	eventRepo.On("Create", mock.Anything, mock.MatchedBy(func(event *models.AgentExecutionEvent) bool {
-		return event.ExecutionID == executionID && event.EventType == "status-update"
+	eventRepo.On("Create", mock.Anything, mock.MatchedBy(func(e *models.AgentExecutionEvent) bool {
+		return e.EventType == "task" && e.ExecutionID == execID
 	})).Return(nil).Once()
+	execRepo.On("UpdateTaskInfo", mock.Anything, execID, "t1", "c1", string(a2a.TaskStateCompleted)).Return(nil).Once()
+	execRepo.On("UpdateStatus", mock.Anything, execID, "success").Return(nil).Once()
 
-	// Mock UpdateTaskInfo for status-update event
-	// (expects empty strings for task_id and context_id, and "working" for state)
-	executionRepo.On("UpdateTaskInfo", mock.Anything, executionID, "", "", "working").Return(nil).Once()
+	runStream(t, p, execID, &a2a.Task{
+		ID:        "t1",
+		ContextID: "c1",
+		Status:    a2a.TaskStatus{State: a2a.TaskStateCompleted},
+	})
 
-	eventRepo.On("Create", mock.Anything, mock.MatchedBy(func(event *models.AgentExecutionEvent) bool {
-		return event.ExecutionID == executionID && event.EventType == "artifact-update"
-	})).Return(nil).Once()
-
-	// UpdateArtifacts is called twice:
-	// 1. During artifact-update event processing (incremental save)
-	// 2. After channel closes (final save at line 121 in ProcessStream)
-	executionRepo.On("UpdateArtifacts", mock.Anything, executionID, mock.Anything).Return(nil).Twice()
-
-	// Mock UpdateStatus for final status update when channel closes
-	executionRepo.On("UpdateStatus", mock.Anything, executionID, "success").Return(nil).Once()
-
-	// Send events
-	go func() {
-		eventChan <- &A2AStreamEvent{
-			Type: "status-update",
-			Data: map[string]interface{}{
-				"status": map[string]interface{}{
-					"state": "working",
-				},
-			},
-			Timestamp: time.Now(),
-		}
-
-		eventChan <- &A2AStreamEvent{
-			Type: "artifact-update",
-			Data: map[string]interface{}{
-				"artifactId": "art-1",
-				"append":     false,
-				"artifact": map[string]interface{}{
-					"artifactId": "art-1",
-					"parts": []interface{}{
-						map[string]interface{}{
-							"kind": "text",
-							"text": "Test response",
-						},
-					},
-				},
-			},
-			Timestamp: time.Now(),
-		}
-
-		close(eventChan)
-	}()
-
-	// Process stream
-	err := processor.ProcessStream(context.Background(), executionID, eventChan)
-
-	assert.NoError(t, err)
 	eventRepo.AssertExpectations(t)
-	executionRepo.AssertExpectations(t)
+	execRepo.AssertExpectations(t)
 }
 
-func TestA2AStreamProcessor_SaveArtifacts_OnlyNonEmptyParts(t *testing.T) {
-	executionRepo := new(mocks.MockAgentExecutionRepository)
-	eventRepo := new(mocks.MockAgentExecutionEventRepository)
-	logger := slog.New(slog.DiscardHandler)
-
-	processor := NewA2AStreamProcessor(eventRepo, executionRepo, logger)
-
-	executionID := uuid.New().String()
-	artifacts := map[string]map[string]interface{}{
-		"artifact-1": {
-			"artifactId": "artifact-1",
-			"parts": []interface{}{
-				map[string]interface{}{
-					"kind": "text",
-					"text": "Valid content",
-				},
-			},
-		},
-		"artifact-2": {
-			"artifactId": "artifact-2",
-			"parts":      []interface{}{}, // Empty parts
-		},
+func TestProcessStream_StatusUpdate_Terminal(t *testing.T) {
+	cases := []struct {
+		state  a2a.TaskState
+		status string
+	}{
+		{a2a.TaskStateCompleted, "success"},
+		{a2a.TaskStateCanceled, "cancelled"},
+		{a2a.TaskStateFailed, "error"},
+		{a2a.TaskStateRejected, "error"},
 	}
+	for _, tc := range cases {
+		t.Run(string(tc.state), func(t *testing.T) {
+			p, eventRepo, execRepo := newTestStreamProcessor()
+			execID := uuid.New().String()
 
-	// Expect only artifact-1 to be saved (has non-empty parts)
-	executionRepo.On("UpdateArtifacts", mock.Anything, executionID,
-		mock.MatchedBy(func(arts []map[string]interface{}) bool {
-			// Should only contain artifact with non-empty parts
-			return len(arts) == 1 && arts[0]["artifactId"] == "artifact-1"
-		})).Return(nil)
+			eventRepo.On("Create", mock.Anything, mock.MatchedBy(func(e *models.AgentExecutionEvent) bool {
+				return e.EventType == "status-update"
+			})).Return(nil).Once()
+			execRepo.On("UpdateTaskInfo", mock.Anything, execID, "t1", "c1", string(tc.state)).Return(nil).Once()
+			execRepo.On("UpdateStatus", mock.Anything, execID, tc.status).Return(nil).Once()
 
-	err := processor.saveArtifacts(context.Background(), executionID, artifacts)
+			runStream(t, p, execID, &a2a.TaskStatusUpdateEvent{
+				TaskID:    "t1",
+				ContextID: "c1",
+				Status:    a2a.TaskStatus{State: tc.state},
+			})
 
-	assert.NoError(t, err)
-	executionRepo.AssertExpectations(t)
+			eventRepo.AssertExpectations(t)
+			execRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestProcessStream_ArtifactUpdate_Append(t *testing.T) {
+	p, eventRepo, execRepo := newTestStreamProcessor()
+	execID := uuid.New().String()
+
+	eventRepo.On("Create", mock.Anything, mock.MatchedBy(func(e *models.AgentExecutionEvent) bool {
+		return e.EventType == "artifact-update"
+	})).Return(nil)
+
+	var lastArtifacts []map[string]interface{}
+	execRepo.On("UpdateArtifacts", mock.Anything, execID, mock.Anything).
+		Run(func(args mock.Arguments) {
+			lastArtifacts = args.Get(2).([]map[string]interface{})
+		}).Return(nil)
+	execRepo.On("UpdateStatus", mock.Anything, execID, "success").Return(nil).Once()
+
+	runStream(t, p, execID,
+		&a2a.TaskArtifactUpdateEvent{
+			TaskID:   "t1",
+			Append:   false,
+			Artifact: &a2a.Artifact{ID: "a1", Parts: a2a.ContentParts{a2a.NewTextPart("First ")}},
+		},
+		&a2a.TaskArtifactUpdateEvent{
+			TaskID:   "t1",
+			Append:   true,
+			Artifact: &a2a.Artifact{ID: "a1", Parts: a2a.ContentParts{a2a.NewTextPart("second")}},
+		},
+	)
+
+	require.Len(t, lastArtifacts, 1)
+	parts, ok := lastArtifacts[0]["parts"].([]interface{})
+	require.True(t, ok)
+	assert.Len(t, parts, 2, "appended artifact should have both chunks")
+
+	eventRepo.AssertExpectations(t)
+	execRepo.AssertExpectations(t)
+}
+
+func TestProcessStream_SkipsMessageEvent(t *testing.T) {
+	p, eventRepo, execRepo := newTestStreamProcessor()
+	execID := uuid.New().String()
+
+	// A direct message reply is not a persisted execution event (that's #163).
+	execRepo.On("UpdateStatus", mock.Anything, execID, "success").Return(nil).Once()
+
+	runStream(t, p, execID, a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart("hi")))
+
+	eventRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	execRepo.AssertExpectations(t)
 }

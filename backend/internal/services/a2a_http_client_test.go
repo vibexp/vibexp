@@ -2,13 +2,17 @@ package services
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
+	"io"
+	"iter"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2asrv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,417 +20,301 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-//nolint:funlen // Test function requires comprehensive setup and assertions
-func TestA2AHTTPClient_InvokeAgent_Success(t *testing.T) {
-	// Create a test server that returns a successful JSON-RPC response
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		assert.Equal(t, "application/json", r.Header.Get("Accept"))
+// passthroughEncryption is an identity EncryptionService so that a stored
+// credential's decrypted value equals the value under test.
+type passthroughEncryption struct{}
 
-		// Parse request
-		var req JSONRPC2Request
-		err := json.NewDecoder(r.Body).Decode(&req)
-		require.NoError(t, err)
+func (passthroughEncryption) Encrypt(plaintext string) (string, error)  { return plaintext, nil }
+func (passthroughEncryption) Decrypt(ciphertext string) (string, error) { return ciphertext, nil }
 
-		assert.Equal(t, "2.0", req.JSONRPC)
-		assert.Equal(t, "message/send", req.Method)
-
-		// Verify A2A v0.3.0 message structure
-		params, ok := req.Params.(map[string]interface{})
-		require.True(t, ok)
-		message, ok := params["message"].(map[string]interface{})
-		require.True(t, ok)
-		assert.Equal(t, "user", message["role"])
-		assert.NotEmpty(t, message["messageId"])
-
-		// Send successful A2A v0.3.0 response
-		response := JSONRPC2Response{
-			JSONRPC: "2.0",
-			ID:      req.ID,
-			Result: map[string]interface{}{
-				"kind": "task",
-				"id":   "task-123",
-				"status": map[string]interface{}{
-					"state": "completed",
-				},
-				"artifacts": []map[string]interface{}{
-					{
-						"artifactId": "artifact-1",
-						"name":       "response",
-						"parts": []map[string]interface{}{
-							{
-								"kind": "text",
-								"text": "Task completed successfully",
-							},
-						},
-					},
-				},
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(response))
-	}))
-	defer server.Close()
-
-	// Create agent with test server URL
-	agent := &models.Agent{
-		ID:     "test-agent-1",
-		UserID: "user-1",
-		Name:   "Test Agent",
-		Status: "active",
-		AgentCard: &models.AgentCard{
-			SupportedInterfaces: []*a2a.AgentInterface{
-				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
-			},
-		},
-	}
-
-	// Create mock encryption service and authenticator
-	encryptionService := &mockEncryptionService{}
-	authenticator := NewAgentAuthenticator(encryptionService)
-	cfg := &config.Config{} // Use default config for tests
-	client := newTestA2AHTTPClient(authenticator, cfg)
-
-	input := map[string]interface{}{
-		"text": "Hello, agent!",
-	}
-
-	execution, err := client.InvokeAgent(context.Background(), agent, input, nil)
-
-	require.NoError(t, err)
-	assert.NotNil(t, execution)
-	assert.Equal(t, "completed", execution.Status)
-	// Artifacts are populated from streaming events, not from Output
-	assert.Nil(t, execution.Error)
+// testExecutor is a configurable a2asrv.AgentExecutor used to stand up an
+// in-process A2A agent for client round-trip tests.
+type testExecutor struct {
+	events func(execCtx *a2asrv.ExecutorContext) []a2a.Event
+	err    error
 }
 
-func TestA2AHTTPClient_InvokeAgent_HTTPInterface(t *testing.T) {
-	// Test with AdditionalInterfaces.HTTP.URL
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := JSONRPC2Response{
-			JSONRPC: "2.0",
-			ID:      "test",
-			Result: map[string]interface{}{
-				"message": "success",
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(response))
-	}))
-	defer server.Close()
-
-	agent := &models.Agent{
-		ID:     "test-agent-1",
-		UserID: "user-1",
-		Status: "active",
-		AgentCard: &models.AgentCard{
-			SupportedInterfaces: []*a2a.AgentInterface{
-				{URL: "http://should-not-use.com", ProtocolBinding: a2a.TransportProtocolJSONRPC},
-				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
-			},
-		},
-	}
-
-	encryptionService := &mockEncryptionService{}
-	authenticator := NewAgentAuthenticator(encryptionService)
-	cfg := &config.Config{} // Use default config for tests
-	client := newTestA2AHTTPClient(authenticator, cfg)
-
-	execution, err := client.InvokeAgent(context.Background(), agent, map[string]interface{}{}, nil)
-
-	require.NoError(t, err)
-	assert.Equal(t, "completed", execution.Status)
-}
-
-func TestA2AHTTPClient_InvokeAgent_JSONRPCError(t *testing.T) {
-	// Create a test server that returns a JSON-RPC error
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req JSONRPC2Request
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-
-		response := JSONRPC2Response{
-			JSONRPC: "2.0",
-			ID:      req.ID,
-			Error: &JSONRPC2Error{
-				Code:    -32601,
-				Message: "Method not found",
-				Data: map[string]interface{}{
-					"method": req.Method,
-				},
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(response))
-	}))
-	defer server.Close()
-
-	agent := &models.Agent{
-		ID:     "test-agent-1",
-		UserID: "user-1",
-		Status: "active",
-		AgentCard: &models.AgentCard{
-			SupportedInterfaces: []*a2a.AgentInterface{
-				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
-			},
-		},
-	}
-
-	encryptionService := &mockEncryptionService{}
-	authenticator := NewAgentAuthenticator(encryptionService)
-	cfg := &config.Config{} // Use default config for tests
-	client := newTestA2AHTTPClient(authenticator, cfg)
-
-	execution, err := client.InvokeAgent(context.Background(), agent, map[string]interface{}{}, nil)
-
-	require.NoError(t, err)
-	assert.NotNil(t, execution)
-	assert.Equal(t, "error", execution.Status)
-	assert.NotNil(t, execution.Error)
-	assert.Equal(t, "Method not found", *execution.Error)
-}
-
-func TestA2AHTTPClient_InvokeAgent_HTTPError(t *testing.T) {
-	// Create a test server that returns an HTTP error
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, err := w.Write([]byte("Internal server error"))
-		require.NoError(t, err)
-	}))
-	defer server.Close()
-
-	agent := &models.Agent{
-		ID:     "test-agent-1",
-		UserID: "user-1",
-		Status: "active",
-		AgentCard: &models.AgentCard{
-			SupportedInterfaces: []*a2a.AgentInterface{
-				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
-			},
-		},
-	}
-
-	encryptionService := &mockEncryptionService{}
-	authenticator := NewAgentAuthenticator(encryptionService)
-	cfg := &config.Config{} // Use default config for tests
-	client := newTestA2AHTTPClient(authenticator, cfg)
-
-	execution, err := client.InvokeAgent(context.Background(), agent, map[string]interface{}{}, nil)
-
-	require.Error(t, err)
-	assert.Nil(t, execution)
-	assert.Contains(t, err.Error(), "agent returned status 500")
-}
-
-func TestA2AHTTPClient_InvokeAgent_InvalidJSON(t *testing.T) {
-	// Create a test server that returns invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, err := w.Write([]byte("not valid json"))
-		require.NoError(t, err)
-	}))
-	defer server.Close()
-
-	agent := &models.Agent{
-		ID:     "test-agent-1",
-		UserID: "user-1",
-		Status: "active",
-		AgentCard: &models.AgentCard{
-			SupportedInterfaces: []*a2a.AgentInterface{
-				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
-			},
-		},
-	}
-
-	encryptionService := &mockEncryptionService{}
-	authenticator := NewAgentAuthenticator(encryptionService)
-	cfg := &config.Config{} // Use default config for tests
-	client := newTestA2AHTTPClient(authenticator, cfg)
-
-	execution, err := client.InvokeAgent(context.Background(), agent, map[string]interface{}{}, nil)
-
-	require.Error(t, err)
-	assert.Nil(t, execution)
-	assert.Contains(t, err.Error(), "failed to parse response")
-}
-
-func TestA2AHTTPClient_InvokeAgent_Timeout(t *testing.T) {
-	// Create a test server that delays response
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(2 * time.Second)
-		_, err := w.Write([]byte("should not reach"))
-		if err != nil {
-			// Timeout may cause write failure, which is expected
+func (e *testExecutor) Execute(_ context.Context, execCtx *a2asrv.ExecutorContext) iter.Seq2[a2a.Event, error] {
+	return func(yield func(a2a.Event, error) bool) {
+		if e.err != nil {
+			yield(nil, e.err)
 			return
 		}
-	}))
-	defer server.Close()
-
-	agent := &models.Agent{
-		ID:     "test-agent-1",
-		UserID: "user-1",
-		Status: "active",
-		AgentCard: &models.AgentCard{
-			SupportedInterfaces: []*a2a.AgentInterface{
-				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
-			},
-		},
-	}
-
-	encryptionService := &mockEncryptionService{}
-	authenticator := NewAgentAuthenticator(encryptionService)
-	cfg := &config.Config{} // Use default config for tests
-	client := newTestA2AHTTPClient(authenticator, cfg)
-
-	// Override timeout for faster test
-	client.httpClient.Timeout = 100 * time.Millisecond
-
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	execution, err := client.InvokeAgent(ctx, agent, map[string]interface{}{}, nil)
-
-	require.Error(t, err)
-	assert.Nil(t, execution)
-	assert.Contains(t, err.Error(), "request failed")
-}
-
-func TestA2AHTTPClient_InvokeAgent_MissingAgentCard(t *testing.T) {
-	agent := &models.Agent{
-		ID:        "test-agent-1",
-		UserID:    "user-1",
-		Status:    "active",
-		AgentCard: nil,
-	}
-
-	encryptionService := &mockEncryptionService{}
-	authenticator := NewAgentAuthenticator(encryptionService)
-	cfg := &config.Config{} // Use default config for tests
-	client := newTestA2AHTTPClient(authenticator, cfg)
-
-	execution, err := client.InvokeAgent(context.Background(), agent, map[string]interface{}{}, nil)
-
-	require.Error(t, err)
-	assert.Nil(t, execution)
-	assert.Contains(t, err.Error(), "agent card or endpoint URL is missing")
-}
-
-func TestA2AHTTPClient_InvokeAgent_A2AMessageFormat(t *testing.T) {
-	// Test that the client sends correct A2A v0.3.0 message format
-	var capturedRequest JSONRPC2Request
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&capturedRequest))
-
-		response := JSONRPC2Response{
-			JSONRPC: "2.0",
-			ID:      capturedRequest.ID,
-			Result: map[string]interface{}{
-				"kind": "task",
-				"id":   "task-123",
-				"status": map[string]interface{}{
-					"state": "completed",
-				},
-			},
+		for _, ev := range e.events(execCtx) {
+			if !yield(ev, nil) {
+				return
+			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(response))
-	}))
-	defer server.Close()
-
-	agent := &models.Agent{
-		ID:     "test-agent-1",
-		UserID: "user-1",
-		Status: "active",
-		AgentCard: &models.AgentCard{
-			SupportedInterfaces: []*a2a.AgentInterface{
-				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
-			},
-		},
 	}
-
-	encryptionService := &mockEncryptionService{}
-	authenticator := NewAgentAuthenticator(encryptionService)
-	cfg := &config.Config{} // Use default config for tests
-	client := newTestA2AHTTPClient(authenticator, cfg)
-
-	input := map[string]interface{}{
-		"text": "Hello from test",
-	}
-
-	_, err := client.InvokeAgent(context.Background(), agent, input, nil)
-	require.NoError(t, err)
-
-	// Verify captured request has correct A2A v0.3.0 structure
-	assert.Equal(t, "2.0", capturedRequest.JSONRPC)
-	assert.Equal(t, "message/send", capturedRequest.Method)
-	assert.NotNil(t, capturedRequest.Params)
 }
 
-func TestA2AHTTPClient_InvokeAgent_AuthenticationFails(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Should not reach here
-		t.Fatal("Should not reach handler when authentication fails")
-	}))
-	defer server.Close()
+func (e *testExecutor) Cancel(_ context.Context, _ *a2asrv.ExecutorContext) iter.Seq2[a2a.Event, error] {
+	return func(func(a2a.Event, error) bool) {}
+}
 
-	agent := &models.Agent{
-		ID:     "test-agent-1",
+// newTestA2AServer starts an in-process JSON-RPC A2A server backed by exec and
+// returns its /invoke URL.
+func newTestA2AServer(t *testing.T, exec a2asrv.AgentExecutor) string {
+	t.Helper()
+	handler := a2asrv.NewHandler(exec)
+	mux := http.NewServeMux()
+	mux.Handle("/invoke", a2asrv.NewJSONRPCHandler(handler))
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv.URL + "/invoke"
+}
+
+// testAgent builds an agent whose card advertises the given JSON-RPC endpoint.
+func testAgent(endpoint string, streaming bool) *models.Agent {
+	return &models.Agent{
+		ID:     "agent-1",
 		UserID: "user-1",
 		Status: "active",
 		AgentCard: &models.AgentCard{
+			Name:               "Test Agent",
+			Description:        "test",
+			Version:            "1.0.0",
+			Capabilities:       a2a.AgentCapabilities{Streaming: streaming},
+			DefaultInputModes:  []string{"text/plain"},
+			DefaultOutputModes: []string{"text/plain"},
 			SupportedInterfaces: []*a2a.AgentInterface{
-				{URL: server.URL, ProtocolBinding: a2a.TransportProtocolHTTPJSON},
+				a2a.NewAgentInterface(endpoint, a2a.TransportProtocolJSONRPC),
 			},
-			SecurityRequirements: a2a.SecurityRequirementsOptions{
-				{"apiKey": {}},
-			},
-			SecuritySchemes: a2a.NamedSecuritySchemes{
-				"apiKey": a2a.APIKeySecurityScheme{
-					Name:     "X-API-Key",
-					Location: a2a.APIKeySecuritySchemeLocationHeader,
-				},
-			},
-		},
-		Credentials: &models.AgentCredentials{
-			"apiKey": models.AgentCredential{
-				Type:  "apiKey",
-				Value: "encrypted-value",
-			},
+			Skills: []a2a.AgentSkill{{ID: "s", Name: "s", Description: "s", Tags: []string{"t"}}},
 		},
 	}
+}
 
-	// Use a mock encryption service that returns an error
-	encryptionService := &mockEncryptionServiceWithError{}
-	authenticator := NewAgentAuthenticator(encryptionService)
-	cfg := &config.Config{} // Use default config for tests
-	client := newTestA2AHTTPClient(authenticator, cfg)
+// newTestA2AHTTPClient builds a client whose SSRF guard permits loopback so
+// tests can reach httptest servers.
+func newTestA2AHTTPClient() *A2AHTTPClient {
+	auth := NewAgentAuthenticator(passthroughEncryption{})
+	return newA2AHTTPClient(auth, &config.Config{}, &ssrfGuard{allowPrivate: true})
+}
 
-	execution, err := client.InvokeAgent(context.Background(), agent, map[string]interface{}{}, nil)
+func TestA2AHTTPClient_InvokeAgent_Message(t *testing.T) {
+	endpoint := newTestA2AServer(t, &testExecutor{
+		events: func(*a2asrv.ExecutorContext) []a2a.Event {
+			return []a2a.Event{a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart("hi"))}
+		},
+	})
+	client := newTestA2AHTTPClient()
+
+	execution, err := client.InvokeAgent(
+		context.Background(), testAgent(endpoint, false), map[string]interface{}{"text": "hello"}, nil,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, execution)
+	assert.Equal(t, "completed", execution.Status)
+	assert.Nil(t, execution.Error)
+	assert.NotNil(t, execution.Duration)
+}
+
+func TestA2AHTTPClient_InvokeAgent_Error(t *testing.T) {
+	endpoint := newTestA2AServer(t, &testExecutor{err: errors.New("boom")})
+	client := newTestA2AHTTPClient()
+
+	execution, err := client.InvokeAgent(
+		context.Background(), testAgent(endpoint, false), map[string]interface{}{"text": "hello"}, nil,
+	)
 
 	require.Error(t, err)
 	assert.Nil(t, execution)
-	assert.Contains(t, err.Error(), "failed to apply authentication")
+	assert.Contains(t, err.Error(), "agent message send failed")
 }
 
-// Mock encryption service
-type mockEncryptionService struct{}
+func TestA2AHTTPClient_InvokeAgentStreaming(t *testing.T) {
+	endpoint := newTestA2AServer(t, &testExecutor{
+		events: func(*a2asrv.ExecutorContext) []a2a.Event {
+			return []a2a.Event{a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart("streamed"))}
+		},
+	})
+	client := newTestA2AHTTPClient()
 
-func (m *mockEncryptionService) Encrypt(plaintext string) (string, error) {
-	return "encrypted:" + plaintext, nil
+	eventChan := make(chan a2a.Event, 16)
+	err := client.InvokeAgentStreaming(
+		context.Background(), testAgent(endpoint, true), map[string]interface{}{"text": "hello"}, nil, eventChan,
+	)
+	close(eventChan)
+
+	require.NoError(t, err)
+	received := 0
+	for range eventChan {
+		received++
+	}
+	assert.Positive(t, received, "expected at least one streamed event")
 }
 
-func (m *mockEncryptionService) Decrypt(ciphertext string) (string, error) {
-	return "decrypted-value", nil
+func TestA2AHTTPClient_InvokeAgent_SSRFBlocked(t *testing.T) {
+	// Production client (strict guard) must reject a loopback endpoint.
+	client := NewA2AHTTPClient(NewAgentAuthenticator(passthroughEncryption{}), &config.Config{})
+	agent := testAgent("http://127.0.0.1:9/invoke", false)
+
+	_, err := client.InvokeAgent(context.Background(), agent, map[string]interface{}{"text": "x"}, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "agent endpoint is not allowed")
 }
 
-// Mock encryption service that returns error
-type mockEncryptionServiceWithError struct{}
+func TestA2AHTTPClient_buildClient_Errors(t *testing.T) {
+	client := newTestA2AHTTPClient()
 
-func (m *mockEncryptionServiceWithError) Encrypt(plaintext string) (string, error) {
-	return "", assert.AnError
+	_, err := client.InvokeAgent(context.Background(), &models.Agent{}, map[string]interface{}{}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "agent card is missing")
+
+	noIface := &models.Agent{AgentCard: &models.AgentCard{Name: "x"}}
+	_, err = client.InvokeAgent(context.Background(), noIface, map[string]interface{}{}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no supported interfaces")
 }
 
-func (m *mockEncryptionServiceWithError) Decrypt(ciphertext string) (string, error) {
-	return "", assert.AnError
+type capturingRoundTripper struct{ req *http.Request }
+
+func (c *capturingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.req = req
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader("")),
+		Header:     make(http.Header),
+	}, nil
+}
+
+// TestAgentAuthRoundTripper covers the auth matrix at the transport seam; the
+// full scheme matrix is exercised in agent_authenticator_test.go.
+//
+//nolint:funlen // table-driven auth matrix
+func TestAgentAuthRoundTripper(t *testing.T) {
+	cred := func(v string) *models.AgentCredentials {
+		c := models.AgentCredentials{"scheme": models.AgentCredential{Type: "apiKey", Value: v}}
+		return &c
+	}
+	cardWith := func(scheme a2a.SecurityScheme) *models.AgentCard {
+		return &models.AgentCard{
+			Name:                 "a",
+			SecurityRequirements: a2a.SecurityRequirementsOptions{{"scheme": {}}},
+			SecuritySchemes:      a2a.NamedSecuritySchemes{"scheme": scheme},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		agent  *models.Agent
+		assert func(t *testing.T, req *http.Request)
+	}{
+		{
+			name: "apiKey header",
+			agent: &models.Agent{
+				AgentCard: cardWith(
+					a2a.APIKeySecurityScheme{Name: "X-API-Key", Location: a2a.APIKeySecuritySchemeLocationHeader},
+				),
+				Credentials: cred("secret-123"),
+			},
+			assert: func(t *testing.T, req *http.Request) {
+				assert.Equal(t, "secret-123", req.Header.Get("X-API-Key"))
+			},
+		},
+		{
+			name: "apiKey query",
+			agent: &models.Agent{
+				AgentCard: cardWith(
+					a2a.APIKeySecurityScheme{Name: "api_key", Location: a2a.APIKeySecuritySchemeLocationQuery},
+				),
+				Credentials: cred("q-456"),
+			},
+			assert: func(t *testing.T, req *http.Request) {
+				assert.Equal(t, "q-456", req.URL.Query().Get("api_key"))
+			},
+		},
+		{
+			name: "http bearer",
+			agent: &models.Agent{
+				AgentCard:   cardWith(a2a.HTTPAuthSecurityScheme{Scheme: "bearer"}),
+				Credentials: cred("tok-789"),
+			},
+			assert: func(t *testing.T, req *http.Request) {
+				assert.Equal(t, "Bearer tok-789", req.Header.Get("Authorization"))
+			},
+		},
+		{
+			name:  "no credentials",
+			agent: &models.Agent{AgentCard: &models.AgentCard{Name: "a"}},
+			assert: func(t *testing.T, req *http.Request) {
+				assert.Empty(t, req.Header.Get("Authorization"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			capturer := &capturingRoundTripper{}
+			rt := &agentAuthRoundTripper{
+				base:          capturer,
+				authenticator: NewAgentAuthenticator(passthroughEncryption{}),
+				agent:         tt.agent,
+			}
+			req, err := http.NewRequest("POST", "http://agent.example/invoke", nil)
+			require.NoError(t, err)
+
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+			require.NotNil(t, capturer.req)
+			tt.assert(t, capturer.req)
+		})
+	}
+}
+
+func TestBuildA2AMessage(t *testing.T) {
+	ctxID := "ctx-1"
+	msg := buildA2AMessage(map[string]interface{}{"text": "hello"}, &ctxID)
+	assert.Equal(t, a2a.MessageRoleUser, msg.Role)
+	assert.Equal(t, "ctx-1", msg.ContextID)
+	require.Len(t, msg.Parts, 1)
+	assert.Equal(t, "hello", msg.Parts[0].Text())
+
+	// Non-string input is stringified.
+	msg2 := buildA2AMessage(map[string]interface{}{"n": 42}, nil)
+	assert.Empty(t, msg2.ContextID)
+	assert.Contains(t, msg2.Parts[0].Text(), "42")
+}
+
+func TestMapTaskStateToStatus(t *testing.T) {
+	cases := map[a2a.TaskState]string{
+		a2a.TaskStateCompleted:     "completed",
+		a2a.TaskStateFailed:        "failed",
+		a2a.TaskStateRejected:      "failed",
+		a2a.TaskStateCanceled:      "cancelled",
+		a2a.TaskStateWorking:       "working",
+		a2a.TaskStateSubmitted:     "working",
+		a2a.TaskStateInputRequired: "working",
+	}
+	for state, want := range cases {
+		assert.Equal(t, want, mapTaskStateToStatus(state), "state %s", state)
+	}
+}
+
+func TestMapSendResultToExecution(t *testing.T) {
+	// Message result -> completed.
+	exec := mapSendResultToExecution(a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart("x")), 5*time.Millisecond)
+	assert.Equal(t, "completed", exec.Status)
+	assert.Nil(t, exec.TaskID)
+
+	// Task result -> mapped state + captured ids.
+	task := &a2a.Task{ID: "task-9", ContextID: "ctx-9", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted}}
+	exec = mapSendResultToExecution(task, time.Millisecond)
+	assert.Equal(t, "completed", exec.Status)
+	require.NotNil(t, exec.TaskID)
+	assert.Equal(t, "task-9", *exec.TaskID)
+	require.NotNil(t, exec.ContextID)
+	assert.Equal(t, "ctx-9", *exec.ContextID)
+	require.NotNil(t, exec.CurrentState)
+}
+
+func TestA2AHTTPClient_SupportsStreaming(t *testing.T) {
+	client := newTestA2AHTTPClient()
+	assert.True(t, client.SupportsStreaming(testAgent("http://x/invoke", true)))
+	assert.False(t, client.SupportsStreaming(testAgent("http://x/invoke", false)))
+	assert.False(t, client.SupportsStreaming(&models.Agent{}))
 }
