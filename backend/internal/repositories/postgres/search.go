@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -245,33 +247,7 @@ func (r *SearchRepository) queryPage(
 		}
 	}()
 
-	results := make([]models.SearchResultRow, 0, limit)
-	for rows.Next() {
-		var row models.SearchResultRow
-		if scanErr := rows.Scan(
-			&row.EntityType,
-			&row.EntityID,
-			&row.ChunkID,
-			&row.Title,
-			&row.Slug,
-			&row.ProjectID,
-			&row.ProjectName,
-			&row.ChunkContent,
-			&row.SourceBody,
-			&row.CreatedAt,
-			&row.UpdatedAt,
-			&row.Distance,
-		); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan search result: %w", scanErr)
-		}
-		results = append(results, row)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate search results: %w", err)
-	}
-
-	return results, nil
+	return scanSearchRows(rows, limit)
 }
 
 func (r *SearchRepository) countSimilar(
@@ -319,17 +295,28 @@ const (
 	// question-style queries return results. Still composed of IMMUTABLE functions,
 	// so the GIN indexes apply here too.
 	keywordRelaxedTSQuery = "replace(websearch_to_tsquery('english', $1)::text, '&', '|')::tsquery"
+	// keywordTrgmThreshold is the pg_trgm word_similarity cutoff for the third
+	// (typo-tolerance) fallback pass, set transaction-locally via set_config so a
+	// single transposition still matches. word_similarity('widgte','widget') is
+	// ~0.4, which the operator's default word_similarity_threshold of 0.6 would
+	// reject; 0.3 admits a one-token typo without flooding results (only genuinely
+	// near titles clear it, and this pass runs only when both FTS passes find
+	// nothing). It is a fixed constant, never user input.
+	keywordTrgmThreshold = "0.3"
 )
 
 // SearchKeyword runs a UNION ALL full-text search across the requested entity
 // types, reading the source tables directly. It is the fallback for when no
 // embedding provider is configured, so the embeddings table is empty.
 //
-// It runs up to two passes. The strict pass (websearch_to_tsquery) ANDs plain
+// It runs up to three passes. The strict pass (websearch_to_tsquery) ANDs plain
 // words, so precise/exact-term queries stay precise; multi-word natural-language
 // questions, though, AND to nothing. When the strict pass yields zero rows a
-// relaxed pass retries with OR semantics over the same sanitised lexemes so the
-// fallback still returns relevant results instead of nothing.
+// relaxed pass retries with OR semantics over the same sanitised lexemes. Both
+// are exact-lexeme matches, so a single mistyped token still matches nothing;
+// when the relaxed pass is also empty a third pg_trgm pass (#188) matches the
+// query against resource TITLES/NAMES by trigram word-similarity, so a one-token
+// typo (e.g. "widgte" -> "widget") still finds the target resource.
 func (r *SearchRepository) SearchKeyword(
 	ctx context.Context,
 	teamID string,
@@ -349,8 +336,16 @@ func (r *SearchRepository) SearchKeyword(
 		return rows, total, nil
 	}
 
-	return r.runKeywordPass(
+	rows, total, err = r.runKeywordPass(
 		ctx, teamID, query, entityTypes, projectArg, limit, offset, keywordRelaxedTSQuery)
+	if err != nil {
+		return nil, 0, err
+	}
+	if total > 0 {
+		return rows, total, nil
+	}
+
+	return r.runKeywordTrgmPass(ctx, teamID, query, entityTypes, projectArg, limit, offset)
 }
 
 // runKeywordPass executes one full-text pass with the given tsquery expression:
@@ -474,6 +469,183 @@ func buildKeywordCountUnion(entityTypes []string, tsquery string) (string, error
 	})
 }
 
+// trgmTitleExpr renders the coalesced title/name expression the pg_trgm pass
+// matches against — the resource's own title only (never the body), so a typo is
+// tolerated against the short, high-signal title. It is kept byte-for-byte in
+// sync with the migration-007 gin_trgm_ops index expressions (src.* qualifiers
+// resolve to the same columns), so the `%>` operator stays index-accelerated.
+func trgmTitleExpr(src entitySource) string {
+	return fmt.Sprintf("coalesce(%s, '')", src.titleExpr)
+}
+
+// buildKeywordTrgmBranch builds the page SELECT for one entity type for the third
+// (pg_trgm typo-tolerance) keyword pass. It matches the query against the title
+// only via the `%>` word-similarity operator (index-backed) and scores with
+// 1 - word_similarity so the outer ORDER BY distance ASC yields the closest
+// titles first and the service derives Score = word_similarity. Positional args
+// match the FTS branches: $1 = query, $2 = team_id, $3 = project_id (NULL = none).
+// chunk_content is empty (no embedding chunks in keyword mode).
+func buildKeywordTrgmBranch(entityType string, src entitySource) string {
+	title := trgmTitleExpr(src)
+	var b strings.Builder
+	fmt.Fprintf(&b, "SELECT '%s' AS entity_type, src.id AS entity_id, src.id AS chunk_id, ", entityType)
+	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.titleExpr, src.slugExpr)
+	b.WriteString("src.project_id::text AS project_id, COALESCE(proj.name, '') AS project_name, ")
+	fmt.Fprintf(&b, "'' AS chunk_content, %s AS source_body, ", src.bodyExpr)
+	b.WriteString("src.created_at AS created_at, src.updated_at AS updated_at, ")
+	fmt.Fprintf(&b, "1 - word_similarity($1, %s) AS distance ", title)
+	fmt.Fprintf(&b, "FROM %s src ", src.table)
+	b.WriteString("LEFT JOIN projects proj ON src.project_id = proj.id ")
+	b.WriteString("WHERE src.team_id = $2")
+	if src.statusFilter != "" {
+		b.WriteString(" AND " + src.statusFilter)
+	}
+	b.WriteString(" AND ($3::uuid IS NULL OR src.project_id = $3::uuid)")
+	b.WriteString(" AND " + title + " %> $1")
+	return b.String()
+}
+
+// buildKeywordTrgmCountBranch builds a COUNT-only SELECT for one entity type for
+// the pg_trgm pass: same title `%>` predicate and positional args as
+// buildKeywordTrgmBranch, without the word_similarity score or unused projections.
+func buildKeywordTrgmCountBranch(src entitySource) string {
+	title := trgmTitleExpr(src)
+	var b strings.Builder
+	b.WriteString("SELECT 1 ")
+	fmt.Fprintf(&b, "FROM %s src ", src.table)
+	b.WriteString("WHERE src.team_id = $2")
+	if src.statusFilter != "" {
+		b.WriteString(" AND " + src.statusFilter)
+	}
+	b.WriteString(" AND ($3::uuid IS NULL OR src.project_id = $3::uuid)")
+	b.WriteString(" AND " + title + " %> $1")
+	return b.String()
+}
+
+// buildKeywordTrgmUnion assembles the page-query UNION ALL body (including the
+// word_similarity score) for the pg_trgm pass over the requested entity types.
+func buildKeywordTrgmUnion(entityTypes []string) (string, error) {
+	return buildUnionWith(entityTypes, buildKeywordTrgmBranch)
+}
+
+// buildKeywordTrgmCountUnion assembles the count-query UNION ALL body for the
+// pg_trgm pass over the requested entity types.
+func buildKeywordTrgmCountUnion(entityTypes []string) (string, error) {
+	return buildUnionWith(entityTypes, func(_ string, src entitySource) string {
+		return buildKeywordTrgmCountBranch(src)
+	})
+}
+
+// runKeywordTrgmPass is the third keyword fallback (#188): a pg_trgm
+// word-similarity match against resource titles/names only, reached only when
+// both full-text passes returned zero rows. It lowers
+// pg_trgm.word_similarity_threshold transaction-locally (set_config with
+// is_local = true) so a single-token typo clears the `%>` operator, then counts
+// and — if non-empty — fetches the page. Count and page share one transaction so
+// the local threshold applies to both and never leaks onto the pooled connection.
+func (r *SearchRepository) runKeywordTrgmPass(
+	ctx context.Context,
+	teamID string,
+	query string,
+	entityTypes []string,
+	projectArg interface{},
+	limit, offset int,
+) ([]models.SearchResultRow, int, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to begin trgm search transaction: %w", err)
+	}
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			slog.Error("Failed to roll back trgm search transaction", "error", rbErr)
+		}
+	}()
+
+	if _, err = tx.ExecContext(ctx,
+		"SELECT set_config('pg_trgm.word_similarity_threshold', $1, true)", keywordTrgmThreshold); err != nil {
+		return nil, 0, fmt.Errorf("failed to set trgm word_similarity threshold: %w", err)
+	}
+
+	total, err := countKeywordTrgm(ctx, tx, teamID, query, entityTypes, projectArg)
+	if err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return []models.SearchResultRow{}, 0, nil
+	}
+
+	rows, err := queryKeywordTrgmPage(ctx, tx, teamID, query, entityTypes, projectArg, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
+// countKeywordTrgm counts the pg_trgm title matches within the pass transaction
+// tx (so the transaction-local word_similarity threshold applies). Args:
+// $1 = query, $2 = team_id, $3 = project_id (NULL = no filter).
+func countKeywordTrgm(
+	ctx context.Context,
+	tx *sql.Tx,
+	teamID, query string,
+	entityTypes []string,
+	projectArg interface{},
+) (int, error) {
+	union, err := buildKeywordTrgmCountUnion(entityTypes)
+	if err != nil {
+		return 0, err
+	}
+
+	// The union is assembled from a fixed, validated entity-type allowlist
+	// (buildUnionWith); the query, team and project are bound parameters.
+	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM (%s) AS results", union) // #nosec G201
+
+	var total int
+	if scanErr := tx.QueryRowContext(ctx, countSQL, query, teamID, projectArg).Scan(&total); scanErr != nil {
+		return 0, fmt.Errorf("failed to count trgm keyword search results: %w", scanErr)
+	}
+	return total, nil
+}
+
+// queryKeywordTrgmPage fetches one page of pg_trgm title matches within the pass
+// transaction tx. Args: $1 = query, $2 = team_id, $3 = project_id (NULL = none),
+// $4 = limit, $5 = offset.
+func queryKeywordTrgmPage(
+	ctx context.Context,
+	tx *sql.Tx,
+	teamID, query string,
+	entityTypes []string,
+	projectArg interface{},
+	limit, offset int,
+) ([]models.SearchResultRow, error) {
+	union, err := buildKeywordTrgmUnion(entityTypes)
+	if err != nil {
+		return nil, err
+	}
+
+	// entity_id is a deterministic secondary sort key so pagination stays stable
+	// when several titles share a word_similarity score (mirrors the FTS passes).
+	// The union comes from the validated entity-type allowlist; values are bound.
+	pageSQL := fmt.Sprintf( // #nosec G201
+		"SELECT entity_type, entity_id, chunk_id, title, slug, project_id, project_name, "+
+			"chunk_content, source_body, created_at, updated_at, distance "+
+			"FROM (%s) AS results ORDER BY distance ASC, entity_id ASC LIMIT $4 OFFSET $5",
+		union,
+	)
+
+	rows, err := tx.QueryContext(ctx, pageSQL, query, teamID, projectArg, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run trgm keyword search: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close search rows", "error", closeErr)
+		}
+	}()
+
+	return scanSearchRows(rows, limit)
+}
+
 func (r *SearchRepository) queryKeywordPage(
 	ctx context.Context,
 	teamID string,
@@ -509,6 +681,13 @@ func (r *SearchRepository) queryKeywordPage(
 		}
 	}()
 
+	return scanSearchRows(rows, limit)
+}
+
+// scanSearchRows scans the 12-column SearchResultRow projection shared by every
+// search query (semantic and all keyword passes) into a slice, capacity hinted by
+// limit. Callers own closing rows.
+func scanSearchRows(rows *sql.Rows, limit int) ([]models.SearchResultRow, error) {
 	results := make([]models.SearchResultRow, 0, limit)
 	for rows.Next() {
 		var row models.SearchResultRow
@@ -531,7 +710,7 @@ func (r *SearchRepository) queryKeywordPage(
 		results = append(results, row)
 	}
 
-	if err = rows.Err(); err != nil {
+	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to iterate search results: %w", err)
 	}
 
