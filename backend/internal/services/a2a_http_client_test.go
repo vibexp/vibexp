@@ -109,6 +109,44 @@ func TestA2AHTTPClient_InvokeAgent_Message(t *testing.T) {
 	assert.Equal(t, "completed", execution.Status)
 	assert.Nil(t, execution.Error)
 	assert.NotNil(t, execution.Duration)
+	// #163: the reply is persisted as artifacts.
+	require.Len(t, execution.Artifacts, 1)
+	parts, ok := execution.Artifacts[0]["parts"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "hi", parts[0].(map[string]interface{})["text"])
+}
+
+func TestArtifactsFromMessage(t *testing.T) {
+	arts := artifactsFromMessage(a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart("the answer")))
+	require.Len(t, arts, 1)
+	parts, ok := arts[0]["parts"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "the answer", parts[0].(map[string]interface{})["text"])
+
+	assert.Nil(t, artifactsFromMessage(a2a.NewMessage(a2a.MessageRoleAgent)))
+	assert.Nil(t, artifactsFromMessage(nil))
+}
+
+func TestTaskToExecution(t *testing.T) {
+	// Terminal task → completed status + persisted artifacts.
+	task := &a2a.Task{
+		ID: "t1", ContextID: "c1",
+		Status:    a2a.TaskStatus{State: a2a.TaskStateCompleted},
+		Artifacts: []*a2a.Artifact{{ID: "a1", Parts: a2a.ContentParts{a2a.NewTextPart("done")}}},
+	}
+	exec := taskToExecution(task, 0)
+	assert.Equal(t, "completed", exec.Status)
+	require.NotNil(t, exec.TaskID)
+	assert.Equal(t, "t1", *exec.TaskID)
+	require.Len(t, exec.Artifacts, 1)
+
+	// Non-terminal task → working, no artifacts yet.
+	working := &a2a.Task{ID: "t2", Status: a2a.TaskStatus{State: a2a.TaskStateWorking}}
+	exec2 := taskToExecution(working, 0)
+	assert.Equal(t, "working", exec2.Status)
+	assert.Nil(t, exec2.Artifacts)
 }
 
 func TestA2AHTTPClient_InvokeAgent_Error(t *testing.T) {

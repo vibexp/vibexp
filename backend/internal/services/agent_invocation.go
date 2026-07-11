@@ -227,7 +227,29 @@ func (s *AgentInvocationService) setupConversationID(
 	return nil
 }
 
-// invokeAgentSync handles synchronous agent invocation (non-streaming)
+// Sync task polling bounds: a message/send that returns a non-terminal Task is
+// polled with capped exponential backoff until terminal or the deadline.
+// Vars (not consts) so tests can shorten them.
+var (
+	syncTaskPollInitialBackoff = 1 * time.Second
+	syncTaskPollMaxBackoff     = 5 * time.Second
+	syncTaskPollDeadline       = 5 * time.Minute
+)
+
+// isNonTerminalSyncStatus reports whether a client-reported status means the
+// remote task is still running and must be polled.
+func isNonTerminalSyncStatus(status string) bool {
+	switch status {
+	case "working", "submitted", "running", "pending":
+		return true
+	default:
+		return false
+	}
+}
+
+// invokeAgentSync handles synchronous agent invocation (non-streaming). The
+// reply is persisted as artifacts; a non-terminal Task result is polled until
+// it reaches a terminal state.
 func (s *AgentInvocationService) invokeAgentSync(
 	ctx context.Context,
 	agent *models.Agent,
@@ -241,7 +263,103 @@ func (s *AgentInvocationService) invokeAgentSync(
 		return s.handleSyncInvocationError(ctx, agent, execution, err)
 	}
 
+	// Per the A2A spec, message/send may return a Task in submitted/working
+	// state; poll it to a terminal state rather than reporting it done.
+	if result.TaskID != nil && isNonTerminalSyncStatus(result.Status) {
+		polled, pollErr := s.pollSyncTask(ctx, agent, execution, result)
+		if pollErr != nil {
+			return s.handleSyncInvocationError(ctx, agent, execution, pollErr)
+		}
+		result = polled
+	}
+
 	return s.handleSyncInvocationSuccess(ctx, agent, execution, result)
+}
+
+// pollSyncTask polls the remote task until it is terminal or the deadline is
+// exceeded, persisting current_state live so the status endpoint reflects
+// progress. It returns the terminal snapshot.
+func (s *AgentInvocationService) pollSyncTask(
+	ctx context.Context,
+	agent *models.Agent,
+	execution *models.AgentExecution,
+	initial *models.AgentExecution,
+) (*models.AgentExecution, error) {
+	taskID := *initial.TaskID
+	s.persistTaskProgress(ctx, execution, initial)
+
+	pollCtx, cancel := context.WithTimeout(ctx, syncTaskPollDeadline)
+	defer cancel()
+
+	backoff := syncTaskPollInitialBackoff
+	for {
+		select {
+		case <-pollCtx.Done():
+			return nil, fmt.Errorf(
+				"agent task %s did not reach a terminal state within %s", taskID, syncTaskPollDeadline,
+			)
+		case <-time.After(backoff):
+		}
+
+		snapshot, err := s.a2aClient.GetTask(pollCtx, agent, taskID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to poll agent task %s: %w", taskID, err)
+		}
+		s.persistTaskProgress(ctx, execution, snapshot)
+
+		if !isNonTerminalSyncStatus(snapshot.Status) {
+			return snapshot, nil
+		}
+
+		if backoff *= 2; backoff > syncTaskPollMaxBackoff {
+			backoff = syncTaskPollMaxBackoff
+		}
+	}
+}
+
+// persistSyncReply persists a sync execution's reply. Sync replies reuse the
+// agent_executions.artifacts jsonb in the same A2A v1.0 shape the streaming path
+// writes, so there is no schema or frontend-contract change.
+func (s *AgentInvocationService) persistSyncReply(
+	ctx context.Context, execution, result *models.AgentExecution,
+) {
+	if len(result.Artifacts) > 0 {
+		if artErr := s.executionRepo.UpdateArtifacts(ctx, execution.ID, result.Artifacts); artErr != nil {
+			s.logger.With(
+				"service", "vibexp-api",
+				"method", "invokeAgentSync",
+				"execution_id", execution.ID,
+				"error", fmt.Sprintf("%+v", artErr),
+			).Warn("Failed to persist reply artifacts")
+		}
+	}
+	if result.TaskID != nil || result.CurrentState != nil {
+		s.persistTaskProgress(ctx, execution, result)
+	}
+}
+
+// persistTaskProgress records live task id/context/state on the execution.
+func (s *AgentInvocationService) persistTaskProgress(
+	ctx context.Context, execution, snapshot *models.AgentExecution,
+) {
+	taskID, contextID, state := "", "", ""
+	if snapshot.TaskID != nil {
+		taskID = *snapshot.TaskID
+	}
+	if snapshot.ContextID != nil {
+		contextID = *snapshot.ContextID
+	}
+	if snapshot.CurrentState != nil {
+		state = *snapshot.CurrentState
+	}
+	if err := s.executionRepo.UpdateTaskInfo(ctx, execution.ID, taskID, contextID, state); err != nil {
+		s.logger.With(
+			"service", "vibexp-api",
+			"method", "pollSyncTask",
+			"execution_id", execution.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to update task progress")
+	}
 }
 
 // handleSyncInvocationError handles errors during synchronous invocation
@@ -302,6 +420,10 @@ func (s *AgentInvocationService) handleSyncInvocationSuccess(
 	execution.Status = s.mapA2AStatusToDBStatus(result.Status)
 	execution.Error = result.Error
 	execution.EndedAt = &endedAt
+	execution.TaskID = result.TaskID
+	execution.ContextID = result.ContextID
+	execution.CurrentState = result.CurrentState
+	execution.Artifacts = result.Artifacts
 
 	if result.Duration != nil {
 		execution.Duration = result.Duration
@@ -321,8 +443,10 @@ func (s *AgentInvocationService) handleSyncInvocationSuccess(
 		return nil, fmt.Errorf("failed to update execution: %w", err)
 	}
 
+	s.persistSyncReply(ctx, execution, result)
+
 	// Update agent statistics
-	success := result.Status == "completed"
+	success := execution.Status == "success"
 	if err := s.agentRepo.UpdateExecutionStats(ctx, agent.ID, success, *execution.Duration); err != nil {
 		s.logger.With(
 			"service", "vibexp-api",
