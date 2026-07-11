@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { type Control, useForm } from 'react-hook-form'
+import { type Control, useForm, type UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/lib/toast'
 import type {
   CreateEmbeddingProviderRequest,
@@ -54,10 +55,44 @@ const schema = z.object({
     .number()
     .int('Must be a whole number')
     .min(1, 'Must be at least 1'),
+  // Prefixes are NOT trimmed — asymmetric models expect a trailing space (e.g.
+  // "query: "), which trimming would strip. Capped at 256 to match the backend.
+  query_prefix: z.string().max(256, 'Must be at most 256 characters'),
+  document_prefix: z.string().max(256, 'Must be at most 256 characters'),
   is_default: z.boolean(),
 })
 
 export type EmbeddingProviderFormValues = z.infer<typeof schema>
+
+// identityChanged is true when an edit changes the model, base URL, or provider
+// type — the fields that make existing embeddings incomparable. It gates the
+// validate-on-save probe. Module-level (pure) to keep the dialog under the
+// max-lines-per-function cap.
+function identityChanged(
+  values: EmbeddingProviderFormValues,
+  provider?: EmbeddingProviderResponse
+) {
+  return (
+    !!provider &&
+    (values.model.trim() !== provider.model ||
+      values.base_url.trim() !== (provider.base_url ?? '') ||
+      values.provider_type !== provider.provider_type)
+  )
+}
+
+// reembedWillTrigger is true when an edit will wipe + re-index this team's
+// embeddings: an identity change OR a document_prefix change (it alters the text
+// every document is embedded with). A query_prefix change does NOT re-index — it
+// affects only the query side — so it is intentionally excluded.
+function reembedWillTrigger(
+  values: EmbeddingProviderFormValues,
+  provider?: EmbeddingProviderResponse
+) {
+  return (
+    identityChanged(values, provider) ||
+    (!!provider && values.document_prefix !== (provider.document_prefix ?? ''))
+  )
+}
 
 // Concurrency is the one numeric field, so it needs value/onChange coercion
 // (an <input type="number"> yields strings, but the schema wants a number).
@@ -99,6 +134,97 @@ function ConcurrencyField({
   )
 }
 
+// PREFIX_PRESETS are one-click instruction prefixes for known asymmetric model
+// families. Each sets BOTH sides at once (query and document), since a family
+// prescribes both. "None" clears them (symmetric models / current default).
+const PREFIX_PRESETS: {
+  label: string
+  query: string
+  document: string
+}[] = [
+  {
+    label: 'mxbai / BGE (English)',
+    query: 'Represent this sentence for searching relevant passages: ',
+    document: '',
+  },
+  { label: 'E5', query: 'query: ', document: 'passage: ' },
+  { label: 'None', query: '', document: '' },
+]
+
+// PrefixFields renders the query/document instruction-prefix inputs plus the
+// per-family preset chips. Extracted to keep the dialog component under the
+// max-lines-per-function cap (mirrors ConcurrencyField). Preset chips are used
+// instead of a Select because a Radix Select inside a Dialog crashes jsdom.
+function PrefixFields({
+  form,
+}: {
+  form: UseFormReturn<EmbeddingProviderFormValues>
+}) {
+  return (
+    <div className="space-y-3 sm:col-span-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Presets:</span>
+        {PREFIX_PRESETS.map(preset => (
+          <Button
+            key={preset.label}
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              form.setValue('query_prefix', preset.query, {
+                shouldDirty: true,
+              })
+              form.setValue('document_prefix', preset.document, {
+                shouldDirty: true,
+              })
+            }}
+          >
+            {preset.label}
+          </Button>
+        ))}
+      </div>
+      <FormField
+        control={form.control}
+        name="query_prefix"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Query prefix</FormLabel>
+            <FormControl>
+              <Textarea
+                {...field}
+                rows={2}
+                placeholder="e.g., Represent this sentence for searching relevant passages: "
+              />
+            </FormControl>
+            <FormDescription>
+              Prepended to search queries before embedding. Leave empty for
+              symmetric models. Changing it needs no re-index.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="document_prefix"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Document prefix</FormLabel>
+            <FormControl>
+              <Textarea {...field} rows={2} placeholder="e.g., passage: " />
+            </FormControl>
+            <FormDescription>
+              Prepended to document chunks before embedding. Changing it
+              re-indexes this team&apos;s resources.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
+  )
+}
+
 interface Props {
   teamId: string
   open: boolean
@@ -131,6 +257,8 @@ export function EmbeddingProviderDialog({
       base_url: '',
       api_key: '',
       concurrency: 1,
+      query_prefix: '',
+      document_prefix: '',
       is_default: false,
     },
   })
@@ -148,19 +276,12 @@ export function EmbeddingProviderDialog({
         base_url: provider.base_url ?? '',
         api_key: '',
         concurrency: provider.concurrency,
+        query_prefix: provider.query_prefix ?? '',
+        document_prefix: provider.document_prefix ?? '',
         is_default: provider.is_default,
       })
     }
   }, [open, provider, form])
-
-  // identityChanged is true when an edit changes the model, base URL, or provider
-  // type — the fields that make existing embeddings incomparable. It gates both
-  // the validate-on-save probe and the re-embed confirmation.
-  const identityChanged = (values: EmbeddingProviderFormValues) =>
-    !!provider &&
-    (values.model.trim() !== provider.model ||
-      values.base_url.trim() !== (provider.base_url ?? '') ||
-      values.provider_type !== provider.provider_type)
 
   const proceed = async (values: EmbeddingProviderFormValues) => {
     const baseUrl = values.base_url.trim()
@@ -172,7 +293,7 @@ export function EmbeddingProviderDialog({
     // and whenever an edit changes the embedding identity; a name/default-only edit
     // needs no re-probe. When the identity changed but the provider needs a key the
     // user didn't re-enter, the probe fails with an auth error that prompts them.
-    if (!provider || identityChanged(values)) {
+    if (!provider || identityChanged(values, provider)) {
       setValidating(true)
       try {
         const result = await embeddingProviderService.validateEmbeddingProvider(
@@ -205,14 +326,18 @@ export function EmbeddingProviderDialog({
       base_url: baseUrl,
       api_key: apiKey === '' ? undefined : apiKey,
       concurrency: values.concurrency,
+      // Prefixes are sent verbatim (no trim — the trailing space is significant);
+      // an empty string clears a previously-configured prefix on update.
+      query_prefix: values.query_prefix,
+      document_prefix: values.document_prefix,
       is_default: values.is_default,
     })
   }
 
-  // Editing the model/endpoint/type invalidates this team's existing embeddings,
-  // so confirm the wipe + re-embed before proceeding.
+  // Editing the model/endpoint/type or the document prefix invalidates this team's
+  // existing embeddings, so confirm the wipe + re-embed before proceeding.
   const handleSubmit = form.handleSubmit(async values => {
-    if (identityChanged(values)) {
+    if (reembedWillTrigger(values, provider)) {
       setPendingValues(values)
       return
     }
@@ -329,6 +454,7 @@ export function EmbeddingProviderDialog({
                   </FormItem>
                 )}
               />
+              <PrefixFields form={form} />
               <FormField
                 control={form.control}
                 name="api_key"
@@ -406,10 +532,10 @@ export function EmbeddingProviderDialog({
         title="Re-embed this team's resources?"
         description={
           <>
-            Changing the model, endpoint, or provider type deletes this
-            team&apos;s existing embeddings and re-generates them in the
-            background. Semantic search falls back to keyword matching until
-            re-indexing completes.
+            Changing the model, endpoint, provider type, or document prefix
+            deletes this team&apos;s existing embeddings and re-generates them
+            in the background. Semantic search falls back to keyword matching
+            until re-indexing completes.
           </>
         }
         confirmLabel="Save & re-embed"
