@@ -23,9 +23,9 @@ func (_m *MockAgentCardFetcherInterface) EXPECT() *MockAgentCardFetcherInterface
 	return &MockAgentCardFetcherInterface_Expecter{mock: &_m.Mock}
 }
 
-// FetchAgentCard provides a mock function with given fields: ctx, cardURL
-func (_m *MockAgentCardFetcherInterface) FetchAgentCard(ctx context.Context, cardURL string) (*a2a.AgentCard, error) {
-	ret := _m.Called(ctx, cardURL)
+// FetchAgentCard provides a mock function with given fields: ctx, cardURL, authHeaders
+func (_m *MockAgentCardFetcherInterface) FetchAgentCard(ctx context.Context, cardURL string, authHeaders map[string]string) (*a2a.AgentCard, error) {
+	ret := _m.Called(ctx, cardURL, authHeaders)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FetchAgentCard")
@@ -33,19 +33,19 @@ func (_m *MockAgentCardFetcherInterface) FetchAgentCard(ctx context.Context, car
 
 	var r0 *a2a.AgentCard
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*a2a.AgentCard, error)); ok {
-		return rf(ctx, cardURL)
+	if rf, ok := ret.Get(0).(func(context.Context, string, map[string]string) (*a2a.AgentCard, error)); ok {
+		return rf(ctx, cardURL, authHeaders)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *a2a.AgentCard); ok {
-		r0 = rf(ctx, cardURL)
+	if rf, ok := ret.Get(0).(func(context.Context, string, map[string]string) *a2a.AgentCard); ok {
+		r0 = rf(ctx, cardURL, authHeaders)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*a2a.AgentCard)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, cardURL)
+	if rf, ok := ret.Get(1).(func(context.Context, string, map[string]string) error); ok {
+		r1 = rf(ctx, cardURL, authHeaders)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -61,13 +61,14 @@ type MockAgentCardFetcherInterface_FetchAgentCard_Call struct {
 // FetchAgentCard is a helper method to define mock.On call
 //   - ctx context.Context
 //   - cardURL string
-func (_e *MockAgentCardFetcherInterface_Expecter) FetchAgentCard(ctx interface{}, cardURL interface{}) *MockAgentCardFetcherInterface_FetchAgentCard_Call {
-	return &MockAgentCardFetcherInterface_FetchAgentCard_Call{Call: _e.mock.On("FetchAgentCard", ctx, cardURL)}
+//   - authHeaders map[string]string
+func (_e *MockAgentCardFetcherInterface_Expecter) FetchAgentCard(ctx interface{}, cardURL interface{}, authHeaders interface{}) *MockAgentCardFetcherInterface_FetchAgentCard_Call {
+	return &MockAgentCardFetcherInterface_FetchAgentCard_Call{Call: _e.mock.On("FetchAgentCard", ctx, cardURL, authHeaders)}
 }
 
-func (_c *MockAgentCardFetcherInterface_FetchAgentCard_Call) Run(run func(ctx context.Context, cardURL string)) *MockAgentCardFetcherInterface_FetchAgentCard_Call {
+func (_c *MockAgentCardFetcherInterface_FetchAgentCard_Call) Run(run func(ctx context.Context, cardURL string, authHeaders map[string]string)) *MockAgentCardFetcherInterface_FetchAgentCard_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(map[string]string))
 	})
 	return _c
 }
@@ -77,7 +78,7 @@ func (_c *MockAgentCardFetcherInterface_FetchAgentCard_Call) Return(_a0 *a2a.Age
 	return _c
 }
 
-func (_c *MockAgentCardFetcherInterface_FetchAgentCard_Call) RunAndReturn(run func(context.Context, string) (*a2a.AgentCard, error)) *MockAgentCardFetcherInterface_FetchAgentCard_Call {
+func (_c *MockAgentCardFetcherInterface_FetchAgentCard_Call) RunAndReturn(run func(context.Context, string, map[string]string) (*a2a.AgentCard, error)) *MockAgentCardFetcherInterface_FetchAgentCard_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -296,7 +296,7 @@ func TestAgentService_CreateAgent_WithTeamID(t *testing.T) {
 			},
 			setupMocks: func(ts *MockTeamService, ar *repoMocks.MockAgentRepository, cf *MockAgentCardFetcher) {
 				// Team validation is now done by middleware, not service
-				cf.On("FetchAgentCard", ctx, "http://localhost:8000/.well-known/agent-card.json").
+				cf.On("FetchAgentCard", ctx, "http://localhost:8000/.well-known/agent-card.json", mock.Anything).
 					Return(&models.AgentCard{
 						Name:        "Test Agent",
 						Description: "Test Description",
@@ -313,7 +313,7 @@ func TestAgentService_CreateAgent_WithTeamID(t *testing.T) {
 				Status:  "active",
 			},
 			setupMocks: func(ts *MockTeamService, ar *repoMocks.MockAgentRepository, cf *MockAgentCardFetcher) {
-				cf.On("FetchAgentCard", ctx, "http://localhost:8000/.well-known/agent-card.json").
+				cf.On("FetchAgentCard", ctx, "http://localhost:8000/.well-known/agent-card.json", mock.Anything).
 					Return(&models.AgentCard{
 						Name:        "Test Agent",
 						Description: "Test Description",

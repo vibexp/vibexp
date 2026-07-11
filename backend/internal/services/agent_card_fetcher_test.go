@@ -7,8 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/vibexp/vibexp/internal/models"
 )
 
 // createValidAgentCardJSON returns a valid A2A v1.0 agent card as served by an
@@ -63,7 +66,7 @@ func TestAgentCardFetcher_FetchAgentCard_Success(t *testing.T) {
 		defer server.Close()
 
 		fetcher := newTestAgentCardFetcher()
-		card, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json")
+		card, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json", nil)
 
 		assert.NoError(t, err)
 		require.NotNil(t, card)
@@ -142,7 +145,7 @@ func TestAgentCardFetcher_FetchAgentCard_URLValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fetcher := NewAgentCardFetcher()
 
-			_, err := fetcher.FetchAgentCard(context.Background(), tt.cardURL)
+			_, err := fetcher.FetchAgentCard(context.Background(), tt.cardURL, nil)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -206,7 +209,7 @@ func TestAgentCardFetcher_FetchAgentCard_HTTPErrors(t *testing.T) {
 			defer server.Close()
 
 			fetcher := newTestAgentCardFetcher()
-			_, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json")
+			_, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json", nil)
 
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errorMsg)
@@ -225,7 +228,7 @@ func TestAgentCardFetcher_FetchAgentCard_InvalidJSON(t *testing.T) {
 		defer server.Close()
 
 		fetcher := newTestAgentCardFetcher()
-		_, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json")
+		_, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json", nil)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unable to parse agent card response")
@@ -346,7 +349,7 @@ func TestAgentCardFetcher_FetchAgentCard_ValidationErrors(t *testing.T) {
 			defer server.Close()
 
 			fetcher := newTestAgentCardFetcher()
-			_, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json")
+			_, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json", nil)
 
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "invalid agent card format")
@@ -368,7 +371,7 @@ func TestAgentCardFetcher_FetchAgentCard_ContentTypeWarning(t *testing.T) {
 		defer server.Close()
 
 		fetcher := newTestAgentCardFetcher()
-		card, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json")
+		card, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json", nil)
 
 		// Should succeed despite unexpected content type
 		assert.NoError(t, err)
@@ -397,11 +400,72 @@ func TestAgentCardFetcher_FetchAgentCard_ResponseSizeLimit(t *testing.T) {
 		defer server.Close()
 
 		fetcher := newTestAgentCardFetcher()
-		card, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json")
+		card, err := fetcher.FetchAgentCard(context.Background(), server.URL+"/.well-known/agent-card.json", nil)
 
 		assert.Error(t, err)
 		assert.Nil(t, card)
 		// Should fail with size limit error
 		assert.Contains(t, err.Error(), "agent card response too large")
+	})
+}
+
+// TestAgentCardFetcher_FetchAgentCard_AppliesAuthHeaders exercises the full
+// auth-on-fetch path: an agent with a header-based scheme + encrypted credential
+// has its header derived via AgentAuthenticator.AuthHeaders and applied to the
+// discovery request, which a card endpoint that requires that header then accepts.
+func TestAgentCardFetcher_FetchAgentCard_AppliesAuthHeaders(t *testing.T) {
+	encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
+	require.NoError(t, err)
+	authenticator := NewAgentAuthenticator(encryptionSvc)
+
+	encrypted, err := encryptionSvc.Encrypt("secret-token-xyz")
+	require.NoError(t, err)
+	agent := &models.Agent{
+		AgentCard: &models.AgentCard{
+			SecuritySchemes: a2a.NamedSecuritySchemes{
+				"apiKey": a2a.APIKeySecurityScheme{
+					Name: "X-API-Key", Location: a2a.APIKeySecuritySchemeLocationHeader,
+				},
+			},
+		},
+		Credentials: &models.AgentCredentials{
+			"apiKey": models.AgentCredential{Type: "apiKey", Value: encrypted},
+		},
+	}
+
+	const wantHeader = "secret-token-xyz"
+	var gotHeader string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The card endpoint sits behind header auth: reject requests without it.
+		if r.Header.Get("X-API-Key") != wantHeader {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		gotHeader = r.Header.Get("X-API-Key")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, writeErr := w.Write([]byte(createValidAgentCardJSON()))
+		require.NoError(t, writeErr)
+	}))
+	defer server.Close()
+
+	fetcher := newTestAgentCardFetcher()
+	cardURL := server.URL + "/.well-known/agent-card.json"
+
+	t.Run("derived header unlocks the protected card", func(t *testing.T) {
+		headers, err := authenticator.AuthHeaders(agent)
+		require.NoError(t, err)
+
+		card, err := fetcher.FetchAgentCard(context.Background(), cardURL, headers)
+		require.NoError(t, err)
+		require.NotNil(t, card)
+		assert.Equal(t, "Test Agent", card.Name)
+		assert.Equal(t, wantHeader, gotHeader, "server should have received the auth header on fetch")
+	})
+
+	t.Run("fetch without the header is rejected", func(t *testing.T) {
+		_, err := fetcher.FetchAgentCard(context.Background(), cardURL, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unauthorized")
 	})
 }

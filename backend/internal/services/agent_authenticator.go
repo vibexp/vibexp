@@ -84,11 +84,8 @@ func (a *AgentAuthenticator) applyAPIKeyAuth(
 ) error {
 	switch scheme.Location {
 	case a2a.APIKeySecuritySchemeLocationHeader:
-		// Special handling for Authorization header - add Bearer prefix if not already present
-		if scheme.Name == "Authorization" && !hasAuthPrefix(value) {
-			value = "Bearer " + value
-		}
-		req.Header.Set(scheme.Name, value)
+		name, headerValue, _ := headerForScheme(scheme, value)
+		req.Header.Set(name, headerValue)
 	case a2a.APIKeySecuritySchemeLocationQuery:
 		q := req.URL.Query()
 		q.Set(scheme.Name, value)
@@ -120,18 +117,80 @@ func hasAuthPrefix(value string) bool {
 func (a *AgentAuthenticator) applyHTTPAuth(
 	req *http.Request, scheme a2a.HTTPAuthSecurityScheme, value string,
 ) error {
-	switch strings.ToLower(scheme.Scheme) {
-	case "basic":
-		if !hasAuthPrefix(value) {
-			value = "Basic " + value
+	name, headerValue, _ := headerForScheme(scheme, value)
+	req.Header.Set(name, headerValue)
+	return nil
+}
+
+// headerForScheme derives the HTTP header name/value that a header-based security
+// scheme contributes for the given decrypted credential value. It is the single
+// source of truth for header derivation, shared by request-mutating auth
+// (ApplyAuthentication) and by auth-on-card-fetch (AuthHeaders).
+//
+// ok is false for schemes that are not applied as request headers — an API key
+// located in the query string or a cookie — so callers can skip them.
+func headerForScheme(scheme a2a.SecurityScheme, value string) (name, headerValue string, ok bool) {
+	switch s := scheme.(type) {
+	case a2a.APIKeySecurityScheme:
+		if s.Location != a2a.APIKeySecuritySchemeLocationHeader {
+			return "", "", false
 		}
-		req.Header.Set("Authorization", value)
-	default:
-		// Default to bearer for "bearer" and any unspecified scheme
-		if !hasAuthPrefix(value) {
+		// Special handling for Authorization header - add Bearer prefix if not already present
+		if s.Name == "Authorization" && !hasAuthPrefix(value) {
 			value = "Bearer " + value
 		}
-		req.Header.Set("Authorization", value)
+		return s.Name, value, true
+	case a2a.HTTPAuthSecurityScheme:
+		if strings.ToLower(s.Scheme) == "basic" {
+			if !hasAuthPrefix(value) {
+				value = "Basic " + value
+			}
+		} else {
+			// Default to bearer for "bearer" and any unspecified scheme
+			if !hasAuthPrefix(value) {
+				value = "Bearer " + value
+			}
+		}
+		return "Authorization", value, true
+	default:
+		return "", "", false
 	}
-	return nil
+}
+
+// AuthHeaders returns the HTTP header name/value pairs that the agent's
+// header-based security schemes would apply, for use when discovering a card that
+// sits behind header authentication. It decrypts each stored credential whose
+// scheme name matches a security scheme on the card and, when that scheme is
+// header-based (API key in a header, or HTTP Basic/Bearer), adds the derived
+// header. API keys located in the query string or a cookie are intentionally
+// skipped — only headers are applied on card fetch.
+//
+// It returns an empty (non-nil) map — never an error — when the agent has no card,
+// no security schemes, or no stored credentials, so a plain public-card fetch is
+// unaffected.
+func (a *AgentAuthenticator) AuthHeaders(agent *models.Agent) (map[string]string, error) {
+	headers := make(map[string]string)
+	if agent == nil || agent.AgentCard == nil {
+		return headers, nil
+	}
+	if len(agent.AgentCard.SecuritySchemes) == 0 || agent.Credentials == nil || len(*agent.Credentials) == 0 {
+		return headers, nil
+	}
+
+	for schemeName, scheme := range agent.AgentCard.SecuritySchemes {
+		credential, exists := (*agent.Credentials)[string(schemeName)]
+		if !exists {
+			continue
+		}
+		decrypted, err := a.encryptionService.Decrypt(credential.Value)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt credential: %w", err)
+		}
+		name, headerValue, ok := headerForScheme(scheme, decrypted)
+		if !ok {
+			continue // non-header scheme (query/cookie) — not applied on fetch
+		}
+		headers[name] = headerValue
+	}
+	return headers, nil
 }

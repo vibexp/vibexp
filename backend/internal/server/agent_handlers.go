@@ -573,7 +573,9 @@ func (s *Server) handlePreviewAgentCard(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	agentCard, err := s.container.AgentCardFetcher().FetchAgentCard(r.Context(), req.CardURL)
+	// Preview happens before any agent (and its credentials) exists, so the card is
+	// fetched without authentication.
+	agentCard, err := s.container.AgentCardFetcher().FetchAgentCard(r.Context(), req.CardURL, nil)
 	if err != nil {
 		s.handleAgentCardFetchError(w, userID, req.CardURL, err)
 		return

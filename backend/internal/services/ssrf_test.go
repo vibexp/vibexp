@@ -129,6 +129,7 @@ func TestFetchAgentCard_RejectsInternalHost(t *testing.T) {
 	_, err := fetcher.FetchAgentCard(
 		context.Background(),
 		"http://169.254.169.254/.well-known/agent-card.json",
+		nil,
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")

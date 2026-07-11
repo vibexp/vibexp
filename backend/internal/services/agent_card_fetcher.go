@@ -35,7 +35,11 @@ var (
 
 // AgentCardFetcherInterface defines methods for fetching agent cards
 type AgentCardFetcherInterface interface {
-	FetchAgentCard(ctx context.Context, cardURL string) (*models.AgentCard, error)
+	// FetchAgentCard discovers the agent card at cardURL. authHeaders, when
+	// non-empty, are attached to the discovery request so cards that sit behind
+	// header authentication can be fetched; pass nil for a public card. Derive
+	// authHeaders from the stored agent via AgentAuthenticator.AuthHeaders.
+	FetchAgentCard(ctx context.Context, cardURL string, authHeaders map[string]string) (*models.AgentCard, error)
 }
 
 // cardParser is the a2a-go card parser. It delegates to the SDK's typed
@@ -223,8 +227,12 @@ func translateResolveError(err error) error {
 
 // FetchAgentCard discovers an agent card via the a2a-go resolver. The stored
 // cardURL is the full well-known URL; the resolver appends the well-known path
-// to a base URL, so we validate then hand it the origin.
-func (f *AgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (*models.AgentCard, error) {
+// to a base URL, so we validate then hand it the origin. authHeaders, when
+// non-empty, are attached to the discovery request so cards behind header auth
+// can be fetched; the credential values are never logged.
+func (f *AgentCardFetcher) FetchAgentCard(
+	ctx context.Context, cardURL string, authHeaders map[string]string,
+) (*models.AgentCard, error) {
 	// Validate URL (scheme, path, and SSRF-safe host)
 	if err := f.validateAgentCardURL(ctx, cardURL); err != nil {
 		return nil, err
@@ -233,6 +241,7 @@ func (f *AgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (
 	slog.With(
 		"service", "agent-card-fetcher",
 		"url", cardURL,
+		"authenticated", len(authHeaders) > 0,
 	).Info("Fetching agent card")
 
 	parsedURL, err := url.Parse(cardURL)
@@ -241,10 +250,15 @@ func (f *AgentCardFetcher) FetchAgentCard(ctx context.Context, cardURL string) (
 	}
 	baseURL := parsedURL.Scheme + "://" + parsedURL.Host
 
-	card, err := f.resolver.Resolve(ctx, baseURL,
+	opts := []agentcard.ResolveOption{
 		agentcard.WithRequestHeader("Accept", "application/json"),
 		agentcard.WithRequestHeader("User-Agent", "VibExp-Agent-Discovery/1.0"),
-	)
+	}
+	for name, value := range authHeaders {
+		opts = append(opts, agentcard.WithRequestHeader(name, value))
+	}
+
+	card, err := f.resolver.Resolve(ctx, baseURL, opts...)
 	if err != nil {
 		return nil, translateResolveError(err)
 	}
