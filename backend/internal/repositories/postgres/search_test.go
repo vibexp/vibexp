@@ -470,6 +470,64 @@ func TestBuildKeywordCountUnion_OmitsRankAndBindsThreeArgs(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestBuildKeywordTrgmBranch_MatchesTitleOnly proves the third (pg_trgm) pass
+// matches the query against the TITLE/NAME only via the `%>` word-similarity
+// operator, scores with 1 - word_similarity, reads the source table directly, and
+// keeps the same team/status/project scoping and positional args ($1=query,
+// $2=team_id, $3=project_id) as the FTS branches — but carries no tsvector,
+// ts_rank_cd, or body match.
+func TestBuildKeywordTrgmBranch_MatchesTitleOnly(t *testing.T) {
+	commonFragments := []string{
+		"1 - word_similarity($1, coalesce(src.name, '')) AS distance",
+		"coalesce(src.name, '') %> $1",
+		"AS distance",
+		"WHERE src.team_id = $2",
+		"($3::uuid IS NULL OR src.project_id = $3::uuid)",
+		"src.status = 'published'",
+		"FROM prompts src",
+		"src.name AS title",
+		"'' AS chunk_content",
+		"LEFT JOIN projects proj ON src.project_id = proj.id",
+	}
+
+	sqlText := buildKeywordTrgmBranch("prompt", entitySources["prompt"])
+	for _, fragment := range commonFragments {
+		assert.Contains(t, sqlText, fragment)
+	}
+	// Title-only: the body is not part of the trigram match, and none of the FTS
+	// machinery (tsvector/ts_rank/tsquery) or the embeddings join appears.
+	assert.NotContains(t, sqlText, "src.body %>")
+	assert.NotContains(t, sqlText, "to_tsvector")
+	assert.NotContains(t, sqlText, "ts_rank")
+	assert.NotContains(t, sqlText, "websearch_to_tsquery")
+	assert.NotContains(t, sqlText, "FROM embeddings")
+
+	// Memories match on their LEFT(text, 100) title expression, never the full body.
+	memoryText := buildKeywordTrgmBranch("memory", entitySources["memory"])
+	assert.Contains(t, memoryText, "coalesce(LEFT(src.text, 100), '') %> $1")
+	assert.Contains(t, memoryText, "1 - word_similarity($1, coalesce(LEFT(src.text, 100), ''))")
+}
+
+// TestBuildKeywordTrgmCountUnion_OmitsScoreAndBindsThreeArgs pins the count path:
+// it applies the `%>` title predicate and binds only query ($1), team_id ($2) and
+// project_id ($3) — no word_similarity score and no LIMIT/OFFSET args.
+func TestBuildKeywordTrgmCountUnion_OmitsScoreAndBindsThreeArgs(t *testing.T) {
+	union, err := buildKeywordTrgmCountUnion([]string{"prompt", "memory"})
+	require.NoError(t, err)
+
+	assert.NotContains(t, union, "word_similarity")
+	assert.NotContains(t, union, "$4")
+	assert.Contains(t, union, "coalesce(src.name, '') %> $1")
+	assert.Contains(t, union, "coalesce(LEFT(src.text, 100), '') %> $1")
+	assert.Contains(t, union, "WHERE src.team_id = $2")
+	assert.Contains(t, union, "($3::uuid IS NULL OR src.project_id = $3::uuid)")
+	assert.Less(t, indexOf(union, "FROM prompts src"), indexOf(union, "FROM memories src"))
+	assert.Equal(t, 1, countOccurrences(union, "UNION ALL"))
+
+	_, err = buildKeywordTrgmCountUnion(nil)
+	assert.Error(t, err)
+}
+
 // TestFtsExpr_WeightsTitleAndBody pins the weighted-vector contract: entities with
 // a real title (hasTitle) get an A-weighted title vector concatenated with a
 // D-weighted body vector, while title-less entities (memories) get a single
@@ -560,9 +618,10 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("returns empty when both strict and relaxed passes count zero", func(t *testing.T) {
+	t.Run("returns empty when all three passes count zero", func(t *testing.T) {
 		// Strict pass counts zero, so the relaxed pass runs; it also counts zero, so
-		// the result is an empty page (true-zero-result case).
+		// the third pg_trgm pass runs inside its own transaction (with a
+		// transaction-local threshold) and also counts zero — a true-zero result.
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \(`).
 			WithArgs(query, teamID, nil).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
@@ -570,11 +629,58 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 			WithArgs(query, teamID, nil).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
+		mock.ExpectBegin()
+		mock.ExpectExec(`set_config\('pg_trgm.word_similarity_threshold', \$1, true\)`).
+			WithArgs("0.3").
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(`%> \$1`).
+			WithArgs(query, teamID, nil).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectRollback()
+
 		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", 10, 0)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, rows)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("falls back to the pg_trgm title pass when both full-text passes find nothing", func(t *testing.T) {
+		// Both FTS passes count zero (an exact-lexeme miss, e.g. a typo). The third
+		// pass lowers the word_similarity threshold transaction-locally, matches the
+		// query against titles via the `%>` operator, and returns its page.
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \(`).
+			WithArgs(query, teamID, nil).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery(`replace\(websearch_to_tsquery\('english', \$1\)::text, '&', '\|'\)::tsquery`).
+			WithArgs(query, teamID, nil).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`set_config\('pg_trgm.word_similarity_threshold', \$1, true\)`).
+			WithArgs("0.3").
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectQuery(`%> \$1`).
+			WithArgs(query, teamID, nil).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+		resultRows := sqlmock.NewRows(resultCols).
+			AddRow("prompt", "p-trgm", "p-trgm", "widget guide", "prompt-slug", "proj-1",
+				"Project One", "", "body", now, now, 0.55)
+		// The page query carries the word_similarity score and the `%>` predicate, and
+		// still orders by distance ASC, entity_id ASC with limit/offset args $4/$5.
+		mock.ExpectQuery(`word_similarity\(\$1,.*%> \$1.*ORDER BY distance ASC, entity_id ASC LIMIT \$4 OFFSET \$5`).
+			WithArgs(query, teamID, nil, 10, 0).
+			WillReturnRows(resultRows)
+		mock.ExpectRollback()
+
+		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", 10, 0)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, rows, 1)
+		assert.Equal(t, "p-trgm", rows[0].EntityID)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 

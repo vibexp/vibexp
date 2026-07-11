@@ -430,6 +430,123 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		assert.Contains(t, relaxedPlan, "idx_prompts_fts",
 			"relaxed OR-rewrite tsquery should use the migration-006 weighted GIN index, got plan:\n%s", relaxedPlan)
 	})
+
+	t.Run("a single-token typo finds the target via the pg_trgm title fallback (#188)", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+
+		// AC: a one-transposition typo finds the target when both tsquery passes
+		// return nothing. "widgte" is not a lexeme in either prompt, so the strict
+		// and relaxed FTS passes both miss; the pg_trgm title pass matches "widget".
+		target := insertTestPrompt(t, user, team, project,
+			"widget configuration guide", "setup notes", "published")
+		insertTestPrompt(t, user, team, project,
+			"unrelated topic", "nothing similar here", "published")
+
+		rows, total, err := repo.SearchKeyword(ctx, team, "widgte", []string{"prompt"}, "", 10, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total)
+		require.Len(t, rows, 1)
+		assert.Equal(t, target, rows[0].EntityID, "the trgm pass should surface the near-title match")
+	})
+
+	t.Run("the trgm pass runs ONLY as the third fallback (exact matches keep FTS behaviour)", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+
+		// AC: precise queries keep their current behaviour. The exact term "widget"
+		// hits the strict FTS pass, so the trgm pass must NOT run — a title that only
+		// a fuzzy match would surface ("widgets" is a distinct lexeme; "wodget" is a
+		// typo neighbour) must be absent from an exact-hit result set.
+		exact := insertTestPrompt(t, user, team, project,
+			"widget", "exact term in title", "published")
+		typoNeighbour := insertTestPrompt(t, user, team, project,
+			"wodget", "would only match under trigram similarity", "published")
+
+		rows, total, err := repo.SearchKeyword(ctx, team, "widget", []string{"prompt"}, "", 10, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 1, total, "only the exact FTS hit should return; the trgm pass must not run")
+		require.Len(t, rows, 1)
+		assert.Equal(t, exact, rows[0].EntityID)
+		for _, row := range rows {
+			assert.NotEqual(t, typoNeighbour, row.EntityID, "trgm-only neighbour must not appear on an exact hit")
+		}
+	})
+
+	t.Run("the trgm fallback matches titles only, not bodies (#188 scope)", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+
+		// AC: the trgm scope is title-only. A typo whose only near match is in the
+		// BODY returns nothing — the body is deliberately out of the trigram scope.
+		insertTestPrompt(t, user, team, project,
+			"generic reference", "this body mentions the widget component in passing", "published")
+
+		rows, total, err := repo.SearchKeyword(ctx, team, "widgte", []string{"prompt"}, "", 10, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 0, total, "a body-only near match must not surface (title-only trgm scope)")
+		assert.Empty(t, rows)
+	})
+
+	t.Run("the trgm title pass uses the GIN trgm index (EXPLAIN, #188)", func(t *testing.T) {
+		resetSearchTables(t)
+		user := insertTestUser(t)
+		team := insertTestTeam(t, user)
+		project := insertTestProject(t, user, team)
+		// Seed enough rows that the trigram predicate is the selective one, so the
+		// planner prefers the migration-007 gin_trgm_ops index for the `%>` operator.
+		// The assertion fails only if trgmTitleExpr diverges from the indexed
+		// expression.
+		insertTestPrompt(t, user, team, project, "zqzxqwidget rare title", "body", "published")
+		for i := 0; i < 300; i++ {
+			insertTestPrompt(t, user, team, project, "common filler title", "body", "published")
+		}
+		_, err := integrationDB.ExecContext(ctx, "ANALYZE prompts")
+		require.NoError(t, err)
+
+		title := trgmTitleExpr(entitySources["prompt"])
+		plan := explainTrgm(t, ctx, title, "zqzxqwidgte")
+		assert.Contains(t, plan, "idx_prompts_title_trgm",
+			"the trgm title predicate should use the migration-007 gin_trgm_ops index, got plan:\n%s", plan)
+	})
+}
+
+// explainTrgm EXPLAINs the isolated `title %> $1` predicate the trgm pass emits
+// against the prompts table, binding $1=query, and returns the plan text. Seqscan
+// is disabled in a rolled-back transaction (with the lowered word-similarity
+// threshold applied locally) so a divergence between trgmTitleExpr and the indexed
+// expression surfaces as a non-index plan.
+func explainTrgm(t *testing.T, ctx context.Context, title, query string) string {
+	t.Helper()
+	tx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+
+	_, err = tx.ExecContext(ctx, "SET LOCAL enable_seqscan = off")
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, "SELECT set_config('pg_trgm.word_similarity_threshold', '0.3', true)")
+	require.NoError(t, err)
+
+	explainSQL := "EXPLAIN (FORMAT TEXT) SELECT 1 FROM prompts src WHERE " + title + " %> $1"
+	rows, err := tx.QueryContext(ctx, explainSQL, query)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, rows.Close()) }()
+
+	var plan strings.Builder
+	for rows.Next() {
+		var line string
+		require.NoError(t, rows.Scan(&line))
+		plan.WriteString(line)
+		plan.WriteString("\n")
+	}
+	require.NoError(t, rows.Err())
+	return plan.String()
 }
 
 // explainFTS EXPLAINs the isolated `tsv @@ tsquery` predicate the repository

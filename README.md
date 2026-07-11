@@ -97,6 +97,8 @@ VibeXP is one self-contained binary in one image — **no hosting-platform assum
 
 **Every deployment needs:** a reachable PostgreSQL with [pgvector](https://github.com/pgvector/pgvector), plus `DB_PASSWORD` and a 32-byte `ENCRYPTION_KEY`. For internet-facing use, also set `FRONTEND_BASE_URL` (your public origin), `SESSION_ENCRYPTION_KEY`, and an identity provider (see the section above).
 
+> **Postgres extensions.** Migrations enable `vector` (semantic search) and `pg_trgm` (keyword-search typo tolerance). Both ship with PostgreSQL and the bundled image handles them automatically; on **managed Postgres** the connecting role must be allowed to `CREATE EXTENSION` for these (most providers list them as pre-approved extensions), or the migrations fail fast at startup.
+
 <details>
 <summary><strong>🐳 <code>docker run</code> (single container)</strong></summary>
 
