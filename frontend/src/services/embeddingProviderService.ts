@@ -21,6 +21,8 @@ export type EmbeddingCoverageResponse =
   components['schemas']['EmbeddingCoverageResponse']
 export type EmbeddingCoverageItem =
   components['schemas']['EmbeddingCoverageItem']
+export type ClearEmbeddingsResponse =
+  components['schemas']['ClearEmbeddingsResponse']
 
 // EMBEDDING_VECTOR_DIMENSIONS is the fixed vector width VibeXP stores (locked to
 // the vector(1024) column). It is displayed read-only; a provider is accepted
@@ -132,6 +134,22 @@ class EmbeddingProviderService {
       generatedClient.POST(
         '/api/v1/{team_id}/settings/embedding-providers/{id}/reprocess',
         { params: { path: { team_id: teamId, id } } }
+      )
+    )
+  }
+
+  /**
+   * Permanently delete (truncate) every stored embedding for the team, returning
+   * how many rows were removed. This is a destructive maintenance action: unlike
+   * reprocess it does not regenerate anything, so the team's content stays
+   * unembedded — and semantic search returns nothing for it — until a reprocess
+   * or an identity-changing provider update re-embeds the team.
+   */
+  async clearEmbeddings(teamId: string): Promise<ClearEmbeddingsResponse> {
+    return unwrap(
+      generatedClient.DELETE(
+        '/api/v1/{team_id}/settings/embedding-providers/embeddings',
+        { params: { path: { team_id: teamId } } }
       )
     )
   }

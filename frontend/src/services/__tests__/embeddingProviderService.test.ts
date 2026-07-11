@@ -375,4 +375,28 @@ describe('EmbeddingProviderService', () => {
       ).rejects.toThrow('Embedding provider not found')
     })
   })
+
+  describe('clearEmbeddings', () => {
+    it('deletes the team embeddings endpoint and returns the deleted count', async () => {
+      mockGeneratedClient.DELETE.mockReturnValue(success({ deleted_count: 42 }))
+
+      const result = await embeddingProviderService.clearEmbeddings(teamId)
+
+      expect(mockGeneratedClient.DELETE).toHaveBeenCalledWith(
+        `${base}/embeddings`,
+        { params: { path: { team_id: teamId } } }
+      )
+      expect(result).toEqual({ deleted_count: 42 })
+    })
+
+    it('throws ApiError on a server error', async () => {
+      mockGeneratedClient.DELETE.mockReturnValue(
+        problem(500, 'Failed to clear embeddings', 'DATABASE_ERROR')
+      )
+
+      await expect(
+        embeddingProviderService.clearEmbeddings(teamId)
+      ).rejects.toThrow('Failed to clear embeddings')
+    })
+  })
 })
