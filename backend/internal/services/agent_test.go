@@ -324,51 +324,36 @@ func TestAgentService_GetAgentByID(t *testing.T) {
 		validate    func(*testing.T, *models.Agent)
 	}{
 		{
-			name:    "Successful agent retrieval with card sync",
+			// #166: the read path is DB-only — a fresh card is neither re-fetched
+			// nor written back. The strict repo mock panics on any unexpected
+			// Update, and FetchAgentCard is asserted un-called below.
+			name:    "fresh card retrieval performs no fetch and no write",
 			userID:  "user-123",
 			agentID: "agent-123",
 			setup: func(
 				mockAgentRepo *repoMocks.MockAgentRepository,
-				mockExecutionRepo *repoMocks.MockAgentExecutionRepository,
-				mockCardFetcher *MockAgentCardFetcher,
+				_ *repoMocks.MockAgentExecutionRepository,
+				_ *MockAgentCardFetcher,
 			) {
 				agent := createTestAgent()
+				now := time.Now()
+				agent.LastSyncedAt = &now // fresh → no background refresh
 				mockAgentRepo.On("GetByID", mock.Anything, "user-123", "team-123", "agent-123").
 					Return(agent, nil)
-
-				// Mock card fetcher to return updated agent card
-				updatedCard := &models.AgentCard{
-					Name:        "Updated Test Agent",
-					Description: "Updated test agent",
-					Version:     "1.1.0",
-					SupportedInterfaces: []*a2a.AgentInterface{
-						{URL: "http://localhost:8000", ProtocolBinding: a2a.TransportProtocolHTTPJSON},
-					},
-					Capabilities:       a2a.AgentCapabilities{},
-					DefaultInputModes:  []string{"text/plain"},
-					DefaultOutputModes: []string{"text/plain"},
-				}
-				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json", mock.Anything).
-					Return(updatedCard, nil)
-
-				// Mock update call to save the re-fetched card
-				mockAgentRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Agent")).
-					Return(nil)
 			},
 			expectError: false,
 			validate: func(t *testing.T, agent *models.Agent) {
-				assert.Equal(t, "Updated Test Agent", agent.AgentCard.Name)
-				assert.NotNil(t, agent.LastSyncedAt)
+				assert.Equal(t, "Test Agent", agent.AgentCard.Name)
 			},
 		},
 		{
-			name:    "Successful agent retrieval without card URL",
+			name:    "retrieval without card URL",
 			userID:  "user-123",
 			agentID: "agent-456",
 			setup: func(
 				mockAgentRepo *repoMocks.MockAgentRepository,
-				mockExecutionRepo *repoMocks.MockAgentExecutionRepository,
-				mockCardFetcher *MockAgentCardFetcher,
+				_ *repoMocks.MockAgentExecutionRepository,
+				_ *MockAgentCardFetcher,
 			) {
 				agent := createTestAgent()
 				agent.ID = "agent-456"
@@ -382,38 +367,13 @@ func TestAgentService_GetAgentByID(t *testing.T) {
 			},
 		},
 		{
-			name:    "Agent retrieval with card fetch failure - returns existing data",
-			userID:  "user-123",
-			agentID: "agent-789",
-			setup: func(
-				mockAgentRepo *repoMocks.MockAgentRepository,
-				mockExecutionRepo *repoMocks.MockAgentExecutionRepository,
-				mockCardFetcher *MockAgentCardFetcher,
-			) {
-				agent := createTestAgent()
-				agent.ID = "agent-789"
-				mockAgentRepo.On("GetByID", mock.Anything, "user-123", "team-123", "agent-789").
-					Return(agent, nil)
-
-				// Mock card fetcher to fail
-				mockCardFetcher.On("FetchAgentCard", mock.Anything, "http://localhost:8000/.well-known/agent-card.json", mock.Anything).
-					Return((*models.AgentCard)(nil), fmt.Errorf("network error"))
-			},
-			expectError: false,
-			validate: func(t *testing.T, agent *models.Agent) {
-				// Should return agent with existing card data
-				assert.Equal(t, "Test Agent", agent.AgentCard.Name)
-				assert.Equal(t, "agent-789", agent.ID)
-			},
-		},
-		{
 			name:    "Agent not found",
 			userID:  "user-123",
 			agentID: "non-existent",
 			setup: func(
 				mockAgentRepo *repoMocks.MockAgentRepository,
-				mockExecutionRepo *repoMocks.MockAgentExecutionRepository,
-				mockCardFetcher *MockAgentCardFetcher,
+				_ *repoMocks.MockAgentExecutionRepository,
+				_ *MockAgentCardFetcher,
 			) {
 				mockAgentRepo.On("GetByID", mock.Anything, "user-123", "team-123", "non-existent").
 					Return(nil, fmt.Errorf("agent not found"))
@@ -439,19 +399,98 @@ func TestAgentService_GetAgentByID(t *testing.T) {
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, agent)
-				assert.Equal(t, tt.agentID, agent.ID)
-				assert.Equal(t, tt.userID, agent.UserID)
-
-				if tt.validate != nil {
-					tt.validate(t, agent)
-				}
+				return
+			}
+			assert.NoError(t, err)
+			require.NotNil(t, agent)
+			assert.Equal(t, tt.agentID, agent.ID)
+			assert.Equal(t, tt.userID, agent.UserID)
+			// The read path must never re-fetch the card.
+			mockCardFetcher.AssertNotCalled(t, "FetchAgentCard")
+			if tt.validate != nil {
+				tt.validate(t, agent)
 			}
 		})
 	}
-	//nolint:funlen // Test function requires comprehensive setup and assertions
+}
+
+func TestIsCardStale(t *testing.T) {
+	url := agentStringPtr("http://localhost:8000/.well-known/agent-card.json")
+	recent := time.Now().Add(-1 * time.Hour)
+	old := time.Now().Add(-48 * time.Hour)
+
+	assert.False(t, isCardStale(&models.Agent{CardURL: nil}),
+		"no card URL is never stale")
+	assert.False(t, isCardStale(&models.Agent{CardURL: url, LastSyncedAt: &recent}),
+		"recently synced card is fresh")
+	assert.True(t, isCardStale(&models.Agent{CardURL: url, LastSyncedAt: nil}),
+		"never-synced card is stale")
+	assert.True(t, isCardStale(&models.Agent{CardURL: url, LastSyncedAt: &old}),
+		"card older than the threshold is stale")
+}
+
+func TestAgentService_GetAgentByID_StaleCardRefreshedInBackground(t *testing.T) {
+	mockAgentRepo := repoMocks.NewMockAgentRepository(t)
+	mockExecutionRepo := repoMocks.NewMockAgentExecutionRepository(t)
+	mockCardFetcher := &MockAgentCardFetcher{}
+	service := createTestAgentService(mockAgentRepo, mockExecutionRepo, mockCardFetcher)
+
+	agent := createTestAgent()
+	staleTime := time.Now().Add(-48 * time.Hour)
+	agent.LastSyncedAt = &staleTime
+	mockAgentRepo.On("GetByID", mock.Anything, "user-123", "team-123", "agent-123").Return(agent, nil)
+
+	refreshed := &models.AgentCard{
+		Name:                "Refreshed Agent",
+		SupportedInterfaces: agent.AgentCard.SupportedInterfaces,
+	}
+	mockCardFetcher.On("FetchAgentCard", mock.Anything, mock.Anything, mock.Anything).Return(refreshed, nil)
+
+	updated := make(chan struct{})
+	mockAgentRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Agent")).
+		Run(func(mock.Arguments) { close(updated) }).Return(nil)
+
+	got, err := service.GetAgentByID(context.Background(), "user-123", "team-123", "agent-123")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	// The read returns the stored (stale) card immediately, not the refreshed one.
+	assert.Equal(t, "Test Agent", got.AgentCard.Name)
+
+	select {
+	case <-updated:
+	case <-time.After(2 * time.Second):
+		t.Fatal("background stale-card refresh did not persist in time")
+	}
+	mockCardFetcher.AssertCalled(t, "FetchAgentCard", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestAgentService_GetAgentByID_StaleRefreshFailureDoesNotBreakGet(t *testing.T) {
+	mockAgentRepo := repoMocks.NewMockAgentRepository(t)
+	mockExecutionRepo := repoMocks.NewMockAgentExecutionRepository(t)
+	mockCardFetcher := &MockAgentCardFetcher{}
+	service := createTestAgentService(mockAgentRepo, mockExecutionRepo, mockCardFetcher)
+
+	agent := createTestAgent()
+	staleTime := time.Now().Add(-48 * time.Hour)
+	agent.LastSyncedAt = &staleTime
+	mockAgentRepo.On("GetByID", mock.Anything, "user-123", "team-123", "agent-123").Return(agent, nil)
+
+	// A failing background fetch must never persist (no Update expected on the
+	// strict repo mock) nor surface to the read.
+	fetched := make(chan struct{})
+	mockCardFetcher.On("FetchAgentCard", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { close(fetched) }).
+		Return((*models.AgentCard)(nil), fmt.Errorf("network error"))
+
+	got, err := service.GetAgentByID(context.Background(), "user-123", "team-123", "agent-123")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+
+	select {
+	case <-fetched:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected the background refresh to attempt a fetch")
+	}
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions

@@ -58,8 +58,12 @@ func run() error {
 	r.Mapper = func(t reflect.Type) *jsonschema.Schema {
 		if t == reflect.TypeFor[time.Duration]() {
 			return &jsonschema.Schema{
-				Type:        "string",
-				Pattern:     `^-?(\d+(\.\d+)?(ns|us|µs|ms|s|m|h))+$`,
+				Type: "string",
+				// A literal Go duration, OR a ${VAR:-default} env placeholder — the
+				// combined-image config.docker.yaml expresses every operator knob as
+				// a placeholder and is validated against this schema before
+				// interpolation (like every other string knob, which has no pattern).
+				Pattern:     `^(\$\{[^}]+\}|-?(\d+(\.\d+)?(ns|us|µs|ms|s|m|h))+)$`,
 				Description: `Go duration string, e.g. "15m", "720h", "200ms".`,
 			}
 		}

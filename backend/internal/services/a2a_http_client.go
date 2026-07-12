@@ -25,8 +25,13 @@ func destroyClient(client *a2aclient.Client) {
 }
 
 const (
-	// DefaultA2ATimeout is the default timeout for A2A requests (5 minutes)
+	// DefaultA2ATimeout is the default timeout for a synchronous A2A request (5 minutes)
 	DefaultA2ATimeout = 5 * time.Minute
+	// DefaultA2AStreamTimeout caps the total lifetime of a streaming A2A
+	// connection when no explicit config value is set (2 hours). It is separate
+	// from DefaultA2ATimeout so a long-running stream is not force-closed by the
+	// sync timeout.
+	DefaultA2AStreamTimeout = 2 * time.Hour
 )
 
 // A2AHTTPClientInterface defines the interface for A2A communication. Outbound
@@ -54,9 +59,18 @@ type A2AHTTPClientInterface interface {
 // SDK's transport.
 type A2AHTTPClient struct {
 	authenticator *AgentAuthenticator
-	timeout       time.Duration
+	// timeout is the overall http.Client timeout for synchronous requests.
+	timeout time.Duration
+	// streamTimeout bounds the total lifetime of a streaming call, applied as a
+	// context deadline (the streaming http.Client has no overall Timeout).
+	streamTimeout time.Duration
 	guard         *ssrfGuard
+	// baseTransport carries synchronous requests (bounded by the client timeout).
 	baseTransport http.RoundTripper
+	// streamTransport carries streaming requests: no overall client timeout, but
+	// explicit dial/TLS/response-header timeouts so a dead connection still fails
+	// fast without capping a healthy long-lived stream.
+	streamTransport http.RoundTripper
 }
 
 // NewA2AHTTPClient creates a new A2A client. The shared base transport uses an
@@ -73,6 +87,10 @@ func newA2AHTTPClient(authenticator *AgentAuthenticator, cfg *config.Config, gua
 	if cfg != nil && cfg.A2A.DefaultTimeout > 0 {
 		timeout = cfg.A2A.DefaultTimeout
 	}
+	streamTimeout := DefaultA2AStreamTimeout
+	if cfg != nil && cfg.A2A.StreamTimeout > 0 {
+		streamTimeout = cfg.A2A.StreamTimeout
+	}
 
 	transport := guard.newSSRFSafeTransport(&http.Transport{
 		MaxIdleConns:        100,
@@ -80,11 +98,25 @@ func newA2AHTTPClient(authenticator *AgentAuthenticator, cfg *config.Config, gua
 		IdleConnTimeout:     90 * time.Second,
 	})
 
+	// The streaming transport has no overall client timeout, so it sets explicit
+	// TLS-handshake and response-header timeouts (the SSRF dialer already applies
+	// a 10s connect timeout) — a hung/dead peer still fails fast, but a healthy
+	// long-lived SSE stream is bounded only by the context deadline.
+	streamTransport := guard.newSSRFSafeTransport(&http.Transport{
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+	})
+
 	return &A2AHTTPClient{
-		authenticator: authenticator,
-		timeout:       timeout,
-		guard:         guard,
-		baseTransport: transport,
+		authenticator:   authenticator,
+		timeout:         timeout,
+		streamTimeout:   streamTimeout,
+		guard:           guard,
+		baseTransport:   transport,
+		streamTransport: streamTransport,
 	}
 }
 
@@ -108,10 +140,27 @@ func (rt *agentAuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	return rt.base.RoundTrip(cloned)
 }
 
-// buildClient constructs a per-agent SDK client whose transport carries the SSRF
-// guard and the agent's credentials. The dial-time SSRF Control hook is the
-// authoritative guard; the pre-flight host check just yields a clearer error.
+// buildClient constructs a per-agent SDK client for SYNCHRONOUS calls, bounded
+// by the overall sync timeout.
 func (c *A2AHTTPClient) buildClient(ctx context.Context, agent *models.Agent) (*a2aclient.Client, error) {
+	return c.buildSDKClient(ctx, agent, c.timeout, c.baseTransport)
+}
+
+// buildStreamingClient constructs a per-agent SDK client for STREAMING calls.
+// It has no overall http.Client timeout — the stream's lifetime is bounded by
+// the caller's context deadline (A2A.StreamTimeout) — and uses the streaming
+// transport with explicit dial/TLS/response-header timeouts.
+func (c *A2AHTTPClient) buildStreamingClient(ctx context.Context, agent *models.Agent) (*a2aclient.Client, error) {
+	return c.buildSDKClient(ctx, agent, 0, c.streamTransport)
+}
+
+// buildSDKClient constructs a per-agent SDK client whose transport carries the
+// SSRF guard and the agent's credentials, with the given overall timeout (0 =
+// none) and base transport. The dial-time SSRF Control hook is the authoritative
+// guard; the pre-flight host check just yields a clearer error.
+func (c *A2AHTTPClient) buildSDKClient(
+	ctx context.Context, agent *models.Agent, timeout time.Duration, base http.RoundTripper,
+) (*a2aclient.Client, error) {
 	if agent.AgentCard == nil {
 		return nil, fmt.Errorf("agent card is missing")
 	}
@@ -128,9 +177,9 @@ func (c *A2AHTTPClient) buildClient(ctx context.Context, agent *models.Agent) (*
 	}
 
 	httpClient := &http.Client{
-		Timeout: c.timeout,
+		Timeout: timeout,
 		Transport: &agentAuthRoundTripper{
-			base:          c.baseTransport,
+			base:          base,
 			authenticator: c.authenticator,
 			agent:         agent,
 		},
@@ -359,7 +408,14 @@ func (c *A2AHTTPClient) InvokeAgentStreaming(
 	contextID *string,
 	eventChan chan<- a2a.Event,
 ) error {
-	client, err := c.buildClient(ctx, agent)
+	// Bound the stream's total lifetime by the dedicated stream timeout (not the
+	// sync timeout). The streaming client itself has no overall http.Client
+	// timeout, so this context deadline is the sole wall-clock cap; on expiry the
+	// SDK stream ends with a deadline error and the execution finalizes terminal.
+	ctx, cancel := context.WithTimeout(ctx, c.streamTimeout)
+	defer cancel()
+
+	client, err := c.buildStreamingClient(ctx, agent)
 	if err != nil {
 		return err
 	}

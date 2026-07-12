@@ -244,7 +244,12 @@ retention:
 
 # Agent-to-Agent client settings.
 a2a:
+  # Timeout for a single synchronous (message/send) request.
   default_timeout: "5m"
+  # Total lifetime cap for a streaming (message/stream) SSE connection. Kept
+  # separate from default_timeout so long-running streaming agents are not
+  # force-closed by the sync timeout; set generously.
+  stream_timeout: "2h"
 
 # Firebase Cloud Messaging web-push channel (opt-in).
 fcm:

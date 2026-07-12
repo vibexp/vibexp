@@ -7,7 +7,11 @@
       "properties": {
         "default_timeout": {
           "type": "string",
-          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
+        },
+        "stream_timeout": {
+          "type": "string",
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         }
       },
       "additionalProperties": false,
@@ -233,7 +237,7 @@
         },
         "retry_backoff": {
           "type": "string",
-          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         },
         "retry_jitter": {
           "type": "boolean"
@@ -396,23 +400,23 @@
         },
         "access_token_ttl": {
           "type": "string",
-          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         },
         "refresh_token_ttl": {
           "type": "string",
-          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         },
         "auth_code_ttl": {
           "type": "string",
-          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         },
         "key_rotation_interval": {
           "type": "string",
-          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         },
         "cleanup_interval": {
           "type": "string",
-          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         }
       },
       "additionalProperties": false,
@@ -443,7 +447,7 @@
         },
         "export_interval": {
           "type": "string",
-          "pattern": "^-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+$"
+          "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         },
         "trace_sample_ratio": {
           "type": "number"

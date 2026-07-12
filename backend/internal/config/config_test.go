@@ -148,6 +148,7 @@ retention:
   content_version_limit: 10
 a2a:
   default_timeout: 10s
+  stream_timeout: 3h
 fcm:
   enabled: true
 deployment:
@@ -267,8 +268,9 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "localhost:4317", cfg.OTel.Endpoint)
 	assert.Equal(t, 60*time.Second, cfg.OTel.ExportInterval)
 
-	// A2A duration default.
+	// A2A duration defaults.
 	assert.Equal(t, 5*time.Minute, cfg.A2A.DefaultTimeout)
+	assert.Equal(t, 2*time.Hour, cfg.A2A.StreamTimeout)
 
 	// CORS is defaulted to the localhost dev origins when unset.
 	assert.Equal(t, []string{"http://localhost:5173", "http://localhost:5174"}, cfg.Server.CORSAllowedOrigins)
@@ -370,6 +372,7 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, 60, cfg.Retention.AccessEventDays)
 	assert.Equal(t, 10, cfg.Retention.ContentVersionLimit)
 	assert.Equal(t, 10*time.Second, cfg.A2A.DefaultTimeout)
+	assert.Equal(t, 3*time.Hour, cfg.A2A.StreamTimeout)
 	assert.True(t, cfg.FCM.Enabled)
 
 	// Deployment.

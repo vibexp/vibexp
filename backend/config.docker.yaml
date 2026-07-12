@@ -137,3 +137,10 @@ github:
 # bucket name (and STORAGE_EMULATOR_HOST for an emulator) to enable uploads.
 storage:
   attachments_bucket: "${GCS_RESOURCE_ATTACHMENTS_BUCKET:-}"
+
+# Agent-to-Agent client settings. stream_timeout caps a streaming SSE
+# connection's total lifetime and is decoupled from the sync default_timeout so
+# long-running streaming agents are not force-closed.
+a2a:
+  default_timeout: "${A2A_DEFAULT_TIMEOUT:-5m}"
+  stream_timeout: "${A2A_STREAM_TIMEOUT:-2h}"

@@ -5,10 +5,19 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+)
+
+const (
+	// cardStalenessThreshold is how old an agent card may be before an
+	// out-of-band refresh is triggered (never on the read path).
+	cardStalenessThreshold = 24 * time.Hour
+	// cardRefreshTimeout bounds a single background staleness refresh.
+	cardRefreshTimeout = 30 * time.Second
 )
 
 type AgentService struct {
@@ -19,6 +28,9 @@ type AgentService struct {
 	authenticator     *AgentAuthenticator
 	teamService       TeamServiceInterface
 	logger            *slog.Logger
+	// refreshInFlight dedups concurrent background card refreshes per agent id so
+	// a burst of reads for a stale agent spawns at most one refresh.
+	refreshInFlight sync.Map
 }
 
 // Ensure AgentService implements AgentServiceInterface
@@ -216,6 +228,12 @@ func (s *AgentService) CreateAgent(
 	return agent, nil
 }
 
+// GetAgentByID returns the agent straight from the database — it performs no
+// outbound card fetch and no write on the read path (that coupled read latency
+// and availability to the remote agent, #166). Card freshness is maintained by
+// create/update and by an out-of-band staleness refresh triggered here only when
+// the stored card is older than cardStalenessThreshold; that refresh runs in the
+// background and never blocks or fails this read.
 func (s *AgentService) GetAgentByID(ctx context.Context, userID, teamID, agentID string) (*models.Agent, error) {
 	agent, err := s.agentRepo.GetByID(ctx, userID, teamID, agentID)
 	if err != nil {
@@ -230,50 +248,83 @@ func (s *AgentService) GetAgentByID(ctx context.Context, userID, teamID, agentID
 		return nil, fmt.Errorf("failed to get agent: %w", err)
 	}
 
-	// Re-fetch agent card if card_url exists
-	if agent.CardURL != nil && *agent.CardURL != "" {
-		agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *agent.CardURL, s.cardFetchAuthHeaders(agent))
-		if err != nil {
-			s.logger.With(
-				"service", "agent-service",
-				"method", "GetAgentByID",
-				"user_id", userID,
-				"agent_id", agentID,
-				"card_url", *agent.CardURL,
-				"error", fmt.Sprintf("%+v", err),
-			).Warn("Failed to re-fetch agent card, returning existing data")
-			// Return agent without updating card - don't fail the request
-			return agent, nil
-		}
+	s.maybeRefreshStaleCard(agent)
+	return agent, nil
+}
 
-		// Update agent card and last_synced_at
-		agent.AgentCard = agentCard
-		now := time.Now()
-		agent.LastSyncedAt = &now
+// isCardStale reports whether an agent's stored card is old enough (older than
+// cardStalenessThreshold) to warrant a background refresh. An agent with no card
+// URL is never stale; one that has never been synced is always stale.
+func isCardStale(agent *models.Agent) bool {
+	if agent.CardURL == nil || *agent.CardURL == "" {
+		return false
+	}
+	if agent.LastSyncedAt == nil {
+		return true
+	}
+	return time.Since(*agent.LastSyncedAt) >= cardStalenessThreshold
+}
 
-		// Update in database
-		if err := s.agentRepo.Update(ctx, agent); err != nil {
-			s.logger.With(
-				"service", "agent-service",
-				"method", "GetAgentByID",
-				"user_id", userID,
-				"agent_id", agentID,
-				"error", fmt.Sprintf("%+v", err),
-			).Warn("Failed to update agent with re-fetched card")
+// maybeRefreshStaleCard triggers an out-of-band card refresh when the stored
+// card is stale. It never blocks the caller: the staleness check is a cheap
+// timestamp comparison, and the actual fetch+persist runs in a detached
+// goroutine, deduped per agent id. Fresh agents (and agents with no card URL)
+// do nothing here — so the read path stays free of outbound calls and writes.
+func (s *AgentService) maybeRefreshStaleCard(agent *models.Agent) {
+	if !isCardStale(agent) {
+		return
+	}
+	if _, inFlight := s.refreshInFlight.LoadOrStore(agent.ID, struct{}{}); inFlight {
+		return
+	}
+	// Snapshot the fields the refresh needs so the background goroutine never
+	// races the pointer returned to the caller.
+	snapshot := *agent
+	go s.refreshCardInBackground(&snapshot)
+}
 
-			// Return agent anyway - we have the updated card in memory
-		}
+// refreshCardInBackground fetches the agent's card and persists the refreshed
+// card + last_synced_at. It is best-effort: any failure is logged and dropped,
+// never surfaced to the read that triggered it. It intentionally does NOT
+// overwrite name/description (those change only via explicit create/update).
+func (s *AgentService) refreshCardInBackground(agent *models.Agent) {
+	defer s.refreshInFlight.Delete(agent.ID)
 
+	ctx, cancel := context.WithTimeout(context.Background(), cardRefreshTimeout)
+	defer cancel()
+
+	agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *agent.CardURL, s.cardFetchAuthHeaders(agent))
+	if err != nil {
 		s.logger.With(
 			"service", "agent-service",
-			"method", "GetAgentByID",
-			"user_id", userID,
-			"agent_id", agentID,
+			"method", "refreshCardInBackground",
+			"agent_id", agent.ID,
 			"card_url", *agent.CardURL,
-		).Info("Agent card re-fetched and updated successfully")
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Background stale-card refresh failed; keeping existing card")
+		return
 	}
 
-	return agent, nil
+	agent.AgentCard = agentCard
+	now := time.Now()
+	agent.LastSyncedAt = &now
+
+	if err := s.agentRepo.Update(ctx, agent); err != nil {
+		s.logger.With(
+			"service", "agent-service",
+			"method", "refreshCardInBackground",
+			"agent_id", agent.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Background stale-card refresh: failed to persist refreshed card")
+		return
+	}
+
+	s.logger.With(
+		"service", "agent-service",
+		"method", "refreshCardInBackground",
+		"agent_id", agent.ID,
+		"card_url", *agent.CardURL,
+	).Info("Refreshed stale agent card out of band")
 }
 
 func (s *AgentService) ListAgents(
