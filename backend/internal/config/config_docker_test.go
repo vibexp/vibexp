@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,10 @@ func TestConfigDockerYAML_LoadsWithSecretEnvOnly(t *testing.T) {
 
 	// The required secret resolved from the environment.
 	require.Equal(t, "change_me_to_a_32_byte_secret_ok", cfg.Security.EncryptionKey)
+
+	// A2A ${VAR:-default} knobs fall back to the baked defaults.
+	require.Equal(t, 5*time.Minute, cfg.A2A.DefaultTimeout)
+	require.Equal(t, 2*time.Hour, cfg.A2A.StreamTimeout)
 
 	// FRONTEND_BASE_URL defaults to EMPTY (fail-closed): a bare `docker run` that
 	// forgets to set it is NOT treated as local development, so the dev-login

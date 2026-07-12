@@ -324,7 +324,12 @@ type RetentionConfig struct {
 
 // A2AConfig holds Agent-to-Agent client settings.
 type A2AConfig struct {
+	// DefaultTimeout bounds a single synchronous (message/send) request.
 	DefaultTimeout time.Duration `koanf:"default_timeout"`
+	// StreamTimeout bounds the total lifetime of a streaming (message/stream)
+	// SSE connection. It is deliberately decoupled from DefaultTimeout so a
+	// long-running streaming agent is not force-closed by the sync timeout.
+	StreamTimeout time.Duration `koanf:"stream_timeout"`
 }
 
 // FCMConfig gates the Firebase Cloud Messaging web push channel.
@@ -717,6 +722,7 @@ func defaults() map[string]any {
 		"retention.access_event_days":         90,
 		"retention.content_version_limit":     20,
 		"a2a.default_timeout":                 "5m",
+		"a2a.stream_timeout":                  "2h",
 		"event_bus.worker_count":              20,
 		"event_bus.buffer_size":               500,
 		"event_bus.max_retries":               3,
