@@ -30,7 +30,7 @@ interface UseChatMessagesArgs {
   onConversationCaptured: (conversationId: string) => void
 }
 
-function updateStreamingMessages(
+export function updateStreamingMessages(
   prev: Message[],
   newText: string,
   shouldAppend: boolean,
@@ -82,7 +82,7 @@ function updateStreamingMessages(
   ]
 }
 
-function extractResponseText(execution: AgentExecution): string {
+export function extractResponseText(execution: AgentExecution): string {
   const hasError = execution.status === 'error' || execution.status === 'failed'
   if (hasError && execution.error) return `Error: ${execution.error}`
   if (execution.artifacts && Array.isArray(execution.artifacts)) {

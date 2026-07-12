@@ -21,25 +21,13 @@ export type AgentActivity = NonNullable<
 export type AgentExecution = components['schemas']['AgentExecution']
 export type AgentExecutionListResponse =
   components['schemas']['AgentExecutionListResponse']
-// The completion/update request narrows status to the spec's 3 values
-// (running|success|error) — distinct from AgentExecution.status' 9-value read union.
-export type CompleteAgentExecutionRequest =
-  components['schemas']['UpdateAgentExecutionRequest']
-export type AgentExecutionEvent = components['schemas']['AgentExecutionEvent']
-// The events endpoint returns a poll variant or a paged variant depending on the
-// query, so the response is the union of both generated shapes.
-export type AgentExecutionEventsResponse =
-  | components['schemas']['AgentExecutionEventsPollResponse']
-  | components['schemas']['AgentExecutionEventsPageResponse']
 export type ConversationExecutionsResponse =
   components['schemas']['ConversationExecutionsResponse']
 export type ConversationSummary = components['schemas']['ConversationSummary']
 export type ConversationListResponse =
   components['schemas']['ConversationListResponse']
 
-// Local-only shapes with no generated counterpart. AgentFilters is a query-param
-// bag; StartAgentExecutionRequest carries an optional conversation_id the spec's
-// CreateAgentExecutionRequest does not model.
+// Local-only shape with no generated counterpart: a query-param bag for listing.
 export interface AgentFilters {
   status?: 'active' | 'paused' | 'error'
   search?: string
@@ -53,11 +41,6 @@ export interface AgentFilters {
     | 'last_run'
     | 'created_at'
   sort_order?: 'asc' | 'desc'
-}
-
-export interface StartAgentExecutionRequest {
-  input?: Record<string, unknown>
-  conversation_id?: string
 }
 
 class AgentService {
@@ -123,49 +106,6 @@ class AgentService {
       generatedClient.GET('/api/v1/{team_id}/agents/stats', {
         params: { path: { team_id: teamId } },
       })
-    )
-  }
-
-  async startAgentExecution(
-    teamId: string,
-    agentId: string,
-    data: StartAgentExecutionRequest = {}
-  ): Promise<AgentExecution> {
-    return unwrap(
-      generatedClient.POST('/api/v1/{team_id}/agents/{id}/executions', {
-        params: { path: { team_id: teamId, id: agentId } },
-        body: { input: data.input },
-      })
-    )
-  }
-
-  async completeAgentExecution(
-    teamId: string,
-    executionId: string,
-    data: CompleteAgentExecutionRequest
-  ): Promise<AgentExecution> {
-    return unwrap(
-      generatedClient.PUT(
-        '/api/v1/{team_id}/agents/executions/{execution_id}',
-        {
-          params: { path: { team_id: teamId, execution_id: executionId } },
-          body: data,
-        }
-      )
-    )
-  }
-
-  async getAgentExecution(
-    teamId: string,
-    executionId: string
-  ): Promise<AgentExecution> {
-    return unwrap(
-      generatedClient.GET(
-        '/api/v1/{team_id}/agents/executions/{execution_id}',
-        {
-          params: { path: { team_id: teamId, execution_id: executionId } },
-        }
-      )
     )
   }
 
@@ -258,21 +198,6 @@ class AgentService {
           params: { path: { team_id: teamId, execution_id: executionId } },
         }
       )
-    )
-  }
-
-  async getExecutionEvents(
-    teamId: string,
-    executionId: string,
-    filters?: { page?: number; limit?: number }
-  ): Promise<AgentExecutionEventsResponse> {
-    return unwrap(
-      generatedClient.GET('/api/v1/{team_id}/agents/executions/{id}/events', {
-        params: {
-          path: { team_id: teamId, id: executionId },
-          query: { page: filters?.page, limit: filters?.limit },
-        },
-      })
     )
   }
 

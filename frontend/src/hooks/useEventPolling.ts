@@ -76,10 +76,6 @@ export function useEventPolling({
     pollingRef.current = true
     setIsPolling(true)
 
-    console.log(
-      `[EventPolling] Polling events since sequence ${String(nextSequenceRef.current)}`
-    )
-
     try {
       const response = await fetchEvents(
         teamId,
@@ -94,10 +90,6 @@ export function useEventPolling({
         has_more,
         next_sequence,
       } = response
-
-      console.log(
-        `[EventPolling] Received ${String(newEvents.length)} new events, status: ${execStatus}`
-      )
 
       // Update state
       setStatus(execStatus)

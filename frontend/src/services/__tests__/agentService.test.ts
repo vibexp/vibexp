@@ -176,22 +176,6 @@ describe('AgentService (generatedClient)', () => {
     expect(result).toEqual(execution)
   })
 
-  it('completeAgentExecution PUTs to the execution path with the narrowed status body', async () => {
-    mockGeneratedClient.PUT.mockReturnValue(success(execution))
-
-    await agentService.completeAgentExecution(teamId, 'exec-1', {
-      status: 'success',
-    })
-
-    expect(mockGeneratedClient.PUT).toHaveBeenCalledWith(
-      '/api/v1/{team_id}/agents/executions/{execution_id}',
-      {
-        params: { path: { team_id: teamId, execution_id: 'exec-1' } },
-        body: { status: 'success' },
-      }
-    )
-  })
-
   it('deleteAgent DELETEs by id and resolves void', async () => {
     mockGeneratedClient.DELETE.mockReturnValue(success(undefined, noContent))
 

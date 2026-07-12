@@ -73,19 +73,7 @@ export function AgentEditor() {
     async (agentId: string, teamId: string) => {
       try {
         setLoading(true)
-        const response = await agentService.getAgent(teamId, agentId)
-        const hasDataProperty = 'data' in response
-        const agentData = hasDataProperty
-          ? (response as { data: Agent | null }).data
-          : (response as Agent | null)
-
-        if (
-          agentData === null ||
-          typeof agentData !== 'object' ||
-          !('id' in agentData)
-        ) {
-          throw new Error('No agent data received')
-        }
+        const agentData = await agentService.getAgent(teamId, agentId)
         setAgent(agentData)
 
         let baseUrl = agentData.card_url ?? ''

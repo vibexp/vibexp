@@ -72,13 +72,8 @@ export function AgentChat() {
     try {
       setLoading(true)
       setError(null)
-      const response = await agentService.getAgent(teamId, agentId)
-      const responseData = (response as { data?: unknown }).data ?? response
-      const agentData = responseData as Agent | Record<string, unknown>
-      if (typeof agentData !== 'object' || !('id' in agentData)) {
-        throw new Error('No agent data received')
-      }
-      setAgent(agentData as Agent)
+      const agentData = await agentService.getAgent(teamId, agentId)
+      setAgent(agentData)
     } catch (err) {
       const errorMessage = getErrorMessage(err, 'Failed to load agent')
       setError(errorMessage)
