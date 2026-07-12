@@ -300,6 +300,10 @@ build-combined: frontend-build
 # so local and CI stay identical.
 E2E_COMPOSE := docker compose -f docker-compose.e2e.yml
 E2E_BASE_URL ?= http://localhost:8080
+# URL the BACKEND (app container) uses to reach the dummy A2A agent — the
+# compose service name, resolvable inside the vibexp-e2e network. The real-agent
+# journey spec registers this URL. Local dev runs default to loopback:9001.
+E2E_A2A_AGENT_URL ?= http://a2a-test-agent:9001
 
 # Build + start the e2e stack and block until every service is healthy.
 e2e-up:
@@ -316,12 +320,12 @@ e2e-browsers:
 
 # Run the Playwright suite against an already-running stack.
 e2e-test:
-	cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) npm run test:e2e
+	cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) E2E_A2A_AGENT_URL=$(E2E_A2A_AGENT_URL) npm run test:e2e
 
 # One-shot: install browsers, bring the stack up, run the suite, always tear the
 # stack down, and propagate the suite's exit code. This is what CI runs.
 e2e: e2e-browsers e2e-up
-	@cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) npm run test:e2e; \
+	@cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) E2E_A2A_AGENT_URL=$(E2E_A2A_AGENT_URL) npm run test:e2e; \
 	status=$$?; \
 	echo "🧹 Tearing down the e2e stack..."; \
 	$(E2E_COMPOSE) down -v --remove-orphans; \

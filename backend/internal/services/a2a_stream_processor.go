@@ -135,9 +135,21 @@ func (p *A2AStreamProcessor) ProcessStream(
 	).Info("Starting stream processing")
 
 	for event := range eventChan {
+		// A direct *a2a.Message reply (e.g. a no-task canned/streamed answer) is a
+		// terminal reply that carries no Task or artifact-update event. The DB
+		// event_type CHECK has no "message" type, so we don't persist it as an
+		// event row; instead we fold its parts into the artifact set so the reply
+		// text reaches the execution's artifacts (mirroring the sync path's
+		// artifactsFromMessage). Without this the reply is dropped and the UI shows
+		// "No response received".
+		if msg, ok := event.(*a2a.Message); ok {
+			collectMessageArtifact(artifacts, msg)
+			continue
+		}
+
 		eventType, ok := eventTypeFor(event)
 		if !ok {
-			// Not a persisted execution event (e.g. a direct message reply — #163).
+			// Not a persisted execution event.
 			continue
 		}
 
@@ -197,6 +209,20 @@ func (p *A2AStreamProcessor) handleStatusUpdate(
 			"execution_id", executionID, "error", fmt.Sprintf("%+v", err),
 		).Error("Failed to update status")
 	}
+}
+
+// collectMessageArtifact folds a direct *a2a.Message reply into the artifact set,
+// wrapping its parts as a single artifact using the same shape the Task path
+// writes. Falls back to a stable "response" id when the message has none.
+func collectMessageArtifact(artifacts map[string]*a2a.Artifact, msg *a2a.Message) {
+	if msg == nil || len(msg.Parts) == 0 {
+		return
+	}
+	id := msg.ID
+	if id == "" {
+		id = "response"
+	}
+	artifacts[id] = &a2a.Artifact{ID: a2a.ArtifactID(id), Parts: msg.Parts}
 }
 
 // collectArtifacts records artifacts carried on a Task snapshot.

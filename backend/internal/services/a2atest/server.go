@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
+	a2av0 "github.com/a2aproject/a2a-go/v2/a2acompat/a2av0"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 
 	"github.com/vibexp/vibexp/internal/models"
@@ -25,6 +26,10 @@ import (
 type Script struct {
 	// Streaming controls the advertised card capability (Capabilities.Streaming).
 	Streaming bool
+	// ProtocolV03 advertises the card and serves JSON-RPC in the A2A v0.3 (compat)
+	// shape instead of the current v1.0, so tests can exercise v0.3 transport
+	// negotiation (mirrors backend/cmd/a2a-test-agent).
+	ProtocolV03 bool
 	// Events returns the ordered events to yield for an incoming message.
 	Events func(execCtx *a2asrv.ExecutorContext) []a2a.Event
 	// Err, when set, is yielded as the executor's error before any events
@@ -98,7 +103,8 @@ type Server struct {
 	// Recorder captures received auth headers and messages.
 	Recorder *Recorder
 
-	streaming bool
+	streaming   bool
+	protocolV03 bool
 }
 
 // NewServer starts an in-process JSON-RPC A2A agent backed by script and
@@ -108,7 +114,13 @@ func NewServer(t testing.TB, script Script) *Server {
 
 	rec := &Recorder{}
 	exec := &scriptedExecutor{script: script, rec: rec}
-	jsonrpc := a2asrv.NewJSONRPCHandler(a2asrv.NewHandler(exec))
+	handler := a2asrv.NewHandler(exec)
+	// v0.3 clients speak the classic JSON-RPC method names, so serve the compat
+	// handler when the card advertises v0.3 (mirrors backend/cmd/a2a-test-agent).
+	jsonrpc := a2asrv.NewJSONRPCHandler(handler)
+	if script.ProtocolV03 {
+		jsonrpc = a2av0.NewJSONRPCHandler(handler)
+	}
 
 	card := &cardHandler{}
 	mux := http.NewServeMux()
@@ -119,14 +131,17 @@ func NewServer(t testing.TB, script Script) *Server {
 	t.Cleanup(srv.Close)
 
 	endpoint := srv.URL + "/invoke"
-	card.set(buildCard(endpoint, script.Streaming))
+	card.set(buildCard(endpoint, script.Streaming, script.ProtocolV03))
 
-	return &Server{Server: srv, Endpoint: endpoint, Recorder: rec, streaming: script.Streaming}
+	return &Server{
+		Server: srv, Endpoint: endpoint, Recorder: rec,
+		streaming: script.Streaming, protocolV03: script.ProtocolV03,
+	}
 }
 
 // Card returns the agent card advertised by this server.
 func (s *Server) Card() *models.AgentCard {
-	return buildCard(s.Endpoint, s.streaming)
+	return buildCard(s.Endpoint, s.streaming, s.protocolV03)
 }
 
 // Agent returns an active agent whose card points at this server. Tests may
@@ -207,19 +222,26 @@ func withGateways(rec *Recorder, script Script, next http.Handler) http.Handler 
 	})
 }
 
-// buildCard builds a minimal valid v1.0 agent card advertising endpoint.
-func buildCard(endpoint string, streaming bool) *models.AgentCard {
+// buildCard builds a minimal valid agent card advertising endpoint, in either
+// the current v1.0 shape (default) or the v0.3-compat shape when protocolV03.
+func buildCard(endpoint string, streaming, protocolV03 bool) *models.AgentCard {
+	iface := a2a.NewAgentInterface(endpoint, a2a.TransportProtocolJSONRPC)
+	if protocolV03 {
+		iface = &a2a.AgentInterface{
+			URL:             endpoint,
+			ProtocolBinding: a2a.TransportProtocolJSONRPC,
+			ProtocolVersion: a2av0.Version,
+		}
+	}
 	return &models.AgentCard{
-		Name:               "Toy Agent",
-		Description:        "in-process a2atest agent",
-		Version:            "1.0.0",
-		Capabilities:       a2a.AgentCapabilities{Streaming: streaming},
-		DefaultInputModes:  []string{"text/plain"},
-		DefaultOutputModes: []string{"text/plain"},
-		SupportedInterfaces: []*a2a.AgentInterface{
-			a2a.NewAgentInterface(endpoint, a2a.TransportProtocolJSONRPC),
-		},
-		Skills: []a2a.AgentSkill{{ID: "s", Name: "s", Description: "s", Tags: []string{"t"}}},
+		Name:                "Toy Agent",
+		Description:         "in-process a2atest agent",
+		Version:             "1.0.0",
+		Capabilities:        a2a.AgentCapabilities{Streaming: streaming},
+		DefaultInputModes:   []string{"text/plain"},
+		DefaultOutputModes:  []string{"text/plain"},
+		SupportedInterfaces: []*a2a.AgentInterface{iface},
+		Skills:              []a2a.AgentSkill{{ID: "s", Name: "s", Description: "s", Tags: []string{"t"}}},
 	}
 }
 
