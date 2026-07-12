@@ -22,6 +22,7 @@ import {
   useEventPolling,
   EVENT_POLLING_INTERVAL_MS,
 } from '../../src/hooks/useEventPolling'
+import { ApiError } from '../../src/types/errors'
 
 const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
 const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
@@ -364,6 +365,51 @@ describe('useEventPolling', () => {
       { timeout: 10000 }
     )
   }, 15000)
+
+  it('should stop without surfacing an error or retrying on a 401', async () => {
+    // On a 401 the hook redirects to /sign-in (via window.location) and returns
+    // before the error/backoff path — so, unlike a generic error, it neither
+    // surfaces an error nor schedules a retry. We assert those observable effects
+    // (jsdom cannot intercept the location assignment, which is a harmless no-op).
+    mockGeneratedClient.GET.mockRejectedValue(
+      new ApiError({
+        type: 'https://api.vibexp.io/errors/unauthorized',
+        title: 'Unauthorized',
+        status: 401,
+        detail: 'Session expired',
+        code: 'UNAUTHENTICATED',
+        request_id: 'req-1',
+        timestamp: '2026-01-01T00:00:00Z',
+      })
+    )
+
+    jest.runOnlyPendingTimers()
+    jest.useRealTimers()
+
+    const { result } = renderHook(() =>
+      useEventPolling({
+        teamId: TEAM_ID,
+        executionId: EXECUTION_ID,
+        enabled: true,
+        pollingInterval: 50,
+      })
+    )
+
+    await waitFor(
+      () => {
+        expect(mockGeneratedClient.GET).toHaveBeenCalledTimes(1)
+      },
+      { timeout: 5000 }
+    )
+    await waitFor(() => expect(result.current.isPolling).toBe(false), {
+      timeout: 5000,
+    })
+    // The 401 branch returns before setError; a generic error would set one.
+    expect(result.current.error).toBeNull()
+    // And it schedules no backoff retry (interval*2 = 100ms) — a generic error would.
+    await new Promise(resolve => setTimeout(resolve, 250))
+    expect(mockGeneratedClient.GET).toHaveBeenCalledTimes(1)
+  }, 10000)
 
   it('should respect a custom polling interval', async () => {
     mockGeneratedClient.GET.mockReturnValue(

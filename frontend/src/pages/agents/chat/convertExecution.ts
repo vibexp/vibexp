@@ -1,5 +1,5 @@
 import type { AgentExecution } from '@/services/agentService'
-import type { A2AArtifact, A2APart, A2ATextPart } from '@/types/a2a'
+import { type A2AArtifact, isTextPart } from '@/types/a2a'
 
 import type { Message } from './types'
 
@@ -31,8 +31,11 @@ export function convertExecutionToMessages(
   } else if (execution.artifacts && Array.isArray(execution.artifacts)) {
     const textParts = (execution.artifacts as A2AArtifact[])
       .flatMap((artifact: A2AArtifact) => artifact.parts ?? [])
-      .filter((part: A2APart): part is A2ATextPart => part.kind === 'text')
-      .map((part: A2ATextPart) => part.text)
+      // Detect text parts by the presence of `text` (isTextPart) so A2A v1.0
+      // parts — which carry no `kind` — are handled, matching the streaming
+      // path (extractResponseText) and the rest of the A2A frontend.
+      .filter(isTextPart)
+      .map(part => part.text)
     if (textParts.length > 0) {
       responseText = textParts.join('\n')
     }
