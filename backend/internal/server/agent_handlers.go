@@ -291,6 +291,12 @@ func (s *Server) handleUpdateAgentCredentials(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Reject unsupported credential types up front with an actionable message.
+	if err := models.ValidateAgentCredentials(req.Credentials); err != nil {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Validate the request
 	if err := validate.Struct(&req); err != nil {
 		s.logger.With(
@@ -671,6 +677,11 @@ func (s *Server) validateCreateAgentRequest(
 		return false
 	}
 
+	if err := models.ValidateAgentCredentials(req.Credentials); err != nil {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
+		return false
+	}
+
 	return true
 }
 
@@ -827,6 +838,11 @@ func (s *Server) validateUpdateAgentRequest(
 			"Status must be 'active', 'paused', or 'error'",
 			http.StatusBadRequest,
 		)
+		return false
+	}
+
+	if err := models.ValidateAgentCredentials(req.Credentials); err != nil {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return false
 	}
 

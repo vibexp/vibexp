@@ -26422,9 +26422,9 @@
             "type": "string",
             "enum": [
               "apiKey",
-              "oauth2"
+              "http"
             ],
-            "description": "Credential type",
+            "description": "Credential type. Must match a supported security scheme the backend can apply: `apiKey` (header/query/cookie) or `http` (bearer/basic). `oauth2`, `openIdConnect` and `mutualTLS` are rejected at save time.",
             "example": "apiKey"
           },
           "value": {
