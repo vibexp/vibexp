@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -41,12 +42,13 @@ func NewAgentService(
 	executionRepo repositories.AgentExecutionRepository,
 	encryptionService EncryptionServiceInterface,
 	teamService TeamServiceInterface,
+	cfg *config.Config,
 	logger *slog.Logger,
 ) *AgentService {
 	return &AgentService{
 		agentRepo:         agentRepo,
 		executionRepo:     executionRepo,
-		cardFetcher:       NewAgentCardFetcher(),
+		cardFetcher:       NewAgentCardFetcher(cfg),
 		encryptionService: encryptionService,
 		authenticator:     NewAgentAuthenticator(encryptionService),
 		teamService:       teamService,

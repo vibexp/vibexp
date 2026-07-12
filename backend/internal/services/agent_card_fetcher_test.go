@@ -39,7 +39,7 @@ func createValidAgentCardJSON() string {
 }
 
 func TestNewAgentCardFetcher(t *testing.T) {
-	fetcher := NewAgentCardFetcher()
+	fetcher := NewAgentCardFetcher(nil)
 
 	assert.NotNil(t, fetcher)
 	assert.NotNil(t, fetcher.httpClient)
@@ -143,7 +143,7 @@ func TestAgentCardFetcher_FetchAgentCard_URLValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fetcher := NewAgentCardFetcher()
+			fetcher := NewAgentCardFetcher(nil)
 
 			_, err := fetcher.FetchAgentCard(context.Background(), tt.cardURL, nil)
 

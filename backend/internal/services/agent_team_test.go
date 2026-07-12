@@ -205,7 +205,7 @@ func TestAgentService_ValidateAndResolveTeamID(t *testing.T) {
 			require.NoError(t, err)
 			logger, _ := logtest.New()
 
-			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, mockTeamService, logger)
+			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, mockTeamService, nil, logger)
 
 			teamID, err := service.validateAndResolveTeamID(ctx, userID, defaultTeamID, tt.requestedTeamID)
 
@@ -259,7 +259,7 @@ func TestAgentService_ValidateTeamReassignment(t *testing.T) {
 			require.NoError(t, err)
 			logger, _ := logtest.New()
 
-			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, logger)
+			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, nil, logger)
 
 			err = service.validateTeamReassignment(tt.requestedTeamID, currentTeamID, agentID)
 
@@ -421,7 +421,7 @@ func TestAgentService_UpdateAgent_TeamReassignment(t *testing.T) {
 
 			tt.setupMocks(mockAgentRepo)
 
-			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, logger)
+			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, nil, logger)
 
 			agent, err := service.UpdateAgent(ctx, userID, currentTeamID, agentID, tt.request)
 

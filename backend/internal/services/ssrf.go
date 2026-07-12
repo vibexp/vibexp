@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/vibexp/vibexp/internal/config"
 )
 
 // normalizeHost lower-cases the host and strips a single trailing FQDN dot so the
@@ -33,6 +35,19 @@ type ssrfGuard struct {
 
 // defaultSSRFGuard is the production policy: reject all reserved ranges.
 var defaultSSRFGuard = &ssrfGuard{}
+
+// ssrfGuardForConfig selects the SSRF policy for cfg. In local development only
+// (cfg.IsLocalDevelopment() — frontend.base_url points at localhost) it permits
+// loopback/private/link-local destinations so a self-hosted local checkout can
+// register and invoke a localhost A2A agent for testing. Every real deployment
+// (and a nil cfg) gets the fail-closed production policy that rejects all reserved
+// ranges. The name blocklist (cloud metadata hostnames) still applies either way.
+func ssrfGuardForConfig(cfg *config.Config) *ssrfGuard {
+	if cfg != nil && cfg.IsLocalDevelopment() {
+		return &ssrfGuard{allowPrivate: true}
+	}
+	return defaultSSRFGuard
+}
 
 // isBlockedIP reports whether ip falls into a range that outbound requests must
 // never reach: loopback, private, link-local (incl. cloud metadata 169.254.169.254),

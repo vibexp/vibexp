@@ -134,7 +134,7 @@ func TestNewAgentService(t *testing.T) {
 	encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
 	require.NoError(t, err)
 	logger, _ := logtest.New()
-	service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, logger)
+	service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, nil, logger)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, mockAgentRepo, service.agentRepo)

@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/vibexp/vibexp/internal/config"
 )
 
 // newTestAgentCardFetcher builds a fetcher that permits private/loopback hosts so
@@ -60,6 +62,39 @@ func TestSSRFGuard_AllowPrivate(t *testing.T) {
 	assert.False(t, guard.isBlockedIP(net.ParseIP("10.0.0.1")))
 	// nil is still blocked.
 	assert.True(t, guard.isBlockedIP(nil))
+}
+
+func TestSSRFGuardForConfig(t *testing.T) {
+	loopback := net.ParseIP("127.0.0.1")
+
+	t.Run("nil config uses strict production policy", func(t *testing.T) {
+		guard := ssrfGuardForConfig(nil)
+		assert.Same(t, defaultSSRFGuard, guard)
+		assert.True(t, guard.isBlockedIP(loopback))
+	})
+
+	t.Run("production config blocks loopback", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Frontend.BaseURL = "https://app.example.com"
+		guard := ssrfGuardForConfig(cfg)
+		assert.True(t, guard.isBlockedIP(loopback))
+	})
+
+	t.Run("empty base url is treated as production (fail-closed)", func(t *testing.T) {
+		cfg := &config.Config{}
+		guard := ssrfGuardForConfig(cfg)
+		assert.True(t, guard.isBlockedIP(loopback))
+	})
+
+	t.Run("local development permits loopback for local A2A agents", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Frontend.BaseURL = "http://localhost:5173"
+		guard := ssrfGuardForConfig(cfg)
+		assert.False(t, guard.isBlockedIP(loopback))
+		// Cloud-metadata hostnames stay blocked regardless of allowPrivate.
+		err := guard.validateOutboundHost(context.Background(), "http://metadata.google.internal/")
+		assert.Error(t, err)
+	})
 }
 
 func TestSSRFGuard_ValidateOutboundHost(t *testing.T) {
@@ -123,7 +158,7 @@ func TestSSRFGuard_Control(t *testing.T) {
 }
 
 func TestFetchAgentCard_RejectsInternalHost(t *testing.T) {
-	fetcher := NewAgentCardFetcher()
+	fetcher := NewAgentCardFetcher(nil)
 	defer fetcher.Close()
 
 	_, err := fetcher.FetchAgentCard(
