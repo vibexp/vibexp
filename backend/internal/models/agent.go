@@ -1,10 +1,45 @@
 package models
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 )
+
+// SupportedCredentialTypes are the credential types the backend authenticator can
+// actually apply (matching the a2a-go SDK's APIKeySecurityScheme and
+// HTTPAuthSecurityScheme). Anything else (oauth2, openIdConnect, mutualTLS) is
+// rejected at save time so a user can never store a credential that then fails at
+// chat time with "unsupported security scheme type".
+var SupportedCredentialTypes = []string{"apiKey", "http"}
+
+// IsSupportedCredentialType reports whether t is a credential type the backend can apply.
+func IsSupportedCredentialType(t string) bool {
+	for _, s := range SupportedCredentialTypes {
+		if t == s {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateAgentCredentials rejects credentials whose type the backend cannot
+// apply, with an actionable error naming the offending scheme and the supported
+// set. It is called on every save path (create, update, update-credentials) so
+// the enum is enforced consistently, not only on the dedicated endpoint.
+func ValidateAgentCredentials(credentials map[string]CredentialRequest) error {
+	for name, cred := range credentials {
+		if !IsSupportedCredentialType(cred.Type) {
+			return fmt.Errorf(
+				"unsupported credential type %q for scheme %q: supported types are %s",
+				cred.Type, name, strings.Join(SupportedCredentialTypes, ", "),
+			)
+		}
+	}
+	return nil
+}
 
 // AgentCard is the A2A agent card. VibeXP tracks the official A2A specification
 // via the a2a-go SDK, so the SDK's typed card (A2A protocol v1.0) is the
@@ -39,13 +74,13 @@ type AgentCredentials map[string]AgentCredential
 
 // AgentCredential represents a single credential with type and encrypted value
 type AgentCredential struct {
-	Type  string `json:"type"`  // e.g., "apiKey", "oauth2"
+	Type  string `json:"type"`  // e.g., "apiKey", "http"
 	Value string `json:"value"` // encrypted value
 }
 
 // CredentialRequest represents a credential in API requests
 type CredentialRequest struct {
-	Type  string `json:"type" validate:"required,oneof=apiKey oauth2"`
+	Type  string `json:"type" validate:"required,oneof=apiKey http"`
 	Value string `json:"value" validate:"required"`
 }
 

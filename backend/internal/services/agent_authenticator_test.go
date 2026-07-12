@@ -513,6 +513,62 @@ func agentWithScheme(
 	}
 }
 
+func TestAgentAuthenticator_DeterministicSchemeSelection(t *testing.T) {
+	encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
+	require.NoError(t, err)
+	authenticator := NewAgentAuthenticator(encryptionSvc)
+	encVal := func(s string) string {
+		v, e := encryptionSvc.Encrypt(s)
+		require.NoError(t, e)
+		return v
+	}
+
+	// A card with two header schemes, both with stored credentials.
+	twoSchemeAgent := func(reqs a2a.SecurityRequirementsOptions) *models.Agent {
+		creds := models.AgentCredentials{
+			"alpha": {Type: "apiKey", Value: encVal("alpha-secret")},
+			"zeta":  {Type: "apiKey", Value: encVal("zeta-secret")},
+		}
+		return &models.Agent{
+			AgentCard: &models.AgentCard{
+				Name:                 "Test Agent",
+				SecurityRequirements: reqs,
+				SecuritySchemes: a2a.NamedSecuritySchemes{
+					"alpha": a2a.APIKeySecurityScheme{Name: "X-Alpha", Location: a2a.APIKeySecuritySchemeLocationHeader},
+					"zeta":  a2a.APIKeySecurityScheme{Name: "X-Zeta", Location: a2a.APIKeySecuritySchemeLocationHeader},
+				},
+			},
+			Credentials: &creds,
+		}
+	}
+
+	// With no security requirement list, selection falls back to sorted scheme
+	// names — "alpha" wins on every request, never Go-map-order dependent.
+	t.Run("sorted fallback selects the same scheme on every request", func(t *testing.T) {
+		agent := twoSchemeAgent(nil)
+		for i := 0; i < 50; i++ {
+			req, err := http.NewRequest("GET", "http://example.com", nil)
+			require.NoError(t, err)
+			require.NoError(t, authenticator.ApplyAuthentication(req, agent))
+			assert.Equal(t, "alpha-secret", req.Header.Get("X-Alpha"))
+			assert.Empty(t, req.Header.Get("X-Zeta"))
+		}
+	})
+
+	// The card's ordered `security` requirement wins over sort: "zeta" is declared
+	// first, so it is selected even though "alpha" sorts earlier.
+	t.Run("honors card security-requirement order over sort", func(t *testing.T) {
+		agent := twoSchemeAgent(a2a.SecurityRequirementsOptions{{"zeta": {}}, {"alpha": {}}})
+		for i := 0; i < 50; i++ {
+			req, err := http.NewRequest("GET", "http://example.com", nil)
+			require.NoError(t, err)
+			require.NoError(t, authenticator.ApplyAuthentication(req, agent))
+			assert.Equal(t, "zeta-secret", req.Header.Get("X-Zeta"))
+			assert.Empty(t, req.Header.Get("X-Alpha"))
+		}
+	})
+}
+
 //nolint:funlen // Table-driven test with comprehensive scheme coverage
 func TestAgentAuthenticator_AuthHeaders(t *testing.T) {
 	encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")

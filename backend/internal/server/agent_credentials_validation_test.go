@@ -5,10 +5,34 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
+
+// TestValidateAgentCredentials_ActionableMessage asserts the save-time rejection
+// names the offending scheme and the supported types (issue #165).
+func TestValidateAgentCredentials_ActionableMessage(t *testing.T) {
+	err := models.ValidateAgentCredentials(map[string]models.CredentialRequest{
+		"oauth_token": {Type: "oauth2", Value: "token"},
+	})
+	if err == nil {
+		t.Fatal("expected oauth2 to be rejected")
+	}
+	for _, want := range []string{"oauth2", "oauth_token", "apiKey", "http"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("message %q should mention %q", err.Error(), want)
+		}
+	}
+
+	if err := models.ValidateAgentCredentials(map[string]models.CredentialRequest{
+		"k": {Type: "apiKey", Value: "x"},
+		"b": {Type: "http", Value: "y"},
+	}); err != nil {
+		t.Errorf("supported types apiKey/http should pass: %v", err)
+	}
+}
 
 // TestCredentialValidation tests that credentials are properly validated
 // This ensures the type field is required and must be either "apiKey" or "oauth2"
@@ -56,19 +80,37 @@ func TestCredentialValidation(t *testing.T) {
 			description: "Should accept apiKey as valid type",
 		},
 		{
-			name:        "Valid oauth2 type",
-			credentials: map[string]models.CredentialRequest{"oauth_token": {Type: "oauth2", Value: "token-123"}},
+			name:        "Valid http type",
+			credentials: map[string]models.CredentialRequest{"bearer": {Type: "http", Value: "token-123"}},
 			shouldError: false,
-			description: "Should accept oauth2 as valid type",
+			description: "Should accept http (bearer/basic) as valid type",
 		},
 		{
 			name: "Multiple valid credentials",
 			credentials: map[string]models.CredentialRequest{
-				"api_key":     {Type: "apiKey", Value: "key-123"},
-				"oauth_token": {Type: "oauth2", Value: "token-123"},
+				"api_key": {Type: "apiKey", Value: "key-123"},
+				"bearer":  {Type: "http", Value: "token-123"},
 			},
 			shouldError: false,
 			description: "Should accept multiple valid credentials",
+		},
+		{
+			name:        "oauth2 type rejected",
+			credentials: map[string]models.CredentialRequest{"oauth_token": {Type: "oauth2", Value: "token-123"}},
+			shouldError: true,
+			description: "Should reject oauth2 — it never worked at invocation time",
+		},
+		{
+			name:        "openIdConnect type rejected",
+			credentials: map[string]models.CredentialRequest{"oidc": {Type: "openIdConnect", Value: "token-123"}},
+			shouldError: true,
+			description: "Should reject openIdConnect",
+		},
+		{
+			name:        "mutualTLS type rejected",
+			credentials: map[string]models.CredentialRequest{"mtls": {Type: "mutualTLS", Value: "cert"}},
+			shouldError: true,
+			description: "Should reject mutualTLS",
 		},
 		{
 			name:        "Missing type field",

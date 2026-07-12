@@ -9,9 +9,20 @@ import { toast } from '@/lib/toast'
 import { agentService } from '@/services/agentService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
+// Credential types the backend can actually apply (mirrors the backend's
+// SupportedCredentialTypes). Schemes of any other type (oauth2, openIdConnect,
+// mutualTLS) are declared-but-unsupported: we surface a note instead of an input
+// so a user can never save a credential the backend would reject at chat time.
+const SUPPORTED_CREDENTIAL_TYPES = ['apiKey', 'http']
+
+function isSupportedCredentialType(type: string): boolean {
+  return SUPPORTED_CREDENTIAL_TYPES.includes(type)
+}
+
 interface Credential {
   name: string
   type: string
+  supported: boolean
   value: string
   showValue: boolean
 }
@@ -37,10 +48,12 @@ export function AgentCredentialsEditor({
     }
     return Object.entries(securitySchemes).map(([name, scheme]) => {
       const schemeData = scheme as Record<string, unknown>
+      const type = (schemeData.type as string) || 'unknown'
       const isSet = hasCredentials?.includes(name) ?? false
       return {
         name,
-        type: (schemeData.type as string) || 'unknown',
+        type,
+        supported: isSupportedCredentialType(type),
         value: isSet ? MASKED : '',
         showValue: false,
       }
@@ -63,8 +76,9 @@ export function AgentCredentialsEditor({
   }
 
   const handleUpdateCredentials = async () => {
+    // Only supported schemes have inputs; never send an unsupported type.
     const filled = credentials.filter(
-      c => c.value.trim() !== '' && c.value !== MASKED
+      c => c.supported && c.value.trim() !== '' && c.value !== MASKED
     )
 
     if (filled.length === 0) {
@@ -76,10 +90,7 @@ export function AgentCredentialsEditor({
       setUpdating(true)
       const payload: Record<string, { type: string; value: string }> = {}
       filled.forEach(cred => {
-        payload[cred.name] = {
-          type: cred.type === 'oauth2' ? 'oauth2' : 'apiKey',
-          value: cred.value,
-        }
+        payload[cred.name] = { type: cred.type, value: cred.value }
       })
       await agentService.updateAgentCredentials(teamId, agentId, payload)
       toast.success('Agent credentials updated successfully')
@@ -97,6 +108,8 @@ export function AgentCredentialsEditor({
     return null
   }
 
+  const hasSupported = credentials.some(c => c.supported)
+
   return (
     <Card>
       <CardHeader>
@@ -109,55 +122,75 @@ export function AgentCredentialsEditor({
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {credentials.map((credential, index) => (
-          <div key={credential.name} className="space-y-1.5">
-            <Label htmlFor={`credential-${credential.name}`}>
-              {credential.name}
-              <span className="text-muted-foreground ml-2 text-xs font-normal">
-                ({credential.type})
-              </span>
-            </Label>
-            <div className="relative">
-              <Input
-                id={`credential-${credential.name}`}
-                type={credential.showValue ? 'text' : 'password'}
-                value={credential.value}
-                onChange={e => {
-                  handleCredentialChange(index, e.target.value)
-                }}
-                placeholder={`Enter ${credential.name}`}
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
-                onClick={() => {
-                  toggleShowValue(index)
-                }}
-                aria-label={credential.showValue ? 'Hide value' : 'Show value'}
-              >
-                {credential.showValue ? (
-                  <EyeOff className="size-4" />
-                ) : (
-                  <Eye className="size-4" />
-                )}
-              </Button>
+        {credentials.map((credential, index) =>
+          credential.supported ? (
+            <div key={credential.name} className="space-y-1.5">
+              <Label htmlFor={`credential-${credential.name}`}>
+                {credential.name}
+                <span className="text-muted-foreground ml-2 text-xs font-normal">
+                  ({credential.type})
+                </span>
+              </Label>
+              <div className="relative">
+                <Input
+                  id={`credential-${credential.name}`}
+                  type={credential.showValue ? 'text' : 'password'}
+                  value={credential.value}
+                  onChange={e => {
+                    handleCredentialChange(index, e.target.value)
+                  }}
+                  placeholder={`Enter ${credential.name}`}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
+                  onClick={() => {
+                    toggleShowValue(index)
+                  }}
+                  aria-label={
+                    credential.showValue ? 'Hide value' : 'Show value'
+                  }
+                >
+                  {credential.showValue ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
+          ) : (
+            <div key={credential.name} className="space-y-1.5">
+              <Label>
+                {credential.name}
+                <span className="text-muted-foreground ml-2 text-xs font-normal">
+                  ({credential.type})
+                </span>
+              </Label>
+              <p className="text-muted-foreground text-sm">
+                This scheme type is not supported. VibeXP can apply{' '}
+                <code>apiKey</code> and <code>http</code> (bearer/basic)
+                credentials only.
+              </p>
+            </div>
+          )
+        )}
 
-        <Button
-          className="w-full"
-          onClick={() => {
-            void handleUpdateCredentials()
-          }}
-          disabled={updating}
-        >
-          <Save className="mr-2 size-4" />
-          {updating ? 'Updating…' : 'Update credentials'}
-        </Button>
+        {hasSupported && (
+          <Button
+            className="w-full"
+            onClick={() => {
+              void handleUpdateCredentials()
+            }}
+            disabled={updating}
+          >
+            <Save className="mr-2 size-4" />
+            {updating ? 'Updating…' : 'Update credentials'}
+          </Button>
+        )}
       </CardContent>
     </Card>
   )

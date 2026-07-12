@@ -3,12 +3,52 @@ package services
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
+
+// orderedSchemeNames returns the card's security-scheme names in a deterministic
+// order so scheme selection is reproducible across requests (a Go map range is
+// not). It honors the card's ordered `security` requirement list first — ties
+// within one requirement broken by sorted name — then appends any remaining
+// declared schemes by sorted name.
+func orderedSchemeNames(card *models.AgentCard) []string {
+	seen := make(map[string]bool)
+	out := make([]string, 0, len(card.SecuritySchemes))
+	add := func(name string) {
+		if name != "" && !seen[name] {
+			seen[name] = true
+			out = append(out, name)
+		}
+	}
+
+	for _, requirement := range card.SecurityRequirements {
+		names := make([]string, 0, len(requirement))
+		for name := range requirement {
+			if _, ok := card.SecuritySchemes[name]; ok {
+				names = append(names, string(name))
+			}
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			add(name)
+		}
+	}
+
+	rest := make([]string, 0, len(card.SecuritySchemes))
+	for name := range card.SecuritySchemes {
+		rest = append(rest, string(name))
+	}
+	sort.Strings(rest)
+	for _, name := range rest {
+		add(name)
+	}
+	return out
+}
 
 // AgentAuthenticator handles applying authentication to HTTP requests for agents
 type AgentAuthenticator struct {
@@ -43,9 +83,12 @@ func (a *AgentAuthenticator) ApplyAuthentication(req *http.Request, agent *model
 		return nil
 	}
 
-	// Apply authentication based on the first security scheme with a matching credential
-	for schemeName, scheme := range agent.AgentCard.SecuritySchemes {
-		if credential, exists := (*agent.Credentials)[string(schemeName)]; exists {
+	// Apply authentication using the first credentialed scheme in deterministic
+	// order (card security-requirement order, then sorted names) — never Go map
+	// iteration order, so the same request always authenticates the same way.
+	for _, schemeName := range orderedSchemeNames(agent.AgentCard) {
+		if credential, exists := (*agent.Credentials)[schemeName]; exists {
+			scheme := agent.AgentCard.SecuritySchemes[a2a.SecuritySchemeName(schemeName)]
 			return a.applySchemeAuthentication(req, scheme, credential)
 		}
 	}
@@ -177,8 +220,10 @@ func (a *AgentAuthenticator) AuthHeaders(agent *models.Agent) (map[string]string
 		return headers, nil
 	}
 
-	for schemeName, scheme := range agent.AgentCard.SecuritySchemes {
-		credential, exists := (*agent.Credentials)[string(schemeName)]
+	// Iterate in deterministic order so that if two schemes contribute the same
+	// header, the winner is reproducible rather than Go-map-order dependent.
+	for _, schemeName := range orderedSchemeNames(agent.AgentCard) {
+		credential, exists := (*agent.Credentials)[schemeName]
 		if !exists {
 			continue
 		}
@@ -186,6 +231,7 @@ func (a *AgentAuthenticator) AuthHeaders(agent *models.Agent) (map[string]string
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt credential: %w", err)
 		}
+		scheme := agent.AgentCard.SecuritySchemes[a2a.SecuritySchemeName(schemeName)]
 		name, headerValue, ok := headerForScheme(scheme, decrypted)
 		if !ok {
 			continue // non-header scheme (query/cookie) — not applied on fetch
