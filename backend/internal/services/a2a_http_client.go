@@ -11,6 +11,7 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
+	a2av0 "github.com/a2aproject/a2a-go/v2/a2acompat/a2av0"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
@@ -185,9 +186,18 @@ func (c *A2AHTTPClient) buildSDKClient(
 		},
 	}
 
+	// Register both the v1.0 transports and their v0.3 compat counterparts so we
+	// can negotiate with agents advertising either protocol version. The a2a-go
+	// v1.0 transports only match cards on protocol v1.0; most deployed A2A agents
+	// (and our own test agents) still advertise v0.3, so without the a2av0 compat
+	// transports NewFromCard fails with "no compatible transports found". The
+	// compat transports translate between the v0.3 wire format and the v2 types,
+	// so the rest of this client stays version-agnostic.
 	client, err := a2aclient.NewFromCard(ctx, agent.AgentCard,
 		a2aclient.WithJSONRPCTransport(httpClient),
 		a2aclient.WithRESTTransport(httpClient),
+		a2av0.WithJSONRPCTransport(a2av0.JSONRPCTransportConfig{Client: httpClient}),
+		a2av0.WithRESTTransport(a2av0.RESTTransportConfig{Client: httpClient}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build A2A client: %w", err)

@@ -122,15 +122,34 @@ func TestProcessStream_ArtifactUpdate_Append(t *testing.T) {
 	execRepo.AssertExpectations(t)
 }
 
-func TestProcessStream_SkipsMessageEvent(t *testing.T) {
+func TestProcessStream_CapturesMessageReply(t *testing.T) {
 	p, eventRepo, execRepo := newTestStreamProcessor()
 	execID := uuid.New().String()
 
-	// A direct message reply is not a persisted execution event (that's #163).
+	// A direct *a2a.Message reply is a terminal answer that carries no Task or
+	// artifact-update event (e.g. a canned/streamed message). The DB event_type
+	// CHECK has no "message" type, so it is not persisted as an event row, but its
+	// parts must be folded into the execution's artifacts so the reply isn't lost.
+	var savedArtifacts []map[string]interface{}
+	execRepo.On("UpdateArtifacts", mock.Anything, execID, mock.Anything).
+		Run(func(args mock.Arguments) {
+			savedArtifacts = args.Get(2).([]map[string]interface{})
+		}).Return(nil).Once()
 	execRepo.On("UpdateStatus", mock.Anything, execID, "success").Return(nil).Once()
 
 	runStream(t, p, execID, a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart("hi")))
 
+	// The message reply is not stored as an event row.
 	eventRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+
+	// Its text is captured as a single artifact.
+	require.Len(t, savedArtifacts, 1)
+	parts, ok := savedArtifacts[0]["parts"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, parts, 1)
+	part, ok := parts[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "hi", part["text"])
+
 	execRepo.AssertExpectations(t)
 }
