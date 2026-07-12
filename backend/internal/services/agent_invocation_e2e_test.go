@@ -211,6 +211,27 @@ func TestAgentInvocationE2E_StreamingHappyPath(t *testing.T) {
 	assert.Len(t, after0, len(events)-1)
 }
 
+// TestAgentInvocationE2E_V03StreamingMessageReply guards this PR's fix: an agent
+// that advertises A2A v0.3 and answers with a direct streamed *a2a.Message. It
+// needs BOTH the a2av0 compat client transports (else NewFromCard fails with "no
+// compatible transports found") AND the stream processor capturing a message
+// reply as an artifact (else the reply text is dropped). Without either fix this
+// test fails, which the v1.0-only harness tests could not catch.
+func TestAgentInvocationE2E_V03StreamingMessageReply(t *testing.T) {
+	h := newE2EHarness(t, a2atest.Script{
+		ProtocolV03: true,
+		Streaming:   true,
+		Events:      messageEvents("v0.3 streamed answer"),
+	}, nil)
+
+	exec := h.invoke(context.Background(), t, nil)
+
+	a2atest.Eventually(t, func() bool {
+		return h.stored(t, exec.ID).Status == "success"
+	}, "a v0.3 streaming message reply should finalize as success")
+	assert.Equal(t, "v0.3 streamed answer", artifactText(h.stored(t, exec.ID)))
+}
+
 func TestAgentInvocationE2E_StreamingFailed(t *testing.T) {
 	events := func(ec *a2asrv.ExecutorContext) []a2a.Event {
 		return []a2a.Event{

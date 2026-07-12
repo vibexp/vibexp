@@ -4,8 +4,8 @@ import { test, expect } from '../../fixtures/auth'
  * Feature Test: full A2A agent journey (no mocks, real end to end)
  *
  * Unlike agent-pages.spec.ts (which route-mocks agent data), this drives the
- * complete user journey against a REAL A2A agent — the `a2a-dummy-agent` served
- * by the e2e stack (backend/cmd/a2a-dummy-agent), which advertises a v0.3 card
+ * complete user journey against a REAL A2A agent — the `a2a-test-agent` served
+ * by the e2e stack (backend/cmd/a2a-test-agent), which advertises a v0.3 card
  * and echoes each message. Nothing here is mocked: the backend resolves the
  * card, persists the agent, and proxies the chat over the A2A protocol.
  *
