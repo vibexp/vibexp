@@ -71,6 +71,30 @@ services:
         done
         echo "fake-gcs never became ready" >&2; exit 1
 
+  # A real, no-inference A2A agent so the Playwright suite can register an agent
+  # and chat with it end to end (backend/cmd/a2a-test-agent) instead of mocking
+  # the flow. --host is the compose service name because it is baked into the
+  # advertised agent-card URL the app dials; the app is allowed to reach this
+  # private host because it runs in local-development mode (see #208).
+  a2a-test-agent:
+    build:
+      context: .
+      dockerfile: backend/cmd/a2a-test-agent/Dockerfile
+    command: ['--host', 'a2a-test-agent', '--port', '9001']
+    networks: [vibexp-e2e]
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--spider',
+          '-q',
+          'http://localhost:9001/.well-known/agent-card.json',
+        ]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
   app:
     build:
       context: .
@@ -110,6 +134,8 @@ services:
         condition: service_healthy
       gcs-init:
         condition: service_completed_successfully
+      a2a-test-agent:
+        condition: service_healthy
     networks: [vibexp-e2e]
     healthcheck:
       test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:8080/ping']
