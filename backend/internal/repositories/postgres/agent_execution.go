@@ -43,9 +43,14 @@ func (r *agentExecutionRepository) Create(ctx context.Context, execution *models
 		return fmt.Errorf("failed to marshal input: %w", err)
 	}
 
+	// RETURNING version so the in-memory struct stays in sync with the DB-assigned
+	// version (default 1). Without this, execution.Version stays 0, and the later
+	// optimistic-locking Update (WHERE version = $n) silently matches no rows —
+	// e.g. a streaming error would never persist its "error" status (issue #197).
 	query := `
 		INSERT INTO agent_executions (id, agent_id, user_id, status, input, started_at, conversation_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING version
 	`
 
 	var conversationID interface{}
@@ -53,9 +58,9 @@ func (r *agentExecutionRepository) Create(ctx context.Context, execution *models
 		conversationID = *execution.ConversationID
 	}
 
-	_, err = r.db.ExecContext(ctx, query,
+	err = r.db.QueryRowContext(ctx, query,
 		execution.ID, execution.AgentID, execution.UserID, execution.Status,
-		inputJSON, execution.StartedAt, conversationID)
+		inputJSON, execution.StartedAt, conversationID).Scan(&execution.Version)
 
 	if err != nil {
 		logger.With(

@@ -59,7 +59,7 @@ func TestAgentExecutionRepository_Create(t *testing.T) {
 				Input:   map[string]interface{}{"text": "Hello"},
 			},
 			setupMock: func() {
-				mock.ExpectExec(`INSERT INTO agent_executions`).
+				mock.ExpectQuery(`INSERT INTO agent_executions`).
 					WithArgs(
 						sqlmock.AnyArg(), // id (generated)
 						"agent-123",
@@ -69,7 +69,7 @@ func TestAgentExecutionRepository_Create(t *testing.T) {
 						sqlmock.AnyArg(), // started_at
 						nil,              // conversation_id
 					).
-					WillReturnResult(sqlmock.NewResult(1, 1))
+					WillReturnRows(sqlmock.NewRows([]string{"version"}).AddRow(int64(1)))
 			},
 			expectErr: false,
 		},
@@ -82,7 +82,7 @@ func TestAgentExecutionRepository_Create(t *testing.T) {
 				ConversationID: strPtr("conv-123"),
 			},
 			setupMock: func() {
-				mock.ExpectExec(`INSERT INTO agent_executions`).
+				mock.ExpectQuery(`INSERT INTO agent_executions`).
 					WithArgs(
 						sqlmock.AnyArg(), // id
 						"agent-123",
@@ -92,7 +92,7 @@ func TestAgentExecutionRepository_Create(t *testing.T) {
 						sqlmock.AnyArg(), // started_at
 						"conv-123",       // conversation_id
 					).
-					WillReturnResult(sqlmock.NewResult(1, 1))
+					WillReturnRows(sqlmock.NewRows([]string{"version"}).AddRow(int64(1)))
 			},
 			expectErr: false,
 		},
@@ -104,7 +104,7 @@ func TestAgentExecutionRepository_Create(t *testing.T) {
 				Input:   map[string]interface{}{},
 			},
 			setupMock: func() {
-				mock.ExpectExec(`INSERT INTO agent_executions`).
+				mock.ExpectQuery(`INSERT INTO agent_executions`).
 					WithArgs(
 						sqlmock.AnyArg(),
 						sqlmock.AnyArg(),
@@ -132,6 +132,9 @@ func TestAgentExecutionRepository_Create(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotEmpty(t, tt.execution.ID)
 				assert.Equal(t, "running", tt.execution.Status)
+				// Create must sync the DB-assigned version back onto the struct so the
+				// optimistic-locking Update works (issue #197).
+				assert.Equal(t, int64(1), tt.execution.Version)
 			}
 
 			assert.NoError(t, mock.ExpectationsWereMet())
