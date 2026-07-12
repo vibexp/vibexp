@@ -251,14 +251,16 @@ func ProvideAgentService(
 	executionRepo repositories.AgentExecutionRepository,
 	encryptionService services.EncryptionServiceInterface,
 	teamService services.TeamServiceInterface,
+	cfg *config.Config,
 	logger *slog.Logger,
 ) services.AgentServiceInterface {
-	return services.NewAgentService(agentRepo, executionRepo, encryptionService, teamService, logger)
+	return services.NewAgentService(agentRepo, executionRepo, encryptionService, teamService, cfg, logger)
 }
 
-// ProvideAgentCardFetcher creates a new AgentCardFetcher
-func ProvideAgentCardFetcher() services.AgentCardFetcherInterface {
-	return services.NewAgentCardFetcher()
+// ProvideAgentCardFetcher creates a new AgentCardFetcher. cfg drives the SSRF
+// policy: loopback/private agent card hosts are reachable only in local development.
+func ProvideAgentCardFetcher(cfg *config.Config) services.AgentCardFetcherInterface {
+	return services.NewAgentCardFetcher(cfg)
 }
 
 // ProvideAgentAuthenticator creates a new AgentAuthenticator

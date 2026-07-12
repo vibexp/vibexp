@@ -14,6 +14,7 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient/agentcard"
 
+	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -123,9 +124,13 @@ type AgentCardFetcher struct {
 	guard      *ssrfGuard
 }
 
-// NewAgentCardFetcher creates a new AgentCardFetcher instance
-func NewAgentCardFetcher() *AgentCardFetcher {
-	return newAgentCardFetcher(defaultSSRFGuard)
+// NewAgentCardFetcher creates a new AgentCardFetcher whose SSRF policy is derived
+// from cfg: loopback/private destinations are permitted only in local development
+// (see ssrfGuardForConfig), so a local checkout can preview a localhost A2A agent
+// card while every real deployment stays fail-closed. A nil cfg yields the strict
+// production policy.
+func NewAgentCardFetcher(cfg *config.Config) *AgentCardFetcher {
+	return newAgentCardFetcher(ssrfGuardForConfig(cfg))
 }
 
 // newAgentCardFetcher wires a fetcher around the supplied SSRF guard. Tests use

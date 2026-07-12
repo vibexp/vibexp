@@ -93,8 +93,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	if err != nil {
 		return nil, err
 	}
-	agentServiceInterface := providers.ProvideAgentService(agentRepository, agentExecutionRepository, encryptionServiceInterface, teamServiceInterface, logger)
-	agentCardFetcherInterface := providers.ProvideAgentCardFetcher()
+	agentServiceInterface := providers.ProvideAgentService(agentRepository, agentExecutionRepository, encryptionServiceInterface, teamServiceInterface, cfg, logger)
+	agentCardFetcherInterface := providers.ProvideAgentCardFetcher(cfg)
 	agentAuthenticator := providers.ProvideAgentAuthenticator(encryptionServiceInterface)
 	a2AHTTPClientInterface := providers.ProvideA2AHTTPClient(agentAuthenticator, cfg)
 	a2AStreamProcessorInterface := providers.ProvideA2AStreamProcessor(agentExecutionEventRepository, agentExecutionRepository, logger)

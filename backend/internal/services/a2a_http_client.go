@@ -77,7 +77,7 @@ type A2AHTTPClient struct {
 // SSRF-safe dialer that rejects connections to reserved IP ranges at connect
 // time, defeating DNS rebinding on top of endpoint validation.
 func NewA2AHTTPClient(authenticator *AgentAuthenticator, cfg *config.Config) *A2AHTTPClient {
-	return newA2AHTTPClient(authenticator, cfg, defaultSSRFGuard)
+	return newA2AHTTPClient(authenticator, cfg, ssrfGuardForConfig(cfg))
 }
 
 // newA2AHTTPClient builds a client around the supplied SSRF guard. Tests use a
