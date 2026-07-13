@@ -53,9 +53,9 @@ type SearchResultItem struct {
 
 // SearchResultsResponse is the paginated semantic-search response envelope.
 type SearchResultsResponse struct {
-	Results    []SearchResultItem `json:"results"`
-	TotalCount int                `json:"total_count"`
-	Page       int                `json:"page"`
-	PerPage    int                `json:"per_page"`
-	TotalPages int                `json:"total_pages"`
+	Results    JSONArray[SearchResultItem] `json:"results"`
+	TotalCount int                         `json:"total_count"`
+	Page       int                         `json:"page"`
+	PerPage    int                         `json:"per_page"`
+	TotalPages int                         `json:"total_pages"`
 }

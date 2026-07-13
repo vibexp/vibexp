@@ -1001,6 +1001,42 @@ func TestHandleListPrompts_EmptyResult(t *testing.T) {
 	mockContainer.promptService.AssertExpectations(t)
 }
 
+// TestHandleListPrompts_NilSliceSerializesAsArray proves the required-array
+// invariant end-to-end (#125): when the service returns a *nil* Prompts slice
+// (not an empty one), the models.JSONArray[Prompt] field still serializes the
+// required `prompts` array as [], never null — the guarantee is by
+// construction, independent of whether the producer pre-initialized the slice.
+func TestHandleListPrompts_NilSliceSerializesAsArray(t *testing.T) {
+	mockContainer := newMockPromptContainer(t)
+
+	mockContainer.teamService.On(
+		"IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000",
+	).Return(true, nil)
+
+	mockContainer.promptService.On("ListPrompts", "user-123", mock.Anything).
+		Return(&models.PromptListResponse{
+			Prompts:    nil, // nil, not []models.Prompt{} — the footgun the shim removes
+			TotalCount: 0,
+			Page:       1,
+			PerPage:    20,
+			TotalPages: 0,
+		}, nil)
+
+	srv := createTestServer(mockContainer)
+	req := makeAuthenticatedRequest("GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts", nil, "user-123")
+	w := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(w, req)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// The raw wire body must contain "prompts":[] — never "prompts":null.
+	assert.Contains(t, w.Body.String(), `"prompts":[]`)
+	assert.NotContains(t, w.Body.String(), `"prompts":null`)
+
+	mockContainer.promptService.AssertExpectations(t)
+}
+
 // TestHandleListPrompts_SortBy tests list prompts with valid sort_by parameters
 func TestHandleListPrompts_SortBy(t *testing.T) {
 	validSortFields := []string{"name", "status", "updated_at", "created_at"}

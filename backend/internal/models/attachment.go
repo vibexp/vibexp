@@ -22,7 +22,7 @@ type Attachment struct {
 
 // AttachmentListResponse is the response body for listing an owner's attachments.
 type AttachmentListResponse struct {
-	Attachments    []Attachment `json:"attachments"`
-	TotalCount     int          `json:"total_count"`
-	TotalSizeBytes int64        `json:"total_size_bytes"`
+	Attachments    JSONArray[Attachment] `json:"attachments"`
+	TotalCount     int                   `json:"total_count"`
+	TotalSizeBytes int64                 `json:"total_size_bytes"`
 }

@@ -58,11 +58,11 @@ type ProjectResponse struct {
 
 // ProjectListResponse represents the paginated response for listing projects
 type ProjectListResponse struct {
-	Projects   []ProjectResponse `json:"projects"`
-	TotalCount int               `json:"total_count"`
-	Page       int               `json:"page"`
-	PerPage    int               `json:"per_page"`
-	TotalPages int               `json:"total_pages"`
+	Projects   JSONArray[ProjectResponse] `json:"projects"`
+	TotalCount int                        `json:"total_count"`
+	Page       int                        `json:"page"`
+	PerPage    int                        `json:"per_page"`
+	TotalPages int                        `json:"total_pages"`
 }
 
 // ProjectStatsResponse holds resource counts for a single project.

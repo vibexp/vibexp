@@ -58,8 +58,8 @@ type GitHubInstallCallbackRequest struct {
 
 // GitHubRepositoriesResponse represents the response for listing repositories
 type GitHubRepositoriesResponse struct {
-	Repositories []GitHubRepository `json:"repositories"`
-	TotalCount   int                `json:"total_count"`
+	Repositories JSONArray[GitHubRepository] `json:"repositories"`
+	TotalCount   int                         `json:"total_count"`
 }
 
 // BlueprintImportRequest represents the request to import blueprints from a repository
@@ -71,13 +71,13 @@ type BlueprintImportRequest struct {
 
 // BlueprintImportReport represents the result of importing blueprints from a repository
 type BlueprintImportReport struct {
-	TotalScanned    int                      `json:"total_scanned"`
-	TotalSuccessful int                      `json:"total_successful"`
-	TotalFailed     int                      `json:"total_failed"`
-	TotalSkipped    int                      `json:"total_skipped"`
-	SuccessfulItems []BlueprintImportSuccess `json:"successful_items"`
-	FailedItems     []BlueprintImportFailed  `json:"failed_items"`
-	SkippedItems    []BlueprintImportSkipped `json:"skipped_items"`
+	TotalScanned    int                               `json:"total_scanned"`
+	TotalSuccessful int                               `json:"total_successful"`
+	TotalFailed     int                               `json:"total_failed"`
+	TotalSkipped    int                               `json:"total_skipped"`
+	SuccessfulItems JSONArray[BlueprintImportSuccess] `json:"successful_items"`
+	FailedItems     JSONArray[BlueprintImportFailed]  `json:"failed_items"`
+	SkippedItems    JSONArray[BlueprintImportSkipped] `json:"skipped_items"`
 }
 
 // BlueprintImportSuccess represents a successfully imported blueprint

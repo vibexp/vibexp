@@ -21,11 +21,11 @@ type CreateFeedItemReplyRequest struct {
 
 // FeedItemReplyListResponse is the paginated response for listing feed item replies
 type FeedItemReplyListResponse struct {
-	Replies    []FeedItemReply `json:"replies"`
-	TotalCount int             `json:"total_count"`
-	Page       int             `json:"page"`
-	PerPage    int             `json:"per_page"`
-	TotalPages int             `json:"total_pages"`
+	Replies    JSONArray[FeedItemReply] `json:"replies"`
+	TotalCount int                      `json:"total_count"`
+	Page       int                      `json:"page"`
+	PerPage    int                      `json:"per_page"`
+	TotalPages int                      `json:"total_pages"`
 }
 
 // Feed represents a team-scoped AI feed channel
@@ -77,20 +77,20 @@ type CreateFeedItemRequest struct {
 
 // FeedListResponse is the paginated response for listing feeds
 type FeedListResponse struct {
-	Feeds      []Feed `json:"feeds"`
-	TotalCount int    `json:"total_count"`
-	Page       int    `json:"page"`
-	PerPage    int    `json:"per_page"`
-	TotalPages int    `json:"total_pages"`
+	Feeds      JSONArray[Feed] `json:"feeds"`
+	TotalCount int             `json:"total_count"`
+	Page       int             `json:"page"`
+	PerPage    int             `json:"per_page"`
+	TotalPages int             `json:"total_pages"`
 }
 
 // FeedItemListResponse is the paginated response for listing feed items
 type FeedItemListResponse struct {
-	Items      []FeedItem `json:"items"`
-	TotalCount int        `json:"total_count"`
-	Page       int        `json:"page"`
-	PerPage    int        `json:"per_page"`
-	TotalPages int        `json:"total_pages"`
+	Items      JSONArray[FeedItem] `json:"items"`
+	TotalCount int                 `json:"total_count"`
+	Page       int                 `json:"page"`
+	PerPage    int                 `json:"per_page"`
+	TotalPages int                 `json:"total_pages"`
 }
 
 // FeedWithLastPost is a Feed enriched with the timestamp of the most recent post.

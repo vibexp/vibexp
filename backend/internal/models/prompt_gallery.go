@@ -23,11 +23,11 @@ type PromptGalleryCategory struct {
 }
 
 type PromptGalleryListResponse struct {
-	Prompts    []PromptGalleryTemplate `json:"prompts"`
-	TotalCount int                     `json:"total_count"`
-	Page       int                     `json:"page"`
-	PerPage    int                     `json:"per_page"`
-	TotalPages int                     `json:"total_pages"`
+	Prompts    JSONArray[PromptGalleryTemplate] `json:"prompts"`
+	TotalCount int                              `json:"total_count"`
+	Page       int                              `json:"page"`
+	PerPage    int                              `json:"per_page"`
+	TotalPages int                              `json:"total_pages"`
 }
 
 type PromptGalleryUsageRequest struct {

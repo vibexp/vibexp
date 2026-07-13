@@ -29,7 +29,7 @@ type EmbeddingCoverageItem struct {
 // has no active provider, HasActiveProvider is false, ActiveModel is null, and every
 // type reports all entities as pending (0% embedded) rather than an error.
 type EmbeddingCoverageResponse struct {
-	HasActiveProvider bool                    `json:"has_active_provider"`
-	ActiveModel       *string                 `json:"active_model"`
-	Coverage          []EmbeddingCoverageItem `json:"coverage"`
+	HasActiveProvider bool                             `json:"has_active_provider"`
+	ActiveModel       *string                          `json:"active_model"`
+	Coverage          JSONArray[EmbeddingCoverageItem] `json:"coverage"`
 }

@@ -48,5 +48,5 @@ type ContentVersion struct {
 // ArtifactVersionListResponse is the wire shape returned by the artifact version
 // listing endpoint: a single object with a versions array (newest-first).
 type ArtifactVersionListResponse struct {
-	Versions []*ContentVersion `json:"versions"`
+	Versions JSONArray[*ContentVersion] `json:"versions"`
 }

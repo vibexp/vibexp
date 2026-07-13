@@ -47,11 +47,11 @@ type UpdatePromptRequest struct {
 }
 
 type PromptListResponse struct {
-	Prompts    []Prompt `json:"prompts"`
-	TotalCount int      `json:"total_count"`
-	Page       int      `json:"page"`
-	PerPage    int      `json:"per_page"`
-	TotalPages int      `json:"total_pages"`
+	Prompts    JSONArray[Prompt] `json:"prompts"`
+	TotalCount int               `json:"total_count"`
+	Page       int               `json:"page"`
+	PerPage    int               `json:"per_page"`
+	TotalPages int               `json:"total_pages"`
 }
 
 // PromptVersionListResponse is the wire shape returned by the prompt version
@@ -61,7 +61,7 @@ type PromptListResponse struct {
 // left untouched. The versioned content is the raw prompt Body template (placeholders and
 // @slug references), not any rendered output.
 type PromptVersionListResponse struct {
-	Versions []*ContentVersion `json:"versions"`
+	Versions JSONArray[*ContentVersion] `json:"versions"`
 }
 
 type RenderPromptRequest struct {
@@ -89,6 +89,6 @@ type PromptDependencyInfo struct {
 }
 
 type PromptDependenciesResponse struct {
-	UsedBy []PromptDependencyInfo `json:"used_by"` // Prompts that reference this prompt
-	Uses   []PromptDependencyInfo `json:"uses"`    // Prompts that this prompt references
+	UsedBy JSONArray[PromptDependencyInfo] `json:"used_by"` // Prompts that reference this prompt
+	Uses   JSONArray[PromptDependencyInfo] `json:"uses"`    // Prompts that this prompt references
 }

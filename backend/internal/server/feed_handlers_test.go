@@ -773,8 +773,8 @@ func TestHandleListFeedItems_Success(t *testing.T) {
 				fi.Archived != nil && !*fi.Archived
 		}),
 	).Return(expected, nil)
-	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, expected.Items).
-		Return(expected.Items, nil)
+	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, []models.FeedItem(expected.Items)).
+		Return([]models.FeedItem(expected.Items), nil)
 
 	fc := &MockFeedContainer{FeedItemServiceMock: mockItemSvc}
 	srv := newFeedTestServer(t, fc)
@@ -815,8 +815,8 @@ func TestHandleListFeedItems_AllFilters(t *testing.T) {
 				fi.Archived != nil && *fi.Archived == true
 		}),
 	).Return(expected, nil)
-	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, expected.Items).
-		Return(expected.Items, nil)
+	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, []models.FeedItem(expected.Items)).
+		Return([]models.FeedItem(expected.Items), nil)
 
 	fc := &MockFeedContainer{FeedItemServiceMock: mockItemSvc}
 	srv := newFeedTestServer(t, fc)
@@ -844,8 +844,8 @@ func TestHandleListFeedItems_ArchivedAll(t *testing.T) {
 			return fi.TeamID == feedTestTeamID && fi.Archived == nil
 		}),
 	).Return(expected, nil)
-	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, expected.Items).
-		Return(expected.Items, nil)
+	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, []models.FeedItem(expected.Items)).
+		Return([]models.FeedItem(expected.Items), nil)
 
 	fc := &MockFeedContainer{FeedItemServiceMock: mockItemSvc}
 	srv := newFeedTestServer(t, fc)
@@ -874,8 +874,8 @@ func TestHandleListFeedItemsByFeed_Success(t *testing.T) {
 			return fi.TeamID == feedTestTeamID && fi.FeedID != nil && *fi.FeedID == feedTestFeedID
 		}),
 	).Return(expected, nil)
-	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, expected.Items).
-		Return(expected.Items, nil)
+	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, []models.FeedItem(expected.Items)).
+		Return([]models.FeedItem(expected.Items), nil)
 
 	fc := &MockFeedContainer{FeedItemServiceMock: mockItemSvc}
 	srv := newFeedTestServer(t, fc)
@@ -1032,8 +1032,8 @@ func TestArchiveThenUnarchiveThenList(t *testing.T) {
 			return fi.Archived != nil && !*fi.Archived
 		}),
 	).Return(listResponse, nil).Once()
-	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, listResponse.Items).
-		Return(listResponse.Items, nil).Once()
+	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, []models.FeedItem(listResponse.Items)).
+		Return([]models.FeedItem(listResponse.Items), nil).Once()
 	_ = fFalse
 
 	fc := &MockFeedContainer{FeedItemServiceMock: mockItemSvc}

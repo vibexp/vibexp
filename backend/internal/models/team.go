@@ -62,10 +62,10 @@ type UpdateTeamRequest struct {
 
 // TeamListResponse represents the response for listing teams
 type TeamListResponse struct {
-	Teams      []Team `json:"teams"`
-	TotalCount int    `json:"total_count"`
-	Page       int    `json:"page"`
-	PageSize   int    `json:"page_size"`
+	Teams      JSONArray[Team] `json:"teams"`
+	TotalCount int             `json:"total_count"`
+	Page       int             `json:"page"`
+	PageSize   int             `json:"page_size"`
 }
 
 // TeamMemberDetail represents detailed information about a team member
@@ -81,8 +81,8 @@ type TeamMemberDetail struct {
 
 // TeamMembersListResponse represents the response for listing team members
 type TeamMembersListResponse struct {
-	Members    []TeamMemberDetail `json:"members"`
-	TotalCount int                `json:"total_count"`
-	Page       int                `json:"page"`
-	PageSize   int                `json:"page_size"`
+	Members    JSONArray[TeamMemberDetail] `json:"members"`
+	TotalCount int                         `json:"total_count"`
+	Page       int                         `json:"page"`
+	PageSize   int                         `json:"page_size"`
 }
