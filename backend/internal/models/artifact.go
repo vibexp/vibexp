@@ -61,11 +61,11 @@ type UpdateArtifactRequest struct {
 }
 
 type ArtifactListResponse struct {
-	Artifacts  []Artifact `json:"artifacts"`
-	TotalCount int        `json:"total_count"`
-	Page       int        `json:"page"`
-	PerPage    int        `json:"per_page"`
-	TotalPages int        `json:"total_pages"`
+	Artifacts  JSONArray[Artifact] `json:"artifacts"`
+	TotalCount int                 `json:"total_count"`
+	Page       int                 `json:"page"`
+	PerPage    int                 `json:"per_page"`
+	TotalPages int                 `json:"total_pages"`
 }
 
 type ArtifactStatsResponse struct {

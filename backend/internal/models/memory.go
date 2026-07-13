@@ -43,11 +43,11 @@ type UpdateMemoryRequest struct {
 }
 
 type MemoryListResponse struct {
-	Memories   []Memory `json:"memories"`
-	TotalCount int      `json:"total_count"`
-	Page       int      `json:"page"`
-	PerPage    int      `json:"per_page"`
-	TotalPages int      `json:"total_pages"`
+	Memories   JSONArray[Memory] `json:"memories"`
+	TotalCount int               `json:"total_count"`
+	Page       int               `json:"page"`
+	PerPage    int               `json:"per_page"`
+	TotalPages int               `json:"total_pages"`
 }
 
 // MemoryVersionListResponse is the wire shape returned by the memory version
@@ -55,5 +55,5 @@ type MemoryListResponse struct {
 // ArtifactVersionListResponse / BlueprintVersionListResponse and reuses the generic
 // ContentVersion snapshot type, so the shared versioning core is left untouched.
 type MemoryVersionListResponse struct {
-	Versions []*ContentVersion `json:"versions"`
+	Versions JSONArray[*ContentVersion] `json:"versions"`
 }

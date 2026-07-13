@@ -74,10 +74,10 @@ type InvitationResponse struct {
 
 // PendingInvitationsListResponse represents the response for listing pending invitations
 type PendingInvitationsListResponse struct {
-	Invitations []InvitationResponse `json:"invitations"`
-	TotalCount  int                  `json:"total_count"`
-	Page        int                  `json:"page"`
-	PageSize    int                  `json:"page_size"`
+	Invitations JSONArray[InvitationResponse] `json:"invitations"`
+	TotalCount  int                           `json:"total_count"`
+	Page        int                           `json:"page"`
+	PageSize    int                           `json:"page_size"`
 }
 
 // InvitationDetailsResponse wraps a single invitation for the GET /api/v1/invitations/{token} endpoint.

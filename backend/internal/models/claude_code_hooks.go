@@ -67,11 +67,11 @@ type IncomingHookPayload struct {
 
 // ClaudeCodeHooksPaginatedResponse represents a paginated API response
 type ClaudeCodeHooksPaginatedResponse struct {
-	Data       []ClaudeCodeHookPayload `json:"data"`
-	Page       int                     `json:"page"`
-	Limit      int                     `json:"limit"`
-	Total      int                     `json:"total"`
-	TotalPages int                     `json:"total_pages"`
+	Data       JSONArray[ClaudeCodeHookPayload] `json:"data"`
+	Page       int                              `json:"page"`
+	Limit      int                              `json:"limit"`
+	Total      int                              `json:"total"`
+	TotalPages int                              `json:"total_pages"`
 }
 
 // SessionSummary represents a summary of a Claude Code session
@@ -86,17 +86,17 @@ type SessionSummary struct {
 
 // SessionsResponse represents the sessions list API response
 type SessionsResponse struct {
-	Data       []SessionSummary `json:"data"`
-	Page       int              `json:"page"`
-	Limit      int              `json:"limit"`
-	Total      int              `json:"total"`
-	TotalPages int              `json:"total_pages"`
+	Data       JSONArray[SessionSummary] `json:"data"`
+	Page       int                       `json:"page"`
+	Limit      int                       `json:"limit"`
+	Total      int                       `json:"total"`
+	TotalPages int                       `json:"total_pages"`
 }
 
 // SessionCountsResponse represents the session counts API response
 type SessionCountsResponse struct {
-	TotalSessions int                  `json:"total_sessions"`
-	Counts        []SessionCountByDate `json:"counts"`
+	TotalSessions int                           `json:"total_sessions"`
+	Counts        JSONArray[SessionCountByDate] `json:"counts"`
 }
 
 // SessionCountByDate represents session count for a specific date
@@ -107,15 +107,15 @@ type SessionCountByDate struct {
 
 // OverviewStats represents comprehensive statistics for the overview page
 type OverviewStats struct {
-	TotalSessions             int              `json:"total_sessions"`
-	SessionsThisWeek          int              `json:"sessions_this_week"`
-	SessionsLastWeek          int              `json:"sessions_last_week"`
-	WeeklyTrendPercent        float64          `json:"weekly_trend_percent"`
-	AvgUserPromptsPerSession  float64          `json:"avg_user_prompts_per_session"`
-	TotalUniqueTools          int              `json:"total_unique_tools"`
-	TopTools                  []ToolUsageCount `json:"top_tools"`
-	AvgSessionDurationMinutes float64          `json:"avg_session_duration_minutes"`
-	TotalMemories             int              `json:"total_memories"`
+	TotalSessions             int                       `json:"total_sessions"`
+	SessionsThisWeek          int                       `json:"sessions_this_week"`
+	SessionsLastWeek          int                       `json:"sessions_last_week"`
+	WeeklyTrendPercent        float64                   `json:"weekly_trend_percent"`
+	AvgUserPromptsPerSession  float64                   `json:"avg_user_prompts_per_session"`
+	TotalUniqueTools          int                       `json:"total_unique_tools"`
+	TopTools                  JSONArray[ToolUsageCount] `json:"top_tools"`
+	AvgSessionDurationMinutes float64                   `json:"avg_session_duration_minutes"`
+	TotalMemories             int                       `json:"total_memories"`
 }
 
 // ToolUsageCount represents tool usage statistics
@@ -136,9 +136,9 @@ type RecentActivity struct {
 
 // RecentActivitiesResponse represents the recent activities API response
 type RecentActivitiesResponse struct {
-	Activities []RecentActivity `json:"activities"`
-	Page       int              `json:"page"`
-	Limit      int              `json:"limit"`
-	Total      int              `json:"total"`
-	TotalPages int              `json:"total_pages"`
+	Activities JSONArray[RecentActivity] `json:"activities"`
+	Page       int                       `json:"page"`
+	Limit      int                       `json:"limit"`
+	Total      int                       `json:"total"`
+	TotalPages int                       `json:"total_pages"`
 }

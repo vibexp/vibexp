@@ -48,11 +48,11 @@ type ModelProviderResponse struct {
 }
 
 type ModelProviderListResponse struct {
-	ModelProviders []ModelProviderResponse `json:"model_providers"`
-	TotalCount     int                     `json:"total_count"`
-	Page           int                     `json:"page"`
-	PerPage        int                     `json:"per_page"`
-	TotalPages     int                     `json:"total_pages"`
+	ModelProviders JSONArray[ModelProviderResponse] `json:"model_providers"`
+	TotalCount     int                              `json:"total_count"`
+	Page           int                              `json:"page"`
+	PerPage        int                              `json:"per_page"`
+	TotalPages     int                              `json:"total_pages"`
 }
 
 type ValidateModelProviderRequest struct {

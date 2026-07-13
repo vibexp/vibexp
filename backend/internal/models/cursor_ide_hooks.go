@@ -63,11 +63,11 @@ type IncomingCursorHookPayload struct {
 
 // CursorIDEHooksPaginatedResponse represents a paginated API response
 type CursorIDEHooksPaginatedResponse struct {
-	Data       []CursorIDEHookPayload `json:"data"`
-	Page       int                    `json:"page"`
-	Limit      int                    `json:"limit"`
-	Total      int                    `json:"total"`
-	TotalPages int                    `json:"total_pages"`
+	Data       JSONArray[CursorIDEHookPayload] `json:"data"`
+	Page       int                             `json:"page"`
+	Limit      int                             `json:"limit"`
+	Total      int                             `json:"total"`
+	TotalPages int                             `json:"total_pages"`
 }
 
 // CursorSessionSummary represents a summary of a Cursor IDE session
@@ -81,29 +81,29 @@ type CursorSessionSummary struct {
 
 // CursorSessionsResponse represents the sessions list API response
 type CursorSessionsResponse struct {
-	Data       []CursorSessionSummary `json:"data"`
-	Page       int                    `json:"page"`
-	Limit      int                    `json:"limit"`
-	Total      int                    `json:"total"`
-	TotalPages int                    `json:"total_pages"`
+	Data       JSONArray[CursorSessionSummary] `json:"data"`
+	Page       int                             `json:"page"`
+	Limit      int                             `json:"limit"`
+	Total      int                             `json:"total"`
+	TotalPages int                             `json:"total_pages"`
 }
 
 // CursorSessionCountsResponse represents the session counts API response
 type CursorSessionCountsResponse struct {
-	TotalSessions int                  `json:"total_sessions"`
-	Counts        []SessionCountByDate `json:"counts"`
+	TotalSessions int                           `json:"total_sessions"`
+	Counts        JSONArray[SessionCountByDate] `json:"counts"`
 }
 
 // CursorOverviewStats represents comprehensive statistics for the overview page
 type CursorOverviewStats struct {
-	TotalSessions             int              `json:"total_sessions"`
-	SessionsThisWeek          int              `json:"sessions_this_week"`
-	SessionsLastWeek          int              `json:"sessions_last_week"`
-	WeeklyTrendPercent        float64          `json:"weekly_trend_percent"`
-	AvgUserPromptsPerSession  float64          `json:"avg_user_prompts_per_session"`
-	TotalUniqueTools          int              `json:"total_unique_tools"`
-	TopTools                  []ToolUsageCount `json:"top_tools"`
-	AvgSessionDurationMinutes float64          `json:"avg_session_duration_minutes"`
+	TotalSessions             int                       `json:"total_sessions"`
+	SessionsThisWeek          int                       `json:"sessions_this_week"`
+	SessionsLastWeek          int                       `json:"sessions_last_week"`
+	WeeklyTrendPercent        float64                   `json:"weekly_trend_percent"`
+	AvgUserPromptsPerSession  float64                   `json:"avg_user_prompts_per_session"`
+	TotalUniqueTools          int                       `json:"total_unique_tools"`
+	TopTools                  JSONArray[ToolUsageCount] `json:"top_tools"`
+	AvgSessionDurationMinutes float64                   `json:"avg_session_duration_minutes"`
 }
 
 // CursorRecentActivity represents a recent Cursor IDE session activity
@@ -117,9 +117,9 @@ type CursorRecentActivity struct {
 
 // CursorRecentActivitiesResponse represents the recent activities API response
 type CursorRecentActivitiesResponse struct {
-	Activities []CursorRecentActivity `json:"activities"`
-	Page       int                    `json:"page"`
-	Limit      int                    `json:"limit"`
-	Total      int                    `json:"total"`
-	TotalPages int                    `json:"total_pages"`
+	Activities JSONArray[CursorRecentActivity] `json:"activities"`
+	Page       int                             `json:"page"`
+	Limit      int                             `json:"limit"`
+	Total      int                             `json:"total"`
+	TotalPages int                             `json:"total_pages"`
 }

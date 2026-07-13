@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
+	"github.com/vibexp/vibexp/internal/models"
 )
 
 // AuthProvider describes one enabled login provider for the login UI's provider
@@ -16,7 +17,7 @@ type AuthProvider struct {
 
 // ProvidersResponse is the JSON body returned by GET /api/v1/auth/providers.
 type ProvidersResponse struct {
-	Providers []AuthProvider `json:"providers"`
+	Providers models.JSONArray[AuthProvider] `json:"providers"`
 }
 
 // providerDisplayNames maps a canonical provider name to a human label for the

@@ -236,7 +236,7 @@ func TestHandleListProviders_Mapping(t *testing.T) {
 		{Name: "google", DisplayName: "Google"},
 		{Name: "oidc", DisplayName: "Single Sign-On"},
 		{Name: "okta", DisplayName: "Okta"}, // unknown -> title-cased fallback
-	}, response.Providers)
+	}, []AuthProvider(response.Providers))
 	specconformance.AssertConformsToSpec(t, req, w)
 
 	mockContainer.authService.AssertExpectations(t)

@@ -80,7 +80,7 @@ func TestAPIKeyService_GenerateAPIKey_New(t *testing.T) {
 			expectError: false,
 			validateKey: func(t *testing.T, key *models.APIKey, fullKey string) {
 				assert.NotNil(t, key)
-				assert.Equal(t, []string{"ai_tools"}, key.Integrations)
+				assert.Equal(t, []string{"ai_tools"}, []string(key.Integrations))
 				assert.True(t, strings.HasPrefix(fullKey, "vxk_"))
 				assert.Len(t, fullKey, 68) // vxk_ + 64 hex chars
 				assert.True(t, strings.HasPrefix(key.KeyPrefix, "vxk_"))
@@ -103,7 +103,7 @@ func TestAPIKeyService_GenerateAPIKey_New(t *testing.T) {
 			},
 			expectError: false,
 			validateKey: func(t *testing.T, key *models.APIKey, fullKey string) {
-				assert.Equal(t, []string{"cli"}, key.Integrations)
+				assert.Equal(t, []string{"cli"}, []string(key.Integrations))
 				assert.True(t, strings.HasPrefix(fullKey, "vxk_"))
 				assert.Len(t, fullKey, 68) // vxk_ + 64 hex chars
 				assert.True(t, strings.HasPrefix(key.KeyPrefix, "vxk_"))
@@ -126,7 +126,7 @@ func TestAPIKeyService_GenerateAPIKey_New(t *testing.T) {
 			},
 			expectError: false,
 			validateKey: func(t *testing.T, key *models.APIKey, fullKey string) {
-				assert.Equal(t, []string{"mcp_server"}, key.Integrations)
+				assert.Equal(t, []string{"mcp_server"}, []string(key.Integrations))
 				assert.True(t, strings.HasPrefix(fullKey, "vxk_"))
 				assert.Len(t, fullKey, 68) // vxk_ + 64 hex chars
 				assert.True(t, strings.HasPrefix(key.KeyPrefix, "vxk_"))

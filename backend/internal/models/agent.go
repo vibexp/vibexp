@@ -109,23 +109,26 @@ type UpdateAgentCredentialsRequest struct {
 
 // AgentListResponse represents paginated agent response
 type AgentListResponse struct {
-	Agents     []Agent `json:"agents"`
-	TotalCount int     `json:"total_count"`
-	Page       int     `json:"page"`
-	PerPage    int     `json:"per_page"`
-	TotalPages int     `json:"total_pages"`
+	Agents     JSONArray[Agent] `json:"agents"`
+	TotalCount int              `json:"total_count"`
+	Page       int              `json:"page"`
+	PerPage    int              `json:"per_page"`
+	TotalPages int              `json:"total_pages"`
 }
 
 // AgentStatsResponse represents agent statistics
 type AgentStatsResponse struct {
-	TotalAgents      int             `json:"total_agents"`
-	ActiveAgents     int             `json:"active_agents"`
-	PausedAgents     int             `json:"paused_agents"`
-	ErrorAgents      int             `json:"error_agents"`
-	TotalRuns        int             `json:"total_runs"`
-	AvgSuccessRate   float64         `json:"avg_success_rate"`
-	RunsToday        int             `json:"runs_today"`
-	RunsThisWeek     int             `json:"runs_this_week"`
+	TotalAgents    int     `json:"total_agents"`
+	ActiveAgents   int     `json:"active_agents"`
+	PausedAgents   int     `json:"paused_agents"`
+	ErrorAgents    int     `json:"error_agents"`
+	TotalRuns      int     `json:"total_runs"`
+	AvgSuccessRate float64 `json:"avg_success_rate"`
+	RunsToday      int     `json:"runs_today"`
+	RunsThisWeek   int     `json:"runs_this_week"`
+	// recent_activities is nullable per the spec (serialized as null when there
+	// is no recent activity), so it stays a plain slice — out of scope for the
+	// required-array invariant (#125).
 	RecentActivities []AgentActivity `json:"recent_activities"`
 }
 
@@ -179,11 +182,11 @@ type ConversationSummary struct {
 
 // ConversationListResponse represents paginated conversation summaries
 type ConversationListResponse struct {
-	Conversations []ConversationSummary `json:"conversations"`
-	TotalCount    int                   `json:"total_count"`
-	Page          int                   `json:"page"`
-	PerPage       int                   `json:"per_page"`
-	TotalPages    int                   `json:"total_pages"`
+	Conversations JSONArray[ConversationSummary] `json:"conversations"`
+	TotalCount    int                            `json:"total_count"`
+	Page          int                            `json:"page"`
+	PerPage       int                            `json:"per_page"`
+	TotalPages    int                            `json:"total_pages"`
 }
 
 // CreateAgentExecutionRequest represents the request to create a new agent execution

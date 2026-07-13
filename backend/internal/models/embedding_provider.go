@@ -66,11 +66,11 @@ type EmbeddingProviderResponse struct {
 }
 
 type EmbeddingProviderListResponse struct {
-	EmbeddingProviders []EmbeddingProviderResponse `json:"embedding_providers"`
-	TotalCount         int                         `json:"total_count"`
-	Page               int                         `json:"page"`
-	PerPage            int                         `json:"per_page"`
-	TotalPages         int                         `json:"total_pages"`
+	EmbeddingProviders JSONArray[EmbeddingProviderResponse] `json:"embedding_providers"`
+	TotalCount         int                                  `json:"total_count"`
+	Page               int                                  `json:"page"`
+	PerPage            int                                  `json:"per_page"`
+	TotalPages         int                                  `json:"total_pages"`
 }
 
 type ValidateEmbeddingProviderRequest struct {

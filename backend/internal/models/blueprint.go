@@ -47,11 +47,11 @@ type UpdateBlueprintRequest struct {
 }
 
 type BlueprintListResponse struct {
-	Blueprints []Blueprint `json:"blueprints"`
-	TotalCount int         `json:"total_count"`
-	Page       int         `json:"page"`
-	PerPage    int         `json:"per_page"`
-	TotalPages int         `json:"total_pages"`
+	Blueprints JSONArray[Blueprint] `json:"blueprints"`
+	TotalCount int                  `json:"total_count"`
+	Page       int                  `json:"page"`
+	PerPage    int                  `json:"per_page"`
+	TotalPages int                  `json:"total_pages"`
 }
 
 // BlueprintVersionListResponse is the wire shape returned by the blueprint version
@@ -59,7 +59,7 @@ type BlueprintListResponse struct {
 // ArtifactVersionListResponse and reuses the generic ContentVersion snapshot type, so
 // the shared versioning core is left untouched.
 type BlueprintVersionListResponse struct {
-	Versions []*ContentVersion `json:"versions"`
+	Versions JSONArray[*ContentVersion] `json:"versions"`
 }
 
 type BlueprintStatsResponse struct {

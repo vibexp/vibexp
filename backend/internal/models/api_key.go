@@ -69,20 +69,20 @@ type APIKeyIntegrationPermission struct {
 }
 
 type APIKey struct {
-	ID             string     `json:"id" db:"id"`
-	UserID         string     `json:"user_id" db:"user_id"`
-	Name           string     `json:"name" db:"name"`
-	KeyHash        string     `json:"-" db:"key_hash"`
-	KeyPrefix      string     `json:"key_prefix" db:"key_prefix"`
-	UsageType      string     `json:"usage_type,omitempty" db:"usage_type"` // Deprecated, kept for backward compat
-	Integrations   []string   `json:"integrations" db:"-"`                  // Array of integration codes
-	IsLegacy       bool       `json:"is_legacy" db:"is_legacy"`
-	MigrationNotes *string    `json:"migration_notes,omitempty" db:"migration_notes"`
-	LastUsedAt     *time.Time `json:"last_used_at" db:"last_used_at"`
-	ExpiresAt      *time.Time `json:"expires_at" db:"expires_at"` // nil means the key never expires
-	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
-	Version        int64      `json:"version" db:"version"`
+	ID             string            `json:"id" db:"id"`
+	UserID         string            `json:"user_id" db:"user_id"`
+	Name           string            `json:"name" db:"name"`
+	KeyHash        string            `json:"-" db:"key_hash"`
+	KeyPrefix      string            `json:"key_prefix" db:"key_prefix"`
+	UsageType      string            `json:"usage_type,omitempty" db:"usage_type"` // Deprecated, kept for backward compat
+	Integrations   JSONArray[string] `json:"integrations" db:"-"`                  // Array of integration codes
+	IsLegacy       bool              `json:"is_legacy" db:"is_legacy"`
+	MigrationNotes *string           `json:"migration_notes,omitempty" db:"migration_notes"`
+	LastUsedAt     *time.Time        `json:"last_used_at" db:"last_used_at"`
+	ExpiresAt      *time.Time        `json:"expires_at" db:"expires_at"` // nil means the key never expires
+	CreatedAt      time.Time         `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at" db:"updated_at"`
+	Version        int64             `json:"version" db:"version"`
 }
 
 type CreateAPIKeyRequest struct {

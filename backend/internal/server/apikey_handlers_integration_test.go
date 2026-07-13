@@ -216,7 +216,7 @@ func TestHandleCreateAPIKey_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "key-new", response.APIKey.ID)
 	assert.Equal(t, "New API Key", response.APIKey.Name)
-	assert.Equal(t, []string{"ai_tools", "cli", "mcp_server"}, response.APIKey.Integrations)
+	assert.Equal(t, []string{"ai_tools", "cli", "mcp_server"}, []string(response.APIKey.Integrations))
 	assert.Equal(t, "ak_newkey", response.KeyPrefix)
 	assert.Equal(t, fullKey, response.FullKey)
 
