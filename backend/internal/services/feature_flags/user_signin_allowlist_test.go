@@ -22,7 +22,7 @@ func TestNewUserSignInAllowlistFlag(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	allowedEmails := []string{"test@example.com", "admin@example.com"}
 
-	flag := NewUserSignInAllowlistFlag(logger, allowedEmails)
+	flag := NewUserSignInAllowlistFlag(logger, nil, allowedEmails)
 
 	assert.NotNil(t, flag)
 	assert.NotNil(t, flag.logger)
@@ -32,15 +32,20 @@ func TestNewUserSignInAllowlistFlag(t *testing.T) {
 
 func TestNewUserSignInAllowlistFlag_DropsBlankEntries(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
-	// A trailing comma in AUTH_ALLOWED_EMAILS produces an empty element.
-	flag := NewUserSignInAllowlistFlag(logger, []string{"test@example.com", "", "  "})
+	// A trailing comma in AUTH_ALLOWED_EMAILS / AUTH_ALLOWED_DOMAINS produces an
+	// empty element; blanks (and whitespace-only entries) are dropped for both lists.
+	flag := NewUserSignInAllowlistFlag(logger,
+		[]string{"example.com", "", "  "},
+		[]string{"test@example.com", "", "  "},
+	)
 
+	assert.Len(t, flag.allowedDomains, 1)
 	assert.Len(t, flag.allowedEmails, 1)
 }
 
 func TestUserSignInAllowlistFlag_Name(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
-	flag := NewUserSignInAllowlistFlag(logger, []string{"test@example.com"})
+	flag := NewUserSignInAllowlistFlag(logger, nil, []string{"test@example.com"})
 
 	assert.Equal(t, "user_signin_allowlist", flag.Name())
 }
@@ -49,7 +54,7 @@ func TestUserSignInAllowlistFlag_Evaluate_WithEmailInContext(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	allowedEmails := []string{"test@example.com", "admin@example.com"}
 
-	flag := NewUserSignInAllowlistFlag(logger, allowedEmails)
+	flag := NewUserSignInAllowlistFlag(logger, nil, allowedEmails)
 
 	tests := []struct {
 		name     string
@@ -94,7 +99,7 @@ func TestUserSignInAllowlistFlag_Evaluate_WithEmailInContext(t *testing.T) {
 
 func TestUserSignInAllowlistFlag_Evaluate_NoEmailInContext(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
-	flag := NewUserSignInAllowlistFlag(logger, []string{"test@example.com"})
+	flag := NewUserSignInAllowlistFlag(logger, nil, []string{"test@example.com"})
 
 	tests := []struct {
 		name string
@@ -122,7 +127,7 @@ func TestUserSignInAllowlistFlag_IsEmailAllowed(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	allowedEmails := []string{"test@example.com", "admin@example.com"}
 
-	flag := NewUserSignInAllowlistFlag(logger, allowedEmails)
+	flag := NewUserSignInAllowlistFlag(logger, nil, allowedEmails)
 
 	tests := []struct {
 		name     string
@@ -169,12 +174,68 @@ func TestUserSignInAllowlistFlag_IsEmailAllowed(t *testing.T) {
 	}
 }
 
+// TestUserSignInAllowlistFlag_DomainMatching exhaustively covers the
+// email-domain matching semantics added in #214: exact-domain match on the part
+// after the LAST "@", case/whitespace-insensitive, with NO subdomain or
+// substring matching, and denial of inputs without an "@".
+func TestUserSignInAllowlistFlag_DomainMatching(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	// Domains only (no exact-email entries) to isolate domain matching. Entries
+	// are deliberately mixed-case / padded to prove normalization at construction.
+	flag := NewUserSignInAllowlistFlag(logger,
+		[]string{"Example.com", "  vibexp.io  "},
+		nil,
+	)
+
+	tests := []struct {
+		name     string
+		email    string
+		expected bool
+	}{
+		{"exact domain match", "alice@example.com", true},
+		{"exact domain match, second domain", "bob@vibexp.io", true},
+		{"domain match, uppercase input", "ALICE@EXAMPLE.COM", true},
+		{"domain match, surrounding whitespace", "  alice@example.com  ", true},
+		{"subdomain must NOT match", "a@sub.vibexp.io", false},
+		{"lookalike domain must NOT match", "a@evil-vibexp.io", false},
+		{"superstring domain must NOT match", "a@vibexp.io.attacker.com", false},
+		{"unrelated domain rejected", "a@other.com", false},
+		{"no @ is denied when allowlist active", "not-an-email", false},
+		{"domain matched on last @ (multiple @)", `"a@b"@example.com`, true},
+		{"trailing @ (empty domain) denied", "alice@", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, flag.IsEmailAllowed(tt.email))
+			assert.Equal(t, tt.expected, flag.Evaluate(contextWithEmail(tt.email)))
+		})
+	}
+}
+
+// TestUserSignInAllowlistFlag_DomainsAndEmailsCombined verifies a user is allowed
+// if EITHER list matches: exact email OR domain.
+func TestUserSignInAllowlistFlag_DomainsAndEmailsCombined(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	flag := NewUserSignInAllowlistFlag(logger,
+		[]string{"example.com"},
+		[]string{"special@other.com"},
+	)
+
+	// Allowed by domain.
+	assert.True(t, flag.IsEmailAllowed("anyone@example.com"))
+	// Allowed by exact email even though its domain is not listed.
+	assert.True(t, flag.IsEmailAllowed("special@other.com"))
+	// A different address at an unlisted domain is denied.
+	assert.False(t, flag.IsEmailAllowed("nobody@other.com"))
+}
+
 // TestUserSignInAllowlistFlag_EmptyAllowlist verifies open-registration
 // semantics: when the allowlist is empty (unconfigured), every email is
 // allowed to sign in. This is the default for self-hosted instances.
 func TestUserSignInAllowlistFlag_EmptyAllowlist(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
-	flag := NewUserSignInAllowlistFlag(logger, []string{})
+	flag := NewUserSignInAllowlistFlag(logger, []string{}, []string{})
 
 	ctx := contextWithEmail("test@example.com")
 	assert.True(t, flag.Evaluate(ctx))
@@ -183,17 +244,30 @@ func TestUserSignInAllowlistFlag_EmptyAllowlist(t *testing.T) {
 	// Even an arbitrary, never-seen address is allowed.
 	assert.True(t, flag.Evaluate(contextWithEmail("anyone@example.com")))
 	assert.True(t, flag.IsEmailAllowed("anyone@example.com"))
+	// An input without an "@" is also allowed under open access.
+	assert.True(t, flag.IsEmailAllowed("not-an-email"))
 }
 
-// TestUserSignInAllowlistFlag_NilAllowlist verifies that a nil slice (the
-// zero value of config.Auth.AccessAllowlist.Emails when the env var is unset) also
-// yields open registration.
+// TestUserSignInAllowlistFlag_NilAllowlist verifies that nil slices (the zero
+// value of config.Auth.AccessAllowlist.Domains / .Emails when the env vars are
+// unset) also yield open registration.
 func TestUserSignInAllowlistFlag_NilAllowlist(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
-	flag := NewUserSignInAllowlistFlag(logger, nil)
+	flag := NewUserSignInAllowlistFlag(logger, nil, nil)
 
 	assert.True(t, flag.Evaluate(contextWithEmail("anyone@example.com")))
 	assert.True(t, flag.IsEmailAllowed("anyone@example.com"))
+}
+
+// TestUserSignInAllowlistFlag_OnlyDomainsConfigured verifies open access is NOT
+// granted when only the domains list is populated (an exact-email-only check
+// would wrongly treat this as open).
+func TestUserSignInAllowlistFlag_OnlyDomainsConfigured(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	flag := NewUserSignInAllowlistFlag(logger, []string{"example.com"}, nil)
+
+	assert.True(t, flag.IsEmailAllowed("alice@example.com"))
+	assert.False(t, flag.IsEmailAllowed("alice@other.com"))
 }
 
 func TestUserSignInAllowlistFlag_MultipleEmailsInAllowlist(t *testing.T) {
@@ -206,7 +280,7 @@ func TestUserSignInAllowlistFlag_MultipleEmailsInAllowlist(t *testing.T) {
 		"support@example.com",
 	}
 
-	flag := NewUserSignInAllowlistFlag(logger, allowedEmails)
+	flag := NewUserSignInAllowlistFlag(logger, nil, allowedEmails)
 
 	// Test all allowed emails
 	for _, email := range allowedEmails {
@@ -231,7 +305,7 @@ func TestUserSignInAllowlistFlag_CaseSensitivity(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	allowedEmails := []string{"Test@Example.Com"}
 
-	flag := NewUserSignInAllowlistFlag(logger, allowedEmails)
+	flag := NewUserSignInAllowlistFlag(logger, nil, allowedEmails)
 
 	tests := []struct {
 		name  string
