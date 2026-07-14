@@ -84,8 +84,14 @@ auth:
   # detected as development (frontend.base_url points at localhost). Keep false in
   # production.
   dev_login_enabled: true
-  # Allow-list of emails permitted to sign in. Empty means open registration.
-  signin_allowed_emails: []
+  # Restrict who may sign in, by email domain and/or exact email address.
+  # `domains` matches the part after the last "@" of a user's email exactly
+  # (case-insensitively, e.g. "example.com"); `emails` matches the full address.
+  # A user is allowed if EITHER list matches. When BOTH lists are empty (the
+  # default below) access is open — everyone may sign in.
+  access_allowlist:
+    domains: []
+    emails: []
 
   # Google OIDC web-login client (reached directly via accounts.google.com).
   google:

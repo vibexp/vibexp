@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -118,15 +119,51 @@ type AuthConfig struct {
 	// (frontend.base_url points at localhost) for the endpoint to respond.
 	DevLoginEnabled bool `koanf:"dev_login_enabled"`
 
-	// SignInAllowedEmails restricts which email addresses may sign in. Empty
-	// (default) means open registration; non-empty is an allow-list.
-	SignInAllowedEmails []string `koanf:"signin_allowed_emails"`
+	// AccessAllowlist restricts which users may sign in, by email domain and/or
+	// exact email address. Both lists empty (the zero value) means open access:
+	// anyone may sign in. See AccessAllowlistConfig.
+	AccessAllowlist AccessAllowlistConfig `koanf:"access_allowlist"`
 
 	Google  GoogleAuthConfig `koanf:"google"`
 	GitHub  GitHubAuthConfig `koanf:"github"`
 	OIDC    OIDCAuthConfig   `koanf:"oidc"`
 	OAuthAS OAuthASConfig    `koanf:"oauth_as"`
 	APIAuth APIOAuthConfig   `koanf:"api_oauth"`
+}
+
+// EnvStringSlice is a []string that, in the combined-image config.docker.yaml,
+// may be authored as a single comma-separated ${VAR:-default} placeholder rather
+// than a YAML list — koanf's StringToSliceHookFunc(",") splits it at load. The
+// generated schema therefore accepts either a string array or such a placeholder
+// (see cmd/gen-config-schema, mirroring the time.Duration mapper). It is
+// assignable to and from a plain []string.
+type EnvStringSlice []string
+
+// stringToEnvStringSliceHookFunc splits a comma-separated string into an
+// EnvStringSlice. mapstructure's built-in StringToSliceHookFunc only fires for
+// the exact type []string (it checks `t == reflect.SliceOf(f)`), so the defined
+// EnvStringSlice type needs its own hook to get the same comma-split behavior as
+// a plain []string. A YAML list is already a slice and passes through untouched.
+func stringToEnvStringSliceHookFunc(sep string) mapstructure.DecodeHookFunc {
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
+		if f.Kind() != reflect.String || t != reflect.TypeFor[EnvStringSlice]() {
+			return data, nil
+		}
+		raw, ok := data.(string)
+		if !ok || raw == "" {
+			return EnvStringSlice{}, nil
+		}
+		return EnvStringSlice(strings.Split(raw, sep)), nil
+	}
+}
+
+// AccessAllowlistConfig gates sign-in access. Domains matches the part after the
+// last "@" of a user's email exactly (case-insensitively); Emails matches the
+// full address exactly. A user is allowed if either list matches. When BOTH
+// lists are empty (the zero value) access is open — every user may sign in.
+type AccessAllowlistConfig struct {
+	Domains EnvStringSlice `koanf:"domains"`
+	Emails  EnvStringSlice `koanf:"emails"`
 }
 
 // GoogleAuthConfig is the Google OIDC web-login client (used when "google" is
@@ -849,6 +886,7 @@ func decode(path string) (*Config, error) {
 			DecodeHook: mapstructure.ComposeDecodeHookFunc(
 				mapstructure.StringToTimeDurationHookFunc(),
 				mapstructure.StringToSliceHookFunc(","),
+				stringToEnvStringSliceHookFunc(","),
 			),
 		},
 	}

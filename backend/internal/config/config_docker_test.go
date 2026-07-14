@@ -102,6 +102,36 @@ func TestConfigDockerYAML_EnvOverridesAndProductionGate(t *testing.T) {
 	require.Equal(t, "https://vibexp.example.com/mcp/v1/common", cfg.MCP.ResourceURI)
 }
 
+// TestConfigDockerYAML_AccessAllowlistEnvSplitsToSlices proves the acceptance
+// criterion that comma-separated AUTH_ALLOWED_DOMAINS / AUTH_ALLOWED_EMAILS env
+// values unmarshal into the []string allowlist fields (koanf's
+// StringToSliceHookFunc(",")), while unset vars leave both lists empty (open
+// access, the fail-open default).
+func TestConfigDockerYAML_AccessAllowlistEnvSplitsToSlices(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("AUTH_ALLOWED_DOMAINS", "example.com,corp.io")
+	t.Setenv("AUTH_ALLOWED_EMAILS", "alice@example.com,bob@other.com")
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"example.com", "corp.io"}, []string(cfg.Auth.AccessAllowlist.Domains))
+	require.Equal(t, []string{"alice@example.com", "bob@other.com"}, []string(cfg.Auth.AccessAllowlist.Emails))
+}
+
+// TestConfigDockerYAML_AccessAllowlistDefaultsOpen verifies the fail-open
+// default: with the allowlist env vars unset, both lists are empty so access is
+// open (every user may sign in).
+func TestConfigDockerYAML_AccessAllowlistDefaultsOpen(t *testing.T) {
+	setDockerRequiredEnv(t)
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Empty(t, cfg.Auth.AccessAllowlist.Domains)
+	require.Empty(t, cfg.Auth.AccessAllowlist.Emails)
+}
+
 // TestConfigDockerYAML_MatchesSchema validates the baked config against the
 // committed config.schema.json (additionalProperties:false), so a stray or
 // misspelled key in config.docker.yaml fails CI just as it would for the example.
