@@ -404,6 +404,37 @@ func TestHandleCallback_OAuthFailure(t *testing.T) {
 	mockContainer.authService.AssertExpectations(t)
 }
 
+// TestHandleCallback_AccessRestricted tests that an allowlist denial from the
+// service is surfaced as a 302 redirect to the SPA with the stable
+// access_restricted error code and NO session cookie (issue #215).
+func TestHandleCallback_AccessRestricted(t *testing.T) {
+	mockContainer := newMockAuthContainer(t)
+
+	mockContainer.authService.On("HandleCallback", mock.Anything, "test-auth-code", "oidc").
+		Return((*models.User)(nil), (*idp.Tokens)(nil), false, services.ErrAccessRestricted)
+
+	srv := createTestAuthServer(mockContainer)
+
+	stateCookie := buildStateCookie(t, srv, "test-state", "oidc")
+	req := httptest.NewRequest("GET", "/api/v1/auth/callback?code=test-auth-code&state=test-state", nil)
+	req.AddCookie(stateCookie)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, "http://localhost:5173/auth/callback?error=access_restricted",
+		w.Header().Get("Location"))
+
+	// No session cookie must be written on a denial.
+	for _, c := range w.Result().Cookies() {
+		assert.NotEqual(t, sesslib.CookieName, c.Name, "no session cookie on allowlist denial")
+	}
+
+	specconformance.AssertConformsToSpec(t, req, w)
+	mockContainer.authService.AssertExpectations(t)
+}
+
 // TestHandleLogout_ClearsSessionCookie tests that logout clears the session cookie
 func TestHandleLogout_ClearsSessionCookie(t *testing.T) {
 	mockContainer := newMockAuthContainer(t)
@@ -538,6 +569,41 @@ func TestHandleDevLogin_Success(t *testing.T) {
 
 	mockContainer.authService.AssertExpectations(t)
 	mockContainer.activityService.AssertExpectations(t)
+}
+
+// TestHandleDevLogin_AccessRestricted tests that an allowlist denial on the
+// dev-login path returns 403 with the stable access_restricted code and no
+// session cookie (issue #215).
+func TestHandleDevLogin_AccessRestricted(t *testing.T) {
+	mockContainer := newMockAuthContainer(t)
+
+	mockContainer.authService.On("HandleDevLogin", mock.Anything, "blocked@example.com", "Dev User").
+		Return((*models.User)(nil), services.ErrAccessRestricted)
+
+	srv := createTestAuthServer(mockContainer)
+
+	body := strings.NewReader(`{"email":"blocked@example.com","name":"Dev User"}`)
+	req := httptest.NewRequest("POST", "/api/v1/auth/dev/login", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, "application/problem+json", w.Header().Get("Content-Type"))
+
+	var problem map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&problem))
+	assert.Equal(t, "access_restricted", problem["code"],
+		"the machine-readable code is the frontend contract")
+
+	// No session cookie must be written on a denial.
+	for _, c := range w.Result().Cookies() {
+		assert.NotEqual(t, sesslib.CookieName, c.Name, "no session cookie on allowlist denial")
+	}
+
+	specconformance.AssertConformsToSpec(t, req, w)
+	mockContainer.authService.AssertExpectations(t)
 }
 
 // TestHandleDevLogin_NotAvailableInProduction tests dev login is blocked in production

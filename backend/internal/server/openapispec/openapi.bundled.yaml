@@ -258,10 +258,16 @@ paths:
             example: a3f8b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
       responses:
         '302':
-          description: Authentication successful — redirects browser to frontend home page
+          description: |
+            Redirects the browser to the frontend. On success, to the home page
+            (a session cookie is set). When sign-in is denied by the access
+            allowlist, to `/auth/callback?error=access_restricted` with no session
+            cookie set.
           headers:
             Location:
-              description: Frontend home URL (e.g. https://app.example.com/)
+              description: |
+                Frontend URL — the home page on success (e.g. https://app.example.com/),
+                or /auth/callback?error=access_restricted on an allowlist denial.
               schema:
                 type: string
                 format: uri
@@ -337,6 +343,14 @@ paths:
                 $ref: '#/components/schemas/User'
         '400':
           description: Invalid request body or missing required fields
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: |
+            Sign-in denied by the access allowlist. The response `code` is the
+            stable string `access_restricted`.
           content:
             application/problem+json:
               schema:

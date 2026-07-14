@@ -13,6 +13,10 @@ const (
 	// Authorization errors
 	CodeForbidden    = "FORBIDDEN"
 	CodeUnauthorized = "UNAUTHORIZED"
+	// CodeAccessRestricted signals a sign-in denied by the access allowlist. Its
+	// lowercase value is a stable contract shared with the frontend (the OAuth
+	// callback also redirects with ?error=access_restricted); keep it in sync.
+	CodeAccessRestricted = "access_restricted"
 
 	// Validation errors
 	CodeValidationFailed = "VALIDATION_FAILED"
@@ -97,6 +101,7 @@ var errorTitles = map[string]string{
 	CodeInvalidCredentials:             "Invalid Credentials",
 	CodeForbidden:                      "Forbidden",
 	CodeUnauthorized:                   "Unauthorized",
+	CodeAccessRestricted:               "Access Restricted",
 	CodeValidationFailed:               "Validation Failed",
 	CodeInvalidRequest:                 "Invalid Request",
 	CodeInvalidFormat:                  "Invalid Format",

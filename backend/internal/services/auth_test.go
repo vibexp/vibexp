@@ -438,6 +438,56 @@ func TestAuthService_HandleCallback(t *testing.T) {
 	}
 }
 
+// TestAuthService_HandleCallback_AccessRestricted verifies the security gate:
+// when the authenticated email is not on the allowlist, HandleCallback returns
+// ErrAccessRestricted AFTER exchanging the code but BEFORE any user lookup or
+// creation — leaving zero database residue (and therefore no user.created event).
+func TestAuthService_HandleCallback_AccessRestricted(t *testing.T) {
+	mockRepo := &repo_mocks.MockUserRepository{}
+	mockIDP := &idpmocks.MockIdentityProvider{}
+	// Allowlist that does NOT include the claims email ("test@example.com").
+	service := createTestAuthServiceNew(mockRepo, mockIDP, []string{"allowed@example.com"})
+
+	testTokens := &idp.Tokens{
+		AccessToken:  "test-access-token",
+		RefreshToken: "test-refresh-token",
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}
+	mockIDP.On("Name").Return(idp.ProviderOIDC)
+	mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
+		Return(testTokens, createTestClaims(), nil)
+
+	user, tokens, isNewUser, err := service.HandleCallback(
+		context.Background(), "test-auth-code", string(idp.ProviderOIDC))
+
+	assert.ErrorIs(t, err, ErrAccessRestricted)
+	assert.Nil(t, user)
+	assert.Nil(t, tokens)
+	assert.False(t, isNewUser)
+	// No user row was touched: the repo was never asked to look up or create.
+	mockRepo.AssertNotCalled(t, "GetByIDPSubject", mock.Anything, mock.Anything, mock.Anything)
+	mockRepo.AssertNotCalled(t, "GetByGoogleID", mock.Anything, mock.Anything)
+	mockRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	mockRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	mockRepo.AssertExpectations(t)
+}
+
+// TestAuthService_HandleDevLogin_AccessRestricted verifies the same gate on the
+// dev-login path: a non-allowlisted email is denied before any user lookup.
+func TestAuthService_HandleDevLogin_AccessRestricted(t *testing.T) {
+	mockRepo := &repo_mocks.MockUserRepository{}
+	mockIDP := &idpmocks.MockIdentityProvider{}
+	service := createTestAuthServiceNew(mockRepo, mockIDP, []string{"allowed@example.com"})
+
+	user, err := service.HandleDevLogin(context.Background(), "test@example.com", "Test User")
+
+	assert.ErrorIs(t, err, ErrAccessRestricted)
+	assert.Nil(t, user)
+	mockRepo.AssertNotCalled(t, "GetByEmail", mock.Anything, mock.Anything)
+	mockRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	mockRepo.AssertExpectations(t)
+}
+
 //nolint:funlen // Test function requires comprehensive setup and assertions
 func TestAuthService_HandleDevLogin(t *testing.T) {
 	tests := []struct {
