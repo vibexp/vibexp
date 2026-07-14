@@ -33,7 +33,7 @@ func createTestAuthServiceNew(
 
 	featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
 
-	userSignInAllowlist := feature_flags.NewUserSignInAllowlistFlag(logger, allowedEmails)
+	userSignInAllowlist := feature_flags.NewUserSignInAllowlistFlag(logger, nil, allowedEmails)
 	featureFlagSvc.RegisterFlag(userSignInAllowlist)
 
 	return NewAuthService(userRepo, newTestRegistry(identityProvider), nil, logger, featureFlagSvc)
@@ -632,7 +632,7 @@ func TestAuthService_PublishesUserCreatedEvent(t *testing.T) {
 
 			featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
 			userSignInAllowlist := feature_flags.NewUserSignInAllowlistFlag(
-				logger, []string{"test@example.com", "dev@example.com"})
+				logger, nil, []string{"test@example.com", "dev@example.com"})
 			featureFlagSvc.RegisterFlag(userSignInAllowlist)
 
 			service := NewAuthService(mockRepo, idp.NewRegistry(mockIDP), mockEventManager, logger, featureFlagSvc)
