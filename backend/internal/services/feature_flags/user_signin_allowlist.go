@@ -12,6 +12,10 @@ type ContextKey string
 // EmailContextKey is the context key for storing email in context for feature flag evaluation
 const EmailContextKey ContextKey = "email"
 
+// FlagUserSignInAllowlist is the registered name of the sign-in allowlist flag.
+// It is the lookup key callers pass to FeatureFlagService.IsEnabled.
+const FlagUserSignInAllowlist = "user_signin_allowlist"
+
 // AllowedSignInUsers is the default sign-in allowlist. It is intentionally
 // empty: an unconfigured instance allows open registration. Configure the
 // allowlist via auth.access_allowlist.domains / .emails
@@ -64,7 +68,7 @@ func (f *UserSignInAllowlistFlag) openAccess() bool {
 
 // Name returns the unique identifier for this feature flag
 func (f *UserSignInAllowlistFlag) Name() string {
-	return "user_signin_allowlist"
+	return FlagUserSignInAllowlist
 }
 
 // Evaluate checks if the email from context is permitted to sign in.

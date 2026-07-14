@@ -30,6 +30,29 @@ type AuthService struct {
 // Ensure AuthService implements AuthServiceInterface
 var _ AuthServiceInterface = (*AuthService)(nil)
 
+// ErrAccessRestricted is returned by the login entry points when the
+// authenticated email is not permitted by the configured access allowlist. The
+// HTTP layer branches on it with errors.Is to surface a policy denial (redirect
+// for the OAuth callback, 403 for dev login) distinct from other failures.
+var ErrAccessRestricted = errors.New("access restricted by allowlist")
+
+// ensureAccessAllowed denies sign-in when email is not permitted by the access
+// allowlist, returning ErrAccessRestricted. An unconfigured allowlist (both
+// lists empty) is open access and always allowed. The decision is evaluated
+// through the user_signin_allowlist feature flag (which reads the email from
+// context); provider is included in the audit log for operator traceability.
+func (as *AuthService) ensureAccessAllowed(ctx context.Context, email, provider string) error {
+	ctx = context.WithValue(ctx, feature_flags.EmailContextKey, email)
+	if as.featureFlagSvc.IsEnabled(ctx, feature_flags.FlagUserSignInAllowlist) {
+		return nil
+	}
+	as.logger.With(
+		"email", email,
+		"provider", provider,
+	).Info("Sign-in denied by access allowlist")
+	return ErrAccessRestricted
+}
+
 func NewAuthService(
 	userRepo repositories.UserRepository, registry *idp.Registry,
 	eventManager events.EventPublisher, logger *slog.Logger,
@@ -104,6 +127,13 @@ func (as *AuthService) HandleCallback(
 	// connections where this is not true (e.g., magic link without
 	// verification), gate sign-in here:
 	//   if !claims.EmailVerified { return ErrUnverifiedEmail }
+
+	// Enforce the access allowlist BEFORE any user row is created or updated, so
+	// a denied identity leaves zero database residue and emits no user.created
+	// event.
+	if err = as.ensureAccessAllowed(ctx, claims.Email, string(p.Name())); err != nil {
+		return nil, nil, false, err
+	}
 
 	user, isNewUser, err := as.createOrUpdateUserFromClaims(ctx, string(p.Name()), claims)
 	if err != nil {
@@ -330,6 +360,11 @@ func (as *AuthService) createDevUser(ctx context.Context, email, name string) (*
 // creating the session cookie.
 func (as *AuthService) HandleDevLogin(ctx context.Context, email, name string) (*models.User, error) {
 	as.logger.With("email", email).Info("Processing dev login request")
+
+	// Enforce the access allowlist before looking up or creating any user.
+	if err := as.ensureAccessAllowed(ctx, email, "dev"); err != nil {
+		return nil, err
+	}
 
 	user, err := as.userRepo.GetByEmail(ctx, email)
 	if err != nil {

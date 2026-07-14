@@ -335,10 +335,10 @@
         ],
         "responses": {
           "302": {
-            "description": "Authentication successful — redirects browser to frontend home page",
+            "description": "Redirects the browser to the frontend. On success, to the home page\n(a session cookie is set). When sign-in is denied by the access\nallowlist, to `/auth/callback?error=access_restricted` with no session\ncookie set.\n",
             "headers": {
               "Location": {
-                "description": "Frontend home URL (e.g. https://app.example.com/)",
+                "description": "Frontend URL — the home page on success (e.g. https://app.example.com/),\nor /auth/callback?error=access_restricted on an allowlist denial.\n",
                 "schema": {
                   "type": "string",
                   "format": "uri"
@@ -450,6 +450,16 @@
           },
           "400": {
             "description": "Invalid request body or missing required fields",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sign-in denied by the access allowlist. The response `code` is the\nstable string `access_restricted`.\n",
             "content": {
               "application/problem+json": {
                 "schema": {

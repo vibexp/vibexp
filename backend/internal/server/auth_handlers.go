@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
 	"github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
@@ -198,6 +200,18 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, state string, err error) {
+	// A deliberate access-allowlist denial is a policy outcome, not an IdP
+	// failure. The browser was redirected here by the provider, so JSON is
+	// user-hostile: redirect to the SPA with a stable error code it can render.
+	// The service already logged the denial at INFO with the email + provider.
+	if stderrors.Is(err, services.ErrAccessRestricted) {
+		if s.metrics != nil {
+			s.metrics.RecordUserLoginFailed(r.Context(), "access_restricted")
+		}
+		http.Redirect(w, r, s.config.Frontend.BaseURL+"/auth/callback?error=access_restricted", http.StatusFound)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleCallback",
@@ -368,6 +382,14 @@ func (s *Server) handleDevLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDevLoginFailure(w http.ResponseWriter, r *http.Request, email string, err error) {
+	// Access-allowlist denial → 403 with the stable access_restricted code (the
+	// XHR client surfaces it). The service already logged the denial at INFO.
+	if stderrors.Is(err, services.ErrAccessRestricted) {
+		apiErr := errors.NewAccessRestrictedError("Your account is not permitted to sign in")
+		errors.WriteJSONError(w, r, apiErr)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleDevLogin",

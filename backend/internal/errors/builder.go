@@ -39,6 +39,13 @@ func NewForbiddenError(detail string) *APIError {
 	return NewAPIError(CodeForbidden, GetErrorTitle(CodeForbidden), detail, http.StatusForbidden)
 }
 
+// NewAccessRestrictedError creates a 403 for a sign-in denied by the access
+// allowlist, carrying the stable machine-readable code "access_restricted" the
+// frontend branches on.
+func NewAccessRestrictedError(detail string) *APIError {
+	return NewAPIError(CodeAccessRestricted, GetErrorTitle(CodeAccessRestricted), detail, http.StatusForbidden)
+}
+
 // NewResourceNotFoundError creates a resource not found error
 func NewResourceNotFoundError(resourceType, detail string) *APIError {
 	if detail == "" {
