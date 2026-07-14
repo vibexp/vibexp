@@ -428,12 +428,13 @@ func ProvideResourceUsageService(
 
 // ProvideFeatureFlagService creates a new FeatureFlagService and registers all feature flags.
 //
-// The sign-in allowlist is configured from cfg.Auth.SignInAllowedEmails
-// (SIGNIN_ALLOWED_EMAILS). An empty list means open registration.
+// The sign-in allowlist is configured from cfg.Auth.AccessAllowlist.Emails
+// (AUTH_ALLOWED_EMAILS). An empty list means open registration. Domain matching
+// (cfg.Auth.AccessAllowlist.Domains) is wired in by #214.
 func ProvideFeatureFlagService(cfg *config.Config, logger *slog.Logger) *feature_flags.FeatureFlagService {
 	service := feature_flags.NewFeatureFlagService(logger)
 
-	service.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(logger, cfg.Auth.SignInAllowedEmails))
+	service.RegisterFlag(feature_flags.NewUserSignInAllowlistFlag(logger, cfg.Auth.AccessAllowlist.Emails))
 
 	return service
 }

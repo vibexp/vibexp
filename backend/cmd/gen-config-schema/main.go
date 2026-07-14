@@ -67,6 +67,19 @@ func run() error {
 				Description: `Go duration string, e.g. "15m", "720h", "200ms".`,
 			}
 		}
+		if t == reflect.TypeFor[config.EnvStringSlice]() {
+			// A YAML string array, OR a single ${VAR:-default} placeholder holding a
+			// comma-separated list — config.docker.yaml authors these env-driven
+			// lists as one placeholder that koanf splits at load, and is validated
+			// against this schema before interpolation (cf. the time.Duration
+			// mapper above).
+			return &jsonschema.Schema{
+				OneOf: []*jsonschema.Schema{
+					{Type: "array", Items: &jsonschema.Schema{Type: "string"}},
+					{Type: "string", Pattern: `^\$\{[^}]+\}$`},
+				},
+			}
+		}
 		return nil
 	}
 

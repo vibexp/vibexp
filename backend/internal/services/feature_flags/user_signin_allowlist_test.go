@@ -32,7 +32,7 @@ func TestNewUserSignInAllowlistFlag(t *testing.T) {
 
 func TestNewUserSignInAllowlistFlag_DropsBlankEntries(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
-	// A trailing comma in SIGNIN_ALLOWED_EMAILS produces an empty element.
+	// A trailing comma in AUTH_ALLOWED_EMAILS produces an empty element.
 	flag := NewUserSignInAllowlistFlag(logger, []string{"test@example.com", "", "  "})
 
 	assert.Len(t, flag.allowedEmails, 1)
@@ -186,7 +186,7 @@ func TestUserSignInAllowlistFlag_EmptyAllowlist(t *testing.T) {
 }
 
 // TestUserSignInAllowlistFlag_NilAllowlist verifies that a nil slice (the
-// zero value of config.SignInAllowedEmails when the env var is unset) also
+// zero value of config.Auth.AccessAllowlist.Emails when the env var is unset) also
 // yields open registration.
 func TestUserSignInAllowlistFlag_NilAllowlist(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)

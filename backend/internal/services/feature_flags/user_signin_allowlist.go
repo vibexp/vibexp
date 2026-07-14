@@ -14,8 +14,8 @@ const EmailContextKey ContextKey = "email"
 
 // AllowedSignInUsers is the default sign-in allowlist. It is intentionally
 // empty: an unconfigured instance allows open registration. Configure the
-// allowlist via the SIGNIN_ALLOWED_EMAILS environment variable
-// (config.Config.SignInAllowedEmails) rather than mutating this default.
+// allowlist via auth.access_allowlist.emails (AUTH_ALLOWED_EMAILS)
+// rather than mutating this default.
 var AllowedSignInUsers = []string{}
 
 // UserSignInAllowlistFlag implements sign-in access control using feature flags.
@@ -30,7 +30,7 @@ var _ FeatureFlagEvaluator = (*UserSignInAllowlistFlag)(nil)
 
 // NewUserSignInAllowlistFlag creates a new UserSignInAllowlistFlag.
 //
-// allowedEmails is the configured allowlist (typically config.SignInAllowedEmails).
+// allowedEmails is the configured allowlist (typically config.Auth.AccessAllowlist.Emails).
 // An empty list means open registration: every email is allowed. Pass
 // AllowedSignInUsers to fall back to the (empty) package default.
 func NewUserSignInAllowlistFlag(logger *slog.Logger, allowedEmails []string) *UserSignInAllowlistFlag {

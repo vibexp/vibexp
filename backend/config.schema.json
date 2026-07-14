@@ -32,6 +32,40 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "AccessAllowlistConfig": {
+      "properties": {
+        "domains": {
+          "oneOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
+        },
+        "emails": {
+          "oneOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "AuthConfig": {
       "properties": {
         "providers": {
@@ -49,11 +83,8 @@
         "dev_login_enabled": {
           "type": "boolean"
         },
-        "signin_allowed_emails": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+        "access_allowlist": {
+          "$ref": "#/$defs/AccessAllowlistConfig"
         },
         "google": {
           "$ref": "#/$defs/GoogleAuthConfig"

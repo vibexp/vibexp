@@ -58,9 +58,13 @@ auth:
   provider: google
   session_encryption_key: "sessionkey"
   dev_login_enabled: true
-  signin_allowed_emails:
-    - alice@example.com
-    - bob@example.com
+  access_allowlist:
+    domains:
+      - example.com
+      - corp.io
+    emails:
+      - alice@example.com
+      - bob@example.com
   google:
     client_id: g-id
     client_secret: g-secret
@@ -304,12 +308,13 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, "common-key", cfg.Security.APIKeyCommon)
 	assert.Equal(t, "admin-key", cfg.Security.BackofficeAdminAPIKey)
 
-	// Auth + sub-structs. providers is a comma string; signin emails a YAML list.
+	// Auth + sub-structs. providers is a comma string; allowlist lists are YAML lists.
 	assert.Equal(t, []string{"google", "github"}, cfg.Auth.Providers)
 	assert.Equal(t, "google", cfg.Auth.Provider)
 	assert.Equal(t, "sessionkey", cfg.Auth.SessionEncryptionKey)
 	assert.True(t, cfg.Auth.DevLoginEnabled)
-	assert.Equal(t, []string{"alice@example.com", "bob@example.com"}, cfg.Auth.SignInAllowedEmails)
+	assert.Equal(t, []string{"example.com", "corp.io"}, []string(cfg.Auth.AccessAllowlist.Domains))
+	assert.Equal(t, []string{"alice@example.com", "bob@example.com"}, []string(cfg.Auth.AccessAllowlist.Emails))
 	assert.Equal(t, "g-id", cfg.Auth.Google.ClientID)
 	assert.Equal(t, "g-secret", cfg.Auth.Google.ClientSecret)
 	assert.Equal(t, "https://app.example.com/cb/google", cfg.Auth.Google.RedirectURI)
