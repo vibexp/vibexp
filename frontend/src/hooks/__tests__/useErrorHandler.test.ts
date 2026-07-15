@@ -218,6 +218,46 @@ describe('useErrorHandler', () => {
       })
     })
 
+    describe('forbidden errors (#225)', () => {
+      const forbiddenError = () =>
+        new ApiError({
+          type: 'https://api.vibexp.io/errors/FORBIDDEN',
+          title: 'Forbidden',
+          status: 403,
+          detail:
+            'You do not have permission to perform this action on this team',
+          code: 'FORBIDDEN',
+          request_id: 'req-403',
+          timestamp: new Date().toISOString(),
+        })
+
+      it('should explain a permission failure as a warning, not a generic error', () => {
+        const { result } = renderHook(() => useErrorHandler())
+
+        act(() => {
+          result.current.handleError(forbiddenError())
+        })
+
+        expect(mockShowAlert).toHaveBeenCalledWith({
+          message:
+            'You do not have permission to perform this action on this team',
+          type: 'warning',
+        })
+      })
+
+      it('should not log the user out — a forbidden caller is authenticated', () => {
+        // Regression guard: routing 403 into the auth branch would wipe storage
+        // and bounce the user to /login for merely lacking a permission.
+        const { result } = renderHook(() => useErrorHandler())
+
+        act(() => {
+          result.current.handleError(forbiddenError())
+        })
+
+        expect(mockClearVibeXPData).not.toHaveBeenCalled()
+      })
+    })
+
     describe('general API errors', () => {
       it('should display general API error message', () => {
         const { result } = renderHook(() => useErrorHandler())

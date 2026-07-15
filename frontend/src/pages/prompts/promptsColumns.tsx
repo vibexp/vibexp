@@ -34,9 +34,16 @@ function StatusDotPill({ status }: { status: Prompt['status'] }) {
 export function buildPromptsColumns({
   navigate,
   onDelete,
+  canDelete,
 }: {
   navigate: NavigateFunction
   onDelete: (prompt: Prompt) => void
+  /**
+   * Whether the current user may delete this prompt — own vs any, decided per
+   * row from its creator (#225). Editing needs no gate: every role holds
+   * `resource.update.any`.
+   */
+  canDelete: (prompt: Prompt) => boolean
 }): ColumnDef<Prompt>[] {
   return [
     {
@@ -147,17 +154,19 @@ export function buildPromptsColumns({
           >
             <Pencil className="size-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Delete"
-            data-testid="delete-prompt-button"
-            onClick={() => {
-              onDelete(row.original)
-            }}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          {canDelete(row.original) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Delete"
+              data-testid="delete-prompt-button"
+              onClick={() => {
+                onDelete(row.original)
+              }}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
         </div>
       ),
     },

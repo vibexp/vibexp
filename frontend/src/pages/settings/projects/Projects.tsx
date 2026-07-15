@@ -5,10 +5,12 @@ import { useNavigate } from 'react-router-dom'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
 import { ListPage, ListTable } from '@/components/patterns/list-page'
+import { RequirePermission } from '@/components/RequirePermission'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { ProjectFilters } from '@/pages/settings/projects/ProjectFilters'
 import { buildProjectsColumns } from '@/pages/settings/projects/projectsColumns'
 import type {
@@ -32,6 +34,9 @@ export function Projects() {
   const { currentTeam } = useTeam()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
+  const { can } = usePermissions()
+  const canUpdateProject = can('project.update')
+  const canDeleteProject = can('project.delete')
 
   const [state, setState] = useState<State>({
     projects: [],
@@ -114,8 +119,14 @@ export function Projects() {
   }
 
   const columns = useMemo(
-    () => buildProjectsColumns({ navigate, onDelete: setProjectToDelete }),
-    [navigate]
+    () =>
+      buildProjectsColumns({
+        navigate,
+        onDelete: setProjectToDelete,
+        canUpdate: canUpdateProject,
+        canDelete: canDeleteProject,
+      }),
+    [navigate, canUpdateProject, canDeleteProject]
   )
 
   const status = state.loading
@@ -132,14 +143,16 @@ export function Projects() {
         title="Projects"
         description="Organize your work into projects."
         actions={
-          <Button
-            onClick={() => {
-              void navigate('/settings/projects/create')
-            }}
-          >
-            <Plus className="mr-2 size-4" />
-            New project
-          </Button>
+          <RequirePermission permission="project.create">
+            <Button
+              onClick={() => {
+                void navigate('/settings/projects/create')
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              New project
+            </Button>
+          </RequirePermission>
         }
       />
 
@@ -169,14 +182,16 @@ export function Projects() {
                   : 'Create your first project to start organizing your work.'
               }
               actions={
-                <Button
-                  onClick={() => {
-                    void navigate('/settings/projects/create')
-                  }}
-                >
-                  <Plus className="mr-2 size-4" />
-                  New project
-                </Button>
+                <RequirePermission permission="project.create">
+                  <Button
+                    onClick={() => {
+                      void navigate('/settings/projects/create')
+                    }}
+                  >
+                    <Plus className="mr-2 size-4" />
+                    New project
+                  </Button>
+                </RequirePermission>
               }
             />
           }

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics, usePromptRenderer } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { PromptContentCard } from '@/pages/prompts/PromptContentCard'
 import { PromptDetailSidebar } from '@/pages/prompts/PromptDetailSidebar'
 import type {
@@ -69,6 +70,7 @@ export function PromptDetail() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const { currentTeam, isLoading: isLoadingTeam } = useTeam()
+  const { canDeleteResource } = usePermissions()
   const { showSuccess, showError } = useAlerts()
   const { trackEvent } = useAnalytics()
   const { handleError } = useErrorHandler()
@@ -320,16 +322,18 @@ export function PromptDetail() {
               <Pencil className="mr-2 size-4" />
               Edit
             </Button>
-            <Button
-              variant="destructive"
-              data-testid="delete-prompt-button"
-              onClick={() => {
-                setDeleteOpen(true)
-              }}
-            >
-              <Trash2 className="mr-2 size-4" />
-              Delete
-            </Button>
+            {canDeleteResource(prompt.user_id) && (
+              <Button
+                variant="destructive"
+                data-testid="delete-prompt-button"
+                onClick={() => {
+                  setDeleteOpen(true)
+                }}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Delete
+              </Button>
+            )}
           </>
         }
       />

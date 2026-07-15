@@ -8,12 +8,23 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import type { TeamMember } from '@/services/teamService'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import type { ChangeableTeamRole, TeamMember } from '@/services/teamService'
 
 interface TeamMembersListProps {
   members: TeamMember[] | undefined
-  isOwner?: boolean
+  /** Grants the member↔admin role dropdown (`member.role.update`). */
+  canManageRoles?: boolean
+  /** Grants the remove action (`member.remove`). */
+  canRemoveMember?: boolean
   onRemoveMember?: (userId: string) => Promise<void>
+  onChangeRole?: (userId: string, role: ChangeableTeamRole) => Promise<void>
 }
 
 const formatDate = (dateString: string) =>
@@ -36,12 +47,59 @@ const roleVariant = (role: string) => {
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-function buildColumns({
-  isOwner,
-  onRemoveClick,
+/**
+ * The role cell for a member whose role the caller may change.
+ *
+ * Owners never reach this component: ownership moves only through transfer, so
+ * offering "owner" here would be a dead option the API rejects.
+ */
+function RoleSelect({
+  member,
+  onChangeRole,
 }: {
-  isOwner: boolean
+  member: TeamMember
+  onChangeRole: (userId: string, role: ChangeableTeamRole) => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Shield className="text-muted-foreground size-4" />
+      <Select
+        value={member.role}
+        onValueChange={value => {
+          if (value !== member.role) {
+            onChangeRole(member.user_id, value as ChangeableTeamRole)
+          }
+        }}
+      >
+        <SelectTrigger
+          className="h-8 w-28"
+          aria-label={`Change role for ${member.name}`}
+          // The row is a click target; opening the picker must not also fire it.
+          onClick={e => {
+            e.stopPropagation()
+          }}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="member">Member</SelectItem>
+          <SelectItem value="admin">Admin</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+function buildColumns({
+  managesMembers,
+  canManageRoles,
+  onRemoveClick,
+  onChangeRole,
+}: {
+  managesMembers: boolean
+  canManageRoles: boolean
   onRemoveClick?: (userId: string) => void
+  onChangeRole?: (userId: string, role: ChangeableTeamRole) => void
 }): ColumnDef<TeamMember>[] {
   const columns: ColumnDef<TeamMember>[] = [
     {
@@ -73,18 +131,33 @@ function buildColumns({
     {
       accessorKey: 'role',
       header: 'Role',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Shield className="text-muted-foreground size-4" />
-          <Badge variant={roleVariant(row.original.role)}>
-            {capitalize(row.original.role)}
-          </Badge>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const member = row.original
+        // The owner's role is immutable here (transfer ownership instead), and
+        // a pending invitee has no membership to update yet — both stay badges.
+        const editable =
+          canManageRoles &&
+          onChangeRole &&
+          member.role !== 'owner' &&
+          member.invitation_status !== 'pending'
+
+        if (editable) {
+          return <RoleSelect member={member} onChangeRole={onChangeRole} />
+        }
+
+        return (
+          <div className="flex items-center gap-2">
+            <Shield className="text-muted-foreground size-4" />
+            <Badge variant={roleVariant(member.role)}>
+              {capitalize(member.role)}
+            </Badge>
+          </div>
+        )
+      },
     },
   ]
 
-  if (isOwner) {
+  if (managesMembers) {
     columns.push({
       accessorKey: 'invitation_status',
       header: 'Status',
@@ -115,7 +188,7 @@ function buildColumns({
     },
   })
 
-  if (isOwner && onRemoveClick) {
+  if (onRemoveClick) {
     columns.push({
       id: 'actions',
       enableHiding: false,
@@ -150,8 +223,10 @@ function buildColumns({
 
 export function TeamMembersList({
   members,
-  isOwner = false,
+  canManageRoles = false,
+  canRemoveMember = false,
   onRemoveMember,
+  onChangeRole,
 }: TeamMembersListProps) {
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
@@ -180,9 +255,23 @@ export function TeamMembersList({
     }
   }
 
+  const handleChangeRole = (userId: string, role: ChangeableTeamRole) => {
+    // The caller owns the members state and reverts on failure (#225), so a
+    // rejection here is already surfaced upstream.
+    void onChangeRole?.(userId, role)
+  }
+
+  // Invitation status is member-management detail: show it to whoever manages
+  // members. Previously owner-only, which left admins unable to see who had
+  // actually accepted despite being able to invite and remove.
+  const managesMembers = canManageRoles || canRemoveMember
+
   const columns = buildColumns({
-    isOwner,
-    onRemoveClick: isOwner && onRemoveMember ? handleRemoveClick : undefined,
+    managesMembers,
+    canManageRoles,
+    onRemoveClick:
+      canRemoveMember && onRemoveMember ? handleRemoveClick : undefined,
+    onChangeRole: canManageRoles && onChangeRole ? handleChangeRole : undefined,
   })
 
   if (!members || members.length === 0) {

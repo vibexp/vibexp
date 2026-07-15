@@ -36,11 +36,18 @@ function truncate(text: string, max = 140) {
 export function buildMemoriesColumns({
   navigate,
   onDelete,
+  canDelete,
   includeTags,
   projects = [],
 }: {
   navigate: NavigateFunction
   onDelete: (memory: Memory) => void
+  /**
+   * Whether the current user may delete this memory — own vs any, decided per
+   * row from its creator (#225). Editing needs no gate: every role holds
+   * `resource.update.any`.
+   */
+  canDelete: (memory: Memory) => boolean
   includeTags: boolean
   projects?: Project[]
 }): ColumnDef<Memory>[] {
@@ -148,16 +155,18 @@ export function buildMemoriesColumns({
           >
             <Pencil className="size-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Delete"
-            onClick={() => {
-              onDelete(row.original)
-            }}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          {canDelete(row.original) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Delete"
+              onClick={() => {
+                onDelete(row.original)
+              }}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
         </div>
       ),
     }

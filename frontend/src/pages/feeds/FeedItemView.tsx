@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { formatRelativeTime } from '@/lib/time'
 import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
 import { FeedItemReplies } from '@/pages/feeds/FeedItemReplies'
@@ -35,6 +36,7 @@ export function FeedItemView() {
   const { itemId } = useParams<{ itemId: string }>()
   const navigate = useNavigate()
   const { currentTeam, isLoading: teamLoading } = useTeam()
+  const { canDeleteFeedContent } = usePermissions()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -250,15 +252,17 @@ export function FeedItemView() {
                 {archiving ? 'Archiving…' : 'Archive'}
               </Button>
             )}
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setDeleteOpen(true)
-              }}
-            >
-              <Trash2 className="mr-2 size-4" />
-              Delete
-            </Button>
+            {canDeleteFeedContent(item.posted_by_user_id) && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDeleteOpen(true)
+                }}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Delete
+              </Button>
+            )}
           </>
         }
       />

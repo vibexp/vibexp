@@ -23,6 +23,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import {
   ARTIFACT_STATUS_LABEL,
   artifactStatusTone,
@@ -42,6 +43,7 @@ export function ArtifactView() {
   const { project, slug } = useParams<{ project: string; slug: string }>()
   const navigate = useNavigate()
   const { currentTeam, isLoading: isLoadingTeam } = useTeam()
+  const { canDeleteResource } = usePermissions()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -226,16 +228,18 @@ export function ArtifactView() {
               <Pencil className="mr-2 size-4" />
               Edit
             </Button>
-            <Button
-              variant="destructive"
-              data-testid="delete-artifact-button"
-              onClick={() => {
-                setDeleteOpen(true)
-              }}
-            >
-              <Trash2 className="mr-2 size-4" />
-              Delete
-            </Button>
+            {canDeleteResource(artifact.user_id) && (
+              <Button
+                variant="destructive"
+                data-testid="delete-artifact-button"
+                onClick={() => {
+                  setDeleteOpen(true)
+                }}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Delete
+              </Button>
+            )}
           </>
         }
       />

@@ -53,6 +53,7 @@ describe('buildMemoriesColumns', () => {
     const columns = buildMemoriesColumns({
       navigate: navigateMock,
       onDelete: onDeleteMock,
+      canDelete: () => true,
       includeTags: false,
       projects: [mockProject],
     })
@@ -65,6 +66,7 @@ describe('buildMemoriesColumns', () => {
     const columns = buildMemoriesColumns({
       navigate: navigateMock,
       onDelete: onDeleteMock,
+      canDelete: () => true,
       includeTags: false,
       projects: [],
     })
@@ -77,6 +79,7 @@ describe('buildMemoriesColumns', () => {
     const columns = buildMemoriesColumns({
       navigate: navigateMock,
       onDelete: onDeleteMock,
+      canDelete: () => true,
       includeTags: false,
     })
 
@@ -88,6 +91,7 @@ describe('buildMemoriesColumns', () => {
     const columns = buildMemoriesColumns({
       navigate: navigateMock,
       onDelete: onDeleteMock,
+      canDelete: () => true,
       includeTags: true,
       projects: [],
     })
@@ -100,6 +104,7 @@ describe('buildMemoriesColumns', () => {
     const columns = buildMemoriesColumns({
       navigate: navigateMock,
       onDelete: onDeleteMock,
+      canDelete: () => true,
       includeTags: false,
     })
 

@@ -137,6 +137,11 @@ jest.mock('@/services/projectService', () => ({
 }))
 
 // Mock TeamContext — use stable object references to prevent useCallback dep instability
+// usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
+jest.mock('@/contexts/useAuth', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
+}))
+
 jest.mock('@/contexts/TeamContext', () => {
   const currentTeam = { id: 'team-1', name: 'Test Team' }
   const teams = [currentTeam]

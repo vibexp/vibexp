@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import {
   MEMORY_STATUS_LABEL,
   memoryStatusTone,
@@ -54,6 +55,7 @@ export function MemoryView() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { currentTeam, isLoading: isLoadingTeam } = useTeam()
+  const { canDeleteResource } = usePermissions()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
@@ -248,15 +250,17 @@ export function MemoryView() {
               <Pencil className="mr-2 size-4" />
               Edit
             </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setDeleteOpen(true)
-              }}
-            >
-              <Trash2 className="mr-2 size-4" />
-              Delete
-            </Button>
+            {canDeleteResource(memory.user_id) && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDeleteOpen(true)
+                }}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Delete
+              </Button>
+            )}
           </>
         }
       />

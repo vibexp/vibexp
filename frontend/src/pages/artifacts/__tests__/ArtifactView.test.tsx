@@ -12,6 +12,11 @@ jest.mock('@/components/MarkdownRenderer', () => ({
 
 // Mock TeamContext — stable references to prevent effect re-runs
 const mockUseTeam = jest.fn()
+// usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
+jest.mock('@/contexts/useAuth', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
+}))
+
 jest.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))

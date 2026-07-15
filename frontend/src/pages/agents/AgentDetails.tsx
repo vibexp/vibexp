@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
 import type { Agent, AgentExecution } from '@/services/agentService'
 import { agentService } from '@/services/agentService'
@@ -23,6 +24,7 @@ export function AgentDetails() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { currentTeam } = useTeam()
+  const { canDeleteResource } = usePermissions()
 
   const [loading, setLoading] = useState(true)
   const [agent, setAgent] = useState<Agent | null>(null)
@@ -176,16 +178,18 @@ export function AgentDetails() {
               <Edit className="mr-2 size-4" />
               Edit
             </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                setIsDeleteDialogOpen(true)
-              }}
-            >
-              <Trash2 className="mr-2 size-4" />
-              Delete
-            </Button>
+            {canDeleteResource(agent.user_id) && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setIsDeleteDialogOpen(true)
+                }}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Delete
+              </Button>
+            )}
           </div>
         }
       />

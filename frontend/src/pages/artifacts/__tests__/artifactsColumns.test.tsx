@@ -19,6 +19,7 @@ function renderUpdatedCell(updatedAt: string) {
   const columns = buildArtifactsColumns({
     navigate: jest.fn(),
     onDelete: jest.fn(),
+    canDelete: () => true,
   })
   const updatedCol = columns.find(
     col => 'accessorKey' in col && col.accessorKey === 'updated_at'

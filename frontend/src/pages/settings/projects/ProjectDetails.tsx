@@ -27,6 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import type { Project, ProjectStatsResponse } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
 import { getErrorMessage } from '@/utils/errorHandling'
@@ -81,6 +82,7 @@ export function ProjectDetails() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const { currentTeam, isLoading: isLoadingTeam } = useTeam()
+  const { can } = usePermissions()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
 
@@ -186,36 +188,42 @@ export function ProjectDetails() {
         description="Project details and resource overview"
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void navigate(`/settings/projects/${encodedSlug}/migrate`)
-              }}
-            >
-              <ArrowRightLeft className="mr-2 size-4" />
-              Migrate Resources
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void navigate(`/settings/projects/edit/${encodedSlug}`)
-              }}
-            >
-              <Pencil className="mr-2 size-4" />
-              Edit
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                setProjectToDelete(project)
-              }}
-            >
-              <Trash2 className="mr-2 size-4" />
-              Delete
-            </Button>
+            {can('project.update') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void navigate(`/settings/projects/${encodedSlug}/migrate`)
+                }}
+              >
+                <ArrowRightLeft className="mr-2 size-4" />
+                Migrate Resources
+              </Button>
+            )}
+            {can('project.update') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void navigate(`/settings/projects/edit/${encodedSlug}`)
+                }}
+              >
+                <Pencil className="mr-2 size-4" />
+                Edit
+              </Button>
+            )}
+            {can('project.delete') && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setProjectToDelete(project)
+                }}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Delete
+              </Button>
+            )}
           </>
         }
       />

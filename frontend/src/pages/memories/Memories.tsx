@@ -10,6 +10,7 @@ import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import {
   buildMemoriesColumns,
   extractTags,
@@ -37,6 +38,7 @@ interface MemoriesState {
 export function Memories() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const { canDeleteResource } = usePermissions()
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
@@ -209,10 +211,11 @@ export function Memories() {
       buildMemoriesColumns({
         navigate,
         onDelete: setMemoryToDelete,
+        canDelete: memory => canDeleteResource(memory.user_id),
         includeTags: hasAnyTags,
         projects,
       }),
-    [navigate, hasAnyTags, projects]
+    [navigate, hasAnyTags, projects, canDeleteResource]
   )
 
   const status = state.loading

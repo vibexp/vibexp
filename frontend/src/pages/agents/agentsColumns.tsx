@@ -16,9 +16,16 @@ import {
 export function buildAgentsColumns({
   navigate,
   onDelete,
+  canDelete,
 }: {
   navigate: NavigateFunction
   onDelete: (agent: Agent) => void
+  /**
+   * Whether the current user may delete this agent — own vs any, decided per
+   * row from its creator (#225). Editing needs no gate: every role holds
+   * `resource.update.any`.
+   */
+  canDelete: (agent: Agent) => boolean
 }): ColumnDef<Agent>[] {
   return [
     {
@@ -100,16 +107,18 @@ export function buildAgentsColumns({
           >
             <Edit className="size-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Delete ${row.original.name}`}
-            onClick={() => {
-              onDelete(row.original)
-            }}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          {canDelete(row.original) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Delete ${row.original.name}`}
+              onClick={() => {
+                onDelete(row.original)
+              }}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
         </div>
       ),
     },

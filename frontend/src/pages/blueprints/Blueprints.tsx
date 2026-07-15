@@ -10,6 +10,7 @@ import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { BlueprintFilters } from '@/pages/blueprints/BlueprintFilters'
 import { buildBlueprintsColumns } from '@/pages/blueprints/blueprintsColumns'
 import type {
@@ -39,6 +40,7 @@ interface State {
 export function Blueprints() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const { canDeleteResource } = usePermissions()
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
@@ -170,8 +172,13 @@ export function Blueprints() {
   }, [])
 
   const columns = useMemo(
-    () => buildBlueprintsColumns({ navigate, onDelete: setBlueprintToDelete }),
-    [navigate]
+    () =>
+      buildBlueprintsColumns({
+        navigate,
+        onDelete: setBlueprintToDelete,
+        canDelete: blueprint => canDeleteResource(blueprint.user_id),
+      }),
+    [navigate, canDeleteResource]
   )
 
   const status = state.loading

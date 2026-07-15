@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { usePermissions } from '@/hooks/usePermissions'
 import { FeedItemCard } from '@/pages/feeds/FeedItemCard'
 import type { FeedItem } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
@@ -47,6 +48,7 @@ export function FeedItemList({
   showMcpHint = false,
 }: FeedItemListProps) {
   const navigate = useNavigate()
+  const { canDeleteFeedContent } = usePermissions()
 
   if (loading) {
     return (
@@ -113,7 +115,12 @@ export function FeedItemList({
           replyCount={item.reply_count}
           onArchive={tab === 'active' ? onArchive : undefined}
           onUnarchive={tab === 'archived' ? onUnarchive : undefined}
-          onDelete={onDelete}
+          // Authors may delete their own post; deleting someone else's is
+          // moderation and needs `feed.delete.any` (#225). The card already
+          // hides the action when no handler is given.
+          onDelete={
+            canDeleteFeedContent(item.posted_by_user_id) ? onDelete : undefined
+          }
         />
       ))}
       {totalPages > 1 && (

@@ -10,6 +10,7 @@ import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useTypes } from '@/hooks/useTypes'
 import { ArtifactFilters } from '@/pages/artifacts/ArtifactFilters'
 import { buildArtifactsColumns } from '@/pages/artifacts/artifactsColumns'
@@ -37,6 +38,7 @@ interface State {
 export function Artifacts() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const { canDeleteResource } = usePermissions()
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { types } = useTypes('artifacts')
   const { showSuccess } = useAlerts()
@@ -173,9 +175,10 @@ export function Artifacts() {
       buildArtifactsColumns({
         navigate,
         onDelete: setArtifactToDelete,
+        canDelete: artifact => canDeleteResource(artifact.user_id),
         typeNames,
       }),
-    [navigate, typeNames]
+    [navigate, typeNames, canDeleteResource]
   )
 
   const status = state.loading

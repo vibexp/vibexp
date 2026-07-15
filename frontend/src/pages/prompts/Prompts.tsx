@@ -10,6 +10,7 @@ import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { PromptFilters, type SharedFilter } from '@/pages/prompts/PromptFilters'
 import { buildPromptsColumns } from '@/pages/prompts/promptsColumns'
 import type {
@@ -42,6 +43,7 @@ interface State {
 export function Prompts() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const { canDeleteResource } = usePermissions()
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
@@ -154,8 +156,13 @@ export function Prompts() {
   const sortDir = filters.sort_order ?? 'desc'
 
   const columns = useMemo(
-    () => buildPromptsColumns({ navigate, onDelete: setPromptToDelete }),
-    [navigate]
+    () =>
+      buildPromptsColumns({
+        navigate,
+        onDelete: setPromptToDelete,
+        canDelete: prompt => canDeleteResource(prompt.user_id),
+      }),
+    [navigate, canDeleteResource]
   )
 
   // Toggle direction when re-clicking the active column; otherwise switch
