@@ -76,8 +76,8 @@ func TestMemoryRepository_Update_CrossTeamIsolation(t *testing.T) {
 	}
 
 	// Expect ownership validation query first - should fail since memory belongs to Team A
-	mock.ExpectQuery("SELECT EXISTS\\(.*FROM memories m.*EXISTS.*teams.*").
-		WithArgs(memory.ID, teamB, userID).
+	mock.ExpectQuery("SELECT EXISTS\\(.*FROM memories m.*").
+		WithArgs(memory.ID, teamB).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false)) // Memory not in Team B
 
 	// Try to update memory using Team B credentials - should fail

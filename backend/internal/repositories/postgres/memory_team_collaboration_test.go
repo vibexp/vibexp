@@ -165,20 +165,20 @@ func TestMemoryRepository_TeamMember_CanUpdateOtherMembersMemories(t *testing.T)
 		Version:   1,
 	}
 
-	// Mock ownership validation
+	// Existence-in-team check (tenancy only; role decided in MemoryService)
 	ownershipQuery := `SELECT EXISTS\(`
 	mock.ExpectQuery(ownershipQuery).
-		WithArgs(aliceMemoryID, teamID, bobUserID).
+		WithArgs(aliceMemoryID, teamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Mock update query
-	// (args: id, text, status, metadata, project_id, team_id, updated_at, team_id, version, user_id).
+	// (args: id, text, status, metadata, project_id, team_id, updated_at, team_id, version).
 	// The memory carries no status, so the repository defaults it to "active".
 	updateQuery := `UPDATE memories`
 	mock.ExpectQuery(updateQuery).
 		WithArgs(
 			aliceMemoryID, "Machine learning best practices - Updated by Bob",
-			"active", sqlmock.AnyArg(), "", teamID, now, teamID, 1, bobUserID,
+			"active", sqlmock.AnyArg(), "", teamID, now, teamID, 1,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 

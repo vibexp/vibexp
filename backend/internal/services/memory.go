@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -15,6 +16,7 @@ import (
 type MemoryService struct {
 	repo              repositories.MemoryRepository
 	teamService       TeamServiceInterface
+	authz             AuthorizationServiceInterface
 	eventManager      events.EventPublisher
 	contentVersionSvc ContentVersionServiceInterface
 	logger            *slog.Logger
@@ -26,6 +28,7 @@ var _ MemoryServiceInterface = (*MemoryService)(nil)
 func NewMemoryService(
 	repo repositories.MemoryRepository,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
@@ -33,6 +36,7 @@ func NewMemoryService(
 	return &MemoryService{
 		repo:              repo,
 		teamService:       teamService,
+		authz:             authzService,
 		eventManager:      eventManager,
 		contentVersionSvc: contentVersionSvc,
 		logger:            logger,
@@ -55,6 +59,12 @@ type MemoryFilters struct {
 
 func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMemoryRequest) (*models.Memory, error) {
 	ctx := context.Background()
+
+	// Creating a resource is open to any team member (epic #220), but the caller
+	// must still BE one — the middleware proves tenancy, this proves the role.
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceCreate); authzErr != nil {
+		return nil, authzErr
+	}
 
 	// Default to active when no status is supplied (mirrors artifact create).
 	status := models.MemoryStatusActive
@@ -143,7 +153,7 @@ func (s *MemoryService) UpdateMemory(
 ) (*models.Memory, error) {
 	ctx := context.Background()
 
-	// Get existing memory (team-scoped — enforces authorization)
+	// Get existing memory (team-scoped — enforces tenancy)
 	memory, err := s.repo.GetByID(ctx, userID, teamID, memoryID)
 	if err != nil {
 		return nil, err
@@ -160,18 +170,10 @@ func (s *MemoryService) UpdateMemory(
 // changeSummary is an internal snapshot attribute only — it is never read from
 // UpdateMemoryRequest, so the memory update API exposes no user-facing change-summary field
 // (parity with artifacts and blueprints). The memory's Text field is the versioned content.
-func (s *MemoryService) applyAndPersistMemoryUpdate(
-	ctx context.Context, userID string, memory *models.Memory, req *models.UpdateMemoryRequest,
-	actorType string, changeSummary *string,
-) (*models.Memory, error) {
-	// Note: team_id cannot be changed via update (removed from UpdateMemoryRequest)
-	// Team reassignment is forbidden to prevent cross-team resource moves
-
-	// Snapshot the prior text before the update mutates it, so a version history is
-	// built whenever the text actually changes.
-	oldContent := memory.Text
-
-	// Update fields if provided
+// applyMemoryUpdates copies the provided fields onto the memory. TeamID is
+// deliberately absent: it is immutable, so team reassignment cannot happen
+// through an update.
+func applyMemoryUpdates(memory *models.Memory, req *models.UpdateMemoryRequest) {
 	if req.Text != nil {
 		memory.Text = *req.Text
 	}
@@ -188,6 +190,31 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	}
 
 	memory.UpdatedAt = time.Now()
+}
+
+func (s *MemoryService) applyAndPersistMemoryUpdate(
+	ctx context.Context, userID string, memory *models.Memory, req *models.UpdateMemoryRequest,
+	actorType string, changeSummary *string,
+) (*models.Memory, error) {
+	// Any member may update any memory, including another member's (epic #220
+	// decision D1 — uniform update). No behavior change: this domain already
+	// allowed it; the rule now simply says so.
+	//
+	// Gated HERE rather than in UpdateMemory so RestoreMemoryVersion — which
+	// reaches this helper directly and is just as much a write — cannot slip past
+	// it. Same placement as the artifact/blueprint helpers.
+	if authzErr := s.authz.Can(ctx, userID, memory.TeamID, authz.ResourceUpdateAny); authzErr != nil {
+		return nil, authzErr
+	}
+
+	// Note: team_id cannot be changed via update (removed from UpdateMemoryRequest)
+	// Team reassignment is forbidden to prevent cross-team resource moves
+
+	// Snapshot the prior text before the update mutates it, so a version history is
+	// built whenever the text actually changes.
+	oldContent := memory.Text
+
+	applyMemoryUpdates(memory, req)
 
 	// Best-effort content-version snapshot: record the pre-update text when it changed.
 	// A snapshot failure must not fail the update (mirrors event publishing).
@@ -274,6 +301,23 @@ func (s *MemoryService) RestoreMemoryVersion(
 
 func (s *MemoryService) DeleteMemory(userID, teamID, memoryID string) error {
 	ctx := context.Background()
+
+	// Fetch first to learn who created the memory: delete is own-vs-any (members
+	// delete only what they authored; Admin+ delete anyone's), and the repository
+	// no longer carries that decision in its SQL. This fetch is also what now
+	// surfaces a missing memory.
+	memory, err := s.repo.GetByID(ctx, userID, teamID, memoryID)
+	if err != nil {
+		return err
+	}
+
+	if authzErr := s.authz.CanActOnResource(
+		ctx, userID, teamID, memory.UserID,
+		authz.ResourceDeleteOwn, authz.ResourceDeleteAny,
+	); authzErr != nil {
+		return authzErr
+	}
+
 	return s.repo.Delete(ctx, userID, teamID, memoryID)
 }
 

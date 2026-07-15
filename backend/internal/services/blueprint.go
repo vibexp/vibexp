@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -15,6 +16,7 @@ import (
 type BlueprintService struct {
 	repo              repositories.BlueprintRepository
 	teamService       TeamServiceInterface
+	authz             AuthorizationServiceInterface
 	eventManager      events.EventPublisher
 	resourceUsageSvc  ResourceUsageServiceInterface
 	contentVersionSvc ContentVersionServiceInterface
@@ -27,6 +29,7 @@ var _ BlueprintServiceInterface = (*BlueprintService)(nil)
 func NewBlueprintService(
 	repo repositories.BlueprintRepository,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	resourceUsageSvc ResourceUsageServiceInterface,
 	logger *slog.Logger,
@@ -35,6 +38,7 @@ func NewBlueprintService(
 	return &BlueprintService{
 		repo:              repo,
 		teamService:       teamService,
+		authz:             authzService,
 		eventManager:      eventManager,
 		resourceUsageSvc:  resourceUsageSvc,
 		contentVersionSvc: contentVersionSvc,
@@ -97,6 +101,12 @@ func (s *BlueprintService) CreateBlueprint(
 
 	// Team ID comes from URL path and is already validated by middleware
 	finalTeamID := teamID
+
+	// Creating a resource is open to any team member (epic #220), but the caller
+	// must still BE one — the middleware proves tenancy, this proves the role.
+	if authzErr := s.authz.Can(ctx, userID, finalTeamID, authz.ResourceCreate); authzErr != nil {
+		return nil, authzErr
+	}
 
 	blueprint := buildBlueprintFromRequest(userID, finalTeamID, req)
 
@@ -308,6 +318,15 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	userID string, blueprint *models.Blueprint, req *models.UpdateBlueprintRequest,
 	actorType string, changeSummary *string,
 ) (*models.Blueprint, error) {
+	// Any member may update any blueprint, including another member's (epic #220
+	// decision D1). Gated in the shared helper so the entry point and version
+	// restore both funnel through one check.
+	if authzErr := s.authz.Can(
+		context.Background(), userID, blueprint.TeamID, authz.ResourceUpdateAny,
+	); authzErr != nil {
+		return nil, authzErr
+	}
+
 	ctx := context.Background()
 
 	// Note: team_id cannot be changed via update (removed from UpdateBlueprintRequest)
@@ -427,6 +446,16 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, projectID, 
 	}
 
 	ctx := context.Background()
+
+	// Delete is own-vs-any: members delete only what they authored, Admin+ delete
+	// anyone's. The repository no longer carries that decision in its SQL.
+	if authzErr := s.authz.CanActOnResource(
+		ctx, userID, blueprint.TeamID, blueprint.UserID,
+		authz.ResourceDeleteOwn, authz.ResourceDeleteAny,
+	); authzErr != nil {
+		return authzErr
+	}
+
 	err = s.repo.Delete(ctx, userID, blueprint.TeamID, blueprint.ID)
 	if err != nil {
 		s.logger.With(

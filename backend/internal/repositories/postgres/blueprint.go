@@ -464,26 +464,16 @@ func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 	return blueprints, nil
 }
 
-// validateBlueprintOwnership checks if user has access to the blueprint
-// Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
-func (r *BlueprintRepository) validateBlueprintOwnership(
-	ctx context.Context, blueprintID, teamID, userID string,
-) error {
+// validateBlueprintInTeam proves the blueprint exists within the team. It is a TENANCY
+// check only (epic #220 decision D3): whether the caller's ROLE permits the
+// update is decided by BlueprintService via the authz matrix before this is reached.
+// It is kept because Update relies on ErrBlueprintNotFound to tell a missing blueprint
+// apart from an optimistic-lock version conflict.
+func (r *BlueprintRepository) validateBlueprintInTeam(ctx context.Context, blueprintID, teamID string) error {
 	var exists bool
-	query := `
-		SELECT EXISTS(
-			SELECT 1 FROM blueprints s
-			WHERE s.id = $1
-				AND s.team_id = $2
-				AND (
-					EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-					OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
-				)
-		)
-	`
-	err := r.db.QueryRowContext(ctx, query, blueprintID, teamID, userID).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("failed to validate blueprint ownership: %w", err)
+	query := `SELECT EXISTS(SELECT 1 FROM blueprints s WHERE s.id = $1 AND s.team_id = $2)`
+	if err := r.db.QueryRowContext(ctx, query, blueprintID, teamID).Scan(&exists); err != nil {
+		return fmt.Errorf("failed to validate blueprint: %w", err)
 	}
 	if !exists {
 		return repositories.ErrBlueprintNotFound
@@ -492,7 +482,7 @@ func (r *BlueprintRepository) validateBlueprintOwnership(
 }
 
 func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blueprint) error {
-	if err := r.validateBlueprintOwnership(ctx, blueprint.ID, blueprint.TeamID, blueprint.UserID); err != nil {
+	if err := r.validateBlueprintInTeam(ctx, blueprint.ID, blueprint.TeamID); err != nil {
 		return err
 	}
 
@@ -509,10 +499,6 @@ func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blue
 		WHERE id = $1
 			AND team_id = $13
 			AND version = $14
-			AND (
-				EXISTS (SELECT 1 FROM teams WHERE id = $13 AND owner_id = $15)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $13 AND user_id = $15)
-			)
 		RETURNING updated_at, version
 	`
 
@@ -520,7 +506,7 @@ func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blue
 		blueprint.ID, blueprint.ProjectID, blueprint.Slug,
 		blueprint.Title, blueprint.Description, blueprint.Content,
 		blueprint.Status, blueprint.Type, blueprint.Subtype, metadataJSON,
-		blueprint.TeamID, blueprint.UpdatedAt, blueprint.TeamID, blueprint.Version, blueprint.UserID,
+		blueprint.TeamID, blueprint.UpdatedAt, blueprint.TeamID, blueprint.Version,
 	).Scan(&blueprint.UpdatedAt, &blueprint.Version)
 
 	if err != nil {
@@ -551,9 +537,8 @@ func (r *BlueprintRepository) Delete(ctx context.Context, userID, teamID, bluepr
 		WHERE id = $1
 			AND team_id = $2
 			AND (
-				user_id = $3
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin'))
+				EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
 			)
 	`
 

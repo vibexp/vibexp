@@ -126,12 +126,15 @@ func ProvideContentVersionService(
 func ProvideArtifactService(
 	repo repositories.ArtifactRepository,
 	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	resourceUsageSvc services.ResourceUsageServiceInterface,
 	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
 ) services.ArtifactServiceInterface {
-	return services.NewArtifactService(repo, teamService, eventManager, resourceUsageSvc, logger, contentVersionSvc)
+	return services.NewArtifactService(
+		repo, teamService, authzService, eventManager, resourceUsageSvc, logger, contentVersionSvc,
+	)
 }
 
 // ProvideAttachmentService creates a new AttachmentService. The object store
@@ -156,12 +159,15 @@ func ProvideTypeService(
 func ProvideBlueprintService(
 	repo repositories.BlueprintRepository,
 	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	resourceUsageSvc services.ResourceUsageServiceInterface,
 	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
 ) services.BlueprintServiceInterface {
-	return services.NewBlueprintService(repo, teamService, eventManager, resourceUsageSvc, logger, contentVersionSvc)
+	return services.NewBlueprintService(
+		repo, teamService, authzService, eventManager, resourceUsageSvc, logger, contentVersionSvc,
+	)
 }
 
 // ProvideEmbeddingProviderService creates a new EmbeddingProviderService
@@ -307,11 +313,12 @@ func ProvideAgentInvocationService(
 func ProvideMemoryService(
 	repo repositories.MemoryRepository,
 	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
 ) services.MemoryServiceInterface {
-	return services.NewMemoryService(repo, teamService, eventManager, logger, contentVersionSvc)
+	return services.NewMemoryService(repo, teamService, authzService, eventManager, logger, contentVersionSvc)
 }
 
 // ProvideEmbeddingService creates a new EmbeddingService

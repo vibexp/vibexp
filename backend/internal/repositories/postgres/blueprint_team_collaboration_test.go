@@ -111,7 +111,7 @@ func TestBlueprintRepository_TeamMember_CanGetOtherMembersSpecs(t *testing.T) {
 	// Mock get query with EXISTS subqueries (no JOINs) - note alias is 's'
 	getQuery := `SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, s\.title, s\.description, ` +
 		`s\.content, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, s\.version\s+` +
-		`FROM blueprints s\s+WHERE.*EXISTS.*teams`
+		`FROM blueprints s\s+WHERE.*`
 	mock.ExpectQuery(getQuery).
 		WithArgs(aliceSpecID, teamID, bobUserID).
 		WillReturnRows(sqlmock.NewRows([]string{
@@ -179,7 +179,7 @@ func TestBlueprintRepository_TeamMember_CanUpdateOtherMembersSpecs(t *testing.T)
 	// Mock ownership validation
 	ownershipQuery := `SELECT EXISTS\(`
 	mock.ExpectQuery(ownershipQuery).
-		WithArgs(aliceSpecID, teamID, bobUserID).
+		WithArgs(aliceSpecID, teamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Mock update query - note table name is blueprints (singular)
@@ -188,7 +188,7 @@ func TestBlueprintRepository_TeamMember_CanUpdateOtherMembersSpecs(t *testing.T)
 		WithArgs(
 			aliceSpecID, "project-123", "api-spec",
 			"API Specification - Updated by Bob", "Updated description", "Updated OpenAPI content",
-			"active", "api", "openapi", sqlmock.AnyArg(), teamID, now, teamID, 1, bobUserID,
+			"active", "api", "openapi", sqlmock.AnyArg(), teamID, now, teamID, 1,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 

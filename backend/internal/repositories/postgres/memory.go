@@ -321,26 +321,23 @@ func scanMemoryRows(rows *sql.Rows) ([]models.Memory, error) {
 // Update updates an existing memory with optimistic locking
 // Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
 func (r *MemoryRepository) Update(ctx context.Context, memory *models.Memory) error {
-	// Validate team membership BEFORE checking version to distinguish errors
-	// This prevents conflating authorization failures with optimistic lock conflicts
+	// Existence-in-team check BEFORE checking version, so a missing memory is not
+	// reported as an optimistic-lock conflict. TENANCY ONLY (epic #220 decision
+	// D3): whether the caller's ROLE permits the update is decided by
+	// MemoryService via the authz matrix before this is reached.
 	var exists bool
-	ownershipQuery := `
+	existsQuery := `
 		SELECT EXISTS(
 			SELECT 1 FROM memories m
 			WHERE m.id = $1
 				AND m.team_id = $2
-				AND (
-					EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-					OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
-				)
 		)
 	`
-	err := r.db.QueryRowContext(ctx, ownershipQuery, memory.ID, memory.TeamID, memory.UserID).Scan(&exists)
+	err := r.db.QueryRowContext(ctx, existsQuery, memory.ID, memory.TeamID).Scan(&exists)
 	if err != nil {
-		return fmt.Errorf("failed to validate memory ownership: %w", err)
+		return fmt.Errorf("failed to validate memory: %w", err)
 	}
 	if !exists {
-		// Memory doesn't exist for this user/team - authorization failure
 		return repositories.ErrMemoryNotFound
 	}
 
@@ -364,16 +361,12 @@ func (r *MemoryRepository) Update(ctx context.Context, memory *models.Memory) er
 		WHERE id = $1
 			AND team_id = $8
 			AND version = $9
-			AND (
-				EXISTS (SELECT 1 FROM teams WHERE id = $8 AND owner_id = $10)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $8 AND user_id = $10)
-			)
 		RETURNING updated_at, version
 	`
 
 	err = r.db.QueryRowContext(ctx, query,
 		memory.ID, memory.Text, status, metadataJSON, memory.ProjectID, memory.TeamID, memory.UpdatedAt,
-		memory.TeamID, memory.Version, memory.UserID,
+		memory.TeamID, memory.Version,
 	).Scan(&memory.UpdatedAt, &memory.Version)
 
 	if err != nil {
@@ -396,9 +389,8 @@ func (r *MemoryRepository) Delete(ctx context.Context, userID, teamID, memoryID 
 		WHERE id = $1
 			AND team_id = $2
 			AND (
-				user_id = $3
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin'))
+				EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
 			)
 	`
 

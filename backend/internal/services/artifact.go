@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -15,6 +16,7 @@ import (
 type ArtifactService struct {
 	repo              repositories.ArtifactRepository
 	teamService       TeamServiceInterface
+	authz             AuthorizationServiceInterface
 	eventManager      events.EventPublisher
 	resourceUsageSvc  ResourceUsageServiceInterface
 	contentVersionSvc ContentVersionServiceInterface
@@ -27,6 +29,7 @@ var _ ArtifactServiceInterface = (*ArtifactService)(nil)
 func NewArtifactService(
 	repo repositories.ArtifactRepository,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	resourceUsageSvc ResourceUsageServiceInterface,
 	logger *slog.Logger,
@@ -35,6 +38,7 @@ func NewArtifactService(
 	return &ArtifactService{
 		repo:              repo,
 		teamService:       teamService,
+		authz:             authzService,
 		eventManager:      eventManager,
 		resourceUsageSvc:  resourceUsageSvc,
 		contentVersionSvc: contentVersionSvc,
@@ -90,17 +94,11 @@ func (s *ArtifactService) validateAndResolveTeamID(
 	return *requestedTeamID, nil
 }
 
-func (s *ArtifactService) CreateArtifact(
+// buildArtifactFromRequest assembles a new artifact, applying the defaults the
+// API leaves optional (status, type, metadata).
+func buildArtifactFromRequest(
 	userID, teamID string, req *models.CreateArtifactRequest,
-) (*models.Artifact, error) {
-	ctx := context.Background()
-
-	// Validate and resolve team ID
-	finalTeamID, err := s.validateAndResolveTeamID(ctx, userID, teamID, nil)
-	if err != nil {
-		return nil, err
-	}
-
+) *models.Artifact {
 	status := req.Status
 	if status == "" {
 		status = models.ArtifactStatusActive
@@ -116,20 +114,41 @@ func (s *ArtifactService) CreateArtifact(
 		metadata = make(map[string]interface{})
 	}
 
-	artifact := &models.Artifact{
+	now := time.Now()
+	return &models.Artifact{
 		ProjectID:   req.ProjectID,
 		Slug:        req.Slug,
 		UserID:      userID,
-		TeamID:      finalTeamID,
+		TeamID:      teamID,
 		Content:     req.Content,
 		Title:       req.Title,
 		Description: req.Description,
 		Status:      status,
 		Type:        artifactType,
 		Metadata:    metadata,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
+}
+
+func (s *ArtifactService) CreateArtifact(
+	userID, teamID string, req *models.CreateArtifactRequest,
+) (*models.Artifact, error) {
+	ctx := context.Background()
+
+	// Validate and resolve team ID
+	finalTeamID, err := s.validateAndResolveTeamID(ctx, userID, teamID, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Creating a resource is open to any team member (epic #220). Authorize the
+	// RESOLVED team — that is where the artifact actually lands.
+	if authzErr := s.authz.Can(ctx, userID, finalTeamID, authz.ResourceCreate); authzErr != nil {
+		return nil, authzErr
+	}
+
+	artifact := buildArtifactFromRequest(userID, finalTeamID, req)
 
 	err = s.repo.Create(ctx, artifact)
 	if err != nil {
@@ -392,6 +411,16 @@ func (s *ArtifactService) UpdateArtifactByProjectIDAndSlugInTeam(
 func (s *ArtifactService) applyAndPersistArtifactUpdate(
 	userID string, artifact *models.Artifact, req *models.UpdateArtifactRequest, actorType string,
 ) (*models.Artifact, error) {
+	// Any member may update any artifact, including another member's (epic #220
+	// decision D1). Gated here rather than at the entry points so both the
+	// team-scoped and cross-team lookups, and version restore, all funnel through
+	// one check. artifact.TeamID is the artifact's own team.
+	if authzErr := s.authz.Can(
+		context.Background(), userID, artifact.TeamID, authz.ResourceUpdateAny,
+	); authzErr != nil {
+		return nil, authzErr
+	}
+
 	ctx := context.Background()
 
 	// Note: team_id cannot be changed via update (removed from UpdateArtifactRequest)
@@ -455,6 +484,16 @@ func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, projectID, sl
 	}
 
 	ctx := context.Background()
+
+	// Delete is own-vs-any: members delete only what they authored, Admin+ delete
+	// anyone's. The repository no longer carries that decision in its SQL.
+	if authzErr := s.authz.CanActOnResource(
+		ctx, userID, artifact.TeamID, artifact.UserID,
+		authz.ResourceDeleteOwn, authz.ResourceDeleteAny,
+	); authzErr != nil {
+		return authzErr
+	}
+
 	err = s.repo.Delete(ctx, userID, artifact.TeamID, artifact.ID)
 	if err != nil {
 		s.logger.With(

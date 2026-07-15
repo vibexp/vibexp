@@ -118,7 +118,7 @@ func TestNewBlueprintService(t *testing.T) {
 	repo := &MockBlueprintRepository{}
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewBlueprintService(
-		repo, nil, nil, mockResourceUsageSvc,
+		repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
@@ -231,7 +231,7 @@ func TestBlueprintService_CreateBlueprint(t *testing.T) {
 			// Resource limits are now checked directly in handlers via CheckResourceLimit
 
 			service := NewBlueprintService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -309,7 +309,7 @@ func TestBlueprintService_GetBlueprintByProjectIDAndSlug(t *testing.T) {
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewBlueprintService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -348,7 +348,7 @@ func TestBlueprintService_GetBlueprintByIDInTeam(t *testing.T) {
 				Return(tt.repoRet, tt.repoErr)
 
 			service := NewBlueprintService(
-				repo, nil, nil, &MockResourceUsageService{},
+				repo, nil, allowAllAuthz{}, nil, &MockResourceUsageService{},
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -490,7 +490,7 @@ func TestBlueprintService_ListSpecLibraries(t *testing.T) {
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewBlueprintService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -513,7 +513,7 @@ func TestBlueprintService_ListSpecLibrariesByProject(t *testing.T) {
 
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewBlueprintService(
-		repo, nil, nil, mockResourceUsageSvc,
+		repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
@@ -720,7 +720,7 @@ func TestBlueprintService_UpdateBlueprintByProjectIDAndSlug(t *testing.T) {
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewBlueprintService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -823,7 +823,7 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 			// Deletions are never blocked by resource limits
 
 			service := NewBlueprintService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -912,7 +912,7 @@ func TestBlueprintService_GetBlueprintStats(t *testing.T) {
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewBlueprintService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -928,7 +928,7 @@ func TestBlueprintService_ImplementsInterface(t *testing.T) {
 	repo := &MockBlueprintRepository{}
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewBlueprintService(
-		repo, nil, nil, mockResourceUsageSvc,
+		repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
@@ -1038,7 +1038,7 @@ func TestBlueprintService_PublishesBlueprintEvents(t *testing.T) {
 			).Return(nil).Maybe()
 
 			service := NewBlueprintService(
-				mockRepo, nil, mockEventManager, mockResourceUsageSvc,
+				mockRepo, nil, allowAllAuthz{}, mockEventManager, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -1065,7 +1065,7 @@ func TestBlueprintService_UpdateBlueprint_PreservesTeamID(t *testing.T) {
 	mockRepo := &MockBlueprintRepository{}
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewBlueprintService(
-		mockRepo, nil, nil, mockResourceUsageSvc,
+		mockRepo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
@@ -1366,7 +1366,7 @@ func TestBlueprintService_CreateBlueprintWithNewTypes(t *testing.T) {
 			tt.setup(repo)
 
 			service := NewBlueprintService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
