@@ -10,6 +10,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
@@ -19,7 +20,7 @@ func createTestTeamService(
 	userRepo *mocks.MockUserRepository,
 ) *TeamService {
 	logger, _ := logtest.New()
-	return NewTeamService(teamRepo, teamMemberRepo, userRepo, logger)
+	return NewTeamService(teamRepo, teamMemberRepo, userRepo, NewAuthorizationService(teamMemberRepo, logger), logger)
 }
 
 //nolint:funlen // table-driven test with multiple test cases
@@ -215,7 +216,7 @@ func TestNewTeamService_NilLogger(t *testing.T) {
 	mockTeamMemberRepo := mocks.NewMockTeamMemberRepository(t)
 	mockUserRepo := mocks.NewMockUserRepository(t)
 
-	service := NewTeamService(mockTeamRepo, mockTeamMemberRepo, mockUserRepo, nil)
+	service := NewTeamService(mockTeamRepo, mockTeamMemberRepo, mockUserRepo, NewAuthorizationService(mockTeamMemberRepo, nil), nil)
 
 	assert.NotNil(t, service)
 	assert.NotNil(t, service.logger)
@@ -538,7 +539,40 @@ func TestTeamService_UpdateTeam(t *testing.T) {
 			errMessage: "team not found",
 		},
 		{
-			name:   "unauthorized update",
+			// Behavior change (epic #220): a non-owner ADMIN may now update the
+			// team. Authorization asks team_members.role, not the owner_id
+			// column, so being a non-owner is no longer disqualifying.
+			name:   "admin who is not the owner may update",
+			userID: "user-123",
+			teamID: "team-456",
+			req: &models.UpdateTeamRequest{
+				Description: &newDesc,
+			},
+			setupMock: func(mockTeamRepo *mocks.MockTeamRepository) {
+				mockTeamRepo.EXPECT().GetByID(mock.Anything, "team-456").Return(&models.Team{
+					ID:          "team-456",
+					OwnerID:     "user-different",
+					Name:        "Old Name",
+					Slug:        "old-name",
+					Description: "Old desc",
+				}, nil).Once()
+
+				mockTeamRepo.EXPECT().Update(mock.Anything, mock.MatchedBy(func(team *models.Team) bool {
+					// The team keeps its real owner; the admin is not written in.
+					return team.OwnerID == "user-different" && team.Description == newDesc
+				})).Return(nil).Once()
+			},
+			setupTeamMemberMock: func(mockTeamMemberRepo *mocks.MockTeamMemberRepository) {
+				mockTeamMemberRepo.EXPECT().GetByTeamAndUser(mock.Anything, "team-456", "user-123").Return(&models.TeamMember{
+					TeamID: "team-456",
+					UserID: "user-123",
+					Role:   models.TeamMemberRoleAdmin,
+				}, nil).Once()
+			},
+			expectErr: false,
+		},
+		{
+			name:   "plain member may not update",
 			userID: "user-123",
 			teamID: "team-456",
 			req: &models.UpdateTeamRequest{
@@ -551,10 +585,34 @@ func TestTeamService_UpdateTeam(t *testing.T) {
 				}, nil).Once()
 			},
 			setupTeamMemberMock: func(mockTeamMemberRepo *mocks.MockTeamMemberRepository) {
-				// No mock needed as ownership check fails when user is not owner
+				mockTeamMemberRepo.EXPECT().GetByTeamAndUser(mock.Anything, "team-456", "user-123").Return(&models.TeamMember{
+					TeamID: "team-456",
+					UserID: "user-123",
+					Role:   models.TeamMemberRoleMember,
+				}, nil).Once()
 			},
 			expectErr:  true,
-			errMessage: "only team owners can perform this action",
+			errMessage: "permission denied",
+		},
+		{
+			name:   "non-member may not update",
+			userID: "user-123",
+			teamID: "team-456",
+			req: &models.UpdateTeamRequest{
+				Name: &newName,
+			},
+			setupMock: func(mockTeamRepo *mocks.MockTeamRepository) {
+				mockTeamRepo.EXPECT().GetByID(mock.Anything, "team-456").Return(&models.Team{
+					ID:      "team-456",
+					OwnerID: "user-different",
+				}, nil).Once()
+			},
+			setupTeamMemberMock: func(mockTeamMemberRepo *mocks.MockTeamMemberRepository) {
+				mockTeamMemberRepo.EXPECT().GetByTeamAndUser(mock.Anything, "team-456", "user-123").
+					Return(nil, repositories.ErrTeamMemberNotFound).Once()
+			},
+			expectErr:  true,
+			errMessage: "permission denied",
 		},
 	}
 
@@ -690,7 +748,10 @@ func TestTeamService_DeleteTeam(t *testing.T) {
 			tt.setupMock(mockTeamRepo, mockTeamMemberRepo, mockUserRepo)
 
 			logger, _ := logtest.New()
-			service := NewTeamService(mockTeamRepo, mockTeamMemberRepo, mockUserRepo, logger)
+			service := NewTeamService(
+				mockTeamRepo, mockTeamMemberRepo, mockUserRepo,
+				NewAuthorizationService(mockTeamMemberRepo, logger), logger,
+			)
 			err := service.DeleteTeam(context.Background(), tt.userID, tt.teamID)
 
 			if tt.expectErr {
@@ -942,7 +1003,8 @@ func TestTeamService_DeleteTeam_WithMultipleMembers(t *testing.T) {
 	logger, _ := logtest.New()
 
 	service := NewTeamService(
-		mockTeamRepo, mockTeamMemberRepo, mockUserRepo, logger,
+		mockTeamRepo, mockTeamMemberRepo, mockUserRepo,
+		NewAuthorizationService(mockTeamMemberRepo, logger), logger,
 	)
 
 	ctx := context.Background()
@@ -992,7 +1054,8 @@ func TestTeamService_DeleteTeam_PersonalWorkspace(t *testing.T) {
 	logger, _ := logtest.New()
 
 	service := NewTeamService(
-		mockTeamRepo, mockTeamMemberRepo, mockUserRepo, logger,
+		mockTeamRepo, mockTeamMemberRepo, mockUserRepo,
+		NewAuthorizationService(mockTeamMemberRepo, logger), logger,
 	)
 
 	ctx := context.Background()
@@ -1030,7 +1093,8 @@ func TestTeamService_DeleteTeam_Success(t *testing.T) {
 	logger, _ := logtest.New()
 
 	service := NewTeamService(
-		mockTeamRepo, mockTeamMemberRepo, mockUserRepo, logger,
+		mockTeamRepo, mockTeamMemberRepo, mockUserRepo,
+		NewAuthorizationService(mockTeamMemberRepo, logger), logger,
 	)
 
 	ctx := context.Background()

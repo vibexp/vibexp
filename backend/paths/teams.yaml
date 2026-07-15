@@ -430,6 +430,149 @@ api-v1-teams-id-members-userId:
     tags:
       - Teams
 
+api-v1-teams-id-members-userId-role:
+  patch:
+    summary: Change a team member's role
+    description: |
+      Changes a member's role between `member` and `admin`.
+
+      Requires the caller to be an **owner or admin** of the team. The role value
+      may only be `member` or `admin` — ownership is never granted this way; use
+      the transfer-ownership operation instead. The team owner's role cannot be
+      changed by this operation, not even by another admin.
+    operationId: updateTeamMemberRole
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: userId
+        in: path
+        required: true
+        description: User ID of the member whose role is changing
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateTeamMemberRoleRequest'
+    responses:
+      '200':
+        description: Role updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/UpdateTeamMemberRoleResponse'
+      '400':
+        description: Invalid request body or role value
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — caller is not an owner or admin of the team, or the target is the team owner
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Team not found, or the target user is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Team Roles
+
+api-v1-teams-id-transfer-ownership:
+  post:
+    summary: Transfer team ownership
+    description: |
+      Transfers ownership of the team to another member.
+
+      Requires the caller to be the **owner** of the team; admins cannot transfer
+      ownership. The target must already be a member. The target becomes the
+      owner and the previous owner becomes an admin, applied in a single
+      transaction so the team always has exactly one owner. Personal workspaces
+      cannot be transferred.
+    operationId: transferTeamOwnership
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/TransferTeamOwnershipRequest'
+    responses:
+      '200':
+        description: Ownership transferred successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TransferTeamOwnershipResponse'
+      '400':
+        description: Invalid request body, or the caller is already the target owner
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Forbidden — caller is not the team owner, or the team is a personal workspace
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Team not found, or the target user is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Team Roles
+
 api-v1-teams-id-invitations:
   post:
     summary: Send team invitations

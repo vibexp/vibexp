@@ -719,6 +719,129 @@ func (_c *MockTeamServiceInterface_RemoveTeamMember_Call) RunAndReturn(run func(
 	return _c
 }
 
+// TransferOwnership provides a mock function with given fields: ctx, userID, teamID, newOwnerID
+func (_m *MockTeamServiceInterface) TransferOwnership(ctx context.Context, userID string, teamID string, newOwnerID string) (*models.Team, error) {
+	ret := _m.Called(ctx, userID, teamID, newOwnerID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for TransferOwnership")
+	}
+
+	var r0 *models.Team
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (*models.Team, error)); ok {
+		return rf(ctx, userID, teamID, newOwnerID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) *models.Team); ok {
+		r0 = rf(ctx, userID, teamID, newOwnerID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Team)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, userID, teamID, newOwnerID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamServiceInterface_TransferOwnership_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TransferOwnership'
+type MockTeamServiceInterface_TransferOwnership_Call struct {
+	*mock.Call
+}
+
+// TransferOwnership is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - teamID string
+//   - newOwnerID string
+func (_e *MockTeamServiceInterface_Expecter) TransferOwnership(ctx interface{}, userID interface{}, teamID interface{}, newOwnerID interface{}) *MockTeamServiceInterface_TransferOwnership_Call {
+	return &MockTeamServiceInterface_TransferOwnership_Call{Call: _e.mock.On("TransferOwnership", ctx, userID, teamID, newOwnerID)}
+}
+
+func (_c *MockTeamServiceInterface_TransferOwnership_Call) Run(run func(ctx context.Context, userID string, teamID string, newOwnerID string)) *MockTeamServiceInterface_TransferOwnership_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockTeamServiceInterface_TransferOwnership_Call) Return(_a0 *models.Team, _a1 error) *MockTeamServiceInterface_TransferOwnership_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamServiceInterface_TransferOwnership_Call) RunAndReturn(run func(context.Context, string, string, string) (*models.Team, error)) *MockTeamServiceInterface_TransferOwnership_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateMemberRole provides a mock function with given fields: ctx, userID, teamID, targetUserID, newRole
+func (_m *MockTeamServiceInterface) UpdateMemberRole(ctx context.Context, userID string, teamID string, targetUserID string, newRole models.TeamMemberRole) (*models.TeamMemberDetail, error) {
+	ret := _m.Called(ctx, userID, teamID, targetUserID, newRole)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateMemberRole")
+	}
+
+	var r0 *models.TeamMemberDetail
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, models.TeamMemberRole) (*models.TeamMemberDetail, error)); ok {
+		return rf(ctx, userID, teamID, targetUserID, newRole)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, models.TeamMemberRole) *models.TeamMemberDetail); ok {
+		r0 = rf(ctx, userID, teamID, targetUserID, newRole)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.TeamMemberDetail)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, models.TeamMemberRole) error); ok {
+		r1 = rf(ctx, userID, teamID, targetUserID, newRole)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamServiceInterface_UpdateMemberRole_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateMemberRole'
+type MockTeamServiceInterface_UpdateMemberRole_Call struct {
+	*mock.Call
+}
+
+// UpdateMemberRole is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - teamID string
+//   - targetUserID string
+//   - newRole models.TeamMemberRole
+func (_e *MockTeamServiceInterface_Expecter) UpdateMemberRole(ctx interface{}, userID interface{}, teamID interface{}, targetUserID interface{}, newRole interface{}) *MockTeamServiceInterface_UpdateMemberRole_Call {
+	return &MockTeamServiceInterface_UpdateMemberRole_Call{Call: _e.mock.On("UpdateMemberRole", ctx, userID, teamID, targetUserID, newRole)}
+}
+
+func (_c *MockTeamServiceInterface_UpdateMemberRole_Call) Run(run func(ctx context.Context, userID string, teamID string, targetUserID string, newRole models.TeamMemberRole)) *MockTeamServiceInterface_UpdateMemberRole_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(models.TeamMemberRole))
+	})
+	return _c
+}
+
+func (_c *MockTeamServiceInterface_UpdateMemberRole_Call) Return(_a0 *models.TeamMemberDetail, _a1 error) *MockTeamServiceInterface_UpdateMemberRole_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamServiceInterface_UpdateMemberRole_Call) RunAndReturn(run func(context.Context, string, string, string, models.TeamMemberRole) (*models.TeamMemberDetail, error)) *MockTeamServiceInterface_UpdateMemberRole_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateTeam provides a mock function with given fields: ctx, userID, teamID, req
 func (_m *MockTeamServiceInterface) UpdateTeam(ctx context.Context, userID string, teamID string, req *models.UpdateTeamRequest) (*models.Team, error) {
 	ret := _m.Called(ctx, userID, teamID, req)

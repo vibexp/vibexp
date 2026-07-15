@@ -1,0 +1,26 @@
+# oapi-codegen configuration for the Team Roles domain (#222), the third
+# spec-first strict-server domain after Notifications (#1713) and Types (#1846).
+#
+# Why a separate `Team Roles` tag instead of reusing `Teams`: include-tags is the
+# unit of generation, so tagging these operations `Teams` would emit a
+# StrictServerInterface covering every existing Teams operation — none of which
+# are strict-server yet (they hand-marshal via writeErrorResponse). The package
+# would not compile until the whole domain was rewritten, which is far outside
+# #222. The two role-management operations are new, so they ship strict-typed
+# from day one (#122/#125 non-negotiable) under their own tag, and the legacy
+# Teams operations migrate later on their own schedule.
+#
+# friction-6 (see oapi-codegen-types.yaml): one self-contained package per
+# domain, so each mounts independently and existing wiring stays untouched.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: teamrolesgen
+output: internal/server/gen/teamroles/teamroles.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - Team Roles

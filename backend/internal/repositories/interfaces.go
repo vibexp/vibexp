@@ -299,6 +299,13 @@ type TeamRepository interface {
 	GetByOwnerID(ctx context.Context, ownerID string) (*models.Team, error)
 	GetByOwnerAndSlug(ctx context.Context, ownerID, slug string) (*models.Team, error)
 	Update(ctx context.Context, team *models.Team) error
+	// TransferOwnership moves team ownership from fromUserID to toUserID,
+	// updating teams.owner_id and both team_members.role rows in ONE
+	// transaction so the team always has exactly one owner. Returns
+	// ErrTeamNotFound if fromUserID no longer owns the team, and
+	// ErrTeamMemberNotFound if either user has no membership row.
+	// Authorization is the caller's responsibility.
+	TransferOwnership(ctx context.Context, teamID, fromUserID, toUserID string) error
 	Delete(ctx context.Context, ownerID, teamID string) error
 	ListByOwnerID(ctx context.Context, ownerID string, limit, offset int) ([]models.Team, int, error)
 	ListByUserID(ctx context.Context, userID string, limit, offset int) ([]models.Team, int, error)

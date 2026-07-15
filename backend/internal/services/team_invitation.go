@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/logging"
 	"github.com/vibexp/vibexp/internal/models"
@@ -28,6 +29,7 @@ type TeamInvitationService struct {
 	teamMemberRepo repositories.TeamMemberRepository
 	userRepo       repositories.UserRepository
 	emailService   EmailServiceInterface
+	authz          AuthorizationServiceInterface
 	cfg            *config.Config
 	logger         *slog.Logger
 }
@@ -39,6 +41,7 @@ func NewTeamInvitationService(
 	teamMemberRepo repositories.TeamMemberRepository,
 	userRepo repositories.UserRepository,
 	emailService EmailServiceInterface,
+	authz AuthorizationServiceInterface,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) *TeamInvitationService {
@@ -51,6 +54,7 @@ func NewTeamInvitationService(
 		teamMemberRepo: teamMemberRepo,
 		userRepo:       userRepo,
 		emailService:   emailService,
+		authz:          authz,
 		cfg:            cfg,
 		logger:         logger,
 	}
@@ -67,12 +71,8 @@ func (s *TeamInvitationService) InviteMembers(
 	role models.TeamMemberRole,
 ) ([]*models.TeamInvitation, error) {
 	// Verify user has permission to invite (owner/admin role)
-	canManage, err := s.canManageTeam(ctx, userID, teamID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !canManage {
-		return nil, fmt.Errorf("user does not have permission to invite members")
+	if err := s.canManageInvitations(ctx, userID, teamID); err != nil {
+		return nil, err
 	}
 
 	// Get team details for email
@@ -457,12 +457,8 @@ func (s *TeamInvitationService) RevokeInvitation(
 	}
 
 	// Verify user has permission to revoke
-	canManage, err := s.canManageTeam(ctx, userID, invitation.TeamID)
-	if err != nil {
-		return fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !canManage {
-		return fmt.Errorf("user does not have permission to revoke invitations")
+	if err := s.canManageInvitations(ctx, userID, invitation.TeamID); err != nil {
+		return err
 	}
 
 	// Update invitation status
@@ -488,12 +484,8 @@ func (s *TeamInvitationService) GetTeamInvitations(
 	teamID string,
 ) ([]models.TeamInvitation, error) {
 	// Verify user has permission to view invitations
-	canManage, err := s.canManageTeam(ctx, userID, teamID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !canManage {
-		return nil, fmt.Errorf("user does not have permission to view invitations")
+	if err := s.canManageInvitations(ctx, userID, teamID); err != nil {
+		return nil, err
 	}
 
 	invitations, err := s.invitationRepo.GetByTeamID(ctx, teamID)
@@ -504,14 +496,16 @@ func (s *TeamInvitationService) GetTeamInvitations(
 	return invitations, nil
 }
 
-// canManageTeam checks if a user has permission to manage a team (owner or admin)
-func (s *TeamInvitationService) canManageTeam(ctx context.Context, userID, teamID string) (bool, error) {
-	member, err := s.teamMemberRepo.GetByTeamAndUser(ctx, teamID, userID)
-	if err != nil {
-		return false, err
-	}
-
-	return member.Role == models.TeamMemberRoleOwner || member.Role == models.TeamMemberRoleAdmin, nil
+// canManageInvitations authorizes invitation management (Owner/Admin) through
+// the authz matrix.
+//
+// It replaces the former canManageTeam, which hand-compared roles AND folded a
+// non-member into the error branch — surfacing "failed to check permissions"
+// (a 500) where the answer is simply "denied". AuthorizationService maps a
+// non-member to ErrPermissionDenied and reserves errors for real database
+// failures, so that confusion goes away.
+func (s *TeamInvitationService) canManageInvitations(ctx context.Context, userID, teamID string) error {
+	return s.authz.Can(ctx, userID, teamID, authz.MemberInvite)
 }
 
 // resolveInviterDisplayName looks up the inviter and returns a human-readable

@@ -652,6 +652,14 @@ components:
       $ref: "./schemas/teams.yaml#/TeamListResponse"
     TeamMemberDetail:
       $ref: "./schemas/teams.yaml#/TeamMemberDetail"
+    UpdateTeamMemberRoleRequest:
+      $ref: "./schemas/teams.yaml#/UpdateTeamMemberRoleRequest"
+    UpdateTeamMemberRoleResponse:
+      $ref: "./schemas/teams.yaml#/UpdateTeamMemberRoleResponse"
+    TransferTeamOwnershipRequest:
+      $ref: "./schemas/teams.yaml#/TransferTeamOwnershipRequest"
+    TransferTeamOwnershipResponse:
+      $ref: "./schemas/teams.yaml#/TransferTeamOwnershipResponse"
     TeamMembersListResponse:
       $ref: "./schemas/teams.yaml#/TeamMembersListResponse"
     SendInvitationsRequest:
@@ -982,6 +990,10 @@ paths:
     $ref: "./paths/teams.yaml#/api-v1-teams-id-members"
   /api/v1/teams/{id}/members/{userId}:
     $ref: "./paths/teams.yaml#/api-v1-teams-id-members-userId"
+  /api/v1/teams/{id}/members/{userId}/role:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-members-userId-role"
+  /api/v1/teams/{id}/transfer-ownership:
+    $ref: "./paths/teams.yaml#/api-v1-teams-id-transfer-ownership"
   /api/v1/teams/{id}/invitations:
     $ref: "./paths/teams.yaml#/api-v1-teams-id-invitations"
   /api/v1/teams/{id}/invitations/{invitationId}:
@@ -1132,6 +1144,12 @@ tags:
     description: AI Feed endpoints for team-scoped feed channels and AI-generated items (free-tier accessible)
   - name: Teams
     description: Team (workspace) management — CRUD, members, and team subscription/billing endpoints
+  - name: Team Roles
+    description: |
+      Team role management — change a member's role and transfer ownership.
+      Tagged separately from Teams because these operations are strict-server
+      generated (one oapi-codegen package per domain), while the rest of the
+      Teams domain is still hand-marshaled.
   - name: Notifications
     description: In-app notification endpoints for the authenticated user
   - name: Types

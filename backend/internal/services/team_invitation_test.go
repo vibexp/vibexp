@@ -50,6 +50,7 @@ func TestTeamInvitationService_InviteMembers_SingleDuplicate(t *testing.T) {
 		mockTeamMemberRepo,
 		mockUserRepo,
 		mockEmailService,
+		NewAuthorizationService(mockTeamMemberRepo, nil),
 		&config.Config{},
 		nil,
 	)
@@ -135,6 +136,7 @@ func TestTeamInvitationService_InviteMembers_MultipleDuplicates(t *testing.T) {
 		mockTeamMemberRepo,
 		mockUserRepo,
 		mockEmailService,
+		NewAuthorizationService(mockTeamMemberRepo, nil),
 		&config.Config{},
 		nil,
 	)
@@ -250,6 +252,7 @@ func TestTeamInvitationService_InviteMembers_NoDuplicatesSuccess(t *testing.T) {
 		mockTeamMemberRepo,
 		mockUserRepo,
 		mockEmailService,
+		NewAuthorizationService(mockTeamMemberRepo, nil),
 		&config.Config{},
 		nil,
 	)
@@ -333,6 +336,7 @@ func TestTeamInvitationService_InviteMembers_PendingInvitationExists(t *testing.
 		mockTeamMemberRepo,
 		mockUserRepo,
 		mockEmailService,
+		NewAuthorizationService(mockTeamMemberRepo, nil),
 		&config.Config{},
 		nil,
 	)
@@ -411,6 +415,7 @@ func TestTeamInvitationService_InviteMembers_NoPermission(t *testing.T) {
 		mockTeamMemberRepo,
 		mockUserRepo,
 		mockEmailService,
+		NewAuthorizationService(mockTeamMemberRepo, nil),
 		&config.Config{},
 		nil,
 	)
@@ -469,6 +474,7 @@ func TestTeamInvitationService_InviteMembers_PersonalWorkspace(t *testing.T) {
 		mockTeamMemberRepo,
 		mockUserRepo,
 		mockEmailService,
+		NewAuthorizationService(mockTeamMemberRepo, nil),
 		&config.Config{},
 		nil,
 	)
@@ -534,6 +540,7 @@ func TestTeamInvitationService_InviteMembers_NonPersonalWorkspace(t *testing.T) 
 		mockTeamMemberRepo,
 		mockUserRepo,
 		mockEmailService,
+		NewAuthorizationService(mockTeamMemberRepo, nil),
 		&config.Config{},
 		nil,
 	)
@@ -634,7 +641,7 @@ func newInviterNameTestMocks() (*TeamInvitationService, *inviterNameTestMocks) {
 	}
 	service := NewTeamInvitationService(
 		m.invitationRepo, m.teamRepo, m.teamMemberRepo,
-		m.userRepo, m.emailService, &config.Config{}, nil,
+		m.userRepo, m.emailService, NewAuthorizationService(m.teamMemberRepo, nil), &config.Config{}, nil,
 	)
 	return service, m
 }
