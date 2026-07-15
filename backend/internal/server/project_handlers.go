@@ -40,7 +40,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 
 	project, err := s.container.ProjectService().CreateProject(userID, teamID, &req)
 	if err != nil {
-		s.handleCreateProjectError(w, userID, err)
+		s.handleCreateProjectError(w, r, userID, err)
 		return
 	}
 
@@ -198,7 +198,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 
 	project, err := s.container.ProjectService().UpdateProject(teamID, userID, decodedSlug, &req)
 	if err != nil {
-		s.handleUpdateProjectError(w, userID, decodedSlug, err)
+		s.handleUpdateProjectError(w, r, userID, decodedSlug, err)
 		return
 	}
 
@@ -225,7 +225,7 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 
 	err := s.container.ProjectService().DeleteProject(teamID, userID, decodedSlug)
 	if err != nil {
-		s.handleDeleteProjectError(w, userID, decodedSlug, err)
+		s.handleDeleteProjectError(w, r, userID, decodedSlug, err)
 		return
 	}
 
@@ -318,7 +318,20 @@ func (s *Server) decodeProjectSlug(w http.ResponseWriter, userID, handler, slug 
 }
 
 // handleCreateProjectError handles errors from project creation
-func (s *Server) handleCreateProjectError(w http.ResponseWriter, userID string, err error) {
+func (s *Server) handleCreateProjectError(w http.ResponseWriter, r *http.Request, userID string, err error) {
+	// Denials are benign client errors, so they are handled before the ERROR log
+	// and before the string-matching below: ErrPermissionDenied's text does not
+	// match any branch there, so it would otherwise fall through to a 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleCreateProject",
+			"user_id", userID,
+		).Warn("Forbidden project write attempt")
+		writeErrorResponse(w, r, "forbidden", "Only team owners and admins can create projects", http.StatusForbidden)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleCreateProject",
@@ -359,7 +372,18 @@ func (s *Server) handleGetProjectError(w http.ResponseWriter, userID, slug strin
 }
 
 // handleUpdateProjectError handles errors from project update
-func (s *Server) handleUpdateProjectError(w http.ResponseWriter, userID, slug string, err error) {
+func (s *Server) handleUpdateProjectError(w http.ResponseWriter, r *http.Request, userID, slug string, err error) {
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleUpdateProject",
+			"user_id", userID,
+			"slug", slug,
+		).Warn("Forbidden project write attempt")
+		writeErrorResponse(w, r, "forbidden", "Only team owners and admins can update projects", http.StatusForbidden)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleUpdateProject",
@@ -398,7 +422,18 @@ func (s *Server) handleUpdateProjectError(w http.ResponseWriter, userID, slug st
 }
 
 // handleDeleteProjectError handles errors from project deletion
-func (s *Server) handleDeleteProjectError(w http.ResponseWriter, userID, slug string, err error) {
+func (s *Server) handleDeleteProjectError(w http.ResponseWriter, r *http.Request, userID, slug string, err error) {
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleDeleteProject",
+			"user_id", userID,
+			"slug", slug,
+		).Warn("Forbidden project write attempt")
+		writeErrorResponse(w, r, "forbidden", "Only team owners and admins can delete projects", http.StatusForbidden)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleDeleteProject",

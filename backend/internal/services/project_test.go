@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -10,14 +11,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
+// allowAllAuthz authorizes every permission. These tests predate RBAC and cover
+// project mechanics, not authorization, so they run as a caller who is allowed —
+// the matrix itself is asserted in project_rbac_test.go.
+type allowAllAuthz struct{ AuthorizationServiceInterface }
+
+func (allowAllAuthz) Can(_ context.Context, _, _ string, _ authz.Permission) error { return nil }
+
 func createTestProjectService(repo repositories.ProjectRepository) *ProjectService {
-	return NewProjectService(repo, nil, nil, func() *slog.Logger { l, _ := logtest.New(); return l }())
+	return NewProjectService(
+		repo, nil, allowAllAuthz{}, nil,
+		func() *slog.Logger { l, _ := logtest.New(); return l }(),
+	)
 }
 
 func createTestProject() *models.Project {
