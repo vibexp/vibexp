@@ -87,4 +87,16 @@ export class ApiError extends Error {
   isResourceLimitError(): boolean {
     return this.code === 'RESOURCE_LIMIT_EXCEEDED'
   }
+
+  /**
+   * Check if this is a permission (403) error.
+   *
+   * The backend sends `FORBIDDEN` (internal/errors/codes.go) when the caller's
+   * team role does not grant the action. This is distinct from isAuthError():
+   * the caller IS authenticated, so re-logging in would not help — never route
+   * a forbidden error into the auth-expiry redirect.
+   */
+  isForbidden(): boolean {
+    return this.code === 'FORBIDDEN'
+  }
 }

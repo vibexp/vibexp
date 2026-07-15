@@ -24,10 +24,17 @@ function humanizeSlug(slug: string): string {
 export function buildArtifactsColumns({
   navigate,
   onDelete,
+  canDelete,
   typeNames,
 }: {
   navigate: NavigateFunction
   onDelete: (artifact: Artifact) => void
+  /**
+   * Whether the current user may delete this artifact — own vs any, decided per
+   * row from its creator (#225). Editing needs no gate: every role holds
+   * `resource.update.any`.
+   */
+  canDelete: (artifact: Artifact) => boolean
   // Maps a type slug to its display name so the badge shows the team's chosen
   // name (matching the form/filter); a Map keeps the lookup free of the
   // object-injection lint. Falls back to the humanized slug when absent.
@@ -119,17 +126,19 @@ export function buildArtifactsColumns({
             >
               <Pencil className="size-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete"
-              data-testid="delete-artifact-button"
-              onClick={() => {
-                onDelete(a)
-              }}
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            {canDelete(a) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete"
+                data-testid="delete-artifact-button"
+                onClick={() => {
+                  onDelete(a)
+                }}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            )}
           </div>
         )
       },

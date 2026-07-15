@@ -70,6 +70,10 @@ export type AcceptInvitationResponse =
   components['schemas']['AcceptInvitationResponse']
 export type CreateTeamRequest = components['schemas']['CreateTeamRequest']
 export type UpdateTeamRequest = components['schemas']['UpdateTeamRequest']
+// The roles a member can be changed *between*. `owner` is deliberately absent:
+// the API reaches it only through transfer-ownership, never a role update.
+export type ChangeableTeamRole =
+  components['schemas']['UpdateTeamMemberRoleRequest']['role']
 
 // Local shapes with no generated counterpart. `TeamWithMembers` is a frontend
 // composite; the role/status unions exist only inline in the generated schemas
@@ -220,6 +224,41 @@ class TeamService {
         params: { path: { id: teamId, userId } },
       })
     )
+  }
+
+  /**
+   * Change a member's role between member and admin (#222).
+   *
+   * The owner's role is not changeable this way — transferring ownership is a
+   * separate operation.
+   */
+  async updateMemberRole(
+    teamId: string,
+    userId: string,
+    role: ChangeableTeamRole
+  ): Promise<void> {
+    await unwrap(
+      generatedClient.PATCH('/api/v1/teams/{id}/members/{userId}/role', {
+        params: { path: { id: teamId, userId } },
+        body: { role },
+      })
+    )
+  }
+
+  /**
+   * Transfer team ownership to an existing member (#222).
+   *
+   * The caller is demoted to admin, so callers must refresh the team list
+   * afterwards: their own permissions have changed.
+   */
+  async transferOwnership(teamId: string, newOwnerId: string): Promise<Team> {
+    const response = await unwrap(
+      generatedClient.POST('/api/v1/teams/{id}/transfer-ownership', {
+        params: { path: { id: teamId } },
+        body: { new_owner_id: newOwnerId },
+      })
+    )
+    return response.team
   }
 
   /**

@@ -6,6 +6,11 @@ import type { Project, ProjectStatsResponse } from '@/services/projectService'
 
 // Mock TeamContext — stable references to prevent effect re-runs
 const mockUseTeam = jest.fn()
+// usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
+jest.mock('@/contexts/useAuth', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
+}))
+
 jest.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
@@ -55,8 +60,15 @@ const mockStats: ProjectStatsResponse = {
   total_feed_items: 1,
 }
 
+// These tests exercise the page as someone who may manage projects, so the
+// team grants the project permissions the actions are gated on (#225). A
+// member holds none of them and would see no actions at all.
 const mockTeam = {
-  currentTeam: { id: 'team-1', name: 'Test Team' },
+  currentTeam: {
+    id: 'team-1',
+    name: 'Test Team',
+    permissions: ['project.update', 'project.delete'],
+  },
   teams: [{ id: 'team-1', name: 'Test Team' }],
   isLoading: false,
   setCurrentTeam: jest.fn(),

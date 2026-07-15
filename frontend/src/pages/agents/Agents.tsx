@@ -8,6 +8,7 @@ import { ListPage, ListTable } from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
 import type {
   Agent,
@@ -40,6 +41,7 @@ interface AgentsState {
 export function Agents() {
   const navigate = useNavigate()
   const { currentTeam } = useTeam()
+  const { canDeleteResource } = usePermissions()
   const { handleError } = useErrorHandler()
 
   const [state, setState] = useState<AgentsState>({
@@ -196,8 +198,9 @@ export function Agents() {
           setSelectedAgent(agent)
           setIsDeleteDialogOpen(true)
         },
+        canDelete: agent => canDeleteResource(agent.user_id),
       }),
-    [navigate]
+    [navigate, canDeleteResource]
   )
 
   const status = state.loading

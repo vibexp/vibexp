@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   BarChart3,
   Calendar,
+  Crown,
   Edit,
   Info,
   Trash2,
@@ -16,8 +17,16 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useTeam } from '@/contexts/TeamContext'
+import { useAuth } from '@/contexts/useAuth'
+import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
-import type { Team, TeamInvitation, TeamMember } from '@/services/teamService'
+import type {
+  ChangeableTeamRole,
+  Team,
+  TeamInvitation,
+  TeamMember,
+} from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 import { ApiError } from '@/types/errors'
 
@@ -26,6 +35,7 @@ import { EditTeamModal } from './EditTeamModal'
 import { InviteTeamMembersModal } from './InviteTeamMembersModal'
 import { mergeMembersAndInvitations } from './teamMemberMerge'
 import { TeamMembersList } from './TeamMembersList'
+import { TransferOwnershipModal } from './TransferOwnershipModal'
 
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString('en-US', {
@@ -47,9 +57,82 @@ function TeamDetailsSkeleton() {
   )
 }
 
+/**
+ * The team-level actions, each gated on the permission it needs (#225).
+ *
+ * A personal workspace has nobody to invite, transfer to, or share with, so
+ * those stay hidden there regardless of role.
+ */
+function TeamActions({
+  isPersonal,
+  canDeleteTeam,
+  canTransferOwnership,
+  canUpdateTeam,
+  canInvite,
+  onDelete,
+  onTransfer,
+  onEdit,
+  onInvite,
+}: {
+  isPersonal: boolean
+  canDeleteTeam: boolean
+  canTransferOwnership: boolean
+  canUpdateTeam: boolean
+  canInvite: boolean
+  onDelete: () => void
+  onTransfer: () => void
+  onEdit: () => void
+  onInvite: () => void
+}) {
+  if (!canDeleteTeam && !canTransferOwnership && !canUpdateTeam && !canInvite) {
+    return null
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {canDeleteTeam && !isPersonal && (
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="delete-team-button"
+          onClick={onDelete}
+        >
+          <Trash2 className="mr-2 size-4" />
+          Delete team
+        </Button>
+      )}
+      {canTransferOwnership && !isPersonal && (
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="transfer-ownership-button"
+          onClick={onTransfer}
+        >
+          <Crown className="mr-2 size-4" />
+          Transfer ownership
+        </Button>
+      )}
+      {canUpdateTeam && (
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          <Edit className="mr-2 size-4" />
+          Edit team
+        </Button>
+      )}
+      {canInvite && !isPersonal && (
+        <Button size="sm" onClick={onInvite}>
+          <UserPlus className="mr-2 size-4" />
+          Invite members
+        </Button>
+      )}
+    </div>
+  )
+}
+
 export function TeamDetailsPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
+  const { refreshTeams } = useTeam()
+  const { user } = useAuth()
 
   const [team, setTeam] = useState<Team | null>(null)
   const [members, setMembers] = useState<TeamMember[]>([])
@@ -58,6 +141,12 @@ export function TeamDetailsPage() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showTransferModal, setShowTransferModal] = useState(false)
+
+  // This page can show any team the user belongs to, not just the current one,
+  // so gate on the team it fetched. While loading (`team` is null) nothing is
+  // permitted, which is the safe default for a page full of destructive actions.
+  const { can } = usePermissions(team)
 
   const loadTeamDetails = useCallback(async () => {
     if (!id) return
@@ -113,6 +202,50 @@ export function TeamDetailsPage() {
     }
   }
 
+  const handleChangeRole = async (userId: string, role: ChangeableTeamRole) => {
+    if (!id) return
+
+    // Optimistic: the dropdown should settle immediately. Snapshot first so a
+    // rejected change (e.g. the caller lost the permission meanwhile) puts the
+    // row back rather than leaving the UI asserting a role the server refused.
+    const previousMembers = members
+    setMembers(current =>
+      current.map(member =>
+        member.user_id === userId ? { ...member, role } : member
+      )
+    )
+
+    try {
+      await teamService.updateMemberRole(id, userId, role)
+      toast.success(`Role updated to ${role}`)
+
+      // Nothing else on the page depends on another member's role, so the
+      // optimistic row above is the whole update — refetching here would
+      // replace the page with a loading skeleton and undo the point of it.
+      //
+      // Demoting YOURSELF is different: the backend only protects the owner's
+      // role (TeamService.UpdateMemberRole), so an admin may hand away their
+      // own permissions. Resync both this page's gates and the cached team
+      // list, or the rest of the SPA keeps offering admin actions that now 403.
+      if (userId === user?.id) {
+        await loadTeamDetails()
+        await refreshTeams()
+      }
+    } catch (err) {
+      setMembers(previousMembers)
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to update role'
+      toast.error(errorMessage)
+    }
+  }
+
+  const handleTransferSuccess = async () => {
+    // The caller is an admin now: both this page's team (its `permissions`) and
+    // the cached team list are stale until refetched.
+    await loadTeamDetails()
+    await refreshTeams()
+  }
+
   const handleInviteMembers = async (emails: string[]) => {
     if (!id) return
 
@@ -151,7 +284,14 @@ export function TeamDetailsPage() {
     )
   }
 
-  const isOwner = team.role === 'owner'
+  // Gate on the permissions the server computed for THIS team (which may not be
+  // the current team), never on `role` — the matrix lives on the backend (#224).
+  const canUpdateTeam = can('team.update')
+  const canDeleteTeam = can('team.delete')
+  const canInvite = can('member.invite')
+  const canRemoveMember = can('member.remove')
+  const canManageRoles = can('member.role.update')
+  const canTransferOwnership = can('team.transfer')
 
   return (
     <div className="space-y-6">
@@ -242,50 +382,33 @@ export function TeamDetailsPage() {
             Team Members
           </h2>
 
-          {isOwner && (
-            <div className="flex flex-wrap items-center gap-2">
-              {!team.is_personal && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  data-testid="delete-team-button"
-                  onClick={() => {
-                    setShowDeleteModal(true)
-                  }}
-                >
-                  <Trash2 className="mr-2 size-4" />
-                  Delete team
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setShowEditModal(true)
-                }}
-              >
-                <Edit className="mr-2 size-4" />
-                Edit team
-              </Button>
-              {!team.is_personal && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setShowInviteModal(true)
-                  }}
-                >
-                  <UserPlus className="mr-2 size-4" />
-                  Invite members
-                </Button>
-              )}
-            </div>
-          )}
+          <TeamActions
+            isPersonal={team.is_personal}
+            canDeleteTeam={canDeleteTeam}
+            canTransferOwnership={canTransferOwnership}
+            canUpdateTeam={canUpdateTeam}
+            canInvite={canInvite}
+            onDelete={() => {
+              setShowDeleteModal(true)
+            }}
+            onTransfer={() => {
+              setShowTransferModal(true)
+            }}
+            onEdit={() => {
+              setShowEditModal(true)
+            }}
+            onInvite={() => {
+              setShowInviteModal(true)
+            }}
+          />
         </div>
 
         <TeamMembersList
           members={members}
-          isOwner={isOwner}
-          onRemoveMember={isOwner ? handleRemoveMember : undefined}
+          canManageRoles={canManageRoles}
+          canRemoveMember={canRemoveMember}
+          onRemoveMember={canRemoveMember ? handleRemoveMember : undefined}
+          onChangeRole={canManageRoles ? handleChangeRole : undefined}
         />
       </section>
 
@@ -296,6 +419,16 @@ export function TeamDetailsPage() {
           setShowInviteModal(false)
         }}
         onSubmit={handleInviteMembers}
+      />
+
+      <TransferOwnershipModal
+        isOpen={showTransferModal}
+        team={team}
+        members={members}
+        onClose={() => {
+          setShowTransferModal(false)
+        }}
+        onSuccess={handleTransferSuccess}
       />
 
       {showEditModal && (

@@ -55,11 +55,17 @@ function ExternalLinkCell({
 export function buildProjectsColumns({
   navigate,
   onDelete,
+  canUpdate,
+  canDelete,
 }: {
   navigate: NavigateFunction
   onDelete: (project: Project) => void
+  /** `project.update` — gates Edit and Migrate resources (#225). */
+  canUpdate: boolean
+  /** `project.delete` — gates Delete (#225). */
+  canDelete: boolean
 }): ColumnDef<Project>[] {
-  return [
+  const columns: ColumnDef<Project>[] = [
     {
       accessorKey: 'name',
       header: 'Name',
@@ -122,48 +128,60 @@ export function buildProjectsColumns({
       cell: ({ row }) => (
         <TooltipProvider>
           <div className="flex justify-end gap-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Edit"
-              onClick={() => {
-                void navigate(
-                  `/settings/projects/edit/${encodeURIComponent(row.original.slug)}`
-                )
-              }}
-            >
-              <Pencil className="size-4" />
-            </Button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Migrate resources"
-                  onClick={() => {
-                    void navigate(
-                      `/settings/projects/${encodeURIComponent(row.original.slug)}/migrate`
-                    )
-                  }}
-                >
-                  <ArrowRightLeft className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Migrate resources</TooltipContent>
-            </Tooltip>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete"
-              onClick={() => {
-                onDelete(row.original)
-              }}
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            {canUpdate && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Edit"
+                onClick={() => {
+                  void navigate(
+                    `/settings/projects/edit/${encodeURIComponent(row.original.slug)}`
+                  )
+                }}
+              >
+                <Pencil className="size-4" />
+              </Button>
+            )}
+            {canUpdate && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Migrate resources"
+                    onClick={() => {
+                      void navigate(
+                        `/settings/projects/${encodeURIComponent(row.original.slug)}/migrate`
+                      )
+                    }}
+                  >
+                    <ArrowRightLeft className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Migrate resources</TooltipContent>
+              </Tooltip>
+            )}
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete"
+                onClick={() => {
+                  onDelete(row.original)
+                }}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            )}
           </div>
         </TooltipProvider>
       ),
     },
   ]
+
+  // Members hold no project permissions at all (epic #220 decision D2), so drop
+  // the column rather than leave an empty one hanging off every row.
+  return canUpdate || canDelete
+    ? columns
+    : columns.filter(column => column.id !== 'actions')
 }

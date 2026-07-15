@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { usePermissions } from '@/hooks/usePermissions'
 import type { Feed } from '@/services/feedService'
 
 interface FeedManageDropdownProps {
@@ -20,6 +21,9 @@ export function FeedManageDropdown({
   onDeleteFeed,
 }: FeedManageDropdownProps) {
   const navigate = useNavigate()
+  // Deleting a feed follows the same own-vs-any rule the backend applies to
+  // feed items (FeedService.DeleteFeed), so it needs the same gate (#225).
+  const { canDeleteFeedContent } = usePermissions()
 
   return (
     <DropdownMenu>
@@ -59,16 +63,18 @@ export function FeedManageDropdown({
               >
                 <Settings className="size-3" />
               </button>
-              <button
-                type="button"
-                aria-label={`Delete ${feed.name}`}
-                className="rounded p-1 hover:bg-muted"
-                onClick={() => {
-                  onDeleteFeed(feed)
-                }}
-              >
-                <Trash2 className="size-3 text-destructive" />
-              </button>
+              {canDeleteFeedContent(feed.created_by_user_id) && (
+                <button
+                  type="button"
+                  aria-label={`Delete ${feed.name}`}
+                  className="rounded p-1 hover:bg-muted"
+                  onClick={() => {
+                    onDeleteFeed(feed)
+                  }}
+                >
+                  <Trash2 className="size-3 text-destructive" />
+                </button>
+              )}
             </div>
           </DropdownMenuItem>
         ))}

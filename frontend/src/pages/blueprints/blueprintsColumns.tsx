@@ -28,9 +28,16 @@ const TYPE_LABEL: Record<Blueprint['type'], string> = {
 export function buildBlueprintsColumns({
   navigate,
   onDelete,
+  canDelete,
 }: {
   navigate: NavigateFunction
   onDelete: (blueprint: Blueprint) => void
+  /**
+   * Whether the current user may delete this blueprint — own vs any, decided
+   * per row from its creator (#225). Editing needs no gate: every role holds
+   * `resource.update.any`.
+   */
+  canDelete: (blueprint: Blueprint) => boolean
 }): ColumnDef<Blueprint>[] {
   return [
     {
@@ -114,16 +121,18 @@ export function buildBlueprintsColumns({
             >
               <Pencil className="size-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete"
-              onClick={() => {
-                onDelete(a)
-              }}
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            {canDelete(a) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete"
+                onClick={() => {
+                  onDelete(a)
+                }}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            )}
           </div>
         )
       },

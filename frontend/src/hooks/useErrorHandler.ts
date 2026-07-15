@@ -57,6 +57,23 @@ function handleApiError(
     return {}
   }
 
+  // Handle permission errors. The UI gates actions the caller's role lacks
+  // (#225), but the backend is the enforcement point, so a 403 can still land
+  // here — a stale permission set after a role change, or a direct link. Say
+  // why it failed instead of dropping it into the generic error toast.
+  //
+  // Deliberately below the auth branch: a forbidden caller is authenticated,
+  // so this must never trigger the logout redirect above.
+  if (error.isForbidden()) {
+    if (shouldShowToast) {
+      showAlert({
+        message: error.getMessage(),
+        type: 'warning',
+      })
+    }
+    return {}
+  }
+
   // Show general error message
   if (shouldShowToast) {
     showAlert({
