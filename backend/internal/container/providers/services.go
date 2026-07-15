@@ -49,12 +49,13 @@ func ProvidePromptService(
 	userRepo repositories.UserRepository,
 	projectRepo repositories.ProjectRepository,
 	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
 ) services.PromptServiceInterface {
 	return services.NewPromptService(
-		repo, refRepo, userRepo, projectRepo, teamService, eventManager, logger, contentVersionSvc,
+		repo, refRepo, userRepo, projectRepo, teamService, authzService, eventManager, logger, contentVersionSvc,
 	)
 }
 
@@ -251,10 +252,13 @@ func ProvideAgentService(
 	executionRepo repositories.AgentExecutionRepository,
 	encryptionService services.EncryptionServiceInterface,
 	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) services.AgentServiceInterface {
-	return services.NewAgentService(agentRepo, executionRepo, encryptionService, teamService, cfg, logger)
+	return services.NewAgentService(
+		agentRepo, executionRepo, encryptionService, teamService, authzService, cfg, logger,
+	)
 }
 
 // ProvideAgentCardFetcher creates a new AgentCardFetcher. cfg drives the SSRF

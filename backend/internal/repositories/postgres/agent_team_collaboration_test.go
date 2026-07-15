@@ -137,9 +137,15 @@ func TestAgentRepository_TeamMember_CanGetOtherMembersAgents(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestAgentRepository_RegularMember_CannotUpdateOtherMembersAgents verifies that regular team members
-// cannot update agents created by other team members (only owner/admin can update)
-func TestAgentRepository_RegularMember_CannotUpdateOtherMembersAgents(t *testing.T) {
+// TestAgentRepository_RegularMember_CanUpdateOtherMembersAgents verifies the
+// repository's post-#236 contract: it enforces TENANCY only, so it permits a
+// regular member to update another member's agent.
+//
+// This inverts the old assertion deliberately. Epic #220 D1 makes update uniform
+// *including agents* (accepted despite agents holding encrypted credentials), and
+// D3 moves role logic out of SQL into AgentService. The role decision is asserted
+// where it now lives — see internal/services/agent_rbac_test.go.
+func TestAgentRepository_RegularMember_CanUpdateOtherMembersAgents(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() {
@@ -154,8 +160,8 @@ func TestAgentRepository_RegularMember_CannotUpdateOtherMembersAgents(t *testing
 
 	// Scenario:
 	// - Alice creates agent in team
-	// - Bob (regular team member, not admin) tries to update the agent
-	// - Expected: Update fails - only resource owner, team owner, or team admin can update
+	// - Bob (regular team member) updates the agent
+	// - Expected: the repository permits it; only tenancy is its concern
 
 	teamID := "team-123"
 	bobUserID := "user-bob"
@@ -176,14 +182,17 @@ func TestAgentRepository_RegularMember_CannotUpdateOtherMembersAgents(t *testing
 	// Mock ownership/admin validation - should return false because Bob is not owner/admin
 	ownershipQuery := `SELECT EXISTS\(`
 	mock.ExpectQuery(ownershipQuery).
-		WithArgs(aliceAgentID, teamID, bobUserID).
-		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+		WithArgs(aliceAgentID, teamID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+	mock.ExpectQuery(`UPDATE agents`).
+		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 
 	// Bob tries to update Alice's agent
 	err = repo.Update(ctx, agent)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), agent.Version)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -226,15 +235,16 @@ func TestAgentRepository_TeamAdmin_CanUpdateOtherMembersAgents(t *testing.T) {
 	// Mock ownership/admin validation - should return true because Carol is admin
 	ownershipQuery := `SELECT EXISTS\(`
 	mock.ExpectQuery(ownershipQuery).
-		WithArgs(aliceAgentID, teamID, carolUserID).
+		WithArgs(aliceAgentID, teamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Mock update query
 	updateQuery := `UPDATE agents`
+	// 11 args now: the actor arg went away with the role predicate (epic #220 D3).
 	mock.ExpectQuery(updateQuery).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg()).
+			sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 
 	// Carol (admin) updates Alice's agent

@@ -13,6 +13,7 @@ import (
 
 	"github.com/samber/lo"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -24,6 +25,7 @@ type PromptService struct {
 	userRepo          repositories.UserRepository
 	projectRepo       repositories.ProjectRepository
 	teamService       TeamServiceInterface
+	authz             AuthorizationServiceInterface
 	eventManager      events.EventPublisher
 	contentVersionSvc ContentVersionServiceInterface
 	logger            *slog.Logger
@@ -38,6 +40,7 @@ func NewPromptService(
 	userRepo repositories.UserRepository,
 	projectRepo repositories.ProjectRepository,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
@@ -48,6 +51,7 @@ func NewPromptService(
 		userRepo:          userRepo,
 		projectRepo:       projectRepo,
 		teamService:       teamService,
+		authz:             authzService,
 		eventManager:      eventManager,
 		contentVersionSvc: contentVersionSvc,
 		logger:            logger,
@@ -109,13 +113,21 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 func (s *PromptService) CreatePrompt(userID, teamID string, req *models.CreatePromptRequest) (*models.Prompt, error) {
 	ctx := context.Background()
 
+	// Team ID comes from URL path and is already validated by middleware
+	finalTeamID := teamID
+
+	// Creating a resource is open to any team member (epic #220), but the caller
+	// must still BE one — the middleware proves tenancy, this proves the role
+	// grants the action. Checked before the project validation below so an
+	// unauthorized caller cannot probe which projects exist.
+	if authzErr := s.authz.Can(ctx, userID, finalTeamID, authz.ResourceCreate); authzErr != nil {
+		return nil, authzErr
+	}
+
 	// Validate that the project exists and belongs to the user
 	if err := s.validateProjectOwnership(ctx, userID, req.ProjectID); err != nil {
 		return nil, err
 	}
-
-	// Team ID comes from URL path and is already validated by middleware
-	finalTeamID := teamID
 
 	if req.Status == "" {
 		req.Status = "draft"
@@ -292,6 +304,14 @@ func (s *PromptService) updatePromptInternal(
 	existingPrompt, err := s.repo.GetByID(ctx, userID, teamID, promptID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Any member may update any prompt, including another member's (epic #220
+	// decision D1 — uniform update). This is not a relaxation in practice: the
+	// repository's `user_id` check compared the stored owner against itself, so
+	// it always passed; the rule now simply says what it does.
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceUpdateAny); authzErr != nil {
+		return nil, authzErr
 	}
 
 	// Check if there are any updates to apply
@@ -479,11 +499,38 @@ func (s *PromptService) DeletePromptBySlug(userID, teamID, slug string) error {
 		return err
 	}
 
-	return s.DeletePrompt(userID, teamID, existingPrompt.ID)
+	// Hand the already-loaded prompt straight through: the own-vs-any check needs
+	// its owner, and re-fetching it by ID would be a second identical read.
+	return s.deleteFetchedPrompt(context.Background(), userID, teamID, existingPrompt)
 }
 
 func (s *PromptService) DeletePrompt(userID, teamID, promptID string) error {
 	ctx := context.Background()
+
+	// Fetch first to learn who created the prompt: delete is own-vs-any (members
+	// delete only what they authored; Admin+ delete anyone's), and the
+	// repository no longer carries that decision in its SQL.
+	existingPrompt, err := s.repo.GetByID(ctx, userID, teamID, promptID)
+	if err != nil {
+		return err
+	}
+
+	return s.deleteFetchedPrompt(ctx, userID, teamID, existingPrompt)
+}
+
+// deleteFetchedPrompt authorizes and deletes a prompt the caller has already
+// loaded, so the slug path does not pay for a second identical read.
+func (s *PromptService) deleteFetchedPrompt(
+	ctx context.Context, userID, teamID string, existingPrompt *models.Prompt,
+) error {
+	if authzErr := s.authz.CanActOnResource(
+		ctx, userID, teamID, existingPrompt.UserID,
+		authz.ResourceDeleteOwn, authz.ResourceDeleteAny,
+	); authzErr != nil {
+		return authzErr
+	}
+
+	promptID := existingPrompt.ID
 
 	// Check if the prompt has dependents (is being used by other prompts)
 	hasDependents, err := s.refRepo.HasDependents(ctx, promptID)

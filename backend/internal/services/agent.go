@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -28,6 +29,7 @@ type AgentService struct {
 	encryptionService EncryptionServiceInterface
 	authenticator     *AgentAuthenticator
 	teamService       TeamServiceInterface
+	authz             AuthorizationServiceInterface
 	logger            *slog.Logger
 	// refreshInFlight dedups concurrent background card refreshes per agent id so
 	// a burst of reads for a stale agent spawns at most one refresh.
@@ -42,6 +44,7 @@ func NewAgentService(
 	executionRepo repositories.AgentExecutionRepository,
 	encryptionService EncryptionServiceInterface,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) *AgentService {
@@ -52,6 +55,7 @@ func NewAgentService(
 		encryptionService: encryptionService,
 		authenticator:     NewAgentAuthenticator(encryptionService),
 		teamService:       teamService,
+		authz:             authzService,
 		logger:            logger,
 	}
 }
@@ -63,6 +67,7 @@ func NewAgentServiceWithCardFetcher(
 	cardFetcher AgentCardFetcherInterface,
 	encryptionService EncryptionServiceInterface,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	logger *slog.Logger,
 ) *AgentService {
 	return &AgentService{
@@ -72,6 +77,7 @@ func NewAgentServiceWithCardFetcher(
 		encryptionService: encryptionService,
 		authenticator:     NewAgentAuthenticator(encryptionService),
 		teamService:       teamService,
+		authz:             authzService,
 		logger:            logger,
 	}
 }
@@ -170,7 +176,12 @@ func (s *AgentService) cardFetchAuthHeaders(agent *models.Agent) map[string]stri
 func (s *AgentService) CreateAgent(
 	ctx context.Context, userID, teamID string, req *models.CreateAgentRequest,
 ) (*models.Agent, error) {
-	// Team ID is already validated by middleware, use it directly
+	// Team ID is already validated by middleware, use it directly.
+	// Creating a resource is open to any team member (epic #220), but the caller
+	// must still BE one — the middleware proves tenancy, this proves the role.
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceCreate); authzErr != nil {
+		return nil, authzErr
+	}
 
 	if req.Status == "" {
 		req.Status = "active"
@@ -382,6 +393,14 @@ func (s *AgentService) UpdateAgent(
 		return nil, fmt.Errorf("failed to get agent: %w", err)
 	}
 
+	// Any member may update any agent, including another member's (epic #220
+	// decision D1). This is deliberate and documented as a product trade-off:
+	// agents carry encrypted provider credentials, and D1 accepts that in
+	// exchange for one uniform update rule across every resource type.
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceUpdateAny); authzErr != nil {
+		return nil, authzErr
+	}
+
 	// Note: team_id cannot be changed via update (removed from UpdateAgentRequest)
 	// Team reassignment is forbidden to prevent cross-team resource moves
 
@@ -463,6 +482,21 @@ func (s *AgentService) UpdateAgent(
 }
 
 func (s *AgentService) DeleteAgent(ctx context.Context, userID, teamID, agentID string) error {
+	// Fetch first to learn who created the agent: delete is own-vs-any (members
+	// delete only what they authored; Admin+ delete anyone's), and the
+	// repository no longer carries that decision in its SQL.
+	agent, err := s.agentRepo.GetByID(ctx, userID, teamID, agentID)
+	if err != nil {
+		return fmt.Errorf("failed to get agent: %w", err)
+	}
+
+	if authzErr := s.authz.CanActOnResource(
+		ctx, userID, teamID, agent.UserID,
+		authz.ResourceDeleteOwn, authz.ResourceDeleteAny,
+	); authzErr != nil {
+		return authzErr
+	}
+
 	if err := s.agentRepo.Delete(ctx, userID, teamID, agentID); err != nil {
 		s.logger.With(
 			"service", "agent-service",
@@ -695,6 +729,13 @@ func (s *AgentService) UpdateAgentCredentials(
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to get agent")
 		return fmt.Errorf("failed to get agent: %w", err)
+	}
+
+	// Writing credentials is an update of the agent, so it carries the same
+	// permission (epic #220 D1). Not listed in #236's scope, but leaving it
+	// ungated would be a hole around the very field D1 is contentious about.
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceUpdateAny); authzErr != nil {
+		return authzErr
 	}
 
 	// Encrypt and update credentials

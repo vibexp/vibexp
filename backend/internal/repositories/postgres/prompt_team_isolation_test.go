@@ -80,9 +80,11 @@ func TestPromptRepository_Update_CrossTeamIsolation(t *testing.T) {
 		Version:     1,
 	}
 
-	// Expect ownership validation query first - should fail since prompt belongs to Team A
-	mock.ExpectQuery("SELECT EXISTS\\(.*FROM prompts p.*EXISTS.*teams.*").
-		WithArgs(prompt.ID, teamB, userID).
+	// Existence-in-team check — fails because the prompt belongs to Team A. This
+	// is tenancy, which stays in SQL (epic #220 D3 moved only ROLE logic out), so
+	// cross-team isolation is still enforced by the repository.
+	mock.ExpectQuery("SELECT EXISTS\\(.*FROM prompts p.*").
+		WithArgs(prompt.ID, teamB).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false)) // Prompt not in Team B
 
 	// Try to update prompt using Team B credentials - should fail

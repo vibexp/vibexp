@@ -132,6 +132,19 @@ func (s *Server) createPromptWithErrorHandling(
 ) (*models.Prompt, bool) {
 	prompt, err := s.container.PromptService().CreatePrompt(userID, teamID, req)
 	if err != nil {
+		// Denials are benign client errors: handled before the ERROR log and
+		// before the string-matching below, which ErrPermissionDenied's text
+		// matches nowhere — it would otherwise fall through to a 500.
+		if stderrors.Is(err, services.ErrPermissionDenied) {
+			s.logger.With("service", "vibexp-api", "handler", "handleCreatePrompt", "user_id", userID).
+				Warn("Forbidden prompt write attempt")
+			writeErrorResponse(
+				w, nil, "forbidden",
+				"You do not have permission to create prompts in this team", http.StatusForbidden,
+			)
+			return nil, false
+		}
+
 		s.logger.With(
 			"service", "vibexp-api",
 			"handler", "handleCreatePrompt",
@@ -418,6 +431,17 @@ func (s *Server) validateUpdatePromptRequest(req *models.UpdatePromptRequest, w 
 }
 
 func (s *Server) handleUpdatePromptError(err error, req *models.UpdatePromptRequest, w http.ResponseWriter) {
+	// Denial before the string-matching chain (see handleCreatePrompt).
+	if stderrors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With("service", "vibexp-api", "handler", "handleUpdatePrompt").
+			Warn("Forbidden prompt write attempt")
+		writeErrorResponse(
+			w, nil, "forbidden",
+			"You do not have permission to update this prompt", http.StatusForbidden,
+		)
+		return
+	}
+
 	if stderrors.Is(err, repositories.ErrPromptNotFound) {
 		writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
 		return
@@ -790,6 +814,19 @@ func (s *Server) deletePromptAndEmbeddings(
 ) error {
 	err := s.container.PromptService().DeletePromptBySlug(userID, teamID, promptSlug)
 	if err != nil {
+		// Denial before the string-matching chain (see handleCreatePrompt).
+		if stderrors.Is(err, services.ErrPermissionDenied) {
+			s.logger.With(
+				"service", "vibexp-api", "handler", "handleDeletePrompt",
+				"user_id", userID, "prompt_slug", promptSlug,
+			).Warn("Forbidden prompt delete attempt")
+			writeErrorResponse(
+				w, nil, "forbidden",
+				"You can only delete prompts you created; team admins can delete any", http.StatusForbidden,
+			)
+			return err
+		}
+
 		s.logger.With(
 			"service", "vibexp-api",
 			"handler", "handleDeletePrompt",

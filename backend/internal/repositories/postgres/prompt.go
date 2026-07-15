@@ -421,16 +421,16 @@ func (r *PromptRepository) queryList(
 
 // validatePromptOwnerOrAdmin checks if user can modify the prompt (owner, team owner, or team admin)
 // Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
-func (r *PromptRepository) validatePromptOwnerOrAdmin(ctx context.Context, promptID, teamID, userID string) error {
+// validatePromptInTeam proves the prompt exists within the team. It is a
+// TENANCY check only (epic #220 decision D3): whether the caller's ROLE permits
+// the update is decided by PromptService via the authz matrix before this is
+// reached. It is kept because the caller relies on ErrPromptNotFound to tell a
+// missing prompt apart from an optimistic-lock version conflict.
+func (r *PromptRepository) validatePromptInTeam(ctx context.Context, promptID, teamID string) error {
 	var exists bool
-	query := `SELECT EXISTS(SELECT 1 FROM prompts p
-		WHERE p.id = $1 AND p.team_id = $2 AND (
-			p.user_id = $3
-			OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-			OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin'))
-		))`
-	if err := r.db.QueryRowContext(ctx, query, promptID, teamID, userID).Scan(&exists); err != nil {
-		return fmt.Errorf("failed to validate prompt ownership: %w", err)
+	query := `SELECT EXISTS(SELECT 1 FROM prompts p WHERE p.id = $1 AND p.team_id = $2)`
+	if err := r.db.QueryRowContext(ctx, query, promptID, teamID).Scan(&exists); err != nil {
+		return fmt.Errorf("failed to validate prompt: %w", err)
 	}
 	if !exists {
 		return repositories.ErrPromptNotFound
@@ -440,8 +440,10 @@ func (r *PromptRepository) validatePromptOwnerOrAdmin(ctx context.Context, promp
 
 // Update updates an existing prompt
 func (r *PromptRepository) Update(ctx context.Context, prompt *models.Prompt) error {
-	// Validate ownership/admin rights before checking version
-	if err := r.validatePromptOwnerOrAdmin(ctx, prompt.ID, prompt.TeamID, prompt.UserID); err != nil {
+	// Prove the prompt exists in the team before checking version, so a missing
+	// prompt is not reported as a version conflict. Role is NOT checked here —
+	// PromptService authorized the caller already.
+	if err := r.validatePromptInTeam(ctx, prompt.ID, prompt.TeamID); err != nil {
 		return err
 	}
 
@@ -450,15 +452,12 @@ func (r *PromptRepository) Update(ctx context.Context, prompt *models.Prompt) er
 		SET name = $2, slug = $3, description = $4, body = $5, project_id = $6,
 		status = $7, mcp_expose = $8, labels = $9, team_id = $10, updated_at = $11, version = version + 1
 		WHERE id = $1 AND team_id = $12 AND version = $13
-			AND (user_id = $14
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $12 AND owner_id = $14)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $12 AND user_id = $14 AND role IN ('owner', 'admin')))
 		RETURNING updated_at, version`
 
 	err := r.db.QueryRowContext(ctx, query,
 		prompt.ID, prompt.Name, prompt.Slug, prompt.Description, prompt.Body,
 		prompt.ProjectID, prompt.Status, prompt.MCPExpose, pq.Array(prompt.Labels),
-		prompt.TeamID, prompt.UpdatedAt, prompt.TeamID, prompt.Version, prompt.UserID,
+		prompt.TeamID, prompt.UpdatedAt, prompt.TeamID, prompt.Version,
 	).Scan(&prompt.UpdatedAt, &prompt.Version)
 
 	if err != nil {
@@ -482,9 +481,8 @@ func (r *PromptRepository) Delete(ctx context.Context, userID, teamID, promptID 
 		WHERE id = $1
 			AND team_id = $2
 			AND (
-				user_id = $3
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin'))
+				EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
 			)
 	`
 
