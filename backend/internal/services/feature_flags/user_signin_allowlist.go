@@ -12,6 +12,13 @@ type ContextKey string
 // EmailContextKey is the context key for storing email in context for feature flag evaluation
 const EmailContextKey ContextKey = "email"
 
+// EmailVerifiedContextKey carries whether the identity provider VERIFIED the
+// email in EmailContextKey, rather than merely relaying what the user claimed.
+//
+// When absent, the email is treated as verified — so callers with no verification
+// concept (dev login) and every pre-#218 caller keep their existing behavior.
+const EmailVerifiedContextKey ContextKey = "email_verified"
+
 // FlagUserSignInAllowlist is the registered name of the sign-in allowlist flag.
 // It is the lookup key callers pass to FeatureFlagService.IsEnabled.
 const FlagUserSignInAllowlist = "user_signin_allowlist"
@@ -77,7 +84,10 @@ func (f *UserSignInAllowlistFlag) Name() string {
 // When the allowlist is empty (unconfigured), sign-in is open and every email
 // is allowed — this is the default for self-hosted/open-source instances. The
 // matching decision is delegated to IsEmailAllowed; Evaluate adds the context
-// plumbing and denial/grant logging.
+// plumbing, the claim-verification rule, and denial/grant logging.
+//
+// An ACTIVE allowlist additionally requires the address to be provider-verified
+// (EmailVerifiedContextKey): see the unverified-email guard below.
 func (f *UserSignInAllowlistFlag) Evaluate(ctx context.Context) bool {
 	// Empty allowlist means open registration: allow everyone.
 	if f.openAccess() {
@@ -92,6 +102,23 @@ func (f *UserSignInAllowlistFlag) Evaluate(ctx context.Context) bool {
 			"component", "feature-flags",
 			"flag", "user_signin_allowlist",
 		).Debug("No email found in context, denying sign-in access")
+		return false
+	}
+
+	// An allowlist decides access BY email address, so it is only as trustworthy
+	// as the address is. An unverified claim is just an assertion the user made,
+	// so honouring it would let anyone claim an allowlisted address and be let in
+	// (issue #218). Deliberately gated on the allowlist being active — reached
+	// only after the openAccess() short-circuit above — so open instances behave
+	// exactly as before. An ABSENT key means verified: callers with no
+	// verification concept (dev login) are unaffected.
+	if verified, present := ctx.Value(EmailVerifiedContextKey).(bool); present && !verified {
+		f.logger.With(
+			"service", "vibexp-api",
+			"component", "feature-flags",
+			"flag", "user_signin_allowlist",
+			"email", strings.ToLower(strings.TrimSpace(email)),
+		).Debug("Email is not provider-verified, denying sign-in access")
 		return false
 	}
 
@@ -116,7 +143,11 @@ func (f *UserSignInAllowlistFlag) Evaluate(ctx context.Context) bool {
 }
 
 // IsEmailAllowed reports whether email may sign in, without needing a context.
-// It is the single source of truth for the allow/deny decision.
+// It is the single source of truth for MATCHING an address against the allowlist.
+// It deliberately says nothing about whether the address was provider-verified —
+// callers holding IdP claims want Evaluate, which applies that rule too (#218);
+// callers with an already-established identity (the MCP consent re-check, #217)
+// want this.
 //
 // When the allowlist is empty (unconfigured), every email is allowed. Otherwise
 // the email is allowed iff (a) its normalized form exactly matches a configured

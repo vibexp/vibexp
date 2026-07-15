@@ -39,16 +39,34 @@ var ErrAccessRestricted = errors.New("access restricted by allowlist")
 // ensureAccessAllowed denies sign-in when email is not permitted by the access
 // allowlist, returning ErrAccessRestricted. An unconfigured allowlist (both
 // lists empty) is open access and always allowed. The decision is evaluated
-// through the user_signin_allowlist feature flag (which reads the email from
-// context); provider is included in the audit log for operator traceability.
-func (as *AuthService) ensureAccessAllowed(ctx context.Context, email, provider string) error {
+// through the user_signin_allowlist feature flag (which reads the email and its
+// verification status from context); provider is included in the audit log for
+// operator traceability.
+//
+// emailVerified reports whether the identity provider VERIFIED the address. An
+// active allowlist rejects an unverified one (#218): the allowlist grants access
+// by address, so an address the user merely claimed must not satisfy it. Callers
+// with no verification concept (dev login) pass true, keeping their behavior.
+func (as *AuthService) ensureAccessAllowed(
+	ctx context.Context, email, provider string, emailVerified bool,
+) error {
 	ctx = context.WithValue(ctx, feature_flags.EmailContextKey, email)
+	ctx = context.WithValue(ctx, feature_flags.EmailVerifiedContextKey, emailVerified)
 	if as.featureFlagSvc.IsEnabled(ctx, feature_flags.FlagUserSignInAllowlist) {
 		return nil
+	}
+	// Reaching here means the allowlist is ACTIVE and refused this identity — an
+	// inactive one is open access and returns true above. Report which rule
+	// refused it: from the user's side both denials are identical
+	// (?error=access_restricted), so only this log tells the operator why.
+	reason := "not_on_allowlist"
+	if !emailVerified {
+		reason = "unverified_email"
 	}
 	as.logger.With(
 		"email", email,
 		"provider", provider,
+		"reason", reason,
 	).Info("Sign-in denied by access allowlist")
 	return ErrAccessRestricted
 }
@@ -121,17 +139,18 @@ func (as *AuthService) HandleCallback(
 	).
 		Info("Retrieved user info from identity provider")
 
-	// L2: We do not currently reject !EmailVerified. The enabled providers
-	// (Google/GitHub/generic OIDC) enforce email verification at the provider
-	// level, so every claim arriving here has already been verified. If we add
-	// connections where this is not true (e.g., magic link without
-	// verification), gate sign-in here:
-	//   if !claims.EmailVerified { return ErrUnverifiedEmail }
+	// L2: !EmailVerified is rejected only when an access allowlist is ACTIVE
+	// (#218), inside ensureAccessAllowed. On an open instance the claim is still
+	// accepted: the enabled providers (Google/GitHub/generic OIDC) verify email
+	// provider-side, and rejecting there would change behavior for every existing
+	// self-hosted deployment for no gain — with no allowlist there is nothing to
+	// bypass. An allowlist raises the stakes, because a generic OIDC provider that
+	// relays an unverified address would let an attacker claim an allowlisted one.
 
 	// Enforce the access allowlist BEFORE any user row is created or updated, so
 	// a denied identity leaves zero database residue and emits no user.created
 	// event.
-	if err = as.ensureAccessAllowed(ctx, claims.Email, string(p.Name())); err != nil {
+	if err = as.ensureAccessAllowed(ctx, claims.Email, string(p.Name()), claims.EmailVerified); err != nil {
 		return nil, nil, false, err
 	}
 
@@ -361,8 +380,11 @@ func (as *AuthService) createDevUser(ctx context.Context, email, name string) (*
 func (as *AuthService) HandleDevLogin(ctx context.Context, email, name string) (*models.User, error) {
 	as.logger.With("email", email).Info("Processing dev login request")
 
-	// Enforce the access allowlist before looking up or creating any user.
-	if err := as.ensureAccessAllowed(ctx, email, "dev"); err != nil {
+	// Enforce the access allowlist before looking up or creating any user. Dev
+	// login has no identity provider and so no verification concept; the address
+	// is verified by construction (it is whatever the local developer typed), so
+	// the #218 unverified-email rule does not apply here.
+	if err := as.ensureAccessAllowed(ctx, email, "dev", true); err != nil {
 		return nil, err
 	}
 

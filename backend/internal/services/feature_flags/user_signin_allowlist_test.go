@@ -97,6 +97,96 @@ func TestUserSignInAllowlistFlag_Evaluate_WithEmailInContext(t *testing.T) {
 	}
 }
 
+// TestUserSignInAllowlistFlag_Evaluate_EmailVerified covers #218: an ACTIVE
+// allowlist grants access by address, so an address the identity provider did not
+// verify must not satisfy it — otherwise a provider relaying an unverified claim
+// lets an attacker simply assert an allowlisted address. Scoped to an active
+// allowlist: an open instance is unchanged, and an absent key means verified so
+// callers with no verification concept (dev login) keep working.
+func TestUserSignInAllowlistFlag_Evaluate_EmailVerified(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	const allowed = "test@example.com"
+
+	tests := []struct {
+		name              string
+		allowedEmails     []string
+		email             string
+		setVerified       bool
+		verified          bool
+		expected          bool
+		expectedRationale string
+	}{
+		{
+			name:              "active allowlist, allowlisted email, verified",
+			allowedEmails:     []string{allowed},
+			email:             allowed,
+			setVerified:       true,
+			verified:          true,
+			expected:          true,
+			expectedRationale: "a verified, allowlisted address is the normal grant",
+		},
+		{
+			name:              "active allowlist, allowlisted email, NOT verified",
+			allowedEmails:     []string{allowed},
+			email:             allowed,
+			setVerified:       true,
+			verified:          false,
+			expected:          false,
+			expectedRationale: "an unverified address must never satisfy an active allowlist",
+		},
+		{
+			name:              "active allowlist, allowlisted email, verification unknown",
+			allowedEmails:     []string{allowed},
+			email:             allowed,
+			setVerified:       false,
+			expected:          true,
+			expectedRationale: "an absent key means verified, so pre-#218 callers are unaffected",
+		},
+		{
+			name:              "open allowlist, NOT verified",
+			allowedEmails:     nil,
+			email:             "anyone@anywhere.test",
+			setVerified:       true,
+			verified:          false,
+			expected:          true,
+			expectedRationale: "with no allowlist there is nothing to bypass: open instances unchanged",
+		},
+		{
+			name:              "active allowlist, non-allowlisted email, verified",
+			allowedEmails:     []string{allowed},
+			email:             "outsider@elsewhere.test",
+			setVerified:       true,
+			verified:          true,
+			expected:          false,
+			expectedRationale: "verification does not by itself grant access",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flag := NewUserSignInAllowlistFlag(logger, nil, tt.allowedEmails)
+
+			ctx := contextWithEmail(tt.email)
+			if tt.setVerified {
+				ctx = context.WithValue(ctx, EmailVerifiedContextKey, tt.verified)
+			}
+
+			assert.Equal(t, tt.expected, flag.Evaluate(ctx), tt.expectedRationale)
+		})
+	}
+}
+
+// TestUserSignInAllowlistFlag_IsEmailAllowed_IgnoresVerification pins the split of
+// responsibilities: IsEmailAllowed answers only "does this address match?", which
+// is what the MCP consent re-check (#217) needs for an already-established
+// identity. The verification rule lives in Evaluate, which has the IdP claims.
+func TestUserSignInAllowlistFlag_IsEmailAllowed_IgnoresVerification(t *testing.T) {
+	flag := NewUserSignInAllowlistFlag(slog.New(slog.DiscardHandler), nil, []string{"test@example.com"})
+
+	assert.True(t, flag.IsEmailAllowed("test@example.com"),
+		"IsEmailAllowed matches the address and says nothing about verification")
+}
+
 func TestUserSignInAllowlistFlag_Evaluate_NoEmailInContext(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	flag := NewUserSignInAllowlistFlag(logger, nil, []string{"test@example.com"})

@@ -63,6 +63,8 @@ auth:
   # A user is allowed if EITHER list matches. Both empty (the default) = open
   # access. e.g. AUTH_ALLOWED_DOMAINS=example.com,corp.io
   #      AUTH_ALLOWED_EMAILS=alice@example.com,bob@other.com
+  # While active, sign-in also requires a provider-VERIFIED email, so a merely
+  # claimed address cannot satisfy the allowlist.
   access_allowlist:
     domains: "${AUTH_ALLOWED_DOMAINS:-}"
     emails: "${AUTH_ALLOWED_EMAILS:-}"
