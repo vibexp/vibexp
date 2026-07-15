@@ -130,6 +130,9 @@ func TestProjectHandlers_PermissionDeniedIsForbidden(t *testing.T) {
 			srv.ServeHTTP(w, req)
 
 			require.Equal(t, http.StatusForbidden, w.Code, "denial must be 403, not 500: %s", w.Body.String())
+			// #235 AC: project 403s are RFC 9457 FORBIDDEN.
+			assert.Equal(t, "application/problem+json", w.Header().Get("Content-Type"))
+			assert.Contains(t, w.Body.String(), `"code":"FORBIDDEN"`)
 			assert.Contains(t, w.Body.String(), tc.detail)
 		})
 	}
@@ -152,4 +155,5 @@ func TestProjectHandlers_NonMemberDenialIsForbidden(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+	assert.Equal(t, "application/problem+json", w.Header().Get("Content-Type"))
 }

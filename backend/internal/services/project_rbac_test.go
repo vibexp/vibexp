@@ -49,6 +49,14 @@ func projectServiceForRole(
 }
 
 // projectRoleCases is the matrix: owner/admin allowed, member and non-member denied.
+//
+// On the "" (non-member) case: for update and delete this asserts defense in
+// depth rather than the live response. Those paths fetch through
+// GetProjectBySlug, whose repository predicate is tenancy-scoped, so a real
+// non-member is stopped there with not-found and sees a 404 — authz is never
+// reached. The case stubs the fetch as succeeding to prove that authz would
+// still deny if that scoping were ever widened or bypassed. For create there is
+// no prior fetch, so the denial here IS the live behavior.
 var projectRoleCases = []struct {
 	role    models.TeamMemberRole
 	allowed bool
@@ -56,7 +64,7 @@ var projectRoleCases = []struct {
 	{models.TeamMemberRoleOwner, true},
 	{models.TeamMemberRoleAdmin, true},
 	{models.TeamMemberRoleMember, false},
-	{"", false}, // not a member
+	{"", false}, // not a member of the team at all
 }
 
 func roleName(role models.TeamMemberRole) string {
