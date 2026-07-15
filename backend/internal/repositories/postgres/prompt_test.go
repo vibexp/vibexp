@@ -192,18 +192,18 @@ func TestPromptRepository_Update_MCPExposeToFalse(t *testing.T) {
 		Version:     1,
 	}
 
-	// Expect ownership validation query first with team membership check
-	mock.ExpectQuery("SELECT EXISTS\\(.*FROM prompts p.*EXISTS.*teams.*").
-		WithArgs(prompt.ID, prompt.TeamID, prompt.UserID).
+	// Existence-in-team check (tenancy only; role is decided in PromptService)
+	mock.ExpectQuery("SELECT EXISTS\\(.*FROM prompts p.*").
+		WithArgs(prompt.ID, prompt.TeamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Args order: id, name, slug, description, body, project_id, status, mcp_expose, labels,
-	// team_id, updated_at, team_id, version, userID
-	mock.ExpectQuery("UPDATE prompts.*WHERE.*EXISTS.*").
+	// team_id, updated_at, team_id, version
+	mock.ExpectQuery("UPDATE prompts.*WHERE.*").
 		WithArgs(
 			prompt.ID, prompt.Name, prompt.Slug, prompt.Description,
 			prompt.Body, prompt.ProjectID, prompt.Status, prompt.MCPExpose, sqlmock.AnyArg(),
-			prompt.TeamID, sqlmock.AnyArg(), prompt.TeamID, prompt.Version, prompt.UserID,
+			prompt.TeamID, sqlmock.AnyArg(), prompt.TeamID, prompt.Version,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 
@@ -240,18 +240,18 @@ func TestPromptRepository_Update_MCPExposeToTrue(t *testing.T) {
 		Version:     1,
 	}
 
-	// Expect ownership validation query first with team membership check (requires owner/admin)
-	mock.ExpectQuery("SELECT EXISTS\\(.*FROM prompts p.*EXISTS.*teams.*").
-		WithArgs(prompt.ID, prompt.TeamID, prompt.UserID).
+	// Existence-in-team check (tenancy only; role is decided in PromptService)
+	mock.ExpectQuery("SELECT EXISTS\\(.*FROM prompts p.*").
+		WithArgs(prompt.ID, prompt.TeamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Args order: id, name, slug, description, body, project_id, status, mcp_expose, labels,
-	// team_id, updated_at, team_id, version, userID
-	mock.ExpectQuery("UPDATE prompts.*WHERE.*EXISTS.*").
+	// team_id, updated_at, team_id, version
+	mock.ExpectQuery("UPDATE prompts.*WHERE.*").
 		WithArgs(
 			prompt.ID, prompt.Name, prompt.Slug, prompt.Description,
 			prompt.Body, prompt.ProjectID, prompt.Status, prompt.MCPExpose, sqlmock.AnyArg(),
-			prompt.TeamID, sqlmock.AnyArg(), prompt.TeamID, prompt.Version, prompt.UserID,
+			prompt.TeamID, sqlmock.AnyArg(), prompt.TeamID, prompt.Version,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 

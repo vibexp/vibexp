@@ -69,7 +69,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	teamServiceInterface := providers.ProvideTeamService(teamRepository, teamMemberRepository, userRepository, authorizationServiceInterface, logger)
 	contentVersionRepository := providers.ProvideContentVersionRepository(db)
 	contentVersionServiceInterface := providers.ProvideContentVersionService(contentVersionRepository, userRepository, cfg, logger)
-	promptServiceInterface := providers.ProvidePromptService(promptRepository, promptReferenceRepository, userRepository, projectRepository, teamServiceInterface, eventManager, logger, contentVersionServiceInterface)
+	promptServiceInterface := providers.ProvidePromptService(promptRepository, promptReferenceRepository, userRepository, projectRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger, contentVersionServiceInterface)
 	promptGalleryServiceInterface := providers.ProvidePromptGalleryService(promptGalleryRepository, eventManager, logger)
 	promptShareService := providers.ProvidePromptShareService(promptShareRepository, promptRepository, promptServiceInterface, logger)
 	resourceUsageServiceInterface := providers.ProvideResourceUsageService(userRepository, promptRepository, artifactRepository, memoryRepository, agentRepository, agentExecutionRepository, claudeCodeHooksRepository, cursorIDEHooksRepository, blueprintRepository, teamRepository, teamMemberRepository, teamSubscriptionRepository, feedRepository, feedItemRepository, feedItemReplyRepository, logger)
@@ -94,7 +94,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	if err != nil {
 		return nil, err
 	}
-	agentServiceInterface := providers.ProvideAgentService(agentRepository, agentExecutionRepository, encryptionServiceInterface, teamServiceInterface, cfg, logger)
+	agentServiceInterface := providers.ProvideAgentService(agentRepository, agentExecutionRepository, encryptionServiceInterface, teamServiceInterface, authorizationServiceInterface, cfg, logger)
 	agentCardFetcherInterface := providers.ProvideAgentCardFetcher(cfg)
 	agentAuthenticator := providers.ProvideAgentAuthenticator(encryptionServiceInterface)
 	a2AHTTPClientInterface := providers.ProvideA2AHTTPClient(agentAuthenticator, cfg)

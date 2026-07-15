@@ -570,19 +570,18 @@ func (r *agentRepository) Update(ctx context.Context, agent *models.Agent) error
 	// Only allow: resource owner, team owner, or team admin (matches Delete method permissions)
 	// Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
 	var exists bool
-	ownershipQuery := `
+	// Existence within the team only — a TENANCY check (epic #220 decision D3).
+	// Whether the caller's ROLE permits the update is decided by AgentService via
+	// the authz matrix before this is reached. This check stays because the
+	// caller below distinguishes ErrAgentNotFound from a version conflict by it.
+	existsQuery := `
 		SELECT EXISTS(
 			SELECT 1 FROM agents a
 			WHERE a.id = $1
 				AND a.team_id = $2
-				AND (
-					a.user_id = $3
-					OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-					OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin'))
-				)
 		)
 	`
-	err := r.db.QueryRowContext(ctx, ownershipQuery, agent.ID, agent.TeamID, agent.UserID).Scan(&exists)
+	err := r.db.QueryRowContext(ctx, existsQuery, agent.ID, agent.TeamID).Scan(&exists)
 	if err != nil {
 		logger.With(
 			"method", "Update",
@@ -620,17 +619,12 @@ func (r *agentRepository) Update(ctx context.Context, agent *models.Agent) error
 		WHERE id = $9
 			AND team_id = $10
 			AND version = $11
-			AND (
-				user_id = $12
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $10 AND owner_id = $12)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $10 AND user_id = $12 AND role IN ('owner', 'admin'))
-			)
 		RETURNING updated_at, version
 	`
 
 	err = r.db.QueryRowContext(ctx, query,
 		agent.Name, agent.Description, agent.Status, agent.CardURL, agentCardJSON,
-		credentialsJSON, agent.LastSyncedAt, agent.UpdatedAt, agent.ID, agent.TeamID, agent.Version, agent.UserID,
+		credentialsJSON, agent.LastSyncedAt, agent.UpdatedAt, agent.ID, agent.TeamID, agent.Version,
 	).Scan(&agent.UpdatedAt, &agent.Version)
 
 	if err != nil {
@@ -663,9 +657,8 @@ func (r *agentRepository) Delete(ctx context.Context, userID, teamID, agentID st
 		WHERE id = $1
 			AND team_id = $2
 			AND (
-				user_id = $3
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin'))
+				EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
 			)
 	`
 

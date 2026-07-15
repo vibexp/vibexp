@@ -225,7 +225,7 @@ func TestAgentService_ValidateAndResolveTeamID(t *testing.T) {
 			require.NoError(t, err)
 			logger, _ := logtest.New()
 
-			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, mockTeamService, nil, logger)
+			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, mockTeamService, allowAllAuthz{}, nil, logger)
 
 			teamID, err := service.validateAndResolveTeamID(ctx, userID, defaultTeamID, tt.requestedTeamID)
 
@@ -279,7 +279,7 @@ func TestAgentService_ValidateTeamReassignment(t *testing.T) {
 			require.NoError(t, err)
 			logger, _ := logtest.New()
 
-			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, nil, logger)
+			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, allowAllAuthz{}, nil, logger)
 
 			err = service.validateTeamReassignment(tt.requestedTeamID, currentTeamID, agentID)
 
@@ -359,7 +359,7 @@ func TestAgentService_CreateAgent_WithTeamID(t *testing.T) {
 			tt.setupMocks(mockTeamService, mockAgentRepo, mockCardFetcher)
 
 			service := NewAgentServiceWithCardFetcher(
-				mockAgentRepo, mockExecutionRepo, mockCardFetcher, encryptionSvc, mockTeamService, logger,
+				mockAgentRepo, mockExecutionRepo, mockCardFetcher, encryptionSvc, mockTeamService, allowAllAuthz{}, logger,
 			)
 
 			// Use the expected team ID based on test case
@@ -441,7 +441,7 @@ func TestAgentService_UpdateAgent_TeamReassignment(t *testing.T) {
 
 			tt.setupMocks(mockAgentRepo)
 
-			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, nil, logger)
+			service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, allowAllAuthz{}, nil, logger)
 
 			agent, err := service.UpdateAgent(ctx, userID, currentTeamID, agentID, tt.request)
 

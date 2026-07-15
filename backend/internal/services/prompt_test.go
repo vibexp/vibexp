@@ -30,7 +30,7 @@ func createTestPromptService(
 	mockRefRepo.On("GetPromptsUsingPrompt", mock.Anything, mock.Anything, mock.Anything).
 		Return([]models.PromptDependencyInfo{}, nil).Maybe()
 	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
-	return NewPromptService(repo, mockRefRepo, nil, projectRepo, nil, nil, logger, nil)
+	return NewPromptService(repo, mockRefRepo, nil, projectRepo, nil, allowAllAuthz{}, nil, logger, nil)
 }
 
 func createTestProjectRepo(t *testing.T) *mocks.MockProjectRepository {
@@ -90,7 +90,7 @@ func TestNewPromptService(t *testing.T) {
 	mockRefRepo := mocks.NewMockPromptReferenceRepository(t)
 	mockProjectRepo := mocks.NewMockProjectRepository(t)
 	logger, _ := logtest.New()
-	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, nil, logger, nil)
+	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, allowAllAuthz{}, nil, logger, nil)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, mockRepo, service.repo)
@@ -514,6 +514,10 @@ func TestPromptService_DeletePrompt(t *testing.T) {
 			userID:   "user-123",
 			promptID: "prompt-123",
 			setup: func(mockRepo *mocks.MockPromptRepository) {
+				// Delete fetches first to learn the prompt's owner: members may
+				// delete only their own, Admin+ may delete anyone's.
+				mockRepo.On("GetByID", mock.Anything, "user-123", mock.Anything, "prompt-123").
+					Return(createTestPrompt(), nil)
 				mockRepo.On("Delete", mock.AnythingOfType("context.backgroundCtx"), "user-123", mock.Anything, "prompt-123").
 					Return(nil)
 			},
@@ -524,8 +528,9 @@ func TestPromptService_DeletePrompt(t *testing.T) {
 			userID:   "user-123",
 			promptID: "non-existent",
 			setup: func(mockRepo *mocks.MockPromptRepository) {
-				mockRepo.On("Delete", mock.AnythingOfType("context.backgroundCtx"), "user-123", mock.Anything, "non-existent").
-					Return(repositories.ErrPromptNotFound)
+				// The owner-fetch is now what surfaces a missing prompt.
+				mockRepo.On("GetByID", mock.Anything, "user-123", mock.Anything, "non-existent").
+					Return(nil, repositories.ErrPromptNotFound)
 			},
 			expectError: true,
 			errorMsg:    "prompt not found",
@@ -559,6 +564,9 @@ func TestPromptService_DeletePromptBySlug(t *testing.T) {
 
 		existingPrompt := createTestPrompt()
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
+			Return(existingPrompt, nil)
+		// DeletePrompt re-fetches by ID to learn the owner for the own-vs-any check.
+		mockRepo.On("GetByID", mock.Anything, "user-123", mock.Anything, "prompt-123").
 			Return(existingPrompt, nil)
 		mockRepo.On("Delete", mock.AnythingOfType("context.backgroundCtx"), "user-123", mock.Anything, "prompt-123").
 			Return(nil)
@@ -971,7 +979,7 @@ func TestPromptService_PublishesPromptEvents(t *testing.T) {
 				}, nil).Maybe()
 
 			service := NewPromptService(
-				mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager,
+				mockRepo, mockRefRepo, nil, mockProjectRepo, nil, allowAllAuthz{}, mockEventManager,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(), nil,
 			)
 
@@ -1048,7 +1056,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 		mockRefRepo.On("CreateBatch", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 		service := NewPromptService(
-			mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager,
+			mockRepo, mockRefRepo, nil, mockProjectRepo, nil, allowAllAuthz{}, mockEventManager,
 			func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 
 		// Create a prompt with @reference
@@ -1135,7 +1143,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 		mockRefRepo.On("CreateBatch", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 		service := NewPromptService(
-			mockRepo, mockRefRepo, nil, nil, nil, mockEventManager,
+			mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, mockEventManager,
 			func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 
 		// Update the prompt with a body containing @reference
@@ -1205,7 +1213,7 @@ func TestPromptService_PublishesRenderedBodyInEvents(t *testing.T) {
 		mockRefRepo.On("CreateBatch", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 		service := NewPromptService(
-			mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager,
+			mockRepo, mockRefRepo, nil, mockProjectRepo, nil, allowAllAuthz{}, mockEventManager,
 			func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 
 		// Create a simple prompt without @references
@@ -1241,7 +1249,7 @@ func TestPromptService_GetPromptDependencies(t *testing.T) {
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
 		logger, _ := logtest.New()
-		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
+		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, nil, logger, nil)
 
 		userID := "user-123"
 		promptID := "prompt-456"
@@ -1274,7 +1282,7 @@ func TestPromptService_GetPromptDependencies(t *testing.T) {
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
 		logger, _ := logtest.New()
-		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
+		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, nil, logger, nil)
 
 		userID := "user-123"
 		promptID := "prompt-456"
@@ -1300,7 +1308,7 @@ func TestPromptService_GetPromptDependenciesBySlug(t *testing.T) {
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
 		logger, _ := logtest.New()
-		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
+		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, nil, logger, nil)
 
 		userID := "user-123"
 		slug := "test-prompt"
@@ -1331,7 +1339,7 @@ func TestPromptService_GetPromptDependenciesBySlug(t *testing.T) {
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
 		logger, _ := logtest.New()
-		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
+		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, nil, logger, nil)
 
 		userID := "user-123"
 		slug := "non-existent"
@@ -1353,7 +1361,7 @@ func TestPromptService_DeletePrompt_WithDependencies(t *testing.T) {
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
 		logger, _ := logtest.New()
-		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
+		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, nil, logger, nil)
 
 		userID := "user-123"
 		promptID := "prompt-456"
@@ -1363,6 +1371,8 @@ func TestPromptService_DeletePrompt_WithDependencies(t *testing.T) {
 			{ID: "dep-2", Slug: "dependent-2", Name: "Dependent Prompt 2"},
 		}
 
+		mockRepo.On("GetByID", mock.Anything, userID, mock.Anything, promptID).
+			Return(createTestPrompt(), nil)
 		mockRefRepo.On("HasDependents", mock.Anything, promptID).Return(true, nil)
 		mockRefRepo.On("GetPromptsUsingPrompt", mock.Anything, userID, promptID).
 			Return(dependents, nil)
@@ -1382,11 +1392,13 @@ func TestPromptService_DeletePrompt_WithDependencies(t *testing.T) {
 		mockRefRepo := &mocks.MockPromptReferenceRepository{}
 
 		logger, _ := logtest.New()
-		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
+		service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, nil, logger, nil)
 
 		userID := "user-123"
 		promptID := "prompt-456"
 
+		mockRepo.On("GetByID", mock.Anything, userID, mock.Anything, promptID).
+			Return(createTestPrompt(), nil)
 		mockRefRepo.On("HasDependents", mock.Anything, promptID).Return(false, nil)
 		mockRepo.On("Delete", mock.Anything, userID, mock.Anything, promptID).Return(nil)
 
@@ -1406,7 +1418,7 @@ func TestPromptService_CreatePrompt_MCPExposeTrue(t *testing.T) {
 	mockProjectRepo := new(mocks.MockProjectRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
 	logger, _ := logtest.New()
-	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager, logger, nil)
+	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, allowAllAuthz{}, mockEventManager, logger, nil)
 
 	userID := "user-123"
 	mcpExposeTrue := true
@@ -1445,7 +1457,7 @@ func TestPromptService_CreatePrompt_MCPExposeFalse(t *testing.T) {
 	mockProjectRepo := new(mocks.MockProjectRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
 	logger, _ := logtest.New()
-	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager, logger, nil)
+	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, allowAllAuthz{}, mockEventManager, logger, nil)
 
 	userID := "user-123"
 	mcpExposeFalse := false
@@ -1484,7 +1496,7 @@ func TestPromptService_CreatePrompt_MCPExposeDefaultsToTrue(t *testing.T) {
 	mockProjectRepo := new(mocks.MockProjectRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
 	logger, _ := logtest.New()
-	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, mockEventManager, logger, nil)
+	service := NewPromptService(mockRepo, mockRefRepo, nil, mockProjectRepo, nil, allowAllAuthz{}, mockEventManager, logger, nil)
 
 	userID := "user-123"
 	req := &models.CreatePromptRequest{
@@ -1521,7 +1533,7 @@ func TestPromptService_UpdatePrompt_MCPExposeToFalse(t *testing.T) {
 	mockRefRepo := new(mocks.MockPromptReferenceRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
 	logger, _ := logtest.New()
-	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, mockEventManager, logger, nil)
+	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, mockEventManager, logger, nil)
 
 	userID := "user-123"
 	promptID := "prompt-123"
@@ -1553,7 +1565,7 @@ func TestPromptService_UpdatePrompt_MCPExposeToTrue(t *testing.T) {
 	mockRefRepo := new(mocks.MockPromptReferenceRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
 	logger, _ := logtest.New()
-	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, mockEventManager, logger, nil)
+	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, mockEventManager, logger, nil)
 
 	userID := "user-123"
 	promptID := "prompt-123"
@@ -1585,7 +1597,7 @@ func TestPromptService_UpdatePrompt_PreservesMCPExpose(t *testing.T) {
 	mockRefRepo := new(mocks.MockPromptReferenceRepository)
 	mockEventManager := new(event_mocks.MockEventPublisher)
 	logger, _ := logtest.New()
-	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, mockEventManager, logger, nil)
+	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, mockEventManager, logger, nil)
 
 	userID := "user-123"
 	promptID := "prompt-123"
@@ -1720,7 +1732,7 @@ func TestPromptService_GetPromptBySlug_NotFoundError(t *testing.T) {
 
 	// Create logger with hook to capture log entries
 	logger, hook := logtest.New()
-	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
+	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, nil, logger, nil)
 
 	// Mock repository to return "prompt not found" error
 	mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "non-existent-slug").
@@ -1756,7 +1768,7 @@ func TestPromptService_GetPromptBySlug_DatabaseError(t *testing.T) {
 
 	// Create logger with hook to capture log entries
 	logger, hook := logtest.New()
-	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, nil, logger, nil)
+	service := NewPromptService(mockRepo, mockRefRepo, nil, nil, nil, allowAllAuthz{}, nil, logger, nil)
 
 	// Mock repository to return a database error (not "prompt not found")
 	mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-slug").

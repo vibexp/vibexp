@@ -42,7 +42,7 @@ func createTestAgentService(
 		panic(fmt.Sprintf("Failed to create encryption service for tests: %v", err))
 	}
 	logger, _ := logtest.New()
-	return NewAgentServiceWithCardFetcher(agentRepo, executionRepo, cardFetcher, encryptionSvc, nil, logger)
+	return NewAgentServiceWithCardFetcher(agentRepo, executionRepo, cardFetcher, encryptionSvc, nil, allowAllAuthz{}, logger)
 }
 
 func createTestAgent() *models.Agent {
@@ -134,7 +134,7 @@ func TestNewAgentService(t *testing.T) {
 	encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
 	require.NoError(t, err)
 	logger, _ := logtest.New()
-	service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, nil, logger)
+	service := NewAgentService(mockAgentRepo, mockExecutionRepo, encryptionSvc, nil, allowAllAuthz{}, nil, logger)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, mockAgentRepo, service.agentRepo)
@@ -775,6 +775,10 @@ func TestAgentService_DeleteAgent(t *testing.T) {
 				mockExecutionRepo *repoMocks.MockAgentExecutionRepository,
 				mockCardFetcher *MockAgentCardFetcher,
 			) {
+				// Delete fetches first to learn the agent's owner: members may
+				// delete only their own, Admin+ may delete anyone's.
+				mockAgentRepo.On("GetByID", mock.Anything, "user-123", "team-123", "agent-123").
+					Return(createTestAgent(), nil)
 				mockAgentRepo.On("Delete", mock.Anything, "user-123", "team-123", "agent-123").
 					Return(nil)
 			},
@@ -789,8 +793,9 @@ func TestAgentService_DeleteAgent(t *testing.T) {
 				mockExecutionRepo *repoMocks.MockAgentExecutionRepository,
 				mockCardFetcher *MockAgentCardFetcher,
 			) {
-				mockAgentRepo.On("Delete", mock.Anything, "user-123", "team-123", "non-existent").
-					Return(fmt.Errorf("agent not found"))
+				// The owner-fetch is now what surfaces a missing agent.
+				mockAgentRepo.On("GetByID", mock.Anything, "user-123", "team-123", "non-existent").
+					Return(nil, fmt.Errorf("agent not found"))
 			},
 			expectError: true,
 			errorMsg:    "agent not found",

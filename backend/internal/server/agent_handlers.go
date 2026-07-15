@@ -238,20 +238,7 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 
 	err = s.container.AgentService().DeleteAgent(r.Context(), userID, teamID, agentID)
 	if err != nil {
-		s.logger.With(
-			"service", "vibexp-api",
-			"handler", "handleDeleteAgent",
-			"user_id", userID,
-			"agent_id", agentID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to delete agent")
-
-		if errors.Is(err, repositories.ErrAgentNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
-			return
-		}
-
-		writeErrorResponse(w, nil, "internal_error", "Failed to delete agent", http.StatusInternalServerError)
+		s.handleDeleteAgentError(w, userID, agentID, err)
 		return
 	}
 
@@ -262,6 +249,38 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	)
 
 	writeNoContent(w)
+}
+
+// handleDeleteAgentError maps DeleteAgent failures. The denial branch is first:
+// ErrPermissionDenied matches none of the branches below it, so it would
+// otherwise fall through to a 500.
+func (s *Server) handleDeleteAgentError(w http.ResponseWriter, userID, agentID string, err error) {
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With(
+			"service", "vibexp-api", "handler", "handleDeleteAgent",
+			"user_id", userID, "agent_id", agentID,
+		).Warn("Forbidden agent delete attempt")
+		writeErrorResponse(
+			w, nil, "forbidden",
+			"You can only delete agents you created; team admins can delete any", http.StatusForbidden,
+		)
+		return
+	}
+
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleDeleteAgent",
+		"user_id", userID,
+		"agent_id", agentID,
+		"error", fmt.Sprintf("%+v", err),
+	).Error("Failed to delete agent")
+
+	if errors.Is(err, repositories.ErrAgentNotFound) {
+		writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
+		return
+	}
+
+	writeErrorResponse(w, nil, "internal_error", "Failed to delete agent", http.StatusInternalServerError)
 }
 
 //nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
@@ -311,6 +330,20 @@ func (s *Server) handleUpdateAgentCredentials(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := s.container.AgentService().UpdateAgentCredentials(r.Context(), userID, teamID, agentID, &req); err != nil {
+		// Denial first: writing credentials is an agent update, so it is gated by
+		// the same permission. ErrPermissionDenied matches nothing below.
+		if errors.Is(err, services.ErrPermissionDenied) {
+			s.logger.With(
+				"service", "vibexp-api", "handler", "handleUpdateAgentCredentials",
+				"user_id", userID, "agent_id", agentID,
+			).Warn("Forbidden agent credentials write attempt")
+			writeErrorResponse(
+				w, nil, "forbidden",
+				"You do not have permission to update this agent", http.StatusForbidden,
+			)
+			return
+		}
+
 		s.logger.With(
 			"service", "vibexp-api",
 			"handler", "handleUpdateAgentCredentials",
@@ -720,6 +753,18 @@ func (s *Server) checkAgentResourceLimit(
 
 // handleAgentCreationError handles errors from agent creation
 func (s *Server) handleAgentCreationError(w http.ResponseWriter, _ *http.Request, userID string, err error) {
+	// Denial before the card-error string-matching below, which
+	// ErrPermissionDenied's text matches nowhere — it would 500 otherwise.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With("service", "vibexp-api", "handler", "handleCreateAgent").
+			Warn("Forbidden agent write attempt")
+		writeErrorResponse(
+			w, nil, "forbidden",
+			"You do not have permission to create agents in this team", http.StatusForbidden,
+		)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleCreateAgent",
@@ -896,6 +941,17 @@ func (s *Server) handleUpdateAgentError(
 	_ *models.UpdateAgentRequest,
 	err error,
 ) {
+	// Denial first (see handleAgentCreationError).
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With("service", "vibexp-api", "handler", "handleUpdateAgent").
+			Warn("Forbidden agent write attempt")
+		writeErrorResponse(
+			w, nil, "forbidden",
+			"You do not have permission to update this agent", http.StatusForbidden,
+		)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleUpdateAgent",

@@ -131,9 +131,15 @@ func TestPromptRepository_TeamMember_CanGetOtherMembersPrompts(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestPromptRepository_RegularMember_CannotUpdateOtherMembersPrompts verifies that regular team members
-// cannot update prompts created by other team members (only owner/admin can update)
-func TestPromptRepository_RegularMember_CannotUpdateOtherMembersPrompts(t *testing.T) {
+// TestPromptRepository_RegularMember_CanUpdateOtherMembersPrompts verifies the
+// repository's post-#236 contract: it enforces TENANCY only, so it permits a
+// regular member to update another member's prompt.
+//
+// This inverts the old assertion deliberately. Two epic #220 decisions land here:
+// D1 makes update uniform (any member may update any resource), and D3 moves role
+// logic out of SQL into PromptService. The role decision is asserted at the layer
+// that now owns it — see internal/services/prompt_rbac_test.go.
+func TestPromptRepository_RegularMember_CanUpdateOtherMembersPrompts(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() {
@@ -147,9 +153,9 @@ func TestPromptRepository_RegularMember_CannotUpdateOtherMembersPrompts(t *testi
 	now := time.Now()
 
 	// Scenario:
-	// - Alice creates prompt in team "Marketing"
-	// - Bob (regular team member, not admin) tries to update the prompt
-	// - Expected: Update fails - only resource owner, team owner, or team admin can update
+	// - Alice creates a prompt in team "Marketing"
+	// - Bob (regular team member) updates it
+	// - Expected: the repository permits it; only tenancy is its concern
 
 	teamID := "team-123"
 	bobUserID := "user-bob"
@@ -161,7 +167,7 @@ func TestPromptRepository_RegularMember_CannotUpdateOtherMembersPrompts(t *testi
 		Slug:        "campaign-ideas",
 		Description: "Updated description",
 		Body:        "Updated body",
-		UserID:      bobUserID, // Bob is trying to update (but original creator is Alice)
+		UserID:      bobUserID,
 		TeamID:      teamID,
 		ProjectID:   "project-123",
 		Status:      "published",
@@ -171,17 +177,23 @@ func TestPromptRepository_RegularMember_CannotUpdateOtherMembersPrompts(t *testi
 		Version:     1,
 	}
 
-	// Mock ownership/admin validation query - should return false because Bob is not owner/admin
-	ownershipQuery := `SELECT EXISTS\(`
-	mock.ExpectQuery(ownershipQuery).
-		WithArgs(alicePromptID, teamID, bobUserID).
-		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	// Existence-in-team check: no user argument any more.
+	mock.ExpectQuery(`SELECT EXISTS\(`).
+		WithArgs(alicePromptID, teamID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
-	// Bob tries to update Alice's prompt
+	mock.ExpectQuery(`UPDATE prompts`).
+		WithArgs(
+			alicePromptID, "Campaign Ideas - Updated by Bob", "campaign-ideas",
+			"Updated description", "Updated body", "project-123", "published",
+			false, sqlmock.AnyArg(), teamID, now, teamID, 1,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
+
 	err = repo.Update(ctx, prompt)
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), prompt.Version)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -225,10 +237,11 @@ func TestPromptRepository_TeamAdmin_CanUpdateOtherMembersPrompts(t *testing.T) {
 		Version:     1,
 	}
 
-	// Mock ownership/admin validation query - should return true because Carol is admin
+	// Existence-in-team check (tenancy only; the admin's role is checked in
+	// PromptService, not here).
 	ownershipQuery := `SELECT EXISTS\(`
 	mock.ExpectQuery(ownershipQuery).
-		WithArgs(alicePromptID, teamID, carolUserID).
+		WithArgs(alicePromptID, teamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Mock update query - should succeed
@@ -237,7 +250,7 @@ func TestPromptRepository_TeamAdmin_CanUpdateOtherMembersPrompts(t *testing.T) {
 		WithArgs(
 			alicePromptID, "Campaign Ideas - Updated by Carol", "campaign-ideas",
 			"Updated by admin", "Updated body by admin", "project-123", "published",
-			false, sqlmock.AnyArg(), teamID, now, teamID, 1, carolUserID,
+			false, sqlmock.AnyArg(), teamID, now, teamID, 1,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 

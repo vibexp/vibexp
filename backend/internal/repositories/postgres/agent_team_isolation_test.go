@@ -81,9 +81,11 @@ func TestAgentRepository_Update_CrossTeamIsolation(t *testing.T) {
 		Version:     1,
 	}
 
-	// Expect ownership validation query first - should fail since agent belongs to Team A
-	mock.ExpectQuery("SELECT EXISTS\\(.*FROM agents a.*EXISTS.*teams.*").
-		WithArgs(agent.ID, teamB, userID).
+	// Existence-in-team check — fails because the agent belongs to Team A. This is
+	// tenancy, which stays in SQL (epic #220 D3 moved only ROLE logic out), so
+	// cross-team isolation is still enforced by the repository.
+	mock.ExpectQuery("SELECT EXISTS\\(.*FROM agents a.*").
+		WithArgs(agent.ID, teamB).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false)) // Agent not in Team B
 
 	// Try to update agent using Team B credentials - should fail
