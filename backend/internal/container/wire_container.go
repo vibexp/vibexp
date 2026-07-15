@@ -90,6 +90,7 @@ type WireContainer struct {
 	embeddingBackfillService services.EmbeddingBackfillServiceInterface
 	embeddingStatusService   services.EmbeddingStatusServiceInterface
 	userPreferencesService   services.UserPreferencesServiceInterface
+	authorizationService     services.AuthorizationServiceInterface
 	teamService              services.TeamServiceInterface
 	teamInvitationService    *services.TeamInvitationService
 	projectService           services.ProjectServiceInterface
@@ -185,6 +186,7 @@ func NewWireContainer(
 	embeddingBackfillService services.EmbeddingBackfillServiceInterface,
 	embeddingStatusService services.EmbeddingStatusServiceInterface,
 	userPreferencesService services.UserPreferencesServiceInterface,
+	authorizationService services.AuthorizationServiceInterface,
 	teamService services.TeamServiceInterface,
 	teamInvitationService *services.TeamInvitationService,
 	projectService services.ProjectServiceInterface,
@@ -273,6 +275,7 @@ func NewWireContainer(
 		embeddingBackfillService: embeddingBackfillService,
 		embeddingStatusService:   embeddingStatusService,
 		userPreferencesService:   userPreferencesService,
+		authorizationService:     authorizationService,
 		teamService:              teamService,
 		teamInvitationService:    teamInvitationService,
 		projectService:           projectService,
@@ -546,6 +549,10 @@ func (c *WireContainer) EmbeddingStatusService() services.EmbeddingStatusService
 
 func (c *WireContainer) UserPreferencesService() services.UserPreferencesServiceInterface {
 	return c.userPreferencesService
+}
+
+func (c *WireContainer) AuthorizationService() services.AuthorizationServiceInterface {
+	return c.authorizationService
 }
 
 func (c *WireContainer) TeamService() services.TeamServiceInterface {

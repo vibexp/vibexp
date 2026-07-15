@@ -476,6 +476,14 @@ func ProvideUserPreferencesService(
 	return services.NewUserPreferencesService(repo)
 }
 
+// ProvideAuthorizationService creates a new AuthorizationService
+func ProvideAuthorizationService(
+	teamMemberRepo repositories.TeamMemberRepository,
+	logger *slog.Logger,
+) services.AuthorizationServiceInterface {
+	return services.NewAuthorizationService(teamMemberRepo, logger)
+}
+
 // ProvideTeamService creates a new TeamService
 func ProvideTeamService(
 	teamRepo repositories.TeamRepository,

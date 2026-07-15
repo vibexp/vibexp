@@ -252,6 +252,10 @@ func (b *BaseMockContainer) UserPreferencesService() services.UserPreferencesSer
 	return nil
 }
 
+func (b *BaseMockContainer) AuthorizationService() services.AuthorizationServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) TeamService() services.TeamServiceInterface {
 	return nil
 }

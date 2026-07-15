@@ -83,6 +83,7 @@ type Container interface {
 	EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface
 	EmbeddingStatusService() services.EmbeddingStatusServiceInterface
 	UserPreferencesService() services.UserPreferencesServiceInterface
+	AuthorizationService() services.AuthorizationServiceInterface
 	TeamService() services.TeamServiceInterface
 	TeamInvitationService() *services.TeamInvitationService
 	ProjectService() services.ProjectServiceInterface

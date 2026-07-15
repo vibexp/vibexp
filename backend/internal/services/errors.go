@@ -15,6 +15,13 @@ var ErrTeamForbidden = errors.New("only team owners can perform this action")
 // ErrTeamNotFound is returned when the requested team does not exist.
 var ErrTeamNotFound = errors.New("team not found")
 
+// ErrPermissionDenied is returned when a user's role in a team does not grant
+// the permission required for the attempted action. Handlers map it to an RFC
+// 9457 FORBIDDEN 403 via errors.NewForbiddenError. Non-membership is reported
+// as a denial too, so the error never distinguishes "not a member" from "role
+// too low" to a caller.
+var ErrPermissionDenied = errors.New("permission denied")
+
 // Embedding Provider Errors
 
 // ErrProviderNotFound is returned when an embedding provider is not found
