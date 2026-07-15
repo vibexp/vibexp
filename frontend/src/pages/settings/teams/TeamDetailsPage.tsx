@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
+import { useAuth } from '@/contexts/useAuth'
 import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
 import type {
@@ -131,6 +132,7 @@ export function TeamDetailsPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { refreshTeams } = useTeam()
+  const { user } = useAuth()
 
   const [team, setTeam] = useState<Team | null>(null)
   const [members, setMembers] = useState<TeamMember[]>([])
@@ -216,7 +218,19 @@ export function TeamDetailsPage() {
     try {
       await teamService.updateMemberRole(id, userId, role)
       toast.success(`Role updated to ${role}`)
-      void loadTeamDetails()
+
+      // Nothing else on the page depends on another member's role, so the
+      // optimistic row above is the whole update — refetching here would
+      // replace the page with a loading skeleton and undo the point of it.
+      //
+      // Demoting YOURSELF is different: the backend only protects the owner's
+      // role (TeamService.UpdateMemberRole), so an admin may hand away their
+      // own permissions. Resync both this page's gates and the cached team
+      // list, or the rest of the SPA keeps offering admin actions that now 403.
+      if (userId === user?.id) {
+        await loadTeamDetails()
+        await refreshTeams()
+      }
     } catch (err) {
       setMembers(previousMembers)
       const errorMessage =
