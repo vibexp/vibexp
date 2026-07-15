@@ -1,6 +1,8 @@
 package oauthserver
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"testing"
@@ -8,6 +10,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// stubAccessPolicy is a ConsentAccessPolicy that allows every user except those
+// listed in denied, or fails outright when err is set.
+type stubAccessPolicy struct {
+	denied map[string]bool
+	err    error
+	calls  int
+}
+
+func (p *stubAccessPolicy) AllowUser(_ context.Context, userID string) (bool, error) {
+	p.calls++
+	if p.err != nil {
+		return false, p.err
+	}
+	return !p.denied[userID], nil
+}
 
 // consentDetails fetches the JSON consent details for a login id.
 func (h *testHarness) consentDetails(t *testing.T, loginID string) (int, map[string]any) {
@@ -117,4 +135,85 @@ func TestConsentDecision_RequiresAttachedUser(t *testing.T) {
 		"action": "approve",
 	})
 	assert.Equal(t, http.StatusBadRequest, res.status, "consent must not proceed without an attached user")
+}
+
+// TestConsentAttach_DeniesUserNotOnAllowlist is the point of #217: a user removed
+// from the access allowlist still holds a valid web session until its TTL expires,
+// and must not be able to authorize a NEW MCP client in that window. The denial
+// must leave the session user-less so no authorization code can ever be issued.
+func TestConsentAttach_DeniesUserNotOnAllowlist(t *testing.T) {
+	policy := &stubAccessPolicy{denied: map[string]bool{testUserID: true}}
+	h := newTestHarness(t, withAccessPolicy(policy))
+	defer h.close()
+
+	loginID := h.startAuthorize(t, pkceChallenge())
+	res := h.attachUser(t, loginID, testUserID)
+
+	require.Equal(t, http.StatusForbidden, res.status, "a denied user must get 403")
+	assert.Equal(t, 1, policy.calls, "the access policy must be consulted")
+	assert.Equal(t, "access_restricted", jsonBody(t, res)["code"],
+		"the denial must carry the stable access_restricted code the SPA branches on")
+
+	// The user must NOT be bound...
+	_, body := h.consentDetails(t, loginID)
+	assert.Equal(t, false, body["authenticated"], "a denied attach must not bind the user")
+
+	// ...so no authorization code is issuable for this login session.
+	decision := h.postConsentJSON(t, map[string]string{
+		"login":  loginID,
+		"csrf":   h.svc.signConsent(loginID),
+		"action": "approve",
+	})
+	assert.Equal(t, http.StatusBadRequest, decision.status,
+		"a denied user must never reach code issuance")
+}
+
+// TestConsentAttach_AllowsUserOnAllowlist proves the re-check is a gate, not a
+// wall: a permitted user's consent flow is unchanged.
+func TestConsentAttach_AllowsUserOnAllowlist(t *testing.T) {
+	policy := &stubAccessPolicy{denied: map[string]bool{"someone-else": true}}
+	h := newTestHarness(t, withAccessPolicy(policy))
+	defer h.close()
+
+	loginID := h.startAuthorize(t, pkceChallenge())
+	res := h.attachUser(t, loginID, testUserID)
+
+	require.Equal(t, http.StatusOK, res.status)
+	assert.Equal(t, 1, policy.calls, "the access policy must be consulted")
+	assert.Equal(t, true, jsonBody(t, res)["authenticated"])
+
+	status, body := h.consentDetails(t, loginID)
+	require.Equal(t, http.StatusOK, status)
+	assert.Equal(t, true, body["authenticated"], "an allowed user must be bound as before")
+}
+
+// TestConsentAttach_FailsClosedWhenPolicyErrors proves an undecidable policy (e.g.
+// the user lookup fails) never widens access: the user is not bound.
+func TestConsentAttach_FailsClosedWhenPolicyErrors(t *testing.T) {
+	policy := &stubAccessPolicy{err: errors.New("lookup exploded")}
+	h := newTestHarness(t, withAccessPolicy(policy))
+	defer h.close()
+
+	loginID := h.startAuthorize(t, pkceChallenge())
+	res := h.attachUser(t, loginID, testUserID)
+
+	require.Equal(t, http.StatusInternalServerError, res.status)
+	assert.NotEmpty(t, jsonBody(t, res)["error"], "the failure must not leak internals")
+
+	_, body := h.consentDetails(t, loginID)
+	assert.Equal(t, false, body["authenticated"], "an undecidable policy must not bind the user")
+}
+
+// TestConsentAttach_NoPolicyLeavesFlowUnchanged pins the open-instance default:
+// with no allowlist configured the AS is built without a policy and attach behaves
+// exactly as it did before #217.
+func TestConsentAttach_NoPolicyLeavesFlowUnchanged(t *testing.T) {
+	h := newTestHarness(t) // no policy — an unconfigured allowlist
+	defer h.close()
+
+	loginID := h.startAuthorize(t, pkceChallenge())
+	require.Equal(t, http.StatusOK, h.attachUser(t, loginID, testUserID).status)
+
+	_, body := h.consentDetails(t, loginID)
+	assert.Equal(t, true, body["authenticated"])
 }

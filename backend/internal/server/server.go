@@ -31,6 +31,7 @@ import (
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
+	"github.com/vibexp/vibexp/internal/services/feature_flags"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
@@ -295,7 +296,7 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 		sessionManager:        sessMgr,
 		apiTokenVerifier:      newAPITokenVerifier(cfg, c, logger),
 		attachmentAuthorizers: setupAttachmentAuthorizers(c),
-		oauthAS:               newOAuthAuthorizationServer(cfg, db, logger),
+		oauthAS:               newOAuthAuthorizationServer(cfg, db, c, logger),
 		spaFS:                 embeddedSPAFS(),
 	}
 
@@ -308,12 +309,24 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 // disabled and its routes unmounted. The AS never authenticates anyone itself: it
 // stashes the authorize request as a user-less login session and the SPA binds the
 // logged-in app user via the authenticated /api/v1/oauth/consent/attach endpoint
-// (issue #54).
+// (issue #54). That attach step re-checks the access allowlist (issue #217), which
+// is why the AS needs the user repository and the allowlist evaluator.
+//
+// The evaluator is built here from config rather than taken off the container: it
+// is a stateless, config-derived value (like every other optional subsystem
+// assembled in New), so this avoids widening the Container interface — and its
+// matching rules live in one place, feature_flags.IsEmailAllowed.
 func newOAuthAuthorizationServer(
-	cfg *config.Config, db *database.DB, logger *slog.Logger,
+	cfg *config.Config, db *database.DB, c container.Container, logger *slog.Logger,
 ) *oauthserver.Service {
 	if cfg.Auth.OAuthAS.IssuerURL == "" {
 		return nil
+	}
+	accessPolicy := consentAccessPolicyAdapter{
+		users: c.UserRepository(),
+		allowlist: feature_flags.NewUserSignInAllowlistFlag(
+			logger, cfg.Auth.AccessAllowlist.Domains, cfg.Auth.AccessAllowlist.Emails,
+		),
 	}
 	svc := oauthserver.NewService(
 		oauthserver.Config{
@@ -334,6 +347,7 @@ func newOAuthAuthorizationServer(
 		postgres.NewOAuthPKCERepository(db),
 		postgres.NewOAuthSigningKeyRepository(db),
 		postgres.NewOAuthLoginSessionRepository(db),
+		accessPolicy,
 		logger,
 	)
 	logger.Info("Embedded OAuth 2.1 Authorization Server enabled", "issuer", cfg.Auth.OAuthAS.IssuerURL)
