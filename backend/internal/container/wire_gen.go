@@ -119,9 +119,9 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		return nil, err
 	}
 	gitHubAppServiceInterface := providers.ProvideGitHubAppService(gitHubInstallationRepository, projectRepository, blueprintRepository, gitHubAppClient, encryptionServiceInterface, eventManager, logger)
-	feedServiceInterface := providers.ProvideFeedService(feedRepository, teamServiceInterface, eventManager, logger)
-	feedItemServiceInterface := providers.ProvideFeedItemService(feedItemRepository, feedItemReplyRepository, projectRepository, teamServiceInterface, eventManager, logger)
-	feedItemReplyServiceInterface := providers.ProvideFeedItemReplyService(feedItemReplyRepository, feedItemRepository, teamServiceInterface, eventManager, logger)
+	feedServiceInterface := providers.ProvideFeedService(feedRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger)
+	feedItemServiceInterface := providers.ProvideFeedItemService(feedItemRepository, feedItemReplyRepository, projectRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger)
+	feedItemReplyServiceInterface := providers.ProvideFeedItemReplyService(feedItemReplyRepository, feedItemRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger)
 	client, err := providers.ProvideFirebaseMessagingClient(cfg, logger)
 	if err != nil {
 		return nil, err

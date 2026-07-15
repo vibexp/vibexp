@@ -15,200 +15,137 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories/postgres"
 )
 
+// FeedItemRepository.Delete's contract after epic #220 decision D3.
+//
+// The repository used to decide authorization itself: its check returned both
+// `item_exists` AND `authorized`, and it owned an ErrFeedItemForbidden sentinel.
+// That decision now lives in FeedItemService via the authz matrix (the poster may
+// delete their own; Owner/Admin may delete anyone's as moderation), so:
+//
+//   - the check is existence-only — it survives because the caller still needs to
+//     tell a missing item (404) apart from a denial;
+//   - the DELETE carries TENANCY only;
+//   - ErrFeedItemForbidden is retired. Nothing produces it, so nothing may match
+//     it — a stale sentinel match is what silently 500s a denial (see PR #233).
+//
+// The role decision is asserted where it now lives: internal/services (feed RBAC
+// tests) and the handler 403 mapping.
+
 const (
 	feedDeleteUserID = "11111111-1111-1111-1111-111111111111"
 	feedDeleteTeamID = "22222222-2222-2222-2222-222222222222"
 	feedDeleteItemID = "33333333-3333-3333-3333-333333333333"
 )
 
-// checkQueryRegex matches the existence + authorization SELECT used by Delete.
-// Using a regex (not a literal) lets the test tolerate whitespace formatting
-// changes inside the query while still verifying the right query is run.
-// The regex anchors on `feed_items` to make sure we don't accidentally match
-// some other repository's existence/authorization probe.
-var checkQueryRegex = regexp.MustCompile(`SELECT[\s\S]+EXISTS[\s\S]+feed_items[\s\S]+item_exists[\s\S]+authorized`)
+// existsQueryRegex matches the existence SELECT used by Delete. A regex (not a
+// literal) tolerates whitespace formatting changes while still verifying the
+// right query runs; anchored on `feed_items` so it cannot match another
+// repository's existence probe.
+var existsQueryRegex = regexp.MustCompile(`SELECT[\s\S]+EXISTS[\s\S]+feed_items`)
 
-// deleteQueryRegex matches the actual DELETE statement issued after the
-// existence/authorization check. Anchored on `feed_items` for the same
-// reason as checkQueryRegex above.
+// deleteQueryRegex matches the DELETE issued after the existence check.
 var deleteQueryRegex = regexp.MustCompile(`DELETE\s+FROM\s+feed_items`)
 
-// TestFeedItemRepository_Delete_NotFound_ReturnsSentinel verifies that an absent
-// item produces ErrFeedItemNotFound (404), not ErrFeedItemForbidden.
+func newFeedItemRepoForDelete(t *testing.T) (repositories.FeedItemRepository, sqlmock.Sqlmock) {
+	t.Helper()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("Failed to close db: %v", closeErr)
+		}
+	})
+	return postgres.NewFeedItemRepository(&database.DB{DB: db}), mock
+}
+
+// TestFeedItemRepository_Delete_NotFound_ReturnsSentinel: an absent item produces
+// ErrFeedItemNotFound, and the DELETE is never attempted.
 func TestFeedItemRepository_Delete_NotFound_ReturnsSentinel(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			t.Logf("Failed to close db: %v", closeErr)
-		}
-	}()
+	repo, mock := newFeedItemRepoForDelete(t)
 
-	repo := postgres.NewFeedItemRepository(&database.DB{DB: db})
+	// One column now, not two — `authorized` went with D3, and so did its arg.
+	mock.ExpectQuery(existsQueryRegex.String()).
+		WithArgs(feedDeleteItemID, feedDeleteTeamID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 
-	rows := sqlmock.NewRows([]string{"item_exists", "authorized"}).AddRow(false, false)
-	mock.ExpectQuery(checkQueryRegex.String()).
-		WithArgs(feedDeleteItemID, feedDeleteTeamID, feedDeleteUserID).
-		WillReturnRows(rows)
+	err := repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
 
-	err = repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
-
-	require.Error(t, err)
 	assert.True(t, errors.Is(err, repositories.ErrFeedItemNotFound),
-		"Delete on absent item must wrap ErrFeedItemNotFound; got: %v", err)
-	assert.False(t, errors.Is(err, repositories.ErrFeedItemForbidden),
-		"absent item must NOT be reported as forbidden")
+		"absent item must return ErrFeedItemNotFound, got %v", err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestFeedItemRepository_Delete_ExistingButUnauthorized_ReturnsForbiddenSentinel
-// verifies that an existing item with a non-authorized member produces
-// ErrFeedItemForbidden (403), not ErrFeedItemNotFound.
-func TestFeedItemRepository_Delete_ExistingButUnauthorized_ReturnsForbiddenSentinel(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			t.Logf("Failed to close db: %v", closeErr)
-		}
-	}()
+// TestFeedItemRepository_Delete_ExistingItem_Deletes: the repository no longer
+// asks who the caller is beyond team membership — it deletes. The role decision
+// happened in the service before this point.
+func TestFeedItemRepository_Delete_ExistingItem_Deletes(t *testing.T) {
+	repo, mock := newFeedItemRepoForDelete(t)
 
-	repo := postgres.NewFeedItemRepository(&database.DB{DB: db})
-
-	rows := sqlmock.NewRows([]string{"item_exists", "authorized"}).AddRow(true, false)
-	mock.ExpectQuery(checkQueryRegex.String()).
-		WithArgs(feedDeleteItemID, feedDeleteTeamID, feedDeleteUserID).
-		WillReturnRows(rows)
-
-	err = repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
-
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, repositories.ErrFeedItemForbidden),
-		"Delete by non-authorized member must wrap ErrFeedItemForbidden; got: %v", err)
-	assert.False(t, errors.Is(err, repositories.ErrFeedItemNotFound),
-		"existing-but-unauthorized must NOT be reported as not-found")
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-// TestFeedItemRepository_Delete_Authorized_Succeeds verifies that an authorized
-// caller (poster or owner/admin) deletes the item with no error.
-func TestFeedItemRepository_Delete_Authorized_Succeeds(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			t.Logf("Failed to close db: %v", closeErr)
-		}
-	}()
-
-	repo := postgres.NewFeedItemRepository(&database.DB{DB: db})
-
-	rows := sqlmock.NewRows([]string{"item_exists", "authorized"}).AddRow(true, true)
-	mock.ExpectQuery(checkQueryRegex.String()).
-		WithArgs(feedDeleteItemID, feedDeleteTeamID, feedDeleteUserID).
-		WillReturnRows(rows)
+	mock.ExpectQuery(existsQueryRegex.String()).
+		WithArgs(feedDeleteItemID, feedDeleteTeamID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectExec(deleteQueryRegex.String()).
 		WithArgs(feedDeleteItemID, feedDeleteTeamID, feedDeleteUserID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	err = repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
+	err := repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
 
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestFeedItemRepository_Delete_DBErrorOnCheck_NotSentinel verifies that a real
-// DB error on the existence/authorization SELECT is NOT mapped to either of the
-// two sentinels. The caller must surface a 500, not 403/404.
+// TestFeedItemRepository_Delete_DBErrorOnCheck_NotSentinel: a database failure
+// must not masquerade as not-found.
 func TestFeedItemRepository_Delete_DBErrorOnCheck_NotSentinel(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			t.Logf("Failed to close db: %v", closeErr)
-		}
-	}()
+	repo, mock := newFeedItemRepoForDelete(t)
 
-	repo := postgres.NewFeedItemRepository(&database.DB{DB: db})
+	mock.ExpectQuery(existsQueryRegex.String()).
+		WithArgs(feedDeleteItemID, feedDeleteTeamID).
+		WillReturnError(errors.New("connection refused"))
 
-	mock.ExpectQuery(checkQueryRegex.String()).
+	err := repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
+
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, repositories.ErrFeedItemNotFound),
+		"a DB error must not be reported as not-found")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestFeedItemRepository_Delete_DBErrorOnDelete_NotSentinel: same for the DELETE.
+func TestFeedItemRepository_Delete_DBErrorOnDelete_NotSentinel(t *testing.T) {
+	repo, mock := newFeedItemRepoForDelete(t)
+
+	mock.ExpectQuery(existsQueryRegex.String()).
+		WithArgs(feedDeleteItemID, feedDeleteTeamID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectExec(deleteQueryRegex.String()).
 		WithArgs(feedDeleteItemID, feedDeleteTeamID, feedDeleteUserID).
 		WillReturnError(errors.New("connection refused"))
 
-	err = repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
+	err := repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
 
 	require.Error(t, err)
-	assert.False(t, errors.Is(err, repositories.ErrFeedItemNotFound),
-		"transient DB errors must NOT be mapped to ErrFeedItemNotFound")
-	assert.False(t, errors.Is(err, repositories.ErrFeedItemForbidden),
-		"transient DB errors must NOT be mapped to ErrFeedItemForbidden")
+	assert.False(t, errors.Is(err, repositories.ErrFeedItemNotFound))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestFeedItemRepository_Delete_DBErrorOnDelete_NotSentinel verifies that a DB
-// error on the actual DELETE statement (after authorization passed) propagates
-// without being mapped to a sentinel.
-func TestFeedItemRepository_Delete_DBErrorOnDelete_NotSentinel(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			t.Logf("Failed to close db: %v", closeErr)
-		}
-	}()
+// TestFeedItemRepository_Delete_ZeroRowsAffected_ReturnsNotFound covers the race
+// the existence check cannot close: the row vanished (or the caller's membership
+// was revoked) between the SELECT and the DELETE. The caller gets a deterministic
+// not-found rather than a silent 204 no-op.
+func TestFeedItemRepository_Delete_ZeroRowsAffected_ReturnsNotFound(t *testing.T) {
+	repo, mock := newFeedItemRepoForDelete(t)
 
-	repo := postgres.NewFeedItemRepository(&database.DB{DB: db})
-
-	rows := sqlmock.NewRows([]string{"item_exists", "authorized"}).AddRow(true, true)
-	mock.ExpectQuery(checkQueryRegex.String()).
-		WithArgs(feedDeleteItemID, feedDeleteTeamID, feedDeleteUserID).
-		WillReturnRows(rows)
-	mock.ExpectExec(deleteQueryRegex.String()).
-		WithArgs(feedDeleteItemID, feedDeleteTeamID, feedDeleteUserID).
-		WillReturnError(errors.New("query timeout"))
-
-	err = repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
-
-	require.Error(t, err)
-	assert.False(t, errors.Is(err, repositories.ErrFeedItemNotFound),
-		"DELETE-statement errors must NOT be mapped to ErrFeedItemNotFound")
-	assert.False(t, errors.Is(err, repositories.ErrFeedItemForbidden),
-		"DELETE-statement errors must NOT be mapped to ErrFeedItemForbidden")
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-// TestFeedItemRepository_Delete_AuthorizedButZeroRowsAffected_ReturnsNotFound
-// verifies the SELECT→DELETE race window: the existence/authorization SELECT
-// passes, but by the time the DELETE runs the row is gone (concurrent
-// deletion) or the caller's authorization was revoked (membership/role change),
-// so the auth-predicated DELETE affects 0 rows. Returning nil here would
-// produce a silent 204 no-op; the repository must instead surface
-// ErrFeedItemNotFound so the handler returns a deterministic 404.
-func TestFeedItemRepository_Delete_AuthorizedButZeroRowsAffected_ReturnsNotFound(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			t.Logf("Failed to close db: %v", closeErr)
-		}
-	}()
-
-	repo := postgres.NewFeedItemRepository(&database.DB{DB: db})
-
-	rows := sqlmock.NewRows([]string{"item_exists", "authorized"}).AddRow(true, true)
-	mock.ExpectQuery(checkQueryRegex.String()).
-		WithArgs(feedDeleteItemID, feedDeleteTeamID, feedDeleteUserID).
-		WillReturnRows(rows)
+	mock.ExpectQuery(existsQueryRegex.String()).
+		WithArgs(feedDeleteItemID, feedDeleteTeamID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectExec(deleteQueryRegex.String()).
 		WithArgs(feedDeleteItemID, feedDeleteTeamID, feedDeleteUserID).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	err = repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
+	err := repo.Delete(context.Background(), feedDeleteUserID, feedDeleteTeamID, feedDeleteItemID)
 
-	require.Error(t, err)
 	assert.True(t, errors.Is(err, repositories.ErrFeedItemNotFound),
-		"zero rows affected after authorization passed must wrap ErrFeedItemNotFound; got: %v", err)
-	assert.False(t, errors.Is(err, repositories.ErrFeedItemForbidden),
-		"zero rows affected must NOT be reported as forbidden")
+		"a concurrent change must surface as not-found, got %v", err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

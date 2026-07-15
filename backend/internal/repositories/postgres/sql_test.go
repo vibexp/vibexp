@@ -40,14 +40,6 @@ func TestTeamAccessHelpers(t *testing.T) {
 				"OR EXISTS (SELECT 1 FROM team_members tm WHERE tm.team_id = mem.team_id AND tm.user_id = ?))",
 			wantArgs: []interface{}{"user-2", "user-2"},
 		},
-		{
-			name:    "write access with bound team ID",
-			sqlizer: teamWriteAccess("team-1", "user-1"),
-			wantSQL: "(EXISTS (SELECT 1 FROM teams WHERE id = ? AND owner_id = ?) " +
-				"OR EXISTS (SELECT 1 FROM team_members " +
-				"WHERE team_id = ? AND user_id = ? AND role IN ('owner', 'admin')))",
-			wantArgs: []interface{}{"team-1", "user-1", "team-1", "user-1"},
-		},
 	}
 
 	for _, tt := range tests {

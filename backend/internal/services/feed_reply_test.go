@@ -138,7 +138,7 @@ func TestFeedItemReplyService_CreateReply(t *testing.T) {
 			mockTeamSvc := svcMocks.NewMockTeamServiceInterface(t)
 			logger := newTestLogger()
 
-			svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, nil, logger)
+			svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, permissiveAuthz(t), nil, logger)
 
 			ctx := context.Background()
 
@@ -302,7 +302,7 @@ func TestFeedItemReplyService_ListReplies(t *testing.T) {
 			mockTeamSvc := svcMocks.NewMockTeamServiceInterface(t)
 			logger := newTestLogger()
 
-			svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, nil, logger)
+			svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, permissiveAuthz(t), nil, logger)
 			ctx := context.Background()
 
 			if tt.memberErr != nil {
@@ -400,7 +400,7 @@ func TestFeedItemService_EnrichWithReplyCounts(t *testing.T) {
 			mockReplyRepo := repoMocks.NewMockFeedItemReplyRepository(t)
 			logger := newTestLogger()
 
-			svc := services.NewFeedItemService(mockFeedItemRepo, mockReplyRepo, nil, nil, nil, logger)
+			svc := services.NewFeedItemService(mockFeedItemRepo, mockReplyRepo, nil, nil, permissiveAuthz(t), nil, logger)
 			ctx := context.Background()
 
 			if len(tt.items) > 0 {
@@ -466,7 +466,7 @@ func TestFeedItemService_GetFeedItem_EnrichesReplyCount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockFeedItemRepo := repoMocks.NewMockFeedItemRepository(t)
 			mockReplyRepo := repoMocks.NewMockFeedItemReplyRepository(t)
-			svc := services.NewFeedItemService(mockFeedItemRepo, mockReplyRepo, nil, nil, nil, newTestLogger())
+			svc := services.NewFeedItemService(mockFeedItemRepo, mockReplyRepo, nil, nil, permissiveAuthz(t), nil, newTestLogger())
 			ctx := context.Background()
 
 			if tt.getErr != nil {
@@ -528,7 +528,7 @@ func TestFeedItemReplyService_CreateReply_PublishesEvent(t *testing.T) {
 	mockTeamSvc := svcMocks.NewMockTeamServiceInterface(t)
 	mockEvent := &eventMocks.MockEventPublisher{}
 
-	svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, mockEvent, newTestLogger())
+	svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, permissiveAuthz(t), mockEvent, newTestLogger())
 	setupReplyCreateMocks(mockReplyRepo, mockFeedItemRepo, mockTeamSvc)
 
 	var published events.Event
@@ -561,7 +561,7 @@ func TestFeedItemReplyService_CreateReply_NilEventManagerSkipsPublish(t *testing
 	mockFeedItemRepo := repoMocks.NewMockFeedItemRepository(t)
 	mockTeamSvc := svcMocks.NewMockTeamServiceInterface(t)
 
-	svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, nil, newTestLogger())
+	svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, permissiveAuthz(t), nil, newTestLogger())
 	setupReplyCreateMocks(mockReplyRepo, mockFeedItemRepo, mockTeamSvc)
 
 	req := &models.CreateFeedItemReplyRequest{Content: "A substantive reply"}
@@ -578,7 +578,7 @@ func TestFeedItemReplyService_ListReplyPosters(t *testing.T) {
 		mockReplyRepo := repoMocks.NewMockFeedItemReplyRepository(t)
 		mockFeedItemRepo := repoMocks.NewMockFeedItemRepository(t)
 		mockTeamSvc := svcMocks.NewMockTeamServiceInterface(t)
-		svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, nil, newTestLogger())
+		svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, permissiveAuthz(t), nil, newTestLogger())
 
 		mockTeamSvc.On("IsUserMemberOfTeam", mock.Anything, "user-1", "team-1").Return(true, nil)
 		want := []repositories.FeedItemReplyPoster{
@@ -596,7 +596,7 @@ func TestFeedItemReplyService_ListReplyPosters(t *testing.T) {
 		mockReplyRepo := repoMocks.NewMockFeedItemReplyRepository(t)
 		mockFeedItemRepo := repoMocks.NewMockFeedItemRepository(t)
 		mockTeamSvc := svcMocks.NewMockTeamServiceInterface(t)
-		svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, nil, newTestLogger())
+		svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, permissiveAuthz(t), nil, newTestLogger())
 
 		mockTeamSvc.On("IsUserMemberOfTeam", mock.Anything, "user-1", "team-1").Return(false, nil)
 
@@ -609,7 +609,7 @@ func TestFeedItemReplyService_ListReplyPosters(t *testing.T) {
 		mockReplyRepo := repoMocks.NewMockFeedItemReplyRepository(t)
 		mockFeedItemRepo := repoMocks.NewMockFeedItemRepository(t)
 		mockTeamSvc := svcMocks.NewMockTeamServiceInterface(t)
-		svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, nil, newTestLogger())
+		svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, permissiveAuthz(t), nil, newTestLogger())
 
 		mockTeamSvc.On("IsUserMemberOfTeam", mock.Anything, "user-1", "team-1").Return(true, nil)
 		mockReplyRepo.On("ListReplyPostersByItemID", mock.Anything, "team-1", "item-1").

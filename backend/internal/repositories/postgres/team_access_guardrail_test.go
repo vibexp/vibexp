@@ -40,10 +40,8 @@ import (
 // for any bound parameter and `:team` for the team-ID comparand (a bound
 // parameter or a row-correlated column reference of the outer query).
 const (
-	canonicalOwnerExists       = "exists (select 1 from teams where id = :team and owner_id = :p)"
-	canonicalMemberExists      = "exists (select 1 from team_members where team_id = :team and user_id = :p)"
-	canonicalMemberWriteExists = "exists (select 1 from team_members " +
-		"where team_id = :team and user_id = :p and role in ('owner', 'admin'))"
+	canonicalOwnerExists  = "exists (select 1 from teams where id = :team and owner_id = :p)"
+	canonicalMemberExists = "exists (select 1 from team_members where team_id = :team and user_id = :p)"
 )
 
 // teamAccessAllowlist lists normalized predicates, keyed by file name, that
@@ -95,7 +93,7 @@ func TestTeamAccessPredicatesAreCanonical(t *testing.T) {
 		case "teams":
 			ok = normalized == canonicalOwnerExists
 		case "team_members":
-			ok = normalized == canonicalMemberExists || normalized == canonicalMemberWriteExists
+			ok = normalized == canonicalMemberExists
 		}
 		if !ok && allowed[p.file][normalized] {
 			ok = true
@@ -103,9 +101,9 @@ func TestTeamAccessPredicatesAreCanonical(t *testing.T) {
 		if !ok {
 			t.Errorf(
 				"%s:%d: non-canonical team-access predicate on %s:\n  normalized: %s\n"+
-					"  canonical owner:        %s\n  canonical member:       %s\n  canonical member write: %s",
+					"  canonical owner:  %s\n  canonical member: %s",
 				p.file, p.line, p.table, normalized,
-				canonicalOwnerExists, canonicalMemberExists, canonicalMemberWriteExists,
+				canonicalOwnerExists, canonicalMemberExists,
 			)
 			continue
 		}
@@ -419,4 +417,53 @@ func isSQLErrNoRows(expr ast.Expr) bool {
 	}
 	pkg, ok := sel.X.(*ast.Ident)
 	return ok && pkg.Name == "sql" && sel.Sel.Name == "ErrNoRows"
+}
+
+// rolePredicateRe matches a SQL filter on the team_members role column —
+// `role IN (...)`, `role = 'owner'`, `tm.role in (...)`, etc.
+var rolePredicateRe = regexp.MustCompile(`(?i)(^|[\s(.])role\s*(in\s*\(|=|<>|!=)`)
+
+// roleColumnCRUDFiles legitimately read and write team_members.role as DATA
+// rather than as an authorization predicate: team_member.go is that column's own
+// CRUD, and team.go's ownership transfer rewrites both role rows. The rule below
+// targets authorization filters, not the role column's existence.
+var roleColumnCRUDFiles = map[string]bool{
+	"team_member.go": true,
+	"team.go":        true,
+}
+
+// TestNoRolePredicatesInRepositorySQL is the closing guarantee of epic #220
+// decision D3: role/ownership logic lives in the service layer (internal/authz),
+// and repository SQL enforces TENANCY ONLY.
+//
+// Every slice of the epic removed these predicates one domain at a time
+// (#235 projects, #236 prompts/agents, #237 memories/artifacts/blueprints, #238
+// feeds); this rule is what stops them coming back. A query that filters on
+// `role` is a second enforcement point, and two of those inevitably drift — which
+// is exactly the bug the epic exists to end (the old predicates were inconsistent
+// per query, and several compared the resource owner against itself, so they
+// never enforced anything at all).
+//
+// If you are here because this test failed: do not add an exemption. Put the role
+// decision in the service via AuthorizationService.Can / CanActOnResource and
+// leave the SQL scoping by team membership.
+func TestNoRolePredicatesInRepositorySQL(t *testing.T) {
+	forEachPackageFile(t, func(name string, fset *token.FileSet, file *ast.File) {
+		if roleColumnCRUDFiles[name] {
+			return
+		}
+		for _, lit := range sqlStringLiterals(fset, file) {
+			if !strings.Contains(strings.ToLower(lit.value), "role") {
+				continue
+			}
+			if loc := rolePredicateRe.FindString(lit.value); loc != "" {
+				t.Errorf(
+					"%s:%d: role predicate in repository SQL (%q).\n"+
+						"Repository SQL enforces tenancy only (epic #220 D3); the role decision "+
+						"belongs in the service layer via AuthorizationService.",
+					name, lit.line, strings.TrimSpace(loc),
+				)
+			}
+		}
+	})
 }

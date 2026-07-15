@@ -655,6 +655,20 @@ func (s *Server) buildFeedItemFilters(
 
 // handleFeedServiceError maps service errors for Feed create/delete operations.
 func (s *Server) handleFeedServiceError(w http.ResponseWriter, handler, userID, teamID string, err error) {
+	// Denials are benign client errors: handled before the ERROR log and before
+	// the substring matching below, which ErrPermissionDenied's text matches
+	// nowhere — it would otherwise fall through to the default 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With(
+			"service", "vibexp-api", "handler", handler, "user_id", userID, "team_id", teamID,
+		).Warn("Forbidden feed write attempt")
+		writeErrorResponse(
+			w, nil, "forbidden",
+			"You do not have permission to perform this action on this team's feeds", http.StatusForbidden,
+		)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", handler,
@@ -687,6 +701,13 @@ func (s *Server) handleFeedGetError(w http.ResponseWriter, handler, userID, team
 		"error", fmt.Sprintf("%+v", err),
 	).Error("Feed operation error")
 
+	// Denial first (see handleFeedItemGetError).
+	if errors.Is(err, services.ErrPermissionDenied) {
+		writeErrorResponse(w, nil, "forbidden",
+			"You can only delete feeds you created; team admins can delete any", http.StatusForbidden)
+		return
+	}
+
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, "not found"):
@@ -702,6 +723,20 @@ func (s *Server) handleFeedGetError(w http.ResponseWriter, handler, userID, team
 
 // handleFeedItemServiceError maps service errors for FeedItem create operations.
 func (s *Server) handleFeedItemServiceError(w http.ResponseWriter, handler, userID, teamID, feedID string, err error) {
+	// Denials are benign client errors: handled before the ERROR log and before
+	// the substring matching below, which ErrPermissionDenied's text matches
+	// nowhere — it would otherwise fall through to the default 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With(
+			"service", "vibexp-api", "handler", handler, "user_id", userID, "team_id", teamID,
+		).Warn("Forbidden feed write attempt")
+		writeErrorResponse(
+			w, nil, "forbidden",
+			"You do not have permission to perform this action on this feed", http.StatusForbidden,
+		)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", handler,
@@ -738,9 +773,13 @@ func (s *Server) handleFeedItemGetError(w http.ResponseWriter, handler, userID, 
 	).Error("Feed item operation error")
 
 	switch {
-	case errors.Is(err, repositories.ErrFeedItemForbidden):
+	// The repository no longer decides authorization (epic #220 D3), so the
+	// denial now arrives from FeedItemService as ErrPermissionDenied. Matching
+	// the retired repository sentinel here would silently 500 every denial —
+	// the exact regression PR #233 had to fix in the team handlers.
+	case errors.Is(err, services.ErrPermissionDenied):
 		writeErrorResponse(w, nil, "forbidden",
-			"You do not have permission to perform this action on this feed item", http.StatusForbidden)
+			"You can only delete feed items you posted; team admins can delete any", http.StatusForbidden)
 	case errors.Is(err, repositories.ErrFeedItemNotFound):
 		writeErrorResponse(w, nil, "not_found", "Feed item not found", http.StatusNotFound)
 	case strings.Contains(err.Error(), "user is not a member of the specified team"):
@@ -936,6 +975,17 @@ func (s *Server) validateCreateFeedItemReplyRequest(
 func (s *Server) handleFeedItemReplyServiceError(
 	w http.ResponseWriter, handler, userID, teamID, itemID string, err error,
 ) {
+	// Denials are benign client errors: handled before the ERROR log and before
+	// the substring matching below, which ErrPermissionDenied's text matches
+	// nowhere — it would otherwise fall through to the default 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With(
+			"service", "vibexp-api", "handler", handler, "user_id", userID, "team_id", teamID,
+		).Warn("Forbidden feed write attempt")
+		writeErrorResponse(w, nil, "forbidden", "You do not have permission to reply on this feed", http.StatusForbidden)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", handler,

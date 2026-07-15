@@ -317,9 +317,8 @@ func (r *FeedRepository) Delete(ctx context.Context, userID, teamID, feedID stri
 		WHERE id = $1
 			AND team_id = $2
 			AND (
-				created_by_user_id = $3
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin'))
+				EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
 			)
 	`
 
@@ -640,56 +639,39 @@ func (r *FeedItemRepository) Unarchive(ctx context.Context, userID, teamID, item
 	return nil
 }
 
-// Delete hard-deletes a feed item, distinguishing missing items from
-// authorization failures. The single-roundtrip check returns two booleans —
-// item_exists (the row exists in this team) and authorized (the caller is the
-// poster, the team owner, or a team member with role owner/admin) — so callers
-// can map "no row" to ErrFeedItemNotFound (404) and "row but not allowed" to
-// ErrFeedItemForbidden (403).
+// Delete hard-deletes a feed item, distinguishing a missing item from a denial.
+//
+// The predicate is TENANCY ONLY (epic #220 decision D3): the existence check
+// still tells "no such item in this team" (404) apart from a denial, but WHO may
+// delete it is decided by FeedItemService via the authz matrix before this is
+// reached — the poster may delete their own, Owner/Admin may delete anyone's as
+// moderation.
+//
+// The former role re-assertion inside the DELETE is gone with it. That guarded a
+// SELECT->DELETE race (role revoked between the two queries); D3 explicitly
+// accepts losing that atomicity — the window is negligible — in exchange for one
+// testable enforcement point instead of two that drift.
 func (r *FeedItemRepository) Delete(ctx context.Context, userID, teamID, itemID string) error {
-	const checkQuery = `
-		SELECT
-			EXISTS (SELECT 1 FROM feed_items WHERE id = $1 AND team_id = $2) AS item_exists,
-			EXISTS (
-				SELECT 1 FROM feed_items WHERE id = $1 AND team_id = $2
-				AND (
-					posted_by_user_id = $3
-					OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-					OR EXISTS (
-						SELECT 1 FROM team_members
-						WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin')
-					)
-				)
-			) AS authorized
+	const existsQuery = `
+		SELECT EXISTS (SELECT 1 FROM feed_items WHERE id = $1 AND team_id = $2)
 	`
 
-	var itemExists, authorized bool
-	if err := r.db.QueryRowContext(ctx, checkQuery, itemID, teamID, userID).Scan(&itemExists, &authorized); err != nil {
-		return fmt.Errorf("failed to check feed item delete permission: %w", err)
+	var itemExists bool
+	if err := r.db.QueryRowContext(ctx, existsQuery, itemID, teamID).Scan(&itemExists); err != nil {
+		return fmt.Errorf("failed to check feed item existence: %w", err)
 	}
 
 	if !itemExists {
 		return fmt.Errorf("%w: id=%s team=%s", repositories.ErrFeedItemNotFound, itemID, teamID)
 	}
-	if !authorized {
-		return fmt.Errorf("%w: user=%s item=%s", repositories.ErrFeedItemForbidden, userID, itemID)
-	}
 
-	// Re-assert authorization atomically inside the DELETE itself to close the
-	// SELECT→DELETE race window. The 403/404 distinction was already produced
-	// by the SELECT above; this DELETE's predicate is defense-in-depth against
-	// concurrent role demotion / membership removal between the two queries.
 	const deleteQuery = `
 		DELETE FROM feed_items
 		WHERE id = $1
 			AND team_id = $2
 			AND (
-				posted_by_user_id = $3
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-				OR EXISTS (
-					SELECT 1 FROM team_members
-					WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin')
-				)
+				EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
 			)
 	`
 	result, err := r.db.ExecContext(ctx, deleteQuery, itemID, teamID, userID)
@@ -701,10 +683,10 @@ func (r *FeedItemRepository) Delete(ctx context.Context, userID, teamID, itemID 
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		// Race: between our SELECT and DELETE the row was removed or the
-		// caller's authorization was revoked. Either way the operation did
-		// not delete what we intended; return not-found so the client sees
-		// a deterministic outcome instead of a silent 204 no-op.
+		// Race: between the existence check and the DELETE the row was removed or
+		// the caller's membership was revoked. Either way the operation did not
+		// delete what we intended; return not-found so the client sees a
+		// deterministic outcome instead of a silent 204 no-op.
 		return fmt.Errorf("%w: id=%s team=%s (concurrent change)", repositories.ErrFeedItemNotFound, itemID, teamID)
 	}
 
