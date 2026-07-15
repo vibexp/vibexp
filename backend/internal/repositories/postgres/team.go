@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -103,6 +105,91 @@ func (r *TeamRepository) GetByOwnerAndSlug(ctx context.Context, ownerID, slug st
 	}
 
 	return &team, nil
+}
+
+// TransferOwnership moves ownership of a team from fromUserID to toUserID.
+//
+// All three writes — teams.owner_id, the new owner's role, and the old owner's
+// demotion to admin — happen in one transaction, because a team must always have
+// exactly one owner: a partial apply would either strand the team with no owner
+// or leave owner_id disagreeing with team_members.role, which is the authority
+// the authz layer reads.
+//
+// It is the caller's job to authorize the transfer and to validate that both
+// users are members; this method enforces only what the data can prove:
+// ErrTeamNotFound when fromUserID does not currently own the team (which also
+// makes a concurrent double-transfer a clean no-op rather than a lost update),
+// and ErrTeamMemberNotFound when either membership row is missing.
+func (r *TeamRepository) TransferOwnership(ctx context.Context, teamID, fromUserID, toUserID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			slog.Error("Failed to rollback ownership transfer transaction", "error", rollbackErr)
+		}
+	}()
+
+	now := time.Now()
+
+	// Guarding on owner_id makes this the concurrency control point: two racing
+	// transfers cannot both win, the loser sees ErrTeamNotFound.
+	res, err := tx.ExecContext(ctx, `
+		UPDATE teams
+		SET owner_id = $1, updated_at = $2
+		WHERE id = $3 AND owner_id = $4
+	`, toUserID, now, teamID, fromUserID)
+	if err != nil {
+		return fmt.Errorf("failed to update team owner: %w", err)
+	}
+	if rowErr := expectOneRow(res, repositories.ErrTeamNotFound); rowErr != nil {
+		return rowErr
+	}
+
+	res, err = tx.ExecContext(ctx, `
+		UPDATE team_members
+		SET role = $1, updated_at = $2
+		WHERE team_id = $3 AND user_id = $4
+	`, models.TeamMemberRoleOwner, now, teamID, toUserID)
+	if err != nil {
+		return fmt.Errorf("failed to promote new owner: %w", err)
+	}
+	if rowErr := expectOneRow(res, repositories.ErrTeamMemberNotFound); rowErr != nil {
+		return rowErr
+	}
+
+	res, err = tx.ExecContext(ctx, `
+		UPDATE team_members
+		SET role = $1, updated_at = $2
+		WHERE team_id = $3 AND user_id = $4
+	`, models.TeamMemberRoleAdmin, now, teamID, fromUserID)
+	if err != nil {
+		return fmt.Errorf("failed to demote previous owner: %w", err)
+	}
+	if rowErr := expectOneRow(res, repositories.ErrTeamMemberNotFound); rowErr != nil {
+		return rowErr
+	}
+
+	if commitErr := tx.Commit(); commitErr != nil {
+		return fmt.Errorf("failed to commit ownership transfer: %w", commitErr)
+	}
+
+	return nil
+}
+
+// expectOneRow turns a zero-row UPDATE into notFound, so a transfer step that
+// silently matched nothing aborts the transaction instead of committing a
+// half-transferred team.
+func expectOneRow(res sql.Result, notFound error) error {
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return notFound
+	}
+	return nil
 }
 
 // Update updates an existing team

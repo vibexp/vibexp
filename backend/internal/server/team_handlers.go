@@ -208,14 +208,17 @@ func (s *Server) handleUpdateTeam(w http.ResponseWriter, r *http.Request) {
 
 	team, err := s.container.TeamService().UpdateTeam(r.Context(), userID, teamID, &req)
 	if err != nil {
-		if stderrors.Is(err, services.ErrTeamForbidden) {
+		if stderrors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
 				"service", "vibexp-api",
 				"handler", "handleUpdateTeam",
 				"user_id", userID,
 				"team_id", teamID,
 			).Warn("Forbidden team write attempt")
-			writeErrorResponse(w, nil, "forbidden", "Only team owners can perform this action", http.StatusForbidden)
+			writeErrorResponse(
+				w, r, "forbidden",
+				"Only team owners and admins can update a team", http.StatusForbidden,
+			)
 			return
 		}
 
@@ -253,14 +256,14 @@ func (s *Server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 	err := s.container.TeamService().DeleteTeam(r.Context(), userID, teamID)
 	if err != nil {
 		// Handle forbidden before logging at ERROR to keep benign client errors at WARN
-		if stderrors.Is(err, services.ErrTeamForbidden) {
+		if stderrors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
 				"service", "vibexp-api",
 				"handler", "handleDeleteTeam",
 				"user_id", userID,
 				"team_id", teamID,
 			).Warn("Forbidden team write attempt")
-			writeErrorResponse(w, nil, "forbidden", "Only team owners can perform this action", http.StatusForbidden)
+			writeErrorResponse(w, r, "forbidden", "Only the team owner can delete a team", http.StatusForbidden)
 			return
 		}
 
@@ -472,7 +475,7 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 
 	err := s.container.TeamService().RemoveTeamMember(r.Context(), userID, teamID, memberUserID)
 	if err != nil {
-		if stderrors.Is(err, services.ErrTeamForbidden) {
+		if stderrors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
 				"service", "vibexp-api",
 				"handler", "handleRemoveTeamMember",
@@ -480,7 +483,10 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 				"team_id", teamID,
 				"member_id", memberUserID,
 			).Warn("Forbidden team write attempt")
-			writeErrorResponse(w, nil, "forbidden", "Only team owners can perform this action", http.StatusForbidden)
+			writeErrorResponse(
+				w, r, "forbidden",
+				"Only team owners and admins can remove members", http.StatusForbidden,
+			)
 			return
 		}
 
@@ -498,8 +504,8 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		if strings.Contains(err.Error(), "cannot remove team owner") {
-			writeErrorResponse(w, nil, "forbidden", "Cannot remove team owner", http.StatusForbidden)
+		if stderrors.Is(err, services.ErrCannotRemoveTeamOwner) {
+			writeErrorResponse(w, r, "forbidden", "Cannot remove team owner", http.StatusForbidden)
 			return
 		}
 

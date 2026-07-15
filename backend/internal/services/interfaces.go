@@ -356,6 +356,16 @@ type TeamServiceInterface interface {
 	IsUserMemberOfTeam(ctx context.Context, userID, teamID string) (bool, error)
 	GetTeamMembers(ctx context.Context, userID, teamID string, page, pageSize int) (*models.TeamMembersListResponse, error)
 	RemoveTeamMember(ctx context.Context, userID, teamID, memberUserID string) error
+	// UpdateMemberRole changes targetUserID's role between member and admin.
+	// Admin+; the team owner's role cannot be changed and owner cannot be
+	// assigned (use TransferOwnership).
+	UpdateMemberRole(
+		ctx context.Context, userID, teamID, targetUserID string, newRole models.TeamMemberRole,
+	) (*models.TeamMemberDetail, error)
+	// TransferOwnership makes newOwnerID the team owner and demotes the caller
+	// to admin, transactionally. Owner-only; the target must be a member and
+	// personal workspaces are excluded.
+	TransferOwnership(ctx context.Context, userID, teamID, newOwnerID string) (*models.Team, error)
 	// GetTeamStats returns team-wide resource counts (projects, prompts, artifacts,
 	// blueprints, memories, feed_items). Team membership is validated by the caller.
 	GetTeamStats(ctx context.Context, teamID string) (*models.TeamStatsResponse, error)

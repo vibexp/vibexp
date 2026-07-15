@@ -135,6 +135,26 @@ func (m *MockTeamService) RemoveTeamMember(ctx context.Context, userID, teamID, 
 	return args.Error(0)
 }
 
+func (m *MockTeamService) UpdateMemberRole(
+	ctx context.Context, userID, teamID, targetUserID string, newRole models.TeamMemberRole,
+) (*models.TeamMemberDetail, error) {
+	args := m.Called(ctx, userID, teamID, targetUserID, newRole)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.TeamMemberDetail), args.Error(1)
+}
+
+func (m *MockTeamService) TransferOwnership(
+	ctx context.Context, userID, teamID, newOwnerID string,
+) (*models.Team, error) {
+	args := m.Called(ctx, userID, teamID, newOwnerID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Team), args.Error(1)
+}
+
 //nolint:funlen // Test requires comprehensive test cases
 func TestAgentService_ValidateAndResolveTeamID(t *testing.T) {
 	ctx := context.Background()

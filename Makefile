@@ -120,6 +120,8 @@ backend-generate-openapi-server: backend-bundle-openapi
 	@cd backend && go tool oapi-codegen -config oapi-codegen.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Types)..."
 	@cd backend && mkdir -p internal/server/gen/types && go tool oapi-codegen -config oapi-codegen-types.yaml dist/openapi.bundled.yaml
+	@echo "🧬 Generating OpenAPI strict-server code (Team Roles)..."
+	@cd backend && mkdir -p internal/server/gen/teamroles && go tool oapi-codegen -config oapi-codegen-teamroles.yaml dist/openapi.bundled.yaml
 
 # Regenerate the Wire dependency-injection bindings
 # (internal/container/wire_gen.go) from the provider set. Wire is pinned via the

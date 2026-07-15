@@ -489,9 +489,10 @@ func ProvideTeamService(
 	teamRepo repositories.TeamRepository,
 	teamMemberRepo repositories.TeamMemberRepository,
 	userRepo repositories.UserRepository,
+	authzService services.AuthorizationServiceInterface,
 	logger *slog.Logger,
 ) services.TeamServiceInterface {
-	return services.NewTeamService(teamRepo, teamMemberRepo, userRepo, logger)
+	return services.NewTeamService(teamRepo, teamMemberRepo, userRepo, authzService, logger)
 }
 
 // ProvideTeamInvitationService creates a new TeamInvitationService
@@ -501,6 +502,7 @@ func ProvideTeamInvitationService(
 	teamMemberRepo repositories.TeamMemberRepository,
 	userRepo repositories.UserRepository,
 	emailService services.EmailServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) *services.TeamInvitationService {
@@ -510,6 +512,7 @@ func ProvideTeamInvitationService(
 		teamMemberRepo,
 		userRepo,
 		emailService,
+		authzService,
 		cfg,
 		logger,
 	)

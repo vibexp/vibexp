@@ -148,6 +148,53 @@ TeamMemberDetail:
     - role
     - joined_at
 
+UpdateTeamMemberRoleRequest:
+  type: object
+  description: |
+    Request body for changing a team member's role. Only `member` and `admin` are
+    accepted: a team has exactly one owner, and ownership moves solely through
+    the transfer-ownership operation.
+  properties:
+    role:
+      type: string
+      enum: [member, admin]
+      description: The role to assign to the member
+      example: "admin"
+  required:
+    - role
+
+UpdateTeamMemberRoleResponse:
+  type: object
+  description: The team member after the role change
+  properties:
+    member:
+      $ref: '#/TeamMemberDetail'
+  required:
+    - member
+
+TransferTeamOwnershipRequest:
+  type: object
+  description: |
+    Request body for transferring team ownership. The target must already be a
+    member of the team; they become the owner and the current owner becomes an
+    admin, in a single transaction.
+  properties:
+    new_owner_id:
+      type: string
+      description: User ID of the member who will become the team owner
+      example: "user_01HXYZABC123"
+  required:
+    - new_owner_id
+
+TransferTeamOwnershipResponse:
+  type: object
+  description: The team after ownership has been transferred
+  properties:
+    team:
+      $ref: '#/Team'
+  required:
+    - team
+
 TeamMembersListResponse:
   type: object
   description: Paginated list of team members

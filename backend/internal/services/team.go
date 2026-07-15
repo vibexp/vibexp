@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/logging"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -18,6 +19,7 @@ type TeamService struct {
 	teamRepo       repositories.TeamRepository
 	teamMemberRepo repositories.TeamMemberRepository
 	userRepo       repositories.UserRepository
+	authz          AuthorizationServiceInterface
 	logger         *slog.Logger
 }
 
@@ -26,6 +28,7 @@ func NewTeamService(
 	teamRepo repositories.TeamRepository,
 	teamMemberRepo repositories.TeamMemberRepository,
 	userRepo repositories.UserRepository,
+	authz AuthorizationServiceInterface,
 	logger *slog.Logger,
 ) *TeamService {
 	if logger == nil {
@@ -35,6 +38,7 @@ func NewTeamService(
 		teamRepo:       teamRepo,
 		teamMemberRepo: teamMemberRepo,
 		userRepo:       userRepo,
+		authz:          authz,
 		logger:         logger,
 	}
 }
@@ -179,33 +183,32 @@ func (s *TeamService) CreateTeam(
 	return team, nil
 }
 
-// verifyTeamOwnership verifies that the user is the owner of the team
-// This should be used for write operations (delete, update, etc.)
-func (s *TeamService) verifyTeamOwnership(ctx context.Context, userID, teamID string) (*models.Team, error) {
+// authorizeTeam loads the team and checks that the caller's role grants perm.
+//
+// It replaces the former verifyTeamOwnership, which keyed off the
+// teams.owner_id column and so admitted only the owner. team_members.role is
+// now the sole authority (epic #220): owner_id is referential data, kept in
+// sync by TransferOwnership. Callers pass the permission the operation needs,
+// which is what lets team.update admit admins while team.delete stays
+// owner-only — the matrix decides, not this function.
+//
+// The returned team carries the caller's Role populated, as before, because
+// callers marshal it back to the client.
+func (s *TeamService) authorizeTeam(
+	ctx context.Context, userID, teamID string, perm authz.Permission,
+) (*models.Team, error) {
 	team, err := s.teamRepo.GetByID(ctx, teamID)
 	if err != nil {
 		return nil, ErrTeamNotFound
 	}
 
-	// Verify ownership
-	if team.OwnerID != userID {
-		return nil, ErrTeamForbidden
-	}
-
-	// Get user's role in this team
-	member, err := s.teamMemberRepo.GetByTeamAndUser(ctx, team.ID, userID)
+	// Authorize rather than Can: it hands back the role it already resolved, so
+	// populating team.Role below costs no second lookup.
+	role, err := s.authz.Authorize(ctx, userID, teamID, perm)
 	if err != nil {
-		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
-			"team_id", team.ID,
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Warn("Failed to get team member role for owner")
-		team.Role = string(models.TeamMemberRoleOwner)
-	} else {
-		team.Role = string(member.Role)
+		return nil, err
 	}
+	team.Role = string(role)
 
 	return team, nil
 }
@@ -233,8 +236,8 @@ func (s *TeamService) GetTeam(ctx context.Context, userID, teamID string) (*mode
 func (s *TeamService) UpdateTeam(
 	ctx context.Context, userID, teamID string, req *models.UpdateTeamRequest,
 ) (*models.Team, error) {
-	// Get existing team and verify ownership
-	team, err := s.verifyTeamOwnership(ctx, userID, teamID)
+	// Load the team and authorize: updating team details is Admin+ (epic #220).
+	team, err := s.authorizeTeam(ctx, userID, teamID, authz.TeamUpdate)
 	if err != nil {
 		return nil, err
 	}
@@ -246,10 +249,13 @@ func (s *TeamService) UpdateTeam(
 		// Regenerate slug if name changed
 		newSlug := generateSlug(*req.Name)
 		if newSlug != team.Slug {
-			// Check if new slug already exists
-			existingTeam, slugErr := s.teamRepo.GetByOwnerAndSlug(ctx, userID, newSlug)
+			// Slugs are unique per OWNER, so uniqueness must be checked against
+			// team.OwnerID, not the caller: now that admins may update a team,
+			// the caller is often not the owner, and checking their namespace
+			// would both miss real collisions and invent phantom ones.
+			existingTeam, slugErr := s.teamRepo.GetByOwnerAndSlug(ctx, team.OwnerID, newSlug)
 			if slugErr == nil && existingTeam != nil && existingTeam.ID != team.ID {
-				newSlug = makeSlugUnique(ctx, s.teamRepo, userID, newSlug)
+				newSlug = makeSlugUnique(ctx, s.teamRepo, team.OwnerID, newSlug)
 			}
 			team.Slug = newSlug
 		}
@@ -289,8 +295,8 @@ func (s *TeamService) UpdateTeam(
 // the delete; splitting it would scatter the deletion preconditions and hurt
 // readability more than the length costs.
 func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) error {
-	// 1. Get existing team and verify ownership
-	team, err := s.verifyTeamOwnership(ctx, userID, teamID)
+	// 1. Get existing team and authorize: deleting a team stays Owner-only.
+	team, err := s.authorizeTeam(ctx, userID, teamID, authz.TeamDelete)
 	if err != nil {
 		return err
 	}
@@ -351,8 +357,11 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 		}
 	}
 
-	// Delete the team
-	if err := s.teamRepo.Delete(ctx, userID, teamID); err != nil {
+	// Delete the team. The repo scopes the delete by owner_id, so pass the
+	// team's owner rather than the caller: they are the same user while
+	// team.delete is owner-only, but relying on that coincidence would turn a
+	// future matrix change into a silent no-op delete.
+	if err := s.teamRepo.Delete(ctx, team.OwnerID, teamID); err != nil {
 		s.logger.With(
 			"service", "vibexp-api",
 			"component", "team-service",
@@ -480,17 +489,144 @@ func (s *TeamService) paginateMembers(
 	}
 }
 
+// UpdateMemberRole changes a member's role between member and admin.
+//
+// Ownership is deliberately not reachable here: a team has exactly one owner
+// and it moves only through TransferOwnership, so newRole is restricted to
+// member|admin and the current owner's row is untouchable — otherwise an admin
+// could demote the owner and take over the team.
+func (s *TeamService) UpdateMemberRole(
+	ctx context.Context, userID, teamID, targetUserID string, newRole models.TeamMemberRole,
+) (*models.TeamMemberDetail, error) {
+	if newRole != models.TeamMemberRoleMember && newRole != models.TeamMemberRoleAdmin {
+		return nil, ErrInvalidMemberRole
+	}
+
+	team, err := s.authorizeTeam(ctx, userID, teamID, authz.MemberRoleUpdate)
+	if err != nil {
+		return nil, err
+	}
+
+	if team.OwnerID == targetUserID {
+		return nil, ErrCannotChangeOwnerRole
+	}
+
+	if updateErr := s.teamMemberRepo.UpdateRole(ctx, teamID, targetUserID, newRole); updateErr != nil {
+		if errors.Is(updateErr, repositories.ErrTeamMemberNotFound) {
+			return nil, updateErr
+		}
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"team_id", teamID,
+			"member_id", targetUserID,
+			"error", fmt.Sprintf("%+v", updateErr),
+		).Error("Failed to update team member role")
+		return nil, fmt.Errorf("failed to update team member role: %w", updateErr)
+	}
+
+	member, err := s.teamMemberRepo.GetByTeamAndUser(ctx, teamID, targetUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load updated team member: %w", err)
+	}
+
+	user, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load updated team member's user: %w", err)
+	}
+
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-service",
+		"user_id", userID,
+		"team_id", teamID,
+		"member_id", targetUserID,
+		"new_role", string(newRole),
+	).Info("Team member role updated successfully")
+
+	return &models.TeamMemberDetail{
+		UserID:   member.UserID,
+		Email:    user.Email,
+		Name:     user.Name,
+		Role:     string(member.Role),
+		JoinedAt: member.CreatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// TransferOwnership hands the team to another member, demoting the caller to
+// admin. Owner-only per the matrix; the repository applies all three writes in
+// one transaction.
+func (s *TeamService) TransferOwnership(
+	ctx context.Context, userID, teamID, newOwnerID string,
+) (*models.Team, error) {
+	team, err := s.authorizeTeam(ctx, userID, teamID, authz.OwnershipTransfer)
+	if err != nil {
+		return nil, err
+	}
+
+	// A personal workspace has exactly one member by construction, so there is
+	// nobody to transfer to and the workspace must stay with its user.
+	if team.IsPersonal {
+		return nil, NewPersonalWorkspaceError(teamID)
+	}
+
+	if newOwnerID == team.OwnerID {
+		return nil, ErrAlreadyTeamOwner
+	}
+
+	// Verify the target is a member before touching anything: the repository
+	// would also catch this, but only after opening a transaction, and this
+	// gives the handler a clean 404 instead of a rollback path.
+	if _, err := s.teamMemberRepo.GetByTeamAndUser(ctx, teamID, newOwnerID); err != nil {
+		if errors.Is(err, repositories.ErrTeamMemberNotFound) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to verify new owner membership: %w", err)
+	}
+
+	if err := s.teamRepo.TransferOwnership(ctx, teamID, team.OwnerID, newOwnerID); err != nil {
+		if errors.Is(err, repositories.ErrTeamNotFound) || errors.Is(err, repositories.ErrTeamMemberNotFound) {
+			return nil, err
+		}
+		s.logger.With(
+			"service", "vibexp-api",
+			"component", "team-service",
+			"user_id", userID,
+			"team_id", teamID,
+			"new_owner_id", newOwnerID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to transfer team ownership")
+		return nil, fmt.Errorf("failed to transfer team ownership: %w", err)
+	}
+
+	s.logger.With(
+		"service", "vibexp-api",
+		"component", "team-service",
+		"user_id", userID,
+		"team_id", teamID,
+		"new_owner_id", newOwnerID,
+	).Info("Team ownership transferred successfully")
+
+	// Reflect the post-transfer state: the caller is now an admin.
+	team.OwnerID = newOwnerID
+	team.Role = string(models.TeamMemberRoleAdmin)
+
+	return team, nil
+}
+
 // RemoveTeamMember removes a member from a team
 func (s *TeamService) RemoveTeamMember(ctx context.Context, userID, teamID, memberUserID string) error {
-	// Verify user owns the team
-	team, err := s.verifyTeamOwnership(ctx, userID, teamID)
+	// Load the team and authorize: removing members is Admin+ (epic #220).
+	team, err := s.authorizeTeam(ctx, userID, teamID, authz.MemberRemove)
 	if err != nil {
 		return err
 	}
 
-	// Cannot remove the owner
+	// Cannot remove the owner — this is what keeps an admin from removing the
+	// one role above them.
 	if team.OwnerID == memberUserID {
-		return fmt.Errorf("cannot remove team owner")
+		return ErrCannotRemoveTeamOwner
 	}
 
 	// Remove the member

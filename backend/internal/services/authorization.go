@@ -20,6 +20,11 @@ type AuthorizationServiceInterface interface {
 	// nil when allowed and an ErrPermissionDenied-wrapped error when not.
 	Can(ctx context.Context, userID, teamID string, perm authz.Permission) error
 
+	// Authorize is Can, additionally returning the caller's resolved role. Use
+	// it when the caller must also echo the role back to the client, so the
+	// role lookup happens once per request rather than twice.
+	Authorize(ctx context.Context, userID, teamID string, perm authz.Permission) (models.TeamMemberRole, error)
+
 	// CanActOnResource is the own-vs-any variant of Can, for actions whose
 	// policy depends on whether the caller created the resource (deletes, feed
 	// moderation). It checks ownPerm when the caller owns the resource and
@@ -58,16 +63,25 @@ func NewAuthorizationService(
 // A genuine database failure is propagated (wrapped) and never reported as a
 // denial: an unreachable database must surface as a 500, not a 403.
 func (s *AuthorizationService) Can(ctx context.Context, userID, teamID string, perm authz.Permission) error {
+	_, err := s.Authorize(ctx, userID, teamID, perm)
+	return err
+}
+
+// Authorize checks perm and returns the caller's role. It carries the actual
+// logic; Can is the common case that discards the role.
+func (s *AuthorizationService) Authorize(
+	ctx context.Context, userID, teamID string, perm authz.Permission,
+) (models.TeamMemberRole, error) {
 	role, err := s.roleOf(ctx, userID, teamID)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if !authz.Allowed(role, perm) {
-		return fmt.Errorf("%w: role %q may not perform %q", ErrPermissionDenied, role, perm)
+		return "", fmt.Errorf("%w: role %q may not perform %q", ErrPermissionDenied, role, perm)
 	}
 
-	return nil
+	return role, nil
 }
 
 // CanActOnResource checks ownPerm when userID created the resource and anyPerm

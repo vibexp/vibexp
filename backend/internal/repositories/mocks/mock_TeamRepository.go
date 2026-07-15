@@ -669,6 +669,55 @@ func (_c *MockTeamRepository_ListByUserID_Call) RunAndReturn(run func(context.Co
 	return _c
 }
 
+// TransferOwnership provides a mock function with given fields: ctx, teamID, fromUserID, toUserID
+func (_m *MockTeamRepository) TransferOwnership(ctx context.Context, teamID string, fromUserID string, toUserID string) error {
+	ret := _m.Called(ctx, teamID, fromUserID, toUserID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for TransferOwnership")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, teamID, fromUserID, toUserID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTeamRepository_TransferOwnership_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TransferOwnership'
+type MockTeamRepository_TransferOwnership_Call struct {
+	*mock.Call
+}
+
+// TransferOwnership is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - fromUserID string
+//   - toUserID string
+func (_e *MockTeamRepository_Expecter) TransferOwnership(ctx interface{}, teamID interface{}, fromUserID interface{}, toUserID interface{}) *MockTeamRepository_TransferOwnership_Call {
+	return &MockTeamRepository_TransferOwnership_Call{Call: _e.mock.On("TransferOwnership", ctx, teamID, fromUserID, toUserID)}
+}
+
+func (_c *MockTeamRepository_TransferOwnership_Call) Run(run func(ctx context.Context, teamID string, fromUserID string, toUserID string)) *MockTeamRepository_TransferOwnership_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockTeamRepository_TransferOwnership_Call) Return(_a0 error) *MockTeamRepository_TransferOwnership_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTeamRepository_TransferOwnership_Call) RunAndReturn(run func(context.Context, string, string, string) error) *MockTeamRepository_TransferOwnership_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Update provides a mock function with given fields: ctx, team
 func (_m *MockTeamRepository) Update(ctx context.Context, team *models.Team) error {
 	ret := _m.Called(ctx, team)

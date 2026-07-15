@@ -28,6 +28,7 @@ import (
 	"github.com/vibexp/vibexp/internal/observability/tracing"
 	"github.com/vibexp/vibexp/internal/repositories/postgres"
 	"github.com/vibexp/vibexp/internal/server/gen"
+	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
@@ -619,6 +620,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupResourceAccessMetricsRoutes(r)
 		// Teams routes (web app and CLI)
 		s.setupTeamsRoutes(r)
+		s.setupTeamRolesRoutes(r)
 		// AI Feed routes (free-tier accessible)
 		s.setupFeedsRoutes(r)
 		// Notification routes
@@ -990,6 +992,34 @@ func (s *Server) setupProjectsRoutes(r chi.Router) {
 		// Project migration endpoints.
 		r.Get("/{project_id}/migration/inventory", s.handleGetMigrationInventory)
 		r.Post("/{project_id}/migration", s.handleMigrateProject)
+	})
+}
+
+// setupTeamRolesRoutes registers the role-management operations (#222): change
+// a member's role and transfer ownership. They are spec-first strict-server
+// bound from their own `Team Roles` tag/package — see handlers_teamroles.go.
+//
+// Unlike setupTypesRoutes, no teamValidationMiddleware is mounted: it reads
+// {team_id} while these routes use {id}, and chi forbids two wildcard names at
+// the same position (the same constraint documented in setupTeamsRoutes below).
+// Nothing is lost — AuthorizationService.Can resolves the caller's membership
+// itself, so a non-member is denied with a 403 rather than slipping through,
+// and the generated layer rejects a malformed team UUID with a 400.
+//
+// These absolute routes coexist with the r.Route("/api/v1/teams", ...) subtree
+// registered below; chi resolves both correctly.
+func (s *Server) setupTeamRolesRoutes(r chi.Router) {
+	strict := teamrolesgen.NewStrictHandlerWithOptions(
+		&teamRolesStrictServer{s: s},
+		nil,
+		teamrolesgen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.teamRolesBindErrorHandler,
+			ResponseErrorHandlerFunc: s.teamRolesResponseErrorHandler,
+		},
+	)
+	teamrolesgen.HandlerWithOptions(strict, teamrolesgen.ChiServerOptions{
+		BaseRouter:       r,
+		ErrorHandlerFunc: s.teamRolesBindErrorHandler,
 	})
 }
 

@@ -9,11 +9,25 @@ import (
 
 // Team Authorization Errors
 
-// ErrTeamForbidden is returned when a user attempts a write operation on a team they do not own.
-var ErrTeamForbidden = errors.New("only team owners can perform this action")
-
 // ErrTeamNotFound is returned when the requested team does not exist.
 var ErrTeamNotFound = errors.New("team not found")
+
+// ErrCannotRemoveTeamOwner is returned when a removal targets the team owner.
+// The owner is removable only by deleting the team or transferring ownership
+// first; without this an admin could remove the one role above them.
+var ErrCannotRemoveTeamOwner = errors.New("cannot remove team owner")
+
+// ErrCannotChangeOwnerRole is returned when a role change targets the team
+// owner. Ownership moves only through TransferOwnership.
+var ErrCannotChangeOwnerRole = errors.New("cannot change the role of the team owner")
+
+// ErrInvalidMemberRole is returned when a role change requests a role other
+// than member or admin — notably owner, which would mint a second owner.
+var ErrInvalidMemberRole = errors.New("role must be either member or admin")
+
+// ErrAlreadyTeamOwner is returned when ownership is transferred to the user who
+// already owns the team, which would be a no-op demoting the owner to admin.
+var ErrAlreadyTeamOwner = errors.New("user already owns this team")
 
 // ErrPermissionDenied is returned when a user's role in a team does not grant
 // the permission required for the attempted action. Handlers map it to an RFC

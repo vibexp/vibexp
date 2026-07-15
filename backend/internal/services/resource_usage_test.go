@@ -1283,6 +1283,11 @@ func (m *mockTeamRepo) Delete(ctx context.Context, ownerID, teamID string) error
 	return args.Error(0)
 }
 
+func (m *mockTeamRepo) TransferOwnership(ctx context.Context, teamID, fromUserID, toUserID string) error {
+	args := m.Called(ctx, teamID, fromUserID, toUserID)
+	return args.Error(0)
+}
+
 func (m *mockTeamRepo) ListByOwnerID(
 	ctx context.Context, ownerID string, limit, offset int,
 ) ([]models.Team, int, error) {

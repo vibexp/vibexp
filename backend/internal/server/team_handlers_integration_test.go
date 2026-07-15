@@ -1042,8 +1042,10 @@ func TestHandleRemoveTeamMember_NotFound(t *testing.T) {
 func TestHandleRemoveTeamMember_CannotRemoveOwner(t *testing.T) {
 	mockContainer := newMockTeamContainer(t)
 
+	// Stub the sentinel the service actually returns: the handler matches it with
+	// errors.Is rather than sniffing the message, so a bare error would 500.
 	mockContainer.teamService.On("RemoveTeamMember", mock.Anything, "user-admin", "team-555", "user-owner").
-		Return(errors.New("cannot remove team owner"))
+		Return(services.ErrCannotRemoveTeamOwner)
 
 	srv := createTestTeamServer(mockContainer)
 	req := httptest.NewRequest("DELETE", "/api/v1/teams/team-555/members/user-owner", nil)
@@ -1068,7 +1070,7 @@ func TestHandleUpdateTeam_NonOwner_Returns403(t *testing.T) {
 	}
 
 	mockContainer.teamService.On("UpdateTeam", mock.Anything, "user-non-owner", "team-owned-by-other", &updateReq).
-		Return((*models.Team)(nil), services.ErrTeamForbidden)
+		Return((*models.Team)(nil), services.ErrPermissionDenied)
 
 	srv := createTestTeamServer(mockContainer)
 
@@ -1083,7 +1085,7 @@ func TestHandleUpdateTeam_NonOwner_Returns403(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
-	assert.Contains(t, w.Body.String(), "Only team owners can perform this action")
+	assert.Contains(t, w.Body.String(), "Only team owners and admins can update a team")
 
 	mockContainer.teamService.AssertExpectations(t)
 }
@@ -1093,7 +1095,7 @@ func TestHandleDeleteTeam_NonOwner_Returns403(t *testing.T) {
 	mockContainer := newMockTeamContainer(t)
 
 	mockContainer.teamService.On("DeleteTeam", mock.Anything, "user-non-owner", "team-owned-by-other").
-		Return(services.ErrTeamForbidden)
+		Return(services.ErrPermissionDenied)
 
 	srv := createTestTeamServer(mockContainer)
 	req := httptest.NewRequest("DELETE", "/api/v1/teams/team-owned-by-other", nil)
@@ -1103,7 +1105,7 @@ func TestHandleDeleteTeam_NonOwner_Returns403(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
-	assert.Contains(t, w.Body.String(), "Only team owners can perform this action")
+	assert.Contains(t, w.Body.String(), "Only the team owner can delete a team")
 
 	mockContainer.teamService.AssertExpectations(t)
 }
@@ -1114,7 +1116,7 @@ func TestHandleRemoveTeamMember_NonOwner_Returns403(t *testing.T) {
 
 	mockContainer.teamService.On(
 		"RemoveTeamMember", mock.Anything, "user-non-owner", "team-owned-by-other", "user-member",
-	).Return(services.ErrTeamForbidden)
+	).Return(services.ErrPermissionDenied)
 
 	srv := createTestTeamServer(mockContainer)
 	req := httptest.NewRequest("DELETE", "/api/v1/teams/team-owned-by-other/members/user-member", nil)
@@ -1124,7 +1126,7 @@ func TestHandleRemoveTeamMember_NonOwner_Returns403(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
-	assert.Contains(t, w.Body.String(), "Only team owners can perform this action")
+	assert.Contains(t, w.Body.String(), "Only team owners and admins can remove members")
 
 	mockContainer.teamService.AssertExpectations(t)
 }

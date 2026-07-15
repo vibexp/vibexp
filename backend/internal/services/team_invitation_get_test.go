@@ -37,6 +37,7 @@ func newTestInvitationService() (
 		mockTeamMemberRepo,
 		mockUserRepo,
 		mockEmailService,
+		NewAuthorizationService(mockTeamMemberRepo, nil),
 		&config.Config{},
 		nil,
 	)
