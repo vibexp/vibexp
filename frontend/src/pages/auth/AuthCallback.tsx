@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { type AuthErrorView, mapAuthCallbackError } from '@/utils/authErrors'
 import { getApiBaseUrl } from '@/utils/environment'
 import { hardRedirect } from '@/utils/navigation'
 import { consumeReturnTo } from '@/utils/returnTo'
@@ -18,7 +19,9 @@ import { consumeReturnTo } from '@/utils/returnTo'
  * sign-in path.
  *
  * It exists as a safety net for two scenarios:
- *   1. An `error` query param is present — the identity provider reported an error.
+ *   1. An `error` query param is present — the identity provider reported an
+ *      error, or the backend refused the sign-in (e.g. the access allowlist
+ *      denies it and redirects here with `?error=access_restricted`).
  *   2. The route is hit directly with code/state params (misconfigured redirect
  *      URI pointing here instead of the backend) — we redirect to the backend
  *      callback endpoint so it can complete the exchange.
@@ -27,7 +30,7 @@ import { consumeReturnTo } from '@/utils/returnTo'
  */
 export function AuthCallback() {
   const [searchParams] = useSearchParams()
-  const [error, setError] = useState<string>('')
+  const [errorView, setErrorView] = useState<AuthErrorView | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const hasHandled = useRef(false)
 
@@ -40,7 +43,7 @@ export function AuthCallback() {
     const errorParam = searchParams.get('error')
 
     if (errorParam) {
-      setError('Authentication was cancelled or failed')
+      setErrorView(mapAuthCallbackError(errorParam))
       setIsLoading(false)
       return
     }
@@ -59,7 +62,7 @@ export function AuthCallback() {
     hardRedirect(consumeReturnTo())
   }, [searchParams])
 
-  if (isLoading) {
+  if (isLoading || !errorView) {
     return (
       <div className="bg-background flex min-h-screen items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 text-center">
@@ -81,15 +84,15 @@ export function AuthCallback() {
         <CardContent className="flex flex-col gap-4 p-6">
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
-            <AlertTitle>Authentication failed</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
+            <AlertTitle>{errorView.title}</AlertTitle>
+            <AlertDescription>{errorView.description}</AlertDescription>
           </Alert>
           <Button
             onClick={() => {
-              window.location.href = '/'
+              hardRedirect(errorView.actionHref)
             }}
           >
-            Try again
+            {errorView.actionLabel}
           </Button>
         </CardContent>
       </Card>
