@@ -565,9 +565,6 @@ func TestPromptService_DeletePromptBySlug(t *testing.T) {
 		existingPrompt := createTestPrompt()
 		mockRepo.On("GetBySlug", mock.AnythingOfType("context.backgroundCtx"), "user-123", "team-123", "test-prompt").
 			Return(existingPrompt, nil)
-		// DeletePrompt re-fetches by ID to learn the owner for the own-vs-any check.
-		mockRepo.On("GetByID", mock.Anything, "user-123", mock.Anything, "prompt-123").
-			Return(existingPrompt, nil)
 		mockRepo.On("Delete", mock.AnythingOfType("context.backgroundCtx"), "user-123", mock.Anything, "prompt-123").
 			Return(nil)
 
@@ -1371,8 +1368,9 @@ func TestPromptService_DeletePrompt_WithDependencies(t *testing.T) {
 			{ID: "dep-2", Slug: "dependent-2", Name: "Dependent Prompt 2"},
 		}
 
-		mockRepo.On("GetByID", mock.Anything, userID, mock.Anything, promptID).
-			Return(createTestPrompt(), nil)
+		fetched := createTestPrompt()
+		fetched.ID = promptID
+		mockRepo.On("GetByID", mock.Anything, userID, mock.Anything, promptID).Return(fetched, nil)
 		mockRefRepo.On("HasDependents", mock.Anything, promptID).Return(true, nil)
 		mockRefRepo.On("GetPromptsUsingPrompt", mock.Anything, userID, promptID).
 			Return(dependents, nil)
@@ -1397,8 +1395,9 @@ func TestPromptService_DeletePrompt_WithDependencies(t *testing.T) {
 		userID := "user-123"
 		promptID := "prompt-456"
 
-		mockRepo.On("GetByID", mock.Anything, userID, mock.Anything, promptID).
-			Return(createTestPrompt(), nil)
+		fetched := createTestPrompt()
+		fetched.ID = promptID
+		mockRepo.On("GetByID", mock.Anything, userID, mock.Anything, promptID).Return(fetched, nil)
 		mockRefRepo.On("HasDependents", mock.Anything, promptID).Return(false, nil)
 		mockRepo.On("Delete", mock.Anything, userID, mock.Anything, promptID).Return(nil)
 

@@ -499,7 +499,9 @@ func (s *PromptService) DeletePromptBySlug(userID, teamID, slug string) error {
 		return err
 	}
 
-	return s.DeletePrompt(userID, teamID, existingPrompt.ID)
+	// Hand the already-loaded prompt straight through: the own-vs-any check needs
+	// its owner, and re-fetching it by ID would be a second identical read.
+	return s.deleteFetchedPrompt(context.Background(), userID, teamID, existingPrompt)
 }
 
 func (s *PromptService) DeletePrompt(userID, teamID, promptID string) error {
@@ -513,12 +515,22 @@ func (s *PromptService) DeletePrompt(userID, teamID, promptID string) error {
 		return err
 	}
 
+	return s.deleteFetchedPrompt(ctx, userID, teamID, existingPrompt)
+}
+
+// deleteFetchedPrompt authorizes and deletes a prompt the caller has already
+// loaded, so the slug path does not pay for a second identical read.
+func (s *PromptService) deleteFetchedPrompt(
+	ctx context.Context, userID, teamID string, existingPrompt *models.Prompt,
+) error {
 	if authzErr := s.authz.CanActOnResource(
 		ctx, userID, teamID, existingPrompt.UserID,
 		authz.ResourceDeleteOwn, authz.ResourceDeleteAny,
 	); authzErr != nil {
 		return authzErr
 	}
+
+	promptID := existingPrompt.ID
 
 	// Check if the prompt has dependents (is being used by other prompts)
 	hasDependents, err := s.refRepo.HasDependents(ctx, promptID)
