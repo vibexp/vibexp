@@ -56,7 +56,7 @@ func TestIntegrationAPIKey_CreateAndGetByUserID(t *testing.T) {
 
 	got := keys[1]
 	assert.Equal(t, older.ID, got.ID)
-	assert.Equal(t, []string{"ai_tools", "cli"}, got.Integrations, "permissions must be hydrated in grant order")
+	assert.Equal(t, []string{"ai_tools", "cli"}, []string(got.Integrations), "permissions must be hydrated in grant order")
 	assert.Equal(t, "everything", got.UsageType, "column default must apply when Create omits usage_type")
 	assert.False(t, got.IsLegacy)
 	assert.Nil(t, got.MigrationNotes)
@@ -96,7 +96,7 @@ func TestIntegrationAPIKey_GetByKeyHash(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, key.ID, got.ID)
 		assert.Equal(t, userID, got.UserID)
-		assert.Equal(t, []string{"mcp_server"}, got.Integrations)
+		assert.Equal(t, []string{"mcp_server"}, []string(got.Integrations))
 	})
 
 	t.Run("unknown hash", func(t *testing.T) {
