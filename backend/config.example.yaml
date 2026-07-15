@@ -89,6 +89,10 @@ auth:
   # (case-insensitively, e.g. "example.com"); `emails` matches the full address.
   # A user is allowed if EITHER list matches. When BOTH lists are empty (the
   # default below) access is open — everyone may sign in.
+  # While an allowlist is active, sign-in additionally requires the identity
+  # provider to have VERIFIED the email: an address the user merely claimed must
+  # not satisfy the allowlist. Denials are logged with a distinct `reason`
+  # (`unverified_email` vs `not_on_allowlist`); the user sees the same message.
   access_allowlist:
     domains: []
     emails: []
