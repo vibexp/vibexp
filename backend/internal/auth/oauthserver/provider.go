@@ -35,6 +35,26 @@ type Config struct {
 	CleanupInterval     time.Duration // how often expired rows/retired keys are pruned
 }
 
+// ConsentAccessPolicy re-checks, at consent time, whether a user may still be
+// bound to a login session (issue #217).
+//
+// The AS authenticates nobody itself — it piggybacks on the app's vx_session, so
+// allowlist enforcement at login (#215) covers it only transitively. Because that
+// enforcement is login-time only, a user removed from the allowlist keeps a valid
+// session until its TTL expires and could still authorize NEW MCP clients in that
+// window. ConsentAttach is the single choke point where a user's identity is bound
+// to an authorization request, so re-checking here closes that window for MCP
+// token issuance.
+//
+// It is deliberately one method over a user id: the AS must not grow a dependency
+// on the services layer to answer it. Implementations resolve the user's email and
+// apply the configured access allowlist. A nil policy disables the re-check.
+type ConsentAccessPolicy interface {
+	// AllowUser reports whether userID may be bound to a consent session. A
+	// non-nil error means the decision could not be made; callers fail closed.
+	AllowUser(ctx context.Context, userID string) (bool, error)
+}
+
 // Service is the embedded OAuth 2.1 Authorization Server.
 type Service struct {
 	provider      fosite.OAuth2Provider
@@ -42,6 +62,7 @@ type Service struct {
 	store         *Store
 	clients       repositories.OAuthClientRepository
 	loginSessions repositories.OAuthLoginSessionRepository
+	access        ConsentAccessPolicy
 	cfg           Config
 	consentMACKey []byte
 	logger        *slog.Logger
@@ -49,6 +70,8 @@ type Service struct {
 
 // NewService wires the Authorization Server. encKey is the 32-byte app encryption
 // key (seals signing keys at rest and derives fosite's HMAC global secret).
+// accessPolicy re-checks the access allowlist at consent-attach; pass nil to
+// disable the re-check (an unconfigured allowlist is open access anyway).
 func NewService(
 	cfg Config,
 	encKey []byte,
@@ -56,6 +79,7 @@ func NewService(
 	codes, access, refresh, pkce repositories.OAuthRequestRepository,
 	signingKeys repositories.OAuthSigningKeyRepository,
 	loginSessions repositories.OAuthLoginSessionRepository,
+	accessPolicy ConsentAccessPolicy,
 	logger *slog.Logger,
 ) *Service {
 	store := NewStore(clients, codes, access, refresh, pkce)
@@ -68,6 +92,7 @@ func NewService(
 		store:         store,
 		clients:       clients,
 		loginSessions: loginSessions,
+		access:        accessPolicy,
 		cfg:           cfg,
 		consentMACKey: deriveSecret(encKey, consentMACTag),
 		logger:        logger,

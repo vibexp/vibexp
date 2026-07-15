@@ -2,7 +2,7 @@ package oauthserver
 
 import (
 	"context"
-	"errors"
+	stderrors "errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,6 +11,7 @@ import (
 	"github.com/ory/fosite"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
+	"github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -161,6 +162,14 @@ func (s *Service) ConsentAttach(w http.ResponseWriter, r *http.Request) {
 		s.writeJSONError(w, http.StatusConflict, "consent session already bound to another user")
 		return
 	}
+	// Re-check the access allowlist before binding (#217). Login-time enforcement
+	// leaves a window in which a removed user's still-live session could authorize
+	// a new MCP client; this is the choke point that closes it. Deliberately after
+	// the CSRF/session checks so the user lookup only runs for a well-formed,
+	// authenticated request.
+	if !s.allowConsentUser(w, r, userID) {
+		return
+	}
 	if aerr := s.loginSessions.AttachUser(ctx, body.Login, userID); aerr != nil {
 		s.logger.With("error", aerr).Error("oauth AS failed to attach consent user")
 		s.writeJSONError(w, http.StatusInternalServerError, "failed to record login")
@@ -168,6 +177,43 @@ func (s *Service) ConsentAttach(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	s.writeJSON(w, http.StatusOK, consentAttachResponse{Authenticated: true})
+}
+
+// allowConsentUser applies the access-allowlist re-check (#217) for userID. It
+// reports whether the user may be bound; on denial (or an undecidable policy) it
+// writes the response itself and reports false.
+//
+// No policy configured ⇒ allow, so an open instance is unaffected. A lookup
+// failure fails CLOSED: a policy we cannot evaluate must never widen MCP access.
+func (s *Service) allowConsentUser(w http.ResponseWriter, r *http.Request, userID string) bool {
+	if s.access == nil {
+		return true
+	}
+
+	allowed, err := s.access.AllowUser(r.Context(), userID)
+	if err != nil {
+		s.logger.With(
+			"error", err,
+			"user_id", userID,
+		).Error("oauth AS failed to evaluate the consent access policy")
+		s.writeJSONError(w, http.StatusInternalServerError, "failed to verify access")
+		return false
+	}
+	if allowed {
+		return true
+	}
+
+	s.logger.With(
+		"user_id", userID,
+		"reason", "access_allowlist",
+	).Info("oauth AS consent denied: user is not permitted to sign in")
+	// RFC 9457 body rather than this package's short {"error": ...} shape: the SPA
+	// only surfaces an error code when the body carries BOTH `code` and `detail`
+	// (see frontend/src/services/oauthService.ts), and the stable
+	// access_restricted code is the point of the denial. Same code and shape the
+	// dev-login denial writes, so every denial surface reads identically.
+	errors.WriteJSONError(w, r, errors.NewAccessRestrictedError("Your account is not permitted to sign in"))
+	return false
 }
 
 // ConsentDecision handles POST /api/v1/oauth/consent. On approve it issues the
@@ -234,7 +280,7 @@ func (s *Service) captureClientRedirect(
 	}
 	loc := rec.Header().Get("Location")
 	if loc == "" {
-		return "", errors.New("oauthserver: consent decision produced no redirect")
+		return "", stderrors.New("oauthserver: consent decision produced no redirect")
 	}
 	return loc, nil
 }

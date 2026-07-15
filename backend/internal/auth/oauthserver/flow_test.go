@@ -48,8 +48,27 @@ type testHarness struct {
 	clientID string
 }
 
-func newTestHarness(t *testing.T) *testHarness {
+// harnessOpt customizes the test harness. Without any option the AS is built with
+// no consent access policy — the shape an instance with no allowlist configured
+// runs in, which every pre-#217 test asserts.
+type harnessOpt func(*harnessOptions)
+
+type harnessOptions struct {
+	access ConsentAccessPolicy
+}
+
+// withAccessPolicy installs a ConsentAccessPolicy so the attach-time allowlist
+// re-check (#217) is exercised.
+func withAccessPolicy(p ConsentAccessPolicy) harnessOpt {
+	return func(o *harnessOptions) { o.access = p }
+}
+
+func newTestHarness(t *testing.T, opts ...harnessOpt) *testHarness {
 	t.Helper()
+	var ho harnessOptions
+	for _, opt := range opts {
+		opt(&ho)
+	}
 	encKey := []byte("0123456789abcdef0123456789abcdef") // 32 bytes
 	clients := newMemClientRepo()
 	svc := NewService(
@@ -67,6 +86,7 @@ func newTestHarness(t *testing.T) *testHarness {
 		newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(),
 		newMemSigningKeyRepo(),
 		newMemLoginSessionRepo(),
+		ho.access,
 		slog.New(slog.DiscardHandler),
 	)
 	require.NoError(t, svc.keys.EnsureActiveKey(context.Background()))
@@ -387,6 +407,7 @@ func TestMCPVerifierAcceptsASMintedToken(t *testing.T) {
 		newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(),
 		newMemSigningKeyRepo(),
 		newMemLoginSessionRepo(),
+		nil, // no allowlist configured: attach-time re-check disabled
 		slog.New(slog.DiscardHandler),
 	)
 	require.NoError(t, svc.keys.EnsureActiveKey(context.Background()))
