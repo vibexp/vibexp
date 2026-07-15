@@ -78,6 +78,8 @@ const buildTeam = (overrides: Partial<Team> = {}): Team => ({
   slug: 'engineering',
   description: '',
   role: 'member',
+  // Required since #224; not exercised here.
+  permissions: [],
   member_count: 3,
   is_personal: false,
   created_at: '2024-01-01T00:00:00Z',

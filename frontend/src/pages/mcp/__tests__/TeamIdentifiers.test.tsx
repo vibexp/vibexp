@@ -15,6 +15,8 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
     name: 'Acme Team',
     slug: 'acme-team',
     description: '',
+    // Required since #224; not exercised here.
+    permissions: [],
     member_count: 1,
     is_personal: false,
     created_at: '2024-01-01T00:00:00Z',

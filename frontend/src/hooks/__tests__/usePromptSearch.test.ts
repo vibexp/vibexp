@@ -26,6 +26,8 @@ const mockTeam = {
   slug: 'test-team',
   description: 'Test Team Description',
   role: 'owner' as const,
+  // Required since #224; not exercised here.
+  permissions: [],
   member_count: 1,
   is_personal: false,
   created_at: new Date().toISOString(),

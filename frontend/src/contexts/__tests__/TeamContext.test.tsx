@@ -44,6 +44,8 @@ describe('TeamContext', () => {
       slug: 'team-alpha',
       description: 'First team',
       role: 'owner',
+      // Required since #224; not exercised here.
+      permissions: [],
       member_count: 5,
       is_personal: false,
       created_at: '2023-01-01T00:00:00Z',
@@ -56,6 +58,8 @@ describe('TeamContext', () => {
       slug: 'team-beta',
       description: 'Second team',
       role: 'member',
+      // Required since #224; not exercised here.
+      permissions: [],
       member_count: 3,
       is_personal: false,
       created_at: '2023-01-01T00:00:00Z',

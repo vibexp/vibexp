@@ -36,6 +36,9 @@ const makeTeam = (overrides: Partial<Team> = {}): Team => ({
   name: 'Acme',
   slug: 'acme',
   description: '',
+  // Required since #224; these tests do not exercise permission gating, so the
+  // empty (fail-closed) set keeps them honest. Override where it matters.
+  permissions: [],
   member_count: 1,
   is_personal: false,
   created_at: '2024-01-01T00:00:00Z',
