@@ -4,6 +4,14 @@
 ALTER TABLE team_invitations
     DROP CONSTRAINT IF EXISTS team_invitations_role_check;
 
+-- Neither data change made by the up migration is reverted, and neither can be.
+--
+-- The invitation-role pre-clean rewrote any role outside ('member','admin') to
+-- 'member'. The original value is not recorded anywhere, so there is nothing to
+-- restore it from. Those rows were only reachable because the CHECK this
+-- migration adds was missing; dropping the CHECK again permits such values but
+-- does not resurrect the old ones.
+--
 -- The owner-membership backfill is deliberately NOT reverted.
 --
 -- It is not possible to tell a backfilled row from one the application wrote:

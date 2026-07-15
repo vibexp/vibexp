@@ -55,7 +55,7 @@ func NewAuthorizationService(
 // Can returns nil when the user's role in the team grants perm, and an error
 // wrapping ErrPermissionDenied (naming the permission) when it does not.
 //
-// A genuine database failure is propagated as-is and never reported as a
+// A genuine database failure is propagated (wrapped) and never reported as a
 // denial: an unreachable database must surface as a 500, not a 403.
 func (s *AuthorizationService) Can(ctx context.Context, userID, teamID string, perm authz.Permission) error {
 	role, err := s.roleOf(ctx, userID, teamID)
