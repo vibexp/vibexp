@@ -17,11 +17,13 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 // MockTeamContainer implements Container interface for team handler tests
@@ -268,6 +270,7 @@ func TestHandleListTeams_Success(t *testing.T) {
 			Description: "First team",
 			IsPersonal:  false,
 			Role:        "owner",
+			Permissions: authz.RolePermissionStrings(models.TeamMemberRoleOwner),
 			MemberCount: 5,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
@@ -278,6 +281,7 @@ func TestHandleListTeams_Success(t *testing.T) {
 			Description: "Second team",
 			IsPersonal:  false,
 			Role:        "member",
+			Permissions: authz.RolePermissionStrings(models.TeamMemberRoleMember),
 			MemberCount: 3,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
@@ -302,6 +306,7 @@ func TestHandleListTeams_Success(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var response models.TeamListResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
@@ -310,6 +315,12 @@ func TestHandleListTeams_Success(t *testing.T) {
 	assert.Len(t, response.Teams, 2)
 	assert.Equal(t, "Team Alpha", response.Teams[0].Name)
 	assert.Equal(t, "Team Beta", response.Teams[1].Name)
+	// Each list item carries the permissions of that team's own role — the
+	// owner's full set and the member's three (#224).
+	assert.Equal(t, []string(authz.RolePermissionStrings(models.TeamMemberRoleOwner)),
+		[]string(response.Teams[0].Permissions))
+	assert.Equal(t, []string(authz.RolePermissionStrings(models.TeamMemberRoleMember)),
+		[]string(response.Teams[1].Permissions))
 
 	mockContainer.teamService.AssertExpectations(t)
 }
@@ -533,6 +544,7 @@ func TestHandleGetTeam_Success(t *testing.T) {
 		Description: "Team details",
 		IsPersonal:  false,
 		Role:        "owner",
+		Permissions: authz.RolePermissionStrings(models.TeamMemberRoleOwner),
 		MemberCount: 10,
 		CreatedAt:   time.Now().Add(-24 * time.Hour),
 		UpdatedAt:   time.Now(),
@@ -549,6 +561,7 @@ func TestHandleGetTeam_Success(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var response models.Team
 	err := json.Unmarshal(w.Body.Bytes(), &response)
@@ -556,8 +569,38 @@ func TestHandleGetTeam_Success(t *testing.T) {
 	assert.Equal(t, "team-456", response.ID)
 	assert.Equal(t, "Existing Team", response.Name)
 	assert.Equal(t, 10, response.MemberCount)
+	// The owner's permissions reach the wire verbatim (#224).
+	assert.Equal(t, []string(authz.RolePermissionStrings(models.TeamMemberRoleOwner)),
+		[]string(response.Permissions))
 
 	mockContainer.teamService.AssertExpectations(t)
+}
+
+// TestHandleGetTeam_PermissionsNeverNull proves the required `permissions`
+// array reaches the wire as [] rather than null even when the service leaves it
+// unset — the JSONArray guarantee (#125 Layer C) holding at the handler edge.
+func TestHandleGetTeam_PermissionsNeverNull(t *testing.T) {
+	mockContainer := newMockTeamContainer(t)
+
+	mockContainer.teamService.On("GetTeam", mock.Anything, "user-999", "team-456").
+		Return(&models.Team{
+			ID:        "team-456",
+			Name:      "Existing Team",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}, nil)
+
+	srv := createTestTeamServer(mockContainer)
+	req := httptest.NewRequest("GET", "/api/v1/teams/team-456", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, "user-999"))
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+	assert.Contains(t, w.Body.String(), `"permissions":[]`)
+	assert.NotContains(t, w.Body.String(), `"permissions":null`)
 }
 
 // TestHandleGetTeam_NotFound tests team retrieval when team doesn't exist

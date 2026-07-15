@@ -174,6 +174,14 @@ func toGenTeam(t models.Team) (teamrolesgen.Team, error) {
 		return teamrolesgen.Team{}, err
 	}
 
+	// permissions is a required array, so it must marshal as [] rather than
+	// null (#125 Layer C). The generated type cannot use the models.JSONArray
+	// shim, so make(...,0) here is what upholds the guarantee.
+	permissions := make([]teamrolesgen.TeamPermissions, 0, len(t.Permissions))
+	for _, perm := range t.Permissions {
+		permissions = append(permissions, teamrolesgen.TeamPermissions(perm))
+	}
+
 	team := teamrolesgen.Team{
 		Id:          id,
 		OwnerId:     t.OwnerID,
@@ -181,6 +189,7 @@ func toGenTeam(t models.Team) (teamrolesgen.Team, error) {
 		Slug:        t.Slug,
 		Description: t.Description,
 		IsPersonal:  t.IsPersonal,
+		Permissions: permissions,
 		CreatedAt:   t.CreatedAt,
 		UpdatedAt:   t.UpdatedAt,
 	}

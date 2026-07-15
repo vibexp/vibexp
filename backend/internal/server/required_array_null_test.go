@@ -137,6 +137,7 @@ var requiredArrayResponseRegistry = map[string]any{
 	"SearchResultsResponse":            models.SearchResultsResponse{},
 	"SessionCountsResponse":            models.SessionCountsResponse{},
 	"SessionsResponse":                 models.SessionsResponse{},
+	"Team":                             models.Team{},
 	"TeamListResponse":                 models.TeamListResponse{},
 	"TeamMembersListResponse":          models.TeamMembersListResponse{},
 	"ProvidersResponse":                ProvidersResponse{},
