@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -16,6 +17,7 @@ import (
 type ProjectService struct {
 	repo         repositories.ProjectRepository
 	teamService  TeamServiceInterface
+	authz        AuthorizationServiceInterface
 	eventManager events.EventPublisher
 	logger       *slog.Logger
 }
@@ -27,12 +29,14 @@ var _ ProjectServiceInterface = (*ProjectService)(nil)
 func NewProjectService(
 	repo repositories.ProjectRepository,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) *ProjectService {
 	return &ProjectService{
 		repo:         repo,
 		teamService:  teamService,
+		authz:        authzService,
 		eventManager: eventManager,
 		logger:       logger,
 	}
@@ -101,6 +105,14 @@ func (s *ProjectService) CreateProject(
 	finalTeamID, err := s.validateAndResolveTeamID(ctx, userID, teamID, req.TeamID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Creating a project is Admin+ (epic #220 decision D2: projects are
+	// read-only containers for members). Authorize against the RESOLVED team —
+	// req.TeamID can redirect the create away from the URL's team, and the
+	// caller's role in that team is what matters.
+	if authzErr := s.authz.Can(ctx, userID, finalTeamID, authz.ProjectCreate); authzErr != nil {
+		return nil, authzErr
 	}
 
 	project := &models.Project{
@@ -203,6 +215,28 @@ func (s *ProjectService) ListProjects(userID string, filters ProjectFilters) (*m
 	}, nil
 }
 
+// applyProjectUpdates copies the provided fields onto the project. TeamID is
+// deliberately absent: it is immutable, and validateTeamReassignment has already
+// rejected any attempt to change it.
+func applyProjectUpdates(project *models.Project, req *models.UpdateProjectRequest) {
+	if req.Name != nil {
+		project.Name = *req.Name
+	}
+	if req.Slug != nil {
+		project.Slug = *req.Slug
+	}
+	if req.Description != nil {
+		project.Description = *req.Description
+	}
+	if req.GitURL != nil {
+		project.GitURL = *req.GitURL
+	}
+	if req.Homepage != nil {
+		project.Homepage = *req.Homepage
+	}
+	project.UpdatedAt = time.Now()
+}
+
 // UpdateProject updates an existing project
 func (s *ProjectService) UpdateProject(
 	teamID, userID, slug string, req *models.UpdateProjectRequest,
@@ -219,25 +253,14 @@ func (s *ProjectService) UpdateProject(
 		return nil, err
 	}
 
-	// Update fields if provided in request
-	if req.Name != nil {
-		existingProject.Name = *req.Name
+	// Updating a project is Admin+ (epic #220 D2). Authorize against the
+	// project's own team, which reassignment has just proven is unchanged.
+	authzErr := s.authz.Can(context.Background(), userID, existingProject.TeamID, authz.ProjectUpdate)
+	if authzErr != nil {
+		return nil, authzErr
 	}
-	if req.Slug != nil {
-		existingProject.Slug = *req.Slug
-	}
-	if req.Description != nil {
-		existingProject.Description = *req.Description
-	}
-	if req.GitURL != nil {
-		existingProject.GitURL = *req.GitURL
-	}
-	if req.Homepage != nil {
-		existingProject.Homepage = *req.Homepage
-	}
-	// TeamID is explicitly NOT updated - it's immutable
 
-	existingProject.UpdatedAt = time.Now()
+	applyProjectUpdates(existingProject, req)
 
 	ctx := context.Background()
 	err = s.repo.Update(ctx, existingProject)
@@ -318,6 +341,14 @@ func (s *ProjectService) DeleteProject(teamID, userID, slug string) error {
 	}
 
 	ctx := context.Background()
+
+	// Deleting a project is Admin+ (epic #220 D2), uniformly — there is no
+	// own-vs-any split, because members hold no project permission at all.
+	// Authorized before the last-project guard so an unauthorized caller cannot
+	// probe how many projects a team has.
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ProjectDelete); authzErr != nil {
+		return authzErr
+	}
 
 	// Check if this is the last project in the team
 	projectCount, err := s.repo.CountByTeamID(ctx, teamID)

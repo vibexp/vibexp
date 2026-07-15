@@ -377,7 +377,12 @@ func (r *ProjectRepository) Update(ctx context.Context, project *models.Project)
 }
 
 // Delete deletes a project by team ID, user ID, and slug
-// Allows deletion if user is: resource owner, team owner, or team admin
+//
+// The predicate is TENANCY ONLY (epic #220 decision D3): it proves the caller
+// belongs to the team, nothing more. Whether their ROLE permits the delete is
+// decided by ProjectService via the authz matrix before this is reached — the
+// former creator branch and the owner/admin role branch are both gone, so
+// authorization lives in exactly one place instead of two that drift.
 // Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
 func (r *ProjectRepository) Delete(ctx context.Context, teamID, userID, slug string) error {
 	query := `
@@ -385,9 +390,8 @@ func (r *ProjectRepository) Delete(ctx context.Context, teamID, userID, slug str
 		WHERE slug = $1
 			AND team_id = $2
 			AND (
-				user_id = $3
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin'))
+				EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
 			)
 	`
 

@@ -112,7 +112,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	embeddingStatusServiceInterface := providers.ProvideEmbeddingStatusService(embeddingProviderRepository, embeddingBackfillRepository, logger)
 	userPreferencesServiceInterface := providers.ProvideUserPreferencesService(userPreferencesRepository)
 	teamInvitationService := providers.ProvideTeamInvitationService(teamInvitationRepository, teamRepository, teamMemberRepository, userRepository, emailServiceInterface, authorizationServiceInterface, cfg, logger)
-	projectServiceInterface := providers.ProvideProjectService(projectRepository, teamServiceInterface, eventManager, logger)
+	projectServiceInterface := providers.ProvideProjectService(projectRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger)
 	projectMigrationServiceInterface := providers.ProvideProjectMigrationService(db, projectRepository, logger)
 	gitHubAppClient, err := providers.ProvideGitHubAppClient(cfg, logger)
 	if err != nil {

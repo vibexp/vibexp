@@ -522,10 +522,11 @@ func ProvideTeamInvitationService(
 func ProvideProjectService(
 	repo repositories.ProjectRepository,
 	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) services.ProjectServiceInterface {
-	return services.NewProjectService(repo, teamService, eventManager, logger)
+	return services.NewProjectService(repo, teamService, authzService, eventManager, logger)
 }
 
 // ProvideFeedService creates a new FeedService
