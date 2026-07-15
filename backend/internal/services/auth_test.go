@@ -30,14 +30,41 @@ func createTestAuthServiceNew(
 	identityProvider *idpmocks.MockIdentityProvider,
 	allowedEmails []string,
 ) *AuthService {
-	logger := func() *slog.Logger { l, _ := logtest.New(); return l }()
+	service, _ := createTestAuthServiceWithRecorder(userRepo, identityProvider, allowedEmails)
+	return service
+}
+
+// createTestAuthServiceWithRecorder is createTestAuthServiceNew plus the log
+// recorder, for tests asserting the audit trail — an allowlist denial looks
+// identical to the user, so the log is the operator's only diagnostic.
+func createTestAuthServiceWithRecorder(
+	userRepo *repo_mocks.MockUserRepository,
+	identityProvider *idpmocks.MockIdentityProvider,
+	allowedEmails []string,
+) (*AuthService, *logtest.Recorder) {
+	logger, recorder := logtest.New()
 
 	featureFlagSvc := feature_flags.NewFeatureFlagService(logger)
 
 	userSignInAllowlist := feature_flags.NewUserSignInAllowlistFlag(logger, nil, allowedEmails)
 	featureFlagSvc.RegisterFlag(userSignInAllowlist)
 
-	return NewAuthService(userRepo, newTestRegistry(identityProvider), nil, logger, featureFlagSvc)
+	service := NewAuthService(userRepo, newTestRegistry(identityProvider), nil, logger, featureFlagSvc)
+	return service, recorder
+}
+
+// denialReason returns the `reason` attribute of the sign-in-denied audit log.
+func denialReason(t *testing.T, recorder *logtest.Recorder) string {
+	t.Helper()
+	for _, entry := range recorder.AllEntries() {
+		if entry.Message == "Sign-in denied by access allowlist" {
+			reason, ok := entry.Data["reason"].(string)
+			require.True(t, ok, "the denial log must carry a string `reason` attribute")
+			return reason
+		}
+	}
+	t.Fatal("no sign-in denial was logged")
+	return ""
 }
 
 // newTestRegistry wraps a mock identity provider in a registry. It defaults the
@@ -552,6 +579,56 @@ func TestAuthService_HandleCallback_EmailVerifiedWithAllowlist(t *testing.T) {
 				assert.NotNil(t, user)
 			}
 			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+// TestAuthService_HandleCallback_DenialLogsDistinctReason covers #218's audit
+// requirement. Both denials look identical to the user (?error=access_restricted),
+// so this log line is the ONLY way an operator can tell "not on the list" from
+// "the provider never verified this address" — which is exactly the diagnostic
+// needed if a generic OIDC provider omits email_verified and locks an instance out.
+func TestAuthService_HandleCallback_DenialLogsDistinctReason(t *testing.T) {
+	tests := []struct {
+		name           string
+		claimsEmail    string
+		emailVerified  bool
+		expectedReason string
+	}{
+		{
+			name:           "unverified email on the allowlist",
+			claimsEmail:    "test@example.com",
+			emailVerified:  false,
+			expectedReason: "unverified_email",
+		},
+		{
+			name:           "verified email not on the allowlist",
+			claimsEmail:    "outsider@elsewhere.test",
+			emailVerified:  true,
+			expectedReason: "not_on_allowlist",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &repo_mocks.MockUserRepository{}
+			mockIDP := &idpmocks.MockIdentityProvider{}
+			service, recorder := createTestAuthServiceWithRecorder(
+				mockRepo, mockIDP, []string{"test@example.com"})
+
+			claims := createTestClaims()
+			claims.Email = tt.claimsEmail
+			claims.EmailVerified = tt.emailVerified
+
+			mockIDP.On("Name").Return(idp.ProviderOIDC)
+			mockIDP.On("ExchangeCode", context.Background(), "test-auth-code", "").
+				Return(&idp.Tokens{AccessToken: "test-access-token"}, claims, nil)
+
+			_, _, _, err := service.HandleCallback(
+				context.Background(), "test-auth-code", string(idp.ProviderOIDC))
+
+			require.ErrorIs(t, err, ErrAccessRestricted)
+			assert.Equal(t, tt.expectedReason, denialReason(t, recorder))
 		})
 	}
 }
