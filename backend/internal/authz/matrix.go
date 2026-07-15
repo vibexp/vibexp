@@ -78,3 +78,16 @@ func RolePermissions(role models.TeamMemberRole) []Permission {
 	}
 	return out
 }
+
+// RolePermissionStrings returns RolePermissions rendered as the wire strings
+// published in the team `permissions` API field (#224), in the same order.
+// Like RolePermissions the result is always non-nil, so it serializes as an
+// empty JSON array rather than null.
+func RolePermissionStrings(role models.TeamMemberRole) []string {
+	perms := RolePermissions(role)
+	out := make([]string, 0, len(perms))
+	for _, perm := range perms {
+		out = append(out, perm.String())
+	}
+	return out
+}

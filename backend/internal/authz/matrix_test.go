@@ -133,6 +133,45 @@ func TestRolePermissions_MatchesMatrixAndIsOrdered(t *testing.T) {
 	}
 }
 
+// TestRolePermissionStrings_MirrorsRolePermissions pins the wire rendering of
+// a role's grants (#224): same membership, same order, just strings. Clients
+// gate their UI on these exact values, so this is the mapping that must not
+// drift; that they are the *documented* values is asserted against the
+// OpenAPI enum in internal/server.
+func TestRolePermissionStrings_MirrorsRolePermissions(t *testing.T) {
+	for _, role := range []models.TeamMemberRole{
+		models.TeamMemberRoleOwner,
+		models.TeamMemberRoleAdmin,
+		models.TeamMemberRoleMember,
+	} {
+		t.Run(string(role), func(t *testing.T) {
+			perms := RolePermissions(role)
+			want := make([]string, 0, len(perms))
+			for _, perm := range perms {
+				want = append(want, string(perm))
+			}
+			require.NotEmpty(t, want, "every real role grants something")
+
+			assert.Equal(t, want, RolePermissionStrings(role))
+		})
+	}
+}
+
+// TestRolePermissionStrings_UnknownRoleIsEmptyNotNil carries RolePermissions'
+// fail-closed, never-nil contract through the []string conversion: the field is
+// a *required* array, so a nil here would serialize as null and break the
+// documented payload (#125 Layer C).
+func TestRolePermissionStrings_UnknownRoleIsEmptyNotNil(t *testing.T) {
+	for _, role := range []models.TeamMemberRole{"", "root", "Owner", "OWNER"} {
+		t.Run(string(role), func(t *testing.T) {
+			got := RolePermissionStrings(role)
+
+			assert.Empty(t, got, "an unknown role grants nothing")
+			assert.NotNil(t, got, "must be an empty slice, never nil")
+		})
+	}
+}
+
 // TestAll_IsACopy guards the exported catalog against mutation by a caller.
 func TestAll_IsACopy(t *testing.T) {
 	first := All()

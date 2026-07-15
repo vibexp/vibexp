@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -172,6 +173,7 @@ func TestTransferTeamOwnership_Success(t *testing.T) {
 		Slug:        "team",
 		Description: "desc",
 		Role:        string(models.TeamMemberRoleAdmin),
+		Permissions: authz.RolePermissionStrings(models.TeamMemberRoleAdmin),
 		CreatedAt:   time.Unix(0, 0).UTC(),
 		UpdatedAt:   time.Unix(0, 0).UTC(),
 	}, nil).Once()
@@ -186,6 +188,39 @@ func TestTransferTeamOwnership_Success(t *testing.T) {
 	// The caller is demoted, and the response says so.
 	assert.Contains(t, w.Body.String(), `"owner_id":"`+teamRolesTestTarget+`"`)
 	assert.Contains(t, w.Body.String(), `"role":"admin"`)
+	// The demotion is reflected in permissions too, not just the role label:
+	// the ex-owner loses team.delete and team.transfer (#224).
+	assert.Contains(t, w.Body.String(), `"`+authz.TeamUpdate.String()+`"`)
+	assert.NotContains(t, w.Body.String(), `"`+authz.TeamDelete.String()+`"`)
+	assert.NotContains(t, w.Body.String(), `"`+authz.OwnershipTransfer.String()+`"`)
+}
+
+// TestTransferTeamOwnership_PermissionsNeverNull proves the generated Team
+// type's required `permissions` array marshals as [] rather than null when the
+// service leaves it unset. The generated type cannot use models.JSONArray, so
+// this guarantee rests on toGenTeam's make(...,0) and nothing else enforces it.
+func TestTransferTeamOwnership_PermissionsNeverNull(t *testing.T) {
+	svc := mocks.NewMockTeamServiceInterface(t)
+	svc.EXPECT().TransferOwnership(
+		mock.Anything, teamRolesTestUserID, teamRolesTestTeamID, teamRolesTestTarget,
+	).Return(&models.Team{
+		ID:        teamRolesTestTeamID,
+		OwnerID:   teamRolesTestTarget,
+		Name:      "Team",
+		Slug:      "team",
+		CreatedAt: time.Unix(0, 0).UTC(),
+		UpdatedAt: time.Unix(0, 0).UTC(),
+	}, nil).Once()
+
+	srv := createTestTeamRolesServer(svc)
+	req := makeTeamRolesRequest(http.MethodPost, transferPath(), `{"new_owner_id":"`+teamRolesTestTarget+`"}`)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	specconformance.AssertConformsToSpec(t, req, w)
+	assert.Contains(t, w.Body.String(), `"permissions":[]`)
+	assert.NotContains(t, w.Body.String(), `"permissions":null`)
 }
 
 func TestTransferTeamOwnership_ErrorMapping(t *testing.T) {

@@ -4,16 +4,27 @@ import "time"
 
 // Team represents a team in the system
 type Team struct {
-	ID          string    `json:"id" db:"id"`
-	OwnerID     string    `json:"owner_id" db:"owner_id"`
-	Name        string    `json:"name" db:"name"`
-	Slug        string    `json:"slug" db:"slug"`
-	Description string    `json:"description" db:"description"`
-	IsPersonal  bool      `json:"is_personal" db:"is_personal"`
-	Role        string    `json:"role"`         // User's role in this team (not stored in DB, populated at runtime)
-	MemberCount int       `json:"member_count"` // Number of members in this team (not stored in DB, populated at runtime)
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	ID          string `json:"id" db:"id"`
+	OwnerID     string `json:"owner_id" db:"owner_id"`
+	Name        string `json:"name" db:"name"`
+	Slug        string `json:"slug" db:"slug"`
+	Description string `json:"description" db:"description"`
+	IsPersonal  bool   `json:"is_personal" db:"is_personal"`
+
+	// Role is the requesting user's role in this team. Not stored in DB,
+	// populated at runtime.
+	Role string `json:"role"`
+	// Permissions is what Role grants, per the authz matrix — computed at
+	// runtime, never stored. It is a *required* response field, so it uses
+	// JSONArray to serialize as [] rather than null (#125 Layer C). Always set
+	// it via the team service alongside Role so the two cannot disagree (#224).
+	Permissions JSONArray[string] `json:"permissions"`
+	// MemberCount is the number of members in this team. Not stored in DB,
+	// populated at runtime.
+	MemberCount int `json:"member_count"`
+
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // TeamStatsResponse holds team-wide resource counts for the team analytics page.

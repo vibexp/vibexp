@@ -180,7 +180,25 @@ func (s *TeamService) CreateTeam(
 	).
 		Info("Team created successfully")
 
+	// The creator is the owner (see the membership written just above), so say
+	// so. `permissions` is a required field and an empty array on a team you
+	// just created would read as "you may do nothing here" (#224); this response
+	// previously left role blank for want of a reason to populate it.
+	setCallerRole(team, models.TeamMemberRoleOwner)
+
 	return team, nil
+}
+
+// setCallerRole records the caller's role on the team together with the
+// permissions that role grants (#224).
+//
+// Both runtime-only fields are set through this one function so they can never
+// disagree on the wire: `permissions` is simply `role` expanded through the
+// authz matrix, and a client that gates UI on it must be able to trust that.
+// Never assign team.Role directly.
+func setCallerRole(team *models.Team, role models.TeamMemberRole) {
+	team.Role = string(role)
+	team.Permissions = authz.RolePermissionStrings(role)
 }
 
 // authorizeTeam loads the team and checks that the caller's role grants perm.
@@ -208,7 +226,7 @@ func (s *TeamService) authorizeTeam(
 	if err != nil {
 		return nil, err
 	}
-	team.Role = string(role)
+	setCallerRole(team, role)
 
 	return team, nil
 }
@@ -227,7 +245,7 @@ func (s *TeamService) GetTeam(ctx context.Context, userID, teamID string) (*mode
 	}
 
 	// Set user's role in this team
-	team.Role = string(member.Role)
+	setCallerRole(team, member.Role)
 
 	return team, nil
 }
@@ -610,7 +628,7 @@ func (s *TeamService) TransferOwnership(
 
 	// Reflect the post-transfer state: the caller is now an admin.
 	team.OwnerID = newOwnerID
-	team.Role = string(models.TeamMemberRoleAdmin)
+	setCallerRole(team, models.TeamMemberRoleAdmin)
 
 	return team, nil
 }
@@ -692,9 +710,9 @@ func (s *TeamService) ListTeams(
 				"user_id", userID,
 				"error", fmt.Sprintf("%+v", err),
 			).Warn("Failed to get team member role, setting to member")
-			teams[i].Role = string(models.TeamMemberRoleMember)
+			setCallerRole(&teams[i], models.TeamMemberRoleMember)
 		} else {
-			teams[i].Role = string(member.Role)
+			setCallerRole(&teams[i], member.Role)
 		}
 
 		// Get member count for this team

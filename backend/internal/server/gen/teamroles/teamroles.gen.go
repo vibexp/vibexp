@@ -21,6 +21,60 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
 
+// Defines values for TeamPermissions.
+const (
+	FeedDeleteAny     TeamPermissions = "feed.delete.any"
+	MemberInvite      TeamPermissions = "member.invite"
+	MemberRemove      TeamPermissions = "member.remove"
+	MemberRoleUpdate  TeamPermissions = "member.role.update"
+	ProjectCreate     TeamPermissions = "project.create"
+	ProjectDelete     TeamPermissions = "project.delete"
+	ProjectUpdate     TeamPermissions = "project.update"
+	ResourceCreate    TeamPermissions = "resource.create"
+	ResourceDeleteAny TeamPermissions = "resource.delete.any"
+	ResourceDeleteOwn TeamPermissions = "resource.delete.own"
+	ResourceUpdateAny TeamPermissions = "resource.update.any"
+	TeamDelete        TeamPermissions = "team.delete"
+	TeamTransfer      TeamPermissions = "team.transfer"
+	TeamUpdate        TeamPermissions = "team.update"
+)
+
+// Valid indicates whether the value is a known member of the TeamPermissions enum.
+func (e TeamPermissions) Valid() bool {
+	switch e {
+	case FeedDeleteAny:
+		return true
+	case MemberInvite:
+		return true
+	case MemberRemove:
+		return true
+	case MemberRoleUpdate:
+		return true
+	case ProjectCreate:
+		return true
+	case ProjectDelete:
+		return true
+	case ProjectUpdate:
+		return true
+	case ResourceCreate:
+		return true
+	case ResourceDeleteAny:
+		return true
+	case ResourceDeleteOwn:
+		return true
+	case ResourceUpdateAny:
+		return true
+	case TeamDelete:
+		return true
+	case TeamTransfer:
+		return true
+	case TeamUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TeamMemberDetailInvitationStatus.
 const (
 	Accepted TeamMemberDetailInvitationStatus = "accepted"
@@ -108,7 +162,7 @@ type ErrorResponse struct {
 	ValidationErrors *[]ValidationError `json:"validation_errors,omitempty"`
 }
 
-// Team A team (workspace) in the system. `role` and `member_count` are computed at read time for the requesting user.
+// Team A team (workspace) in the system. `role`, `permissions` and `member_count` are computed at read time for the requesting user.
 type Team struct {
 	CreatedAt   time.Time          `json:"created_at"`
 	Description string             `json:"description"`
@@ -124,11 +178,19 @@ type Team struct {
 	// OwnerId User ID of the team owner
 	OwnerId string `json:"owner_id"`
 
-	// Role The requesting user's role in this team: owner, admin, or member. Populated at runtime on list and single-team reads; empty string on create responses (not an enum constraint for that reason).
+	// Permissions Exactly what `role` permits the requesting user to do in this team, expanded server-side from the role matrix (epic #220). Clients MUST gate their UI on these strings rather than re-deriving them from `role` — the matrix lives on the server and may change without a client release.
+	// Computed at read time for the requesting user, alongside `role`, and always present (an empty array means the role grants nothing). The values are stable API surface: renaming one is a breaking change, and they are kept byte-identical to the `internal/authz` constants by a drift test. Meanings:
+	// * `team.update` — change team name, slug or description. * `team.delete` — delete the team (owner only). * `team.transfer` — transfer ownership to another member (owner only). * `member.invite` — invite new members. * `member.remove` — remove members from the team. * `member.role.update` — change a member's role. * `project.create` — create a project in the team. * `project.update` — update any project in the team. * `project.delete` — delete any project in the team. * `resource.create` — create a prompt, memory, artifact, blueprint or agent. * `resource.update.any` — update any resource, including other members'. * `resource.delete.own` — delete a resource the caller created. * `resource.delete.any` — delete a resource created by someone else. * `feed.delete.any` — delete another member's feed post or reply (moderation).
+	Permissions []TeamPermissions `json:"permissions"`
+
+	// Role The requesting user's role in this team: owner, admin, or member. Populated at runtime on every response that carries a team, including create (where the caller is by definition the owner). Not an enum constraint: older responses may still carry an empty string.
 	Role      *string   `json:"role,omitempty"`
 	Slug      string    `json:"slug"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// TeamPermissions defines model for Team.Permissions.
+type TeamPermissions string
 
 // TeamMemberDetail Detailed information about a team member, including invitation status
 type TeamMemberDetail struct {
@@ -160,7 +222,7 @@ type TransferTeamOwnershipRequest struct {
 
 // TransferTeamOwnershipResponse The team after ownership has been transferred
 type TransferTeamOwnershipResponse struct {
-	// Team A team (workspace) in the system. `role` and `member_count` are computed at read time for the requesting user.
+	// Team A team (workspace) in the system. `role`, `permissions` and `member_count` are computed at read time for the requesting user.
 	Team Team `json:"team"`
 }
 

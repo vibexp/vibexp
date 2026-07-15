@@ -146,8 +146,6 @@ var payloadCoverageLedger = map[string]string{
 	"GET /api/v1/{team_id}/resource-access-metrics":                   "TODO(#1714): uncovered",
 	"GET /api/v1/teams/{id}/invitations":                              "TODO(#1714): uncovered",
 	"GET /api/v1/teams/{id}/members":                                  "TODO(#1714): uncovered",
-	"GET /api/v1/teams/{id}":                                          "TODO(#1714): uncovered",
-	"GET /api/v1/teams":                                               "TODO(#1714): uncovered",
 	"GET /bo/v1/reports/usage-and-growth":                             "TODO(#1714): uncovered",
 	"GET /health":                                                     "TODO(#1714): uncovered",
 	"GET /ping":                                                       "TODO(#1714): uncovered",
