@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 
 import { authService } from '../../services/authService'
 import { environmentService } from '../../services/environmentService'
+import { mapSignInError } from '../../utils/authErrors'
 import { hardRedirect } from '../../utils/navigation'
 import { sanitizeReturnTo } from '../../utils/returnTo'
 
@@ -70,9 +71,7 @@ export function DevLogin({ onError, returnTo }: DevLoginProps) {
       // requested return path (e.g. back on the OAuth consent page) or "/".
       hardRedirect(sanitizeReturnTo(returnTo))
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Dev login failed'
-      onError?.(errorMessage)
+      onError?.(mapSignInError(err, 'Dev login failed'))
       setIsLoading(false)
     }
   }

@@ -71,12 +71,15 @@ jest.mock('@/lib/utils', () => ({
 // Imports after mocks
 // ---------------------------------------------------------------------------
 
+import { ApiError } from '@/types/errors'
+import { ACCESS_RESTRICTED_MESSAGE } from '@/utils/authErrors'
+
 import { DevLogin } from './DevLogin'
 
-function renderDevLogin(returnTo?: string) {
+function renderDevLogin(returnTo?: string, onError?: (error: string) => void) {
   return render(
     <MemoryRouter>
-      <DevLogin returnTo={returnTo} />
+      <DevLogin returnTo={returnTo} onError={onError} />
     </MemoryRouter>
   )
 }
@@ -129,5 +132,40 @@ describe('DevLogin', () => {
     mockDevLoginEnabled = false
     const { container } = renderDevLogin('/x')
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('surfaces the restriction wording when the allowlist denies the login', async () => {
+    const onError = jest.fn()
+    mockDevLogin.mockRejectedValue(
+      new ApiError({
+        type: 'https://api.vibexp.io/errors/access-restricted',
+        title: 'Access Restricted',
+        status: 403,
+        detail: 'Your account is not permitted to sign in',
+        code: 'access_restricted',
+        request_id: 'req-1',
+        timestamp: '2024-01-01T00:00:00Z',
+      })
+    )
+
+    renderDevLogin('/', onError)
+    await submitWithEmail()
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(ACCESS_RESTRICTED_MESSAGE)
+    })
+    expect(mockHardRedirect).not.toHaveBeenCalled()
+  })
+
+  it('surfaces the backend detail for any other failure', async () => {
+    const onError = jest.fn()
+    mockDevLogin.mockRejectedValue(new Error('dev login is disabled'))
+
+    renderDevLogin('/', onError)
+    await submitWithEmail()
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith('dev login is disabled')
+    })
   })
 })
