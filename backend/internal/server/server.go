@@ -322,12 +322,6 @@ func newOAuthAuthorizationServer(
 	if cfg.Auth.OAuthAS.IssuerURL == "" {
 		return nil
 	}
-	accessPolicy := consentAccessPolicyAdapter{
-		users: c.UserRepository(),
-		allowlist: feature_flags.NewUserSignInAllowlistFlag(
-			logger, cfg.Auth.AccessAllowlist.Domains, cfg.Auth.AccessAllowlist.Emails,
-		),
-	}
 	svc := oauthserver.NewService(
 		oauthserver.Config{
 			Issuer:              cfg.Auth.OAuthAS.IssuerURL,
@@ -347,11 +341,26 @@ func newOAuthAuthorizationServer(
 		postgres.NewOAuthPKCERepository(db),
 		postgres.NewOAuthSigningKeyRepository(db),
 		postgres.NewOAuthLoginSessionRepository(db),
-		accessPolicy,
+		newConsentAccessPolicy(cfg, c, logger),
 		logger,
 	)
 	logger.Info("Embedded OAuth 2.1 Authorization Server enabled", "issuer", cfg.Auth.OAuthAS.IssuerURL)
 	return svc
+}
+
+// newConsentAccessPolicy builds the attach-time access-allowlist re-check (#217)
+// from configuration. Kept separate from newOAuthAuthorizationServer so the
+// config-to-policy wiring — which allowlist fields feed the evaluator — is
+// directly testable without a database.
+func newConsentAccessPolicy(
+	cfg *config.Config, c container.Container, logger *slog.Logger,
+) oauthserver.ConsentAccessPolicy {
+	return consentAccessPolicyAdapter{
+		users: c.UserRepository(),
+		allowlist: feature_flags.NewUserSignInAllowlistFlag(
+			logger, cfg.Auth.AccessAllowlist.Domains, cfg.Auth.AccessAllowlist.Emails,
+		),
+	}
 }
 
 // setupAttachmentAuthorizers builds the owner-authorizer registry for the

@@ -290,6 +290,87 @@ func TestUserResolverAdapter(t *testing.T) {
 	})
 }
 
+// containerWithUsers is a Container that supplies only the user repository the
+// consent access policy needs; every other dependency keeps the base nil default.
+type containerWithUsers struct {
+	*BaseMockContainer
+	users repositories.UserRepository
+}
+
+func (c containerWithUsers) UserRepository() repositories.UserRepository { return c.users }
+
+// TestNewConsentAccessPolicy pins the config-to-policy wiring (#217): which
+// allowlist fields reach the evaluator. Without this, transposing Domains/Emails
+// would leave every other test green while the MCP gate silently allows (or
+// denies) the wrong people.
+func TestNewConsentAccessPolicy(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.New(slog.DiscardHandler)
+
+	newPolicy := func(repo repositories.UserRepository, allowlist config.AccessAllowlistConfig) oauthserver.ConsentAccessPolicy {
+		cfg := &config.Config{}
+		cfg.Auth.AccessAllowlist = allowlist
+		return newConsentAccessPolicy(
+			cfg,
+			containerWithUsers{BaseMockContainer: &BaseMockContainer{}, users: repo},
+			logger,
+		)
+	}
+
+	userWithEmail := func(t *testing.T, id, email string) repositories.UserRepository {
+		t.Helper()
+		repo := repomocks.NewMockUserRepository(t)
+		repo.EXPECT().GetByID(ctx, id).Return(&models.User{ID: id, Email: email}, nil)
+		return repo
+	}
+
+	t.Run("configured domains reach the evaluator", func(t *testing.T) {
+		policy := newPolicy(
+			userWithEmail(t, "u1", "dev@example.com"),
+			config.AccessAllowlistConfig{Domains: []string{"example.com"}},
+		)
+
+		allowed, err := policy.AllowUser(ctx, "u1")
+		require.NoError(t, err)
+		assert.True(t, allowed, "an email on a configured domain must be allowed")
+	})
+
+	t.Run("configured emails reach the evaluator", func(t *testing.T) {
+		// Also the transposition guard: were Emails passed as Domains, this exact
+		// address would not match and the user would be wrongly denied.
+		policy := newPolicy(
+			userWithEmail(t, "u2", "dev@example.com"),
+			config.AccessAllowlistConfig{Emails: []string{"dev@example.com"}},
+		)
+
+		allowed, err := policy.AllowUser(ctx, "u2")
+		require.NoError(t, err)
+		assert.True(t, allowed, "an exactly-allowlisted email must be allowed")
+	})
+
+	t.Run("an active allowlist denies everyone else", func(t *testing.T) {
+		policy := newPolicy(
+			userWithEmail(t, "u3", "outsider@elsewhere.test"),
+			config.AccessAllowlistConfig{Domains: []string{"example.com"}, Emails: []string{"dev@example.com"}},
+		)
+
+		allowed, err := policy.AllowUser(ctx, "u3")
+		require.NoError(t, err)
+		assert.False(t, allowed)
+	})
+
+	t.Run("an unconfigured allowlist is open access", func(t *testing.T) {
+		policy := newPolicy(
+			userWithEmail(t, "u4", "anyone@anywhere.test"),
+			config.AccessAllowlistConfig{},
+		)
+
+		allowed, err := policy.AllowUser(ctx, "u4")
+		require.NoError(t, err)
+		assert.True(t, allowed, "a self-hosted instance with no allowlist must stay open")
+	})
+}
+
 // TestConsentAccessPolicyAdapter covers the attach-time allowlist re-check (#217):
 // the adapter resolves the consenting user's email and applies the same evaluator
 // the login path uses, and fails closed on anything it cannot vouch for.
