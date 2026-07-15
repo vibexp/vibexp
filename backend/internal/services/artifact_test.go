@@ -154,7 +154,7 @@ func TestNewArtifactService(t *testing.T) {
 	repo := &MockArtifactRepository{}
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewArtifactService(
-		repo, nil, nil, mockResourceUsageSvc,
+		repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
@@ -267,7 +267,7 @@ func TestArtifactService_CreateArtifact(t *testing.T) {
 			// Resource limits are now checked directly in handlers via CheckResourceLimit
 
 			service := NewArtifactService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -347,7 +347,7 @@ func TestArtifactService_GetArtifactByProjectIDAndSlug(t *testing.T) {
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -410,7 +410,7 @@ func TestArtifactService_GetArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 			tt.setup(repo)
 
 			service := NewArtifactService(
-				repo, nil, nil, &MockResourceUsageService{},
+				repo, nil, allowAllAuthz{}, nil, &MockResourceUsageService{},
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -444,7 +444,7 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 		})).Return(nil)
 
 		service := NewArtifactService(
-			repo, nil, nil, &MockResourceUsageService{},
+			repo, nil, allowAllAuthz{}, nil, &MockResourceUsageService{},
 			func() *slog.Logger { l, _ := logtest.New(); return l }(),
 			nil,
 		)
@@ -466,7 +466,7 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 		).Return(nil, assert.AnError)
 
 		service := NewArtifactService(
-			repo, nil, nil, &MockResourceUsageService{},
+			repo, nil, allowAllAuthz{}, nil, &MockResourceUsageService{},
 			func() *slog.Logger { l, _ := logtest.New(); return l }(),
 			nil,
 		)
@@ -583,7 +583,7 @@ func TestArtifactService_ListArtifacts(t *testing.T) {
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -606,7 +606,7 @@ func TestArtifactService_ListArtifactsByProject(t *testing.T) {
 
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewArtifactService(
-		repo, nil, nil, mockResourceUsageSvc,
+		repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)
@@ -748,7 +748,7 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlug(t *testing.T) {
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -853,7 +853,7 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 			// Deletions are never blocked by resource limits
 
 			service := NewArtifactService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -931,7 +931,7 @@ func TestArtifactService_GetArtifactStats(t *testing.T) {
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -1046,7 +1046,7 @@ func TestArtifactService_ListArtifactsByProjectCrossTeam(t *testing.T) {
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
 			service := NewArtifactService(
-				repo, nil, nil, mockResourceUsageSvc,
+				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -1062,7 +1062,7 @@ func TestArtifactService_ImplementsInterface(t *testing.T) {
 	repo := &MockArtifactRepository{}
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewArtifactService(
-		repo, nil, nil, mockResourceUsageSvc,
+		repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 		//nolint:funlen // Test function requires comprehensive setup and assertions
@@ -1178,7 +1178,7 @@ func TestArtifactService_PublishesArtifactEvents(t *testing.T) {
 			).Return(nil).Maybe()
 
 			service := NewArtifactService(
-				mockRepo, nil, mockEventManager, mockResourceUsageSvc,
+				mockRepo, nil, allowAllAuthz{}, mockEventManager, mockResourceUsageSvc,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
@@ -1205,7 +1205,7 @@ func TestArtifactService_UpdateArtifact_PreservesTeamID(t *testing.T) {
 	mockRepo := &MockArtifactRepository{}
 	mockResourceUsageSvc := &MockResourceUsageService{}
 	service := NewArtifactService(
-		mockRepo, nil, nil, mockResourceUsageSvc,
+		mockRepo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
 		func() *slog.Logger { l, _ := logtest.New(); return l }(),
 		nil,
 	)

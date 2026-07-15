@@ -44,20 +44,20 @@ func TestArtifactRepository_OptimisticLocking(t *testing.T) {
 		Version:     1, // Current version
 	}
 
-	// Expect ownership validation query first with team membership check
-	mock.ExpectQuery("SELECT EXISTS\\(.*FROM artifacts a.*EXISTS.*teams.*").
-		WithArgs(artifact.ID, artifact.TeamID, artifact.UserID).
+	// Existence-in-team check (tenancy only; role is decided in the service)
+	mock.ExpectQuery("SELECT EXISTS\\(.*FROM artifacts a.*").
+		WithArgs(artifact.ID, artifact.TeamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Simulate version mismatch (no rows affected)
 	// Args order: id, project_id, slug, title, description, content, status, type, metadata,
-	// team_id, updated_at, team_id, version, user_id
-	mock.ExpectQuery("UPDATE artifacts.*WHERE.*EXISTS.*SELECT.*FROM teams.*").
+	// team_id, updated_at, team_id, version
+	mock.ExpectQuery("UPDATE artifacts.*WHERE.*").
 		WithArgs(
 			artifact.ID, artifact.ProjectID, artifact.Slug,
 			artifact.Title, artifact.Description, artifact.Content,
 			artifact.Status, artifact.Type, sqlmock.AnyArg(),
-			artifact.TeamID, sqlmock.AnyArg(), artifact.TeamID, artifact.Version, artifact.UserID,
+			artifact.TeamID, sqlmock.AnyArg(), artifact.TeamID, artifact.Version,
 		).
 		WillReturnError(sql.ErrNoRows)
 
@@ -93,17 +93,17 @@ func TestMemoryRepository_OptimisticLocking(t *testing.T) {
 	}
 
 	// Expect ownership validation query first with team membership check
-	mock.ExpectQuery("SELECT EXISTS\\(.*FROM memories m.*EXISTS.*teams.*").
-		WithArgs(memory.ID, memory.TeamID, memory.UserID).
+	mock.ExpectQuery("SELECT EXISTS\\(.*FROM memories m.*").
+		WithArgs(memory.ID, memory.TeamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Simulate version mismatch (UPDATE fails because version doesn't match)
 	// Args order: id, text, status, metadata, project_id, team_id, updated_at, team_id, version, user_id.
 	// The memory carries no status, so the repository defaults it to "active".
-	mock.ExpectQuery("UPDATE memories.*WHERE.*EXISTS.*SELECT.*FROM teams.*").
+	mock.ExpectQuery("UPDATE memories.*WHERE.*").
 		WithArgs(
 			memory.ID, memory.Text, "active", sqlmock.AnyArg(), memory.ProjectID,
-			memory.TeamID, sqlmock.AnyArg(), memory.TeamID, memory.Version, memory.UserID,
+			memory.TeamID, sqlmock.AnyArg(), memory.TeamID, memory.Version,
 		).
 		WillReturnError(sql.ErrNoRows)
 
@@ -145,20 +145,20 @@ func TestBlueprintRepository_OptimisticLocking(t *testing.T) {
 	}
 
 	// Expect ownership validation query first with team membership check
-	ownershipQuery := "SELECT EXISTS\\(.*FROM blueprints s.*EXISTS.*teams.*"
+	ownershipQuery := "SELECT EXISTS\\(.*FROM blueprints s.*"
 	mock.ExpectQuery(ownershipQuery).
-		WithArgs(specLibrary.ID, specLibrary.TeamID, specLibrary.UserID).
+		WithArgs(specLibrary.ID, specLibrary.TeamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Simulate version mismatch (UPDATE fails because version doesn't match)
 	// Args order: id, project_id, slug, title, description, content, status, type, subtype,
-	// metadata, team_id, updated_at, team_id, version, user_id
-	mock.ExpectQuery("UPDATE blueprints.*WHERE.*EXISTS.*SELECT.*FROM teams.*").
+	// metadata, team_id, updated_at, team_id, version
+	mock.ExpectQuery("UPDATE blueprints.*WHERE.*").
 		WithArgs(
 			specLibrary.ID, specLibrary.ProjectID, specLibrary.Slug,
 			specLibrary.Title, specLibrary.Description, specLibrary.Content,
 			specLibrary.Status, specLibrary.Type, specLibrary.Subtype, sqlmock.AnyArg(),
-			specLibrary.TeamID, sqlmock.AnyArg(), specLibrary.TeamID, specLibrary.Version, specLibrary.UserID,
+			specLibrary.TeamID, sqlmock.AnyArg(), specLibrary.TeamID, specLibrary.Version,
 		).
 		WillReturnError(sql.ErrNoRows)
 
@@ -200,9 +200,9 @@ func TestArtifactRepository_SuccessfulUpdate(t *testing.T) {
 		Version:     1, // Current version
 	}
 
-	// Expect ownership validation query first with team membership check
-	mock.ExpectQuery("SELECT EXISTS\\(.*FROM artifacts a.*EXISTS.*teams.*").
-		WithArgs(artifact.ID, artifact.TeamID, artifact.UserID).
+	// Existence-in-team check (tenancy only; role is decided in the service)
+	mock.ExpectQuery("SELECT EXISTS\\(.*FROM artifacts a.*").
+		WithArgs(artifact.ID, artifact.TeamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Simulate successful update returning new version
@@ -210,13 +210,13 @@ func TestArtifactRepository_SuccessfulUpdate(t *testing.T) {
 		AddRow(now, 2) // Version incremented to 2
 
 	// Args order: id, project_id, slug, title, description, content, status, type, metadata,
-	// team_id, updated_at, team_id, version, user_id
-	mock.ExpectQuery("UPDATE artifacts.*WHERE.*EXISTS.*SELECT.*FROM teams.*").
+	// team_id, updated_at, team_id, version
+	mock.ExpectQuery("UPDATE artifacts.*WHERE.*").
 		WithArgs(
 			artifact.ID, artifact.ProjectID, artifact.Slug,
 			artifact.Title, artifact.Description, artifact.Content,
 			artifact.Status, artifact.Type, sqlmock.AnyArg(),
-			artifact.TeamID, sqlmock.AnyArg(), artifact.TeamID, artifact.Version, artifact.UserID,
+			artifact.TeamID, sqlmock.AnyArg(), artifact.TeamID, artifact.Version,
 		).
 		WillReturnRows(rows)
 

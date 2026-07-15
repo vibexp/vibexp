@@ -35,7 +35,7 @@ func TestBlueprintRepository_GetByID_CrossTeamIsolation(t *testing.T) {
 	// Scenario: Spec library exists in Team A, user tries to access using Team B credentials
 	// Simulate that the query returns no rows when accessing from different team
 	// The query checks: WHERE id = $1 AND team_id = $2 AND (owner_id = $3 OR member_id = $3)
-	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*EXISTS.*teams.*").
+	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
 		WithArgs(blueprintID, teamB, userID).
 		WillReturnRows(sqlmock.NewRows([]string{"id"})) // Empty result
 
@@ -84,9 +84,9 @@ func TestBlueprintRepository_Update_CrossTeamIsolation(t *testing.T) {
 	}
 
 	// Expect ownership validation query first - should fail since blueprint belongs to Team A
-	ownershipQuery := "SELECT EXISTS\\(.*FROM blueprints s.*EXISTS.*teams.*"
+	ownershipQuery := "SELECT EXISTS\\(.*FROM blueprints s.*"
 	mock.ExpectQuery(ownershipQuery).
-		WithArgs(blueprint.ID, teamB, userID).
+		WithArgs(blueprint.ID, teamB).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false)) // Spec library not in Team B
 
 	// Try to update blueprint using Team B credentials - should fail
@@ -151,7 +151,7 @@ func TestBlueprintRepository_GetByProjectIDAndSlug_CrossTeamIsolation(t *testing
 	// Scenario: Spec library exists in Team A, user tries to access by slug using Team B credentials
 	// Simulate that the query returns no rows when accessing from different team
 	// The query checks: WHERE project_id = $1 AND slug = $2 AND team_id = $3 AND (owner_id = $4 OR member_id = $4)
-	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*EXISTS.*teams.*").
+	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
 		WithArgs(projectID, slug, teamB, userID).
 		WillReturnRows(sqlmock.NewRows([]string{"id"})) // Empty result
 

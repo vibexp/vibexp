@@ -65,9 +65,17 @@ type extractedPredicate struct {
 func TestTeamAccessPredicatesAreCanonical(t *testing.T) {
 	preds := extractTeamAccessPredicates(t)
 
-	// The predicate is copied well over a hundred times; a collapse of this
-	// count means the extraction broke, not that the copies disappeared.
-	require.GreaterOrEqual(t, len(preds), 100,
+	// The predicate is copied dozens of times; a COLLAPSE of this count means the
+	// extraction broke, not that the copies disappeared. It is a health check on
+	// the extractor (a broken one returns ~0), never a freeze on the count.
+	//
+	// The floor moves down as epic #220 lands: decision D3 deliberately removes
+	// role/ownership predicates from write queries, and where a whole
+	// authorization pre-check disappears its EXISTS subexpressions go with it.
+	// #235/#236/#237 have taken it from ~102 to just over 90. Lower it again when
+	// a slice legitimately removes more (#238 is the last); do NOT raise it to
+	// pin a number.
+	require.GreaterOrEqual(t, len(preds), 80,
 		"team-access predicate extraction found suspiciously few predicates; extraction is likely broken")
 
 	allowed := map[string]map[string]bool{}

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -236,6 +237,24 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, artifact, s.logger)
 }
 
+// writeArtifactDeleteDenial writes a 403 for a denied delete and reports whether
+// it handled the error. Without it the denial would reach logArtifactError,
+// which writes an unconditional 500.
+func (s *Server) writeArtifactDeleteDenial(w http.ResponseWriter, userID, slug string, err error) bool {
+	if !errors.Is(err, services.ErrPermissionDenied) {
+		return false
+	}
+	s.logger.With(
+		"service", "vibexp-api", "handler", "handleDeleteArtifact",
+		"user_id", userID, "slug", slug,
+	).Warn("Forbidden artifact delete attempt")
+	writeErrorResponse(
+		w, nil, "forbidden",
+		"You can only delete artifacts you created; team admins can delete any", http.StatusForbidden,
+	)
+	return true
+}
+
 func (s *Server) handleDeleteArtifact(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
@@ -270,6 +289,10 @@ func (s *Server) handleDeleteArtifact(w http.ResponseWriter, r *http.Request) {
 
 	err = s.container.ArtifactService().DeleteArtifactByProjectIDAndSlug(userID, decodedProjectID, decodedSlug)
 	if err != nil {
+		if s.writeArtifactDeleteDenial(w, userID, decodedSlug, err) {
+			return
+		}
+
 		s.logArtifactError(w, "handleDeleteArtifact", userID, decodedProjectID, decodedSlug, err,
 			"Failed to delete artifact", "internal_error", "Failed to delete artifact", http.StatusInternalServerError)
 		return
@@ -650,6 +673,19 @@ func (s *Server) checkArtifactResourceLimit(w http.ResponseWriter, ctx context.C
 
 // handleCreateArtifactError handles errors from artifact creation
 func (s *Server) handleCreateArtifactError(w http.ResponseWriter, userID string, err error) {
+	// Denials are benign client errors: handled before the ERROR log and before
+	// the strings.Contains chain below, which ErrPermissionDenied's text matches
+	// nowhere — it would otherwise fall through to a 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With("service", "vibexp-api", "handler", "handleCreateArtifact", "user_id", userID).
+			Warn("Forbidden artifact write attempt")
+		writeErrorResponse(
+			w, nil, "forbidden",
+			"You do not have permission to create artifacts in this team", http.StatusForbidden,
+		)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleCreateArtifact",
@@ -721,6 +757,16 @@ func (s *Server) handleGetArtifactError(w http.ResponseWriter, userID, projectID
 
 // handleUpdateArtifactError handles errors from artifact update
 func (s *Server) handleUpdateArtifactError(w http.ResponseWriter, userID, projectID, slug string, err error) {
+	// Denials are benign client errors: handled before the ERROR log and before
+	// the strings.Contains chain below, which ErrPermissionDenied's text matches
+	// nowhere — it would otherwise fall through to a 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With("service", "vibexp-api", "handler", "handleUpdateArtifact", "user_id", userID).
+			Warn("Forbidden artifact write attempt")
+		writeErrorResponse(w, nil, "forbidden", "You do not have permission to update this artifact", http.StatusForbidden)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleUpdateArtifact",

@@ -73,7 +73,7 @@ func TestBlueprintService_UpdateSnapshotsOldContent(t *testing.T) {
 					Once()
 			}
 
-			svc := services.NewBlueprintService(repo, nil, nil, nil, logger, cvs)
+			svc := services.NewBlueprintService(repo, nil, permissiveAuthz(t), nil, nil, logger, cvs)
 
 			content := tt.newContent
 			_, err := svc.UpdateBlueprintByProjectIDAndSlug(
@@ -125,7 +125,7 @@ func TestBlueprintService_RestoreSnapshotsAsSystem(t *testing.T) {
 		Once()
 	repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 
-	svc := services.NewBlueprintService(repo, nil, nil, nil, logger, cvs)
+	svc := services.NewBlueprintService(repo, nil, permissiveAuthz(t), nil, nil, logger, cvs)
 	_, err := svc.RestoreBlueprintVersion(userID, projectID, slug, 2)
 	require.NoError(t, err)
 }

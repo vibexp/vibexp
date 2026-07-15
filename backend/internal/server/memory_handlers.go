@@ -19,6 +19,19 @@ import (
 
 // handleCreateMemoryError handles errors from CreateMemory and writes appropriate responses
 func (s *Server) handleCreateMemoryError(w http.ResponseWriter, userID string, err error) {
+	// Denials are benign client errors: handled before the ERROR log and before
+	// any matching below, which ErrPermissionDenied's text matches nowhere — it
+	// would otherwise fall through to a 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With("service", "vibexp-api", "handler", "handleCreateMemory", "user_id", userID).
+			Warn("Forbidden memory write attempt")
+		writeErrorResponse(
+			w, nil, "forbidden",
+			"You do not have permission to create memories in this team", http.StatusForbidden,
+		)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleCreateMemory",
@@ -361,6 +374,16 @@ func (s *Server) validateUpdateMemoryRequest(w http.ResponseWriter, req *models.
 }
 
 func (s *Server) handleUpdateMemoryError(w http.ResponseWriter, userID, memoryID string, err error) {
+	// Denials are benign client errors: handled before the ERROR log and before
+	// any matching below, which ErrPermissionDenied's text matches nowhere — it
+	// would otherwise fall through to a 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With("service", "vibexp-api", "handler", "handleUpdateMemory", "user_id", userID).
+			Warn("Forbidden memory write attempt")
+		writeErrorResponse(w, nil, "forbidden", "You do not have permission to update this memory", http.StatusForbidden)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleUpdateMemory",
@@ -393,6 +416,16 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 	// Delete the memory
 	err := s.container.MemoryService().DeleteMemory(userID, teamID, memoryID)
 	if err != nil {
+		if errors.Is(err, services.ErrPermissionDenied) {
+			s.logger.With("service", "vibexp-api", "handler", "handleDeleteMemory", "user_id", userID).
+				Warn("Forbidden memory delete attempt")
+			writeErrorResponse(
+				w, nil, "forbidden",
+				"You can only delete memories you created; team admins can delete any", http.StatusForbidden,
+			)
+			return
+		}
+
 		s.logger.With(
 			"service", "vibexp-api",
 			"handler", "handleDeleteMemory",

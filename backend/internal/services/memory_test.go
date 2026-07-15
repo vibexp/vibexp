@@ -19,7 +19,7 @@ import (
 )
 
 func createTestMemoryService(repo repositories.MemoryRepository) *MemoryService {
-	return NewMemoryService(repo, nil, nil, func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
+	return NewMemoryService(repo, nil, allowAllAuthz{}, nil, func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 }
 
 const testServiceProjectID = "550e8400-e29b-41d4-a716-446655440002"
@@ -394,6 +394,10 @@ func TestMemoryService_DeleteMemory(t *testing.T) {
 			userID:   "user-123",
 			memoryID: "memory-123",
 			setupMock: func(mockRepo *mocks.MockMemoryRepository) {
+				// Delete now fetches first to learn the memory's owner: members
+				// delete only their own, Admin+ delete anyone's.
+				mockRepo.EXPECT().GetByID(mock.Anything, "user-123", mock.Anything, "memory-123").
+					Return(&models.Memory{ID: "memory-123", UserID: "user-123"}, nil).Once()
 				mockRepo.EXPECT().Delete(mock.Anything, "user-123", mock.Anything, "memory-123").Return(nil).Once()
 			},
 			expectErr: false,
@@ -403,9 +407,10 @@ func TestMemoryService_DeleteMemory(t *testing.T) {
 			userID:   "user-123",
 			memoryID: "nonexistent",
 			setupMock: func(mockRepo *mocks.MockMemoryRepository) {
-				mockRepo.EXPECT().Delete(
+				// The owner-fetch is now what surfaces a missing memory.
+				mockRepo.EXPECT().GetByID(
 					mock.Anything, "user-123", mock.Anything, "nonexistent",
-				).Return(fmt.Errorf("memory not found")).Once()
+				).Return(nil, fmt.Errorf("memory not found")).Once()
 			},
 			expectErr:  true,
 			errMessage: "memory not found",
@@ -611,7 +616,7 @@ func TestMemoryService_PublishesMemoryEvents(t *testing.T) {
 			mockEventManager := &event_mocks.MockEventPublisher{}
 
 			service := NewMemoryService(
-				mockRepo, nil, mockEventManager,
+				mockRepo, nil, allowAllAuthz{}, mockEventManager,
 				func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
 
 			tt.setupMocks(mockRepo, mockEventManager)

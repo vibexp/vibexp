@@ -170,10 +170,10 @@ func TestArtifactRepository_TeamMember_CanUpdateOtherMembersArtifacts(t *testing
 		Version:     1,
 	}
 
-	// Mock ownership validation
+	// Existence-in-team check (tenancy only; role decided in ArtifactService)
 	ownershipQuery := `SELECT EXISTS\(`
 	mock.ExpectQuery(ownershipQuery).
-		WithArgs(aliceArtifactID, teamID, bobUserID).
+		WithArgs(aliceArtifactID, teamID).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 	// Mock update query
@@ -182,7 +182,7 @@ func TestArtifactRepository_TeamMember_CanUpdateOtherMembersArtifacts(t *testing
 		WithArgs(
 			aliceArtifactID, "project-123", "design-doc",
 			"System Design - Updated by Bob", "Updated description", "Updated content",
-			"active", "work_reports", sqlmock.AnyArg(), teamID, now, teamID, 1, bobUserID,
+			"active", "work_reports", sqlmock.AnyArg(), teamID, now, teamID, 1,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 

@@ -81,9 +81,11 @@ func TestArtifactRepository_Update_CrossTeamIsolation(t *testing.T) {
 		Version:     1,
 	}
 
-	// Expect ownership validation query first - should fail since artifact belongs to Team A
-	mock.ExpectQuery("SELECT EXISTS\\(.*FROM artifacts a.*EXISTS.*teams.*").
-		WithArgs(artifact.ID, teamB, userID).
+	// Existence-in-team check — fails because the artifact belongs to Team A.
+	// Tenancy stays in SQL (D3 moved only ROLE logic out), so cross-team
+	// isolation is still enforced by the repository.
+	mock.ExpectQuery("SELECT EXISTS\\(.*FROM artifacts a.*").
+		WithArgs(artifact.ID, teamB).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false)) // Artifact not in Team B
 
 	// Try to update artifact using Team B credentials - should fail

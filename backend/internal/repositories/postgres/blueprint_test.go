@@ -46,7 +46,7 @@ func TestGetByID_NilMetadata(t *testing.T) {
 		time.Now(), time.Now(), 1,
 	)
 
-	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*EXISTS.*teams.*").
+	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
 		WithArgs(blueprintID, "team-123", userID).
 		WillReturnRows(rows)
 
@@ -81,7 +81,7 @@ func TestGetByProjectIDAndSlug_NilMetadata(t *testing.T) {
 		time.Now(), time.Now(), 1,
 	)
 
-	query := "SELECT (.+) FROM blueprints s.*EXISTS.*teams.*"
+	query := "SELECT (.+) FROM blueprints s.*"
 	mock.ExpectQuery(query).
 		WithArgs(projectID, slug, "team-123", userID).
 		WillReturnRows(rows)
@@ -236,7 +236,7 @@ func TestList_EmptyMetadataFilter(t *testing.T) {
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"status", "type", "subtype", "metadata", "created_at", "updated_at",
 	})
-	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*EXISTS.*teams.*").
+	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
 		WillReturnRows(dataRows)
 
 	result, total, err := repo.List(context.Background(), userID, filters)

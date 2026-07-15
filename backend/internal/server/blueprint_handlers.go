@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -278,6 +279,20 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	err = s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(userID, decodedProjectID, decodedSlug)
 	if err != nil {
+		// Without this branch a denied delete would hit logBlueprintError's
+		// unconditional 500 — it has no branching at all.
+		if errors.Is(err, services.ErrPermissionDenied) {
+			s.logger.With(
+				"service", "vibexp-api", "handler", "handleDeleteBlueprint",
+				"user_id", userID, "slug", decodedSlug,
+			).Warn("Forbidden blueprint delete attempt")
+			writeErrorResponse(
+				w, nil, "forbidden",
+				"You can only delete blueprints you created; team admins can delete any", http.StatusForbidden,
+			)
+			return
+		}
+
 		s.logBlueprintError(
 			w,
 			"handleDeleteBlueprint",
@@ -564,6 +579,19 @@ func (s *Server) checkBlueprintResourceLimit(w http.ResponseWriter, ctx context.
 
 // handleCreateBlueprintError handles errors from blueprint creation
 func (s *Server) handleCreateBlueprintError(w http.ResponseWriter, userID string, err error) {
+	// Denials are benign client errors: handled before the ERROR log and before
+	// the strings.Contains chain below, which ErrPermissionDenied's text matches
+	// nowhere — it would otherwise fall through to a 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With("service", "vibexp-api", "handler", "handleCreateBlueprint", "user_id", userID).
+			Warn("Forbidden blueprint write attempt")
+		writeErrorResponse(
+			w, nil, "forbidden",
+			"You do not have permission to create blueprints in this team", http.StatusForbidden,
+		)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleCreateBlueprint",
@@ -635,6 +663,16 @@ func (s *Server) handleGetBlueprintError(w http.ResponseWriter, userID, projectI
 
 // handleUpdateBlueprintError handles errors from blueprint update
 func (s *Server) handleUpdateBlueprintError(w http.ResponseWriter, userID, projectID, slug string, err error) {
+	// Denials are benign client errors: handled before the ERROR log and before
+	// the strings.Contains chain below, which ErrPermissionDenied's text matches
+	// nowhere — it would otherwise fall through to a 500.
+	if errors.Is(err, services.ErrPermissionDenied) {
+		s.logger.With("service", "vibexp-api", "handler", "handleUpdateBlueprint", "user_id", userID).
+			Warn("Forbidden blueprint write attempt")
+		writeErrorResponse(w, nil, "forbidden", "You do not have permission to update this blueprint", http.StatusForbidden)
+		return
+	}
+
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleUpdateBlueprint",

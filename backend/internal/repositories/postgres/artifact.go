@@ -487,26 +487,16 @@ func (r *ArtifactRepository) List(
 	return artifacts, totalCount, nil
 }
 
-// validateArtifactOwnership checks if user has access to the artifact
-// Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
-func (r *ArtifactRepository) validateArtifactOwnership(
-	ctx context.Context, artifactID, teamID, userID string,
-) error {
+// validateArtifactInTeam proves the artifact exists within the team. It is a TENANCY
+// check only (epic #220 decision D3): whether the caller's ROLE permits the
+// update is decided by ArtifactService via the authz matrix before this is reached.
+// It is kept because Update relies on ErrArtifactNotFound to tell a missing artifact
+// apart from an optimistic-lock version conflict.
+func (r *ArtifactRepository) validateArtifactInTeam(ctx context.Context, artifactID, teamID string) error {
 	var exists bool
-	query := `
-		SELECT EXISTS(
-			SELECT 1 FROM artifacts a
-			WHERE a.id = $1
-				AND a.team_id = $2
-				AND (
-					EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-					OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
-				)
-		)
-	`
-	err := r.db.QueryRowContext(ctx, query, artifactID, teamID, userID).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("failed to validate artifact ownership: %w", err)
+	query := `SELECT EXISTS(SELECT 1 FROM artifacts a WHERE a.id = $1 AND a.team_id = $2)`
+	if err := r.db.QueryRowContext(ctx, query, artifactID, teamID).Scan(&exists); err != nil {
+		return fmt.Errorf("failed to validate artifact: %w", err)
 	}
 	if !exists {
 		return repositories.ErrArtifactNotFound
@@ -516,7 +506,7 @@ func (r *ArtifactRepository) validateArtifactOwnership(
 
 // Update updates an existing artifact with optimistic locking
 func (r *ArtifactRepository) Update(ctx context.Context, artifact *models.Artifact) error {
-	if err := r.validateArtifactOwnership(ctx, artifact.ID, artifact.TeamID, artifact.UserID); err != nil {
+	if err := r.validateArtifactInTeam(ctx, artifact.ID, artifact.TeamID); err != nil {
 		return err
 	}
 
@@ -533,10 +523,6 @@ func (r *ArtifactRepository) Update(ctx context.Context, artifact *models.Artifa
 		WHERE id = $1
 			AND team_id = $12
 			AND version = $13
-			AND (
-				EXISTS (SELECT 1 FROM teams WHERE id = $12 AND owner_id = $14)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $12 AND user_id = $14)
-			)
 		RETURNING updated_at, version
 	`
 
@@ -544,7 +530,7 @@ func (r *ArtifactRepository) Update(ctx context.Context, artifact *models.Artifa
 		artifact.ID, artifact.ProjectID, artifact.Slug,
 		artifact.Title, artifact.Description, artifact.Content,
 		artifact.Status, artifact.Type, metadataJSON,
-		artifact.TeamID, artifact.UpdatedAt, artifact.TeamID, artifact.Version, artifact.UserID,
+		artifact.TeamID, artifact.UpdatedAt, artifact.TeamID, artifact.Version,
 	).Scan(&artifact.UpdatedAt, &artifact.Version)
 
 	if err != nil {
@@ -572,9 +558,8 @@ func (r *ArtifactRepository) Delete(ctx context.Context, userID, teamID, artifac
 		WHERE id = $1
 			AND team_id = $2
 			AND (
-				user_id = $3
-				OR EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
-				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3 AND role IN ('owner', 'admin'))
+				EXISTS (SELECT 1 FROM teams WHERE id = $2 AND owner_id = $3)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $2 AND user_id = $3)
 			)
 	`
 
