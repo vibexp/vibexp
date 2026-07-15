@@ -9,9 +9,6 @@ import (
 
 // Team Authorization Errors
 
-// ErrTeamForbidden is returned when a user attempts a write operation on a team they do not own.
-var ErrTeamForbidden = errors.New("only team owners can perform this action")
-
 // ErrTeamNotFound is returned when the requested team does not exist.
 var ErrTeamNotFound = errors.New("team not found")
 
