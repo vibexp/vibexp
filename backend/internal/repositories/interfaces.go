@@ -51,11 +51,6 @@ var (
 	// item does not exist in the specified team. Callers detect it with errors.Is.
 	ErrFeedItemNotFound = errors.New("feed item not found")
 
-	// ErrFeedItemForbidden is returned by FeedItemRepository.Delete when the feed
-	// item exists but the caller is neither its poster nor a team owner/admin.
-	// Callers detect it with errors.Is and map to 403 Forbidden.
-	ErrFeedItemForbidden = errors.New("feed item delete forbidden")
-
 	// ErrTeamSubscriptionNotFound is returned by TeamSubscriptionRepository.Delete (and
 	// future similar lookups) when no row matches the requested identifier. The terminal-dead
 	// replacement path in TeamSubscriptionService.Create relies on errors.Is to treat a

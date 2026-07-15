@@ -53,20 +53,22 @@ func isFKViolation(err error) bool {
 }
 
 // Team access-control predicate. This is the row-level tenant-isolation
-// boundary: a user may read a team's resources when they own the team or are
-// a member of it, and may write (update/delete) when they own the team or are
-// a member with role owner/admin. The canonical forms are:
+// boundary, and — since epic #220 decision D3 — it is ALL this package decides:
+// a user may touch a team's resources when they own the team or are a member of
+// it. The canonical form is:
 //
 //	EXISTS (SELECT 1 FROM teams WHERE id = <team> AND owner_id = <user>)
 //	OR EXISTS (SELECT 1 FROM team_members WHERE team_id = <team> AND user_id = <user>)
 //
-// with the write variant appending `AND role IN ('owner', 'admin')` to the
-// team_members EXISTS. All dynamic (squirrel-built) queries must build the
-// predicate through the helpers below. The many raw static-SQL copies of the
-// same predicate across this package are not rewritten (see #1588 for the
-// static-SQL story); they are guarded by team_access_guardrail_test.go, which
-// extracts every EXISTS-on-teams/team_members subexpression from the package
-// sources and asserts it matches the canonical forms.
+// There is no longer a "write variant". Whether the caller's ROLE permits an
+// update or delete is decided in the service layer via internal/authz, so no
+// query here filters on the role column; team_access_guardrail_test.go now
+// forbids that outright. All dynamic (squirrel-built) queries must build the predicate
+// through the helpers below. The many raw static-SQL copies of the same
+// predicate across this package are not rewritten (see #1588 for the static-SQL
+// story); the guardrail extracts every EXISTS-on-teams/team_members
+// subexpression from the package sources and asserts it matches the canonical
+// form.
 
 // teamReadAccess returns the canonical read-access predicate for a bound
 // team ID: the user owns the team or is a member of it.
@@ -91,21 +93,6 @@ func teamRowReadAccess(teamIDColumn, userID string) squirrel.Sqlizer {
 			teamIDColumn, teamIDColumn,
 		),
 		userID, userID,
-	)
-}
-
-// teamWriteAccess returns the canonical write-access predicate for a bound
-// team ID: the user owns the team or is a member with role owner or admin.
-// It currently has no dynamic (squirrel) production call sites — all
-// write-form predicates today are static SQL guarded by the guardrail test —
-// and exists to pin the canonical write form for future dynamic sites and
-// the #1588 migration.
-func teamWriteAccess(teamID, userID string) squirrel.Sqlizer {
-	return squirrel.Expr(
-		"(EXISTS (SELECT 1 FROM teams WHERE id = ? AND owner_id = ?) "+
-			"OR EXISTS (SELECT 1 FROM team_members "+
-			"WHERE team_id = ? AND user_id = ? AND role IN ('owner', 'admin')))",
-		teamID, userID, teamID, userID,
 	)
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -23,6 +24,7 @@ type FeedItemReplyService struct {
 	replyRepo    repositories.FeedItemReplyRepository
 	feedItemRepo repositories.FeedItemRepository
 	teamService  TeamServiceInterface
+	authz        AuthorizationServiceInterface
 	eventManager events.EventPublisher
 	logger       *slog.Logger
 }
@@ -35,6 +37,7 @@ func NewFeedItemReplyService(
 	replyRepo repositories.FeedItemReplyRepository,
 	feedItemRepo repositories.FeedItemRepository,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) *FeedItemReplyService {
@@ -42,6 +45,7 @@ func NewFeedItemReplyService(
 		replyRepo:    replyRepo,
 		feedItemRepo: feedItemRepo,
 		teamService:  teamService,
+		authz:        authzService,
 		eventManager: eventManager,
 		logger:       logger,
 	}
@@ -96,6 +100,13 @@ func (s *FeedItemReplyService) CreateReply(
 	if err := validateReplyRequest(req); err != nil {
 		return nil, err
 	}
+
+	// Creating a resource is open to any team member (epic #220), but the caller
+	// must still BE one — this proves the role grants the action.
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceCreate); authzErr != nil {
+		return nil, authzErr
+	}
+
 	if err := s.checkReplyTeamMembership(ctx, userID, teamID); err != nil {
 		return nil, err
 	}

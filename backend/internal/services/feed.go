@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
@@ -87,6 +88,7 @@ func computeExcerpt(content string) string {
 type FeedService struct {
 	feedRepo     repositories.FeedRepository
 	teamService  TeamServiceInterface
+	authz        AuthorizationServiceInterface
 	eventManager events.EventPublisher
 	logger       *slog.Logger
 }
@@ -98,12 +100,14 @@ var _ FeedServiceInterface = (*FeedService)(nil)
 func NewFeedService(
 	feedRepo repositories.FeedRepository,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) *FeedService {
 	return &FeedService{
 		feedRepo:     feedRepo,
 		teamService:  teamService,
+		authz:        authzService,
 		eventManager: eventManager,
 		logger:       logger,
 	}
@@ -119,6 +123,12 @@ func (s *FeedService) CreateFeed(
 	}
 	if len([]rune(req.Name)) > feedNameMaxLen {
 		return nil, fmt.Errorf("name exceeds maximum length of %d characters", feedNameMaxLen)
+	}
+
+	// Creating a resource is open to any team member (epic #220), but the caller
+	// must still BE one — this proves the role grants the action.
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceCreate); authzErr != nil {
+		return nil, authzErr
 	}
 
 	// H1/H3: verify the caller is a member of the target team
@@ -299,6 +309,21 @@ func (s *FeedService) UpdateFeed(
 
 // DeleteFeed deletes a feed (cascades to feed items via DB constraint)
 func (s *FeedService) DeleteFeed(ctx context.Context, userID, teamID, feedID string) error {
+	// Fetch first to learn who created the feed: delete is own-vs-any — the
+	// author may delete their own, Owner/Admin may delete anyone's as moderation
+	// (epic #220). The repository no longer carries that decision in its SQL.
+	feed, err := s.feedRepo.GetByID(ctx, userID, teamID, feedID)
+	if err != nil {
+		return err
+	}
+
+	if authzErr := s.authz.CanActOnResource(
+		ctx, userID, teamID, feed.CreatedByUserID,
+		authz.ResourceDeleteOwn, authz.FeedItemDeleteAny,
+	); authzErr != nil {
+		return authzErr
+	}
+
 	if err := s.feedRepo.Delete(ctx, userID, teamID, feedID); err != nil {
 		s.logger.With(
 			"user_id", userID,
@@ -319,6 +344,7 @@ type FeedItemService struct {
 	replyRepo    repositories.FeedItemReplyRepository
 	projectRepo  repositories.ProjectRepository
 	teamService  TeamServiceInterface
+	authz        AuthorizationServiceInterface
 	eventManager events.EventPublisher
 	logger       *slog.Logger
 }
@@ -332,6 +358,7 @@ func NewFeedItemService(
 	replyRepo repositories.FeedItemReplyRepository,
 	projectRepo repositories.ProjectRepository,
 	teamService TeamServiceInterface,
+	authzService AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) *FeedItemService {
@@ -340,6 +367,7 @@ func NewFeedItemService(
 		replyRepo:    replyRepo,
 		projectRepo:  projectRepo,
 		teamService:  teamService,
+		authz:        authzService,
 		eventManager: eventManager,
 		logger:       logger,
 	}
@@ -426,6 +454,13 @@ func (s *FeedItemService) CreateFeedItem(
 	if err := validateFeedItemRequest(req); err != nil {
 		return nil, err
 	}
+
+	// Creating a resource is open to any team member (epic #220), but the caller
+	// must still BE one — this proves the role grants the action.
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceCreate); authzErr != nil {
+		return nil, authzErr
+	}
+
 	if err := s.checkFeedItemTeamMembership(ctx, userID, teamID); err != nil {
 		return nil, err
 	}
@@ -579,6 +614,22 @@ func (s *FeedItemService) UnarchiveFeedItem(ctx context.Context, userID, teamID,
 
 // DeleteFeedItem hard-deletes a feed item
 func (s *FeedItemService) DeleteFeedItem(ctx context.Context, userID, teamID, itemID string) error {
+	// Fetch first to learn who posted the item: delete is own-vs-any — the author
+	// may delete their own, Owner/Admin may delete anyone's as moderation (epic
+	// #220 feed.delete.any). The repository used to decide this itself and is now
+	// tenancy-only, so the fetch is what surfaces a missing item.
+	item, err := s.feedItemRepo.GetByID(ctx, userID, teamID, itemID)
+	if err != nil {
+		return err
+	}
+
+	if authzErr := s.authz.CanActOnResource(
+		ctx, userID, teamID, item.PostedByUserID,
+		authz.ResourceDeleteOwn, authz.FeedItemDeleteAny,
+	); authzErr != nil {
+		return authzErr
+	}
+
 	if err := s.feedItemRepo.Delete(ctx, userID, teamID, itemID); err != nil {
 		s.logger.With(
 			"user_id", userID,

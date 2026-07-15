@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container"
@@ -1215,17 +1216,22 @@ func TestHandleDeleteFeedItem_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
-// TestHandleDeleteFeedItem_DeleteForbidden_Returns403 covers the new sentinel
-// path: GetFeedItem succeeds (the caller is a team member who can read the item)
-// but DeleteFeedItem returns ErrFeedItemForbidden because the caller is neither
-// the poster nor an owner/admin. The handler must map this to 403, not 404.
+// TestHandleDeleteFeedItem_DeleteForbidden_Returns403 covers the denial path:
+// GetFeedItem succeeds (the caller is a team member who can read the item) but
+// DeleteFeedItem returns ErrPermissionDenied because the caller is neither the
+// poster nor an owner/admin. The handler must map this to 403, not 404.
+//
+// The stubbed error is the one FeedItemService now actually returns: epic #220
+// D3 moved the decision out of the repository, retiring its ErrFeedItemForbidden
+// sentinel. Stubbing a sentinel nothing produces would make this test pass while
+// production 500s (see PR #233).
 func TestHandleDeleteFeedItem_DeleteForbidden_Returns403(t *testing.T) {
 	item := sampleFeedItem()
 	mockItemSvc := servicesmocks.NewMockFeedItemServiceInterface(t)
 	mockItemSvc.On("GetFeedItem", mock.Anything, feedTestUserID, feedTestTeamID, feedTestItemID).
 		Return(item, nil)
-	forbiddenErr := fmt.Errorf("%w: user=%s item=%s",
-		repositories.ErrFeedItemForbidden, feedTestUserID, feedTestItemID)
+	forbiddenErr := fmt.Errorf("%w: role %q may not perform %q",
+		services.ErrPermissionDenied, "member", "feed.delete.any")
 	mockItemSvc.On("DeleteFeedItem", mock.Anything, feedTestUserID, feedTestTeamID, feedTestItemID).
 		Return(forbiddenErr)
 
@@ -1561,4 +1567,60 @@ func TestFeedCrossTeamIsolation(t *testing.T) {
 				"unexpected status %d", rr.Code)
 		})
 	}
+}
+
+// The feed handlers must turn services.ErrPermissionDenied into a 403.
+//
+// Every feed mapper ends in an unconditional `default:` 500, and
+// ErrPermissionDenied's text matches none of their strings.Contains branches —
+// so the errors.Is guard is the only thing between a denial and a 500. That bug
+// shipped green twice in this epic (#222/PR #233, #235/PR #239) because coverage
+// stopped at the service; these drive the real handlers.
+
+func assertFeedForbidden(t *testing.T, rr *httptest.ResponseRecorder) {
+	t.Helper()
+	require.Equal(t, http.StatusForbidden, rr.Code, "denial must be 403, not 500: %s", rr.Body.String())
+	assert.Equal(t, "application/problem+json", rr.Header().Get("Content-Type"))
+	assert.Contains(t, rr.Body.String(), `"code":"FORBIDDEN"`)
+}
+
+// TestHandleDeleteFeed_PermissionDenied_Returns403 covers DeleteFeed's denial,
+// which routes through handleFeedGetError.
+func TestHandleDeleteFeed_PermissionDenied_Returns403(t *testing.T) {
+	mockFeedSvc := servicesmocks.NewMockFeedServiceInterface(t)
+	mockFeedSvc.On("DeleteFeed", mock.Anything, feedTestUserID, feedTestTeamID, feedTestFeedID).
+		Return(services.ErrPermissionDenied)
+
+	srv := newFeedTestServer(t, &MockFeedContainer{FeedServiceMock: mockFeedSvc})
+
+	req := authenticatedFeedRequest(http.MethodDelete,
+		"/api/v1/"+feedTestTeamID+"/feeds/"+feedTestFeedID, "", feedTestUserID)
+	req = addFeedURLParams(req, map[string]string{"team_id": feedTestTeamID, "feed_id": feedTestFeedID})
+
+	rr := httptest.NewRecorder()
+	srv.handleDeleteFeed(rr, req)
+
+	assertFeedForbidden(t, rr)
+}
+
+// TestHandleCreateFeed_PermissionDenied_Returns403 covers the create denial via
+// handleFeedServiceError.
+func TestHandleCreateFeed_PermissionDenied_Returns403(t *testing.T) {
+	mockFeedSvc := servicesmocks.NewMockFeedServiceInterface(t)
+	mockFeedSvc.On("CreateFeed", mock.Anything, feedTestUserID, feedTestTeamID, mock.Anything).
+		Return(nil, services.ErrPermissionDenied)
+
+	srv := newFeedTestServer(t, &MockFeedContainer{
+		FeedServiceMock:          mockFeedSvc,
+		ResourceUsageServiceMock: newAllowedResourceUsageMock(t),
+	})
+
+	req := authenticatedFeedRequest(http.MethodPost,
+		"/api/v1/"+feedTestTeamID+"/feeds", `{"name":"General"}`, feedTestUserID)
+	req = addFeedURLParams(req, map[string]string{"team_id": feedTestTeamID})
+
+	rr := httptest.NewRecorder()
+	srv.handleCreateFeed(rr, req)
+
+	assertFeedForbidden(t, rr)
 }

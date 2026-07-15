@@ -544,10 +544,11 @@ func ProvideProjectService(
 func ProvideFeedService(
 	feedRepo repositories.FeedRepository,
 	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) services.FeedServiceInterface {
-	return services.NewFeedService(feedRepo, teamService, eventManager, logger)
+	return services.NewFeedService(feedRepo, teamService, authzService, eventManager, logger)
 }
 
 // ProvideFeedItemService creates a new FeedItemService
@@ -556,10 +557,13 @@ func ProvideFeedItemService(
 	replyRepo repositories.FeedItemReplyRepository,
 	projectRepo repositories.ProjectRepository,
 	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) services.FeedItemServiceInterface {
-	return services.NewFeedItemService(feedItemRepo, replyRepo, projectRepo, teamService, eventManager, logger)
+	return services.NewFeedItemService(
+		feedItemRepo, replyRepo, projectRepo, teamService, authzService, eventManager, logger,
+	)
 }
 
 // ProvideFeedItemReplyService creates a new FeedItemReplyService
@@ -567,10 +571,13 @@ func ProvideFeedItemReplyService(
 	replyRepo repositories.FeedItemReplyRepository,
 	feedItemRepo repositories.FeedItemRepository,
 	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) services.FeedItemReplyServiceInterface {
-	return services.NewFeedItemReplyService(replyRepo, feedItemRepo, teamService, eventManager, logger)
+	return services.NewFeedItemReplyService(
+		replyRepo, feedItemRepo, teamService, authzService, eventManager, logger,
+	)
 }
 
 // ProvideWebPushChannel creates a new WebPushChannel. Returns nil when the FCM

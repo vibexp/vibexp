@@ -104,7 +104,7 @@ func TestFeedService_CreateFeed(t *testing.T) {
 			mockTeam := svcMocks.NewMockTeamServiceInterface(t)
 			mockEvent := &eventMocks.MockEventPublisher{}
 
-			svc := services.NewFeedService(mockRepo, mockTeam, mockEvent, newTestLogger())
+			svc := services.NewFeedService(mockRepo, mockTeam, permissiveAuthz(t), mockEvent, newTestLogger())
 
 			if !tt.skipTeamCall {
 				mockTeam.On("IsUserMemberOfTeam", mock.Anything, tt.userID, tt.teamID).
@@ -165,7 +165,7 @@ func TestFeedService_GetFeed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := repoMocks.NewMockFeedRepository(t)
-			svc := services.NewFeedService(mockRepo, nil, nil, newTestLogger())
+			svc := services.NewFeedService(mockRepo, nil, permissiveAuthz(t), nil, newTestLogger())
 
 			mockRepo.On("GetByID", mock.Anything, "user-1", "team-1", tt.feedID).
 				Return(tt.repo, tt.repoErr)
@@ -281,7 +281,7 @@ func TestFeedService_ListFeeds(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := repoMocks.NewMockFeedRepository(t)
-			svc := services.NewFeedService(mockRepo, nil, nil, newTestLogger())
+			svc := services.NewFeedService(mockRepo, nil, permissiveAuthz(t), nil, newTestLogger())
 
 			mockRepo.On("List", mock.Anything, "user-1", tt.expectedFilters).
 				Return(tt.repoFeeds, tt.repoTotal, tt.repoErr)
@@ -341,7 +341,7 @@ func TestFeedService_UpdateFeed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := repoMocks.NewMockFeedRepository(t)
-			svc := services.NewFeedService(mockRepo, nil, nil, newTestLogger())
+			svc := services.NewFeedService(mockRepo, nil, permissiveAuthz(t), nil, newTestLogger())
 
 			mockRepo.On("GetByID", mock.Anything, "user-1", "team-1", "feed-1").
 				Return(existing, tt.getErr).Maybe()
@@ -375,8 +375,12 @@ func TestFeedService_DeleteFeed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := repoMocks.NewMockFeedRepository(t)
-			svc := services.NewFeedService(mockRepo, nil, nil, newTestLogger())
+			svc := services.NewFeedService(mockRepo, nil, permissiveAuthz(t), nil, newTestLogger())
 
+			// Delete now fetches first to learn the feed's creator: the author may
+			// delete their own, Owner/Admin may delete anyone's (moderation).
+			mockRepo.On("GetByID", mock.Anything, "user-1", "team-1", "feed-1").
+				Return(&models.Feed{ID: "feed-1", TeamID: "team-1", CreatedByUserID: "user-1"}, nil)
 			mockRepo.On("Delete", mock.Anything, "user-1", "team-1", "feed-1").
 				Return(tt.repoErr)
 
@@ -506,7 +510,7 @@ func TestFeedItemService_CreateFeedItem(t *testing.T) {
 			mockTeam := svcMocks.NewMockTeamServiceInterface(t)
 			mockEvent := &eventMocks.MockEventPublisher{}
 
-			svc := services.NewFeedItemService(mockItemRepo, nil, mockProjectRepo, mockTeam, mockEvent, newTestLogger())
+			svc := services.NewFeedItemService(mockItemRepo, nil, mockProjectRepo, mockTeam, permissiveAuthz(t), mockEvent, newTestLogger())
 
 			if !tt.skipTeamCall {
 				mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-1", "team-1").
@@ -551,7 +555,7 @@ func TestFeedItemService_CreateFeedItem_PublishesEventWithBody(t *testing.T) {
 	mockTeam := svcMocks.NewMockTeamServiceInterface(t)
 	mockEvent := &eventMocks.MockEventPublisher{}
 
-	svc := services.NewFeedItemService(mockItemRepo, nil, mockProjectRepo, mockTeam, mockEvent, newTestLogger())
+	svc := services.NewFeedItemService(mockItemRepo, nil, mockProjectRepo, mockTeam, permissiveAuthz(t), mockEvent, newTestLogger())
 
 	mockTeam.On("IsUserMemberOfTeam", mock.Anything, "poster-1", "team-1").Return(true, nil)
 	mockItemRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.FeedItem")).
@@ -644,7 +648,7 @@ func TestFeedItemService_CreateFeedItem_ProjectCrossTeamValidation(t *testing.T)
 			mockTeam := svcMocks.NewMockTeamServiceInterface(t)
 			mockEvent := &eventMocks.MockEventPublisher{}
 
-			svc := services.NewFeedItemService(mockItemRepo, nil, mockProjectRepo, mockTeam, mockEvent, newTestLogger())
+			svc := services.NewFeedItemService(mockItemRepo, nil, mockProjectRepo, mockTeam, permissiveAuthz(t), mockEvent, newTestLogger())
 
 			// Team membership always passes in these tests
 			mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-1", "team-1").
@@ -767,7 +771,7 @@ func TestFeedItemService_CreateFeedItem_ExcerptComputation(t *testing.T) {
 			mockProjectRepo := repoMocks.NewMockProjectRepository(t)
 			mockEvent := &eventMocks.MockEventPublisher{}
 			// Use nil teamService so membership check is skipped for these tests
-			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, mockEvent, newTestLogger())
+			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, permissiveAuthz(t), mockEvent, newTestLogger())
 
 			mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.FeedItem")).
 				Return(nil)
@@ -809,7 +813,7 @@ func TestFeedItemService_ArchiveFeedItem(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := repoMocks.NewMockFeedItemRepository(t)
 			mockProjectRepo := repoMocks.NewMockProjectRepository(t)
-			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, nil, newTestLogger())
+			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, permissiveAuthz(t), nil, newTestLogger())
 
 			mockRepo.On("Archive", mock.Anything, "user-1", "team-1", "item-1").
 				Return(tt.repoErr)
@@ -838,7 +842,7 @@ func TestFeedItemService_UnarchiveFeedItem(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := repoMocks.NewMockFeedItemRepository(t)
 			mockProjectRepo := repoMocks.NewMockProjectRepository(t)
-			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, nil, newTestLogger())
+			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, permissiveAuthz(t), nil, newTestLogger())
 
 			mockRepo.On("Unarchive", mock.Anything, "user-1", "team-1", "item-1").
 				Return(tt.repoErr)
@@ -867,8 +871,12 @@ func TestFeedItemService_DeleteFeedItem(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := repoMocks.NewMockFeedItemRepository(t)
 			mockProjectRepo := repoMocks.NewMockProjectRepository(t)
-			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, nil, newTestLogger())
+			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, permissiveAuthz(t), nil, newTestLogger())
 
+			// Delete now fetches first to learn who posted the item: the author
+			// may delete their own, Owner/Admin may delete anyone's (moderation).
+			mockRepo.On("GetByID", mock.Anything, "user-1", "team-1", "item-1").
+				Return(&models.FeedItem{ID: "item-1", TeamID: "team-1", PostedByUserID: "user-1"}, nil)
 			mockRepo.On("Delete", mock.Anything, "user-1", "team-1", "item-1").
 				Return(tt.repoErr)
 
@@ -949,7 +957,7 @@ func TestFeedItemService_ListFeedItems(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := repoMocks.NewMockFeedItemRepository(t)
 			mockProjectRepo := repoMocks.NewMockProjectRepository(t)
-			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, nil, newTestLogger())
+			svc := services.NewFeedItemService(mockRepo, nil, mockProjectRepo, nil, permissiveAuthz(t), nil, newTestLogger())
 
 			mockRepo.On("List", mock.Anything, "user-1", tt.expectedFilters).
 				Return(tt.repoItems, tt.repoTotal, tt.repoErr)
@@ -965,4 +973,112 @@ func TestFeedItemService_ListFeedItems(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The feed permission matrix from epic #220 §4:
+//
+//	| Action                          | Owner | Admin | Member |
+//	|---------------------------------|-------|-------|--------|
+//	| Delete own post                 |  yes  |  yes  |  yes   |
+//	| Delete anyone's post (moderate) |  yes  |  yes  |   no   |
+//
+// Moderation uses feed.delete.any (NOT resource.delete.any) — a distinct
+// permission so a team can be given post-moderation without resource deletion.
+//
+// These drive a REAL AuthorizationService over a mocked TeamMemberRepository, so
+// the decision under test is the shipped matrix rather than a restatement of it.
+
+const (
+	feedRBACTeam   = "team-rbac"
+	feedRBACCaller = "user-caller"
+	feedRBACOther  = "user-other"
+)
+
+func feedAuthzForRole(t *testing.T, role models.TeamMemberRole) services.AuthorizationServiceInterface {
+	t.Helper()
+	memberRepo := repoMocks.NewMockTeamMemberRepository(t)
+	if role == "" {
+		memberRepo.EXPECT().GetByTeamAndUser(mock.Anything, feedRBACTeam, feedRBACCaller).
+			Return(nil, repositories.ErrTeamMemberNotFound).Maybe()
+	} else {
+		memberRepo.EXPECT().GetByTeamAndUser(mock.Anything, feedRBACTeam, feedRBACCaller).
+			Return(&models.TeamMember{TeamID: feedRBACTeam, UserID: feedRBACCaller, Role: role}, nil).Maybe()
+	}
+	return services.NewAuthorizationService(memberRepo, newTestLogger())
+}
+
+var feedModerationCases = []struct {
+	name     string
+	role     models.TeamMemberRole
+	posterID string
+	allowed  bool
+}{
+	{"member deletes own post", models.TeamMemberRoleMember, feedRBACCaller, true},
+	{"member cannot delete another's post", models.TeamMemberRoleMember, feedRBACOther, false},
+	{"admin moderates another's post", models.TeamMemberRoleAdmin, feedRBACOther, true},
+	{"owner moderates another's post", models.TeamMemberRoleOwner, feedRBACOther, true},
+	{"non-member cannot delete own post", "", feedRBACCaller, false},
+}
+
+func TestFeedItemService_DeleteFeedItem_Moderation(t *testing.T) {
+	for _, tc := range feedModerationCases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := repoMocks.NewMockFeedItemRepository(t)
+			repo.On("GetByID", mock.Anything, feedRBACCaller, feedRBACTeam, "item-1").
+				Return(&models.FeedItem{ID: "item-1", TeamID: feedRBACTeam, PostedByUserID: tc.posterID}, nil)
+			if tc.allowed {
+				repo.On("Delete", mock.Anything, feedRBACCaller, feedRBACTeam, "item-1").Return(nil)
+			}
+
+			svc := services.NewFeedItemService(
+				repo, nil, repoMocks.NewMockProjectRepository(t), nil,
+				feedAuthzForRole(t, tc.role), nil, newTestLogger(),
+			)
+			err := svc.DeleteFeedItem(context.Background(), feedRBACCaller, feedRBACTeam, "item-1")
+
+			if tc.allowed {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, services.ErrPermissionDenied)
+			repo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestFeedService_DeleteFeed_Moderation(t *testing.T) {
+	for _, tc := range feedModerationCases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := repoMocks.NewMockFeedRepository(t)
+			repo.On("GetByID", mock.Anything, feedRBACCaller, feedRBACTeam, "feed-1").
+				Return(&models.Feed{ID: "feed-1", TeamID: feedRBACTeam, CreatedByUserID: tc.posterID}, nil)
+			if tc.allowed {
+				repo.On("Delete", mock.Anything, feedRBACCaller, feedRBACTeam, "feed-1").Return(nil)
+			}
+
+			svc := services.NewFeedService(repo, nil, feedAuthzForRole(t, tc.role), nil, newTestLogger())
+			err := svc.DeleteFeed(context.Background(), feedRBACCaller, feedRBACTeam, "feed-1")
+
+			if tc.allowed {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, services.ErrPermissionDenied)
+			repo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestFeedItemService_CreateFeedItem_NonMemberDenied(t *testing.T) {
+	repo := repoMocks.NewMockFeedItemRepository(t)
+
+	svc := services.NewFeedItemService(
+		repo, nil, repoMocks.NewMockProjectRepository(t), nil,
+		feedAuthzForRole(t, ""), nil, newTestLogger(),
+	)
+	_, err := svc.CreateFeedItem(context.Background(), feedRBACCaller, feedRBACTeam, "feed-1",
+		&models.CreateFeedItemRequest{Title: "T", Content: "C", AIAssistantName: "Claude"})
+
+	require.ErrorIs(t, err, services.ErrPermissionDenied)
+	repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
