@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAcceptAndEnterTeam } from '@/hooks/useAcceptAndEnterTeam'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
-import type { Team, TeamInvitation } from '@/services/teamService'
+import type { PendingTeamInvitation, Team } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 
 import { CreateTeamModal } from './CreateTeamModal'
@@ -112,7 +112,7 @@ export function Teams() {
   const acceptAndEnterTeam = useAcceptAndEnterTeam()
   const [teams, setTeams] = useState<Team[]>([])
   const [pendingInvitations, setPendingInvitations] = useState<
-    TeamInvitation[]
+    PendingTeamInvitation[]
   >([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -150,7 +150,7 @@ export function Teams() {
     void navigate(`/settings/teams/${team.id}`)
   }
 
-  const handleAcceptInvitation = async (invitation: TeamInvitation) => {
+  const handleAcceptInvitation = async (invitation: PendingTeamInvitation) => {
     // useAcceptAndEnterTeam handles team-switch + navigation + success toast
     // and surfaces failures via toast — no need to duplicate any of that here.
     const result = await acceptAndEnterTeam(invitation.token)
@@ -165,7 +165,7 @@ export function Teams() {
     }
   }
 
-  const handleRejectInvitation = async (invitation: TeamInvitation) => {
+  const handleRejectInvitation = async (invitation: PendingTeamInvitation) => {
     try {
       await teamService.rejectInvitation(invitation.token)
       toast.info(`Invitation to ${invitation.team_name} has been declined.`)

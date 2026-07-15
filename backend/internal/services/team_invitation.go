@@ -551,5 +551,9 @@ func (s *TeamInvitationService) generateInvitationToken() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("failed to generate random token: %w", err)
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	// RawURLEncoding (unpadded) keeps the token free of reserved characters, so it
+	// survives a URL path segment untouched. Padded URLEncoding emits a trailing
+	// '=' that clients percent-encode to %3D (#251). Existing padded tokens still
+	// resolve — the handlers decode the path parameter before lookup.
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }

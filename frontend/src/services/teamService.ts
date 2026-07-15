@@ -47,15 +47,23 @@ export type InviteTeamMembersRequest = Omit<
 // but the get/list invitation endpoints always populate the invitation's
 // identity + lifecycle fields (as the previous hand-written type asserted), so
 // re-require them here to avoid scattering fallbacks across ~12 consumers.
+//
+// `token` is deliberately NOT re-required: only the pending-invitations endpoint
+// returns it (see PendingTeamInvitation).
 export type TeamInvitation = components['schemas']['InvitationResponse'] & {
   id: string
-  token: string
   team_id: string
   team_name: string
   status: InvitationStatus
   created_at: string
   expires_at: string
 }
+// An invitation from GET /api/v1/invitations/pending, which is the only list that
+// carries the accept/reject token: `buildInvitationResponses` populates it, while
+// `convertInvitationsToResponses` (team list + invite-members) omits it. Requiring
+// `token` on the shared TeamInvitation asserted a field the wire never sends for
+// those other lists, so an accept driven off one would have posted "" (#251).
+export type PendingTeamInvitation = TeamInvitation & { token: string }
 // The `{ invitation }` wrapper (generated InvitationDetailsResponse), re-typed
 // so the wrapped value is the domain TeamInvitation.
 export interface InvitationResponse {
@@ -65,7 +73,7 @@ export interface InvitationResponse {
 export type PendingInvitationsResponse = Omit<
   components['schemas']['PendingInvitationsListResponse'],
   'invitations'
-> & { invitations?: TeamInvitation[] }
+> & { invitations?: PendingTeamInvitation[] }
 export type AcceptInvitationResponse =
   components['schemas']['AcceptInvitationResponse']
 export type CreateTeamRequest = components['schemas']['CreateTeamRequest']
@@ -162,9 +170,12 @@ class TeamService {
   }
 
   /**
-   * Get all pending invitations for the current user
+   * Get all pending invitations for the current user.
+   *
+   * The only invitation list that carries the accept/reject token — hence
+   * {@link PendingTeamInvitation} rather than {@link TeamInvitation}.
    */
-  async getPendingInvitations(): Promise<TeamInvitation[]> {
+  async getPendingInvitations(): Promise<PendingTeamInvitation[]> {
     const response = (await unwrap(
       generatedClient.GET('/api/v1/invitations/pending', {})
     )) as PendingInvitationsResponse

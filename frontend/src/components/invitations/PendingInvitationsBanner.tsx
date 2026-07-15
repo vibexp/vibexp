@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { useAcceptAndEnterTeam } from '@/hooks/useAcceptAndEnterTeam'
-import type { TeamInvitation } from '@/services/teamService'
+import type { PendingTeamInvitation } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 import { sessionStore } from '@/utils/storage'
 
@@ -43,7 +43,7 @@ export function PendingInvitationsBanner() {
   const navigate = useNavigate()
   const acceptAndEnterTeam = useAcceptAndEnterTeam()
 
-  const [invitations, setInvitations] = useState<TeamInvitation[]>([])
+  const [invitations, setInvitations] = useState<PendingTeamInvitation[]>([])
   const [dismissedIds, setDismissedIds] = useState<string[]>(() =>
     readDismissedIds()
   )
@@ -90,7 +90,7 @@ export function PendingInvitationsBanner() {
     })
   }
 
-  const onAccept = async (invitation: TeamInvitation) => {
+  const onAccept = async (invitation: PendingTeamInvitation) => {
     setAcceptingId(invitation.id)
     try {
       const result = await acceptAndEnterTeam(invitation.token)
@@ -134,7 +134,7 @@ export function PendingInvitationsBanner() {
 }
 
 interface SingleInvitationBannerProps {
-  invitation: TeamInvitation
+  invitation: PendingTeamInvitation
   accepting: boolean
   onAccept: () => void
   onDismiss: () => void
