@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -321,18 +322,33 @@ func (s *Server) handleRevokeInvitation(w http.ResponseWriter, r *http.Request) 
 	writeNoContent(w)
 }
 
-// fetchTeamsForInvitations fetches team details for invitations
+// fetchTeamsForInvitations resolves the teams an invitation list refers to, so the
+// responses can carry the team name.
+//
+// It deliberately reads through TeamRepository rather than TeamService.GetTeam:
+// GetTeam verifies the caller is a member of the team, and a pending invitee is by
+// definition not a member yet, so every lookup failed and team_name silently
+// rendered as "" (#251). The repository read is tenancy-only (no role predicate,
+// per the internal/authz D3 rule); the caller has already scoped the invitations to
+// the authenticated user, so the only teams resolved here are ones that user was
+// actually invited to.
 func (s *Server) fetchTeamsForInvitations(
 	ctx context.Context,
-	userID string,
 	teamIDs map[string]bool,
 ) map[string]*models.Team {
 	teams := make(map[string]*models.Team)
 	for teamID := range teamIDs {
-		team, teamErr := s.container.TeamService().GetTeam(ctx, userID, teamID)
-		if teamErr == nil {
-			teams[teamID] = team
+		team, teamErr := s.container.TeamRepository().GetByID(ctx, teamID)
+		if teamErr != nil {
+			s.logger.With(
+				"service", "vibexp-api",
+				"handler", "fetchTeamsForInvitations",
+				"team_id", teamID,
+				"error", fmt.Sprintf("%+v", teamErr),
+			).Warn("Failed to resolve team for invitation; team_name will be empty")
+			continue
 		}
+		teams[teamID] = team
 	}
 	return teams
 }
@@ -424,7 +440,7 @@ func (s *Server) handleGetPendingInvitations(w http.ResponseWriter, r *http.Requ
 		inviterIDs[inv.InviterID] = true
 	}
 
-	teams := s.fetchTeamsForInvitations(r.Context(), userID, teamIDs)
+	teams := s.fetchTeamsForInvitations(r.Context(), teamIDs)
 	inviters := s.fetchInvitersForInvitations(r.Context(), inviterIDs)
 	responses := s.buildInvitationResponses(invitations, teams, inviters)
 
@@ -494,7 +510,7 @@ func (s *Server) handleGetInvitationByTokenError(w http.ResponseWriter, r *http.
 	s.logger.With("error", err).With(
 		"service", "vibexp-api",
 		"handler", "handleGetInvitationByToken",
-		"token_digest", redactToken(chi.URLParam(r, "token")),
+		"token_digest", invitationTokenDigest(r),
 	).Error("Failed to load invitation by token")
 	apiErr := apierrors.NewInternalError("Failed to load invitation")
 	apierrors.WriteJSONError(w, r, apiErr)
@@ -513,12 +529,45 @@ func redactToken(token string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
+// invitationTokenParam returns the percent-decoded {token} path parameter.
+//
+// chi routes on r.URL.RawPath whenever the request path contains percent-encoding,
+// so chi.URLParam hands back the still-encoded segment. Invitation tokens are
+// base64 and may carry '=' padding, which clients percent-encode to %3D; leaving
+// it encoded makes the exact-match token lookup miss every time (#251).
+//
+// PathUnescape — not QueryUnescape — is the correct primitive for a path segment:
+// it leaves '+' intact instead of decoding it to a space.
+func invitationTokenParam(r *http.Request) (string, error) {
+	return url.PathUnescape(chi.URLParam(r, "token"))
+}
+
+// invitationTokenDigest returns a redacted fingerprint of the request's token for
+// logging, falling back to the raw parameter when it cannot be decoded so an
+// undecodable token still correlates across log lines.
+func invitationTokenDigest(r *http.Request) string {
+	token, err := invitationTokenParam(r)
+	if err != nil {
+		token = chi.URLParam(r, "token")
+	}
+	return redactToken(token)
+}
+
 // handleGetInvitationByToken returns the details of an invitation by token so the
 // email-link landing page can display the team name, inviter, role, and expiry
 // before the user accepts or rejects.
 // GET /api/v1/invitations/{token}
 func (s *Server) handleGetInvitationByToken(w http.ResponseWriter, r *http.Request) {
-	token := chi.URLParam(r, "token")
+	token, err := invitationTokenParam(r)
+	if err != nil {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleGetInvitationByToken",
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to decode invitation token")
+		apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("Invalid invitation token encoding"))
+		return
+	}
 
 	// Token is the access credential for the invitation — never log it raw.
 	// A short, irreversible fingerprint is enough for correlation in logs.
@@ -591,13 +640,24 @@ func (s *Server) handleAcceptInvitationError(w http.ResponseWriter, err error) {
 // POST /api/v1/invitations/{token}/accept
 func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
-	token := chi.URLParam(r, "token")
+	token, err := invitationTokenParam(r)
+	if err != nil {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleAcceptInvitation",
+			"user_id", userID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to decode invitation token")
+		writeErrorResponse(w, nil, "bad_request", "Invalid invitation token encoding", http.StatusBadRequest)
+		return
+	}
 
+	// Token is the access credential for the invitation — never log it raw.
 	s.logger.With(
 		"service", "vibexp-api",
 		"handler", "handleAcceptInvitation",
 		"user_id", userID,
-		"token", token,
+		"token_digest", redactToken(token),
 	).Info("Accept invitation request received")
 
 	teamID, err := s.container.TeamInvitationService().AcceptInvitation(r.Context(), token, userID)
@@ -606,7 +666,7 @@ func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) 
 			"service", "vibexp-api",
 			"handler", "handleAcceptInvitation",
 			"user_id", userID,
-			"token", token,
+			"token_digest", redactToken(token),
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to accept invitation")
 
@@ -644,22 +704,32 @@ func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) 
 // POST /api/v1/invitations/{token}/reject
 func (s *Server) handleRejectInvitation(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
-	token := chi.URLParam(r, "token")
-
-	s.logger.With(
-		"service", "vibexp-api",
-		"handler", "handleRejectInvitation",
-		"user_id", userID,
-		"token", token,
-	).Info("Reject invitation request received")
-
-	err := s.container.TeamInvitationService().RejectInvitation(r.Context(), token, userID)
+	token, err := invitationTokenParam(r)
 	if err != nil {
 		s.logger.With(
 			"service", "vibexp-api",
 			"handler", "handleRejectInvitation",
 			"user_id", userID,
-			"token", token,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to decode invitation token")
+		writeErrorResponse(w, nil, "bad_request", "Invalid invitation token encoding", http.StatusBadRequest)
+		return
+	}
+
+	// Token is the access credential for the invitation — never log it raw.
+	s.logger.With(
+		"service", "vibexp-api",
+		"handler", "handleRejectInvitation",
+		"user_id", userID,
+		"token_digest", redactToken(token),
+	).Info("Reject invitation request received")
+
+	if err := s.container.TeamInvitationService().RejectInvitation(r.Context(), token, userID); err != nil {
+		s.logger.With(
+			"service", "vibexp-api",
+			"handler", "handleRejectInvitation",
+			"user_id", userID,
+			"token_digest", redactToken(token),
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to reject invitation")
 

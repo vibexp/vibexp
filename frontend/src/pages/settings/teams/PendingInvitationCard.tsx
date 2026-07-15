@@ -3,12 +3,12 @@ import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { TeamInvitation } from '@/services/teamService'
+import type { PendingTeamInvitation } from '@/services/teamService'
 
 interface PendingInvitationCardProps {
-  invitation: TeamInvitation
-  onAccept: (invitation: TeamInvitation) => Promise<void>
-  onReject: (invitation: TeamInvitation) => Promise<void>
+  invitation: PendingTeamInvitation
+  onAccept: (invitation: PendingTeamInvitation) => Promise<void>
+  onReject: (invitation: PendingTeamInvitation) => Promise<void>
 }
 
 const formatDate = (dateString: string) =>

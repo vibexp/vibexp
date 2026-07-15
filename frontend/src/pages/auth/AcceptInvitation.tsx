@@ -34,6 +34,10 @@ export function AcceptInvitation() {
   const navigate = useNavigate()
 
   const [invitation, setInvitation] = useState<TeamInvitation | null>(null)
+  // The token this page resolved (route param, or the one stashed before sign-in).
+  // Accept/reject use THIS rather than re-reading it off the response body, so the
+  // flow never depends on the API echoing the credential back to us.
+  const [resolvedToken, setResolvedToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorView, setErrorView] = useState<InvitationErrorView | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -62,6 +66,7 @@ export function AcceptInvitation() {
           const response =
             await teamService.getInvitationByToken(invitationToken)
           setInvitation(response.invitation)
+          setResolvedToken(invitationToken)
         } catch (err) {
           console.error('Failed to fetch invitation:', err)
           setErrorView(mapInvitationError(err))
@@ -75,10 +80,10 @@ export function AcceptInvitation() {
   }, [token, isAuthenticated, authLoading, navigate, checkPendingInvitation])
 
   const handleAccept = async () => {
-    if (!invitation) return
+    if (!invitation || !resolvedToken) return
     try {
       setProcessing(true)
-      const response = await teamService.acceptInvitation(invitation.token)
+      const response = await teamService.acceptInvitation(resolvedToken)
       sessionStore.remove(STORAGE_KEYS.PENDING_INVITATION_TOKEN)
       // Hand off to the in-app handshake (mounted inside TeamProvider)
       // which will switch the active team and show the welcome toast.
@@ -101,10 +106,10 @@ export function AcceptInvitation() {
   }
 
   const handleReject = async () => {
-    if (!invitation) return
+    if (!invitation || !resolvedToken) return
     try {
       setProcessing(true)
-      await teamService.rejectInvitation(invitation.token)
+      await teamService.rejectInvitation(resolvedToken)
       sessionStore.remove(STORAGE_KEYS.PENDING_INVITATION_TOKEN)
       void navigate('/', { state: { message: 'Invitation rejected' } })
     } catch (err) {
