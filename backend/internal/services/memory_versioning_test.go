@@ -167,3 +167,38 @@ func TestMemoryService_ListAndGetVersionsScopeByTeam(t *testing.T) {
 		require.Equal(t, want, got)
 	})
 }
+
+// TestRestoreMemoryVersion_IsGated pins that version-restore is authorized.
+//
+// Restore reaches applyAndPersistMemoryUpdate DIRECTLY, bypassing UpdateMemory —
+// so gating the entry point instead of the shared helper would leave this write
+// open. Artifact and blueprint restore have the same shape, which is why all
+// three gate the helper (#237).
+func TestRestoreMemoryVersion_IsGated(t *testing.T) {
+	const (
+		userID   = "user-caller"
+		teamID   = "team-1"
+		memoryID = "memory-1"
+	)
+
+	repo := repomocks.NewMockMemoryRepository(t)
+	repo.EXPECT().GetByID(mock.Anything, userID, teamID, memoryID).
+		Return(&models.Memory{ID: memoryID, UserID: "user-other", TeamID: teamID}, nil).Once()
+
+	cvs := servicemocks.NewMockContentVersionServiceInterface(t)
+	cvs.EXPECT().Restore(mock.Anything, teamID, "memory", memoryID, 2).
+		Return("restored text", nil).Once()
+
+	// A caller the matrix denies.
+	authzMock := servicemocks.NewMockAuthorizationServiceInterface(t)
+	authzMock.EXPECT().Can(mock.Anything, userID, teamID, mock.Anything).
+		Return(services.ErrPermissionDenied).Once()
+
+	logger, _ := logtest.New()
+	svc := services.NewMemoryService(repo, nil, authzMock, nil, logger, cvs)
+
+	_, err := svc.RestoreMemoryVersion(userID, teamID, memoryID, 2)
+
+	require.ErrorIs(t, err, services.ErrPermissionDenied)
+	repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+}

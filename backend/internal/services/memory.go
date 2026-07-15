@@ -159,13 +159,6 @@ func (s *MemoryService) UpdateMemory(
 		return nil, err
 	}
 
-	// Any member may update any memory, including another member's (epic #220
-	// decision D1 — uniform update). No behavior change: this domain already
-	// allowed it; the rule now simply says so.
-	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceUpdateAny); authzErr != nil {
-		return nil, authzErr
-	}
-
 	return s.applyAndPersistMemoryUpdate(ctx, userID, memory, req, models.ActorTypeHuman, nil)
 }
 
@@ -177,18 +170,10 @@ func (s *MemoryService) UpdateMemory(
 // changeSummary is an internal snapshot attribute only — it is never read from
 // UpdateMemoryRequest, so the memory update API exposes no user-facing change-summary field
 // (parity with artifacts and blueprints). The memory's Text field is the versioned content.
-func (s *MemoryService) applyAndPersistMemoryUpdate(
-	ctx context.Context, userID string, memory *models.Memory, req *models.UpdateMemoryRequest,
-	actorType string, changeSummary *string,
-) (*models.Memory, error) {
-	// Note: team_id cannot be changed via update (removed from UpdateMemoryRequest)
-	// Team reassignment is forbidden to prevent cross-team resource moves
-
-	// Snapshot the prior text before the update mutates it, so a version history is
-	// built whenever the text actually changes.
-	oldContent := memory.Text
-
-	// Update fields if provided
+// applyMemoryUpdates copies the provided fields onto the memory. TeamID is
+// deliberately absent: it is immutable, so team reassignment cannot happen
+// through an update.
+func applyMemoryUpdates(memory *models.Memory, req *models.UpdateMemoryRequest) {
 	if req.Text != nil {
 		memory.Text = *req.Text
 	}
@@ -205,6 +190,31 @@ func (s *MemoryService) applyAndPersistMemoryUpdate(
 	}
 
 	memory.UpdatedAt = time.Now()
+}
+
+func (s *MemoryService) applyAndPersistMemoryUpdate(
+	ctx context.Context, userID string, memory *models.Memory, req *models.UpdateMemoryRequest,
+	actorType string, changeSummary *string,
+) (*models.Memory, error) {
+	// Any member may update any memory, including another member's (epic #220
+	// decision D1 — uniform update). No behavior change: this domain already
+	// allowed it; the rule now simply says so.
+	//
+	// Gated HERE rather than in UpdateMemory so RestoreMemoryVersion — which
+	// reaches this helper directly and is just as much a write — cannot slip past
+	// it. Same placement as the artifact/blueprint helpers.
+	if authzErr := s.authz.Can(ctx, userID, memory.TeamID, authz.ResourceUpdateAny); authzErr != nil {
+		return nil, authzErr
+	}
+
+	// Note: team_id cannot be changed via update (removed from UpdateMemoryRequest)
+	// Team reassignment is forbidden to prevent cross-team resource moves
+
+	// Snapshot the prior text before the update mutates it, so a version history is
+	// built whenever the text actually changes.
+	oldContent := memory.Text
+
+	applyMemoryUpdates(memory, req)
 
 	// Best-effort content-version snapshot: record the pre-update text when it changed.
 	// A snapshot failure must not fail the update (mirrors event publishing).
