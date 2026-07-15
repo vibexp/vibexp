@@ -25247,9 +25247,9 @@
               ]
             },
             "example": [
-              "team.update",
-              "member.invite",
-              "project.create"
+              "resource.create",
+              "resource.update.any",
+              "resource.delete.own"
             ]
           },
           "member_count": {

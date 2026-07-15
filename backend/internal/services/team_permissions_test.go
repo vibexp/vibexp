@@ -111,9 +111,13 @@ func TestTeamService_ListTeams_PopulatesPermissionsPerTeamRole(t *testing.T) {
 }
 
 // TestTeamService_ListTeams_RoleLookupFailureDegradesToMemberPermissions pins
-// the existing degrade-to-member fallback: when the role lookup fails the list
-// still renders, and the permissions must degrade *with* the role rather than
-// contradict it — least privilege, not the previous team's set.
+// the pre-existing degrade-to-member fallback: when the role lookup fails the
+// list still renders as member rather than erroring. The point here is that
+// `permissions` degrades *with* `role` instead of contradicting it — the two
+// are always one decision. Note this hands the client the member set on a
+// transient lookup error, which is safe only because permissions is advisory:
+// every write is still authorized server-side, so at worst the UI offers a
+// button the server then refuses.
 func TestTeamService_ListTeams_RoleLookupFailureDegradesToMemberPermissions(t *testing.T) {
 	teamRepo := mocks.NewMockTeamRepository(t)
 	memberRepo := mocks.NewMockTeamMemberRepository(t)
