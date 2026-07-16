@@ -67,16 +67,12 @@ type ListMemoriesByProjectParams struct {
 }
 
 // GetMemoryParams defines the parameters for getting a specific memory
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type GetMemoryParams struct {
 	TeamID   string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	MemoryID string `json:"memory_id" jsonschema:"Memory identifier"`
 }
 
 // UpdateMemoryParams defines the parameters for updating a specific memory
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type UpdateMemoryParams struct {
 	TeamID   string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	MemoryID string                 `json:"memory_id" jsonschema:"Memory identifier"`

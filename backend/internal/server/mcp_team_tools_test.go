@@ -182,3 +182,39 @@ func TestSearchToolsOmitFullDetails(t *testing.T) {
 		assert.Contains(t, schema, "team_id", "%s should still declare team_id", name)
 	}
 }
+
+// TestMCPServerAdvertisesInstructions guards the #260 relocation of the
+// team-scoping guidance: it must reach clients via the server Instructions
+// (returned in the initialize result). Removing the ServerOptions.Instructions
+// wiring would silently drop the guidance from every client, so pin it here.
+func TestMCPServerAdvertisesInstructions(t *testing.T) {
+	mcpServer := mcp.NewServer(
+		&mcp.Implementation{Name: "test-server", Version: "1.0.0"},
+		&mcp.ServerOptions{Instructions: mcpServerInstructions},
+	)
+
+	ctx := context.Background()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := mcpServer.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if closeErr := serverSession.Close(); closeErr != nil {
+			t.Logf("serverSession.Close: %v", closeErr)
+		}
+	})
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if closeErr := clientSession.Close(); closeErr != nil {
+			t.Logf("clientSession.Close: %v", closeErr)
+		}
+	})
+
+	initResult := clientSession.InitializeResult()
+	require.NotNil(t, initResult)
+	assert.NotEmpty(t, initResult.Instructions, "server must advertise instructions to clients")
+	assert.Contains(t, initResult.Instructions, "vibexp_io_list_teams",
+		"instructions should point clients to team discovery")
+}

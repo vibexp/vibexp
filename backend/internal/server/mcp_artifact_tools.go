@@ -32,8 +32,6 @@ type CreateArtifactParams struct {
 }
 
 // ListArtifactsByProjectParams defines the parameters for listing artifacts by project
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListArtifactsByProjectParams struct {
 	TeamID    string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID string `json:"project_id" jsonschema:"Project UUID — required"`
@@ -45,8 +43,6 @@ type ListArtifactsByProjectParams struct {
 }
 
 // GetArtifactParams defines the parameters for getting a specific artifact
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type GetArtifactParams struct {
 	TeamID    string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID string `json:"project_id" jsonschema:"Project UUID — required"`
@@ -54,8 +50,6 @@ type GetArtifactParams struct {
 }
 
 // UpdateArtifactParams defines the parameters for updating a specific artifact
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type UpdateArtifactParams struct {
 	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID   string                 `json:"project_id" jsonschema:"Project UUID — required"`
