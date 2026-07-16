@@ -165,6 +165,7 @@ func (s *Server) handleListTeamInvitations(w http.ResponseWriter, r *http.Reques
 	for i, inv := range invitations {
 		responses[i] = models.InvitationResponse{
 			ID:           inv.ID,
+			Token:        inv.Token,
 			TeamID:       inv.TeamID,
 			InviteeEmail: inv.InviteeEmail,
 			Role:         string(inv.Role),

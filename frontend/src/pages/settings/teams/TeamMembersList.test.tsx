@@ -1,9 +1,12 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import type { TeamMember } from '@/services/teamService'
-
+import type { RosterMember } from './teamMemberMerge'
 import { TeamMembersList } from './TeamMembersList'
+
+// Mock clipboard API. CopyButton calls navigator.clipboard.writeText directly.
+const writeText = jest.fn().mockResolvedValue(undefined)
+Object.assign(navigator, { clipboard: { writeText } })
 
 // Radix Select needs these in jsdom (same shim as ModelProviderDialog.test).
 beforeAll(() => {
@@ -12,7 +15,7 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = jest.fn()
 })
 
-const makeMember = (overrides: Partial<TeamMember> = {}): TeamMember => ({
+const makeMember = (overrides: Partial<RosterMember> = {}): RosterMember => ({
   user_id: 'user-1',
   email: 'alice@example.com',
   name: 'Alice',
@@ -156,6 +159,81 @@ describe('TeamMembersList', () => {
     expect(
       screen.queryByRole('button', { name: /remove carol/i })
     ).not.toBeInTheDocument()
+  })
+
+  describe('copy invite link (#249)', () => {
+    beforeEach(() => {
+      writeText.mockClear()
+    })
+
+    const pendingWithToken = (overrides: Partial<RosterMember> = {}) =>
+      makeMember({
+        user_id: 'inv:abc',
+        email: 'pending@example.com',
+        name: 'pending',
+        invitation_status: 'pending',
+        invitationToken: 'tok-xyz-789',
+        ...overrides,
+      })
+
+    it('offers a copy-invite-link action on a pending row when the caller may invite', () => {
+      render(
+        <TeamMembersList members={[pendingWithToken()]} canCopyInviteLink />
+      )
+      expect(
+        screen.getByRole('button', { name: /copy invite link/i })
+      ).toBeInTheDocument()
+    })
+
+    it('copies the absolute /invitations/accept/:token URL to the clipboard', async () => {
+      render(
+        <TeamMembersList members={[pendingWithToken()]} canCopyInviteLink />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /copy invite link/i }))
+
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith(
+          `${window.location.origin}/invitations/accept/tok-xyz-789`
+        )
+      })
+    })
+
+    it('hides the copy action without the member.invite permission', () => {
+      render(
+        <TeamMembersList
+          members={[pendingWithToken()]}
+          canCopyInviteLink={false}
+        />
+      )
+      expect(
+        screen.queryByRole('button', { name: /copy invite link/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('hides the copy action when the pending row carries no token', () => {
+      render(
+        <TeamMembersList
+          members={[pendingWithToken({ invitationToken: undefined })]}
+          canCopyInviteLink
+        />
+      )
+      expect(
+        screen.queryByRole('button', { name: /copy invite link/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('never offers the copy action on an accepted member row', () => {
+      render(
+        <TeamMembersList
+          members={[makeMember({ invitation_status: 'accepted' })]}
+          canCopyInviteLink
+        />
+      )
+      expect(
+        screen.queryByRole('button', { name: /copy invite link/i })
+      ).not.toBeInTheDocument()
+    })
   })
 
   describe('role management (#225)', () => {

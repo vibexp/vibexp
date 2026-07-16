@@ -8315,8 +8315,9 @@ paths:
     get:
       summary: List team invitations
       description: |
-        Returns all invitations for the team. The `token`, `team_name` and
-        `invited_by` fields are not populated on this listing.
+        Returns all invitations for the team, each with its `token` populated so
+        an admin or owner can copy the accept link and share it out of band. The
+        `team_name` and `invited_by` fields are not populated on this listing.
       operationId: listTeamInvitations
       security:
         - ApiKeyAuth: []
@@ -8335,9 +8336,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/InvitationResponse'
+                $ref: '#/components/schemas/InvitationResponseList'
         '401':
           description: Unauthorized
           content:
@@ -16151,6 +16150,11 @@ components:
           example: '2025-09-22T12:00:00Z'
         invited_by:
           $ref: '#/components/schemas/InviterInfo'
+    InvitationResponseList:
+      type: array
+      description: Bare list of team invitations returned by the list endpoint.
+      items:
+        $ref: '#/components/schemas/InvitationResponse'
     InvitationDetailsResponse:
       type: object
       description: Wrapper response for the get-invitation-by-token endpoint

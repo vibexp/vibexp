@@ -577,6 +577,12 @@ components:
         invited_by:
           $ref: '#/components/schemas/InviterInfo'
 
+    InvitationResponseList:
+      type: array
+      description: Bare list of team invitations returned by the list endpoint.
+      items:
+        $ref: '#/components/schemas/InvitationResponse'
+
     InvitationDetailsResponse:
       type: object
       description: Wrapper response for the get-invitation-by-token endpoint

@@ -60,8 +60,12 @@ type InviterInfo struct {
 
 // InvitationResponse represents the response for a team invitation
 type InvitationResponse struct {
-	ID           string       `json:"id"`
-	Token        string       `json:"token"`
+	ID string `json:"id"`
+	// Token is the opaque invitation token used to build the accept URL. It is
+	// populated only on the list, pending, and get-by-token responses; the
+	// create (POST) response omits it (hence omitempty), so admins share links
+	// via the listing rather than the create call.
+	Token        string       `json:"token,omitempty"`
 	TeamID       string       `json:"team_id"`
 	TeamName     string       `json:"team_name"`
 	InviteeEmail string       `json:"invitee_email"`

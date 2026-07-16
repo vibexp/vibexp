@@ -665,8 +665,9 @@ api-v1-teams-id-invitations:
   get:
     summary: List team invitations
     description: |
-      Returns all invitations for the team. The `token`, `team_name` and
-      `invited_by` fields are not populated on this listing.
+      Returns all invitations for the team, each with its `token` populated so
+      an admin or owner can copy the accept link and share it out of band. The
+      `team_name` and `invited_by` fields are not populated on this listing.
     operationId: listTeamInvitations
     security:
       - ApiKeyAuth: []
@@ -685,9 +686,7 @@ api-v1-teams-id-invitations:
         content:
           application/json:
             schema:
-              type: array
-              items:
-                $ref: '../openapi.yaml#/components/schemas/InvitationResponse'
+              $ref: '../openapi.yaml#/components/schemas/InvitationResponseList'
       '401':
         description: Unauthorized
         content:

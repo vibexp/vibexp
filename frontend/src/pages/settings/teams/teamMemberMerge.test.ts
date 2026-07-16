@@ -56,6 +56,20 @@ describe('pendingInvitationToMember', () => {
     expect(member.invitation_status).toBe('pending')
   })
 
+  it('carries the invitation token so the row can offer a copyable link (#249)', () => {
+    const member = pendingInvitationToMember(
+      makeInvitation({ token: 'tok-abc-123' })
+    )
+    expect(member.invitationToken).toBe('tok-abc-123')
+  })
+
+  it('leaves invitationToken undefined when the wire omits the token', () => {
+    const member = pendingInvitationToMember(
+      makeInvitation({ token: undefined })
+    )
+    expect(member.invitationToken).toBeUndefined()
+  })
+
   it('uses the invitation role and falls back to member when absent', () => {
     expect(
       pendingInvitationToMember(makeInvitation({ role: 'admin' })).role
