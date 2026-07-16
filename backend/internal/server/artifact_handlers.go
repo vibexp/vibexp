@@ -91,7 +91,9 @@ func (s *Server) handleGetArtifact(w http.ResponseWriter, r *http.Request) {
 		"slug", decodedSlug,
 	).Info("Get artifact request received")
 
-	artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlug(userID, decodedProjectID, decodedSlug)
+	artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
+		userID, teamID, decodedProjectID, decodedSlug,
+	)
 	if err != nil {
 		s.handleGetArtifactError(w, userID, decodedProjectID, decodedSlug, err)
 		return
@@ -221,8 +223,8 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	artifact, err := s.container.ArtifactService().UpdateArtifactByProjectIDAndSlug(
-		userID, decodedProjectID, decodedSlug, &req,
+	artifact, err := s.container.ArtifactService().UpdateArtifactByProjectIDAndSlugInTeam(
+		userID, teamID, decodedProjectID, decodedSlug, &req,
 	)
 	if err != nil {
 		s.handleUpdateArtifactError(w, userID, decodedProjectID, decodedSlug, err)
@@ -281,13 +283,15 @@ func (s *Server) handleDeleteArtifact(w http.ResponseWriter, r *http.Request) {
 		"slug", decodedSlug,
 	).Info("Delete artifact request received")
 
-	artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlug(userID, decodedProjectID, decodedSlug)
+	artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
+		userID, teamID, decodedProjectID, decodedSlug,
+	)
 	if err != nil {
 		s.handleGetArtifactError(w, userID, decodedProjectID, decodedSlug, err)
 		return
 	}
 
-	err = s.container.ArtifactService().DeleteArtifactByProjectIDAndSlug(userID, decodedProjectID, decodedSlug)
+	err = s.container.ArtifactService().DeleteArtifactByProjectIDAndSlug(userID, teamID, decodedProjectID, decodedSlug)
 	if err != nil {
 		if s.writeArtifactDeleteDenial(w, userID, decodedSlug, err) {
 			return

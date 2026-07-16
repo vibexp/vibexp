@@ -51,7 +51,7 @@ func TestHandleListBlueprintVersions_Success(t *testing.T) {
 	}
 
 	mockBlueprintService.On(
-		"ListBlueprintVersions", "user-123", versionProjectID, versionSlug,
+		"ListBlueprintVersionsInTeam", "user-123", versionTeamID, versionProjectID, versionSlug,
 	).Return(versions, nil)
 
 	srv := newBlueprintVersionTestServer(mockBlueprintService)
@@ -98,7 +98,7 @@ func TestHandleGetBlueprintVersion_Success(t *testing.T) {
 	}
 
 	mockBlueprintService.On(
-		"GetBlueprintVersion", "user-123", versionProjectID, versionSlug, 2,
+		"GetBlueprintVersionInTeam", "user-123", versionTeamID, versionProjectID, versionSlug, 2,
 	).Return(version, nil)
 
 	srv := newBlueprintVersionTestServer(mockBlueprintService)
@@ -125,7 +125,7 @@ func TestHandleGetBlueprintVersion_NotFound(t *testing.T) {
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
 
 	mockBlueprintService.On(
-		"GetBlueprintVersion", "user-123", versionProjectID, versionSlug, 99,
+		"GetBlueprintVersionInTeam", "user-123", versionTeamID, versionProjectID, versionSlug, 99,
 	).Return((*models.ContentVersion)(nil), repositories.ErrContentVersionNotFound)
 
 	srv := newBlueprintVersionTestServer(mockBlueprintService)
@@ -170,7 +170,7 @@ func TestHandleRestoreBlueprintVersion_Success(t *testing.T) {
 	}
 
 	mockBlueprintService.On(
-		"RestoreBlueprintVersion", "user-123", versionProjectID, versionSlug, 1,
+		"RestoreBlueprintVersionInTeam", "user-123", versionTeamID, versionProjectID, versionSlug, 1,
 	).Return(restored, nil)
 
 	srv := newBlueprintVersionTestServer(mockBlueprintService)

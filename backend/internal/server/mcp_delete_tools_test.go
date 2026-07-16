@@ -129,7 +129,7 @@ func TestDeleteResource_ArtifactSuccess(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
 	m.artifact.On("GetArtifactByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testProjectID, "art").
 		Return(&models.Artifact{ID: "artifact-1"}, nil)
-	m.artifact.On("DeleteArtifactByProjectIDAndSlug", testMemberUserID, testProjectID, "art").Return(nil)
+	m.artifact.On("DeleteArtifactByProjectIDAndSlug", testMemberUserID, testTeamUUID, testProjectID, "art").Return(nil)
 	m.embedding.On("DeleteEmbeddingsByEntity", resourceTypeArtifact, "artifact-1").Return(nil)
 
 	params := &DeleteResourceParams{
@@ -147,9 +147,9 @@ func TestDeleteResource_ArtifactSuccess(t *testing.T) {
 
 func TestDeleteResource_BlueprintSuccess(t *testing.T) {
 	srv, m := newDeleteResourceTestServer(t)
-	m.blueprint.On("GetBlueprintByProjectIDAndSlug", testMemberUserID, testProjectID, "bp").
+	m.blueprint.On("GetBlueprintByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testProjectID, "bp").
 		Return(&models.Blueprint{ID: "blueprint-1"}, nil)
-	m.blueprint.On("DeleteBlueprintByProjectIDAndSlug", testMemberUserID, testProjectID, "bp").Return(nil)
+	m.blueprint.On("DeleteBlueprintByProjectIDAndSlug", testMemberUserID, testTeamUUID, testProjectID, "bp").Return(nil)
 	m.embedding.On("DeleteEmbeddingsByEntity", resourceTypeBlueprint, "blueprint-1").Return(nil)
 
 	params := &DeleteResourceParams{

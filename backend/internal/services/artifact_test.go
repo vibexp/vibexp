@@ -770,6 +770,7 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 	tests := []struct {
 		name        string
 		userID      string
+		teamID      string
 		projectName string
 		slug        string
 		setup       func(*MockArtifactRepository)
@@ -778,6 +779,7 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 		{
 			name:        "Successful deletion",
 			userID:      "user-123",
+			teamID:      "team-123",
 			projectName: "550e8400-e29b-41d4-a716-446655440000",
 			slug:        "test-slug",
 			setup: func(repo *MockArtifactRepository) {
@@ -788,9 +790,9 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 					UserID:    "user-123",
 				}
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
+					"GetByProjectIDAndSlug",
 					mock.Anything,
-					"user-123", "550e8400-e29b-41d4-a716-446655440000",
+					"user-123", "team-123", "550e8400-e29b-41d4-a716-446655440000",
 					"test-slug",
 				).Return(artifact, nil)
 				repo.On("Delete", mock.Anything, "user-123", mock.Anything, "artifact-123").Return(nil)
@@ -802,12 +804,13 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 		{
 			name:        "Artifact not found",
 			userID:      "user-123",
+			teamID:      "team-123",
 			projectName: "550e8400-e29b-41d4-a716-446655440000",
 			slug:        "non-existent",
 			setup: func(repo *MockArtifactRepository) {
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
-					mock.Anything, "user-123",
+					"GetByProjectIDAndSlug",
+					mock.Anything, "user-123", "team-123",
 					"550e8400-e29b-41d4-a716-446655440000", "non-existent",
 				).Return(nil, assert.AnError)
 			},
@@ -818,6 +821,7 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 		{
 			name:        "Repository error",
 			userID:      "user-123",
+			teamID:      "team-123",
 			projectName: "550e8400-e29b-41d4-a716-446655440000",
 			slug:        "test-slug",
 			setup: func(repo *MockArtifactRepository) {
@@ -828,9 +832,9 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 					UserID:    "user-123",
 				}
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
+					"GetByProjectIDAndSlug",
 					mock.Anything,
-					"user-123", "550e8400-e29b-41d4-a716-446655440000",
+					"user-123", "team-123", "550e8400-e29b-41d4-a716-446655440000",
 					"test-slug",
 				).Return(artifact, nil)
 				repo.On("Delete", mock.Anything, "user-123", mock.Anything, "artifact-123").Return(assert.AnError)
@@ -857,7 +861,7 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
-			err := service.DeleteArtifactByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug)
+			err := service.DeleteArtifactByProjectIDAndSlug(tt.userID, tt.teamID, tt.projectName, tt.slug)
 
 			tt.expected(t, err)
 			repo.AssertExpectations(t)

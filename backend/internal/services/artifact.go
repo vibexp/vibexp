@@ -476,9 +476,11 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 	return artifact, nil
 }
 
-func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, projectID, slug string) error {
-	// First get the artifact to get its ID and TeamID
-	artifact, err := s.GetArtifactByProjectIDAndSlug(userID, projectID, slug)
+func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, projectID, slug string) error {
+	// Resolve team-scoped (by membership, not creator user_id) so an Admin/Owner can
+	// reach another member's artifact and the delete.own/delete.any authorization below
+	// actually runs — the owner-scoped getter returned 404 first, making delete.any dead (#258).
+	artifact, err := s.GetArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
 	if err != nil {
 		return err
 	}

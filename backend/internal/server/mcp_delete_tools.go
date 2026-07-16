@@ -144,7 +144,9 @@ func (s *Server) deleteArtifactResource(
 		return s.mcpDeleteError(resourceTypeArtifact, userID, teamID, err), nil, nil
 	}
 
-	if err := s.container.ArtifactService().DeleteArtifactByProjectIDAndSlug(userID, params.ProjectID, slug); err != nil {
+	if err := s.container.ArtifactService().DeleteArtifactByProjectIDAndSlug(
+		userID, teamID, params.ProjectID, slug,
+	); err != nil {
 		return s.mcpDeleteError(resourceTypeArtifact, userID, teamID, err), nil, nil
 	}
 
@@ -156,9 +158,10 @@ func (s *Server) deleteArtifactResource(
 	})
 }
 
-// deleteBlueprintResource deletes a blueprint by project_id + slug. There is no
-// team-enforcing blueprint lookup, so it uses the same ownership-scoped lookup
-// the REST handler uses, then captures the id for embeddings cleanup.
+// deleteBlueprintResource deletes a blueprint by project_id + slug. It loads the
+// blueprint through the team-enforcing lookup (consistent with the get/update
+// blueprint MCP tools) both to authorize against the resolved team and to capture
+// the id for embeddings cleanup.
 func (s *Server) deleteBlueprintResource(
 	ctx context.Context, params *DeleteResourceParams, userID, teamID string,
 ) (*mcp.CallToolResult, any, error) {
@@ -170,13 +173,15 @@ func (s *Server) deleteBlueprintResource(
 		return mcpTextError("slug is required to delete a blueprint"), nil, nil
 	}
 
-	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlug(userID, params.ProjectID, slug)
+	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlugInTeam(
+		userID, teamID, params.ProjectID, slug,
+	)
 	if err != nil {
 		return s.mcpDeleteError(resourceTypeBlueprint, userID, teamID, err), nil, nil
 	}
 
 	if err := s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(
-		userID, params.ProjectID, slug,
+		userID, teamID, params.ProjectID, slug,
 	); err != nil {
 		return s.mcpDeleteError(resourceTypeBlueprint, userID, teamID, err), nil, nil
 	}

@@ -174,8 +174,8 @@ func (s *Server) updateBlueprint(
 
 	updateReq := buildBlueprintUpdateRequest(params)
 
-	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlug(
-		userID, params.ProjectID, params.Slug, updateReq,
+	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlugInTeam(
+		userID, teamID, params.ProjectID, params.Slug, updateReq,
 	)
 	if err != nil {
 		slog.Error(
