@@ -51,8 +51,9 @@ func TestHandleGetArtifact_Success_WithMockedService(t *testing.T) {
 	}
 
 	mockArtifactService.On(
-		"GetArtifactByProjectIDAndSlug",
+		"GetArtifactByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-slug",
 	).Return(expectedArtifact, nil)
@@ -98,8 +99,9 @@ func TestHandleGetArtifact_NotFound(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
 
 	mockArtifactService.On(
-		"GetArtifactByProjectIDAndSlug",
+		"GetArtifactByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"non-existent",
 	).Return((*models.Artifact)(nil), errors.New("artifact not found"))
@@ -423,8 +425,9 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 		Return(true, nil)
 
 	mockArtifactService.On(
-		"UpdateArtifactByProjectIDAndSlug",
+		"UpdateArtifactByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-slug",
 		mock.MatchedBy(func(req *models.UpdateArtifactRequest) bool {
@@ -476,8 +479,9 @@ func TestHandleUpdateArtifact_NotFound(t *testing.T) {
 		Return(true, nil)
 
 	mockArtifactService.On(
-		"UpdateArtifactByProjectIDAndSlug",
+		"UpdateArtifactByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"non-existent",
 		mock.Anything,
@@ -523,8 +527,9 @@ func TestHandleDeleteArtifact_Success(t *testing.T) {
 	}
 
 	mockArtifactService.On(
-		"GetArtifactByProjectIDAndSlug",
+		"GetArtifactByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-slug",
 	).Return(existingArtifact, nil)
@@ -532,6 +537,7 @@ func TestHandleDeleteArtifact_Success(t *testing.T) {
 	mockArtifactService.On(
 		"DeleteArtifactByProjectIDAndSlug",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-slug",
 	).Return(nil)
@@ -570,8 +576,9 @@ func TestHandleDeleteArtifact_NotFound(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
 
 	mockArtifactService.On(
-		"GetArtifactByProjectIDAndSlug",
+		"GetArtifactByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"non-existent",
 	).Return((*models.Artifact)(nil), errors.New("artifact not found"))

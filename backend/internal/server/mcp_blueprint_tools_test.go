@@ -276,8 +276,8 @@ func TestUpdateBlueprint_Success(t *testing.T) {
 		ID: "test-id", ProjectID: testBlueprintProjectID, Slug: "test-slug", Title: "Updated", Content: "Updated content",
 	}
 	mockBlueprintService.On(
-		"UpdateBlueprintByProjectIDAndSlug",
-		testMemberUserID, testBlueprintProjectID, "test-slug",
+		"UpdateBlueprintByProjectIDAndSlugInTeam",
+		testMemberUserID, testTeamUUID, testBlueprintProjectID, "test-slug",
 		mock.MatchedBy(func(req *models.UpdateBlueprintRequest) bool {
 			return req.Title != nil && *req.Title == "Updated" &&
 				req.Content != nil && *req.Content == "Updated content"
@@ -310,8 +310,8 @@ func TestUpdateBlueprint_OptionalFields(t *testing.T) {
 	srv, mockBlueprintService := newBlueprintTestServer(t)
 
 	mockBlueprintService.On(
-		"UpdateBlueprintByProjectIDAndSlug",
-		testMemberUserID, testBlueprintProjectID, "test-slug",
+		"UpdateBlueprintByProjectIDAndSlugInTeam",
+		testMemberUserID, testTeamUUID, testBlueprintProjectID, "test-slug",
 		mock.MatchedBy(func(req *models.UpdateBlueprintRequest) bool {
 			// only status + metadata provided; title/content/description/type must remain nil
 			return req.Status != nil && *req.Status == "expired" &&
@@ -341,8 +341,8 @@ func TestUpdateBlueprint_ServiceError(t *testing.T) {
 	srv, mockBlueprintService := newBlueprintTestServer(t)
 
 	mockBlueprintService.On(
-		"UpdateBlueprintByProjectIDAndSlug",
-		testMemberUserID, testBlueprintProjectID, "nonexistent",
+		"UpdateBlueprintByProjectIDAndSlugInTeam",
+		testMemberUserID, testTeamUUID, testBlueprintProjectID, "nonexistent",
 		mock.AnythingOfType("*models.UpdateBlueprintRequest"),
 	).Return(nil, errors.New("blueprint not found"))
 
@@ -375,7 +375,7 @@ func TestUpdateBlueprint_NonMemberTeamDenied(t *testing.T) {
 		t.Error("expected nil structured result")
 	}
 	assertGenericAccessDenied(t, result)
-	mockBlueprintService.AssertNotCalled(t, "UpdateBlueprintByProjectIDAndSlug")
+	mockBlueprintService.AssertNotCalled(t, "UpdateBlueprintByProjectIDAndSlugInTeam")
 }
 
 func TestUpdateBlueprint_InvalidProjectID(t *testing.T) {
@@ -397,7 +397,7 @@ func TestUpdateBlueprint_InvalidProjectID(t *testing.T) {
 				t.Error("expected nil structured result on validation rejection")
 			}
 			assertValidationFailure(t, result, tc.substrMust)
-			mockBlueprintService.AssertNotCalled(t, "UpdateBlueprintByProjectIDAndSlug")
+			mockBlueprintService.AssertNotCalled(t, "UpdateBlueprintByProjectIDAndSlugInTeam")
 		})
 	}
 }

@@ -524,8 +524,9 @@ func TestHandleGetBlueprint_Success(t *testing.T) {
 	}
 
 	mockBlueprintService.On(
-		"GetBlueprintByProjectIDAndSlug",
+		"GetBlueprintByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-spec",
 	).Return(expectedBlueprint, nil)
@@ -586,8 +587,9 @@ func TestHandleGetBlueprint_NotFound(t *testing.T) {
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
 
 	mockBlueprintService.On(
-		"GetBlueprintByProjectIDAndSlug",
+		"GetBlueprintByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"non-existent",
 	).Return((*models.Blueprint)(nil), errors.New("blueprint not found"))
@@ -898,8 +900,9 @@ func TestHandleUpdateBlueprint_Success(t *testing.T) {
 		Return(true, nil)
 
 	mockBlueprintService.On(
-		"UpdateBlueprintByProjectIDAndSlug",
+		"UpdateBlueprintByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-spec",
 		mock.MatchedBy(func(req *models.UpdateBlueprintRequest) bool {
@@ -963,8 +966,9 @@ func TestHandleUpdateBlueprint_NotFound(t *testing.T) {
 		Return(true, nil)
 
 	mockBlueprintService.On(
-		"UpdateBlueprintByProjectIDAndSlug",
+		"UpdateBlueprintByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"non-existent",
 		mock.Anything).Return((*models.Blueprint)(nil), errors.New("blueprint not found"))
@@ -1102,8 +1106,9 @@ func TestHandleDeleteBlueprint_Success(t *testing.T) {
 	}
 
 	mockBlueprintService.On(
-		"GetBlueprintByProjectIDAndSlug",
+		"GetBlueprintByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-spec",
 	).Return(existingBlueprint, nil)
@@ -1111,6 +1116,7 @@ func TestHandleDeleteBlueprint_Success(t *testing.T) {
 	mockBlueprintService.On(
 		"DeleteBlueprintByProjectIDAndSlug",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-spec",
 	).Return(nil)
@@ -1149,8 +1155,9 @@ func TestHandleDeleteBlueprint_NotFound(t *testing.T) {
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
 
 	mockBlueprintService.On(
-		"GetBlueprintByProjectIDAndSlug",
+		"GetBlueprintByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"non-existent",
 	).Return((*models.Blueprint)(nil), errors.New("blueprint not found"))
@@ -1208,8 +1215,9 @@ func TestHandleDeleteBlueprint_ServiceError(t *testing.T) {
 	}
 
 	mockBlueprintService.On(
-		"GetBlueprintByProjectIDAndSlug",
+		"GetBlueprintByProjectIDAndSlugInTeam",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-spec",
 	).Return(existingBlueprint, nil)
@@ -1217,6 +1225,7 @@ func TestHandleDeleteBlueprint_ServiceError(t *testing.T) {
 	mockBlueprintService.On(
 		"DeleteBlueprintByProjectIDAndSlug",
 		"user-123",
+		"550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"test-spec",
 	).Return(errors.New("database error"))

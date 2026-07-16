@@ -66,6 +66,7 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetBlueprint(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	projectID := chi.URLParam(r, "project_id")
 	slug := chi.URLParam(r, "slug")
 
@@ -90,8 +91,8 @@ func (s *Server) handleGetBlueprint(w http.ResponseWriter, r *http.Request) {
 		"slug", decodedSlug,
 	).Info("Get blueprint request received")
 
-	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlug(
-		userID, decodedProjectID, decodedSlug,
+	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlugInTeam(
+		userID, teamID, decodedProjectID, decodedSlug,
 	)
 	if err != nil {
 		s.handleGetBlueprintError(w, userID, decodedProjectID, decodedSlug, err)
@@ -187,6 +188,7 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 
 func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	projectID := chi.URLParam(r, "project_id")
 	slug := chi.URLParam(r, "slug")
 
@@ -226,8 +228,8 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlug(
-		userID, decodedProjectID, decodedSlug, &req,
+	blueprint, err := s.container.BlueprintService().UpdateBlueprintByProjectIDAndSlugInTeam(
+		userID, teamID, decodedProjectID, decodedSlug, &req,
 	)
 	if err != nil {
 		s.handleUpdateBlueprintError(w, userID, decodedProjectID, decodedSlug, err)
@@ -245,6 +247,7 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 //nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
 func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	projectID := chi.URLParam(r, "project_id")
 	slug := chi.URLParam(r, "slug")
 
@@ -269,15 +272,15 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 		"slug", decodedSlug,
 	).Info("Delete blueprint request received")
 
-	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlug(
-		userID, decodedProjectID, decodedSlug,
+	blueprint, err := s.container.BlueprintService().GetBlueprintByProjectIDAndSlugInTeam(
+		userID, teamID, decodedProjectID, decodedSlug,
 	)
 	if err != nil {
 		s.handleGetBlueprintError(w, userID, decodedProjectID, decodedSlug, err)
 		return
 	}
 
-	err = s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(userID, decodedProjectID, decodedSlug)
+	err = s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(userID, teamID, decodedProjectID, decodedSlug)
 	if err != nil {
 		// Without this branch a denied delete would hit logBlueprintError's
 		// unconditional 500 — it has no branching at all.
@@ -792,6 +795,7 @@ func (s *Server) recordBlueprintActivity(
 // handleListBlueprintVersions returns the content-version history (newest-first) for a blueprint.
 func (s *Server) handleListBlueprintVersions(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	projectID := chi.URLParam(r, "project_id")
 	slug := chi.URLParam(r, "slug")
 
@@ -815,8 +819,8 @@ func (s *Server) handleListBlueprintVersions(w http.ResponseWriter, r *http.Requ
 		"slug", decodedSlug,
 	).Info("List blueprint versions request received")
 
-	versions, err := s.container.BlueprintService().ListBlueprintVersions(
-		userID, decodedProjectID, decodedSlug,
+	versions, err := s.container.BlueprintService().ListBlueprintVersionsInTeam(
+		userID, teamID, decodedProjectID, decodedSlug,
 	)
 	if err != nil {
 		s.handleBlueprintVersionError(w, userID, decodedProjectID, decodedSlug, err)
@@ -829,6 +833,7 @@ func (s *Server) handleListBlueprintVersions(w http.ResponseWriter, r *http.Requ
 // handleGetBlueprintVersion returns a single content-version snapshot of a blueprint.
 func (s *Server) handleGetBlueprintVersion(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	projectID := chi.URLParam(r, "project_id")
 	slug := chi.URLParam(r, "slug")
 
@@ -858,8 +863,8 @@ func (s *Server) handleGetBlueprintVersion(w http.ResponseWriter, r *http.Reques
 		"version_number", versionNumber,
 	).Info("Get blueprint version request received")
 
-	version, err := s.container.BlueprintService().GetBlueprintVersion(
-		userID, decodedProjectID, decodedSlug, versionNumber,
+	version, err := s.container.BlueprintService().GetBlueprintVersionInTeam(
+		userID, teamID, decodedProjectID, decodedSlug, versionNumber,
 	)
 	if err != nil {
 		s.handleBlueprintVersionError(w, userID, decodedProjectID, decodedSlug, err)
@@ -873,6 +878,7 @@ func (s *Server) handleGetBlueprintVersion(w http.ResponseWriter, r *http.Reques
 // pre-restore content is snapshotted as a new (system-authored) version.
 func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	projectID := chi.URLParam(r, "project_id")
 	slug := chi.URLParam(r, "slug")
 
@@ -902,8 +908,8 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 		"version_number", versionNumber,
 	).Info("Restore blueprint version request received")
 
-	blueprint, err := s.container.BlueprintService().RestoreBlueprintVersion(
-		userID, decodedProjectID, decodedSlug, versionNumber,
+	blueprint, err := s.container.BlueprintService().RestoreBlueprintVersionInTeam(
+		userID, teamID, decodedProjectID, decodedSlug, versionNumber,
 	)
 	if err != nil {
 		s.handleBlueprintVersionError(w, userID, decodedProjectID, decodedSlug, err)

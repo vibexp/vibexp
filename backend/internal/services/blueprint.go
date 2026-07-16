@@ -180,6 +180,31 @@ func (s *BlueprintService) GetBlueprintByProjectIDAndSlug(
 	return blueprint, nil
 }
 
+// GetBlueprintByProjectIDAndSlugInTeam retrieves a blueprint scoped to a single team the
+// user belongs to. Unlike GetBlueprintByProjectIDAndSlug (which spans all of the user's
+// teams by creator user_id), this enforces that the blueprint lives in teamID and is
+// visible to any member of that team — so a non-creator member can open it (#258) — while
+// a caller outside the team still gets not-found (tenancy preserved). Mirrors
+// ArtifactService.GetArtifactByProjectIDAndSlugInTeam.
+func (s *BlueprintService) GetBlueprintByProjectIDAndSlugInTeam(
+	userID, teamID, projectID, slug string,
+) (*models.Blueprint, error) {
+	blueprint, err := s.repo.GetByProjectIDAndSlug(context.Background(), userID, teamID, projectID, slug)
+	if err != nil {
+		s.logger.With(
+			"service", "blueprint",
+			"user_id", userID,
+			"team_id", teamID,
+			"project_id", projectID,
+			"slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to get blueprint (team-scoped)")
+		return nil, err
+	}
+
+	return blueprint, nil
+}
+
 func (s *BlueprintService) ListBlueprints(
 	userID string, filters BlueprintFilters,
 ) (*models.BlueprintListResponse, error) {
@@ -307,6 +332,22 @@ func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlug(
 	return s.applyAndPersistBlueprintUpdate(userID, blueprint, req, models.ActorTypeHuman, nil)
 }
 
+// UpdateBlueprintByProjectIDAndSlugInTeam updates a blueprint scoped to a single team the
+// user belongs to. Unlike UpdateBlueprintByProjectIDAndSlug (which spans all of the user's
+// teams by creator user_id), this resolves by team membership so resource.update.any (D1 —
+// every role may update any team member's resource) reaches the update path instead of 404ing
+// for a non-creator member (#258). Mirrors ArtifactService.UpdateArtifactByProjectIDAndSlugInTeam.
+func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlugInTeam(
+	userID, teamID, projectID, slug string, req *models.UpdateBlueprintRequest,
+) (*models.Blueprint, error) {
+	blueprint, err := s.GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.applyAndPersistBlueprintUpdate(userID, blueprint, req, models.ActorTypeHuman, nil)
+}
+
 // applyAndPersistBlueprintUpdate applies the update request to an already-loaded blueprint,
 // snapshots the pre-update content when it changed, persists the blueprint, and publishes the
 // updated event. The blueprint must already have been loaded through an authorization-enforcing
@@ -389,21 +430,24 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 // ListBlueprintVersions returns the content-version history for a blueprint, newest-first.
 // The blueprint is loaded through the authorization-enforcing cross-team lookup before its
 // versions are read; the resolved blueprint's TeamID scopes the version query.
-func (s *BlueprintService) ListBlueprintVersions(
-	userID, projectID, slug string,
+// ListBlueprintVersionsInTeam returns the content-version history for a team-scoped blueprint,
+// newest-first. The blueprint is loaded through the team-membership lookup so any member (not
+// only the creator) can read its history (#258). Mirrors ArtifactService.ListArtifactVersionsInTeam.
+func (s *BlueprintService) ListBlueprintVersionsInTeam(
+	userID, teamID, projectID, slug string,
 ) ([]*models.ContentVersion, error) {
-	blueprint, err := s.GetBlueprintByProjectIDAndSlug(userID, projectID, slug)
+	blueprint, err := s.GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
 	if err != nil {
 		return nil, err
 	}
 	return s.contentVersionSvc.ListVersions(context.Background(), blueprint.TeamID, "blueprint", blueprint.ID)
 }
 
-// GetBlueprintVersion returns a single content version of a blueprint.
-func (s *BlueprintService) GetBlueprintVersion(
-	userID, projectID, slug string, versionNumber int,
+// GetBlueprintVersionInTeam returns a single content version of a team-scoped blueprint.
+func (s *BlueprintService) GetBlueprintVersionInTeam(
+	userID, teamID, projectID, slug string, versionNumber int,
 ) (*models.ContentVersion, error) {
-	blueprint, err := s.GetBlueprintByProjectIDAndSlug(userID, projectID, slug)
+	blueprint, err := s.GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
 	if err != nil {
 		return nil, err
 	}
@@ -412,12 +456,13 @@ func (s *BlueprintService) GetBlueprintVersion(
 	)
 }
 
-// RestoreBlueprintVersion restores a blueprint's content to the given version by applying it
-// through the shared update path, which snapshots the pre-restore content as a new version.
-func (s *BlueprintService) RestoreBlueprintVersion(
-	userID, projectID, slug string, versionNumber int,
+// RestoreBlueprintVersionInTeam restores a team-scoped blueprint's content to the given version
+// by applying it through the shared update path, which snapshots the pre-restore content as a
+// new version. Resolves by team membership so a non-creator member can restore (#258).
+func (s *BlueprintService) RestoreBlueprintVersionInTeam(
+	userID, teamID, projectID, slug string, versionNumber int,
 ) (*models.Blueprint, error) {
-	blueprint, err := s.GetBlueprintByProjectIDAndSlug(userID, projectID, slug)
+	blueprint, err := s.GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
 	if err != nil {
 		return nil, err
 	}
@@ -438,9 +483,11 @@ func (s *BlueprintService) RestoreBlueprintVersion(
 	)
 }
 
-func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, projectID, slug string) error {
-	// First get the blueprint to get its ID and TeamID
-	blueprint, err := s.GetBlueprintByProjectIDAndSlug(userID, projectID, slug)
+func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, teamID, projectID, slug string) error {
+	// Resolve team-scoped (by membership, not creator user_id) so an Admin/Owner can reach
+	// another member's blueprint and the delete.own/delete.any authorization below actually
+	// runs — the owner-scoped getter returned 404 first, making delete.any dead (#258).
+	blueprint, err := s.GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
 	if err != nil {
 		return err
 	}

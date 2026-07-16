@@ -104,7 +104,7 @@ func TestBlueprintService_RestoreSnapshotsAsSystem(t *testing.T) {
 		UserID: userID, Content: "live-content",
 	}
 	repo.EXPECT().
-		GetByProjectIDAndSlugCrossTeam(mock.Anything, userID, projectID, slug).
+		GetByProjectIDAndSlug(mock.Anything, userID, teamID, projectID, slug).
 		Return(existing, nil).
 		Once()
 	cvs.EXPECT().
@@ -126,6 +126,6 @@ func TestBlueprintService_RestoreSnapshotsAsSystem(t *testing.T) {
 	repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 
 	svc := services.NewBlueprintService(repo, nil, permissiveAuthz(t), nil, nil, logger, cvs)
-	_, err := svc.RestoreBlueprintVersion(userID, projectID, slug, 2)
+	_, err := svc.RestoreBlueprintVersionInTeam(userID, teamID, projectID, slug, 2)
 	require.NoError(t, err)
 }

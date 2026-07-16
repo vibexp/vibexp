@@ -117,7 +117,10 @@ type ArtifactServiceInterface interface {
 	// belongs to, enforcing the artifact lives in teamID before applying the update.
 	UpdateArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug string,
 		req *models.UpdateArtifactRequest) (*models.Artifact, error)
-	DeleteArtifactByProjectIDAndSlug(userID, projectID, slug string) error
+	// DeleteArtifactByProjectIDAndSlug resolves the artifact by team membership (not creator
+	// user_id) before the delete.own/delete.any authorization check, so an Admin/Owner can
+	// delete another member's artifact (#258).
+	DeleteArtifactByProjectIDAndSlug(userID, teamID, projectID, slug string) error
 	GetArtifactStats(userID, teamID string) (*models.ArtifactStatsResponse, error)
 	// ListArtifactVersionsInTeam returns the content-version history (newest-first) for a
 	// team-scoped artifact identified by project and slug.
@@ -311,26 +314,36 @@ type BackofficeServiceInterface interface {
 type BlueprintServiceInterface interface {
 	CreateBlueprint(userID, teamID string, req *models.CreateBlueprintRequest) (*models.Blueprint, error)
 	GetBlueprintByProjectIDAndSlug(userID, projectID, slug string) (*models.Blueprint, error)
+	// GetBlueprintByProjectIDAndSlugInTeam retrieves a blueprint scoped to a single team the user
+	// belongs to (by membership, not creator user_id), so any member can open it (#258).
+	GetBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug string) (*models.Blueprint, error)
 	GetBlueprintByIDInTeam(userID, teamID, blueprintID string) (*models.Blueprint, error)
 	ListBlueprints(userID string, filters BlueprintFilters) (*models.BlueprintListResponse, error)
 	ListBlueprintsByProject(userID, projectID string, filters BlueprintFilters,
 	) (*models.BlueprintListResponse, error)
 	UpdateBlueprintByProjectIDAndSlug(userID, projectID, slug string, req *models.UpdateBlueprintRequest,
 	) (*models.Blueprint, error)
-	DeleteBlueprintByProjectIDAndSlug(userID, projectID, slug string) error
+	// UpdateBlueprintByProjectIDAndSlugInTeam updates a blueprint scoped to a single team the user
+	// belongs to, so resource.update.any (D1) reaches the update path for a non-creator member (#258).
+	UpdateBlueprintByProjectIDAndSlugInTeam(userID, teamID, projectID, slug string,
+		req *models.UpdateBlueprintRequest) (*models.Blueprint, error)
+	// DeleteBlueprintByProjectIDAndSlug resolves the blueprint by team membership (not creator
+	// user_id) before the delete.own/delete.any authorization check, so an Admin/Owner can
+	// delete another member's blueprint (#258).
+	DeleteBlueprintByProjectIDAndSlug(userID, teamID, projectID, slug string) error
 	GetBlueprintStats(userID string) (*models.BlueprintStatsResponse, error)
-	// ListBlueprintVersions returns the content-version history (newest-first) for a
-	// blueprint identified by project and slug. The blueprint is loaded through the
-	// authorization-enforcing cross-team lookup before its versions are read.
-	ListBlueprintVersions(userID, projectID, slug string) ([]*models.ContentVersion, error)
-	// GetBlueprintVersion returns a single content version of a blueprint by version number.
-	GetBlueprintVersion(
-		userID, projectID, slug string, versionNumber int,
+	// ListBlueprintVersionsInTeam returns the content-version history (newest-first) for a
+	// team-scoped blueprint identified by project and slug. The blueprint is loaded through the
+	// team-membership lookup before its versions are read, so any member can view them (#258).
+	ListBlueprintVersionsInTeam(userID, teamID, projectID, slug string) ([]*models.ContentVersion, error)
+	// GetBlueprintVersionInTeam returns a single content version of a team-scoped blueprint.
+	GetBlueprintVersionInTeam(
+		userID, teamID, projectID, slug string, versionNumber int,
 	) (*models.ContentVersion, error)
-	// RestoreBlueprintVersion restores a blueprint's content to the given version,
-	// returning the updated blueprint.
-	RestoreBlueprintVersion(
-		userID, projectID, slug string, versionNumber int,
+	// RestoreBlueprintVersionInTeam restores a team-scoped blueprint's content to the given
+	// version, returning the updated blueprint.
+	RestoreBlueprintVersionInTeam(
+		userID, teamID, projectID, slug string, versionNumber int,
 	) (*models.Blueprint, error)
 }
 

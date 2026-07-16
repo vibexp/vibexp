@@ -738,6 +738,7 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 	tests := []struct {
 		name        string
 		userID      string
+		teamID      string
 		projectName string
 		slug        string
 		setup       func(*MockBlueprintRepository)
@@ -746,6 +747,7 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 		{
 			name:        "Successful deletion",
 			userID:      "user-123",
+			teamID:      "team-123",
 			projectName: "550e8400-e29b-41d4-a716-446655440000",
 			slug:        "test-slug",
 			setup: func(repo *MockBlueprintRepository) {
@@ -754,15 +756,17 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 					ProjectID: "550e8400-e29b-41d4-a716-446655440000",
 					Slug:      "test-slug",
 					UserID:    "user-123",
+					TeamID:    "team-123",
 				}
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
+					"GetByProjectIDAndSlug",
 					mock.Anything,
 					"user-123",
+					"team-123",
 					"550e8400-e29b-41d4-a716-446655440000",
 					"test-slug",
 				).Return(blueprint, nil)
-				repo.On("Delete", mock.Anything, "user-123", "", "spec-library-123").Return(nil)
+				repo.On("Delete", mock.Anything, "user-123", "team-123", "spec-library-123").Return(nil)
 			},
 			expected: func(t *testing.T, err error) {
 				assert.NoError(t, err)
@@ -771,12 +775,13 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 		{
 			name:        "Blueprint not found",
 			userID:      "user-123",
+			teamID:      "team-123",
 			projectName: "550e8400-e29b-41d4-a716-446655440000",
 			slug:        "non-existent",
 			setup: func(repo *MockBlueprintRepository) {
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
-					mock.Anything, "user-123",
+					"GetByProjectIDAndSlug",
+					mock.Anything, "user-123", "team-123",
 					"550e8400-e29b-41d4-a716-446655440000", "non-existent",
 				).Return(nil, assert.AnError)
 			},
@@ -787,6 +792,7 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 		{
 			name:        "Repository error during deletion",
 			userID:      "user-123",
+			teamID:      "team-123",
 			projectName: "550e8400-e29b-41d4-a716-446655440000",
 			slug:        "test-slug",
 			setup: func(repo *MockBlueprintRepository) {
@@ -795,15 +801,17 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 					ProjectID: "550e8400-e29b-41d4-a716-446655440000",
 					Slug:      "test-slug",
 					UserID:    "user-123",
+					TeamID:    "team-123",
 				}
 				repo.On(
-					"GetByProjectIDAndSlugCrossTeam",
+					"GetByProjectIDAndSlug",
 					mock.Anything,
 					"user-123",
+					"team-123",
 					"550e8400-e29b-41d4-a716-446655440000",
 					"test-slug",
 				).Return(blueprint, nil)
-				repo.On("Delete", mock.Anything, "user-123", "", "spec-library-123").Return(assert.AnError)
+				repo.On("Delete", mock.Anything, "user-123", "team-123", "spec-library-123").Return(assert.AnError)
 			},
 			expected: func(t *testing.T, err error) {
 				assert.Error(t, err)
@@ -827,7 +835,7 @@ func TestBlueprintService_DeleteBlueprintByProjectIDAndSlug(t *testing.T) {
 				func() *slog.Logger { l, _ := logtest.New(); return l }(),
 				nil,
 			)
-			err := service.DeleteBlueprintByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug)
+			err := service.DeleteBlueprintByProjectIDAndSlug(tt.userID, tt.teamID, tt.projectName, tt.slug)
 
 			tt.expected(t, err)
 			repo.AssertExpectations(t)

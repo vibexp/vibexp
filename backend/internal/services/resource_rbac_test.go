@@ -135,7 +135,10 @@ func TestArtifactService_Delete_OwnVsAny(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := mocks.NewMockArtifactRepository(t)
 			logger, _ := logtest.New()
-			repo.EXPECT().GetByProjectIDAndSlugCrossTeam(mock.Anything, resRBACCaller, projectID, slug).
+			// Resolution is now team-scoped (by membership), so delete.any can reach a
+			// non-creator member's artifact — the owner-scoped CrossTeam getter used to 404
+			// first, making the any branch dead (#258).
+			repo.EXPECT().GetByProjectIDAndSlug(mock.Anything, resRBACCaller, resRBACTeamID, projectID, slug).
 				Return(&models.Artifact{
 					ID: artifactID, UserID: tc.ownerID, TeamID: resRBACTeamID, Slug: slug,
 				}, nil).Once()
@@ -144,7 +147,7 @@ func TestArtifactService_Delete_OwnVsAny(t *testing.T) {
 			}
 
 			svc := NewArtifactService(repo, nil, authzForRole(t, tc.role), nil, nil, logger, nil)
-			err := svc.DeleteArtifactByProjectIDAndSlug(resRBACCaller, projectID, slug)
+			err := svc.DeleteArtifactByProjectIDAndSlug(resRBACCaller, resRBACTeamID, projectID, slug)
 
 			if tc.allowed {
 				require.NoError(t, err)
@@ -167,7 +170,10 @@ func TestBlueprintService_Delete_OwnVsAny(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := mocks.NewMockBlueprintRepository(t)
 			logger, _ := logtest.New()
-			repo.EXPECT().GetByProjectIDAndSlugCrossTeam(mock.Anything, resRBACCaller, projectID, slug).
+			// Resolution is now team-scoped (by membership), so delete.any can reach a
+			// non-creator member's blueprint — the owner-scoped CrossTeam getter used to 404
+			// first, making the any branch dead (#258).
+			repo.EXPECT().GetByProjectIDAndSlug(mock.Anything, resRBACCaller, resRBACTeamID, projectID, slug).
 				Return(&models.Blueprint{
 					ID: blueprintID, UserID: tc.ownerID, TeamID: resRBACTeamID, Slug: slug,
 				}, nil).Once()
@@ -176,7 +182,7 @@ func TestBlueprintService_Delete_OwnVsAny(t *testing.T) {
 			}
 
 			svc := NewBlueprintService(repo, nil, authzForRole(t, tc.role), nil, nil, logger, nil)
-			err := svc.DeleteBlueprintByProjectIDAndSlug(resRBACCaller, projectID, slug)
+			err := svc.DeleteBlueprintByProjectIDAndSlug(resRBACCaller, resRBACTeamID, projectID, slug)
 
 			if tc.allowed {
 				require.NoError(t, err)

@@ -82,17 +82,17 @@ func (_c *MockArtifactServiceInterface_CreateArtifact_Call) RunAndReturn(run fun
 	return _c
 }
 
-// DeleteArtifactByProjectIDAndSlug provides a mock function with given fields: userID, projectID, slug
-func (_m *MockArtifactServiceInterface) DeleteArtifactByProjectIDAndSlug(userID string, projectID string, slug string) error {
-	ret := _m.Called(userID, projectID, slug)
+// DeleteArtifactByProjectIDAndSlug provides a mock function with given fields: userID, teamID, projectID, slug
+func (_m *MockArtifactServiceInterface) DeleteArtifactByProjectIDAndSlug(userID string, teamID string, projectID string, slug string) error {
+	ret := _m.Called(userID, teamID, projectID, slug)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteArtifactByProjectIDAndSlug")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = rf(userID, projectID, slug)
+	if rf, ok := ret.Get(0).(func(string, string, string, string) error); ok {
+		r0 = rf(userID, teamID, projectID, slug)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -107,15 +107,16 @@ type MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call struct {
 
 // DeleteArtifactByProjectIDAndSlug is a helper method to define mock.On call
 //   - userID string
+//   - teamID string
 //   - projectID string
 //   - slug string
-func (_e *MockArtifactServiceInterface_Expecter) DeleteArtifactByProjectIDAndSlug(userID interface{}, projectID interface{}, slug interface{}) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
-	return &MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call{Call: _e.mock.On("DeleteArtifactByProjectIDAndSlug", userID, projectID, slug)}
+func (_e *MockArtifactServiceInterface_Expecter) DeleteArtifactByProjectIDAndSlug(userID interface{}, teamID interface{}, projectID interface{}, slug interface{}) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
+	return &MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call{Call: _e.mock.On("DeleteArtifactByProjectIDAndSlug", userID, teamID, projectID, slug)}
 }
 
-func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) Run(run func(userID string, projectID string, slug string)) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
+func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) Run(run func(userID string, teamID string, projectID string, slug string)) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -125,7 +126,7 @@ func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) Re
 	return _c
 }
 
-func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) RunAndReturn(run func(string, string, string) error) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
+func (_c *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call) RunAndReturn(run func(string, string, string, string) error) *MockArtifactServiceInterface_DeleteArtifactByProjectIDAndSlug_Call {
 	_c.Call.Return(run)
 	return _c
 }

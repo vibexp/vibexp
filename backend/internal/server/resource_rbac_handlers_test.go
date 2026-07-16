@@ -143,9 +143,9 @@ func TestMemoryHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 // thing making a denial a 403.
 func TestArtifactHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 	art := svcmocks.NewMockArtifactServiceInterface(t)
-	art.EXPECT().GetArtifactByProjectIDAndSlug(resHUser, resHProject, "a").
+	art.EXPECT().GetArtifactByProjectIDAndSlugInTeam(resHUser, resHTeam, resHProject, "a").
 		Return(&models.Artifact{ID: "artifact-1", Slug: "a"}, nil).Once()
-	art.EXPECT().DeleteArtifactByProjectIDAndSlug(resHUser, resHProject, "a").
+	art.EXPECT().DeleteArtifactByProjectIDAndSlug(resHUser, resHTeam, resHProject, "a").
 		Return(services.ErrPermissionDenied).Once()
 
 	srv := createTestResourceRBACServer(t, &MockResourceRBACContainer{artifactService: art})
@@ -159,9 +159,9 @@ func TestArtifactHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 // as artifacts.
 func TestBlueprintHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 	bp := svcmocks.NewMockBlueprintServiceInterface(t)
-	bp.EXPECT().GetBlueprintByProjectIDAndSlug(resHUser, resHProject, "b").
+	bp.EXPECT().GetBlueprintByProjectIDAndSlugInTeam(resHUser, resHTeam, resHProject, "b").
 		Return(&models.Blueprint{ID: "blueprint-1", Slug: "b"}, nil).Once()
-	bp.EXPECT().DeleteBlueprintByProjectIDAndSlug(resHUser, resHProject, "b").
+	bp.EXPECT().DeleteBlueprintByProjectIDAndSlug(resHUser, resHTeam, resHProject, "b").
 		Return(services.ErrPermissionDenied).Once()
 
 	srv := createTestResourceRBACServer(t, &MockResourceRBACContainer{blueprintService: bp})
