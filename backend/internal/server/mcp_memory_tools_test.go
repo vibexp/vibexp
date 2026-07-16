@@ -209,23 +209,6 @@ func TestListMemoriesByProject_NonMemberTeamDenied(t *testing.T) {
 	mockMemoryService.AssertNotCalled(t, "ListMemories")
 }
 
-func TestListMemoriesByProject_FullDetailsRejected(t *testing.T) {
-	srv, mockMemoryService := newMemoryTestServer(t)
-
-	params := &ListMemoriesByProjectParams{TeamID: testTeamUUID, ProjectID: testProjectID, FullDetails: true}
-	result, structured, err := srv.listMemoriesByProject(context.Background(), nil, params, testMemberUserID)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if result == nil || !result.IsError {
-		t.Fatal("expected IsError=true when full_details=true")
-	}
-	if structured != nil {
-		t.Error("expected nil structured result")
-	}
-	mockMemoryService.AssertNotCalled(t, "ListMemories")
-}
-
 func TestGetMemory_Success(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
 

@@ -365,23 +365,6 @@ func TestListArtifactsByProject_NonMemberTeamDenied(t *testing.T) {
 	mockArtifactService.AssertNotCalled(t, "ListArtifactsByProject")
 }
 
-func TestListArtifactsByProject_FullDetailsRejected(t *testing.T) {
-	srv, mockArtifactService := newArtifactTestServer(t)
-
-	params := &ListArtifactsByProjectParams{TeamID: testTeamUUID, ProjectID: testArtifactProjectID, FullDetails: true}
-	result, structured, err := srv.listArtifactsByProject(context.Background(), nil, params, testMemberUserID)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if result == nil || !result.IsError {
-		t.Fatal("expected IsError=true when full_details=true")
-	}
-	if structured != nil {
-		t.Error("expected nil structured result")
-	}
-	mockArtifactService.AssertNotCalled(t, "ListArtifactsByProject")
-}
-
 // assertArtifactListJSONShape verifies content/version are always absent from search items.
 func assertArtifactListJSONShape(t *testing.T, result *mcp.CallToolResult) {
 	t.Helper()

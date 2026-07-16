@@ -39,7 +39,7 @@ const attachmentNotFoundText = "Attachment not found or not accessible."
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type UploadAttachmentParams struct {
-	TeamID            string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID            string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	OwnerType         string `json:"owner_type" jsonschema:"The attachable resource type the file belongs to, e.g. \"artifact\". Must be a supported owner type."`
 	OwnerID           string `json:"owner_id" jsonschema:"UUID of the owning resource (e.g. the artifact id) the file is attached to."`
 	FileName          string `json:"file_name" jsonschema:"File name including extension, e.g. \"report.pdf\". The extension must be in the allowlist (png, jpg, jpeg, gif, webp, pdf, txt, md, csv, json, docx, xlsx, zip)."`
@@ -50,7 +50,7 @@ type UploadAttachmentParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListAttachmentsParams struct {
-	TeamID    string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID    string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	OwnerType string `json:"owner_type" jsonschema:"The attachable resource type to list attachments for, e.g. \"artifact\"."`
 	OwnerID   string `json:"owner_id" jsonschema:"UUID of the owning resource whose attachments should be listed."`
 }
@@ -59,7 +59,7 @@ type ListAttachmentsParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type DeleteAttachmentParams struct {
-	TeamID       string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID       string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	AttachmentID string `json:"attachment_id" jsonschema:"UUID of the attachment to delete. The owning resource is resolved from the stored row and authorized before deletion."`
 }
 

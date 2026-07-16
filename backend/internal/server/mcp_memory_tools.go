@@ -47,7 +47,7 @@ type memorySearchResponse struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type StoreMemoryParams struct {
-	TeamID    string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID    string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID string                 `json:"project_id" jsonschema:"Project UUID — required; the project this memory belongs to"`
 	Text      string                 `json:"text" jsonschema:"Memory content/text"`
 	Status    string                 `json:"status,omitempty" jsonschema:"Lifecycle status: active (default), draft, or archived"`
@@ -58,28 +58,23 @@ type StoreMemoryParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListMemoriesByProjectParams struct {
-	TeamID      string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
-	ProjectID   string `json:"project_id" jsonschema:"Project UUID — required; scopes results to this project"`
-	Page        int    `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
-	Limit       int    `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
-	Search      string `json:"search,omitempty" jsonschema:"Search in memory text"`
-	Status      string `json:"status,omitempty" jsonschema:"Filter by lifecycle status: active, draft, or archived. Omit to hide archived"`
-	FullDetails bool   `json:"full_details,omitempty" jsonschema:"Not supported — search_memories always truncates text; use get_memory for full text"`
+	TeamID    string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
+	ProjectID string `json:"project_id" jsonschema:"Project UUID — required; scopes results to this project"`
+	Page      int    `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
+	Search    string `json:"search,omitempty" jsonschema:"Search in memory text"`
+	Status    string `json:"status,omitempty" jsonschema:"Filter by lifecycle status: active, draft, or archived. Omit to hide archived"`
 }
 
 // GetMemoryParams defines the parameters for getting a specific memory
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type GetMemoryParams struct {
-	TeamID   string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID   string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	MemoryID string `json:"memory_id" jsonschema:"Memory identifier"`
 }
 
 // UpdateMemoryParams defines the parameters for updating a specific memory
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type UpdateMemoryParams struct {
-	TeamID   string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID   string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	MemoryID string                 `json:"memory_id" jsonschema:"Memory identifier"`
 	Text     string                 `json:"text,omitempty" jsonschema:"New memory text"`
 	Status   string                 `json:"status,omitempty" jsonschema:"New lifecycle status: active, draft, or archived"`
@@ -192,7 +187,7 @@ func buildMemoryWriteResponse(frontendBaseURL, memoryID string) *memoryWriteResp
 
 // listMemoriesByProject implements the search_memories tool scoped to the resolved team.
 //
-//nolint:funlen // resolve team, reject full_details, normalize pagination, call service, truncate, marshal
+//nolint:funlen // resolve team, normalize pagination, call service, truncate, marshal
 func (s *Server) listMemoriesByProject(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
@@ -202,16 +197,6 @@ func (s *Server) listMemoriesByProject(
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
-	}
-
-	// search_memories never returns full text — reject full_details=true
-	if params.FullDetails {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "full_details is not supported on search_memories; call get_memory for full text"},
-			},
-			IsError: true,
-		}, nil, nil
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {

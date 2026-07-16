@@ -27,7 +27,7 @@ const (
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type SemanticSearchParams struct {
-	TeamID    string   `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID    string   `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	Query     string   `json:"query" jsonschema:"The natural-language search query. Required, max 1000 chars."`
 	Types     []string `json:"types,omitempty" jsonschema:"Subset of prompts,artifacts,blueprints,memories; omit for all."`
 	ProjectID string   `json:"project_id,omitempty" jsonschema:"Optional project UUID; restrict results to one project."`

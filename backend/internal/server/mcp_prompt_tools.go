@@ -19,7 +19,7 @@ import (
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type CreatePromptParams struct {
-	TeamID      string   `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID      string   `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID   string   `json:"project_id" jsonschema:"Project UUID — required"`
 	Name        string   `json:"name" jsonschema:"Human-readable prompt name (max 50 chars)"`
 	Slug        string   `json:"slug" jsonschema:"Unique identifier for the prompt (max 255 chars)"`
@@ -35,7 +35,7 @@ type CreatePromptParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type UpdatePromptParams struct {
-	TeamID      string   `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID      string   `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	Slug        string   `json:"slug" jsonschema:"Slug identifier of the prompt to update"`
 	Name        string   `json:"name,omitempty" jsonschema:"New name (max 50 chars)"`
 	Body        string   `json:"body,omitempty" jsonschema:"New body"`

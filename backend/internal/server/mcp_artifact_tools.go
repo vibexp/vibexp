@@ -20,7 +20,7 @@ import (
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type CreateArtifactParams struct {
-	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID   string                 `json:"project_id" jsonschema:"Project UUID — required"`
 	Slug        string                 `json:"slug" jsonschema:"Unique identifier for the artifact (max 255 chars)"`
 	Title       string                 `json:"title" jsonschema:"Human-readable artifact title (max 255 chars)"`
@@ -32,33 +32,26 @@ type CreateArtifactParams struct {
 }
 
 // ListArtifactsByProjectParams defines the parameters for listing artifacts by project
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListArtifactsByProjectParams struct {
-	TeamID      string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
-	ProjectID   string `json:"project_id" jsonschema:"Project UUID — required"`
-	Page        int    `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
-	Limit       int    `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
-	Status      string `json:"status,omitempty" jsonschema:"Filter by status"`
-	Type        string `json:"type,omitempty" jsonschema:"Filter by type"`
-	Search      string `json:"search,omitempty" jsonschema:"Search in title/description"`
-	FullDetails bool   `json:"full_details,omitempty" jsonschema:"Not supported — search_artifacts never returns full content; use get_artifact for full content"`
+	TeamID    string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
+	ProjectID string `json:"project_id" jsonschema:"Project UUID — required"`
+	Page      int    `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
+	Status    string `json:"status,omitempty" jsonschema:"Filter by status"`
+	Type      string `json:"type,omitempty" jsonschema:"Filter by type"`
+	Search    string `json:"search,omitempty" jsonschema:"Search in title/description"`
 }
 
 // GetArtifactParams defines the parameters for getting a specific artifact
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type GetArtifactParams struct {
-	TeamID    string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID    string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID string `json:"project_id" jsonschema:"Project UUID — required"`
 	Slug      string `json:"slug" jsonschema:"Artifact slug identifier"`
 }
 
 // UpdateArtifactParams defines the parameters for updating a specific artifact
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type UpdateArtifactParams struct {
-	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID   string                 `json:"project_id" jsonschema:"Project UUID — required"`
 	Slug        string                 `json:"slug" jsonschema:"Artifact slug identifier"`
 	Title       string                 `json:"title,omitempty" jsonschema:"New title"`
@@ -218,7 +211,7 @@ func buildArtifactSearchItems(artifacts []models.Artifact) []artifactSearchItem 
 
 // listArtifactsByProject implements the search_artifacts tool scoped to the resolved team.
 //
-//nolint:funlen // Must resolve team, reject full_details, validate project, call service, and marshal
+//nolint:funlen // Must resolve team, validate project, call service, and marshal
 func (s *Server) listArtifactsByProject(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
@@ -228,16 +221,6 @@ func (s *Server) listArtifactsByProject(
 	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
 	if errResult != nil {
 		return errResult, nil, nil
-	}
-
-	// search_artifacts never returns full content — reject full_details=true
-	if params.FullDetails {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "full_details is not supported on search_artifacts; call get_artifact for full content"},
-			},
-			IsError: true,
-		}, nil, nil
 	}
 
 	if r := validateProjectID(params.ProjectID); r != nil {
