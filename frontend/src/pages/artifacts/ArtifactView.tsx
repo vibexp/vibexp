@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
 import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
+import { CommentsPanel } from '@/components/comments/CommentsPanel'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { CopyButton } from '@/components/CopyButton'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -285,6 +286,14 @@ export function ArtifactView() {
 
           {currentTeam && (
             <AccessActivityPanel
+              teamId={currentTeam.id}
+              resourceType="artifact"
+              resourceId={artifact.id}
+            />
+          )}
+
+          {currentTeam && (
+            <CommentsPanel
               teamId={currentTeam.id}
               resourceType="artifact"
               resourceId={artifact.id}

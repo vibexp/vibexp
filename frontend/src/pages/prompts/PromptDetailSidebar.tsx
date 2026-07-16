@@ -1,5 +1,6 @@
 import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
 import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
+import { CommentsPanel } from '@/components/comments/CommentsPanel'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import {
   MetadataPanel,
@@ -80,6 +81,14 @@ export function PromptDetailSidebar({
 
       {teamId && (
         <AccessActivityPanel
+          teamId={teamId}
+          resourceType="prompt"
+          resourceId={prompt.id}
+        />
+      )}
+
+      {teamId && (
+        <CommentsPanel
           teamId={teamId}
           resourceType="prompt"
           resourceId={prompt.id}

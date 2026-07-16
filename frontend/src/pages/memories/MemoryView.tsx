@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
+import { CommentsPanel } from '@/components/comments/CommentsPanel'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { CopyButton } from '@/components/CopyButton'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -329,6 +330,14 @@ export function MemoryView() {
 
           {currentTeam && (
             <AccessActivityPanel
+              teamId={currentTeam.id}
+              resourceType="memory"
+              resourceId={memory.id}
+            />
+          )}
+
+          {currentTeam && (
+            <CommentsPanel
               teamId={currentTeam.id}
               resourceType="memory"
               resourceId={memory.id}
