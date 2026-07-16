@@ -8,6 +8,9 @@ export type Comment = components['schemas']['Comment']
 export type CreateCommentRequest = components['schemas']['CreateCommentRequest']
 export type UpdateCommentRequest = components['schemas']['UpdateCommentRequest']
 export type CommentListResponse = components['schemas']['CommentListResponse']
+export type RecentComment = components['schemas']['RecentComment']
+export type RecentCommentListResponse =
+  components['schemas']['RecentCommentListResponse']
 
 /**
  * The four resource kinds a comment can attach to. The wire type is a bare
@@ -70,6 +73,22 @@ class CommentService {
     await unwrap(
       generatedClient.DELETE('/api/v1/{team_id}/comments/{comment_id}', {
         params: { path: { team_id: teamId, comment_id: commentId } },
+      })
+    )
+  }
+
+  /**
+   * Team-wide recent comment activity (latest state per comment) for the
+   * homepage card. Rows carry the resource's resolved title + link fields, so
+   * links never go stale; the server omits rows whose resource has vanished.
+   */
+  async recent(
+    teamId: string,
+    limit?: number
+  ): Promise<RecentCommentListResponse> {
+    return unwrap(
+      generatedClient.GET('/api/v1/{team_id}/comments/recent', {
+        params: { path: { team_id: teamId }, query: { limit } },
       })
     )
   }

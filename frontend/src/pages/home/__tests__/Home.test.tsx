@@ -45,7 +45,11 @@ jest.mock('@/services/teamService', () => ({
     getTeamStats: jest.fn(),
     getTeamResourceCreationMetrics: jest.fn(),
     getTeamFeedCreationMetrics: jest.fn(),
+    getTeamMembers: jest.fn(),
   },
+}))
+jest.mock('@/services/commentService', () => ({
+  commentService: { recent: jest.fn() },
 }))
 jest.mock('@/services/agentService', () => ({
   agentService: { getAgentStats: jest.fn() },
@@ -80,6 +84,7 @@ jest.mock('@/pages/home/activityHelpers', () => ({
 import { activityService } from '@/services/activityService'
 import { agentService } from '@/services/agentService'
 import { aiToolsService } from '@/services/aiToolsService'
+import { commentService } from '@/services/commentService'
 import { feedService } from '@/services/feedService'
 import { teamService } from '@/services/teamService'
 
@@ -90,6 +95,7 @@ const mockFeed = feedService as jest.Mocked<typeof feedService>
 const mockTeam = teamService as jest.Mocked<typeof teamService>
 const mockAgent = agentService as jest.Mocked<typeof agentService>
 const mockAiTools = aiToolsService as jest.Mocked<typeof aiToolsService>
+const mockComment = commentService as jest.Mocked<typeof commentService>
 
 function makeStats(overrides: Partial<TeamStats> = {}): TeamStats {
   return {
@@ -175,6 +181,8 @@ function emptyMetrics() {
 function setup(stats: TeamStats = makeStats(), activities = [makeActivity()]) {
   mockActivity.getActivities.mockResolvedValue(activitiesResponse(activities))
   mockFeed.getFeedItems.mockResolvedValue(feedResponse([]))
+  mockComment.recent.mockResolvedValue({ comments: [], total_count: 0 })
+  mockTeam.getTeamMembers.mockResolvedValue([])
   mockTeam.getTeamStats.mockResolvedValue(stats)
   mockTeam.getTeamResourceCreationMetrics.mockResolvedValue(emptyMetrics())
   mockTeam.getTeamFeedCreationMetrics.mockResolvedValue(emptyMetrics())
@@ -293,8 +301,14 @@ describe('Home — activity', () => {
     })
     const feedHeading = await screen.findByText('Recent AI feed')
     const activityHeading = screen.getByText('Recent activity')
+    const commentsHeading = screen.getByText('Recent comments')
     expect(
       feedHeading.compareDocumentPosition(activityHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    // The recent-comments card is the third card, after the two existing ones.
+    expect(
+      activityHeading.compareDocumentPosition(commentsHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
   })
