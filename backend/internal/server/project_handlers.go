@@ -308,7 +308,7 @@ func (s *Server) validateProjectStringLength(w http.ResponseWriter, value string
 
 // decodeProjectSlug decodes URL-encoded slug
 func (s *Server) decodeProjectSlug(w http.ResponseWriter, userID, handler, slug string) (string, bool) {
-	decodedSlug, err := url.QueryUnescape(slug)
+	decodedSlug, err := url.PathUnescape(slug)
 	if err != nil {
 		s.logProjectError(w, handler, userID, slug, err,
 			"Failed to decode slug", "bad_request", "Invalid slug encoding", http.StatusBadRequest)
