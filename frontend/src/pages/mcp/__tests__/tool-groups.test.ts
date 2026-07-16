@@ -24,8 +24,8 @@ describe('getToolKind', () => {
   })
 
   it('classifies search/get/list tools as reads', () => {
-    expect(getToolKind(makeTool('vibexp_io_search_artifacts'))).toBe('read')
-    expect(getToolKind(makeTool('vibexp_io_get_memory'))).toBe('read')
+    expect(getToolKind(makeTool('vibexp_io_get_resource'))).toBe('read')
+    expect(getToolKind(makeTool('vibexp_io_list_resources'))).toBe('read')
     expect(getToolKind(makeTool('vibexp_io_list_teams'))).toBe('read')
   })
 })
@@ -51,6 +51,7 @@ describe('groupTools', () => {
     expect(groups.map(g => g.id)).toEqual([
       'artifacts',
       'memories',
+      'resources',
       'projects-feeds',
       'teams',
       'account',

@@ -69,6 +69,12 @@ const GROUP_DEFS: GroupDef[] = [
     match: name => name.includes('_memor'),
   },
   {
+    id: 'resources',
+    label: 'Resources',
+    icon: 'package',
+    match: name => name.includes('_resource'),
+  },
+  {
     id: 'projects-feeds',
     label: 'Projects & Feeds',
     icon: 'layout',
