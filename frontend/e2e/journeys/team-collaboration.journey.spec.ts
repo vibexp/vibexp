@@ -190,32 +190,29 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     })
 
     test('should open invite dialog', async ({ authenticatedPage }) => {
+      // Create the team this test needs rather than depending on one existing.
+      // This used to be wrapped in `if (count() > 0)` guards, so a missing team
+      // or a missing Invite button made the test pass while asserting nothing —
+      // the same silent-pass class of gap that let #251 ship (#252).
       await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.click('[data-testid="create-team-button"]')
+      await authenticatedPage.fill(
+        '[data-testid="team-name-input"]',
+        'Invite Dialog Test Team'
+      )
+      await authenticatedPage.click('[data-testid="submit-create-team-button"]')
 
-      // Find first team and navigate to it
-      const firstTeam = authenticatedPage
-        .locator('a[href*="/settings/teams/"]')
+      await authenticatedPage.click('text=Invite Dialog Test Team')
+
+      const inviteButton = authenticatedPage
+        .getByRole('button', { name: /invite|add member/i })
         .first()
+      await expect(inviteButton).toBeVisible({ timeout: 15000 })
+      await inviteButton.click()
 
-      if ((await firstTeam.count()) > 0) {
-        await firstTeam.click()
-        await authenticatedPage.waitForTimeout(1000)
-
-        // Click Invite Members
-        const inviteButton = authenticatedPage.locator(
-          'button:has-text("Invite"), button:has-text("Add Member")'
-        )
-
-        if ((await inviteButton.count()) > 0) {
-          await inviteButton.first().click()
-          await authenticatedPage.waitForTimeout(1000)
-
-          // Should see email input
-          await expect(
-            authenticatedPage.getByPlaceholder(/email/i)
-          ).toBeVisible()
-        }
-      }
+      await expect(authenticatedPage.getByPlaceholder(/email/i)).toBeVisible({
+        timeout: 15000,
+      })
     })
 
     test('should require valid email for invitation', async ({
