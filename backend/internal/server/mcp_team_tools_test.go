@@ -121,7 +121,8 @@ func TestAddAllTools_RegistersDiscoveryAndTeamScopedTools(t *testing.T) {
 		"vibexp_io_list_teams",
 		"vibexp_io_get_user",
 		"vibexp_io_create_artifact",
-		"vibexp_io_search_artifacts",
+		"vibexp_io_get_resource",
+		"vibexp_io_list_resources",
 		"vibexp_io_create_memory",
 		"vibexp_io_create_prompt",
 		"vibexp_io_update_prompt",
@@ -136,11 +137,10 @@ func TestAddAllTools_RegistersDiscoveryAndTeamScopedTools(t *testing.T) {
 	}
 }
 
-// TestSearchToolsOmitFullDetails guards the #260 "description diet": the
-// search_artifacts and search_memories tools no longer expose the dead
-// full_details parameter (it was documented unsupported and only ever
-// rejected). The functional feed full_details param is out of scope here.
-func TestSearchToolsOmitFullDetails(t *testing.T) {
+// TestUnifiedReadToolsReplacePerDomainReads guards the #261 consolidation: the
+// two generic read tools are registered and the four former per-domain read
+// tools are gone (their reads now flow through get_resource / list_resources).
+func TestUnifiedReadToolsReplacePerDomainReads(t *testing.T) {
 	srv := newServerWithNullLogger(t)
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
@@ -168,18 +168,23 @@ func TestSearchToolsOmitFullDetails(t *testing.T) {
 	listResult, err := clientSession.ListTools(ctx, nil)
 	require.NoError(t, err)
 
-	schemas := make(map[string]string, len(listResult.Tools))
+	toolNames := make(map[string]struct{}, len(listResult.Tools))
 	for _, tool := range listResult.Tools {
-		raw, marshalErr := json.Marshal(tool.InputSchema)
-		require.NoError(t, marshalErr)
-		schemas[tool.Name] = string(raw)
+		toolNames[tool.Name] = struct{}{}
 	}
 
-	for _, name := range []string{"vibexp_io_search_artifacts", "vibexp_io_search_memories"} {
-		schema, ok := schemas[name]
-		require.True(t, ok, "%s should be registered", name)
-		assert.NotContains(t, schema, "full_details", "%s must not expose the dead full_details param", name)
-		assert.Contains(t, schema, "team_id", "%s should still declare team_id", name)
+	for _, want := range []string{"vibexp_io_get_resource", "vibexp_io_list_resources"} {
+		_, ok := toolNames[want]
+		assert.True(t, ok, "unified read tool %s should be registered", want)
+	}
+	for _, gone := range []string{
+		"vibexp_io_get_artifact",
+		"vibexp_io_search_artifacts",
+		"vibexp_io_get_memory",
+		"vibexp_io_search_memories",
+	} {
+		_, ok := toolNames[gone]
+		assert.False(t, ok, "per-domain read tool %s should be removed", gone)
 	}
 }
 

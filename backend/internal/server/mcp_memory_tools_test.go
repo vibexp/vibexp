@@ -162,8 +162,8 @@ func TestListMemoriesByProject_Success(t *testing.T) {
 		}),
 	).Return(expectedResponse, nil)
 
-	params := &ListMemoriesByProjectParams{TeamID: testTeamUUID, ProjectID: testProjectID, Page: 1, Limit: 10}
-	result, structuredResult, err := srv.listMemoriesByProject(context.Background(), nil, params, testMemberUserID)
+	params := &ListResourcesParams{ResourceType: resourceTypeMemory, TeamID: testTeamUUID, ProjectID: testProjectID, Page: 1, Limit: 10}
+	result, structuredResult, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
 	assertListMemoriesResult(t, result, structuredResult, err)
 	mockMemoryService.AssertExpectations(t)
 }
@@ -197,8 +197,8 @@ func assertListMemoriesResult(t *testing.T, result *mcp.CallToolResult, structur
 func TestListMemoriesByProject_NonMemberTeamDenied(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
 
-	params := &ListMemoriesByProjectParams{TeamID: testOtherTeamSlug, ProjectID: testProjectID, Page: 1, Limit: 10}
-	result, structured, err := srv.listMemoriesByProject(context.Background(), nil, params, testMemberUserID)
+	params := &ListResourcesParams{ResourceType: resourceTypeMemory, TeamID: testOtherTeamSlug, ProjectID: testProjectID, Page: 1, Limit: 10}
+	result, structured, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -215,8 +215,8 @@ func TestGetMemory_Success(t *testing.T) {
 	expectedMemory := &models.Memory{ID: "test-memory-id", Text: "Test memory content"}
 	mockMemoryService.On("GetMemory", testMemberUserID, testTeamUUID, "test-memory-id").Return(expectedMemory, nil)
 
-	params := &GetMemoryParams{TeamID: testTeamUUID, MemoryID: "test-memory-id"}
-	result, structuredResult, err := srv.getMemory(context.Background(), nil, params, testMemberUserID)
+	params := &GetResourceParams{ResourceType: resourceTypeMemory, TeamID: testTeamUUID, ID: "test-memory-id"}
+	result, structuredResult, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -237,8 +237,8 @@ func TestGetMemory_RecordsAccessEvent(t *testing.T) {
 	expectedMemory := &models.Memory{ID: "test-memory-id", Text: "Test memory content"}
 	mockMemoryService.On("GetMemory", testMemberUserID, testTeamUUID, "test-memory-id").Return(expectedMemory, nil)
 
-	params := &GetMemoryParams{TeamID: testTeamUUID, MemoryID: "test-memory-id"}
-	_, _, err := srv.getMemory(context.Background(), nil, params, testMemberUserID)
+	params := &GetResourceParams{ResourceType: resourceTypeMemory, TeamID: testTeamUUID, ID: "test-memory-id"}
+	_, _, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -262,8 +262,8 @@ func TestGetMemory_RecordsAccessEvent(t *testing.T) {
 func TestGetMemory_NonMemberTeamDenied(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
 
-	params := &GetMemoryParams{TeamID: testOtherTeamUUID, MemoryID: "m"}
-	result, structured, err := srv.getMemory(context.Background(), nil, params, testMemberUserID)
+	params := &GetResourceParams{ResourceType: resourceTypeMemory, TeamID: testOtherTeamUUID, ID: "m"}
+	result, structured, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -280,8 +280,8 @@ func TestGetMemory_NotFound(t *testing.T) {
 	mockMemoryService.On("GetMemory", testMemberUserID, testTeamUUID, "nonexistent").
 		Return(nil, errors.New("not found"))
 
-	params := &GetMemoryParams{TeamID: testTeamUUID, MemoryID: "nonexistent"}
-	result, structuredResult, err := srv.getMemory(context.Background(), nil, params, testMemberUserID)
+	params := &GetResourceParams{ResourceType: resourceTypeMemory, TeamID: testTeamUUID, ID: "nonexistent"}
+	result, structuredResult, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -386,8 +386,8 @@ func TestListMemoriesByProject_InvalidProjectID(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, mockMemoryService := newMemoryTestServer(t)
 
-			params := &ListMemoriesByProjectParams{TeamID: testTeamUUID, ProjectID: tc.projectID, Page: 1, Limit: 10}
-			result, structured, err := srv.listMemoriesByProject(context.Background(), nil, params, testMemberUserID)
+			params := &ListResourcesParams{ResourceType: resourceTypeMemory, TeamID: testTeamUUID, ProjectID: tc.projectID, Page: 1, Limit: 10}
+			result, structured, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
 			if err != nil {
 				t.Errorf("unexpected function error: %v", err)
 			}
@@ -468,10 +468,10 @@ func TestUpdateMemory_InvalidStatus(t *testing.T) {
 func TestListMemoriesByProject_InvalidStatus(t *testing.T) {
 	srv, mockMemoryService := newMemoryTestServer(t)
 
-	params := &ListMemoriesByProjectParams{
+	params := &ListResourcesParams{ResourceType: resourceTypeMemory,
 		TeamID: testTeamUUID, ProjectID: testProjectID, Status: "bogus",
 	}
-	result, structured, err := srv.listMemoriesByProject(context.Background(), nil, params, testMemberUserID)
+	result, structured, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected function error: %v", err)
 	}

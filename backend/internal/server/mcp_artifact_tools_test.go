@@ -193,8 +193,8 @@ func TestGetArtifact_Success(t *testing.T) {
 		"GetArtifactByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testArtifactProjectID, "test-slug",
 	).Return(expectedArtifact, nil)
 
-	params := &GetArtifactParams{TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Slug: "test-slug"}
-	result, structuredResult, err := srv.getArtifact(context.Background(), nil, params, testMemberUserID)
+	params := &GetResourceParams{ResourceType: resourceTypeArtifact, TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Slug: "test-slug"}
+	result, structuredResult, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -217,8 +217,8 @@ func TestGetArtifact_RecordsAccessEvent(t *testing.T) {
 		"GetArtifactByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testArtifactProjectID, "test-slug",
 	).Return(expectedArtifact, nil)
 
-	params := &GetArtifactParams{TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Slug: "test-slug"}
-	_, _, err := srv.getArtifact(context.Background(), nil, params, testMemberUserID)
+	params := &GetResourceParams{ResourceType: resourceTypeArtifact, TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Slug: "test-slug"}
+	_, _, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -242,8 +242,8 @@ func TestGetArtifact_RecordsAccessEvent(t *testing.T) {
 func TestGetArtifact_NonMemberTeamDenied(t *testing.T) {
 	srv, mockArtifactService := newArtifactTestServer(t)
 
-	params := &GetArtifactParams{TeamID: testOtherTeamSlug, ProjectID: testArtifactProjectID, Slug: "s"}
-	result, structured, err := srv.getArtifact(context.Background(), nil, params, testMemberUserID)
+	params := &GetResourceParams{ResourceType: resourceTypeArtifact, TeamID: testOtherTeamSlug, ProjectID: testArtifactProjectID, Slug: "s"}
+	result, structured, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -261,8 +261,8 @@ func TestGetArtifact_NotFound(t *testing.T) {
 		"GetArtifactByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testArtifactProjectID, "nonexistent",
 	).Return(nil, errors.New("not found"))
 
-	params := &GetArtifactParams{TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Slug: "nonexistent"}
-	result, structured, err := srv.getArtifact(context.Background(), nil, params, testMemberUserID)
+	params := &GetResourceParams{ResourceType: resourceTypeArtifact, TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Slug: "nonexistent"}
+	result, structured, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -288,8 +288,8 @@ func TestGetArtifact_CrossTeamArtifactNotReturned(t *testing.T) {
 		"GetArtifactByProjectIDAndSlugInTeam", testMemberUserID, testTeamUUID, testArtifactProjectID, "in-other-team",
 	).Return(nil, errors.New("artifact not found"))
 
-	params := &GetArtifactParams{TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Slug: "in-other-team"}
-	result, structured, err := srv.getArtifact(context.Background(), nil, params, testMemberUserID)
+	params := &GetResourceParams{ResourceType: resourceTypeArtifact, TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Slug: "in-other-team"}
+	result, structured, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -316,8 +316,8 @@ func TestListArtifactsByProject_Success(t *testing.T) {
 		}),
 	).Return(expectedResponse, nil)
 
-	params := &ListArtifactsByProjectParams{TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Page: 1, Limit: 10}
-	result, structuredResult, err := srv.listArtifactsByProject(context.Background(), nil, params, testMemberUserID)
+	params := &ListResourcesParams{ResourceType: resourceTypeArtifact, TeamID: testTeamUUID, ProjectID: testArtifactProjectID, Page: 1, Limit: 10}
+	result, structuredResult, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
 	assertListArtifactsResult(t, result, structuredResult, err)
 	mockArtifactService.AssertExpectations(t)
 }
@@ -351,10 +351,10 @@ func assertListArtifactsResult(t *testing.T, result *mcp.CallToolResult, structu
 func TestListArtifactsByProject_NonMemberTeamDenied(t *testing.T) {
 	srv, mockArtifactService := newArtifactTestServer(t)
 
-	params := &ListArtifactsByProjectParams{
+	params := &ListResourcesParams{ResourceType: resourceTypeArtifact,
 		TeamID: testOtherTeamUUID, ProjectID: testArtifactProjectID, Page: 1, Limit: 10,
 	}
-	result, structured, err := srv.listArtifactsByProject(context.Background(), nil, params, testMemberUserID)
+	result, structured, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -408,8 +408,8 @@ func TestListArtifactsByProject_JSONShapeOmitsContentAndVersion(t *testing.T) {
 	mockArtifactService.On("ListArtifactsByProject", testMemberUserID, testArtifactProjectID3, mock.Anything).
 		Return(listResponse, nil)
 
-	params := &ListArtifactsByProjectParams{TeamID: testTeamUUID, ProjectID: testArtifactProjectID3, Page: 1, Limit: 10}
-	result, _, err := srv.listArtifactsByProject(context.Background(), nil, params, testMemberUserID)
+	params := &ListResourcesParams{ResourceType: resourceTypeArtifact, TeamID: testTeamUUID, ProjectID: testArtifactProjectID3, Page: 1, Limit: 10}
+	result, _, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -596,8 +596,8 @@ func TestListArtifactsByProject_InvalidProjectID(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, mockArtifactService := newArtifactTestServer(t)
 
-			params := &ListArtifactsByProjectParams{TeamID: testTeamUUID, ProjectID: tc.projectID, Page: 1, Limit: 10}
-			result, structured, err := srv.listArtifactsByProject(context.Background(), nil, params, testMemberUserID)
+			params := &ListResourcesParams{ResourceType: resourceTypeArtifact, TeamID: testTeamUUID, ProjectID: tc.projectID, Page: 1, Limit: 10}
+			result, structured, err := srv.listResources(context.Background(), nil, params, testMemberUserID)
 			if err != nil {
 				t.Errorf("unexpected function error: %v", err)
 			}
@@ -615,8 +615,8 @@ func TestGetArtifact_InvalidProjectID(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, mockArtifactService := newArtifactTestServer(t)
 
-			params := &GetArtifactParams{TeamID: testTeamUUID, ProjectID: tc.projectID, Slug: "any"}
-			result, structured, err := srv.getArtifact(context.Background(), nil, params, testMemberUserID)
+			params := &GetResourceParams{ResourceType: resourceTypeArtifact, TeamID: testTeamUUID, ProjectID: tc.projectID, Slug: "any"}
+			result, structured, err := srv.getResource(context.Background(), nil, params, testMemberUserID)
 			if err != nil {
 				t.Errorf("unexpected function error: %v", err)
 			}
