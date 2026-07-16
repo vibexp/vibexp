@@ -12914,7 +12914,7 @@
       },
       "get": {
         "summary": "List team invitations",
-        "description": "Returns all invitations for the team. The `token`, `team_name` and\n`invited_by` fields are not populated on this listing.\n",
+        "description": "Returns all invitations for the team, each with its `token` populated so\nan admin or owner can copy the accept link and share it out of band. The\n`team_name` and `invited_by` fields are not populated on this listing.\n",
         "operationId": "listTeamInvitations",
         "security": [
           {
@@ -12942,10 +12942,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InvitationResponse"
-                  }
+                  "$ref": "#/components/schemas/InvitationResponseList"
                 }
               }
             }
@@ -24024,6 +24021,13 @@
           "invited_by": {
             "$ref": "#/components/schemas/InviterInfo"
           }
+        }
+      },
+      "InvitationResponseList": {
+        "type": "array",
+        "description": "Bare list of team invitations returned by the list endpoint.",
+        "items": {
+          "$ref": "#/components/schemas/InvitationResponse"
         }
       },
       "InvitationDetailsResponse": {

@@ -25,7 +25,6 @@ import type {
   ChangeableTeamRole,
   Team,
   TeamInvitation,
-  TeamMember,
 } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 import { ApiError } from '@/types/errors'
@@ -33,7 +32,10 @@ import { ApiError } from '@/types/errors'
 import { DeleteTeamModal } from './DeleteTeamModal'
 import { EditTeamModal } from './EditTeamModal'
 import { InviteTeamMembersModal } from './InviteTeamMembersModal'
-import { mergeMembersAndInvitations } from './teamMemberMerge'
+import {
+  mergeMembersAndInvitations,
+  type RosterMember,
+} from './teamMemberMerge'
 import { TeamMembersList } from './TeamMembersList'
 import { TransferOwnershipModal } from './TransferOwnershipModal'
 
@@ -135,7 +137,7 @@ export function TeamDetailsPage() {
   const { user } = useAuth()
 
   const [team, setTeam] = useState<Team | null>(null)
-  const [members, setMembers] = useState<TeamMember[]>([])
+  const [members, setMembers] = useState<RosterMember[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showInviteModal, setShowInviteModal] = useState(false)
@@ -407,6 +409,7 @@ export function TeamDetailsPage() {
           members={members}
           canManageRoles={canManageRoles}
           canRemoveMember={canRemoveMember}
+          canCopyInviteLink={canInvite}
           onRemoveMember={canRemoveMember ? handleRemoveMember : undefined}
           onChangeRole={canManageRoles ? handleChangeRole : undefined}
         />

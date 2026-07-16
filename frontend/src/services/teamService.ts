@@ -48,8 +48,9 @@ export type InviteTeamMembersRequest = Omit<
 // identity + lifecycle fields (as the previous hand-written type asserted), so
 // re-require them here to avoid scattering fallbacks across ~12 consumers.
 //
-// `token` is deliberately NOT re-required: only the pending-invitations endpoint
-// returns it (see PendingTeamInvitation).
+// `token` stays optional: the pending-invitations and team-invitations lists
+// populate it, but the invite-members (POST) response omits it (#249), so the
+// shared type cannot require it (see PendingTeamInvitation).
 export type TeamInvitation = components['schemas']['InvitationResponse'] & {
   id: string
   team_id: string
@@ -58,11 +59,12 @@ export type TeamInvitation = components['schemas']['InvitationResponse'] & {
   created_at: string
   expires_at: string
 }
-// An invitation from GET /api/v1/invitations/pending, which is the only list that
-// carries the accept/reject token: `buildInvitationResponses` populates it, while
-// `convertInvitationsToResponses` (team list + invite-members) omits it. Requiring
-// `token` on the shared TeamInvitation asserted a field the wire never sends for
-// those other lists, so an accept driven off one would have posted "" (#251).
+// An invitation from GET /api/v1/invitations/pending. Both this and the
+// team-invitations list (GET /api/v1/teams/{id}/invitations) now carry the
+// accept token — `buildInvitationResponses` and the team-list builder populate
+// it (#249) — while `convertInvitationsToResponses` (the invite-members POST)
+// omits it. Requiring `token` on the shared TeamInvitation asserted a field the
+// invite-members wire never sends, so an accept driven off it posted "" (#251).
 export type PendingTeamInvitation = TeamInvitation & { token: string }
 // The `{ invitation }` wrapper (generated InvitationDetailsResponse), re-typed
 // so the wrapped value is the domain TeamInvitation.

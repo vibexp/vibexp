@@ -1,6 +1,14 @@
 import type { TeamInvitation, TeamMember } from '@/services/teamService'
 
 /**
+ * A roster row: an accepted member, or a pending invitation rendered in the same
+ * table. Pending rows carry `invitationToken` (populated by
+ * GET /api/v1/teams/{id}/invitations for callers holding `member.invite`) so the
+ * roster can offer a copyable accept link; accepted rows leave it undefined.
+ */
+export type RosterMember = TeamMember & { invitationToken?: string }
+
+/**
  * Canonical email key for de-dupe: trim then lower-case. Matches against
  * potential whitespace asymmetry between `members.email` and
  * `invitations.invitee_email` (the backend does not consistently normalize
@@ -25,7 +33,7 @@ const displayNameFromEmail = (email: string): string => {
  */
 export const pendingInvitationToMember = (
   invitation: TeamInvitation
-): TeamMember => {
+): RosterMember => {
   const email = invitation.invitee_email ?? ''
   return {
     user_id: `inv:${invitation.id}`,
@@ -34,6 +42,9 @@ export const pendingInvitationToMember = (
     role: invitation.role ?? 'member',
     joined_at: invitation.created_at,
     invitation_status: 'pending',
+    // Present only when the caller may see it (member.invite); the roster gates
+    // the copy action on both this and the permission.
+    invitationToken: invitation.token,
   }
 }
 
@@ -50,7 +61,7 @@ export const pendingInvitationToMember = (
 export const mergeMembersAndInvitations = (
   members: TeamMember[],
   invitations: TeamInvitation[]
-): TeamMember[] => {
+): RosterMember[] => {
   const acceptedEmails = new Set(
     members.map(m => canonEmail(m.email)).filter(e => e.length > 0)
   )

@@ -3,6 +3,7 @@ import { Calendar, Mail, Shield, Trash2, User } from 'lucide-react'
 import { useState } from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { CopyButton } from '@/components/CopyButton'
 import { DataTable } from '@/components/DataTable'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -17,15 +18,31 @@ import {
 } from '@/components/ui/select'
 import type { ChangeableTeamRole, TeamMember } from '@/services/teamService'
 
+import type { RosterMember } from './teamMemberMerge'
+
 interface TeamMembersListProps {
-  members: TeamMember[] | undefined
+  members: RosterMember[] | undefined
   /** Grants the member↔admin role dropdown (`member.role.update`). */
   canManageRoles?: boolean
   /** Grants the remove action (`member.remove`). */
   canRemoveMember?: boolean
+  /**
+   * Grants the per-row "Copy invite link" action on pending invitations
+   * (`member.invite` — the same permission that lets the server return the
+   * token). Convenience only: the token is server-gated regardless.
+   */
+  canCopyInviteLink?: boolean
   onRemoveMember?: (userId: string) => Promise<void>
   onChangeRole?: (userId: string, role: ChangeableTeamRole) => Promise<void>
 }
+
+/**
+ * Build the shareable accept link for a pending invitation — the same
+ * `/invitations/accept/:token` route the invitation email points at, made
+ * absolute so an admin can hand it over out of band.
+ */
+const inviteAcceptUrl = (token: string): string =>
+  `${window.location.origin}/invitations/accept/${encodeURIComponent(token)}`
 
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString('en-US', {
@@ -93,15 +110,17 @@ function RoleSelect({
 function buildColumns({
   managesMembers,
   canManageRoles,
+  canCopyInviteLink,
   onRemoveClick,
   onChangeRole,
 }: {
   managesMembers: boolean
   canManageRoles: boolean
+  canCopyInviteLink: boolean
   onRemoveClick?: (userId: string) => void
   onChangeRole?: (userId: string, role: ChangeableTeamRole) => void
-}): ColumnDef<TeamMember>[] {
-  const columns: ColumnDef<TeamMember>[] = [
+}): ColumnDef<RosterMember>[] {
+  const columns: ColumnDef<RosterMember>[] = [
     {
       accessorKey: 'name',
       header: 'Member',
@@ -188,26 +207,43 @@ function buildColumns({
     },
   })
 
-  if (onRemoveClick) {
+  if (onRemoveClick || canCopyInviteLink) {
     columns.push({
       id: 'actions',
       enableHiding: false,
       cell: ({ row }) => {
+        const member = row.original
+
         // Pending invitation rows have a synthetic user_id and no backend
-        // membership to remove — suppress the action so an owner can't trigger
-        // a 404 against /teams/{id}/members/{userId}. Revoking invitations is
-        // a separate flow, out of scope for this row.
-        if (row.original.role === 'owner') return null
-        if (row.original.invitation_status === 'pending') return null
+        // membership to remove — so instead of the Remove action (which would
+        // 404 against /teams/{id}/members/{userId}) they offer a copyable accept
+        // link, letting an admin hand the invite over when email never arrived.
+        if (member.invitation_status === 'pending') {
+          if (!canCopyInviteLink || !member.invitationToken) return null
+          return (
+            <div className="flex justify-end">
+              <CopyButton
+                value={inviteAcceptUrl(member.invitationToken)}
+                size="sm"
+                variant="outline"
+                label="Copy invite link"
+                testId={`copy-invite-link-${member.user_id}`}
+              />
+            </div>
+          )
+        }
+
+        if (!onRemoveClick) return null
+        if (member.role === 'owner') return null
         return (
           <div className="flex justify-end">
             <Button
               variant="ghost"
               size="icon"
-              aria-label={`Remove ${row.original.name}`}
+              aria-label={`Remove ${member.name}`}
               onClick={e => {
                 e.stopPropagation()
-                onRemoveClick(row.original.user_id)
+                onRemoveClick(member.user_id)
               }}
             >
               <Trash2 className="size-4" />
@@ -225,11 +261,14 @@ export function TeamMembersList({
   members,
   canManageRoles = false,
   canRemoveMember = false,
+  canCopyInviteLink = false,
   onRemoveMember,
   onChangeRole,
 }: TeamMembersListProps) {
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
-  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
+  const [selectedMember, setSelectedMember] = useState<RosterMember | null>(
+    null
+  )
   const [isRemoving, setIsRemoving] = useState(false)
 
   const handleRemoveClick = (userId: string) => {
@@ -269,6 +308,7 @@ export function TeamMembersList({
   const columns = buildColumns({
     managesMembers,
     canManageRoles,
+    canCopyInviteLink,
     onRemoveClick:
       canRemoveMember && onRemoveMember ? handleRemoveClick : undefined,
     onChangeRole: canManageRoles && onChangeRole ? handleChangeRole : undefined,
