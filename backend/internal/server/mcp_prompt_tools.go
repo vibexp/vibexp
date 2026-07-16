@@ -46,6 +46,19 @@ type UpdatePromptParams struct {
 	Labels      []string `json:"labels,omitempty" jsonschema:"Up to 10 labels (max 50 chars each)"`
 }
 
+// RenderPromptParams defines the parameters for the render_prompt tool, which
+// renders a published, MCP-exposed prompt by slug. It is the tool-based fallback
+// for prompts beyond the prompt-primitive cap (maxPromptPrimitives): every such
+// prompt is still reachable here even when it is not exposed as a slash-command
+// primitive.
+//
+//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
+type RenderPromptParams struct {
+	TeamID    string            `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
+	Slug      string            `json:"slug" jsonschema:"REQUIRED. Slug of the prompt to render (unique within the team)."`
+	Arguments map[string]string `json:"arguments,omitempty" jsonschema:"Values for the prompt's {{placeholders}}, keyed by placeholder name."`
+}
+
 // promptWriteResponse is the slim response returned by create/update prompt tools.
 type promptWriteResponse struct {
 	ID      string `json:"id"`
@@ -193,4 +206,66 @@ func marshalPromptWriteResult(baseURL string, prompt *models.Prompt) (*mcp.CallT
 		Content:           []mcp.Content{&mcp.TextContent{Text: string(jsonData)}},
 		StructuredContent: result,
 	}, result, nil
+}
+
+// renderPrompt implements the render_prompt tool: it renders a published,
+// MCP-exposed prompt by slug in the resolved team, substituting the given
+// argument values for its placeholders. The rendered body is returned as the
+// text content so a client can use it directly; the full render response
+// (including any missing placeholders / warnings) is the structured content.
+func (s *Server) renderPrompt(
+	ctx context.Context,
+	_ *mcp.CallToolRequest,
+	params *RenderPromptParams,
+	userID string,
+) (*mcp.CallToolResult, any, error) {
+	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
+	if errResult != nil {
+		return errResult, nil, nil
+	}
+
+	slug := strings.TrimSpace(params.Slug)
+	if slug == "" {
+		return mcpTextError("slug is required to render a prompt"), nil, nil
+	}
+
+	// render_prompt is the fallback for prompts eligible to be MCP primitives, so
+	// it must honor the same gate: only published, MCP-exposed prompts are
+	// renderable. This keeps mcp_expose=false (and drafts) out of MCP even though
+	// the caller supplies an explicit slug.
+	prompt, err := s.container.PromptService().GetPromptBySlug(userID, teamID, slug)
+	if err != nil {
+		slog.Error(
+			"Failed to load prompt for render via MCP",
+			"tool", "vibexp_io_render_prompt",
+			"user_id", userID,
+			"team_id", teamID,
+			"prompt_slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		)
+		return mcpTextError(fmt.Sprintf("Failed to render prompt: %v", err)), nil, nil
+	}
+	if prompt.Status != "published" || !prompt.MCPExpose {
+		return mcpTextError(fmt.Sprintf(
+			"prompt %q is not available for rendering: it must be published and MCP-exposed (mcp_expose=true)", slug,
+		)), nil, nil
+	}
+
+	rendered, err := s.container.PromptService().RenderPrompt(userID, teamID, slug, params.Arguments)
+	if err != nil {
+		slog.Error(
+			"Failed to render prompt via MCP",
+			"tool", "vibexp_io_render_prompt",
+			"user_id", userID,
+			"team_id", teamID,
+			"prompt_slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		)
+		return mcpTextError(fmt.Sprintf("Failed to render prompt: %v", err)), nil, nil
+	}
+
+	return &mcp.CallToolResult{
+		Content:           []mcp.Content{&mcp.TextContent{Text: rendered.RenderedBody}},
+		StructuredContent: rendered,
+	}, rendered, nil
 }

@@ -17,6 +17,15 @@ import (
 // to register their prompts. It matches the maximum allowed by ListTeams.
 const promptsListPageSize = 100
 
+// maxPromptPrimitives caps how many of a user's prompts are exposed as MCP prompt
+// primitives (slash commands) per session. This is the only unbounded part of the
+// MCP surface — a user with hundreds of mcp_expose prompts would otherwise inject
+// one primitive each into every client's context. Prompts beyond the cap remain
+// renderable via the vibexp_io_render_prompt tool. The cap is generous so the
+// common case (far fewer prompts) is unaffected; prompts are considered
+// most-recently-updated first (the prompt list's default order).
+const maxPromptPrimitives = 50
+
 // extractPromptArguments extracts placeholder arguments from prompt body
 func (s *Server) extractPromptArguments(body string, userID string) []*mcp.PromptArgument {
 	// Use the same logic as the prompt service to extract placeholders
@@ -69,8 +78,21 @@ func (s *Server) addUserPromptsToMCP(ctx context.Context, mcpServer *mcp.Server,
 		}
 
 		for i := range listResp.Teams {
+			if total >= maxPromptPrimitives {
+				break
+			}
 			team := &listResp.Teams[i]
-			total += s.addTeamPromptsToMCP(mcpServer, userID, team.ID, team.Slug, registered)
+			total += s.addTeamPromptsToMCP(
+				mcpServer, userID, team.ID, team.Slug, registered, maxPromptPrimitives-total,
+			)
+		}
+
+		if total >= maxPromptPrimitives {
+			s.logger.With(
+				"user_id", userID,
+				"cap", maxPromptPrimitives,
+			).Info("Prompt-primitive cap reached; remaining prompts are available via vibexp_io_render_prompt")
+			break
 		}
 
 		if page*promptsListPageSize >= listResp.TotalCount || len(listResp.Teams) == 0 {
@@ -85,18 +107,27 @@ func (s *Server) addUserPromptsToMCP(ctx context.Context, mcpServer *mcp.Server,
 	).Info("Added user prompts to MCP server across teams")
 }
 
-// addTeamPromptsToMCP registers one team's published, MCP-exposed prompts and
-// returns the number registered. The registered set tracks names already taken
-// so cross-team slug collisions are disambiguated with the team slug.
+// addTeamPromptsToMCP registers up to limit of one team's published, MCP-exposed
+// prompts (most-recently-updated first) as prompt primitives and returns the
+// number registered. The registered set tracks names already taken so cross-team
+// slug collisions are disambiguated with the team slug. limit is the remaining
+// per-user primitive budget (see maxPromptPrimitives); prompts beyond it stay
+// renderable via vibexp_io_render_prompt.
 func (s *Server) addTeamPromptsToMCP(
-	mcpServer *mcp.Server, userID, teamID, teamSlug string, registered map[string]struct{},
+	mcpServer *mcp.Server, userID, teamID, teamSlug string, registered map[string]struct{}, limit int,
 ) int {
+	if limit <= 0 {
+		return 0
+	}
+
 	mcpExposeTrue := true
 	filters := services.PromptFilters{
 		Status:    "published",
 		MCPExpose: &mcpExposeTrue,
 		UserID:    userID,
 		TeamID:    teamID,
+		SortBy:    "updated_at",
+		SortOrder: "desc",
 		Page:      1,
 		Limit:     10000,
 	}
@@ -113,6 +144,9 @@ func (s *Server) addTeamPromptsToMCP(
 
 	count := 0
 	for _, prompt := range promptResponse.Prompts {
+		if count >= limit {
+			break
+		}
 		name := uniquePromptName(prompt.Slug, teamSlug, registered)
 		registered[name] = struct{}{}
 
