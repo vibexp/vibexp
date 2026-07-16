@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
 
@@ -157,7 +158,17 @@ func (s *Server) handleSharedPromptError(w http.ResponseWriter, r *http.Request,
 
 // handleGetSharedPrompt retrieves a shared prompt by token (public endpoint)
 func (s *Server) handleGetSharedPrompt(w http.ResponseWriter, r *http.Request) {
-	shareToken := chi.URLParam(r, "token")
+	// Decode the path parameter: chi routes on the encoded RawPath, so a token
+	// carrying a percent-encoded character would arrive still-encoded and miss
+	// the exact-match lookup (the #251 failure mode). Tokens are unpadded
+	// base64url and thus URL-safe by construction (see generateShareToken), so
+	// this is belt-and-suspenders that matches the invitation handlers and turns
+	// a malformed escape into a clean 400 rather than a silent lookup miss.
+	shareToken, decodeErr := url.PathUnescape(chi.URLParam(r, "token"))
+	if decodeErr != nil {
+		writeErrorResponse(w, r, "bad_request", "Invalid share token encoding", http.StatusBadRequest)
+		return
+	}
 
 	// Extract user email from context if authenticated
 	var userEmail *string

@@ -39,11 +39,17 @@ func (s *PromptShareService) generateShareToken() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("failed to generate random token: %w", err)
 	}
-	token := base64.URLEncoding.EncodeToString(b)
-	// Truncate to 43 characters for URL-safe token
-	if len(token) > 43 {
-		token = token[:43]
-	}
+	// RawURLEncoding is unpadded by construction: 32 bytes (256 bits) encode to
+	// exactly 43 URL-safe characters ([A-Za-z0-9_-]) with no '=' padding. That
+	// matters because the token is a path parameter — chi routes on the encoded
+	// RawPath, so any '=' a client percent-encodes to %3D would arrive still
+	// encoded and miss the exact-match lookup (the #251 failure mode). The old
+	// scheme padded (base64.URLEncoding) then truncated to 43 chars, which was
+	// URL-safe only by the accident of chopping the '=' padding. Truncating the
+	// padding loses no entropy (it is not data), and RawURLEncoding produces the
+	// identical 43 characters, so already-issued tokens keep resolving — this
+	// just makes the URL-safety intentional instead of incidental.
+	token := base64.RawURLEncoding.EncodeToString(b)
 	return token, nil
 }
 

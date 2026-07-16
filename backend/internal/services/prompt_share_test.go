@@ -68,13 +68,18 @@ func TestPromptShareService_generateShareToken(t *testing.T) {
 	promptRepo := mocks.NewMockPromptRepository(t)
 	service := createTestPromptShareService(shareRepo, promptRepo)
 
-	// Generate multiple tokens to verify uniqueness
+	// Generate multiple tokens to verify uniqueness and that each is URL-safe by
+	// construction (#257): unpadded base64url, so nothing a client would need to
+	// percent-encode — the path-param read stays exact-match safe without relying
+	// on the old padded-then-truncated accident.
 	tokens := make(map[string]bool)
 	for i := 0; i < 100; i++ {
 		token, err := service.generateShareToken()
 		assert.NoError(t, err)
 		assert.NotEmpty(t, token)
 		assert.Len(t, token, 43)
+		assert.NotContains(t, token, "=", "token must be unpadded (RawURLEncoding), not padded base64")
+		assert.Regexp(t, "^[A-Za-z0-9_-]+$", token, "token must use only URL-safe base64url characters")
 		assert.False(t, tokens[token], "Token should be unique")
 		tokens[token] = true
 	}

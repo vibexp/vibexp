@@ -142,7 +142,7 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 	projectID := chi.URLParam(r, "project_id")
 
-	decodedProjectID, err := url.QueryUnescape(projectID)
+	decodedProjectID, err := url.PathUnescape(projectID)
 	if err != nil {
 		s.logBlueprintError(w, "handleListBlueprintsByProject", userID, projectID, "", err,
 			"Failed to decode project ID", "bad_request", "Invalid project ID encoding", http.StatusBadRequest)
@@ -628,14 +628,14 @@ func (s *Server) handleCreateBlueprintError(w http.ResponseWriter, userID string
 // decodeBlueprintURLParams decodes URL-encoded project ID and slug
 func (s *Server) decodeBlueprintURLParams(w http.ResponseWriter, userID, handler, projectID, slug string) (
 	string, string, bool) {
-	decodedProjectID, err := url.QueryUnescape(projectID)
+	decodedProjectID, err := url.PathUnescape(projectID)
 	if err != nil {
 		s.logBlueprintError(w, handler, userID, projectID, "", err,
 			"Failed to decode project ID", "bad_request", "Invalid project ID encoding", http.StatusBadRequest)
 		return "", "", false
 	}
 
-	decodedSlug, err := url.QueryUnescape(slug)
+	decodedSlug, err := url.PathUnescape(slug)
 	if err != nil {
 		s.logBlueprintError(w, handler, userID, "", slug, err,
 			"Failed to decode slug", "bad_request", "Invalid slug encoding", http.StatusBadRequest)
