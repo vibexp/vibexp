@@ -20,6 +20,7 @@ type TeamService struct {
 	teamMemberRepo repositories.TeamMemberRepository
 	userRepo       repositories.UserRepository
 	authz          AuthorizationServiceInterface
+	commentRepo    repositories.CommentRepository
 	logger         *slog.Logger
 }
 
@@ -30,6 +31,7 @@ func NewTeamService(
 	userRepo repositories.UserRepository,
 	authz AuthorizationServiceInterface,
 	logger *slog.Logger,
+	commentRepo repositories.CommentRepository,
 ) *TeamService {
 	if logger == nil {
 		logger = logging.New(logging.Config{})
@@ -39,6 +41,7 @@ func NewTeamService(
 		teamMemberRepo: teamMemberRepo,
 		userRepo:       userRepo,
 		authz:          authz,
+		commentRepo:    commentRepo,
 		logger:         logger,
 	}
 }
@@ -658,6 +661,21 @@ func (s *TeamService) RemoveTeamMember(ctx context.Context, userID, teamID, memb
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to remove team member")
 		return fmt.Errorf("failed to remove team member: %w", err)
+	}
+
+	// Delete the departing member's comments in this team (app-level cascade;
+	// their comments elsewhere are untouched). Best-effort: a failure is logged
+	// but does not fail the completed removal.
+	if s.commentRepo != nil {
+		if _, err := s.commentRepo.DeleteByUser(ctx, teamID, memberUserID); err != nil {
+			s.logger.With(
+				"service", "vibexp-api",
+				"component", "team-service",
+				"team_id", teamID,
+				"member_id", memberUserID,
+				"error", fmt.Sprintf("%+v", err),
+			).Warn("Failed to delete comments for removed team member")
+		}
 	}
 
 	s.logger.With(

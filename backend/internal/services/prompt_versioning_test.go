@@ -92,7 +92,7 @@ func TestPromptService_UpdateSnapshotsOldBody(t *testing.T) {
 					Once()
 			}
 
-			svc := services.NewPromptService(repo, refRepo, nil, nil, nil, permissiveAuthz(t), nil, logger, cvs)
+			svc := services.NewPromptService(repo, refRepo, nil, nil, nil, permissiveAuthz(t), nil, logger, cvs, nil)
 
 			body := tt.newBody
 			_, err := svc.UpdatePrompt(userID, teamID, promptID, &models.UpdatePromptRequest{Body: &body})
@@ -142,7 +142,7 @@ func TestPromptService_RestoreSnapshotsAsSystem(t *testing.T) {
 	repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 	refRepo.EXPECT().DeleteByPromptID(mock.Anything, promptID).Return(nil).Once()
 
-	svc := services.NewPromptService(repo, refRepo, nil, nil, nil, permissiveAuthz(t), nil, logger, cvs)
+	svc := services.NewPromptService(repo, refRepo, nil, nil, nil, permissiveAuthz(t), nil, logger, cvs, nil)
 	restored, err := svc.RestorePromptVersion(userID, teamID, slug, 2)
 	require.NoError(t, err)
 	require.Equal(t, "v2 {{x}}", restored.Body)
@@ -169,7 +169,7 @@ func TestPromptService_ListAndGetVersionsScopeByTeam(t *testing.T) {
 		want := []*models.ContentVersion{{VersionNumber: 1}}
 		cvs.EXPECT().ListVersions(mock.Anything, teamID, "prompt", id).Return(want, nil).Once()
 
-		svc := services.NewPromptService(repo, nil, nil, nil, nil, permissiveAuthz(t), nil, logger, cvs)
+		svc := services.NewPromptService(repo, nil, nil, nil, nil, permissiveAuthz(t), nil, logger, cvs, nil)
 		got, err := svc.ListPromptVersions(userID, teamID, slug)
 		require.NoError(t, err)
 		require.Equal(t, want, got)
@@ -185,7 +185,7 @@ func TestPromptService_ListAndGetVersionsScopeByTeam(t *testing.T) {
 		want := &models.ContentVersion{VersionNumber: 3}
 		cvs.EXPECT().GetVersion(mock.Anything, teamID, "prompt", id, 3).Return(want, nil).Once()
 
-		svc := services.NewPromptService(repo, nil, nil, nil, nil, permissiveAuthz(t), nil, logger, cvs)
+		svc := services.NewPromptService(repo, nil, nil, nil, nil, permissiveAuthz(t), nil, logger, cvs, nil)
 		got, err := svc.GetPromptVersion(userID, teamID, slug, 3)
 		require.NoError(t, err)
 		require.Equal(t, want, got)

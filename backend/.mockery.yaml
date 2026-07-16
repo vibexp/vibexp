@@ -14,6 +14,7 @@ packages:
       WorkReportServiceInterface:
       ArtifactServiceInterface:
       AttachmentServiceInterface:
+      CommentServiceInterface:
       TypeServiceInterface:
       BlueprintServiceInterface:
       EmbeddingProviderServiceInterface:
@@ -53,6 +54,7 @@ packages:
       WorkReportRepository:
       ArtifactRepository:
       AttachmentRepository:
+      CommentRepository:
       TypeRepository:
       BlueprintRepository:
       EmbeddingProviderRepository:

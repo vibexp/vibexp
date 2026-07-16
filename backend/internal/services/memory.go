@@ -19,6 +19,7 @@ type MemoryService struct {
 	authz             AuthorizationServiceInterface
 	eventManager      events.EventPublisher
 	contentVersionSvc ContentVersionServiceInterface
+	commentRepo       repositories.CommentRepository
 	logger            *slog.Logger
 }
 
@@ -32,6 +33,7 @@ func NewMemoryService(
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
+	commentRepo repositories.CommentRepository,
 ) *MemoryService {
 	return &MemoryService{
 		repo:              repo,
@@ -39,6 +41,7 @@ func NewMemoryService(
 		authz:             authzService,
 		eventManager:      eventManager,
 		contentVersionSvc: contentVersionSvc,
+		commentRepo:       commentRepo,
 		logger:            logger,
 	}
 }
@@ -318,7 +321,31 @@ func (s *MemoryService) DeleteMemory(userID, teamID, memoryID string) error {
 		return authzErr
 	}
 
-	return s.repo.Delete(ctx, userID, teamID, memoryID)
+	if err := s.repo.Delete(ctx, userID, teamID, memoryID); err != nil {
+		return err
+	}
+
+	s.deleteMemoryComments(ctx, teamID, memoryID)
+
+	return nil
+}
+
+// deleteMemoryComments removes a memory's comments after it is deleted.
+// Best-effort: a failure is logged but does not fail the completed delete.
+func (s *MemoryService) deleteMemoryComments(ctx context.Context, teamID, memoryID string) {
+	if s.commentRepo == nil {
+		return
+	}
+	if _, err := s.commentRepo.DeleteByResource(
+		ctx, teamID, models.CommentResourceTypeMemory, memoryID,
+	); err != nil {
+		s.logger.With(
+			"service", "memory",
+			"team_id", teamID,
+			"memory_id", memoryID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete comments for deleted memory")
+	}
 }
 
 func (s *MemoryService) SearchMemoriesByMetadata(

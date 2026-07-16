@@ -20,6 +20,7 @@ type ArtifactService struct {
 	eventManager      events.EventPublisher
 	resourceUsageSvc  ResourceUsageServiceInterface
 	contentVersionSvc ContentVersionServiceInterface
+	commentRepo       repositories.CommentRepository
 	logger            *slog.Logger
 }
 
@@ -34,6 +35,7 @@ func NewArtifactService(
 	resourceUsageSvc ResourceUsageServiceInterface,
 	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
+	commentRepo repositories.CommentRepository,
 ) *ArtifactService {
 	return &ArtifactService{
 		repo:              repo,
@@ -42,6 +44,7 @@ func NewArtifactService(
 		eventManager:      eventManager,
 		resourceUsageSvc:  resourceUsageSvc,
 		contentVersionSvc: contentVersionSvc,
+		commentRepo:       commentRepo,
 		logger:            logger,
 	}
 }
@@ -508,7 +511,28 @@ func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, proje
 		return err
 	}
 
+	s.deleteArtifactComments(ctx, artifact.TeamID, artifact.ID)
+
 	return nil
+}
+
+// deleteArtifactComments removes an artifact's comments after it is deleted.
+// Best-effort (like attachment/embedding cleanup): a failure is logged but does
+// not fail the already-completed artifact delete.
+func (s *ArtifactService) deleteArtifactComments(ctx context.Context, teamID, artifactID string) {
+	if s.commentRepo == nil {
+		return
+	}
+	if _, err := s.commentRepo.DeleteByResource(
+		ctx, teamID, models.CommentResourceTypeArtifact, artifactID,
+	); err != nil {
+		s.logger.With(
+			"service", "artifact",
+			"team_id", teamID,
+			"artifact_id", artifactID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete comments for deleted artifact")
+	}
 }
 
 // ListArtifactVersionsInTeam returns the content-version history for a team-scoped

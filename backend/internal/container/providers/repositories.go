@@ -48,6 +48,11 @@ func ProvideAttachmentRepository(db *database.DB) repositories.AttachmentReposit
 	return postgres.NewAttachmentRepository(db)
 }
 
+// ProvideCommentRepository creates a new CommentRepository
+func ProvideCommentRepository(db *database.DB) repositories.CommentRepository {
+	return postgres.NewCommentRepository(db)
+}
+
 // ProvideTypeRepository creates a new TypeRepository
 func ProvideTypeRepository(db *database.DB) repositories.TypeRepository {
 	return postgres.NewTypeRepository(db)

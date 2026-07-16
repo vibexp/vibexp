@@ -28,6 +28,7 @@ type PromptService struct {
 	authz             AuthorizationServiceInterface
 	eventManager      events.EventPublisher
 	contentVersionSvc ContentVersionServiceInterface
+	commentRepo       repositories.CommentRepository
 	logger            *slog.Logger
 }
 
@@ -44,6 +45,7 @@ func NewPromptService(
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
+	commentRepo repositories.CommentRepository,
 ) *PromptService {
 	return &PromptService{
 		repo:              repo,
@@ -54,6 +56,7 @@ func NewPromptService(
 		authz:             authzService,
 		eventManager:      eventManager,
 		contentVersionSvc: contentVersionSvc,
+		commentRepo:       commentRepo,
 		logger:            logger,
 	}
 }
@@ -565,6 +568,8 @@ func (s *PromptService) deleteFetchedPrompt(
 		return err
 	}
 
+	s.deletePromptComments(ctx, teamID, promptID)
+
 	s.logger.With(
 		"prompt_id", promptID,
 		"user_id", userID,
@@ -572,6 +577,24 @@ func (s *PromptService) deleteFetchedPrompt(
 	).Info("Prompt deleted successfully")
 
 	return nil
+}
+
+// deletePromptComments removes a prompt's comments after it is deleted.
+// Best-effort: a failure is logged but does not fail the completed delete.
+func (s *PromptService) deletePromptComments(ctx context.Context, teamID, promptID string) {
+	if s.commentRepo == nil {
+		return
+	}
+	if _, err := s.commentRepo.DeleteByResource(
+		ctx, teamID, models.CommentResourceTypePrompt, promptID,
+	); err != nil {
+		s.logger.With(
+			"service", "prompt",
+			"team_id", teamID,
+			"prompt_id", promptID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete comments for deleted prompt")
+	}
 }
 
 func (s *PromptService) RenderPrompt(

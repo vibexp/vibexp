@@ -101,6 +101,10 @@ var (
 	// when no attachment row matches the given identifier for the owner.
 	ErrAttachmentNotFound = errors.New("attachment not found")
 
+	// ErrCommentNotFound is returned by CommentRepository lookups/updates/deletes
+	// when no comment row matches the given identifier for the team.
+	ErrCommentNotFound = errors.New("comment not found")
+
 	// ErrBlueprintNotFound is returned by BlueprintRepository lookups/deletes when no
 	// blueprint row matches the given identifier for the user/team.
 	ErrBlueprintNotFound = errors.New("blueprint not found")
@@ -1185,6 +1189,47 @@ type AttachmentRepository interface {
 	// the deleted rows so the caller can delete the corresponding objects from
 	// storage.
 	DeleteByOwner(ctx context.Context, ownerType, ownerID string) ([]models.Attachment, error)
+}
+
+// CommentRepository persists team-visible resource comments, keyed by the
+// polymorphic (resource_type, resource_id) pair. resource_id has no DB foreign
+// key (it spans four resource tables), so a resource's comments are removed in
+// app code (DeleteByResource) when the resource is deleted. Every query is
+// scoped by team_id (tenancy only, no role predicates — decision D3); the
+// own-vs-any and author-only decisions live in the service layer.
+type CommentRepository interface {
+	// Create inserts a comment row, populating its ID, CreatedAt and UpdatedAt
+	// from the persisted row on return.
+	Create(ctx context.Context, comment *models.Comment) error
+	// GetByID returns the comment with the given id scoped to teamID; it returns
+	// ErrCommentNotFound when no such row exists in the team.
+	GetByID(ctx context.Context, teamID, id string) (*models.Comment, error)
+	// ListByResource returns a page of comments for (resourceType, resourceID)
+	// within teamID, newest-first, together with the total count.
+	ListByResource(
+		ctx context.Context, teamID, resourceType, resourceID string, page, limit int,
+	) ([]models.Comment, int, error)
+	// ListRecentByTeam returns up to limit comments across the team ordered by
+	// latest activity (GREATEST(created_at, updated_at) DESC), each enriched with
+	// its resource's resolved title and link fields. Comments whose resource has
+	// been deleted are omitted.
+	ListRecentByTeam(ctx context.Context, teamID string, limit int) ([]models.CommentActivity, error)
+	// UpdateContent sets the content (and updated_at) of the comment with the
+	// given id in teamID, returning the updated row. It returns ErrCommentNotFound
+	// when no such row exists. Author enforcement is done in the service layer.
+	UpdateContent(ctx context.Context, teamID, id, content string) (*models.Comment, error)
+	// Delete removes the comment with the given id scoped to teamID; it returns
+	// ErrCommentNotFound when no row was deleted.
+	Delete(ctx context.Context, teamID, id string) error
+	// DeleteByResource removes every comment for (resourceType, resourceID) within
+	// teamID. Used by the resource-delete cascade; a zero count is not an error.
+	DeleteByResource(ctx context.Context, teamID, resourceType, resourceID string) (int64, error)
+	// DeleteByUser removes every comment authored by userID within teamID. Used by
+	// the team-member-removal cascade; a zero count is not an error.
+	DeleteByUser(ctx context.Context, teamID, userID string) (int64, error)
+	// ResourceExists reports whether a resource of resourceType with resourceID
+	// exists in teamID, used to reject a comment on a non-existent/foreign resource.
+	ResourceExists(ctx context.Context, teamID, resourceType, resourceID string) (bool, error)
 }
 
 // TypeRepository persists the resource-type-agnostic, team-customizable type

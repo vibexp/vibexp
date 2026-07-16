@@ -467,6 +467,36 @@ type FeedItemReplyServiceInterface interface {
 	) ([]repositories.FeedItemReplyPoster, error)
 }
 
+// CommentServiceInterface is the service surface for team-visible resource
+// comments (issue #273). Create is open to any team member; Update is strictly
+// author-only (no role may edit another's comment); Delete is own-vs-any
+// (members delete their own, Admin+ delete any). Comments are never embedded or
+// exposed over MCP by construction.
+type CommentServiceInterface interface {
+	// Create adds a comment on a resource, after checking the caller may create
+	// resources in the team and that the target resource exists in the team.
+	Create(
+		ctx context.Context, userID, teamID string, req *models.CreateCommentRequest,
+	) (*models.Comment, error)
+	// Update edits a comment's content. Only the comment's author may edit it.
+	Update(
+		ctx context.Context, userID, teamID, commentID string, req *models.UpdateCommentRequest,
+	) (*models.Comment, error)
+	// Delete removes a comment: the author may delete their own; Admin/Owner may
+	// delete any comment in the team.
+	Delete(ctx context.Context, userID, teamID, commentID string) error
+	// ListByResource returns a page of a resource's comments, newest-first, for a
+	// team member.
+	ListByResource(
+		ctx context.Context, userID, teamID, resourceType, resourceID string, page, limit int,
+	) (*models.CommentListResponse, error)
+	// ListRecentByTeam returns the team's most recent comment activity, each row
+	// enriched with its resource's resolved title and link fields.
+	ListRecentByTeam(
+		ctx context.Context, userID, teamID string, limit int,
+	) ([]models.CommentActivity, error)
+}
+
 // FeedFilters represents filters for feed service queries
 type FeedFilters struct {
 	TeamID string

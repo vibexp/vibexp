@@ -176,6 +176,10 @@ func (b *BaseMockContainer) AttachmentService() services.AttachmentServiceInterf
 	return nil
 }
 
+func (b *BaseMockContainer) CommentService() services.CommentServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) TypeService() services.TypeServiceInterface {
 	return nil
 }
