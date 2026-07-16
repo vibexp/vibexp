@@ -727,6 +727,20 @@ components:
     TypeListResponse:
       $ref: "./schemas/types.yaml#/TypeListResponse"
 
+    # Import resource comment schemas
+    Comment:
+      $ref: "./schemas/comments.yaml#/Comment"
+    CreateCommentRequest:
+      $ref: "./schemas/comments.yaml#/CreateCommentRequest"
+    UpdateCommentRequest:
+      $ref: "./schemas/comments.yaml#/UpdateCommentRequest"
+    CommentListResponse:
+      $ref: "./schemas/comments.yaml#/CommentListResponse"
+    RecentComment:
+      $ref: "./schemas/comments.yaml#/RecentComment"
+    RecentCommentListResponse:
+      $ref: "./schemas/comments.yaml#/RecentCommentListResponse"
+
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
 #   EmbeddingProvider, EmbeddingProviderResponse, CreateEmbeddingProviderRequest,
@@ -1032,6 +1046,12 @@ paths:
     $ref: "./paths/types.yaml#/api-v1-team_id-types"
   /api/v1/{team_id}/types/{id}:
     $ref: "./paths/types.yaml#/api-v1-team_id-types-id"
+  /api/v1/{team_id}/comments:
+    $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
+  /api/v1/{team_id}/comments/recent:
+    $ref: "./paths/comments.yaml#/api-v1-team_id-comments-recent"
+  /api/v1/{team_id}/comments/{comment_id}:
+    $ref: "./paths/comments.yaml#/api-v1-team_id-comments-comment_id"
   /api/v1/{team_id}/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers"
   /api/v1/{team_id}/embedding-providers/coverage:
@@ -1160,6 +1180,8 @@ tags:
     description: In-app notification endpoints for the authenticated user
   - name: Types
     description: Team-customizable resource categories (artifact types, etc.)
+  - name: Comments
+    description: Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)
   - name: User
     description: User account, onboarding, and device registration endpoints
   - name: Team Invitations

@@ -28,6 +28,7 @@ import (
 	"github.com/vibexp/vibexp/internal/observability/tracing"
 	"github.com/vibexp/vibexp/internal/repositories/postgres"
 	"github.com/vibexp/vibexp/internal/server/gen"
+	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
 	"github.com/vibexp/vibexp/internal/services"
@@ -612,6 +613,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupArtifactsRoutes(r)
 		s.setupAttachmentsRoutes(r)
 		s.setupTypesRoutes(r)
+		s.setupCommentsRoutes(r)
 		s.setupBlueprintRoutes(r)
 		s.setupMemoriesRoutes(r)
 		s.setupProjectsRoutes(r)
@@ -817,6 +819,27 @@ func (s *Server) setupTypesRoutes(r chi.Router) {
 		typesgen.HandlerWithOptions(strict, typesgen.ChiServerOptions{
 			BaseRouter:       gr,
 			ErrorHandlerFunc: s.typesBindErrorHandler,
+		})
+	})
+}
+
+// setupCommentsRoutes mounts the generated Comments strict-server handler under
+// the team-scoped /api/v1/{team_id}/comments group (epic #272). REST-only — no
+// MCP surface is registered for comments.
+func (s *Server) setupCommentsRoutes(r chi.Router) {
+	strict := commentsgen.NewStrictHandlerWithOptions(
+		&commentsStrictServer{s: s},
+		nil,
+		commentsgen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.commentsBindErrorHandler,
+			ResponseErrorHandlerFunc: s.commentsResponseErrorHandler,
+		},
+	)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		commentsgen.HandlerWithOptions(strict, commentsgen.ChiServerOptions{
+			BaseRouter:       gr,
+			ErrorHandlerFunc: s.commentsBindErrorHandler,
 		})
 	})
 }
