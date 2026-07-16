@@ -112,7 +112,18 @@ async function memberTeamNames(page: Page): Promise<string[]> {
   return (body.teams ?? []).map(t => t.name ?? '')
 }
 
+/**
+ * These tests sign in TWO users inside the test body, so — unlike specs using the
+ * `authenticatedPage` fixture — the logins are NOT covered by that fixture's own
+ * 60s tuple timeout and fall inside the per-test budget instead. The global budget
+ * is the Playwright default 30s (playwright.config.ts), while a single
+ * `performDevLogin` alone allows up to 15s (redirect) + 15s (team hydration,
+ * retried once). Two of those plus the flow cannot fit, and would flake under CI
+ * load exactly as #86 describes — so raise the budget for this file.
+ */
 test.describe('Team Invitation Accept', () => {
+  test.describe.configure({ timeout: 120_000 })
+
   test('an invited user accepts from the pending list and joins the team', async ({
     browser,
   }) => {
