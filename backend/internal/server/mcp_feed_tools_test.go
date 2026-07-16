@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -412,128 +411,37 @@ func TestListFeedItems_InvalidUUID(t *testing.T) {
 	assert.Contains(t, extractText(t, result), "feed_id must be a valid UUID")
 }
 
-// ─── vibexp_io_list_feed_item_replies ────────────────────────────────────────
-
-func TestListFeedItemReplies_HappyPath(t *testing.T) {
-	now := time.Now().UTC().Truncate(time.Second)
-	assistantName := "Claude Code CLI"
-	mockReplySvc := mocks.NewMockFeedItemReplyServiceInterface(t)
-	srv := newMCPFeedTestServer(t, nil, nil, mockReplySvc)
-
-	replies := []models.FeedItemReply{
-		{
-			ID: "reply-1", TeamID: testTeamUUID, FeedItemID: feedUUID,
-			Content: "Great update!", AIAssistantName: &assistantName, PostedAt: now,
-		},
-	}
-	expectedResp := &models.FeedItemReplyListResponse{Replies: replies, TotalCount: 1, Page: 1, PerPage: 10, TotalPages: 1}
-	mockReplySvc.On("ListReplies", mock.Anything, testMemberUserID, testTeamUUID, feedUUID, 1, 10).
-		Return(expectedResp, nil)
-
-	params := &ListFeedItemRepliesParams{TeamID: testTeamUUID, FeedItemID: feedUUID, Page: 1, Limit: 10}
-	result, structured, err := srv.listFeedItemReplies(context.Background(), nil, params, testMemberUserID)
-
-	assert.NoError(t, err)
-	assert.False(t, result.IsError)
-	resp, ok := structured.(*replyExcerptListResponse)
-	assert.True(t, ok)
-	assert.Len(t, resp.Replies, 1)
-	assert.False(t, resp.Replies[0].Truncated)
-}
-
-func TestListFeedItemReplies_TruncationBehavior(t *testing.T) {
-	longContent := strings.Repeat("x", 500)
-	now := time.Now().UTC().Truncate(time.Second)
-	mockReplySvc := mocks.NewMockFeedItemReplyServiceInterface(t)
-	srv := newMCPFeedTestServer(t, nil, nil, mockReplySvc)
-
-	replies := []models.FeedItemReply{
-		{ID: "reply-long", TeamID: testTeamUUID, FeedItemID: feedUUID, Content: longContent, PostedAt: now},
-	}
-	expectedResp := &models.FeedItemReplyListResponse{Replies: replies, TotalCount: 1, Page: 1, PerPage: 10, TotalPages: 1}
-	mockReplySvc.On("ListReplies", mock.Anything, testMemberUserID, testTeamUUID, feedUUID, 1, 10).
-		Return(expectedResp, nil)
-
-	params := &ListFeedItemRepliesParams{TeamID: testTeamUUID, FeedItemID: feedUUID, Page: 1, Limit: 10}
-	result, structured, err := srv.listFeedItemReplies(context.Background(), nil, params, testMemberUserID)
-
-	assert.NoError(t, err)
-	assert.False(t, result.IsError)
-	resp := structured.(*replyExcerptListResponse)
-	assert.True(t, resp.Replies[0].Truncated)
-	assert.LessOrEqual(t, len([]rune(resp.Replies[0].Content)), excerptMaxLen+3)
-}
-
-func TestListFeedItemReplies_FullDetails(t *testing.T) {
-	longContent := strings.Repeat("y", 500)
-	now := time.Now().UTC().Truncate(time.Second)
-	mockReplySvc := mocks.NewMockFeedItemReplyServiceInterface(t)
-	srv := newMCPFeedTestServer(t, nil, nil, mockReplySvc)
-
-	replies := []models.FeedItemReply{
-		{ID: "reply-long", TeamID: testTeamUUID, FeedItemID: feedUUID, Content: longContent, PostedAt: now},
-	}
-	expectedResp := &models.FeedItemReplyListResponse{Replies: replies, TotalCount: 1, Page: 1, PerPage: 10, TotalPages: 1}
-	mockReplySvc.On("ListReplies", mock.Anything, testMemberUserID, testTeamUUID, feedUUID, 1, 10).
-		Return(expectedResp, nil)
-
-	params := &ListFeedItemRepliesParams{TeamID: testTeamUUID, FeedItemID: feedUUID, Page: 1, Limit: 10, FullDetails: true}
-	result, structured, err := srv.listFeedItemReplies(context.Background(), nil, params, testMemberUserID)
-
-	assert.NoError(t, err)
-	assert.False(t, result.IsError)
-	resp, ok := structured.(*models.FeedItemReplyListResponse)
-	assert.True(t, ok)
-	assert.Equal(t, longContent, resp.Replies[0].Content)
-}
-
-func TestListFeedItemReplies_NonMemberTeamDenied(t *testing.T) {
-	mockReplySvc := mocks.NewMockFeedItemReplyServiceInterface(t)
-	srv := newMCPFeedTestServer(t, nil, nil, mockReplySvc)
-
-	params := &ListFeedItemRepliesParams{TeamID: testOtherTeamUUID, FeedItemID: feedUUID}
-	result, structured, err := srv.listFeedItemReplies(context.Background(), nil, params, testMemberUserID)
-
-	assert.NoError(t, err)
-	assert.Nil(t, structured)
-	assertGenericAccessDenied(t, result)
-	mockReplySvc.AssertNotCalled(t, "ListReplies")
-}
-
-func TestListFeedItemReplies_InvalidUUID(t *testing.T) {
-	srv := newMCPFeedTestServer(t, nil, nil, nil)
-
-	params := &ListFeedItemRepliesParams{TeamID: testTeamUUID, FeedItemID: "not-a-uuid"}
-	result, structured, err := srv.listFeedItemReplies(context.Background(), nil, params, testMemberUserID)
-
-	assert.NoError(t, err)
-	assert.True(t, result.IsError)
-	assert.Nil(t, structured)
-	assert.Contains(t, extractText(t, result), "feed_item_id must be a valid UUID")
-}
-
 // ─── vibexp_io_get_feed_item ─────────────────────────────────────────────────
 
 func TestGetFeedItem_HappyPath(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	mockFeedItemSvc := mocks.NewMockFeedItemServiceInterface(t)
-	srv := newMCPFeedTestServer(t, nil, mockFeedItemSvc, nil)
+	mockReplySvc := mocks.NewMockFeedItemReplyServiceInterface(t)
+	srv := newMCPFeedTestServer(t, nil, mockFeedItemSvc, mockReplySvc)
 
-	// The service enriches the single item with its reply count (#101); the MCP
-	// tool must surface it in the structured result.
 	expectedItem := &models.FeedItem{
-		ID: feedUUID, TeamID: testTeamUUID, Content: "## Full body", PostedAt: now, ReplyCount: 3,
+		ID: feedUUID, TeamID: testTeamUUID, Content: "## Full body", PostedAt: now,
 	}
 	mockFeedItemSvc.On("GetFeedItem", mock.Anything, testMemberUserID, testTeamUUID, feedUUID).Return(expectedItem, nil)
+	// get_feed_item embeds the item's replies (full content) inline and derives
+	// reply_count from the total.
+	mockReplySvc.On("ListReplies", mock.Anything, testMemberUserID, testTeamUUID, feedUUID, 1, getFeedItemRepliesLimit).
+		Return(&models.FeedItemReplyListResponse{
+			Replies:    []models.FeedItemReply{{ID: "r1", Content: "a human reply", PostedAt: now}},
+			TotalCount: 1, Page: 1, PerPage: getFeedItemRepliesLimit, TotalPages: 1,
+		}, nil)
 
 	params := &GetFeedItemParams{TeamID: testTeamUUID, FeedItemID: feedUUID}
 	result, structured, err := srv.getFeedItem(context.Background(), nil, params, testMemberUserID)
 
 	assert.NoError(t, err)
 	assert.False(t, result.IsError)
-	item := structured.(*models.FeedItem)
-	assert.Equal(t, "## Full body", item.Content)
-	assert.Equal(t, 3, item.ReplyCount)
+	res := structured.(*feedItemWithReplies)
+	assert.Equal(t, "## Full body", res.Content)
+	assert.Equal(t, 1, res.ReplyCount)
+	assert.False(t, res.RepliesTruncated)
+	assert.Len(t, res.Replies, 1)
+	assert.Equal(t, "a human reply", res.Replies[0].Content)
 }
 
 func TestGetFeedItem_NonMemberTeamDenied(t *testing.T) {
@@ -561,51 +469,65 @@ func TestGetFeedItem_InvalidUUID(t *testing.T) {
 	assert.Contains(t, extractText(t, result), "feed_item_id must be a valid UUID")
 }
 
-// ─── vibexp_io_get_feed_item_reply ───────────────────────────────────────────
-
-func TestGetFeedItemReply_HappyPath(t *testing.T) {
+func TestGetFeedItem_RepliesTruncated(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
+	mockFeedItemSvc := mocks.NewMockFeedItemServiceInterface(t)
 	mockReplySvc := mocks.NewMockFeedItemReplyServiceInterface(t)
-	srv := newMCPFeedTestServer(t, nil, nil, mockReplySvc)
+	srv := newMCPFeedTestServer(t, nil, mockFeedItemSvc, mockReplySvc)
 
-	replyID := "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
-	expectedReply := &models.FeedItemReply{
-		ID: replyID, TeamID: testTeamUUID, FeedItemID: feedUUID, Content: "detailed reply", PostedAt: now,
+	mockFeedItemSvc.On("GetFeedItem", mock.Anything, testMemberUserID, testTeamUUID, feedUUID).
+		Return(&models.FeedItem{ID: feedUUID, TeamID: testTeamUUID, PostedAt: now}, nil)
+	// Embedded page holds 1 reply but the item has 5 total → replies_truncated.
+	mockReplySvc.On("ListReplies", mock.Anything, testMemberUserID, testTeamUUID, feedUUID, 1, getFeedItemRepliesLimit).
+		Return(&models.FeedItemReplyListResponse{
+			Replies:    []models.FeedItemReply{{ID: "r1", Content: "one", PostedAt: now}},
+			TotalCount: 5, Page: 1, PerPage: getFeedItemRepliesLimit, TotalPages: 1,
+		}, nil)
+
+	params := &GetFeedItemParams{TeamID: testTeamUUID, FeedItemID: feedUUID}
+	_, structured, err := srv.getFeedItem(context.Background(), nil, params, testMemberUserID)
+
+	assert.NoError(t, err)
+	res := structured.(*feedItemWithReplies)
+	assert.Equal(t, 5, res.ReplyCount)
+	assert.True(t, res.RepliesTruncated)
+}
+
+// TestListFeedItems_IncludeReplies verifies include_replies embeds bounded reply
+// excerpts per item and returns the excerpt-with-replies list shape.
+func TestListFeedItems_IncludeReplies(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	mockFeedItemSvc := mocks.NewMockFeedItemServiceInterface(t)
+	mockReplySvc := mocks.NewMockFeedItemReplyServiceInterface(t)
+	srv := newMCPFeedTestServer(t, nil, mockFeedItemSvc, mockReplySvc)
+
+	items := []models.FeedItem{
+		{ID: "item-1", TeamID: testTeamUUID, FeedID: feedUUID, Title: "T", Content: "## Summary", Excerpt: "exc", PostedAt: now},
 	}
-	mockReplySvc.On("GetReply", mock.Anything, testMemberUserID, testTeamUUID, replyID).Return(expectedReply, nil)
+	mockFeedItemSvc.On("ListFeedItems", mock.Anything, testMemberUserID, mock.Anything).
+		Return(&models.FeedItemListResponse{Items: items, TotalCount: 1, Page: 1, PerPage: 10, TotalPages: 1}, nil)
 
-	params := &GetFeedItemReplyParams{TeamID: testTeamUUID, ReplyID: replyID}
-	result, structured, err := srv.getFeedItemReply(context.Background(), nil, params, testMemberUserID)
+	// Enrichment gives the item a non-zero reply_count, so its replies are fetched.
+	enriched := []models.FeedItem{items[0]}
+	enriched[0].ReplyCount = 2
+	mockFeedItemSvc.On("EnrichWithReplyCounts", mock.Anything, testTeamUUID, items).Return(enriched, nil)
+	mockReplySvc.On("ListReplies", mock.Anything, testMemberUserID, testTeamUUID, "item-1", 1, listFeedItemRepliesEmbedLimit).
+		Return(&models.FeedItemReplyListResponse{
+			Replies:    []models.FeedItemReply{{ID: "r1", Content: "reply body", PostedAt: now}},
+			TotalCount: 2, Page: 1, PerPage: listFeedItemRepliesEmbedLimit, TotalPages: 1,
+		}, nil)
+
+	params := &ListFeedItemsParams{TeamID: testTeamUUID, FeedID: feedUUID, Page: 1, Limit: 10, IncludeReplies: true}
+	result, structured, err := srv.listFeedItems(context.Background(), nil, params, testMemberUserID)
 
 	assert.NoError(t, err)
 	assert.False(t, result.IsError)
-	reply := structured.(*models.FeedItemReply)
-	assert.Equal(t, "detailed reply", reply.Content)
-}
-
-func TestGetFeedItemReply_NonMemberTeamDenied(t *testing.T) {
-	mockReplySvc := mocks.NewMockFeedItemReplyServiceInterface(t)
-	srv := newMCPFeedTestServer(t, nil, nil, mockReplySvc)
-
-	params := &GetFeedItemReplyParams{TeamID: testOtherTeamUUID, ReplyID: "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"}
-	result, structured, err := srv.getFeedItemReply(context.Background(), nil, params, testMemberUserID)
-
-	assert.NoError(t, err)
-	assert.Nil(t, structured)
-	assertGenericAccessDenied(t, result)
-	mockReplySvc.AssertNotCalled(t, "GetReply")
-}
-
-func TestGetFeedItemReply_InvalidUUID(t *testing.T) {
-	srv := newMCPFeedTestServer(t, nil, nil, nil)
-
-	params := &GetFeedItemReplyParams{TeamID: testTeamUUID, ReplyID: "not-a-uuid"}
-	result, structured, err := srv.getFeedItemReply(context.Background(), nil, params, testMemberUserID)
-
-	assert.NoError(t, err)
-	assert.True(t, result.IsError)
-	assert.Nil(t, structured)
-	assert.Contains(t, extractText(t, result), "reply_id must be a valid UUID")
+	resp, ok := structured.(*feedItemExcerptWithRepliesListResponse)
+	assert.True(t, ok)
+	assert.Len(t, resp.Items, 1)
+	assert.Equal(t, 2, resp.Items[0].ReplyCount)
+	assert.Len(t, resp.Items[0].Replies, 1)
+	assert.Equal(t, "reply body", resp.Items[0].Replies[0].Content)
 }
 
 // ─── schema reflection regression guard ──────────────────────────────────────

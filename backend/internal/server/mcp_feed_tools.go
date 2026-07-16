@@ -30,22 +30,12 @@ type ListFeedsParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListFeedItemsParams struct {
-	TeamID      string `json:"team_id"                jsonschema:"REQUIRED. Team UUID or slug to operate within."`
-	FeedID      string `json:"feed_id"                jsonschema:"UUID of the feed (call vibexp_io_list_feeds first to discover feed IDs)"`
-	Page        int    `json:"page,omitempty"         jsonschema:"Page number, starting from 1 (default: 1)"`
-	Limit       int    `json:"limit,omitempty"        jsonschema:"Items per page, max 10 (default: 10)"`
-	FullDetails bool   `json:"full_details,omitempty" jsonschema:"When true, include full content field; default false returns excerpt only"`
-}
-
-// ListFeedItemRepliesParams defines the parameters for listing replies to a feed item.
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
-type ListFeedItemRepliesParams struct {
-	TeamID      string `json:"team_id"                jsonschema:"REQUIRED. Team UUID or slug to operate within."`
-	FeedItemID  string `json:"feed_item_id"           jsonschema:"UUID of the feed item (from vibexp_io_list_feed_items)"`
-	Page        int    `json:"page,omitempty"         jsonschema:"Page number, starting from 1 (default: 1)"`
-	Limit       int    `json:"limit,omitempty"        jsonschema:"Replies per page, max 10 (default: 10)"`
-	FullDetails bool   `json:"full_details,omitempty" jsonschema:"When true, include full content; default false truncates content to 300 chars"`
+	TeamID         string `json:"team_id"                  jsonschema:"REQUIRED. Team UUID or slug to operate within."`
+	FeedID         string `json:"feed_id"                  jsonschema:"UUID of the feed (call vibexp_io_list_feeds first to discover feed IDs)"`
+	Page           int    `json:"page,omitempty"           jsonschema:"Page number, starting from 1 (default: 1)"`
+	Limit          int    `json:"limit,omitempty"          jsonschema:"Items per page, max 10 (default: 10)"`
+	FullDetails    bool   `json:"full_details,omitempty"   jsonschema:"When true, include full content field; default false returns excerpt only"`
+	IncludeReplies bool   `json:"include_replies,omitempty" jsonschema:"When true, embed up to 3 recent reply excerpts per item (item content stays an excerpt). For one item's full replies use vibexp_io_get_feed_item."`
 }
 
 // GetFeedItemParams defines the parameters for getting a single feed item.
@@ -54,14 +44,6 @@ type ListFeedItemRepliesParams struct {
 type GetFeedItemParams struct {
 	TeamID     string `json:"team_id"      jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	FeedItemID string `json:"feed_item_id" jsonschema:"UUID of the feed item to retrieve (from vibexp_io_list_feed_items)"`
-}
-
-// GetFeedItemReplyParams defines the parameters for getting a single feed item reply.
-//
-//nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
-type GetFeedItemReplyParams struct {
-	TeamID  string `json:"team_id"  jsonschema:"REQUIRED. Team UUID or slug to operate within."`
-	ReplyID string `json:"reply_id" jsonschema:"UUID of the reply to retrieve (from vibexp_io_list_feed_item_replies)"`
 }
 
 // ReplyToFeedItemParams defines the parameters for replying to a feed item.
@@ -133,13 +115,38 @@ type replyExcerpt struct {
 	PostedAt        string  `json:"posted_at"`
 }
 
-// replyExcerptListResponse is the list shape returned for replies when full_details=false.
-type replyExcerptListResponse struct {
-	Replies    []replyExcerpt `json:"replies"`
-	TotalCount int            `json:"total_count"`
-	Page       int            `json:"page"`
-	PerPage    int            `json:"per_page"`
-	TotalPages int            `json:"total_pages"`
+// Reply-embedding limits for the consolidated read tools: get_feed_item returns
+// the item with up to getFeedItemRepliesLimit full replies; list_feed_items with
+// include_replies embeds up to listFeedItemRepliesEmbedLimit reply excerpts per item.
+const (
+	getFeedItemRepliesLimit       = 50
+	listFeedItemRepliesEmbedLimit = 3
+)
+
+// feedItemWithReplies is the get_feed_item response: the full item plus its
+// replies (full content) inline. RepliesTruncated is true when the item has more
+// replies than the embedded page.
+type feedItemWithReplies struct {
+	*models.FeedItem
+	Replies          []models.FeedItemReply `json:"replies"`
+	RepliesTruncated bool                   `json:"replies_truncated,omitempty"`
+}
+
+// feedItemExcerptWithReplies is a feed item excerpt plus a bounded set of recent
+// reply excerpts, used by list_feed_items when include_replies is set.
+type feedItemExcerptWithReplies struct {
+	feedItemExcerpt
+	Replies []replyExcerpt `json:"replies"`
+}
+
+// feedItemExcerptWithRepliesListResponse is the list shape returned by
+// list_feed_items when include_replies is set.
+type feedItemExcerptWithRepliesListResponse struct {
+	Items      []feedItemExcerptWithReplies `json:"items"`
+	TotalCount int                          `json:"total_count"`
+	Page       int                          `json:"page"`
+	PerPage    int                          `json:"per_page"`
+	TotalPages int                          `json:"total_pages"`
 }
 
 // truncateString truncates s to at most maxLen runes and appends "..." if truncated.
@@ -489,50 +496,40 @@ func (s *Server) listFeedItems(
 		response.Items = enriched
 	}
 
+	// When include_replies is set, return excerpt items each with a bounded set of
+	// recent reply excerpts (this takes precedence over full_details, which is for
+	// item content; for one item's full replies use get_feed_item).
+	if params.IncludeReplies {
+		return mcpJSONResult(s.buildFeedItemsWithReplies(ctx, userID, teamID, response))
+	}
 	// When full_details is true, return the complete response (including content).
 	if params.FullDetails {
-		fullJSON, marshalErr := json.MarshalIndent(response, "", "  ")
-		if marshalErr != nil {
-			return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", marshalErr)
-		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(fullJSON)},
-			},
-			StructuredContent: response,
-		}, response, nil
+		return mcpJSONResult(response)
 	}
+	return mcpJSONResult(buildFeedItemExcerptResponse(response))
+}
 
-	excerptResp := buildFeedItemExcerptResponse(response)
-	jsonData, marshalErr := json.MarshalIndent(excerptResp, "", "  ")
-	if marshalErr != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", marshalErr)
+// toFeedItemExcerpt maps a feed item to its slim excerpt shape (omits content).
+func toFeedItemExcerpt(item models.FeedItem) feedItemExcerpt {
+	return feedItemExcerpt{
+		ID:              item.ID,
+		TeamID:          item.TeamID,
+		FeedID:          item.FeedID,
+		ProjectID:       item.ProjectID,
+		Title:           item.Title,
+		Excerpt:         item.Excerpt,
+		AIAssistantName: item.AIAssistantName,
+		PostedByUserID:  item.PostedByUserID,
+		PostedAt:        item.PostedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		ReplyCount:      item.ReplyCount,
 	}
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(jsonData)},
-		},
-		StructuredContent: excerptResp,
-	}, excerptResp, nil
 }
 
 // buildFeedItemExcerptResponse builds the slim excerpt-only list response (omits content).
 func buildFeedItemExcerptResponse(response *models.FeedItemListResponse) *feedItemExcerptListResponse {
 	excerpts := make([]feedItemExcerpt, 0, len(response.Items))
 	for _, item := range response.Items {
-		excerpts = append(excerpts, feedItemExcerpt{
-			ID:              item.ID,
-			TeamID:          item.TeamID,
-			FeedID:          item.FeedID,
-			ProjectID:       item.ProjectID,
-			Title:           item.Title,
-			Excerpt:         item.Excerpt,
-			AIAssistantName: item.AIAssistantName,
-			PostedByUserID:  item.PostedByUserID,
-			PostedAt:        item.PostedAt.UTC().Format("2006-01-02T15:04:05Z"),
-			ReplyCount:      item.ReplyCount,
-		})
+		excerpts = append(excerpts, toFeedItemExcerpt(item))
 	}
 	return &feedItemExcerptListResponse{
 		Items:      excerpts,
@@ -543,94 +540,51 @@ func buildFeedItemExcerptResponse(response *models.FeedItemListResponse) *feedIt
 	}
 }
 
-// listFeedItemReplies implements the vibexp_io_list_feed_item_replies MCP tool.
-//
-//nolint:funlen // team resolution, pagination clamping, full_details branching, truncation
-func (s *Server) listFeedItemReplies(
-	ctx context.Context,
-	_ *mcp.CallToolRequest,
-	params *ListFeedItemRepliesParams,
-	userID string,
-) (*mcp.CallToolResult, any, error) {
-	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
-	if errResult != nil {
-		return errResult, nil, nil
-	}
-
-	if !isValidUUID(params.FeedItemID) {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "feed_item_id must be a valid UUID"},
-			},
-			IsError: true,
-		}, nil, nil
-	}
-
-	page := params.Page
-	if page <= 0 {
-		page = 1
-	}
-	limit := params.Limit
-	if limit <= 0 || limit > 10 {
-		limit = 10
-	}
-
-	response, err := s.container.FeedItemReplyService().ListReplies(ctx, userID, teamID, params.FeedItemID, page, limit)
-	if err != nil {
-		slog.Error(
-			"Failed to list feed item replies via MCP",
-			"tool", "vibexp_io_list_feed_item_replies",
-			"user_id", userID,
-			"team_id", teamID,
-			"feed_item_id", params.FeedItemID,
-			"error", fmt.Sprintf("%+v", err),
-		)
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: fmt.Sprintf("Failed to list feed item replies: %v", err)},
-			},
-			IsError: true,
-		}, nil, nil
-	}
-
-	// Ensure replies is never null in JSON output.
-	if response.Replies == nil {
-		response.Replies = make([]models.FeedItemReply, 0)
-	}
-
-	// When full_details is true, return the complete response.
-	if params.FullDetails {
-		fullJSON, marshalErr := json.MarshalIndent(response, "", "  ")
-		if marshalErr != nil {
-			return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", marshalErr)
+// buildFeedItemsWithReplies builds the include_replies list response, embedding
+// up to listFeedItemRepliesEmbedLimit recent reply excerpts per item. A per-item
+// reply-load failure is logged and yields an empty replies slice rather than
+// failing the whole listing.
+func (s *Server) buildFeedItemsWithReplies(
+	ctx context.Context, userID, teamID string, response *models.FeedItemListResponse,
+) *feedItemExcerptWithRepliesListResponse {
+	items := make([]feedItemExcerptWithReplies, 0, len(response.Items))
+	for i := range response.Items {
+		item := response.Items[i]
+		replies := make([]replyExcerpt, 0)
+		if item.ReplyCount > 0 {
+			replyResp, err := s.container.FeedItemReplyService().ListReplies(
+				ctx, userID, teamID, item.ID, 1, listFeedItemRepliesEmbedLimit,
+			)
+			if err != nil {
+				slog.Warn(
+					"Failed to embed replies for feed item via MCP",
+					"tool", "vibexp_io_list_feed_items",
+					"team_id", teamID,
+					"feed_item_id", item.ID,
+					"error", err,
+				)
+			} else {
+				replies = buildReplyExcerpts(replyResp.Replies)
+			}
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(fullJSON)},
-			},
-			StructuredContent: response,
-		}, response, nil
+		items = append(items, feedItemExcerptWithReplies{
+			feedItemExcerpt: toFeedItemExcerpt(item),
+			Replies:         replies,
+		})
 	}
-
-	excerptResp := buildReplyExcerptResponse(response)
-	jsonData, err := json.MarshalIndent(excerptResp, "", "  ")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)
+	return &feedItemExcerptWithRepliesListResponse{
+		Items:      items,
+		TotalCount: response.TotalCount,
+		Page:       response.Page,
+		PerPage:    response.PerPage,
+		TotalPages: response.TotalPages,
 	}
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(jsonData)},
-		},
-		StructuredContent: excerptResp,
-	}, excerptResp, nil
 }
 
-// buildReplyExcerptResponse builds the slim excerpt list response with content truncated to excerptMaxLen.
-func buildReplyExcerptResponse(response *models.FeedItemReplyListResponse) *replyExcerptListResponse {
-	excerpts := make([]replyExcerpt, 0, len(response.Replies))
-	for _, reply := range response.Replies {
+// buildReplyExcerpts converts replies to the slim excerpt shape with content truncated to excerptMaxLen.
+func buildReplyExcerpts(replies []models.FeedItemReply) []replyExcerpt {
+	excerpts := make([]replyExcerpt, 0, len(replies))
+	for _, reply := range replies {
 		truncated, wasTruncated := truncateString(reply.Content, excerptMaxLen)
 		excerpts = append(excerpts, replyExcerpt{
 			ID:              reply.ID,
@@ -643,13 +597,7 @@ func buildReplyExcerptResponse(response *models.FeedItemReplyListResponse) *repl
 			PostedAt:        reply.PostedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		})
 	}
-	return &replyExcerptListResponse{
-		Replies:    excerpts,
-		TotalCount: response.TotalCount,
-		Page:       response.Page,
-		PerPage:    response.PerPage,
-		TotalPages: response.TotalPages,
-	}
+	return excerpts
 }
 
 // getFeedItem implements the vibexp_io_get_feed_item MCP tool.
@@ -692,70 +640,50 @@ func (s *Server) getFeedItem(
 		}, nil, nil
 	}
 
-	jsonData, err := json.MarshalIndent(item, "", "  ")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)
+	withReplies, replyErrResult := s.loadFeedItemWithReplies(ctx, item, userID, teamID)
+	if replyErrResult != nil {
+		return replyErrResult, nil, nil
 	}
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(jsonData)},
-		},
-		StructuredContent: item,
-	}, item, nil
+	return mcpJSONResult(withReplies)
 }
 
-// getFeedItemReply implements the vibexp_io_get_feed_item_reply MCP tool.
-func (s *Server) getFeedItemReply(
-	ctx context.Context,
-	_ *mcp.CallToolRequest,
-	params *GetFeedItemReplyParams,
-	userID string,
-) (*mcp.CallToolResult, any, error) {
-	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
-	if errResult != nil {
-		return errResult, nil, nil
-	}
-
-	if !isValidUUID(params.ReplyID) {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "reply_id must be a valid UUID"},
-			},
-			IsError: true,
-		}, nil, nil
-	}
-
-	reply, err := s.container.FeedItemReplyService().GetReply(ctx, userID, teamID, params.ReplyID)
+// loadFeedItemWithReplies fetches an item's replies (bounded to
+// getFeedItemRepliesLimit) and assembles the get_feed_item response, setting the
+// item's reply_count from the total. It returns an error result on failure.
+func (s *Server) loadFeedItemWithReplies(
+	ctx context.Context, item *models.FeedItem, userID, teamID string,
+) (*feedItemWithReplies, *mcp.CallToolResult) {
+	replyResp, err := s.container.FeedItemReplyService().ListReplies(
+		ctx, userID, teamID, item.ID, 1, getFeedItemRepliesLimit,
+	)
 	if err != nil {
 		slog.Error(
-			"Failed to get feed item reply via MCP",
-			"tool", "vibexp_io_get_feed_item_reply",
+			"Failed to load replies for feed item via MCP",
+			"tool", "vibexp_io_get_feed_item",
 			"user_id", userID,
 			"team_id", teamID,
-			"reply_id", params.ReplyID,
+			"feed_item_id", item.ID,
 			"error", fmt.Sprintf("%+v", err),
 		)
-
-		return &mcp.CallToolResult{
+		return nil, &mcp.CallToolResult{
 			Content: []mcp.Content{
-				&mcp.TextContent{Text: fmt.Sprintf("Failed to get feed item reply: %v", err)},
+				&mcp.TextContent{Text: fmt.Sprintf("Failed to get feed item replies: %v", err)},
 			},
 			IsError: true,
-		}, nil, nil
+		}
 	}
 
-	jsonData, err := json.MarshalIndent(reply, "", "  ")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)
+	replies := replyResp.Replies
+	if replies == nil {
+		replies = make([]models.FeedItemReply, 0)
 	}
+	item.ReplyCount = replyResp.TotalCount
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(jsonData)},
-		},
-		StructuredContent: reply,
-	}, reply, nil
+	return &feedItemWithReplies{
+		FeedItem:         item,
+		Replies:          replies,
+		RepliesTruncated: replyResp.TotalCount > len(replies),
+	}, nil
 }
 
 // addFeedTools registers the feed MCP tools. Each handler resolves the per-call
@@ -807,7 +735,8 @@ func (m *MCPToolsManager) addFeedTools(mcpServer *mcp.Server, userID string) {
 		Description: "List items posted to a specific AI Feed, newest first (paginated, max 10 per page). " +
 			"Call vibexp_io_list_feeds first to discover the feed_id. By default returns id, title, excerpt, " +
 			"ai_assistant_name, posted_at, and reply_count — content is omitted. " +
-			"Set full_details=true to include the full content field.",
+			"Set full_details=true to include the full content field, or include_replies=true to embed up to " +
+			"3 recent reply excerpts per item. For one item plus all its replies, use vibexp_io_get_feed_item.",
 	}, func(
 		ctx context.Context, req *mcp.CallToolRequest, params *ListFeedItemsParams,
 	) (*mcp.CallToolResult, any, error) {
@@ -815,33 +744,13 @@ func (m *MCPToolsManager) addFeedTools(mcpServer *mcp.Server, userID string) {
 	})
 
 	mcp.AddTool(mcpServer, &mcp.Tool{
-		Name: "vibexp_io_list_feed_item_replies",
-		Description: "List replies to a specific AI Feed item, newest first (paginated, max 10 per page). " +
-			"Call vibexp_io_list_feed_items first to discover the feed_item_id. By default content is " +
-			"truncated to 300 chars (truncated=true if cut). Set full_details=true for full content.",
-	}, func(
-		ctx context.Context, req *mcp.CallToolRequest, params *ListFeedItemRepliesParams,
-	) (*mcp.CallToolResult, any, error) {
-		return m.server.listFeedItemReplies(ctx, req, params, userID)
-	})
-
-	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name: "vibexp_io_get_feed_item",
-		Description: "Get a single feed item with its full content. Use after vibexp_io_list_feed_items " +
-			"when you need the full body of a specific item.",
+		Description: "Get a single feed item with its full content and its replies (full content) inline, " +
+			"newest replies first. Use after vibexp_io_list_feed_items when you need the full body of a " +
+			"specific item and the conversation on it — e.g. to check for human replies before continuing work.",
 	}, func(
 		ctx context.Context, req *mcp.CallToolRequest, params *GetFeedItemParams,
 	) (*mcp.CallToolResult, any, error) {
 		return m.server.getFeedItem(ctx, req, params, userID)
-	})
-
-	mcp.AddTool(mcpServer, &mcp.Tool{
-		Name: "vibexp_io_get_feed_item_reply",
-		Description: "Get a single feed item reply with its full content. Use after vibexp_io_list_feed_item_replies " +
-			"when you need the full body of a specific reply.",
-	}, func(
-		ctx context.Context, req *mcp.CallToolRequest, params *GetFeedItemReplyParams,
-	) (*mcp.CallToolResult, any, error) {
-		return m.server.getFeedItemReply(ctx, req, params, userID)
 	})
 }
