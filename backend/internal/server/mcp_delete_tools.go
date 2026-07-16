@@ -24,7 +24,7 @@ const deleteResourceToolDescription = "Delete a single resource. Supported resou
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type DeleteResourceParams struct {
-	TeamID       string `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID       string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ResourceType string `json:"resource_type" jsonschema:"REQUIRED. The resource type to delete: one of \"memory\", \"artifact\", \"blueprint\", or \"prompt\"."`
 	ID           string `json:"id,omitempty" jsonschema:"Resource UUID. REQUIRED when resource_type is \"memory\"; ignored otherwise."`
 	ProjectID    string `json:"project_id,omitempty" jsonschema:"Project UUID. REQUIRED when resource_type is \"artifact\" or \"blueprint\"; ignored otherwise."`

@@ -135,3 +135,50 @@ func TestAddAllTools_RegistersDiscoveryAndTeamScopedTools(t *testing.T) {
 		assert.True(t, ok, "AddAllTools should register %s", want)
 	}
 }
+
+// TestSearchToolsOmitFullDetails guards the #260 "description diet": the
+// search_artifacts and search_memories tools no longer expose the dead
+// full_details parameter (it was documented unsupported and only ever
+// rejected). The functional feed full_details param is out of scope here.
+func TestSearchToolsOmitFullDetails(t *testing.T) {
+	srv := newServerWithNullLogger(t)
+
+	mcpServer := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
+	NewMCPToolsManager(srv).AddAllTools(mcpServer, testMemberUserID)
+
+	ctx := context.Background()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := mcpServer.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if closeErr := serverSession.Close(); closeErr != nil {
+			t.Logf("serverSession.Close: %v", closeErr)
+		}
+	})
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if closeErr := clientSession.Close(); closeErr != nil {
+			t.Logf("clientSession.Close: %v", closeErr)
+		}
+	})
+
+	listResult, err := clientSession.ListTools(ctx, nil)
+	require.NoError(t, err)
+
+	schemas := make(map[string]string, len(listResult.Tools))
+	for _, tool := range listResult.Tools {
+		raw, marshalErr := json.Marshal(tool.InputSchema)
+		require.NoError(t, marshalErr)
+		schemas[tool.Name] = string(raw)
+	}
+
+	for _, name := range []string{"vibexp_io_search_artifacts", "vibexp_io_search_memories"} {
+		schema, ok := schemas[name]
+		require.True(t, ok, "%s should be registered", name)
+		assert.NotContains(t, schema, "full_details", "%s must not expose the dead full_details param", name)
+		assert.Contains(t, schema, "team_id", "%s should still declare team_id", name)
+	}
+}

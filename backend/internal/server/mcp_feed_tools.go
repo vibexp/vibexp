@@ -21,7 +21,7 @@ const excerptMaxLen = 300
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListFeedsParams struct {
-	TeamID string `json:"team_id"         jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID string `json:"team_id"         jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	Page   int    `json:"page,omitempty"  jsonschema:"Page number, starting from 1 (default: 1)"`
 	Limit  int    `json:"limit,omitempty" jsonschema:"Feeds per page, max 10 (default: 10)"`
 }
@@ -30,7 +30,7 @@ type ListFeedsParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListFeedItemsParams struct {
-	TeamID      string `json:"team_id"                jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID      string `json:"team_id"                jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	FeedID      string `json:"feed_id"                jsonschema:"UUID of the feed (call vibexp_io_list_feeds first to discover feed IDs)"`
 	Page        int    `json:"page,omitempty"         jsonschema:"Page number, starting from 1 (default: 1)"`
 	Limit       int    `json:"limit,omitempty"        jsonschema:"Items per page, max 10 (default: 10)"`
@@ -41,7 +41,7 @@ type ListFeedItemsParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListFeedItemRepliesParams struct {
-	TeamID      string `json:"team_id"                jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID      string `json:"team_id"                jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	FeedItemID  string `json:"feed_item_id"           jsonschema:"UUID of the feed item (from vibexp_io_list_feed_items)"`
 	Page        int    `json:"page,omitempty"         jsonschema:"Page number, starting from 1 (default: 1)"`
 	Limit       int    `json:"limit,omitempty"        jsonschema:"Replies per page, max 10 (default: 10)"`
@@ -52,7 +52,7 @@ type ListFeedItemRepliesParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type GetFeedItemParams struct {
-	TeamID     string `json:"team_id"      jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID     string `json:"team_id"      jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	FeedItemID string `json:"feed_item_id" jsonschema:"UUID of the feed item to retrieve (from vibexp_io_list_feed_items)"`
 }
 
@@ -60,7 +60,7 @@ type GetFeedItemParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type GetFeedItemReplyParams struct {
-	TeamID  string `json:"team_id"  jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID  string `json:"team_id"  jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ReplyID string `json:"reply_id" jsonschema:"UUID of the reply to retrieve (from vibexp_io_list_feed_item_replies)"`
 }
 
@@ -68,7 +68,7 @@ type GetFeedItemReplyParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ReplyToFeedItemParams struct {
-	TeamID          string `json:"team_id"           jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID          string `json:"team_id"           jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	FeedItemID      string `json:"feed_item_id"      jsonschema:"UUID of the feed item to reply to (call vibexp_io_list_feeds then use the item id)"`
 	Content         string `json:"content"           jsonschema:"Reply content. Max 10 000 chars. Plain text or light Markdown."`
 	AIAssistantName string `json:"ai_assistant_name" jsonschema:"Stable identifier for your tool. Use a consistent value. Max 30 chars."`
@@ -84,7 +84,7 @@ type replyToFeedItemResponse struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type PostToFeedParams struct {
-	TeamID          string  `json:"team_id"              jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID          string  `json:"team_id"              jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	FeedID          string  `json:"feed_id"              jsonschema:"UUID of the feed (call vibexp_io_list_feeds first)"`
 	Title           string  `json:"title"                jsonschema:"Short, descriptive title (max 255 chars). Example: 'Refactored auth module — 12 files touched'"`
 	Content         string  `json:"content"              jsonschema:"Body of the update in Markdown. Max 200 KB. Use code blocks for code, tables where helpful."`

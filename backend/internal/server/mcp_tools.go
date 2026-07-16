@@ -10,6 +10,16 @@ import (
 	"github.com/vibexp/vibexp/internal/contextkeys"
 )
 
+// mcpServerInstructions is the server-level guidance returned to clients at
+// initialize time. The detailed team-scoping explanation lives here once,
+// rather than being repeated in every team-scoped tool's team_id parameter
+// description, which keeps the per-tool schemas terse.
+const mcpServerInstructions = "VibeXP MCP server. Most tools are team-scoped and take a required team_id " +
+	"parameter — a team UUID or slug. If you do not have a team_id, call vibexp_io_list_teams first to " +
+	"discover the teams you belong to, then pass one you are a member of (each call resolves and " +
+	"membership-checks the team). The only user-scoped tools that take no team_id are vibexp_io_get_user " +
+	"(your identity) and vibexp_io_list_teams (team discovery)."
+
 // MCPToolsManager manages all MCP tools and provides better organization
 type MCPToolsManager struct {
 	server *Server
@@ -281,8 +291,9 @@ func (s *Server) createMCPHandlerCommon() http.Handler {
 			Name:    "vibexp-mcp-server",
 			Version: "1.0.0",
 		}, &mcp.ServerOptions{
-			HasPrompts: true,
-			PageSize:   100,
+			HasPrompts:   true,
+			PageSize:     100,
+			Instructions: mcpServerInstructions,
 		})
 
 		s.setupMCPServerCommon(mcpServer, toolsManager, req)

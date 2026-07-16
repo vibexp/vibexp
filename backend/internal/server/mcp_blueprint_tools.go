@@ -19,7 +19,7 @@ import (
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type CreateBlueprintParams struct {
-	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID   string                 `json:"project_id" jsonschema:"Project UUID — required"`
 	Slug        string                 `json:"slug" jsonschema:"Unique identifier for the blueprint within the project (max 255 chars)"`
 	Title       string                 `json:"title" jsonschema:"Human-readable blueprint title (max 255 chars)"`
@@ -37,7 +37,7 @@ type CreateBlueprintParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type UpdateBlueprintParams struct {
-	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID      string                 `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	ProjectID   string                 `json:"project_id" jsonschema:"Project UUID the blueprint belongs to — required to locate the blueprint"`
 	Slug        string                 `json:"slug" jsonschema:"Slug identifier of the blueprint to update"`
 	Title       string                 `json:"title,omitempty" jsonschema:"New title (max 255 chars)"`

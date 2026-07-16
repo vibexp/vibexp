@@ -15,7 +15,7 @@ import (
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListProjectsParams struct {
-	TeamID    string `json:"team_id"              jsonschema:"REQUIRED. The team UUID or slug to operate within. Call vibexp_io_list_teams first if you don't have one."`
+	TeamID    string `json:"team_id"              jsonschema:"REQUIRED. Team UUID or slug to operate within."`
 	Search    string `json:"search,omitempty"     jsonschema:"Search in project name/description"`
 	SortBy    string `json:"sort_by,omitempty"    jsonschema:"Field to sort by"`
 	SortOrder string `json:"sort_order,omitempty" jsonschema:"Sort direction: asc or desc"`
