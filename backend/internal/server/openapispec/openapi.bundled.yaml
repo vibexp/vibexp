@@ -116,6 +116,8 @@ tags:
     description: In-app notification endpoints for the authenticated user
   - name: Types
     description: Team-customizable resource categories (artifact types, etc.)
+  - name: Comments
+    description: Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)
   - name: User
     description: User account, onboarding, and device registration endpoints
   - name: Team Invitations
@@ -9216,6 +9218,333 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Types
+  /api/v1/{team_id}/comments:
+    get:
+      summary: List a resource's comments
+      description: |
+        Returns a page of comments on the given resource, newest first. The caller must be a member of the team.
+      operationId: listComments
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Team identifier
+        - name: resource_type
+          in: query
+          required: true
+          description: Type of the commented resource (artifact, memory, prompt, or blueprint)
+          schema:
+            type: string
+        - name: resource_id
+          in: query
+          required: true
+          description: Identifier of the commented resource
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Comments retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentListResponse'
+        '400':
+          description: Invalid resource_type or query parameters
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller is not a member of the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to list comments
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Comments
+    post:
+      summary: Create a comment
+      description: |
+        Adds a comment on a resource. Any team member may comment; the target resource must exist in the team (404 otherwise).
+      operationId: createComment
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Team identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+      responses:
+        '201':
+          description: Comment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          description: Invalid resource_type or content
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller may not comment in the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Target resource not found in the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to create comment
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Comments
+  /api/v1/{team_id}/comments/recent:
+    get:
+      summary: List recent comment activity
+      description: |
+        Returns the team's most recent comment activity for the homepage card, ordered by latest activity (an edited comment resurfaces). Each entry carries its resource's resolved title and link fields; entries whose resource has been deleted are omitted.
+      operationId: listRecentComments
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Team identifier
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of entries to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Recent comments retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecentCommentListResponse'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller is not a member of the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to list recent comments
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Comments
+  /api/v1/{team_id}/comments/{comment_id}:
+    patch:
+      summary: Edit a comment
+      description: |
+        Updates a comment's content. Only the comment's author may edit it; no role can edit another member's comment (403 otherwise).
+      operationId: updateComment
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Team identifier
+        - name: comment_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCommentRequest'
+      responses:
+        '200':
+          description: Comment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          description: Invalid content
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller is not the comment's author
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Comment not found in the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to update comment
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Comments
+    delete:
+      summary: Delete a comment
+      description: |
+        Deletes a comment. The author may delete their own; a team admin or owner may delete any comment (403 otherwise).
+      operationId: deleteComment
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Team identifier
+        - name: comment_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment identifier
+      responses:
+        '204':
+          description: Comment deleted (no content)
+        '400':
+          description: comment_id is not a valid UUID
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller may not delete this comment
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Comment not found in the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to delete comment
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Comments
   /api/v1/{team_id}/embedding-providers:
     parameters:
       - name: team_id
@@ -17684,6 +18013,188 @@ components:
           example: 4
       required:
         - types
+        - total_count
+    Comment:
+      type: object
+      description: A team-visible comment on a resource.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique comment identifier
+          example: 550e8400-e29b-41d4-a716-446655440000
+        team_id:
+          type: string
+          format: uuid
+          description: Owning team
+          example: 660e8400-e29b-41d4-a716-446655440001
+        resource_type:
+          type: string
+          description: Type of the commented resource (artifact, memory, prompt, or blueprint)
+          example: artifact
+        resource_id:
+          type: string
+          format: uuid
+          description: Identifier of the commented resource
+          example: 770e8400-e29b-41d4-a716-446655440002
+        user_id:
+          type: string
+          format: uuid
+          description: Author of the comment
+          example: 880e8400-e29b-41d4-a716-446655440003
+        content:
+          type: string
+          description: Comment body (markdown, 1–10,000 characters)
+          example: These figures are from the v3 API, not v4.
+        created_at:
+          type: string
+          format: date-time
+          description: When the comment was created
+          example: '2026-07-16T09:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: When the comment was last edited (equals created_at if never edited)
+          example: '2026-07-16T09:00:00Z'
+      required:
+        - id
+        - team_id
+        - resource_type
+        - resource_id
+        - user_id
+        - content
+        - created_at
+        - updated_at
+    CreateCommentRequest:
+      type: object
+      description: Request body for creating a comment on a resource.
+      properties:
+        resource_type:
+          type: string
+          description: Type of the resource being commented on (artifact, memory, prompt, or blueprint)
+          example: artifact
+        resource_id:
+          type: string
+          format: uuid
+          description: Identifier of the resource being commented on
+          example: 770e8400-e29b-41d4-a716-446655440002
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: Comment body (markdown, 1–10,000 characters)
+          example: These figures are from the v3 API, not v4.
+      required:
+        - resource_type
+        - resource_id
+        - content
+    UpdateCommentRequest:
+      type: object
+      description: Request body for editing a comment's content.
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: New comment body (markdown, 1–10,000 characters)
+          example: These figures are from the v3 API, not v4 (corrected).
+      required:
+        - content
+    CommentListResponse:
+      type: object
+      description: A page of a resource's comments, newest first.
+      properties:
+        comments:
+          type: array
+          description: Comments on the resource, newest first
+          items:
+            $ref: '#/components/schemas/Comment'
+        total_count:
+          type: integer
+          description: Total number of comments on the resource
+          example: 7
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        per_page:
+          type: integer
+          description: Number of items per page
+          example: 20
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 1
+      required:
+        - comments
+        - total_count
+        - page
+        - per_page
+        - total_pages
+    RecentComment:
+      type: object
+      description: |
+        A recent comment for the homepage activity card: the comment's latest state plus its resource's resolved title and link fields. No comment body snippet. project_id is present for every resource type; slug is present for artifact/blueprint/prompt and absent for memory.
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: Author of the comment
+          example: 880e8400-e29b-41d4-a716-446655440003
+        created_at:
+          type: string
+          format: date-time
+          description: When the comment was created
+          example: '2026-07-16T09:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: When the comment was last edited (updated_at > created_at means edited)
+          example: '2026-07-16T10:00:00Z'
+        resource_type:
+          type: string
+          description: Type of the commented resource
+          example: artifact
+        resource_id:
+          type: string
+          format: uuid
+          description: Identifier of the commented resource
+          example: 770e8400-e29b-41d4-a716-446655440002
+        resource_title:
+          type: string
+          description: Resolved display title of the resource
+          example: Q3 revenue analysis
+        project_id:
+          type: string
+          format: uuid
+          description: Project the resource belongs to (for building the detail link)
+          example: 990e8400-e29b-41d4-a716-446655440004
+        slug:
+          type: string
+          description: Resource slug for the detail link (absent for memories)
+          example: q3-revenue-analysis
+      required:
+        - user_id
+        - created_at
+        - updated_at
+        - resource_type
+        - resource_id
+        - resource_title
+    RecentCommentListResponse:
+      type: object
+      description: The team's most recent comment activity, latest-activity first.
+      properties:
+        comments:
+          type: array
+          description: Recent comments across the team, most-recently-active first
+          items:
+            $ref: '#/components/schemas/RecentComment'
+        total_count:
+          type: integer
+          description: Number of entries in the list
+          example: 10
+      required:
+        - comments
         - total_count
     ProjectResponse:
       allOf:

@@ -1,0 +1,194 @@
+# Resource comments schemas (epic #272). Team-visible annotations on a
+# polymorphic resource (artifact | memory | prompt | blueprint). REST-only —
+# never exposed over MCP.
+
+Comment:
+  type: object
+  description: A team-visible comment on a resource.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique comment identifier
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    team_id:
+      type: string
+      format: uuid
+      description: Owning team
+      example: "660e8400-e29b-41d4-a716-446655440001"
+    resource_type:
+      type: string
+      description: Type of the commented resource (artifact, memory, prompt, or blueprint)
+      example: "artifact"
+    resource_id:
+      type: string
+      format: uuid
+      description: Identifier of the commented resource
+      example: "770e8400-e29b-41d4-a716-446655440002"
+    user_id:
+      type: string
+      format: uuid
+      description: Author of the comment
+      example: "880e8400-e29b-41d4-a716-446655440003"
+    content:
+      type: string
+      description: Comment body (markdown, 1–10,000 characters)
+      example: "These figures are from the v3 API, not v4."
+    created_at:
+      type: string
+      format: date-time
+      description: When the comment was created
+      example: "2026-07-16T09:00:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: When the comment was last edited (equals created_at if never edited)
+      example: "2026-07-16T09:00:00Z"
+  required:
+    - id
+    - team_id
+    - resource_type
+    - resource_id
+    - user_id
+    - content
+    - created_at
+    - updated_at
+
+CreateCommentRequest:
+  type: object
+  description: Request body for creating a comment on a resource.
+  properties:
+    resource_type:
+      type: string
+      description: Type of the resource being commented on (artifact, memory, prompt, or blueprint)
+      example: "artifact"
+    resource_id:
+      type: string
+      format: uuid
+      description: Identifier of the resource being commented on
+      example: "770e8400-e29b-41d4-a716-446655440002"
+    content:
+      type: string
+      minLength: 1
+      maxLength: 10000
+      description: Comment body (markdown, 1–10,000 characters)
+      example: "These figures are from the v3 API, not v4."
+  required:
+    - resource_type
+    - resource_id
+    - content
+
+UpdateCommentRequest:
+  type: object
+  description: Request body for editing a comment's content.
+  properties:
+    content:
+      type: string
+      minLength: 1
+      maxLength: 10000
+      description: New comment body (markdown, 1–10,000 characters)
+      example: "These figures are from the v3 API, not v4 (corrected)."
+  required:
+    - content
+
+CommentListResponse:
+  type: object
+  description: A page of a resource's comments, newest first.
+  properties:
+    comments:
+      type: array
+      description: Comments on the resource, newest first
+      items:
+        $ref: '#/Comment'
+    total_count:
+      type: integer
+      description: Total number of comments on the resource
+      example: 7
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 20
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 1
+  required:
+    - comments
+    - total_count
+    - page
+    - per_page
+    - total_pages
+
+RecentComment:
+  type: object
+  description: >
+    A recent comment for the homepage activity card: the comment's latest state
+    plus its resource's resolved title and link fields. No comment body snippet.
+    project_id is present for every resource type; slug is present for
+    artifact/blueprint/prompt and absent for memory.
+  properties:
+    user_id:
+      type: string
+      format: uuid
+      description: Author of the comment
+      example: "880e8400-e29b-41d4-a716-446655440003"
+    created_at:
+      type: string
+      format: date-time
+      description: When the comment was created
+      example: "2026-07-16T09:00:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: When the comment was last edited (updated_at > created_at means edited)
+      example: "2026-07-16T10:00:00Z"
+    resource_type:
+      type: string
+      description: Type of the commented resource
+      example: "artifact"
+    resource_id:
+      type: string
+      format: uuid
+      description: Identifier of the commented resource
+      example: "770e8400-e29b-41d4-a716-446655440002"
+    resource_title:
+      type: string
+      description: Resolved display title of the resource
+      example: "Q3 revenue analysis"
+    project_id:
+      type: string
+      format: uuid
+      description: Project the resource belongs to (for building the detail link)
+      example: "990e8400-e29b-41d4-a716-446655440004"
+    slug:
+      type: string
+      description: Resource slug for the detail link (absent for memories)
+      example: "q3-revenue-analysis"
+  required:
+    - user_id
+    - created_at
+    - updated_at
+    - resource_type
+    - resource_id
+    - resource_title
+
+RecentCommentListResponse:
+  type: object
+  description: The team's most recent comment activity, latest-activity first.
+  properties:
+    comments:
+      type: array
+      description: Recent comments across the team, most-recently-active first
+      items:
+        $ref: '#/RecentComment'
+    total_count:
+      type: integer
+      description: Number of entries in the list
+      example: 10
+  required:
+    - comments
+    - total_count
