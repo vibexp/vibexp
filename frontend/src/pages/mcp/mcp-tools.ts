@@ -69,68 +69,6 @@ export const mcpTools: MCPTool[] = [
     },
   },
   {
-    name: 'vibexp_io_search_artifacts',
-    description:
-      'Search and list artifacts with filtering and pagination support. Returns excerpt data only (no content field) — call vibexp_io_get_artifact for full content. Use this tool to discover existing artifacts within a project, filter by type or status, and search through artifact titles and descriptions.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        project_id: {
-          type: 'string',
-          description:
-            'Project UUID identifier to search within. Only artifacts belonging to this project will be returned.',
-        },
-        page: {
-          type: 'integer',
-          description: 'Page number for pagination (default: 1).',
-        },
-        limit: {
-          type: 'integer',
-          description: 'Number of items per page (default: 10, max: 10).',
-        },
-        status: {
-          type: 'string',
-          description:
-            'Filter artifacts by status. Specify "active", "draft", or "archived". Leave empty for the default view (active and draft; archived excluded).',
-        },
-        type: {
-          type: 'string',
-          description:
-            'Filter artifacts by type. Options: "work_reports", "static_contexts", "general". Leave empty to include all types.',
-        },
-        search: {
-          type: 'string',
-          description:
-            'Search term to find artifacts by title or description. Performs case-insensitive partial matching across artifact titles and descriptions.',
-        },
-      },
-      required: ['project_id'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'vibexp_io_get_artifact',
-    description:
-      'Retrieve the complete content and details of a specific artifact by its project and slug identifier. Use this tool when you need to access the full content of an artifact, including its metadata, for reference, modification, or integration into your current work.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        project_id: {
-          type: 'string',
-          description:
-            'Project UUID identifier where the artifact is stored. This must match exactly with the project ID used when the artifact was created.',
-        },
-        slug: {
-          type: 'string',
-          description:
-            'Unique slug identifier of the artifact to retrieve. This must match exactly with the slug used when the artifact was created.',
-        },
-      },
-      required: ['project_id', 'slug'],
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'vibexp_io_update_artifact',
     description:
       'Update the content, metadata, or properties of an existing artifact. Use this tool to modify artifact content, change its status, update descriptions, or refresh any aspect of the artifact while maintaining its identity and project association.',
@@ -210,53 +148,6 @@ export const mcpTools: MCPTool[] = [
     },
   },
   {
-    name: 'vibexp_io_search_memories',
-    description:
-      'Search and list memories with filtering and pagination support. Returns truncated text (first ~300 chars) — call vibexp_io_get_memory for full content. Use this tool to find existing memories within a project, search through memory content, and retrieve relevant information from your stored memory collection.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        project_name: {
-          type: 'string',
-          description:
-            'Project identifier to search within. Only memories associated with this project (via metadata) will be returned.',
-        },
-        page: {
-          type: 'integer',
-          description: 'Page number for pagination (default: 1).',
-        },
-        limit: {
-          type: 'integer',
-          description: 'Number of items per page (default: 10, max: 10).',
-        },
-        search: {
-          type: 'string',
-          description:
-            'Search term to find memories by text content. Performs case-insensitive partial matching across memory text content to find relevant memories.',
-        },
-      },
-      required: ['project_name'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'vibexp_io_get_memory',
-    description:
-      'Retrieve the complete content and details of a specific memory by its unique identifier. Use this tool when you need to access the full content of a particular memory, including its metadata and associated information.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        memory_id: {
-          type: 'string',
-          description:
-            'Unique identifier of the memory to retrieve. This is the ID returned when the memory was created or found through search operations.',
-        },
-      },
-      required: ['memory_id'],
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'vibexp_io_update_memory',
     description:
       'Update the content or metadata of an existing memory. Use this tool to modify memory text, update associated metadata, or refresh any aspect of the stored memory while maintaining its unique identity.',
@@ -280,6 +171,80 @@ export const mcpTools: MCPTool[] = [
         },
       },
       required: ['memory_id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'vibexp_io_get_resource',
+    description:
+      'Fetch a single resource by type and identifier, returning its full content. Supported resource_type values: "memory" (identified by id), "artifact" and "blueprint" (identified by project_id and slug). This replaces the former per-type get tools.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        resource_type: {
+          type: 'string',
+          description:
+            'The resource type to fetch: one of "memory", "artifact", or "blueprint".',
+        },
+        id: {
+          type: 'string',
+          description:
+            'Resource UUID. Required when resource_type is "memory"; ignored otherwise.',
+        },
+        project_id: {
+          type: 'string',
+          description:
+            'Project UUID. Required when resource_type is "artifact" or "blueprint"; ignored otherwise.',
+        },
+        slug: {
+          type: 'string',
+          description:
+            'Resource slug. Required when resource_type is "artifact" or "blueprint"; ignored otherwise.',
+        },
+      },
+      required: ['resource_type'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'vibexp_io_list_resources',
+    description:
+      'List the resources of a given type in a project with filtering and pagination. Returns slim items without full content — call vibexp_io_get_resource for the full content of a single resource. Supported resource_type values: "memory", "artifact", "blueprint". This replaces the former per-type search/list tools.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        resource_type: {
+          type: 'string',
+          description:
+            'The resource type to list: one of "memory", "artifact", or "blueprint".',
+        },
+        project_id: {
+          type: 'string',
+          description: 'Project UUID to list resources within.',
+        },
+        page: {
+          type: 'integer',
+          description: 'Page number for pagination (default: 1).',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Number of items per page (default: 10, max: 10).',
+        },
+        search: {
+          type: 'string',
+          description:
+            'Search term matched against memory text, or artifact/blueprint title and description.',
+        },
+        status: {
+          type: 'string',
+          description: 'Filter by status. Leave empty for the default view.',
+        },
+        type: {
+          type: 'string',
+          description: 'Filter by type (artifact and blueprint only).',
+        },
+      },
+      required: ['resource_type', 'project_id'],
       additionalProperties: false,
     },
   },
@@ -338,7 +303,7 @@ export const mcpTools: MCPTool[] = [
   {
     name: 'vibexp_io_list_feed_items',
     description:
-      'List items posted to a specific AI Feed, newest first (paginated, max 10 per page). Returns excerpt by default (no content field) — call vibexp_io_get_feed_item for full content. Call vibexp_io_list_feeds first to discover the feed_id. Returns id, title, excerpt, ai_assistant_name, posted_at, and reply_count for each item.',
+      'List items posted to a specific AI Feed, newest first (paginated, max 10 per page). Returns excerpt by default (no content field) — call vibexp_io_get_feed_item for full content. Call vibexp_io_list_feeds first to discover the feed_id. Returns id, title, excerpt, ai_assistant_name, posted_at, and reply_count for each item. Set include_replies=true to embed up to 3 recent reply excerpts per item.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -360,6 +325,11 @@ export const mcpTools: MCPTool[] = [
           description:
             'Return full content field. Default: false (returns excerpt only)',
         },
+        include_replies: {
+          type: 'boolean',
+          description:
+            'Embed up to 3 recent reply excerpts per item. Default: false. For one item plus all its replies, use vibexp_io_get_feed_item.',
+        },
       },
       required: ['feed_id'],
       additionalProperties: false,
@@ -368,7 +338,7 @@ export const mcpTools: MCPTool[] = [
   {
     name: 'vibexp_io_get_feed_item',
     description:
-      'Retrieve the full content of a specific AI Feed item by its ID. Use this after vibexp_io_list_feed_items to get the complete content of an item you are interested in.',
+      'Retrieve a specific AI Feed item by its ID with its full content and its replies (full content) inline, newest replies first. Use this after vibexp_io_list_feed_items to read an item and the conversation on it — for example, to check for human replies before continuing work.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -379,52 +349,6 @@ export const mcpTools: MCPTool[] = [
         },
       },
       required: ['feed_item_id'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'vibexp_io_list_feed_item_replies',
-    description:
-      'List replies to a specific AI Feed item, newest first (paginated, max 10 per page). Returns truncated content (~300 chars) by default — call vibexp_io_get_feed_item_reply for full content. Call vibexp_io_list_feed_items first to discover the feed_item_id.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        feed_item_id: {
-          type: 'string',
-          description: 'UUID of the feed item (from vibexp_io_list_feed_items)',
-        },
-        page: {
-          type: 'integer',
-          description: 'Page number, starting from 1 (default: 1)',
-        },
-        limit: {
-          type: 'integer',
-          description: 'Replies per page, max 10 (default: 10)',
-        },
-        full_details: {
-          type: 'boolean',
-          description:
-            'Return full content instead of truncated excerpt. Default: false',
-        },
-      },
-      required: ['feed_item_id'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'vibexp_io_get_feed_item_reply',
-    description:
-      'Retrieve the full content of a specific AI Feed item reply by its ID. Use this after vibexp_io_list_feed_item_replies to get the complete content of a reply you are interested in.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        reply_id: {
-          type: 'string',
-          description:
-            'UUID of the reply (from vibexp_io_list_feed_item_replies or vibexp_io_reply_to_feed_item)',
-        },
-      },
-      required: ['reply_id'],
       additionalProperties: false,
     },
   },
@@ -504,7 +428,7 @@ export const mcpTools: MCPTool[] = [
   {
     name: 'vibexp_io_search',
     description:
-      'Semantic (RAG) retrieval across the current team\'s prompts, artifacts, blueprints, and memories. Use this when you need to *find* relevant team knowledge by meaning — e.g. "how did we configure the staging database?" or "prior decisions about pricing" — rather than by an exact id, slug, or filter. Prefer vibexp_io_search_artifacts when you already know the project and want an exact, filterable artifact listing; prefer this tool for open-ended, cross-entity discovery. Pass a single natural-language query; optionally narrow with types (plural: prompts, artifacts, blueprints, memories) and paginate with page/limit. Omitting types searches all four entity types. Returns relevance-ranked results: each has type (singular: prompt, artifact, blueprint, memory), id, title, a short excerpt, a score in [0,1] (higher is more relevant), chunk_id, and updated_at, plus pagination metadata (total_count, page, per_page, total_pages). Results are always scoped to the authenticated team.',
+      'Semantic (RAG) retrieval across the current team\'s prompts, artifacts, blueprints, and memories. Use this when you need to *find* relevant team knowledge by meaning — e.g. "how did we configure the staging database?" or "prior decisions about pricing" — rather than by an exact id, slug, or filter. Prefer vibexp_io_list_resources when you already know the project and want an exact, filterable listing; prefer this tool for open-ended, cross-entity discovery. Pass a single natural-language query; optionally narrow with types (plural: prompts, artifacts, blueprints, memories) and paginate with page/limit. Omitting types searches all four entity types. Returns relevance-ranked results: each has type (singular: prompt, artifact, blueprint, memory), id, title, a short excerpt, a score in [0,1] (higher is more relevant), chunk_id, and updated_at, plus pagination metadata (total_count, page, per_page, total_pages). Results are always scoped to the authenticated team.',
     inputSchema: {
       type: 'object',
       properties: {
