@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
 import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
+import { CommentsPanel } from '@/components/comments/CommentsPanel'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { CopyButton } from '@/components/CopyButton'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -280,6 +281,14 @@ export function BlueprintView() {
 
           {currentTeam && (
             <AccessActivityPanel
+              teamId={currentTeam.id}
+              resourceType="blueprint"
+              resourceId={blueprint.id}
+            />
+          )}
+
+          {currentTeam && (
+            <CommentsPanel
               teamId={currentTeam.id}
               resourceType="blueprint"
               resourceId={blueprint.id}
