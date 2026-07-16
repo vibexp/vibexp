@@ -57,7 +57,7 @@ func promptServiceForRole(
 	return NewPromptService(
 		repo, refRepo, nil, projectRepo, nil,
 		NewAuthorizationService(memberRepo, logger), nil, logger, nil,
-	)
+		nil)
 }
 
 func promptOwnedBy(ownerID string) *models.Prompt {

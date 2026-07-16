@@ -19,7 +19,7 @@ import (
 )
 
 func createTestMemoryService(repo repositories.MemoryRepository) *MemoryService {
-	return NewMemoryService(repo, nil, allowAllAuthz{}, nil, func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
+	return NewMemoryService(repo, nil, allowAllAuthz{}, nil, func() *slog.Logger { l, _ := logtest.New(); return l }(), nil, nil)
 }
 
 const testServiceProjectID = "550e8400-e29b-41d4-a716-446655440002"
@@ -617,7 +617,7 @@ func TestMemoryService_PublishesMemoryEvents(t *testing.T) {
 
 			service := NewMemoryService(
 				mockRepo, nil, allowAllAuthz{}, mockEventManager,
-				func() *slog.Logger { l, _ := logtest.New(); return l }(), nil)
+				func() *slog.Logger { l, _ := logtest.New(); return l }(), nil, nil)
 
 			tt.setupMocks(mockRepo, mockEventManager)
 

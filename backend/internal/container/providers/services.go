@@ -53,9 +53,11 @@ func ProvidePromptService(
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
+	commentRepo repositories.CommentRepository,
 ) services.PromptServiceInterface {
 	return services.NewPromptService(
-		repo, refRepo, userRepo, projectRepo, teamService, authzService, eventManager, logger, contentVersionSvc,
+		repo, refRepo, userRepo, projectRepo, teamService, authzService, eventManager,
+		logger, contentVersionSvc, commentRepo,
 	)
 }
 
@@ -131,10 +133,21 @@ func ProvideArtifactService(
 	resourceUsageSvc services.ResourceUsageServiceInterface,
 	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
+	commentRepo repositories.CommentRepository,
 ) services.ArtifactServiceInterface {
 	return services.NewArtifactService(
-		repo, teamService, authzService, eventManager, resourceUsageSvc, logger, contentVersionSvc,
+		repo, teamService, authzService, eventManager, resourceUsageSvc, logger, contentVersionSvc, commentRepo,
 	)
+}
+
+// ProvideCommentService creates a new CommentService.
+func ProvideCommentService(
+	repo repositories.CommentRepository,
+	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
+	logger *slog.Logger,
+) services.CommentServiceInterface {
+	return services.NewCommentService(repo, teamService, authzService, logger)
 }
 
 // ProvideAttachmentService creates a new AttachmentService. The object store
@@ -164,9 +177,10 @@ func ProvideBlueprintService(
 	resourceUsageSvc services.ResourceUsageServiceInterface,
 	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
+	commentRepo repositories.CommentRepository,
 ) services.BlueprintServiceInterface {
 	return services.NewBlueprintService(
-		repo, teamService, authzService, eventManager, resourceUsageSvc, logger, contentVersionSvc,
+		repo, teamService, authzService, eventManager, resourceUsageSvc, logger, contentVersionSvc, commentRepo,
 	)
 }
 
@@ -317,8 +331,11 @@ func ProvideMemoryService(
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
+	commentRepo repositories.CommentRepository,
 ) services.MemoryServiceInterface {
-	return services.NewMemoryService(repo, teamService, authzService, eventManager, logger, contentVersionSvc)
+	return services.NewMemoryService(
+		repo, teamService, authzService, eventManager, logger, contentVersionSvc, commentRepo,
+	)
 }
 
 // ProvideEmbeddingService creates a new EmbeddingService
@@ -502,8 +519,9 @@ func ProvideTeamService(
 	userRepo repositories.UserRepository,
 	authzService services.AuthorizationServiceInterface,
 	logger *slog.Logger,
+	commentRepo repositories.CommentRepository,
 ) services.TeamServiceInterface {
-	return services.NewTeamService(teamRepo, teamMemberRepo, userRepo, authzService, logger)
+	return services.NewTeamService(teamRepo, teamMemberRepo, userRepo, authzService, logger, commentRepo)
 }
 
 // ProvideTeamInvitationService creates a new TeamInvitationService

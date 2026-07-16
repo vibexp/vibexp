@@ -20,7 +20,7 @@ func createTestTeamService(
 	userRepo *mocks.MockUserRepository,
 ) *TeamService {
 	logger, _ := logtest.New()
-	return NewTeamService(teamRepo, teamMemberRepo, userRepo, NewAuthorizationService(teamMemberRepo, logger), logger)
+	return NewTeamService(teamRepo, teamMemberRepo, userRepo, NewAuthorizationService(teamMemberRepo, logger), logger, nil)
 }
 
 //nolint:funlen // table-driven test with multiple test cases
@@ -216,7 +216,7 @@ func TestNewTeamService_NilLogger(t *testing.T) {
 	mockTeamMemberRepo := mocks.NewMockTeamMemberRepository(t)
 	mockUserRepo := mocks.NewMockUserRepository(t)
 
-	service := NewTeamService(mockTeamRepo, mockTeamMemberRepo, mockUserRepo, NewAuthorizationService(mockTeamMemberRepo, nil), nil)
+	service := NewTeamService(mockTeamRepo, mockTeamMemberRepo, mockUserRepo, NewAuthorizationService(mockTeamMemberRepo, nil), nil, nil)
 
 	assert.NotNil(t, service)
 	assert.NotNil(t, service.logger)
@@ -751,7 +751,7 @@ func TestTeamService_DeleteTeam(t *testing.T) {
 			service := NewTeamService(
 				mockTeamRepo, mockTeamMemberRepo, mockUserRepo,
 				NewAuthorizationService(mockTeamMemberRepo, logger), logger,
-			)
+				nil)
 			err := service.DeleteTeam(context.Background(), tt.userID, tt.teamID)
 
 			if tt.expectErr {
@@ -1005,7 +1005,7 @@ func TestTeamService_DeleteTeam_WithMultipleMembers(t *testing.T) {
 	service := NewTeamService(
 		mockTeamRepo, mockTeamMemberRepo, mockUserRepo,
 		NewAuthorizationService(mockTeamMemberRepo, logger), logger,
-	)
+		nil)
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -1056,7 +1056,7 @@ func TestTeamService_DeleteTeam_PersonalWorkspace(t *testing.T) {
 	service := NewTeamService(
 		mockTeamRepo, mockTeamMemberRepo, mockUserRepo,
 		NewAuthorizationService(mockTeamMemberRepo, logger), logger,
-	)
+		nil)
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -1095,7 +1095,7 @@ func TestTeamService_DeleteTeam_Success(t *testing.T) {
 	service := NewTeamService(
 		mockTeamRepo, mockTeamMemberRepo, mockUserRepo,
 		NewAuthorizationService(mockTeamMemberRepo, logger), logger,
-	)
+		nil)
 
 	ctx := context.Background()
 	userID := "user-123"

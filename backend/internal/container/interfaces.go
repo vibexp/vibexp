@@ -64,6 +64,7 @@ type Container interface {
 	PromptShareService() services.PromptShareServiceInterface
 	ArtifactService() services.ArtifactServiceInterface
 	AttachmentService() services.AttachmentServiceInterface
+	CommentService() services.CommentServiceInterface
 	TypeService() services.TypeServiceInterface
 	BlueprintService() services.BlueprintServiceInterface
 	EmbeddingProviderService() services.EmbeddingProviderServiceInterface

@@ -20,6 +20,7 @@ type BlueprintService struct {
 	eventManager      events.EventPublisher
 	resourceUsageSvc  ResourceUsageServiceInterface
 	contentVersionSvc ContentVersionServiceInterface
+	commentRepo       repositories.CommentRepository
 	logger            *slog.Logger
 }
 
@@ -34,6 +35,7 @@ func NewBlueprintService(
 	resourceUsageSvc ResourceUsageServiceInterface,
 	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
+	commentRepo repositories.CommentRepository,
 ) *BlueprintService {
 	return &BlueprintService{
 		repo:              repo,
@@ -42,6 +44,7 @@ func NewBlueprintService(
 		eventManager:      eventManager,
 		resourceUsageSvc:  resourceUsageSvc,
 		contentVersionSvc: contentVersionSvc,
+		commentRepo:       commentRepo,
 		logger:            logger,
 	}
 }
@@ -515,7 +518,27 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, teamID, pro
 		return err
 	}
 
+	s.deleteBlueprintComments(ctx, blueprint.TeamID, blueprint.ID)
+
 	return nil
+}
+
+// deleteBlueprintComments removes a blueprint's comments after it is deleted.
+// Best-effort: a failure is logged but does not fail the completed delete.
+func (s *BlueprintService) deleteBlueprintComments(ctx context.Context, teamID, blueprintID string) {
+	if s.commentRepo == nil {
+		return
+	}
+	if _, err := s.commentRepo.DeleteByResource(
+		ctx, teamID, models.CommentResourceTypeBlueprint, blueprintID,
+	); err != nil {
+		s.logger.With(
+			"service", "blueprint",
+			"team_id", teamID,
+			"blueprint_id", blueprintID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete comments for deleted blueprint")
+	}
 }
 
 func (s *BlueprintService) GetBlueprintStats(userID string) (*models.BlueprintStatsResponse, error) {
