@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/models"
@@ -334,4 +335,58 @@ func TestUpdatePrompt_NonMemberTeamDenied(t *testing.T) {
 	}
 	assertGenericAccessDenied(t, result)
 	mockPromptService.AssertNotCalled(t, "UpdatePromptBySlug")
+}
+
+func TestRenderPrompt_Success(t *testing.T) {
+	srv, mockPromptService := newPromptTestServer(t)
+	mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", map[string]string{"env": "prod"}).
+		Return(&models.RenderPromptResponse{RenderedBody: "deploy to prod"}, nil)
+
+	params := &RenderPromptParams{TeamID: testTeamSlug, Slug: "deploy", Arguments: map[string]string{"env": "prod"}}
+	result, structured, err := srv.renderPrompt(context.Background(), nil, params, testMemberUserID)
+
+	assert.NoError(t, err)
+	assert.False(t, result.IsError)
+	// The rendered body is the text content so a client can use it directly.
+	assert.Equal(t, "deploy to prod", extractText(t, result))
+	rendered, ok := structured.(*models.RenderPromptResponse)
+	assert.True(t, ok)
+	assert.Equal(t, "deploy to prod", rendered.RenderedBody)
+}
+
+func TestRenderPrompt_EmptySlug(t *testing.T) {
+	srv, mockPromptService := newPromptTestServer(t)
+
+	params := &RenderPromptParams{TeamID: testTeamUUID, Slug: "  "}
+	result, structured, err := srv.renderPrompt(context.Background(), nil, params, testMemberUserID)
+
+	assert.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Nil(t, structured)
+	mockPromptService.AssertNotCalled(t, "RenderPrompt")
+}
+
+func TestRenderPrompt_NonMemberTeamDenied(t *testing.T) {
+	srv, mockPromptService := newPromptTestServer(t)
+
+	params := &RenderPromptParams{TeamID: testOtherTeamUUID, Slug: "deploy"}
+	result, structured, err := srv.renderPrompt(context.Background(), nil, params, testMemberUserID)
+
+	assert.NoError(t, err)
+	assert.Nil(t, structured)
+	assertGenericAccessDenied(t, result)
+	mockPromptService.AssertNotCalled(t, "RenderPrompt")
+}
+
+func TestRenderPrompt_ServiceError(t *testing.T) {
+	srv, mockPromptService := newPromptTestServer(t)
+	mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", mock.Anything).
+		Return(nil, errors.New("boom"))
+
+	params := &RenderPromptParams{TeamID: testTeamUUID, Slug: "deploy"}
+	result, structured, err := srv.renderPrompt(context.Background(), nil, params, testMemberUserID)
+
+	assert.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Nil(t, structured)
 }

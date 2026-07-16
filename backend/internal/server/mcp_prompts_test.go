@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -151,4 +152,70 @@ func TestAddUserPromptsToMCP_TeamListErrorIsNonFatal(t *testing.T) {
 	assert.NotPanics(t, func() {
 		srv.addUserPromptsToMCP(context.Background(), mcpServer, testMemberUserID)
 	})
+}
+
+// TestAddUserPromptsToMCP_CapsPrimitives verifies the per-user prompt-primitive
+// cap (#263): a team exposing more than maxPromptPrimitives prompts registers
+// only maxPromptPrimitives primitives; the rest stay reachable via render_prompt.
+func TestAddUserPromptsToMCP_CapsPrimitives(t *testing.T) {
+	srv := newServerWithNullLogger(t)
+	mockTeam := mocks.NewMockTeamServiceInterface(t)
+	mockPrompt := mocks.NewMockPromptServiceInterface(t)
+	srv.container = &TestContainer{TeamServiceMock: mockTeam, PromptServiceMock: mockPrompt}
+
+	stubUserTeams(mockTeam, []models.Team{{ID: testTeamUUID, Name: "Acme", Slug: testTeamSlug}})
+
+	prompts := make([]models.Prompt, maxPromptPrimitives+10)
+	for i := range prompts {
+		prompts[i] = models.Prompt{Slug: fmt.Sprintf("p-%d", i), Body: "x"}
+	}
+	mockPrompt.On("ListPrompts", testMemberUserID, mock.Anything).
+		Return(&models.PromptListResponse{Prompts: prompts}, nil)
+	mockPrompt.On("ExtractAllPlaceholders", testMemberUserID, mock.Anything, mock.Anything).
+		Return([]string{}, nil)
+
+	mcpServer := mcp.NewServer(
+		&mcp.Implementation{Name: "test", Version: "1.0.0"},
+		&mcp.ServerOptions{HasPrompts: true, PageSize: 1000},
+	)
+	srv.addUserPromptsToMCP(context.Background(), mcpServer, testMemberUserID)
+
+	ctx := context.Background()
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := mcpServer.Connect(ctx, serverTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if closeErr := serverSession.Close(); closeErr != nil {
+			t.Logf("serverSession.Close: %v", closeErr)
+		}
+	})
+	client := mcp.NewClient(&mcp.Implementation{Name: "c", Version: "1.0.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if closeErr := clientSession.Close(); closeErr != nil {
+			t.Logf("clientSession.Close: %v", closeErr)
+		}
+	})
+
+	listResult, err := clientSession.ListPrompts(ctx, nil)
+	require.NoError(t, err)
+	assert.Len(t, listResult.Prompts, maxPromptPrimitives)
+}
+
+// TestAddTeamPromptsToMCP_LimitZeroRegistersNothing verifies the per-team budget
+// short-circuit: with no remaining primitive budget, no prompts are loaded or
+// registered.
+func TestAddTeamPromptsToMCP_LimitZeroRegistersNothing(t *testing.T) {
+	srv := newServerWithNullLogger(t)
+	mockPrompt := mocks.NewMockPromptServiceInterface(t)
+	srv.container = &TestContainer{PromptServiceMock: mockPrompt}
+
+	mcpServer := mcp.NewServer(&mcp.Implementation{Name: "t", Version: "1.0.0"}, &mcp.ServerOptions{HasPrompts: true})
+	registered := map[string]struct{}{}
+	n := srv.addTeamPromptsToMCP(mcpServer, testMemberUserID, testTeamUUID, testTeamSlug, registered, 0)
+
+	assert.Equal(t, 0, n)
+	assert.Empty(t, registered)
+	mockPrompt.AssertNotCalled(t, "ListPrompts")
 }

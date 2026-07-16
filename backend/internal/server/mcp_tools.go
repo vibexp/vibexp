@@ -207,6 +207,17 @@ func (m *MCPToolsManager) addPromptTools(mcpServer *mcp.Server, userID string) {
 	) (*mcp.CallToolResult, any, error) {
 		return m.server.updatePrompt(ctx, req, params, userID)
 	})
+
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name: "vibexp_io_render_prompt",
+		Description: "Render a published, MCP-exposed prompt by slug, substituting values for its " +
+			"{{placeholders}}. Use this to run any of your team's prompts as a tool — including prompts " +
+			"not exposed as a slash-command primitive (only the most recent are). Returns the rendered body.",
+	}, func(
+		ctx context.Context, req *mcp.CallToolRequest, params *RenderPromptParams,
+	) (*mcp.CallToolResult, any, error) {
+		return m.server.renderPrompt(ctx, req, params, userID)
+	})
 }
 
 // addBlueprintTools adds blueprint write tools (create/update). Blueprints are
