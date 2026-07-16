@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { Browser, Page } from '@playwright/test'
 
-import { devLogin, getCurrentTeam } from '../../fixtures/auth'
+import { devLogin } from '../../fixtures/auth'
 
 /**
  * Feature Test: Team Invitation Accept
@@ -95,6 +95,23 @@ async function pendingCount(page: Page): Promise<number> {
   return body.invitations?.length ?? 0
 }
 
+/**
+ * Names of the teams the signed-in user is actually a MEMBER of.
+ *
+ * This is the real membership signal. Note what does NOT work: `getCurrentTeam`
+ * is truthy from the moment of dev login (every login provisions a personal
+ * team), and the team name is on screen *before* accepting too — it renders in
+ * the pending-invitation card. Both would pass without joining anything.
+ */
+async function memberTeamNames(page: Page): Promise<string[]> {
+  const res = await page.request.get('/api/v1/teams')
+  if (!res.ok()) return []
+  const body = (await res.json()) as {
+    teams?: { name?: string }[]
+  }
+  return (body.teams ?? []).map(t => t.name ?? '')
+}
+
 test.describe('Team Invitation Accept', () => {
   test('an invited user accepts from the pending list and joins the team', async ({
     browser,
@@ -108,6 +125,10 @@ test.describe('Team Invitation Accept', () => {
     try {
       await inviteToTeam(inviter.page, inviter.teamId, inviteeEmail)
       invitee = await signInInvitee(browser, inviteeEmail)
+
+      // Baseline: not a member yet. Without this, the post-accept membership
+      // assertion could pass for a user who was somehow already in the team.
+      expect(await memberTeamNames(invitee.page)).not.toContain(teamName)
 
       await invitee.page.goto('/settings/teams')
 
@@ -124,21 +145,17 @@ test.describe('Team Invitation Accept', () => {
       await expect(acceptButton).toBeVisible({ timeout: 15000 })
       await acceptButton.click()
 
-      // Assert real membership rather than a transient toast: the invitation is
-      // consumed and the team is now part of the invitee's context.
+      // Assert real membership rather than a transient toast: the invitee is now
+      // in the team, and the invitation is consumed.
+      await expect
+        .poll(async () => await memberTeamNames(invitee!.page), {
+          timeout: 15000,
+        })
+        .toContain(teamName)
+
       await expect
         .poll(async () => await pendingCount(invitee!.page), { timeout: 15000 })
         .toBe(0)
-
-      await expect
-        .poll(async () => await getCurrentTeam(invitee!.page), {
-          timeout: 15000,
-        })
-        .toBeTruthy()
-
-      await expect(
-        invitee.page.getByText(teamName, { exact: false }).first()
-      ).toBeVisible({ timeout: 15000 })
     } finally {
       await invitee?.close()
       await inviter.close()
@@ -192,6 +209,12 @@ test.describe('Team Invitation Accept', () => {
         .getByRole('button', { name: /^accept(\s+invitation)?$/i })
         .first()
         .click()
+
+      await expect
+        .poll(async () => await memberTeamNames(invitee!.page), {
+          timeout: 15000,
+        })
+        .toContain(teamName)
 
       await expect
         .poll(async () => await pendingCount(invitee!.page), { timeout: 15000 })
