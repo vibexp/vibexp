@@ -8265,9 +8265,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/InvitationResponse'
+                $ref: '#/components/schemas/InvitationResponseList'
         '400':
           description: Invalid request body, validation error, more than 50 emails, or invalid role
           content:
