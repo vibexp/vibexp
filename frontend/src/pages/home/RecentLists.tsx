@@ -1,7 +1,11 @@
 import {
   Activity as ActivityIcon,
+  BookOpen,
+  Brain,
   ChevronRight,
+  FileText,
   type LucideIcon,
+  MessageSquare,
   Sparkles,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -17,10 +21,14 @@ import {
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { buildResourceUrl } from '@/lib/resourceUrl'
 import { formatRelativeTime } from '@/lib/time'
+import { FeedActorAvatar, resolveFeedActor } from '@/pages/feeds/feedActor'
 import { getActivityIcon } from '@/pages/home/activityHelpers'
 import type { Activity as ActivityType } from '@/services/activityService'
+import type { RecentComment } from '@/services/commentService'
 import type { FeedItem } from '@/services/feedService'
+import type { TeamMember } from '@/services/teamService'
 
 export function getActivitySubtitle(activity: ActivityType): string {
   const parts: string[] = []
@@ -44,7 +52,8 @@ interface ListCardProps {
   isEmpty: boolean
   emptyIcon: LucideIcon
   emptyMessage: string
-  onViewAll: () => void
+  /** Omit to render no "See more" footer (e.g. the recent-comments card, v1). */
+  onViewAll?: () => void
   children: ReactNode
 }
 
@@ -100,7 +109,7 @@ function ListCard({
           children
         )}
       </CardContent>
-      {!loading && !error && (
+      {!loading && !error && onViewAll && (
         <>
           <Separator />
           <CardFooter className="justify-center pt-4">
@@ -162,6 +171,99 @@ export function RecentFeedList({
             </Link>
           </li>
         ))}
+      </ul>
+    </ListCard>
+  )
+}
+
+// Per-type glyph for a commented resource, consistent with the app's iconography
+// (Sparkles=prompt / BookOpen=blueprint as in the homepage Quick actions).
+const RESOURCE_ICONS: Record<string, LucideIcon> = {
+  artifact: FileText,
+  blueprint: BookOpen,
+  prompt: Sparkles,
+  memory: Brain,
+}
+
+export function RecentCommentsList({
+  comments,
+  members,
+  loading,
+  error,
+}: {
+  comments: RecentComment[]
+  members: Map<string, TeamMember>
+  loading: boolean
+  error: string | null
+}) {
+  return (
+    <ListCard
+      title="Recent comments"
+      count={comments.length}
+      countLabel="comments"
+      loading={loading}
+      error={error}
+      isEmpty={comments.length === 0}
+      emptyIcon={MessageSquare}
+      emptyMessage="No comments yet in this team."
+    >
+      <ul className="divide-y">
+        {comments.slice(0, 8).map(comment => {
+          const actor = resolveFeedActor(
+            { posted_by_user_id: comment.user_id },
+            members.get(comment.user_id)
+          )
+          const edited =
+            new Date(comment.updated_at).getTime() >
+            new Date(comment.created_at).getTime()
+          const action = edited ? 'edited a comment on' : 'commented on'
+          const Icon = RESOURCE_ICONS[comment.resource_type] ?? FileText
+          const url = buildResourceUrl({
+            type: comment.resource_type,
+            id: comment.resource_id,
+            slug: comment.slug,
+            projectId: comment.project_id,
+          })
+          // RecentComment has no id; a user can comment at most once per resource
+          // at a given activity time, so this composite key is stable + unique.
+          const key = `${comment.resource_type}:${comment.resource_id}:${comment.user_id}:${comment.updated_at}`
+
+          const row = (
+            <>
+              <FeedActorAvatar actor={actor} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">
+                  <span className="font-medium">{actor.displayName}</span>{' '}
+                  <span className="text-muted-foreground">{action}</span>
+                </p>
+                <p className="text-muted-foreground flex items-center gap-1 truncate text-xs">
+                  <Icon className="size-3 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{comment.resource_title}</span>
+                </p>
+              </div>
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {formatRelativeTime(comment.updated_at)}
+              </span>
+            </>
+          )
+
+          return (
+            <li key={key}>
+              {url ? (
+                <Link
+                  to={url}
+                  className="hover:bg-muted/40 -mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors"
+                >
+                  {row}
+                </Link>
+              ) : (
+                <div className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3">
+                  {row}
+                </div>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </ListCard>
   )

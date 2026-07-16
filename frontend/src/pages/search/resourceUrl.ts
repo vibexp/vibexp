@@ -1,3 +1,4 @@
+import { buildResourceUrl } from '@/lib/resourceUrl'
 import type {
   SearchResultItem,
   SearchResultType,
@@ -31,18 +32,10 @@ export function displayTitle(item: SearchResultItem): string {
  * those resources (`/artifacts/:project/:slug` resolves `:project` as a UUID).
  */
 export function resourceUrl(item: SearchResultItem): string | null {
-  switch (item.type) {
-    case 'prompt':
-      return item.slug ? `/prompts/${encodeURIComponent(item.slug)}` : null
-    case 'artifact':
-      return item.slug && item.project_id
-        ? `/artifacts/${encodeURIComponent(item.project_id)}/${encodeURIComponent(item.slug)}`
-        : null
-    case 'blueprint':
-      return item.slug && item.project_id
-        ? `/blueprints/${encodeURIComponent(item.project_id)}/${encodeURIComponent(item.slug)}`
-        : null
-    case 'memory':
-      return `/memories/${encodeURIComponent(item.id)}`
-  }
+  return buildResourceUrl({
+    type: item.type,
+    id: item.id,
+    slug: item.slug,
+    projectId: item.project_id,
+  })
 }

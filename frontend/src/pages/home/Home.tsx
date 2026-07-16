@@ -17,16 +17,22 @@ import { AnalyticsEmptyState } from '@/pages/home/AnalyticsEmptyState'
 import { buildOverviewStats } from '@/pages/home/buildOverviewStats'
 import { OverviewCard } from '@/pages/home/OverviewCard'
 import { type QuickAction, QuickActionCard } from '@/pages/home/QuickActionCard'
-import { RecentActivityList, RecentFeedList } from '@/pages/home/RecentLists'
+import {
+  RecentActivityList,
+  RecentCommentsList,
+  RecentFeedList,
+} from '@/pages/home/RecentLists'
 import { TopAccessedResources } from '@/pages/home/TopAccessedResources'
 import { mcpTools } from '@/pages/mcp/mcp-tools'
 import type { Activity as ActivityType } from '@/services/activityService'
 import { activityService } from '@/services/activityService'
 import { agentService } from '@/services/agentService'
 import { aiToolsService } from '@/services/aiToolsService'
+import type { RecentComment } from '@/services/commentService'
+import { commentService } from '@/services/commentService'
 import type { FeedItem } from '@/services/feedService'
 import { feedService } from '@/services/feedService'
-import type { TeamStats } from '@/services/teamService'
+import type { TeamMember, TeamStats } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 
 const DEFAULT_RANGE = '30d'
@@ -94,6 +100,12 @@ export function Home() {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([])
   const [feedLoading, setFeedLoading] = useState(true)
   const [feedError, setFeedError] = useState<string | null>(null)
+  const [recentComments, setRecentComments] = useState<RecentComment[]>([])
+  const [commentMembers, setCommentMembers] = useState<Map<string, TeamMember>>(
+    new Map()
+  )
+  const [commentsLoading, setCommentsLoading] = useState(true)
+  const [commentsError, setCommentsError] = useState<string | null>(null)
 
   const greeting = useMemo(() => {
     const namePart = user?.name.split(' ')[0]
@@ -191,6 +203,38 @@ export function Home() {
     void fetchRecentFeedItems()
   }, [teamId])
 
+  useEffect(() => {
+    if (!teamId) return
+    const fetchRecentComments = async () => {
+      try {
+        setCommentsLoading(true)
+        setCommentsError(null)
+        // Recent activity + members resolved together (member map → author names,
+        // feed-reply pattern). allSettled so a members miss doesn't blank the card.
+        const [commentsResult, membersResult] = await Promise.allSettled([
+          commentService.recent(teamId, 10),
+          teamService.getTeamMembers(teamId),
+        ])
+        if (commentsResult.status === 'fulfilled') {
+          setRecentComments(commentsResult.value.comments)
+        } else {
+          setCommentsError('Failed to load recent comments')
+        }
+        if (membersResult.status === 'fulfilled') {
+          setCommentMembers(
+            new Map(membersResult.value.map(m => [m.user_id, m]))
+          )
+        }
+      } catch (error) {
+        console.warn('Failed to fetch recent comments:', error)
+        setCommentsError('Failed to load recent comments')
+      } finally {
+        setCommentsLoading(false)
+      }
+    }
+    void fetchRecentComments()
+  }, [teamId])
+
   const totalResources = teamStats
     ? teamStats.total_prompts +
       teamStats.total_artifacts +
@@ -283,7 +327,7 @@ export function Home() {
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Activity</h2>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <RecentFeedList
             items={feedItems}
             loading={feedLoading}
@@ -299,6 +343,12 @@ export function Home() {
             onViewAll={() => {
               void navigate('/settings/activities')
             }}
+          />
+          <RecentCommentsList
+            comments={recentComments}
+            members={commentMembers}
+            loading={commentsLoading}
+            error={commentsError}
           />
         </div>
       </section>
