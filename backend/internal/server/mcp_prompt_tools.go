@@ -229,6 +229,28 @@ func (s *Server) renderPrompt(
 		return mcpTextError("slug is required to render a prompt"), nil, nil
 	}
 
+	// render_prompt is the fallback for prompts eligible to be MCP primitives, so
+	// it must honor the same gate: only published, MCP-exposed prompts are
+	// renderable. This keeps mcp_expose=false (and drafts) out of MCP even though
+	// the caller supplies an explicit slug.
+	prompt, err := s.container.PromptService().GetPromptBySlug(userID, teamID, slug)
+	if err != nil {
+		slog.Error(
+			"Failed to load prompt for render via MCP",
+			"tool", "vibexp_io_render_prompt",
+			"user_id", userID,
+			"team_id", teamID,
+			"prompt_slug", slug,
+			"error", fmt.Sprintf("%+v", err),
+		)
+		return mcpTextError(fmt.Sprintf("Failed to render prompt: %v", err)), nil, nil
+	}
+	if prompt.Status != "published" || !prompt.MCPExpose {
+		return mcpTextError(fmt.Sprintf(
+			"prompt %q is not available for rendering: it must be published and MCP-exposed (mcp_expose=true)", slug,
+		)), nil, nil
+	}
+
 	rendered, err := s.container.PromptService().RenderPrompt(userID, teamID, slug, params.Arguments)
 	if err != nil {
 		slog.Error(

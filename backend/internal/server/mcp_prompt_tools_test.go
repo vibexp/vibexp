@@ -339,6 +339,8 @@ func TestUpdatePrompt_NonMemberTeamDenied(t *testing.T) {
 
 func TestRenderPrompt_Success(t *testing.T) {
 	srv, mockPromptService := newPromptTestServer(t)
+	mockPromptService.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "deploy").
+		Return(&models.Prompt{Slug: "deploy", Status: "published", MCPExpose: true}, nil)
 	mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", map[string]string{"env": "prod"}).
 		Return(&models.RenderPromptResponse{RenderedBody: "deploy to prod"}, nil)
 
@@ -380,6 +382,8 @@ func TestRenderPrompt_NonMemberTeamDenied(t *testing.T) {
 
 func TestRenderPrompt_ServiceError(t *testing.T) {
 	srv, mockPromptService := newPromptTestServer(t)
+	mockPromptService.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "deploy").
+		Return(&models.Prompt{Slug: "deploy", Status: "published", MCPExpose: true}, nil)
 	mockPromptService.On("RenderPrompt", testMemberUserID, testTeamUUID, "deploy", mock.Anything).
 		Return(nil, errors.New("boom"))
 
@@ -389,4 +393,22 @@ func TestRenderPrompt_ServiceError(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Nil(t, structured)
+}
+
+// TestRenderPrompt_NotExposedRejected verifies render_prompt honors the same gate
+// as prompt primitives: a prompt that is not published+mcp_expose is refused, so
+// mcp_expose=false keeps a prompt out of MCP even via an explicit slug.
+func TestRenderPrompt_NotExposedRejected(t *testing.T) {
+	srv, mockPromptService := newPromptTestServer(t)
+	mockPromptService.On("GetPromptBySlug", testMemberUserID, testTeamUUID, "secret").
+		Return(&models.Prompt{Slug: "secret", Status: "published", MCPExpose: false}, nil)
+
+	params := &RenderPromptParams{TeamID: testTeamUUID, Slug: "secret"}
+	result, structured, err := srv.renderPrompt(context.Background(), nil, params, testMemberUserID)
+
+	assert.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Nil(t, structured)
+	assert.Contains(t, extractText(t, result), "must be published and MCP-exposed")
+	mockPromptService.AssertNotCalled(t, "RenderPrompt")
 }
