@@ -11,7 +11,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vibexp/vibexp/internal/models"
-	"github.com/vibexp/vibexp/internal/services"
 )
 
 // Artifact Tool Parameters
@@ -29,24 +28,6 @@ type CreateArtifactParams struct {
 	Type        string                 `json:"type,omitempty" jsonschema:"Team type slug. Defaults: general, work-reports, static-contexts; teams may add custom types. Defaults to general when omitted."`
 	Status      string                 `json:"status,omitempty" jsonschema:"One of \"active\", \"draft\", \"archived\""`
 	Metadata    map[string]interface{} `json:"metadata,omitempty" jsonschema:"Key-value metadata pairs"`
-}
-
-// ListArtifactsByProjectParams defines the parameters for listing artifacts by project
-type ListArtifactsByProjectParams struct {
-	TeamID    string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
-	ProjectID string `json:"project_id" jsonschema:"Project UUID — required"`
-	Page      int    `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
-	Limit     int    `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
-	Status    string `json:"status,omitempty" jsonschema:"Filter by status"`
-	Type      string `json:"type,omitempty" jsonschema:"Filter by type"`
-	Search    string `json:"search,omitempty" jsonschema:"Search in title/description"`
-}
-
-// GetArtifactParams defines the parameters for getting a specific artifact
-type GetArtifactParams struct {
-	TeamID    string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
-	ProjectID string `json:"project_id" jsonschema:"Project UUID — required"`
-	Slug      string `json:"slug" jsonschema:"Artifact slug identifier"`
 }
 
 // UpdateArtifactParams defines the parameters for updating a specific artifact
@@ -92,20 +73,6 @@ type artifactSearchResponse struct {
 	Page       int                  `json:"page"`
 	PerPage    int                  `json:"per_page"`
 	TotalPages int                  `json:"total_pages"`
-}
-
-// normalizeArtifactListPagination applies default and max bounds to page/limit.
-func normalizeArtifactListPagination(page, limit int) (int, int) {
-	if page <= 0 {
-		page = 1
-	}
-	if limit <= 0 {
-		limit = 10
-	}
-	if limit > 10 {
-		limit = 10
-	}
-	return page, limit
 }
 
 // buildArtifactURL constructs the canonical web URL for an artifact.
@@ -207,152 +174,6 @@ func buildArtifactSearchItems(artifacts []models.Artifact) []artifactSearchItem 
 		})
 	}
 	return items
-}
-
-// listArtifactsByProject implements the search_artifacts tool scoped to the resolved team.
-//
-//nolint:funlen // Must resolve team, validate project, call service, and marshal
-func (s *Server) listArtifactsByProject(
-	ctx context.Context,
-	_ *mcp.CallToolRequest,
-	params *ListArtifactsByProjectParams,
-	userID string,
-) (*mcp.CallToolResult, any, error) {
-	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
-	if errResult != nil {
-		return errResult, nil, nil
-	}
-
-	if r := validateProjectID(params.ProjectID); r != nil {
-		slog.Warn(
-			"MCP tool rejected: invalid project_id",
-			"tool", "vibexp_io_search_artifacts",
-			"user_id", userID,
-			"team_id", teamID,
-			"project_id", params.ProjectID,
-		)
-		return r, nil, nil
-	}
-
-	page, limit := normalizeArtifactListPagination(params.Page, params.Limit)
-	filters := services.ArtifactFilters{
-		ProjectID: params.ProjectID,
-		Status:    params.Status,
-		Type:      params.Type,
-		Search:    params.Search,
-		TeamID:    teamID,
-		Page:      page,
-		Limit:     limit,
-	}
-
-	response, err := s.container.ArtifactService().ListArtifactsByProject(userID, params.ProjectID, filters)
-	if err != nil {
-		slog.Error(
-			"Failed to search artifacts via MCP",
-			"tool", "vibexp_io_search_artifacts",
-			"user_id", userID,
-			"team_id", teamID,
-			"project_id", params.ProjectID,
-			"error", fmt.Sprintf("%+v", err),
-		)
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: fmt.Sprintf("Failed to search artifacts: %v", err)},
-			},
-			IsError: true,
-		}, nil, nil
-	}
-
-	if s.metrics != nil {
-		s.metrics.RecordMCPListArtifacts(context.Background())
-	}
-
-	searchResp := &artifactSearchResponse{
-		Artifacts:  buildArtifactSearchItems(response.Artifacts),
-		TotalCount: response.TotalCount,
-		Page:       response.Page,
-		PerPage:    response.PerPage,
-		TotalPages: response.TotalPages,
-	}
-
-	jsonData, err := json.MarshalIndent(searchResp, "", "  ")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)
-	}
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(jsonData)},
-		},
-		StructuredContent: searchResp,
-	}, searchResp, nil
-}
-
-// getArtifact implements the tool that gets a specific artifact in the resolved team.
-func (s *Server) getArtifact(
-	ctx context.Context,
-	_ *mcp.CallToolRequest,
-	params *GetArtifactParams,
-	userID string,
-) (*mcp.CallToolResult, any, error) {
-	teamID, errResult := s.resolveTeam(ctx, userID, params.TeamID)
-	if errResult != nil {
-		return errResult, nil, nil
-	}
-
-	if r := validateProjectID(params.ProjectID); r != nil {
-		slog.Warn(
-			"MCP tool rejected: invalid project_id",
-			"tool", "vibexp_io_get_artifact",
-			"user_id", userID,
-			"team_id", teamID,
-			"project_id", params.ProjectID,
-		)
-		return r, nil, nil
-	}
-
-	artifact, err := s.container.ArtifactService().GetArtifactByProjectIDAndSlugInTeam(
-		userID, teamID, params.ProjectID, params.Slug,
-	)
-	if err != nil {
-		slog.Error(
-			"Failed to get artifact via MCP",
-			"tool", "vibexp_io_get_artifact",
-			"user_id", userID,
-			"team_id", teamID,
-			"project_id", params.ProjectID,
-			"slug", params.Slug,
-			"error", fmt.Sprintf("%+v", err),
-		)
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: fmt.Sprintf("Failed to get artifact: %v", err)},
-			},
-			IsError: true,
-		}, nil, nil
-	}
-
-	if s.metrics != nil {
-		s.metrics.RecordMCPGetArtifact(context.Background())
-	}
-
-	jsonData, err := json.MarshalIndent(artifact, "", "  ")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response to JSON: %w", err)
-	}
-
-	// Record the successful detail read; MCP get-tools bypass the HTTP middleware.
-	// Recorded only after a successful response, mirroring the HTTP 2xx contract.
-	s.recordMCPResourceAccess(ctx, teamID, userID, resourceTypeArtifact, artifact.ID)
-
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: string(jsonData)},
-		},
-		StructuredContent: artifact,
-	}, artifact, nil
 }
 
 // buildArtifactUpdateRequest builds an UpdateArtifactRequest from non-empty params fields.

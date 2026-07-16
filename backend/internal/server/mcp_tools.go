@@ -47,6 +47,7 @@ func (m *MCPToolsManager) AddAllTools(mcpServer *mcp.Server, userID string) {
 	m.addProjectTools(mcpServer, userID)
 	m.addFeedTools(mcpServer, userID)
 	m.addSearchTools(mcpServer, userID)
+	m.addReadTools(mcpServer, userID)
 	m.addAttachmentTools(mcpServer, userID)
 	m.addDeleteTools(mcpServer, userID)
 
@@ -75,7 +76,8 @@ func (m *MCPToolsManager) addTeamTools(mcpServer *mcp.Server, userID string) {
 	})
 }
 
-// addArtifactTools adds artifact management tools.
+// addArtifactTools adds artifact write tools (create/update). Reads go through
+// the generic get_resource / list_resources tools (addReadTools).
 func (m *MCPToolsManager) addArtifactTools(mcpServer *mcp.Server, userID string) {
 	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name:        "vibexp_io_create_artifact",
@@ -87,28 +89,36 @@ func (m *MCPToolsManager) addArtifactTools(mcpServer *mcp.Server, userID string)
 	})
 
 	mcp.AddTool(mcpServer, &mcp.Tool{
-		Name:        "vibexp_io_search_artifacts",
-		Description: "Search and list artifacts with filtering and pagination",
-	}, func(
-		ctx context.Context, req *mcp.CallToolRequest, params *ListArtifactsByProjectParams,
-	) (*mcp.CallToolResult, any, error) {
-		return m.server.listArtifactsByProject(ctx, req, params, userID)
-	})
-
-	mcp.AddTool(mcpServer, &mcp.Tool{
-		Name:        "vibexp_io_get_artifact",
-		Description: "Get specific artifact content by project and slug",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, params *GetArtifactParams) (*mcp.CallToolResult, any, error) {
-		return m.server.getArtifact(ctx, req, params, userID)
-	})
-
-	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name:        "vibexp_io_update_artifact",
 		Description: "Update specific artifact",
 	}, func(
 		ctx context.Context, req *mcp.CallToolRequest, params *UpdateArtifactParams,
 	) (*mcp.CallToolResult, any, error) {
 		return m.server.updateArtifact(ctx, req, params, userID)
+	})
+}
+
+// addReadTools adds the two generic, resource_type-keyed read tools that replace
+// the former per-domain get/search tools. get_resource fetches one resource;
+// list_resources lists a project's resources. Both cover memory, artifact, and
+// blueprint (blueprints previously had no MCP read tool).
+func (m *MCPToolsManager) addReadTools(mcpServer *mcp.Server, userID string) {
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        getResourceToolName,
+		Description: getResourceToolDescription,
+	}, func(
+		ctx context.Context, req *mcp.CallToolRequest, params *GetResourceParams,
+	) (*mcp.CallToolResult, any, error) {
+		return m.server.getResource(ctx, req, params, userID)
+	})
+
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        listResourcesToolName,
+		Description: listResourcesToolDescription,
+	}, func(
+		ctx context.Context, req *mcp.CallToolRequest, params *ListResourcesParams,
+	) (*mcp.CallToolResult, any, error) {
+		return m.server.listResources(ctx, req, params, userID)
 	})
 }
 
@@ -159,29 +169,14 @@ func (m *MCPToolsManager) addDeleteTools(mcpServer *mcp.Server, userID string) {
 	})
 }
 
-// addMemoryTools adds memory management tools.
+// addMemoryTools adds memory write tools (create/update). Reads go through the
+// generic get_resource / list_resources tools (addReadTools).
 func (m *MCPToolsManager) addMemoryTools(mcpServer *mcp.Server, userID string) {
 	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name:        "vibexp_io_create_memory",
 		Description: "Create new memory with text content and metadata",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, params *StoreMemoryParams) (*mcp.CallToolResult, any, error) {
 		return m.server.storeMemory(ctx, req, params, userID)
-	})
-
-	mcp.AddTool(mcpServer, &mcp.Tool{
-		Name:        "vibexp_io_search_memories",
-		Description: "Search and list memories with filtering and pagination",
-	}, func(
-		ctx context.Context, req *mcp.CallToolRequest, params *ListMemoriesByProjectParams,
-	) (*mcp.CallToolResult, any, error) {
-		return m.server.listMemoriesByProject(ctx, req, params, userID)
-	})
-
-	mcp.AddTool(mcpServer, &mcp.Tool{
-		Name:        "vibexp_io_get_memory",
-		Description: "Get specific memory by ID",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, params *GetMemoryParams) (*mcp.CallToolResult, any, error) {
-		return m.server.getMemory(ctx, req, params, userID)
 	})
 
 	mcp.AddTool(mcpServer, &mcp.Tool{
