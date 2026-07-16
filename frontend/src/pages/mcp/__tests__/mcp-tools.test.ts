@@ -36,6 +36,21 @@ describe('mcpTools catalog', () => {
     }
   })
 
+  it('team-scoped tools require team_id; the two user-scoped tools omit it', () => {
+    // vibexp_io_get_user (identity) and vibexp_io_list_teams (team discovery)
+    // are the only tools that do not take a team_id.
+    const userScoped = new Set(['vibexp_io_get_user', 'vibexp_io_list_teams'])
+    for (const tool of mcpTools) {
+      if (userScoped.has(tool.name)) {
+        expect(tool.inputSchema.properties).not.toHaveProperty('team_id')
+        expect(tool.inputSchema.required).not.toContain('team_id')
+      } else {
+        expect(tool.inputSchema.properties).toHaveProperty('team_id')
+        expect(tool.inputSchema.required).toContain('team_id')
+      }
+    }
+  })
+
   it('every entry has additionalProperties === false', () => {
     for (const tool of mcpTools) {
       expect(tool.inputSchema.additionalProperties).toBe(false)

@@ -15,6 +15,14 @@ export interface MCPTool {
   }
 }
 
+/**
+ * Shared description for the `team_id` parameter. Every team-scoped tool takes a
+ * required `team_id` (a team UUID or slug); the two user-scoped tools
+ * (`vibexp_io_get_user`, `vibexp_io_list_teams`) do not.
+ */
+const TEAM_ID_DESCRIPTION =
+  'The team (UUID or slug) to operate within. Call vibexp_io_list_teams to discover valid identifiers.'
+
 export const mcpTools: MCPTool[] = [
   {
     name: 'vibexp_io_create_artifact',
@@ -23,6 +31,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         project_id: {
           type: 'string',
           description:
@@ -64,7 +76,7 @@ export const mcpTools: MCPTool[] = [
             'Optional key-value metadata pairs for additional artifact information. Use this for tags, categories, version info, or other structured metadata.',
         },
       },
-      required: ['project_id', 'slug', 'title', 'content'],
+      required: ['team_id', 'project_id', 'slug', 'title', 'content'],
       additionalProperties: false,
     },
   },
@@ -75,6 +87,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         project_id: {
           type: 'string',
           description:
@@ -116,7 +132,7 @@ export const mcpTools: MCPTool[] = [
             'New metadata for the artifact. This will replace the existing metadata entirely. Leave empty to keep existing metadata unchanged.',
         },
       },
-      required: ['project_id', 'slug'],
+      required: ['team_id', 'project_id', 'slug'],
       additionalProperties: false,
     },
   },
@@ -127,15 +143,19 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         text: {
           type: 'string',
           description:
             'The memory content or text to store. This can be any textual information including notes, insights, code snippets, explanations, or other content you want to preserve for future reference.',
         },
-        project_name: {
+        project_id: {
           type: 'string',
           description:
-            'Optional project identifier for categorizing the memory. When provided, this will be stored in metadata to help organize memories by project. Use consistent project naming for better organization.',
+            'Project UUID identifier — the project this memory belongs to.',
         },
         metadata: {
           type: 'object',
@@ -143,7 +163,7 @@ export const mcpTools: MCPTool[] = [
             'Optional key-value metadata pairs for additional memory information. Use this for tags, categories, timestamps, source information, or any other structured data that helps organize and retrieve memories.',
         },
       },
-      required: ['text'],
+      required: ['team_id', 'project_id', 'text'],
       additionalProperties: false,
     },
   },
@@ -154,6 +174,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         memory_id: {
           type: 'string',
           description:
@@ -170,7 +194,7 @@ export const mcpTools: MCPTool[] = [
             'New metadata for the memory. This will replace the existing metadata entirely. Leave empty to keep existing metadata unchanged.',
         },
       },
-      required: ['memory_id'],
+      required: ['team_id', 'memory_id'],
       additionalProperties: false,
     },
   },
@@ -181,6 +205,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         resource_type: {
           type: 'string',
           description:
@@ -202,7 +230,7 @@ export const mcpTools: MCPTool[] = [
             'Resource slug. Required when resource_type is "artifact" or "blueprint"; ignored otherwise.',
         },
       },
-      required: ['resource_type'],
+      required: ['team_id', 'resource_type'],
       additionalProperties: false,
     },
   },
@@ -213,6 +241,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         resource_type: {
           type: 'string',
           description:
@@ -244,7 +276,7 @@ export const mcpTools: MCPTool[] = [
           description: 'Filter by type (artifact and blueprint only).',
         },
       },
-      required: ['resource_type', 'project_id'],
+      required: ['team_id', 'resource_type', 'project_id'],
       additionalProperties: false,
     },
   },
@@ -255,6 +287,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         search: {
           type: 'string',
           description: 'Search in project name/description',
@@ -276,7 +312,7 @@ export const mcpTools: MCPTool[] = [
           description: 'Items per page (default: 10, max: 10)',
         },
       },
-      required: [],
+      required: ['team_id'],
       additionalProperties: false,
     },
   },
@@ -287,6 +323,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         page: {
           type: 'integer',
           description: 'Page number, starting from 1 (default: 1)',
@@ -296,7 +336,7 @@ export const mcpTools: MCPTool[] = [
           description: 'Items per page, max 10 (default: 10)',
         },
       },
-      required: [],
+      required: ['team_id'],
       additionalProperties: false,
     },
   },
@@ -307,6 +347,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         feed_id: {
           type: 'string',
           description:
@@ -331,7 +375,7 @@ export const mcpTools: MCPTool[] = [
             'Embed up to 3 recent reply excerpts per item. Default: false. For one item plus all its replies, use vibexp_io_get_feed_item.',
         },
       },
-      required: ['feed_id'],
+      required: ['team_id', 'feed_id'],
       additionalProperties: false,
     },
   },
@@ -342,13 +386,17 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         feed_item_id: {
           type: 'string',
           description:
             'UUID of the feed item (from vibexp_io_list_feed_items or vibexp_io_post_to_feed)',
         },
       },
-      required: ['feed_item_id'],
+      required: ['team_id', 'feed_item_id'],
       additionalProperties: false,
     },
   },
@@ -359,6 +407,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         feed_id: {
           type: 'string',
           description: 'UUID of the feed (call vibexp_io_list_feeds first)',
@@ -384,7 +436,7 @@ export const mcpTools: MCPTool[] = [
             'Optional UUID of the project this update relates to. Must be a project in the same team.',
         },
       },
-      required: ['feed_id', 'title', 'content', 'ai_assistant_name'],
+      required: ['team_id', 'feed_id', 'title', 'content', 'ai_assistant_name'],
       additionalProperties: false,
     },
   },
@@ -395,6 +447,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         feed_item_id: {
           type: 'string',
           description:
@@ -411,7 +467,7 @@ export const mcpTools: MCPTool[] = [
             'Stable identifier for your tool. Use a consistent value. Max 30 chars.',
         },
       },
-      required: ['feed_item_id', 'content', 'ai_assistant_name'],
+      required: ['team_id', 'feed_item_id', 'content', 'ai_assistant_name'],
       additionalProperties: false,
     },
   },
@@ -432,6 +488,10 @@ export const mcpTools: MCPTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
         query: {
           type: 'string',
           description:
@@ -451,7 +511,7 @@ export const mcpTools: MCPTool[] = [
           description: 'Results per page (default 10, max 100).',
         },
       },
-      required: ['query'],
+      required: ['team_id', 'query'],
       additionalProperties: false,
     },
   },
