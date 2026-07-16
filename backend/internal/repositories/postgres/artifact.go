@@ -10,11 +10,30 @@ import (
 	"strings"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/lib/pq"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
+
+// artifactSlugConflictError builds a slug-collision error that names the scope
+// that ACTUALLY collided. Artifacts carry two UNIQUE slug keys — the team-wide
+// artifacts_slug_team_id_key (slug, team_id) and the stricter, subsumed
+// artifacts_project_id_slug_unique (project_id, slug) — so a slug that is free
+// in the target project can still collide elsewhere in the team. Reporting
+// "for this project" unconditionally sent callers to search the wrong scope
+// (#256); branching on the constraint that fired names the right one.
+func artifactSlugConflictError(pqErr *pq.Error, slug string) error {
+	switch pqErr.Constraint {
+	case "artifacts_slug_team_id_key":
+		return fmt.Errorf("artifact with slug '%s' already exists in this team", slug)
+	case "artifacts_project_id_slug_unique":
+		return fmt.Errorf("artifact with slug '%s' already exists in this project", slug)
+	default:
+		return fmt.Errorf("artifact with slug '%s' already exists", slug)
+	}
+}
 
 // artifactListColumns is the 12-column projection shared by List and
 // ListCrossTeam. The content column is deliberately excluded from list
@@ -59,8 +78,8 @@ func (r *ArtifactRepository) Create(ctx context.Context, artifact *models.Artifa
 	).Scan(&artifact.ID, &artifact.CreatedAt, &artifact.UpdatedAt)
 
 	if err != nil {
-		if uniqueViolation(err) != nil {
-			return fmt.Errorf("artifact with slug '%s' already exists for this project", artifact.Slug)
+		if pqErr := uniqueViolation(err); pqErr != nil {
+			return artifactSlugConflictError(pqErr, artifact.Slug)
 		}
 		if isFKViolation(err) {
 			return fmt.Errorf("project not found or does not belong to user")
@@ -534,8 +553,8 @@ func (r *ArtifactRepository) Update(ctx context.Context, artifact *models.Artifa
 	).Scan(&artifact.UpdatedAt, &artifact.Version)
 
 	if err != nil {
-		if uniqueViolation(err) != nil {
-			return fmt.Errorf("artifact with slug '%s' already exists for this project", artifact.Slug)
+		if pqErr := uniqueViolation(err); pqErr != nil {
+			return artifactSlugConflictError(pqErr, artifact.Slug)
 		}
 		if isFKViolation(err) {
 			return fmt.Errorf("project not found or does not belong to user")
