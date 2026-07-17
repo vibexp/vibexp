@@ -82,6 +82,11 @@ type DatabaseConfig struct {
 	User     string `koanf:"user"`
 	Password string `koanf:"password"`
 	Name     string `koanf:"name"`
+	// SSLMode is the libpq TLS mode for the connection. Only "disable" (default,
+	// no TLS) and "require" (encrypt without server-certificate verification) are
+	// supported; validated by validateDatabaseSSLMode. Managed Postgres offerings
+	// commonly require TLS, so "require" unblocks them.
+	SSLMode string `koanf:"sslmode"`
 }
 
 // SecurityConfig holds process-wide secrets and admin keys.
@@ -549,6 +554,28 @@ func validateSearchRankingConfig(cfg *Config) error {
 // encryptionKeyLength is the required AES-256 key length in bytes.
 const encryptionKeyLength = 32
 
+// supportedDatabaseSSLModes is the set of libpq sslmode values VibeXP accepts.
+// Scope is deliberately limited to "disable" (no TLS) and "require" (encrypt
+// without server-cert verification); verify-ca/verify-full (which also need a
+// root-cert path) are a possible future extension (#293).
+var supportedDatabaseSSLModes = map[string]bool{
+	"disable": true,
+	"require": true,
+}
+
+// validateDatabaseSSLMode fails closed on an unsupported database.sslmode so a
+// typo (or an unsupported libpq mode) is caught at startup rather than surfacing
+// as an opaque connection error.
+func validateDatabaseSSLMode(cfg *Config) error {
+	if !supportedDatabaseSSLModes[cfg.Database.SSLMode] {
+		return fmt.Errorf(
+			"database.sslmode must be one of \"disable\" or \"require\", got %q",
+			cfg.Database.SSLMode,
+		)
+	}
+	return nil
+}
+
 // validateEncryptionKey enforces that security.encryption_key is present and
 // exactly 32 bytes so the service fails closed at startup rather than running
 // with a weak/default key.
@@ -701,6 +728,7 @@ func validateAll(cfg *Config) error {
 		validateBodyAndRetention,
 		validateRateLimits,
 		validateSearchRankingConfig,
+		validateDatabaseSSLMode,
 		validateEncryptionKey,
 		validateOAuthASConfig,
 	}
@@ -734,6 +762,7 @@ func defaults() map[string]any {
 		"database.port":                       "5432",
 		"database.user":                       "postgres",
 		"database.name":                       "vibexp_io",
+		"database.sslmode":                    "disable",
 		"auth.google.redirect_uri":            "http://localhost:8080/api/v1/auth/callback",
 		"auth.github.redirect_uri":            "http://localhost:8080/api/v1/auth/callback",
 		"auth.oidc.redirect_uri":              "http://localhost:8080/api/v1/auth/callback",

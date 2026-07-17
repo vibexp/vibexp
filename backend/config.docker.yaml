@@ -37,6 +37,8 @@ database:
   user: "${DB_USER:-vibexp}"
   password: "${DB_PASSWORD}"
   name: "${DB_NAME:-vibexp}"
+  # TLS mode: "disable" (default) or "require" (encrypt, no cert verification).
+  sslmode: "${DB_SSLMODE:-disable}"
 
 security:
   # REQUIRED. Exactly 32 bytes (AES-256); the service fails to start otherwise.
