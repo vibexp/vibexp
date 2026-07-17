@@ -56,6 +56,9 @@ database:
   user: "vibexp_app"
   password: "${DB_PASSWORD}"
   name: "vibexp_io"
+  # TLS mode: "disable" (no TLS, default) or "require" (encrypt without verifying
+  # the server certificate). Set to "require" for managed Postgres that mandates TLS.
+  sslmode: "disable"
 
 # Process-wide secrets and admin keys (all resolved from the environment).
 security:

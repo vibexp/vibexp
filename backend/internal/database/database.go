@@ -21,19 +21,23 @@ type DB struct {
 	*sql.DB
 }
 
-func NewConnection(cfg *config.Config) (*DB, error) {
-	var dsn string
-
-	// Handle Cloud SQL connection (Unix socket) vs local connection
-	if cfg.Database.Host[0] == '/' {
+// buildDSN assembles the lib/pq connection string from the database config. A
+// Unix-socket host (Cloud SQL, host starts with '/') omits the port; both shapes
+// carry the configured sslmode. Kept as a pure function so the DSN — especially
+// the sslmode substitution — is unit-testable without opening a connection.
+func buildDSN(cfg config.DatabaseConfig) string {
+	if cfg.Host[0] == '/' {
 		// Unix socket connection (Cloud SQL)
-		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable",
-			cfg.Database.Host, cfg.Database.User, cfg.Database.Password, cfg.Database.Name)
-	} else {
-		// TCP connection (local development)
-		dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-			cfg.Database.Host, cfg.Database.Port, cfg.Database.User, cfg.Database.Password, cfg.Database.Name)
+		return fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=%s",
+			cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
 	}
+	// TCP connection (local development)
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
+}
+
+func NewConnection(cfg *config.Config) (*DB, error) {
+	dsn := buildDSN(cfg.Database)
 
 	// Use otelsql to wrap the postgres driver so that every SQL query produces
 	// a child span under the current context. This makes DB latency visible in

@@ -243,6 +243,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "5432", cfg.Database.Port)
 	assert.Equal(t, "postgres", cfg.Database.User)
 	assert.Equal(t, "vibexp_io", cfg.Database.Name)
+	assert.Equal(t, "disable", cfg.Database.SSLMode)
 
 	// Email defaults.
 	assert.Equal(t, "smtp", cfg.Email.Provider)
@@ -654,6 +655,31 @@ func TestValidateEncryptionKey(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateEncryptionKey(&Config{Security: SecurityConfig{EncryptionKey: tc.key}})
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateDatabaseSSLMode(t *testing.T) {
+	tests := []struct {
+		name    string
+		sslmode string
+		wantErr bool
+	}{
+		{"disable", "disable", false},
+		{"require", "require", false},
+		{"empty is rejected", "", true},
+		{"verify-full is unsupported", "verify-full", true},
+		{"typo is rejected", "requre", true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateDatabaseSSLMode(&Config{Database: DatabaseConfig{SSLMode: tc.sslmode}})
 			if tc.wantErr {
 				assert.Error(t, err)
 			} else {
