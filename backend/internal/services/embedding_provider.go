@@ -2,14 +2,9 @@ package services
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -33,82 +28,37 @@ const (
 var _ ActiveEmbeddingProviderResolver = (*EmbeddingProviderService)(nil)
 
 type EmbeddingProviderService struct {
-	repo          repositories.EmbeddingProviderRepository
-	encryptionKey []byte
+	repo repositories.EmbeddingProviderRepository
+	enc  EncryptionServiceInterface
 }
 
 // Ensure EmbeddingProviderService implements EmbeddingProviderServiceInterface
 var _ EmbeddingProviderServiceInterface = (*EmbeddingProviderService)(nil)
 
 func NewEmbeddingProviderService(
-	repo repositories.EmbeddingProviderRepository, encryptionKey string,
+	repo repositories.EmbeddingProviderRepository, enc EncryptionServiceInterface,
 ) *EmbeddingProviderService {
-	// Use a fixed 32-byte key for AES-256
-	key := make([]byte, 32)
-	copy(key, []byte(encryptionKey))
-
 	return &EmbeddingProviderService{
-		repo:          repo,
-		encryptionKey: key,
+		repo: repo,
+		enc:  enc,
 	}
 }
 
+// encrypt delegates to the shared, fail-closed EncryptionService, preserving the
+// empty-string passthrough so a provider stored without an API key round-trips as
+// "" rather than erroring (the shared service rejects empty input).
 func (eps *EmbeddingProviderService) encrypt(plaintext string) (string, error) {
 	if plaintext == "" {
 		return "", nil
 	}
-
-	block, err := aes.NewCipher(eps.encryptionKey)
-	if err != nil {
-		return "", err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-
-	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
-	return base64.StdEncoding.EncodeToString(ciphertext), nil
+	return eps.enc.Encrypt(plaintext)
 }
 
 func (eps *EmbeddingProviderService) decrypt(ciphertext string) (string, error) {
 	if ciphertext == "" {
 		return "", nil
 	}
-
-	data, err := base64.StdEncoding.DecodeString(ciphertext)
-	if err != nil {
-		return "", err
-	}
-
-	block, err := aes.NewCipher(eps.encryptionKey)
-	if err != nil {
-		return "", err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonceSize := gcm.NonceSize()
-	if len(data) < nonceSize {
-		return "", fmt.Errorf("ciphertext too short")
-	}
-
-	nonce, cipherData := data[:nonceSize], data[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, cipherData, nil)
-	if err != nil {
-		return "", err
-	}
-
-	return string(plaintext), nil
+	return eps.enc.Decrypt(ciphertext)
 }
 
 func (eps *EmbeddingProviderService) prepareAPIKey(req models.CreateEmbeddingProviderRequest) (*string, error) {

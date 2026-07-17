@@ -16,11 +16,17 @@ import (
 )
 
 func createTestModelProviderService(repo repositories.ModelProviderRepository) *ModelProviderService {
-	return NewModelProviderService(repo, "test-encryption-key-32-bytes-12345")
+	// testEncryptionKey is a valid 32-byte key, so this never errors.
+	enc, err := NewEncryptionService(testEncryptionKey)
+	if err != nil {
+		panic(err)
+	}
+	return NewModelProviderService(repo, enc)
 }
 
-// TestModelProviderService_EncryptDecryptRoundTrip verifies the inline AES-256-GCM
-// helpers round-trip a secret and that empty input is a no-op both ways.
+// TestModelProviderService_EncryptDecryptRoundTrip verifies the service round-trips
+// a secret through the shared EncryptionService and that empty input is a no-op
+// both ways (the empty-string passthrough preserved in the delegating wrappers).
 func TestModelProviderService_EncryptDecryptRoundTrip(t *testing.T) {
 	svc := createTestModelProviderService(nil)
 

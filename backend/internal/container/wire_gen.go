@@ -81,8 +81,12 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	typeRepository := providers.ProvideTypeRepository(db)
 	typeServiceInterface := providers.ProvideTypeService(typeRepository, logger)
 	blueprintServiceInterface := providers.ProvideBlueprintService(blueprintRepository, teamServiceInterface, authorizationServiceInterface, eventManager, resourceUsageServiceInterface, logger, contentVersionServiceInterface, commentRepository)
-	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, cfg)
-	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, cfg)
+	encryptionServiceInterface, err := providers.ProvideEncryptionService(cfg)
+	if err != nil {
+		return nil, err
+	}
+	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, encryptionServiceInterface)
+	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface)
 	emailProvider, err := providers.ProvideEmailProvider(cfg, logger)
 	if err != nil {
 		return nil, err
@@ -91,10 +95,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	activityService := providers.ProvideActivityService(activityRepository, projectRepository, promptRepository, artifactRepository, userRepository, agentRepository, blueprintRepository, apiKeyRepository, memoryRepository, cfg)
 	workerPool := providers.ProvideResourceAccessWorkerPool()
 	resourceAccessService := providers.ProvideResourceAccessService(resourceAccessRepository, workerPool, logger, cfg)
-	encryptionServiceInterface, err := providers.ProvideEncryptionService(cfg)
-	if err != nil {
-		return nil, err
-	}
 	agentServiceInterface := providers.ProvideAgentService(agentRepository, agentExecutionRepository, encryptionServiceInterface, teamServiceInterface, authorizationServiceInterface, cfg, logger)
 	agentCardFetcherInterface := providers.ProvideAgentCardFetcher(cfg)
 	agentAuthenticator := providers.ProvideAgentAuthenticator(encryptionServiceInterface)

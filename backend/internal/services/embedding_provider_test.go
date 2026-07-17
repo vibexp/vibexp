@@ -20,7 +20,12 @@ import (
 )
 
 func createTestEmbeddingProviderService(repo repositories.EmbeddingProviderRepository) *EmbeddingProviderService {
-	return NewEmbeddingProviderService(repo, "test-encryption-key-32-bytes-12345")
+	// testEncryptionKey is a valid 32-byte key, so this never errors.
+	enc, err := NewEncryptionService(testEncryptionKey)
+	if err != nil {
+		panic(err)
+	}
+	return NewEmbeddingProviderService(repo, enc)
 }
 
 func createTestCreateEmbeddingProviderRequest() models.CreateEmbeddingProviderRequest {
@@ -78,11 +83,19 @@ func boolPtr(b bool) *bool {
 
 func TestNewEmbeddingProviderService(t *testing.T) {
 	mockRepo := mocks.NewMockEmbeddingProviderRepository(t)
-	service := NewEmbeddingProviderService(mockRepo, "test-encryption-key")
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+	service := NewEmbeddingProviderService(mockRepo, enc)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, mockRepo, service.repo)
-	assert.Len(t, service.encryptionKey, 32) // AES-256 requires 32-byte key
+	// Secret encryption is delegated to the shared, fail-closed EncryptionService
+	// (#294) rather than a padded/truncated inline key; a stored secret round-trips.
+	encrypted, err := service.encrypt("sk-secret")
+	require.NoError(t, err)
+	decrypted, err := service.decrypt(encrypted)
+	require.NoError(t, err)
+	assert.Equal(t, "sk-secret", decrypted)
 }
 
 func TestEmbeddingProviderService_encrypt_decrypt(t *testing.T) {
