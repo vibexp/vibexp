@@ -184,20 +184,24 @@ func ProvideBlueprintService(
 	)
 }
 
-// ProvideEmbeddingProviderService creates a new EmbeddingProviderService
+// ProvideEmbeddingProviderService creates a new EmbeddingProviderService. Secret
+// encryption is delegated to the shared, fail-closed EncryptionService rather than
+// a private inline AES implementation keyed off the raw config string (#294).
 func ProvideEmbeddingProviderService(
 	repo repositories.EmbeddingProviderRepository,
-	cfg *config.Config,
+	enc services.EncryptionServiceInterface,
 ) services.EmbeddingProviderServiceInterface {
-	return services.NewEmbeddingProviderService(repo, cfg.Security.EncryptionKey)
+	return services.NewEmbeddingProviderService(repo, enc)
 }
 
-// ProvideModelProviderService creates a new ModelProviderService
+// ProvideModelProviderService creates a new ModelProviderService. Secret
+// encryption is delegated to the shared, fail-closed EncryptionService rather than
+// a private inline AES implementation keyed off the raw config string (#294).
 func ProvideModelProviderService(
 	repo repositories.ModelProviderRepository,
-	cfg *config.Config,
+	enc services.EncryptionServiceInterface,
 ) services.ModelProviderServiceInterface {
-	return services.NewModelProviderService(repo, cfg.Security.EncryptionKey)
+	return services.NewModelProviderService(repo, enc)
 }
 
 // ProvideEmailService creates a new EmailService

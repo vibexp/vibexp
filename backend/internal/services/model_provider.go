@@ -2,13 +2,8 @@ package services
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -17,82 +12,37 @@ import (
 )
 
 type ModelProviderService struct {
-	repo          repositories.ModelProviderRepository
-	encryptionKey []byte
+	repo repositories.ModelProviderRepository
+	enc  EncryptionServiceInterface
 }
 
 // Ensure ModelProviderService implements ModelProviderServiceInterface
 var _ ModelProviderServiceInterface = (*ModelProviderService)(nil)
 
 func NewModelProviderService(
-	repo repositories.ModelProviderRepository, encryptionKey string,
+	repo repositories.ModelProviderRepository, enc EncryptionServiceInterface,
 ) *ModelProviderService {
-	// Use a fixed 32-byte key for AES-256
-	key := make([]byte, 32)
-	copy(key, []byte(encryptionKey))
-
 	return &ModelProviderService{
-		repo:          repo,
-		encryptionKey: key,
+		repo: repo,
+		enc:  enc,
 	}
 }
 
+// encrypt delegates to the shared, fail-closed EncryptionService, preserving the
+// empty-string passthrough so a provider stored without an API key round-trips as
+// "" rather than erroring (the shared service rejects empty input).
 func (mps *ModelProviderService) encrypt(plaintext string) (string, error) {
 	if plaintext == "" {
 		return "", nil
 	}
-
-	block, err := aes.NewCipher(mps.encryptionKey)
-	if err != nil {
-		return "", err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-
-	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
-	return base64.StdEncoding.EncodeToString(ciphertext), nil
+	return mps.enc.Encrypt(plaintext)
 }
 
 func (mps *ModelProviderService) decrypt(ciphertext string) (string, error) {
 	if ciphertext == "" {
 		return "", nil
 	}
-
-	data, err := base64.StdEncoding.DecodeString(ciphertext)
-	if err != nil {
-		return "", err
-	}
-
-	block, err := aes.NewCipher(mps.encryptionKey)
-	if err != nil {
-		return "", err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonceSize := gcm.NonceSize()
-	if len(data) < nonceSize {
-		return "", fmt.Errorf("ciphertext too short")
-	}
-
-	nonce, cipherData := data[:nonceSize], data[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, cipherData, nil)
-	if err != nil {
-		return "", err
-	}
-
-	return string(plaintext), nil
+	return mps.enc.Decrypt(ciphertext)
 }
 
 func (mps *ModelProviderService) prepareAPIKey(req models.CreateModelProviderRequest) (*string, error) {
