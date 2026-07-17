@@ -11,11 +11,31 @@ import (
 	"strings"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/lib/pq"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
+
+// blueprintSlugConflictError builds a slug-collision error that names the scope
+// that ACTUALLY collided. Blueprints carry two UNIQUE slug keys — the team-wide
+// blueprints_slug_team_id_key (slug, team_id) and the stricter, subsumed
+// blueprints_project_id_slug_unique (project_id, slug) — so a slug that is free
+// in the target project can still collide elsewhere in the team. Reporting
+// "for this project" unconditionally sent callers to search the wrong scope
+// (#282, mirroring the artifact fix in #256); branching on the constraint that
+// fired names the right one.
+func blueprintSlugConflictError(pqErr *pq.Error, slug string) error {
+	switch pqErr.Constraint {
+	case "blueprints_slug_team_id_key":
+		return fmt.Errorf("blueprint with slug '%s' already exists in this team", slug)
+	case "blueprints_project_id_slug_unique":
+		return fmt.Errorf("blueprint with slug '%s' already exists in this project", slug)
+	default:
+		return fmt.Errorf("blueprint with slug '%s' already exists", slug)
+	}
+}
 
 // BlueprintRepository implements the repositories.BlueprintRepository interface for PostgreSQL
 type BlueprintRepository struct {
@@ -66,11 +86,8 @@ func (r *BlueprintRepository) Create(ctx context.Context, blueprint *models.Blue
 	).Scan(&blueprint.ID, &blueprint.CreatedAt, &blueprint.UpdatedAt)
 
 	if err != nil {
-		if uniqueViolation(err) != nil {
-			return fmt.Errorf(
-				"blueprint with slug '%s' already exists for this project",
-				blueprint.Slug,
-			)
+		if pqErr := uniqueViolation(err); pqErr != nil {
+			return blueprintSlugConflictError(pqErr, blueprint.Slug)
 		}
 		if isFKViolation(err) {
 			return fmt.Errorf("project not found or does not belong to user")
@@ -510,11 +527,8 @@ func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blue
 	).Scan(&blueprint.UpdatedAt, &blueprint.Version)
 
 	if err != nil {
-		if uniqueViolation(err) != nil {
-			return fmt.Errorf(
-				"blueprint with slug '%s' already exists for this project",
-				blueprint.Slug,
-			)
+		if pqErr := uniqueViolation(err); pqErr != nil {
+			return blueprintSlugConflictError(pqErr, blueprint.Slug)
 		}
 		if isFKViolation(err) {
 			return fmt.Errorf("project not found or does not belong to user")
