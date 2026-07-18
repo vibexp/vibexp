@@ -34,6 +34,11 @@ type MockAgentContainer struct {
 	agentInvocationService *svcmocks.MockAgentInvocationServiceInterface
 	authService            *svcmocks.MockAuthServiceInterface
 	teamService            *svcmocks.MockTeamServiceInterface
+	cardFetcher            *svcmocks.MockCardFetcher
+}
+
+func (m *MockAgentContainer) AgentCardFetcher() services.CardFetcher {
+	return m.cardFetcher
 }
 
 func (m *MockAgentContainer) AgentService() services.AgentServiceInterface {
@@ -63,6 +68,7 @@ func newMockAgentContainer(t *testing.T) *MockAgentContainer {
 		agentInvocationService: svcmocks.NewMockAgentInvocationServiceInterface(t),
 		authService:            svcmocks.NewMockAuthServiceInterface(t),
 		teamService:            svcmocks.NewMockTeamServiceInterface(t),
+		cardFetcher:            svcmocks.NewMockCardFetcher(t),
 	}
 }
 
