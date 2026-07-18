@@ -132,11 +132,20 @@ func TestAdminRoutes_Unauthenticated_Returns404(t *testing.T) {
 	}
 	srv := New("8080", nil, "test-api-key", cfg, slog.New(slog.DiscardHandler))
 
-	req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
-	rr := httptest.NewRecorder()
-	srv.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusNotFound, rr.Code)
+	// Every mounted admin route must be behind the middleware — not just /stats.
+	paths := []string{
+		"/api/v1/admin/stats",
+		"/api/v1/admin/users",
+		"/api/v1/admin/users/" + uuid.NewString(),
+	}
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", path, nil)
+			rr := httptest.NewRecorder()
+			srv.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusNotFound, rr.Code)
+		})
+	}
 }
 
 // TestGetAdminStats_Success verifies the stats handler returns the repository
