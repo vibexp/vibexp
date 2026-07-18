@@ -49,7 +49,7 @@ const schema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255),
   provider_type: z.string().min(1, 'Provider type is required'),
   model: z.string().trim().min(1, 'Model is required').max(255),
-  base_url: z.string().trim().url('Must be a valid URL'),
+  base_url: z.url('Must be a valid URL').trim(),
   api_key: z.string().optional(),
   concurrency: z
     .number()

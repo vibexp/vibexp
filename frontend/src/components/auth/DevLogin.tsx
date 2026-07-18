@@ -54,7 +54,7 @@ export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
     return null
   }
 
-  const handleDevLogin = async (e: React.FormEvent) => {
+  const handleDevLogin = async (e: React.SubmitEvent) => {
     e.preventDefault()
 
     if (!email) {
