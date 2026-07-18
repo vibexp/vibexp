@@ -554,3 +554,29 @@ func TestFetchDirectoryRecursive_Caps(t *testing.T) {
 		assert.Empty(t, files, "no files may be collected below the depth limit")
 	})
 }
+
+// TestBaseURLSeam_InvalidURLPropagates covers the withBaseURL error branch in
+// each of its three call sites: an unparsable base URL must surface as an
+// error rather than silently falling back to github.com.
+func TestBaseURLSeam_InvalidURLPropagates(t *testing.T) {
+	key, keyPEM := githubAPITestKey()
+	c := &GitHubAppClient{
+		cfg: &config.GitHubAppConfig{
+			AppID:         "12345",
+			PrivateKey:    key,
+			PrivateKeyPEM: keyPEM,
+		},
+		logger:      slog.New(slog.DiscardHandler),
+		clientCache: make(map[int64]*github.Client),
+		baseURL:     "://not-a-url",
+	}
+
+	_, _, err := c.GetInstallationToken(context.Background(), 1)
+	require.ErrorContains(t, err, "failed to apply GitHub base URL")
+
+	_, err = c.GetInstallation(context.Background(), 1)
+	require.ErrorContains(t, err, "failed to apply GitHub base URL")
+
+	_, _, err = c.GetInstallationRepositories(context.Background(), 1, 1)
+	require.ErrorContains(t, err, "failed to apply GitHub base URL")
+}

@@ -108,31 +108,102 @@ func TestGitHubInstallationRepository_Create(t *testing.T) {
 	})
 }
 
+// Fixed timestamps shared by the Get scenarios and their assertions.
+var (
+	githubInstallationTestNow     = time.Date(2026, 7, 2, 8, 30, 0, 0, time.UTC)
+	githubInstallationTestExpires = time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+)
+
+func githubInstallationHappyRows() *sqlmock.Rows {
+	return sqlmock.NewRows(githubInstallationColumns).AddRow(
+		"inst-1", "team-1", int64(4242), "octo-org", "Organization", "organization",
+		"enc-token", githubInstallationTestExpires, []byte(`{"contents":"read"}`), []byte(`{push,pull_request}`),
+		nil, githubInstallationTestNow, githubInstallationTestNow,
+	)
+}
+
+func githubInstallationBadPermissionsRows() *sqlmock.Rows {
+	return sqlmock.NewRows(githubInstallationColumns).AddRow(
+		"inst-1", "team-1", int64(4242), "octo-org", "Organization", "organization",
+		"enc-token", githubInstallationTestExpires, []byte(`{not json`), []byte(`{push}`),
+		nil, githubInstallationTestNow, githubInstallationTestNow,
+	)
+}
+
+type githubInstallationGetMethod struct {
+	name    string
+	pattern string
+	arg     interface{}
+	call    func(repo repositories.GitHubInstallationRepository) (*models.GitHubInstallation, error)
+}
+
+type githubInstallationGetScenario struct {
+	name     string
+	rows     func() *sqlmock.Rows
+	queryErr error
+	wantIs   error
+	wantSub  string
+	wantOK   bool
+}
+
+// assertGitHubInstallationError asserts the sentinel and/or message fragment an
+// installation-repo call must return; both zero values mean "no error expected".
+func assertGitHubInstallationError(t *testing.T, err error, wantIs error, wantSub string) {
+	t.Helper()
+	if wantIs == nil && wantSub == "" {
+		require.NoError(t, err)
+		return
+	}
+	require.Error(t, err)
+	if wantIs != nil {
+		assert.ErrorIs(t, err, wantIs)
+	}
+	if wantSub != "" {
+		assert.Contains(t, err.Error(), wantSub)
+	}
+}
+
+// assertHappyGitHubInstallation pins the full field mapping of the fixture row.
+func assertHappyGitHubInstallation(t *testing.T, got *models.GitHubInstallation) {
+	t.Helper()
+	assert.Equal(t, "inst-1", got.ID)
+	assert.Equal(t, "team-1", got.TeamID)
+	assert.Equal(t, int64(4242), got.InstallationID)
+	assert.Equal(t, "octo-org", got.AccountLogin)
+	assert.Equal(t, "Organization", got.AccountType)
+	assert.Equal(t, "organization", got.TargetType)
+	assert.Equal(t, "enc-token", got.EncryptedAccessToken)
+	assert.Equal(t, githubInstallationTestExpires, got.TokenExpiresAt)
+	assert.Equal(t, map[string]interface{}{"contents": "read"}, got.Permissions)
+	assert.Equal(t, []string{"push", "pull_request"}, got.Events)
+	assert.Nil(t, got.SuspendedAt)
+}
+
+func runGitHubInstallationGetScenario(t *testing.T, m githubInstallationGetMethod, sc githubInstallationGetScenario) {
+	t.Helper()
+	repo, mock, mockDB := newGitHubInstallationMockRepo(t)
+	defer closeMockDB(t, mockDB)
+
+	exp := mock.ExpectQuery(m.pattern).WithArgs(m.arg)
+	if sc.queryErr != nil {
+		exp.WillReturnError(sc.queryErr)
+	} else {
+		exp.WillReturnRows(sc.rows())
+	}
+
+	got, err := m.call(repo)
+	if sc.wantOK {
+		require.NoError(t, err)
+		assertHappyGitHubInstallation(t, got)
+	} else {
+		assert.Nil(t, got)
+		assertGitHubInstallationError(t, err, sc.wantIs, sc.wantSub)
+	}
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestGitHubInstallationRepository_Get(t *testing.T) {
-	now := time.Date(2026, 7, 2, 8, 30, 0, 0, time.UTC)
-	expires := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
-
-	happyRows := func() *sqlmock.Rows {
-		return sqlmock.NewRows(githubInstallationColumns).AddRow(
-			"inst-1", "team-1", int64(4242), "octo-org", "Organization", "organization",
-			"enc-token", expires, []byte(`{"contents":"read"}`), []byte(`{push,pull_request}`),
-			nil, now, now,
-		)
-	}
-	badPermissionsRows := func() *sqlmock.Rows {
-		return sqlmock.NewRows(githubInstallationColumns).AddRow(
-			"inst-1", "team-1", int64(4242), "octo-org", "Organization", "organization",
-			"enc-token", expires, []byte(`{not json`), []byte(`{push}`),
-			nil, now, now,
-		)
-	}
-
-	methods := []struct {
-		name    string
-		pattern string
-		arg     interface{}
-		call    func(repo repositories.GitHubInstallationRepository) (*models.GitHubInstallation, error)
-	}{
+	methods := []githubInstallationGetMethod{
 		{
 			name:    "GetByTeamID",
 			pattern: `FROM github_installations\s+WHERE team_id = \$1`,
@@ -151,58 +222,17 @@ func TestGitHubInstallationRepository_Get(t *testing.T) {
 		},
 	}
 
-	scenarios := []struct {
-		name     string
-		rows     func() *sqlmock.Rows
-		queryErr error
-		wantIs   error
-		wantSub  string
-		wantOK   bool
-	}{
-		{name: "happy path round-trips permissions JSON and events array", rows: happyRows, wantOK: true},
+	scenarios := []githubInstallationGetScenario{
+		{name: "happy path round-trips permissions JSON and events array", rows: githubInstallationHappyRows, wantOK: true},
 		{name: "no rows maps to the not-found sentinel", queryErr: sql.ErrNoRows, wantIs: repositories.ErrGitHubInstallationNotFound},
 		{name: "driver error is wrapped", queryErr: sql.ErrConnDone, wantIs: sql.ErrConnDone, wantSub: "failed to get GitHub installation"},
-		{name: "invalid permissions JSON fails unmarshal", rows: badPermissionsRows, wantSub: "failed to unmarshal permissions"},
+		{name: "invalid permissions JSON fails unmarshal", rows: githubInstallationBadPermissionsRows, wantSub: "failed to unmarshal permissions"},
 	}
 
 	for _, m := range methods {
 		for _, sc := range scenarios {
 			t.Run(m.name+"/"+sc.name, func(t *testing.T) {
-				repo, mock, mockDB := newGitHubInstallationMockRepo(t)
-				defer closeMockDB(t, mockDB)
-
-				exp := mock.ExpectQuery(m.pattern).WithArgs(m.arg)
-				if sc.queryErr != nil {
-					exp.WillReturnError(sc.queryErr)
-				} else {
-					exp.WillReturnRows(sc.rows())
-				}
-
-				got, err := m.call(repo)
-				if sc.wantOK {
-					require.NoError(t, err)
-					assert.Equal(t, "inst-1", got.ID)
-					assert.Equal(t, "team-1", got.TeamID)
-					assert.Equal(t, int64(4242), got.InstallationID)
-					assert.Equal(t, "octo-org", got.AccountLogin)
-					assert.Equal(t, "Organization", got.AccountType)
-					assert.Equal(t, "organization", got.TargetType)
-					assert.Equal(t, "enc-token", got.EncryptedAccessToken)
-					assert.Equal(t, expires, got.TokenExpiresAt)
-					assert.Equal(t, map[string]interface{}{"contents": "read"}, got.Permissions)
-					assert.Equal(t, []string{"push", "pull_request"}, got.Events)
-					assert.Nil(t, got.SuspendedAt)
-				} else {
-					require.Error(t, err)
-					assert.Nil(t, got)
-					if sc.wantIs != nil {
-						assert.ErrorIs(t, err, sc.wantIs)
-					}
-					if sc.wantSub != "" {
-						assert.Contains(t, err.Error(), sc.wantSub)
-					}
-				}
-				assert.NoError(t, mock.ExpectationsWereMet())
+				runGitHubInstallationGetScenario(t, m, sc)
 			})
 		}
 	}
@@ -273,17 +303,7 @@ func TestGitHubInstallationRepository_Update(t *testing.T) {
 			tc.setupMock(mock, inst)
 
 			err := repo.Update(context.Background(), inst)
-			if tc.wantIs == nil && tc.wantSub == "" {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-				if tc.wantIs != nil {
-					assert.ErrorIs(t, err, tc.wantIs)
-				}
-				if tc.wantSub != "" {
-					assert.Contains(t, err.Error(), tc.wantSub)
-				}
-			}
+			assertGitHubInstallationError(t, err, tc.wantIs, tc.wantSub)
 			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
@@ -340,17 +360,7 @@ func TestGitHubInstallationRepository_Delete(t *testing.T) {
 			tc.setupMock(mock)
 
 			err := repo.Delete(context.Background(), "team-1")
-			if tc.wantIs == nil && tc.wantSub == "" {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-				if tc.wantIs != nil {
-					assert.ErrorIs(t, err, tc.wantIs)
-				}
-				if tc.wantSub != "" {
-					assert.Contains(t, err.Error(), tc.wantSub)
-				}
-			}
+			assertGitHubInstallationError(t, err, tc.wantIs, tc.wantSub)
 			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
