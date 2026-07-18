@@ -1,7 +1,8 @@
 /**
- * Routing smoke test for the /admin subtree (issue #315): mounts the real guard
- * + AdminLayout + nested stub pages exactly as registered in routes.tsx, and
- * checks direct-URL entry for both an admin and a non-admin.
+ * Routing smoke test for the /admin subtree (#315 shell, real pages from #316):
+ * mounts the real guard + AdminLayout + nested pages as registered in routes.tsx
+ * and checks direct-URL entry for both an admin and a non-admin. adminService is
+ * mocked so the pages render deterministic content.
  */
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -18,6 +19,20 @@ const mockUseAuth = jest.fn()
 jest.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }))
+
+jest.mock('@/services/adminService', () => ({
+  adminService: {
+    getStats: jest.fn(),
+    listUsers: jest.fn(),
+    listTeams: jest.fn(),
+    getUser: jest.fn(),
+    getTeam: jest.fn(),
+  },
+}))
+
+import { adminService } from '@/services/adminService'
+
+const mockAdminService = adminService as jest.Mocked<typeof adminService>
 
 function renderAt(path: string) {
   return render(
@@ -43,11 +58,22 @@ function renderAt(path: string) {
   )
 }
 
-afterEach(() => {
+beforeEach(() => {
   jest.clearAllMocks()
+  mockAdminService.getStats.mockResolvedValue({
+    counts: { users: 1, teams: 1, prompts: 0, artifacts: 0, memories: 0 },
+    version: 'test',
+  })
+  mockAdminService.listUsers.mockResolvedValue({
+    users: [],
+    total_count: 0,
+    page: 1,
+    per_page: 20,
+    total_pages: 0,
+  })
 })
 
-it('renders the admin shell + Stats at /admin for an admin', () => {
+it('renders the admin shell + Stats at /admin for an admin', async () => {
   mockUseAuth.mockReturnValue({
     user: { id: 'u1', is_instance_admin: true },
     isLoading: false,
@@ -57,19 +83,18 @@ it('renders the admin shell + Stats at /admin for an admin', () => {
   expect(
     screen.getByRole('heading', { name: 'Admin Portal' })
   ).toBeInTheDocument()
-  expect(
-    screen.getByText('Instance statistics — coming soon.')
-  ).toBeInTheDocument()
+  // Stats index page loads and renders the version stat card.
+  expect(await screen.findByText('test')).toBeInTheDocument()
 })
 
-it('renders the Users page at /admin/users for an admin', () => {
+it('renders the Users page at /admin/users for an admin', async () => {
   mockUseAuth.mockReturnValue({
     user: { id: 'u1', is_instance_admin: true },
     isLoading: false,
   })
   renderAt('/admin/users')
 
-  expect(screen.getByText('Users — coming soon.')).toBeInTheDocument()
+  expect(await screen.findByText('No users yet')).toBeInTheDocument()
 })
 
 it('blocks a non-admin entering /admin directly by URL', () => {
