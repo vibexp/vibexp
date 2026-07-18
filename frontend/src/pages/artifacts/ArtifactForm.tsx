@@ -1,8 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { MetadataEditor } from '@/components/metadata/MetadataEditor'
 import { ProjectPicker } from '@/components/ProjectPicker'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -77,6 +84,10 @@ export const ArtifactForm = forwardRef<ArtifactFormHandle, ArtifactFormProps>(
     const formElRef = useRef<HTMLFormElement>(null)
     const slugManuallyEdited = useRef(false)
     const { types } = useTypes('artifacts')
+    const [metadata, setMetadata] = useState<Record<string, unknown>>(
+      artifact?.metadata ?? {}
+    )
+    const [metadataValid, setMetadataValid] = useState(true)
 
     const form = useForm<ArtifactFormValues>({
       resolver: zodResolver(schema),
@@ -104,6 +115,7 @@ export const ArtifactForm = forwardRef<ArtifactFormHandle, ArtifactFormProps>(
           status: artifact.status,
           content: artifact.content ?? '',
         })
+        setMetadata(artifact.metadata ?? {})
       }
     }, [artifact, form])
 
@@ -125,6 +137,9 @@ export const ArtifactForm = forwardRef<ArtifactFormHandle, ArtifactFormProps>(
     }))
 
     const handleSubmit = form.handleSubmit(async values => {
+      // The editor surfaces its own inline errors; block the submit so an
+      // invalid metadata map never reaches the API.
+      if (!metadataValid) return
       await onSubmit({
         title: values.title.trim(),
         slug: values.slug.trim(),
@@ -133,6 +148,7 @@ export const ArtifactForm = forwardRef<ArtifactFormHandle, ArtifactFormProps>(
         type: values.type,
         status: values.status,
         content: values.content,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       })
     })
 
@@ -316,6 +332,20 @@ export const ArtifactForm = forwardRef<ArtifactFormHandle, ArtifactFormProps>(
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Metadata</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MetadataEditor
+                  value={metadata}
+                  onChange={setMetadata}
+                  onValidityChange={setMetadataValid}
+                  disabled={isLoading}
                 />
               </CardContent>
             </Card>
