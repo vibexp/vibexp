@@ -121,6 +121,11 @@ services:
       DEV_LOGIN_ENABLED: 'true'
       LOG_LEVEL: warn
 
+      # Instance-admin surface (#317): the admin e2e email dev-logs in as an
+      # instance admin; any other email is a non-admin. Keep this address in sync
+      # with ADMIN_EMAIL in e2e/features/admin/*.spec.ts.
+      INSTANCE_ADMIN_EMAILS: 'admin-e2e@vibexp.test'
+
       # The whole suite logs in from a single IP; keep the per-IP limiters far
       # above what one runner can hit so dev-login never returns 429. Test-only.
       AUTH_RATE_LIMIT_PER_MINUTE: '100000'
