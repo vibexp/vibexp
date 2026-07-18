@@ -29,11 +29,6 @@ func NewAuthInvalidError(detail string) *APIError {
 	return NewAPIError(CodeAuthInvalid, GetErrorTitle(CodeAuthInvalid), detail, http.StatusUnauthorized)
 }
 
-// NewInvalidCredentialsError creates an invalid credentials error
-func NewInvalidCredentialsError(detail string) *APIError {
-	return NewAPIError(CodeInvalidCredentials, GetErrorTitle(CodeInvalidCredentials), detail, http.StatusUnauthorized)
-}
-
 // NewForbiddenError creates a forbidden error
 func NewForbiddenError(detail string) *APIError {
 	return NewAPIError(CodeForbidden, GetErrorTitle(CodeForbidden), detail, http.StatusForbidden)
@@ -60,14 +55,6 @@ func NewResourceExistsError(resourceType, detail string) *APIError {
 		detail = resourceType + " already exists"
 	}
 	return NewAPIError(CodeResourceExists, GetErrorTitle(CodeResourceExists), detail, http.StatusConflict)
-}
-
-// NewVersionConflictError creates a version conflict error for optimistic locking
-func NewVersionConflictError(resourceType, detail string) *APIError {
-	if detail == "" {
-		detail = resourceType + " was modified by another request. Please refresh and try again"
-	}
-	return NewAPIError(CodeVersionConflict, GetErrorTitle(CodeVersionConflict), detail, http.StatusConflict)
 }
 
 // NewResourceLimitExceededError creates a resource limit exceeded error
@@ -98,22 +85,6 @@ func NewInternalError(detail string) *APIError {
 // NewBadRequestError creates a bad request error
 func NewBadRequestError(detail string) *APIError {
 	return NewAPIError(CodeBadRequest, GetErrorTitle(CodeBadRequest), detail, http.StatusBadRequest)
-}
-
-// NewExternalServiceError creates an external service error
-func NewExternalServiceError(service, detail string) *APIError {
-	if detail == "" {
-		detail = "External service " + service + " is unavailable"
-	}
-	return NewAPIError(CodeExternalServiceError, GetErrorTitle(CodeExternalServiceError), detail, http.StatusBadGateway)
-}
-
-// NewGoogleAuthError creates a Google authentication error.
-//
-// Deprecated: use NewIDPAuthError for provider-agnostic flows.
-// Kept temporarily for any legacy callers.
-func NewGoogleAuthError(detail string) *APIError {
-	return NewAPIError(CodeGoogleAuthFailed, GetErrorTitle(CodeGoogleAuthFailed), detail, http.StatusUnauthorized)
 }
 
 // NewIDPAuthError creates a 401 error for identity-provider authentication
@@ -155,144 +126,6 @@ func NewDuplicateMembersError(duplicateEmails []string) *APIError {
 		Timestamp:       time.Now().UTC().Format(time.RFC3339),
 		DuplicateEmails: duplicateEmails,
 	}
-}
-
-// NewSubscriptionValidationError creates a subscription validation error
-func NewSubscriptionValidationError(detail string, validationErrors []ValidationError) *APIError {
-	return &APIError{
-		Type:             typeURI(CodeSubscriptionValidationFailed),
-		Title:            GetErrorTitle(CodeSubscriptionValidationFailed),
-		Status:           http.StatusBadRequest,
-		Detail:           detail,
-		Code:             CodeSubscriptionValidationFailed,
-		ValidationErrors: validationErrors,
-		Timestamp:        time.Now().UTC().Format(time.RFC3339),
-	}
-}
-
-// NewSubscriptionNotFoundError creates a subscription not found error
-func NewSubscriptionNotFoundError(detail string) *APIError {
-	return NewAPIError(CodeSubscriptionNotFound, GetErrorTitle(CodeSubscriptionNotFound), detail, http.StatusNotFound)
-}
-
-// NewSubscriptionCreateFailedError creates a subscription creation failed error
-func NewSubscriptionCreateFailedError(detail string) *APIError {
-	return NewAPIError(
-		CodeSubscriptionCreateFailed,
-		GetErrorTitle(CodeSubscriptionCreateFailed),
-		detail,
-		http.StatusInternalServerError,
-	)
-}
-
-// NewSubscriptionUpdateFailedError creates a subscription update failed error
-func NewSubscriptionUpdateFailedError(detail string) *APIError {
-	return NewAPIError(
-		CodeSubscriptionUpdateFailed,
-		GetErrorTitle(CodeSubscriptionUpdateFailed),
-		detail,
-		http.StatusInternalServerError,
-	)
-}
-
-// NewSubscriptionCancelFailedError creates a subscription cancellation failed error
-func NewSubscriptionCancelFailedError(detail string) *APIError {
-	return NewAPIError(
-		CodeSubscriptionCancelFailed,
-		GetErrorTitle(CodeSubscriptionCancelFailed),
-		detail,
-		http.StatusInternalServerError,
-	)
-}
-
-// NewSubscriptionAlreadyExistsError creates a subscription already exists error
-func NewSubscriptionAlreadyExistsError(detail string) *APIError {
-	return NewAPIError(
-		CodeSubscriptionAlreadyExists,
-		GetErrorTitle(CodeSubscriptionAlreadyExists),
-		detail,
-		http.StatusConflict,
-	)
-}
-
-// NewInvalidStatusTransitionError creates an invalid status transition error
-func NewInvalidStatusTransitionError(detail string) *APIError {
-	return NewAPIError(
-		CodeInvalidStatusTransition,
-		GetErrorTitle(CodeInvalidStatusTransition),
-		detail,
-		http.StatusBadRequest,
-	)
-}
-
-// NewUsageTrackingFailedError creates a usage tracking failed error
-func NewUsageTrackingFailedError(detail string) *APIError {
-	return NewAPIError(
-		CodeUsageTrackingFailed,
-		GetErrorTitle(CodeUsageTrackingFailed),
-		detail,
-		http.StatusInternalServerError,
-	)
-}
-
-// NewWebhookProcessingFailedError creates a webhook processing failed error
-func NewWebhookProcessingFailedError(detail string) *APIError {
-	return NewAPIError(
-		CodeWebhookProcessingFailed,
-		GetErrorTitle(CodeWebhookProcessingFailed),
-		detail,
-		http.StatusInternalServerError,
-	)
-}
-
-// NewWebhookParseError creates a webhook parse error with validation details
-func NewWebhookParseError(detail string, validationErrors []ValidationError) *APIError {
-	apiErr := NewAPIError(CodeWebhookParseFailed, GetErrorTitle(CodeWebhookParseFailed), detail, http.StatusBadRequest)
-	apiErr.ValidationErrors = validationErrors
-	return apiErr
-}
-
-// NewWebhookAuthError creates a webhook authentication error
-func NewWebhookAuthError(detail string) *APIError {
-	return NewAPIError(CodeWebhookAuthFailed, GetErrorTitle(CodeWebhookAuthFailed), detail, http.StatusUnauthorized)
-}
-
-// NewWebhookDataInvalidError creates a webhook data invalid error with validation details
-func NewWebhookDataInvalidError(detail string, validationErrors []ValidationError) *APIError {
-	apiErr := NewAPIError(CodeWebhookDataInvalid, GetErrorTitle(CodeWebhookDataInvalid), detail, http.StatusBadRequest)
-	apiErr.ValidationErrors = validationErrors
-	return apiErr
-}
-
-// NewWebhookHandlerError creates a webhook handler failed error
-func NewWebhookHandlerError(handler, detail string) *APIError {
-	fullDetail := fmt.Sprintf("Handler '%s' failed: %s", handler, detail)
-	return NewAPIError(
-		CodeWebhookHandlerFailed,
-		GetErrorTitle(CodeWebhookHandlerFailed),
-		fullDetail,
-		http.StatusInternalServerError,
-	)
-}
-
-// NewPaymentProcessingError creates a payment processing failed error
-func NewPaymentProcessingError(detail string) *APIError {
-	return NewAPIError(
-		CodePaymentProcessingFailed,
-		GetErrorTitle(CodePaymentProcessingFailed),
-		detail,
-		http.StatusBadGateway,
-	)
-}
-
-// NewCancellationError creates a cancellation failed error
-func NewCancellationError(detail string) *APIError {
-	return NewAPIError(
-		CodeCancellationFailed,
-		GetErrorTitle(CodeCancellationFailed),
-		detail,
-		http.StatusInternalServerError,
-	)
 }
 
 // Embedding Provider Errors
@@ -470,14 +303,6 @@ func NewModelProviderValidationError(detail string, validationErrors []Validatio
 }
 
 // User Preferences Errors
-
-// NewPreferencesNotFoundError creates a user preferences not found error
-func NewPreferencesNotFoundError(detail string) *APIError {
-	if detail == "" {
-		detail = "User preferences not found"
-	}
-	return NewAPIError(CodePreferencesNotFound, GetErrorTitle(CodePreferencesNotFound), detail, http.StatusNotFound)
-}
 
 // NewPreferencesUpdateFailedError creates a user preferences update failed error
 func NewPreferencesUpdateFailedError(detail string) *APIError {
