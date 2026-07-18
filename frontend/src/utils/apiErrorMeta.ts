@@ -12,9 +12,7 @@ export function readStringMeta(
   const meta = error.metadata
   if (!meta) return undefined
   for (const key of keys) {
-    const value = Object.prototype.hasOwnProperty.call(meta, key)
-      ? meta[key]
-      : undefined
+    const value = Object.hasOwn(meta, key) ? meta[key] : undefined
     if (typeof value === 'string' && value.length > 0) {
       return value
     }

@@ -1,7 +1,9 @@
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -140,7 +142,7 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
     void checkAuth()
   }, [])
 
-  const login = async (provider?: string) => {
+  const login = useCallback(async (provider?: string) => {
     setIsLoading(true)
     try {
       const loginUrl = await authService.getLoginUrl(provider)
@@ -150,9 +152,9 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
       setIsLoading(false)
       throw error
     }
-  }
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(() => {
     // Clear GA4 user_id before logout
     try {
       window.gtag('set', 'user_id', undefined)
@@ -177,9 +179,9 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
 
     // Redirect to sign-in page
     window.location.href = '/sign-in'
-  }
+  }, [])
 
-  const checkPendingInvitation = (): string | null => {
+  const checkPendingInvitation = useCallback((): string | null => {
     const pendingToken = sessionStore.get(STORAGE_KEYS.PENDING_INVITATION_TOKEN)
     if (pendingToken) {
       // Clear the token from storage
@@ -187,9 +189,9 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
       return pendingToken
     }
     return null
-  }
+  }, [])
 
-  const markOnboardingComplete = async () => {
+  const markOnboardingComplete = useCallback(async () => {
     try {
       const updatedUser = await authService.markOnboardingComplete()
       setUser(updatedUser)
@@ -197,23 +199,30 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
       console.error('Failed to mark onboarding complete:', error)
       throw error
     }
-  }
+  }, [])
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated,
-        login,
-        logout,
-        isLoading,
-        checkPendingInvitation,
-        markOnboardingComplete,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isAuthenticated,
+      login,
+      logout,
+      isLoading,
+      checkPendingInvitation,
+      markOnboardingComplete,
+    }),
+    [
+      user,
+      isAuthenticated,
+      login,
+      logout,
+      isLoading,
+      checkPendingInvitation,
+      markOnboardingComplete,
+    ]
   )
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 // Re-export useAuth from separate file to satisfy react-refresh/only-export-components rule

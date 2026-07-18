@@ -11,12 +11,6 @@ import type {
 export type Memory = components['schemas']['Memory']
 export type MemoryListResponse = components['schemas']['MemoryListResponse']
 
-// Back-compat aliases matching the old hand-written names: the list endpoint
-// returns `MemoryListResponse`, and single-memory endpoints return a bare `Memory`
-// (the backend `writeJSON` does not envelope memory payloads).
-export type MemoriesResponse = MemoryListResponse
-export type MemoryResponse = Memory
-
 // Lifecycle-status union, derived from the generated `Memory` schema.
 export type MemoryStatus = Memory['status']
 
@@ -41,7 +35,7 @@ class MemoryService {
   async getMemories(
     teamId: string,
     filters: MemoryFilters = {}
-  ): Promise<MemoriesResponse> {
+  ): Promise<MemoryListResponse> {
     return unwrap(
       generatedClient.GET('/api/v1/{team_id}/memories', {
         params: { path: { team_id: teamId }, query: filters },
@@ -49,7 +43,7 @@ class MemoryService {
     )
   }
 
-  async getMemory(teamId: string, id: string): Promise<MemoryResponse> {
+  async getMemory(teamId: string, id: string): Promise<Memory> {
     return unwrap(
       generatedClient.GET('/api/v1/{team_id}/memories/{id}', {
         params: { path: { team_id: teamId, id } },
@@ -60,7 +54,7 @@ class MemoryService {
   async createMemory(
     teamId: string,
     data: CreateMemoryRequest
-  ): Promise<MemoryResponse> {
+  ): Promise<Memory> {
     return unwrap(
       generatedClient.POST('/api/v1/{team_id}/memories', {
         params: { path: { team_id: teamId } },
@@ -73,7 +67,7 @@ class MemoryService {
     teamId: string,
     id: string,
     data: UpdateMemoryRequest
-  ): Promise<MemoryResponse> {
+  ): Promise<Memory> {
     return unwrap(
       generatedClient.PUT('/api/v1/{team_id}/memories/{id}', {
         params: { path: { team_id: teamId, id } },
@@ -122,7 +116,7 @@ class MemoryService {
     teamId: string,
     id: string,
     versionNumber: number
-  ): Promise<MemoryResponse> {
+  ): Promise<Memory> {
     return unwrap(
       generatedClient.POST(
         '/api/v1/{team_id}/memories/{id}/versions/{version_number}/restore',
@@ -138,7 +132,7 @@ class MemoryService {
   async searchMemoriesByMetadata(
     teamId: string,
     filters: MemoryFilters
-  ): Promise<MemoriesResponse> {
+  ): Promise<MemoryListResponse> {
     if (!filters.metadata_key || !filters.metadata_value) {
       throw new Error(
         'metadata_key and metadata_value are required for metadata search'

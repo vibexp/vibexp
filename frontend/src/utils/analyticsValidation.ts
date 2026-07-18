@@ -91,9 +91,12 @@ export function validateBaseEvent(event: AnalyticsEvent): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
 
+  // Validate defensively through a Partial view: callers can reach this with
+  // runtime-built objects the compile-time type cannot vouch for.
+  const e: Partial<AnalyticsEvent> = event
+
   // Required fields
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!event.event || typeof event.event !== 'string') {
+  if (!e.event || typeof e.event !== 'string') {
     errors.push('event name is required and must be a string')
   }
 
@@ -105,17 +108,15 @@ export function validateBaseEvent(event: AnalyticsEvent): ValidationResult {
     errors.push('page_path is required and must be a string')
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!event.environment || typeof event.environment !== 'string') {
+  if (!e.environment || typeof e.environment !== 'string') {
     errors.push('environment is required and must be a string')
   }
 
   // Validate event name against known events
-  const knownEvents = Object.values(ANALYTICS_EVENTS)
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-  if (event.event && !knownEvents.includes(event.event as any)) {
+  const knownEvents: string[] = Object.values(ANALYTICS_EVENTS)
+  if (e.event && !knownEvents.includes(e.event)) {
     warnings.push(
-      `Unknown event name: ${event.event}. Consider adding it to ANALYTICS_EVENTS`
+      `Unknown event name: ${e.event}. Consider adding it to ANALYTICS_EVENTS`
     )
   }
 
@@ -227,8 +228,8 @@ export function validateTrackAuthParams(
   const warnings: string[] = []
 
   const validEventTypes = ['signin_page_view', 'signed_in', 'logged_out']
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!params.eventType || !validEventTypes.includes(params.eventType)) {
+  const eventType: string | undefined = params.eventType
+  if (!eventType || !validEventTypes.includes(eventType)) {
     errors.push(`eventType must be one of: ${validEventTypes.join(', ')}`)
   }
 
@@ -253,21 +254,21 @@ export function validateTrackAuthParams(
 /**
  * Validate GTM compatibility
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function validateGTMCompatibility(eventData: any): ValidationResult {
+export function validateGTMCompatibility(
+  eventData: Record<string, unknown>
+): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
 
   // Check for reserved GTM properties
-  const reservedProperties = [
+  const reservedProperties = new Set([
     'gtm.start',
     'gtm.uniqueEventId',
     'gtm.element',
     'gtm.elementClasses',
-  ]
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+  ])
   Object.keys(eventData).forEach(key => {
-    if (reservedProperties.includes(key)) {
+    if (reservedProperties.has(key)) {
       warnings.push(
         `Property "${key}" is reserved by GTM and may be overwritten`
       )
@@ -275,7 +276,6 @@ export function validateGTMCompatibility(eventData: any): ValidationResult {
   })
 
   // Check for property name length (GTM has limits)
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   Object.keys(eventData).forEach(key => {
     if (key.length > 100) {
       warnings.push(
@@ -285,13 +285,11 @@ export function validateGTMCompatibility(eventData: any): ValidationResult {
   })
 
   // Check for deep nesting (GTM has limits)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const checkDepth = (obj: any, depth = 0): number => {
+  const checkDepth = (obj: unknown, depth = 0): number => {
     if (depth > 10) return depth
     if (typeof obj !== 'object' || obj === null) return depth
 
     let maxDepth = depth
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     Object.values(obj).forEach(value => {
       const nestedDepth = checkDepth(value, depth + 1)
       maxDepth = Math.max(maxDepth, nestedDepth)
@@ -317,7 +315,9 @@ export function validateGTMCompatibility(eventData: any): ValidationResult {
  * Helper function to validate email format
  */
 function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  // The first domain label excludes dots so the regex is unambiguous (no
+  // super-linear backtracking on hostile input).
+  const emailRegex = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/
   return emailRegex.test(email)
 }
 
@@ -328,8 +328,9 @@ export function validateAnalyticsEvent(
   event: AnalyticsEvent
 ): ValidationResult {
   const baseValidation = validateBaseEvent(event)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const gtmValidation = validateGTMCompatibility(event as any)
+  const gtmValidation = validateGTMCompatibility(
+    event as unknown as Record<string, unknown>
+  )
 
   return {
     isValid: baseValidation.isValid && gtmValidation.isValid,

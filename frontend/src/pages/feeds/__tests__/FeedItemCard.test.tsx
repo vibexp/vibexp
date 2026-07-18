@@ -51,9 +51,13 @@ function renderCard(
 }
 
 describe('FeedItemCard', () => {
-  it('renders item title', () => {
+  it.each([
+    ['item title', 'Sprint Retrospective'],
+    ['AI assistant name in the header for AI items', 'claude-sonnet-4-5'],
+    ['the AI badge next to the assistant name for AI items', 'AI'],
+  ])('renders %s', (_what, text) => {
     renderCard()
-    expect(screen.getByText('Sprint Retrospective')).toBeInTheDocument()
+    expect(screen.getByText(text)).toBeInTheDocument()
   })
 
   it('renders excerpt', () => {
@@ -61,16 +65,6 @@ describe('FeedItemCard', () => {
     expect(
       screen.getByText(/The sprint went well and all tasks were completed/)
     ).toBeInTheDocument()
-  })
-
-  it('renders AI assistant name in the header for AI items', () => {
-    renderCard()
-    expect(screen.getByText('claude-sonnet-4-5')).toBeInTheDocument()
-  })
-
-  it('renders the AI badge next to the assistant name for AI items', () => {
-    renderCard()
-    expect(screen.getByText('AI')).toBeInTheDocument()
   })
 
   it('renders the matched provider icon for AI items', () => {

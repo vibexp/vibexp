@@ -216,9 +216,9 @@ export function GitHubIntegration() {
 
   useEffect(() => {
     if (installationIdStr && setupAction && state && currentTeam) {
-      const installationId = parseInt(installationIdStr, 10)
+      const installationId = Number.parseInt(installationIdStr, 10)
 
-      if (isNaN(installationId) || installationId <= 0) {
+      if (Number.isNaN(installationId) || installationId <= 0) {
         handleError(
           new Error(`Invalid installation ID: ${installationIdStr}`),
           'Failed to complete GitHub installation'

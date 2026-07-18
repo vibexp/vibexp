@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from 'react'
 
@@ -89,12 +90,11 @@ export function AlertProvider({ children }: Readonly<AlertProviderProps>) {
     }
   }, [])
 
-  const value: AlertContextValue = {
-    alerts,
-    showAlert,
-    dismissAlert,
-    clearAll,
-  }
+  // Memoised so consumers don't re-render on every provider render.
+  const value: AlertContextValue = useMemo(
+    () => ({ alerts, showAlert, dismissAlert, clearAll }),
+    [alerts, showAlert, dismissAlert, clearAll]
+  )
 
   return <AlertContext.Provider value={value}>{children}</AlertContext.Provider>
 }

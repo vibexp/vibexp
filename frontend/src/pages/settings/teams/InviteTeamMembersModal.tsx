@@ -33,7 +33,9 @@ function validateEmails(emails: string[]): {
   errors: string[]
 } {
   const errors: string[] = []
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  // The first domain label excludes dots so the regex is unambiguous (no
+  // super-linear backtracking on hostile input).
+  const emailRegex = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/
 
   emails.forEach((email, index) => {
     if (!emailRegex.test(email)) {

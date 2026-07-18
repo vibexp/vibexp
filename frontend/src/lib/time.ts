@@ -4,11 +4,14 @@
  * the various inline formatDate functions scattered across the codebase.
  */
 
+/** Accepted input for the formatters: a Date, an ISO string, or nothing. */
+type DateValue = Date | string | null | undefined
+
 /**
  * Formats a date string or Date object as a human-readable date.
  * Returns "Never" when the value is null / undefined.
  */
-export function formatDate(value: Date | string | null | undefined): string {
+export function formatDate(value: DateValue): string {
   if (!value) return 'Never'
   const d = value instanceof Date ? value : new Date(value)
   return d.toLocaleDateString('en-US', {
@@ -23,9 +26,7 @@ export function formatDate(value: Date | string | null | undefined): string {
  * Returns "Never" when the value is null / undefined.
  * Example output: "January 1, 2024, 12:00 AM"
  */
-export function formatDateTime(
-  value: Date | string | null | undefined
-): string {
+export function formatDateTime(value: DateValue): string {
   if (!value) return 'Never'
   const d = value instanceof Date ? value : new Date(value)
   return d.toLocaleString('en-US', {
@@ -43,9 +44,7 @@ export function formatDateTime(
  * Falls back to a formatted date for older values.
  * Returns "Never" when the value is null / undefined.
  */
-export function formatRelativeTime(
-  value: Date | string | null | undefined
-): string {
+export function formatRelativeTime(value: DateValue): string {
   if (!value) return 'Never'
   const date = value instanceof Date ? value : new Date(value)
   const now = new Date()

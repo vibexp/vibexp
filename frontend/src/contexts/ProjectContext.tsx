@@ -1,5 +1,13 @@
 import type { ReactNode } from 'react'
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import type { Project } from '@/services/projectService'
 
@@ -32,9 +40,8 @@ interface ProjectProviderProps {
  */
 export function ProjectProvider({ children }: Readonly<ProjectProviderProps>) {
   const { currentTeam } = useTeam()
-  const [currentProject, setCurrentProjectState] = useState<Project | null>(
-    null
-  )
+  const [currentProjectState, setCurrentProjectState] =
+    useState<Project | null>(null)
   // Loading only means "a persisted selection is being restored" — with
   // nothing stored there is nothing to wait for, so consumers (list pages)
   // can fetch immediately.
@@ -96,7 +103,7 @@ export function ProjectProvider({ children }: Readonly<ProjectProviderProps>) {
     }
   }, [currentTeam])
 
-  const setCurrentProject = (project: Project | null) => {
+  const setCurrentProject = useCallback((project: Project | null) => {
     userSelectedRef.current = true
     setCurrentProjectState(project)
     if (project) {
@@ -104,13 +111,16 @@ export function ProjectProvider({ children }: Readonly<ProjectProviderProps>) {
     } else {
       clearProjectId()
     }
-  }
+  }, [])
 
-  const value: ProjectContextValue = {
-    currentProject,
-    setCurrentProject,
-    isLoading,
-  }
+  const value: ProjectContextValue = useMemo(
+    () => ({
+      currentProject: currentProjectState,
+      setCurrentProject,
+      isLoading,
+    }),
+    [currentProjectState, setCurrentProject, isLoading]
+  )
 
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

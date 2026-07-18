@@ -26,7 +26,7 @@ export const initializeGTM = () => {
   // dataLayer is already initialized in index.html with consent defaults
   // Just push the GTM start event
   window.dataLayer.push({
-    'gtm.start': new Date().getTime(),
+    'gtm.start': Date.now(),
     event: 'gtm.js',
   })
 

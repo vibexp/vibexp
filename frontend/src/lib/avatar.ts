@@ -25,8 +25,10 @@ const PALETTE = [
  */
 export function assistantColor(name: string): string {
   const index =
-    Array.from(name).reduce((acc, char) => acc + char.charCodeAt(0), 0) %
-    PALETTE.length
+    Array.from(name).reduce(
+      (acc, char) => acc + (char.codePointAt(0) ?? 0),
+      0
+    ) % PALETTE.length
   return PALETTE[index]
 }
 

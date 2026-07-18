@@ -36,7 +36,10 @@ export function updateStreamingMessages(
   shouldAppend: boolean,
   artifactId: string
 ): Message[] {
-  const lastMessage = prev[prev.length - 1]
+  const lastMessage = prev.at(-1)
+  // Streaming always follows at least the user's message, so an empty
+  // transcript never happens in practice; bail out rather than fabricate one.
+  if (!lastMessage) return prev
 
   if (
     lastMessage.role === 'agent' &&
@@ -168,9 +171,9 @@ export function useChatMessages({
       }
 
       setMessages(prev => {
-        const lastMessage = prev[prev.length - 1]
+        const lastMessage = prev.at(-1)
         if (
-          lastMessage.role === 'agent' &&
+          lastMessage?.role === 'agent' &&
           lastMessage.timestamp === STREAMING
         ) {
           return [...prev.slice(0, -1), agentMessage]
@@ -311,9 +314,9 @@ export function useChatMessages({
           isError: true,
         }
         setMessages(prev => {
-          const lastMessage = prev[prev.length - 1]
+          const lastMessage = prev.at(-1)
           if (
-            lastMessage.role === 'agent' &&
+            lastMessage?.role === 'agent' &&
             lastMessage.text === PLACEHOLDER_TEXT
           ) {
             return [...prev.slice(0, -1), errorAgentMessage]

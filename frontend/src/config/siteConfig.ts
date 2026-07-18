@@ -19,6 +19,15 @@ function or(value: string | undefined, fallback: string): string {
   return value !== undefined && value !== '' ? value : fallback
 }
 
+/** Strips trailing "/" characters (no regex, so no backtracking pathology). */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length
+  while (end > 0 && value.endsWith('/', end)) {
+    end -= 1
+  }
+  return value.slice(0, end)
+}
+
 /** Display name of the product/brand. */
 export const SITE_NAME = or(getEnv('VITE_SITE_NAME'), 'VibeXP')
 
@@ -29,9 +38,8 @@ export const SITE_LEGAL_NAME = or(getEnv('VITE_SITE_LEGAL_NAME'), SITE_NAME)
 export const SITE_URL = or(getEnv('VITE_SITE_URL'), 'https://example.com')
 
 /** Hostname portion of SITE_URL, for display as a link label. */
-export const SITE_DOMAIN = SITE_URL.replace(/^https?:\/\//, '').replace(
-  /\/+$/,
-  ''
+export const SITE_DOMAIN = stripTrailingSlashes(
+  SITE_URL.replace(/^https?:\/\//, '')
 )
 
 /** Terms & Conditions page URL. */
@@ -78,5 +86,5 @@ const ERROR_TYPE_BASE_URI = or(getEnv('VITE_ERROR_TYPE_BASE_URI'), '')
 /** Builds the RFC 9457 `type` URI for a client-side fallback problem detail. */
 export const errorTypeUri = (code: string): string =>
   ERROR_TYPE_BASE_URI
-    ? `${ERROR_TYPE_BASE_URI.replace(/\/+$/, '')}/errors/${code}`
+    ? `${stripTrailingSlashes(ERROR_TYPE_BASE_URI)}/errors/${code}`
     : 'about:blank'

@@ -17,7 +17,7 @@ import type { Artifact } from '@/services/artifactService'
 // "Work reports") when the type's display name isn't available.
 function humanizeSlug(slug: string): string {
   if (!slug) return ''
-  const spaced = slug.replace(/-/g, ' ')
+  const spaced = slug.replaceAll('-', ' ')
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 

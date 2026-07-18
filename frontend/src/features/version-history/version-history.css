@@ -654,7 +654,7 @@ table.vhc-table {
 .vcmp-code {
   padding: 0 14px;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .vcmp-code.is-del {
   background: color-mix(in oklch, var(--destructive) 11%, transparent);
@@ -724,7 +724,7 @@ table.vhc-table {
 .vha-dtext {
   padding: 0 14px 0 10px;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .vha-dline.is-add {
   background: color-mix(in oklch, var(--success) 12%, transparent);

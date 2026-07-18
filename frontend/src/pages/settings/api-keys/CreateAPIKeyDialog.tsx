@@ -63,13 +63,20 @@ export type CreateAPIKeyFormValues = z.infer<typeof schema>
 
 type IntegrationCode = CreateAPIKeyFormValues['integrations'][number]
 
-/** Adds or removes an integration code from the current selection. */
-function toggleIntegration(
+/** Adds an integration code to the current selection. */
+function addIntegration(
   current: IntegrationCode[],
-  code: IntegrationCode,
-  enabled: boolean
+  code: IntegrationCode
 ): IntegrationCode[] {
-  return enabled ? [...current, code] : current.filter(c => c !== code)
+  return [...current, code]
+}
+
+/** Removes an integration code from the current selection. */
+function removeIntegration(
+  current: IntegrationCode[],
+  code: IntegrationCode
+): IntegrationCode[] {
+  return current.filter(c => c !== code)
 }
 
 interface CreateAPIKeyDialogProps {
@@ -171,11 +178,15 @@ export function CreateAPIKeyDialog({
                             checked={checked}
                             onCheckedChange={value => {
                               field.onChange(
-                                toggleIntegration(
-                                  field.value,
-                                  integration.code,
-                                  value === true
-                                )
+                                value === true
+                                  ? addIntegration(
+                                      field.value,
+                                      integration.code
+                                    )
+                                  : removeIntegration(
+                                      field.value,
+                                      integration.code
+                                    )
                               )
                             }}
                             className="mt-0.5"

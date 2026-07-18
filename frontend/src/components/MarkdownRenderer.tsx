@@ -14,10 +14,10 @@ import Prism from '@/utils/prism-config'
  */
 const escHtml = (s: string): string =>
   s
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
 
 /**
  * Builds the copy-to-clipboard button markup injected into highlighted code
@@ -25,7 +25,7 @@ const escHtml = (s: string): string =>
  * delegated click listener can recover it without DOM mutation.
  */
 function buildCopyButtonHtml(codeContent: string, copyId: string): string {
-  const encodedCode = encodeURIComponent(codeContent.replace(/<[^>]*>/g, ''))
+  const encodedCode = encodeURIComponent(codeContent.replace(/<[^<>]*>/g, ''))
   return `<button class="copy-button absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-muted-foreground/80 text-background rounded text-xs hover:bg-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" title="Copy code" data-copy-id="${copyId}" data-code="${encodedCode}"><svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2h-1v1a1 1 0 01-1 1H7a1 1 0 01-1-1V3H6z"></path></svg></button>`
 }
 
@@ -266,7 +266,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             if (match) {
               const lang = match[1]
               // Safely check if language grammar exists and get it
-              if (Object.prototype.hasOwnProperty.call(Prism.languages, lang)) {
+              if (Object.hasOwn(Prism.languages, lang)) {
                 try {
                   // Decode HTML entities before highlighting
                   const tempDiv = document.createElement('div')
@@ -338,8 +338,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       const button = target.closest<HTMLButtonElement>('.copy-button')
       if (!button) return
 
-      const copyId = button.getAttribute('data-copy-id')
-      const encodedCode = button.getAttribute('data-code')
+      const copyId = button.dataset.copyId
+      const encodedCode = button.dataset.code
       if (!encodedCode || !copyId) return
 
       const codeText = decodeURIComponent(encodedCode)
@@ -365,7 +365,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     const buttons =
       containerRef.current.querySelectorAll<HTMLButtonElement>('.copy-button')
     buttons.forEach(button => {
-      const copyId = button.getAttribute('data-copy-id')
+      const copyId = button.dataset.copyId
       if (!copyId) return
       // Update innerHTML to reflect copied state - this is safe because we are
       // targeting elements inside dangerouslySetInnerHTML (not React-managed

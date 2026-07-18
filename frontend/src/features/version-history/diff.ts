@@ -51,7 +51,7 @@ interface Block {
 // [] (no spurious empty line).
 function toLines(value: string): string[] {
   const lines = value.split('\n')
-  if (lines.length > 0 && lines[lines.length - 1] === '') {
+  if (lines.length > 0 && lines.at(-1) === '') {
     lines.pop()
   }
   return lines
@@ -117,80 +117,94 @@ function wordSegments(
 
 const plain = (text: string): WordSegment[] => [{ text, changed: false }]
 
+// Mutable left/right line counters shared by the split-row emitters below.
+interface LineNums {
+  left: number
+  right: number
+}
+
+function pushContextRows(rows: SplitRow[], nums: LineNums, lines: string[]) {
+  for (const line of lines) {
+    rows.push({
+      kind: 'context',
+      left: { num: nums.left++, segments: plain(line) },
+      right: { num: nums.right++, segments: plain(line) },
+    })
+  }
+}
+
+function pushDelRows(rows: SplitRow[], nums: LineNums, lines: string[]) {
+  for (const line of lines) {
+    rows.push({
+      kind: 'del',
+      left: { num: nums.left++, segments: plain(line) },
+      right: { num: null, segments: null },
+    })
+  }
+}
+
+function pushAddRows(rows: SplitRow[], nums: LineNums, lines: string[]) {
+  for (const line of lines) {
+    rows.push({
+      kind: 'add',
+      left: { num: null, segments: null },
+      right: { num: nums.right++, segments: plain(line) },
+    })
+  }
+}
+
+// A removed run immediately followed by an added run: pair lines
+// index-for-index (word-diffed 'mod' rows), leftover lines fall back to pure
+// del/add rows with a striped empty counterpart.
+function pushPairedRows(
+  rows: SplitRow[],
+  nums: LineNums,
+  dels: string[],
+  adds: string[]
+) {
+  const pairs = Math.max(dels.length, adds.length)
+  for (let k = 0; k < pairs; k++) {
+    const hasDel = k < dels.length
+    const hasAdd = k < adds.length
+    if (hasDel && hasAdd) {
+      const [ls, rs] = wordSegments(dels[k], adds[k])
+      rows.push({
+        kind: 'mod',
+        left: { num: nums.left++, segments: ls },
+        right: { num: nums.right++, segments: rs },
+      })
+    } else if (hasDel) {
+      pushDelRows(rows, nums, [dels[k]])
+    } else {
+      pushAddRows(rows, nums, [adds[k]])
+    }
+  }
+}
+
 // Aligned side-by-side rows. A removed run immediately followed by an added run
 // is treated as a modification: lines are paired index-for-index (word-diffed),
 // leftover lines fall back to pure del/add rows with a striped empty counterpart.
 export function buildSplitRows(oldText: string, newText: string): SplitRow[] {
   const blocks = toBlocks(oldText, newText)
   const rows: SplitRow[] = []
-  let leftNum = 1
-  let rightNum = 1
+  const nums: LineNums = { left: 1, right: 1 }
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
 
     if (block.type === 'context') {
-      for (const line of block.lines) {
-        rows.push({
-          kind: 'context',
-          left: { num: leftNum++, segments: plain(line) },
-          right: { num: rightNum++, segments: plain(line) },
-        })
-      }
-      continue
-    }
-
-    if (block.type === 'del') {
+      pushContextRows(rows, nums, block.lines)
+    } else if (block.type === 'del') {
       const hasPairedAdd = i + 1 < blocks.length && blocks[i + 1].type === 'add'
       if (hasPairedAdd) {
-        const dels = block.lines
-        const adds = blocks[i + 1].lines
-        const pairs = Math.max(dels.length, adds.length)
-        for (let k = 0; k < pairs; k++) {
-          const hasDel = k < dels.length
-          const hasAdd = k < adds.length
-          if (hasDel && hasAdd) {
-            const [ls, rs] = wordSegments(dels[k], adds[k])
-            rows.push({
-              kind: 'mod',
-              left: { num: leftNum++, segments: ls },
-              right: { num: rightNum++, segments: rs },
-            })
-          } else if (hasDel) {
-            rows.push({
-              kind: 'del',
-              left: { num: leftNum++, segments: plain(dels[k]) },
-              right: { num: null, segments: null },
-            })
-          } else {
-            rows.push({
-              kind: 'add',
-              left: { num: null, segments: null },
-              right: { num: rightNum++, segments: plain(adds[k]) },
-            })
-          }
-        }
+        pushPairedRows(rows, nums, block.lines, blocks[i + 1].lines)
         i++ // consumed the paired add block
-        continue
+      } else {
+        pushDelRows(rows, nums, block.lines)
       }
-
-      for (const line of block.lines) {
-        rows.push({
-          kind: 'del',
-          left: { num: leftNum++, segments: plain(line) },
-          right: { num: null, segments: null },
-        })
-      }
-      continue
-    }
-
-    // pure add (not preceded by a del)
-    for (const line of block.lines) {
-      rows.push({
-        kind: 'add',
-        left: { num: null, segments: null },
-        right: { num: rightNum++, segments: plain(line) },
-      })
+    } else {
+      // pure add (not preceded by a del)
+      pushAddRows(rows, nums, block.lines)
     }
   }
 

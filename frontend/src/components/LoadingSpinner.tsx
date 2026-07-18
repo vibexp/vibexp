@@ -20,13 +20,13 @@ export function LoadingSpinner({
   className,
 }: Readonly<LoadingSpinnerProps>) {
   return (
-    <div
+    // <output> carries an implicit "status" role.
+    <output
       className={cn('text-muted-foreground flex items-center gap-2', className)}
-      role="status"
     >
       <Loader2 className={cn('animate-spin', SIZE_CLASS[size])} />
       {label && <span className="text-sm">{label}</span>}
       <span className="sr-only">Loading</span>
-    </div>
+    </output>
   )
 }

@@ -18,7 +18,7 @@ function initialsOf(name: string): string {
     return Array.from(words[0]).slice(0, 2).join('').toUpperCase()
   }
   const first = Array.from(words[0])[0]
-  const last = Array.from(words[words.length - 1])[0]
+  const last = Array.from(words.at(-1) ?? '')[0]
   return (first + last).toUpperCase()
 }
 

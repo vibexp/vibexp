@@ -41,5 +41,11 @@ export function useTypes(resourceType: string): UseTypesResult {
 
   useEffect(() => load(), [load])
 
-  return { types, isLoading, reload: () => void load() }
+  return {
+    types,
+    isLoading,
+    reload: () => {
+      load()
+    },
+  }
 }

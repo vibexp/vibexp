@@ -63,11 +63,9 @@ export function useUnreadCount(): UseUnreadCountResult {
       if (document.visibilityState === 'visible') {
         void fetchCount()
         scheduleNextPoll()
-      } else {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current)
-          timeoutRef.current = null
-        }
+      } else if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
       }
     }
 

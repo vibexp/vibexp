@@ -100,6 +100,9 @@ export interface PromptEvent extends BaseEvent {
   user_properties?: UserProperties
 }
 
+// Shared CRUD action context used by resource feature events
+export type CrudActionContext = 'create' | 'update' | 'view' | 'delete'
+
 // Artifacts Feature Events
 export interface ArtifactEvent extends BaseEvent {
   event:
@@ -110,7 +113,7 @@ export interface ArtifactEvent extends BaseEvent {
   artifact_id?: string
   artifact_type?: string
   artifact_title?: string
-  action_context: 'create' | 'update' | 'view' | 'delete'
+  action_context: CrudActionContext
   user_properties?: UserProperties
 }
 
@@ -123,7 +126,7 @@ export interface MemoryEvent extends BaseEvent {
     | 'memory_viewed'
   memory_id?: string
   memory_type?: string
-  action_context: 'create' | 'update' | 'view' | 'delete'
+  action_context: CrudActionContext
   user_properties?: UserProperties
 }
 
@@ -137,7 +140,7 @@ export interface BlueprintEvent extends BaseEvent {
   blueprint_id?: string
   blueprint_type?: string
   blueprint_title?: string
-  action_context: 'create' | 'update' | 'view' | 'delete'
+  action_context: CrudActionContext
   user_properties?: UserProperties
 }
 

@@ -17,7 +17,7 @@ interface ResolvedAuthor {
 function toneFromId(id: string): 1 | 2 {
   let hash = 0
   for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+    hash = (hash * 31 + (id.codePointAt(i) ?? 0)) >>> 0
   }
   return hash % 2 === 0 ? 1 : 2
 }

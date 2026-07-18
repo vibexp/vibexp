@@ -173,7 +173,7 @@ function WebPushTypeRow({
   onTypeChange,
 }: Readonly<WebPushTypeRowProps>) {
   const label = NOTIFICATION_TYPE_LABELS[typeName] ?? typeName
-  const id = `web_push_type_${typeName.replace(/\./g, '_')}`
+  const id = `web_push_type_${typeName.replaceAll('.', '_')}`
 
   return (
     <div className="flex items-center gap-3">

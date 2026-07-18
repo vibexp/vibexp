@@ -265,6 +265,40 @@ function ChartCanvas({
 }
 
 /**
+ * The loading / error / empty overlay that pre-empts the chart canvas; returns
+ * null when the chart itself should render. Extracted so the shell component
+ * stays below the cognitive-complexity budget.
+ */
+function renderChartStateOverlay(opts: {
+  loading: boolean
+  error: boolean
+  isEmpty: boolean
+  errorMessage: string
+  emptyMessage: string
+  compact: boolean
+}): ReactNode {
+  const { loading, error, isEmpty, errorMessage, emptyMessage, compact } = opts
+  if (loading) {
+    return (
+      <Skeleton className={compact ? 'h-[110px] w-full' : 'h-[180px] w-full'} />
+    )
+  }
+  if (error || isEmpty) {
+    return (
+      <div
+        className={cn(
+          'text-muted-foreground flex items-center justify-center text-sm',
+          compact ? 'h-24' : 'h-16'
+        )}
+      >
+        {error ? errorMessage : emptyMessage}
+      </div>
+    )
+  }
+  return null
+}
+
+/**
  * Presentational timeseries chart: a card with a range selector, a recharts
  * chart, and an optional legend rendered below it. It holds no data-fetching
  * logic — the caller supplies `data`, `total`, `loading`, and `error`, and
@@ -338,37 +372,16 @@ export function TimeSeriesBarChart({
   }, [series, data])
 
   const isEmpty = chartData.length === 0 || total === 0
-  const stateBoxHeight = compact ? 'h-24' : 'h-16'
 
   // Loading / error / empty pre-empt the chart; null means render the chart.
-  let chartStateContent: ReactNode = null
-  if (loading) {
-    chartStateContent = (
-      <Skeleton className={compact ? 'h-[110px] w-full' : 'h-[180px] w-full'} />
-    )
-  } else if (error) {
-    chartStateContent = (
-      <div
-        className={cn(
-          'text-muted-foreground flex items-center justify-center text-sm',
-          stateBoxHeight
-        )}
-      >
-        {errorMessage}
-      </div>
-    )
-  } else if (isEmpty) {
-    chartStateContent = (
-      <div
-        className={cn(
-          'text-muted-foreground flex items-center justify-center text-sm',
-          stateBoxHeight
-        )}
-      >
-        {emptyMessage}
-      </div>
-    )
-  }
+  const chartStateContent = renderChartStateOverlay({
+    loading,
+    error,
+    isEmpty,
+    errorMessage,
+    emptyMessage,
+    compact,
+  })
 
   return (
     <Card
@@ -442,7 +455,7 @@ export function TimeSeriesBarChart({
             {compact && (
               <div className="text-muted-foreground mt-2 flex justify-between text-xs tabular-nums">
                 <span>{chartData[0].label}</span>
-                <span>{chartData[chartData.length - 1].label}</span>
+                <span>{chartData.at(-1)?.label}</span>
               </div>
             )}
 

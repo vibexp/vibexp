@@ -399,7 +399,7 @@ describe('usePageTracking', () => {
       })
 
       // Manual tracking happens immediately
-      expect(mockTrackPage.mock.calls.length).toBe(initialCallCount + 1)
+      expect(mockTrackPage.mock.calls).toHaveLength(initialCallCount + 1)
     })
 
     it('should include query parameters in path tracking', async () => {
@@ -600,23 +600,22 @@ describe('usePageTracking', () => {
     it('should handle multiple mount/unmount cycles', () => {
       const wrapper = createWrapper()
 
-      const { unmount: unmount1 } = renderHook(() => usePageTracking(), {
-        wrapper,
-      })
-      unmount1()
+      expect(() => {
+        const { unmount: unmount1 } = renderHook(() => usePageTracking(), {
+          wrapper,
+        })
+        unmount1()
 
-      const { unmount: unmount2 } = renderHook(() => usePageTracking(), {
-        wrapper,
-      })
-      unmount2()
+        const { unmount: unmount2 } = renderHook(() => usePageTracking(), {
+          wrapper,
+        })
+        unmount2()
 
-      const { unmount: unmount3 } = renderHook(() => usePageTracking(), {
-        wrapper,
-      })
-      unmount3()
-
-      // Should not throw errors
-      expect(true).toBe(true)
+        const { unmount: unmount3 } = renderHook(() => usePageTracking(), {
+          wrapper,
+        })
+        unmount3()
+      }).not.toThrow()
     })
   })
 })
