@@ -10,14 +10,14 @@ import {
 
 import { STORAGE_KEYS } from '../constants/storageKeys'
 import { analyticsService } from '../services/analytics'
-import type { User } from '../services/authService'
+import type { CurrentUser } from '../services/authService'
 import { authService } from '../services/authService'
 import { grantCookieConsent } from '../utils/cookieConsent'
 import { sessionStore } from '../utils/storage'
 import { isFirstTimeUser } from '../utils/userUtils'
 
 export interface AuthContextType {
-  user: User | null
+  user: CurrentUser | null
   isAuthenticated: boolean
   login: (provider?: string) => Promise<void>
   logout: () => void
@@ -33,7 +33,7 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<CurrentUser | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   // analyticsFiredRef prevents duplicate sign_up / login / purchase events
@@ -194,7 +194,10 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
   const markOnboardingComplete = useCallback(async () => {
     try {
       const updatedUser = await authService.markOnboardingComplete()
-      setUser(updatedUser)
+      // The onboarding endpoint returns the base `User` (no is_instance_admin);
+      // merge it onto the existing CurrentUser so the session-relative admin flag
+      // survives the update.
+      setUser(prev => (prev ? { ...prev, ...updatedUser } : prev))
     } catch (error) {
       console.error('Failed to mark onboarding complete:', error)
       throw error

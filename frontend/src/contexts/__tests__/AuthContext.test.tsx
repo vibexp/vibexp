@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { renderHook } from '@testing-library/react'
 
-import type { User } from '../../services/authService'
+import type { CurrentUser } from '../../services/authService'
 import { AuthProvider, useAuth } from '../AuthContext'
 
 // Mock the authService (cookie-based, no token management)
@@ -24,7 +24,7 @@ const mockAuthService = authService as jest.Mocked<typeof authService>
 const consoleSpy = jest.spyOn(console, 'error')
 
 describe('AuthContext (cookie-based auth)', () => {
-  const mockUser: User = {
+  const mockUser: CurrentUser = {
     id: 'user-123',
     google_id: 'google-456',
     email: 'test@example.com',
@@ -35,10 +35,11 @@ describe('AuthContext (cookie-based auth)', () => {
     onboarding_completed: true,
     subscription_status: 'active',
     version: 1,
+    is_instance_admin: false,
   }
 
   // A first-time user (created_at within the last few seconds)
-  const mockNewUser: User = {
+  const mockNewUser: CurrentUser = {
     ...mockUser,
     id: 'user-new',
     created_at: new Date().toISOString(),
@@ -810,7 +811,7 @@ describe('AuthContext (cookie-based auth)', () => {
     describe('State corruption recovery', () => {
       it('should handle getCurrentUser returning null (corrupted response)', async () => {
         mockAuthService.getCurrentUser.mockResolvedValue(
-          null as unknown as User
+          null as unknown as CurrentUser
         )
 
         const TestComponent = () => {
