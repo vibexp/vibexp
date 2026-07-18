@@ -37,10 +37,10 @@ function readStoredTheme(): Theme | null {
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
-}: {
+}: Readonly<{
   children: React.ReactNode
   defaultTheme?: Theme
-}) {
+}>) {
   const [theme, setThemeState] = React.useState<Theme>(
     () => readStoredTheme() ?? defaultTheme
   )

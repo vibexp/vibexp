@@ -28,7 +28,7 @@ function PageTracker() {
   return null
 }
 
-function AuthGate({ children }: { children: React.ReactNode }) {
+function AuthGate({ children }: Readonly<{ children: React.ReactNode }>) {
   const { isAuthenticated, isLoading } = useAuth()
 
   if (isLoading) {
@@ -46,7 +46,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function BareLayout({ children }: { children: React.ReactNode }) {
+function BareLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <Root>
       {children}

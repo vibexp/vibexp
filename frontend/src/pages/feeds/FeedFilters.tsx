@@ -39,7 +39,7 @@ export function FeedFilters({
   projects,
   assistants,
   hideFeedFilter = false,
-}: FeedFiltersProps) {
+}: Readonly<FeedFiltersProps>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-[240px] flex-1">

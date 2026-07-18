@@ -22,7 +22,7 @@ export function RenderTab({
   renderedBody,
   renderError,
   isRendering,
-}: RenderTabProps) {
+}: Readonly<RenderTabProps>) {
   return (
     <Card>
       <CardContent className="space-y-4 p-6">

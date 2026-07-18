@@ -29,7 +29,7 @@ export function EditTeamModal({
   team,
   onClose,
   onSuccess,
-}: EditTeamModalProps) {
+}: Readonly<EditTeamModalProps>) {
   const [name, setName] = useState(team.name)
   const [description, setDescription] = useState(team.description)
   const [isSubmitting, setIsSubmitting] = useState(false)

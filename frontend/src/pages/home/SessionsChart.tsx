@@ -23,7 +23,10 @@ interface SessionsChartProps {
  * TimeSeriesDatum rows and renders a single-series bar chart with no legend.
  * Re-fetches whenever the selected range changes.
  */
-export function SessionsChart({ range, onRangeChange }: SessionsChartProps) {
+export function SessionsChart({
+  range,
+  onRangeChange,
+}: Readonly<SessionsChartProps>) {
   const [data, setData] = useState<SessionCounts['counts']>([])
   const [totalSessions, setTotalSessions] = useState<number>(0)
   const [loading, setLoading] = useState(true)

@@ -20,7 +20,7 @@ export function DeferredToolPage({
   title,
   description,
   backHref,
-}: DeferredToolPageProps) {
+}: Readonly<DeferredToolPageProps>) {
   return (
     <div className="space-y-6">
       <Button

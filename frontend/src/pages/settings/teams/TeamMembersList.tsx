@@ -73,10 +73,10 @@ const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 function RoleSelect({
   member,
   onChangeRole,
-}: {
+}: Readonly<{
   member: TeamMember
   onChangeRole: (userId: string, role: ChangeableTeamRole) => void
-}) {
+}>) {
   return (
     <div className="flex items-center gap-2">
       <Shield className="text-muted-foreground size-4" />
@@ -264,7 +264,7 @@ export function TeamMembersList({
   canCopyInviteLink = false,
   onRemoveMember,
   onChangeRole,
-}: TeamMembersListProps) {
+}: Readonly<TeamMembersListProps>) {
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
   const [selectedMember, setSelectedMember] = useState<RosterMember | null>(
     null

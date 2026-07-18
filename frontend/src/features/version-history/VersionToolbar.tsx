@@ -43,7 +43,7 @@ export function VersionToolbar({
   onDateRange,
   selectedCount,
   onCompare,
-}: VersionToolbarProps) {
+}: Readonly<VersionToolbarProps>) {
   const activeDateLabel =
     DATE_RANGES.find(r => r.value === dateRange)?.label ?? 'All time'
   const activeAuthorLabel = authorFilter

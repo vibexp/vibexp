@@ -22,7 +22,7 @@ export function ResourceAttachments({
   teamId,
   ownerType,
   ownerId,
-}: ResourceAttachmentsProps) {
+}: Readonly<ResourceAttachmentsProps>) {
   const { showSuccess, showError } = useAlerts()
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [loading, setLoading] = useState(true)

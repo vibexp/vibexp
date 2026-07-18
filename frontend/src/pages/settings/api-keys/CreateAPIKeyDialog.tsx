@@ -76,7 +76,7 @@ export function CreateAPIKeyDialog({
   onOpenChange,
   submitting,
   onSubmit,
-}: CreateAPIKeyDialogProps) {
+}: Readonly<CreateAPIKeyDialogProps>) {
   const form = useForm<CreateAPIKeyFormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: '', integrations: [] },

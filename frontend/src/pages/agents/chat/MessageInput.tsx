@@ -15,7 +15,7 @@ export function MessageInput({
   onChange,
   onSend,
   disabled,
-}: MessageInputProps) {
+}: Readonly<MessageInputProps>) {
   return (
     <div className="bg-background border-t p-4">
       <div className="flex items-end gap-2">

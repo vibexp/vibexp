@@ -30,7 +30,7 @@ interface FeedItemCardProps {
   onDelete?: (item: FeedItem) => void
 }
 
-function ScopeBadge({ children }: { children: React.ReactNode }) {
+function ScopeBadge({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <span className="inline-flex items-center gap-1 rounded border bg-secondary px-1.5 py-0.5 text-xs font-medium text-secondary-foreground">
       {children}
@@ -63,7 +63,7 @@ function FootButton({
   toggled,
   count,
   className,
-}: FootButtonProps) {
+}: Readonly<FootButtonProps>) {
   return (
     <button
       type="button"
@@ -102,7 +102,7 @@ function FeedItemCardImpl({
   onArchive,
   onUnarchive,
   onDelete,
-}: FeedItemCardProps) {
+}: Readonly<FeedItemCardProps>) {
   const isArchived = !!item.archived_at
   const actor = resolveFeedActor(item, member)
 

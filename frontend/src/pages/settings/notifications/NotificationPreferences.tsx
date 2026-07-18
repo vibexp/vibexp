@@ -40,7 +40,7 @@ function PreferenceRow({
   checked,
   disabled,
   onChange,
-}: RowProps) {
+}: Readonly<RowProps>) {
   return (
     <div className="flex items-start justify-between gap-4 py-3">
       <div className="flex-1 space-y-1">
@@ -90,7 +90,7 @@ function BrowserPushCard({
   onChannelChange,
   onTypeChange,
   permissionDenied,
-}: BrowserPushCardProps) {
+}: Readonly<BrowserPushCardProps>) {
   const masterEnabled = notifPrefs?.channels.web_push ?? false
 
   if (!fcmService.isFCMConfigured()) {
@@ -171,7 +171,7 @@ function WebPushTypeRow({
   typeName,
   typePrefs,
   onTypeChange,
-}: WebPushTypeRowProps) {
+}: Readonly<WebPushTypeRowProps>) {
   const label = NOTIFICATION_TYPE_LABELS[typeName] ?? typeName
   const id = `web_push_type_${typeName.replace(/\./g, '_')}`
 
@@ -205,7 +205,7 @@ function ActivityEmailCard({
   notifPrefs,
   onChannelToggle,
   onTypeChange,
-}: ActivityEmailCardProps) {
+}: Readonly<ActivityEmailCardProps>) {
   const masterEnabled = notifPrefs?.channels.email ?? false
 
   return (
@@ -257,7 +257,7 @@ function ActivityEmailTypeRow({
   typeName,
   typePrefs,
   onTypeChange,
-}: ActivityEmailTypeRowProps) {
+}: Readonly<ActivityEmailTypeRowProps>) {
   const label = NOTIFICATION_TYPE_LABELS[typeName] ?? typeName
 
   return (

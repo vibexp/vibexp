@@ -61,7 +61,7 @@ function TopAccessedList({
   range,
   baselineItems,
   baselineLoading,
-}: TopAccessedListProps) {
+}: Readonly<TopAccessedListProps>) {
   const [channel, setChannel] = useState('all')
   // Per-channel override of the baseline: `null` means "show the parent's
   // all-channels data" (so the common 'all' case adds no extra request).
@@ -198,7 +198,7 @@ interface TopAccessedResourcesProps {
 export function TopAccessedResources({
   teamId,
   range,
-}: TopAccessedResourcesProps) {
+}: Readonly<TopAccessedResourcesProps>) {
   const [items, setItems] = useState<TopAccessedResource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)

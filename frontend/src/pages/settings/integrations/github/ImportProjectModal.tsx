@@ -22,7 +22,7 @@ export function ImportProjectModal({
   onClose,
   onConfirm,
   isLoading,
-}: ImportProjectModalProps) {
+}: Readonly<ImportProjectModalProps>) {
   return (
     <Dialog
       open={isOpen}

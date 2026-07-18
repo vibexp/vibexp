@@ -27,7 +27,7 @@ import { DevLogin } from './DevLogin'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
-function GoogleIcon({ className }: { className?: string }) {
+function GoogleIcon({ className }: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -56,7 +56,7 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
-function GitHubIcon({ className }: { className?: string }) {
+function GitHubIcon({ className }: Readonly<{ className?: string }>) {
   return (
     <svg
       className={className}
@@ -73,7 +73,7 @@ function GitHubIcon({ className }: { className?: string }) {
 
 // ProviderIcon renders a recognizable mark per known provider, falling back to
 // a generic key icon so a newly-added or generic (OIDC) provider still renders.
-function ProviderIcon({ name }: { name: string }) {
+function ProviderIcon({ name }: Readonly<{ name: string }>) {
   if (name === 'google') return <GoogleIcon />
   if (name === 'github') return <GitHubIcon />
   return <KeyRound className="h-4 w-4" />

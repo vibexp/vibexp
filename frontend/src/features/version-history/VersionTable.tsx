@@ -24,7 +24,7 @@ export function VersionTable({
   onToggleSelect,
   onView,
   onRestore,
-}: VersionTableProps) {
+}: Readonly<VersionTableProps>) {
   if (!hasSnapshots) {
     return (
       <div className="vhc-tablewrap">

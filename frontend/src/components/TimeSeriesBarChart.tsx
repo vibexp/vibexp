@@ -88,7 +88,11 @@ interface ChartTooltipProps {
   series?: readonly ChartSeries[]
 }
 
-function ChartTooltip({ active, payload, series = [] }: ChartTooltipProps) {
+function ChartTooltip({
+  active,
+  payload,
+  series = [],
+}: Readonly<ChartTooltipProps>) {
   if (!active || !payload?.length) return null
   const entry = payload[0].payload
   return (
@@ -164,7 +168,7 @@ function ChartCanvas({
   visibleSeries,
   compact,
   stacked,
-}: ChartCanvasProps) {
+}: Readonly<ChartCanvasProps>) {
   const axes = (
     <>
       <CartesianGrid
@@ -285,7 +289,7 @@ export function TimeSeriesBarChart({
   legend = 'strip',
   size = 'comfortable',
   chartType = 'bar',
-}: TimeSeriesBarChartProps) {
+}: Readonly<TimeSeriesBarChartProps>) {
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set())
 
   const toggleSeries = (key: string) => {

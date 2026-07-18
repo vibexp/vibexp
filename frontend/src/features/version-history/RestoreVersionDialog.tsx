@@ -24,7 +24,7 @@ export function RestoreVersionDialog({
   nextVersionNumber,
   loading,
   onConfirm,
-}: RestoreVersionDialogProps) {
+}: Readonly<RestoreVersionDialogProps>) {
   return (
     <AlertDialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <AlertDialogPrimitive.Portal>

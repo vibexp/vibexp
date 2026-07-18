@@ -27,7 +27,7 @@ export function CreateTeamModal({
   isOpen,
   onClose,
   onSuccess,
-}: CreateTeamModalProps) {
+}: Readonly<CreateTeamModalProps>) {
   const { refreshTeams } = useTeam()
   const [formData, setFormData] = useState<CreateTeamRequest>({
     name: '',

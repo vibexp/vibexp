@@ -22,7 +22,7 @@ export function SearchResultCard({
   item,
   expanded,
   onToggleExpand,
-}: SearchResultCardProps) {
+}: Readonly<SearchResultCardProps>) {
   const href = resourceUrl(item)
   const title = displayTitle(item)
   // Iterate by code point (Array.from) so the preview never splits a surrogate

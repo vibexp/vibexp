@@ -52,7 +52,7 @@ export function CommentRow({
   onEdit,
   onDelete,
   onReadFull,
-}: CommentRowProps) {
+}: Readonly<CommentRowProps>) {
   const [editing, setEditing] = useState(false)
   const actor = resolveFeedActor({ posted_by_user_id: comment.user_id }, member)
   const isEdited =

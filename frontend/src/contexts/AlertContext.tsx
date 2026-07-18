@@ -22,7 +22,7 @@ interface AlertProviderProps {
   children: React.ReactNode
 }
 
-export function AlertProvider({ children }: AlertProviderProps) {
+export function AlertProvider({ children }: Readonly<AlertProviderProps>) {
   const [alerts, setAlerts] = useState<Alert[]>([])
 
   // Generate unique ID for alerts

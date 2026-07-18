@@ -87,7 +87,7 @@ function FeedHeaderActions({
   onAllFeeds,
   onRefresh,
   onEdit,
-}: FeedHeaderActionsProps) {
+}: Readonly<FeedHeaderActionsProps>) {
   return (
     <>
       <Button variant="outline" onClick={onAllFeeds}>

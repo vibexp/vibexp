@@ -36,7 +36,7 @@ const rowClass = (active: boolean) =>
       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
   )
 
-function RailLinkWithTooltip({ item }: { item: NavItem }) {
+function RailLinkWithTooltip({ item }: Readonly<{ item: NavItem }>) {
   const Icon = item.icon
   return (
     <Tooltip>
@@ -67,10 +67,10 @@ function RailLinkWithTooltip({ item }: { item: NavItem }) {
 function RailGroupLink({
   item,
   pathname,
-}: {
+}: Readonly<{
   item: NavItem
   pathname: string
-}) {
+}>) {
   const Icon = item.icon
   const isActive =
     pathname === item.href ||
@@ -101,10 +101,10 @@ function RailGroupLink({
 function ExpandedGroup({
   item,
   pathname,
-}: {
+}: Readonly<{
   item: NavItem
   pathname: string
-}) {
+}>) {
   const Icon = item.icon
   const children = item.children ?? []
   const isGroupOpen =

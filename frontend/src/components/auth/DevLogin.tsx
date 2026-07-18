@@ -27,7 +27,7 @@ interface DevLoginProps {
   returnTo?: string
 }
 
-export function DevLogin({ onError, returnTo }: DevLoginProps) {
+export function DevLogin({ onError, returnTo }: Readonly<DevLoginProps>) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false)

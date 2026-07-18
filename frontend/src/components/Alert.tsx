@@ -38,7 +38,7 @@ const alertStyles = {
   },
 }
 
-export function Alert({ alert, onDismiss }: AlertProps) {
+export function Alert({ alert, onDismiss }: Readonly<AlertProps>) {
   const [isVisible, setIsVisible] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [progress, setProgress] = useState(100)

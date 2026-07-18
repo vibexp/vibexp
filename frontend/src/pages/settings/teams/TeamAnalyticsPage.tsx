@@ -52,7 +52,7 @@ interface StatCardProps {
   icon: React.ElementType
 }
 
-function StatCard({ label, count, icon: Icon }: StatCardProps) {
+function StatCard({ label, count, icon: Icon }: Readonly<StatCardProps>) {
   return (
     <Card>
       <CardHeader className="pb-2">

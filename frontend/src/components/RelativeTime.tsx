@@ -20,7 +20,10 @@ interface RelativeTimeProps {
  * 09:14 AM") on hover via a tooltip. Reuses the shared formatters in
  * `@/lib/time` — no new date logic.
  */
-export function RelativeTime({ value, className }: RelativeTimeProps) {
+export function RelativeTime({
+  value,
+  className,
+}: Readonly<RelativeTimeProps>) {
   const compact = formatRelativeTime(value)
   const full = formatDateTime(value)
 

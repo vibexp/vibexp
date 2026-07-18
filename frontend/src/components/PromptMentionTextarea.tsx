@@ -32,7 +32,7 @@ export function PromptMentionTextarea({
   error,
   excludeCurrentPrompt,
   'data-testid': testId,
-}: PromptMentionTextareaProps) {
+}: Readonly<PromptMentionTextareaProps>) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { trackEvent } = useAnalytics()
   const [mentionState, setMentionState] = useState<MentionState>({

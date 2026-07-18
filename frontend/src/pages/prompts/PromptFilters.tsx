@@ -28,7 +28,7 @@ export function PromptFilters({
   onStatusChange,
   sharedFilter,
   onSharedChange,
-}: Props) {
+}: Readonly<Props>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-[240px] max-w-[480px] flex-1">

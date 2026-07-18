@@ -7,7 +7,9 @@ interface GitHubIconProps {
   className?: string
 }
 
-export function GitHubIcon({ className = 'h-6 w-6' }: GitHubIconProps) {
+export function GitHubIcon({
+  className = 'h-6 w-6',
+}: Readonly<GitHubIconProps>) {
   return (
     <svg
       viewBox="0 0 24 24"

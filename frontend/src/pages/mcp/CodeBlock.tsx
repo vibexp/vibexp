@@ -53,7 +53,12 @@ function highlight(code: string, language: string): string {
   return html
 }
 
-export function CodeBlock({ code, language, file, onCopy }: CodeBlockProps) {
+export function CodeBlock({
+  code,
+  language,
+  file,
+  onCopy,
+}: Readonly<CodeBlockProps>) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {

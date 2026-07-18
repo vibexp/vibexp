@@ -35,7 +35,7 @@ const GROUP_ICONS: Record<ToolGroup['icon'], LucideIcon> = {
   compass: Compass,
 }
 
-function KindBadge({ kind }: { kind: 'read' | 'write' }) {
+function KindBadge({ kind }: Readonly<{ kind: 'read' | 'write' }>) {
   return (
     <span
       className={cn(
@@ -54,11 +54,11 @@ function ToolRow({
   tool,
   open,
   onToggle,
-}: {
+}: Readonly<{
   tool: MCPTool
   open: boolean
   onToggle: () => void
-}) {
+}>) {
   const params = Object.entries(tool.inputSchema.properties)
 
   return (
@@ -138,7 +138,7 @@ export function MCPToolsList({
   tools,
   expandedTools,
   onToggleTool,
-}: MCPToolsListProps) {
+}: Readonly<MCPToolsListProps>) {
   const [query, setQuery] = useState('')
 
   const groups = useMemo(() => {

@@ -244,10 +244,10 @@ export function AcceptInvitation() {
 function InfoRow({
   label,
   children,
-}: {
+}: Readonly<{
   label: string
   children: React.ReactNode
-}) {
+}>) {
   return (
     <div className="flex items-start justify-between gap-4 text-sm">
       <span className="text-muted-foreground">{label}</span>

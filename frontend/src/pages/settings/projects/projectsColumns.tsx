@@ -29,10 +29,10 @@ function formatDate(value: string) {
 function ExternalLinkCell({
   url,
   icon: Icon,
-}: {
+}: Readonly<{
   url: string | undefined
   icon: typeof GitBranch
-}) {
+}>) {
   if (!url) {
     return <span className="text-muted-foreground text-xs">—</span>
   }

@@ -27,7 +27,7 @@ interface ResourceCreationChartProps {
 export function ResourceCreationChart({
   teamId,
   slug,
-}: ResourceCreationChartProps) {
+}: Readonly<ResourceCreationChartProps>) {
   const [data, setData] = useState<CreationCountByDate[]>([])
   const [totalCreated, setTotalCreated] = useState<number>(0)
   const [range, setRange] = useState('30d')

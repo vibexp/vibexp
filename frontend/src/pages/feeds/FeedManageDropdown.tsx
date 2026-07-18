@@ -19,7 +19,7 @@ interface FeedManageDropdownProps {
 export function FeedManageDropdown({
   feeds,
   onDeleteFeed,
-}: FeedManageDropdownProps) {
+}: Readonly<FeedManageDropdownProps>) {
   const navigate = useNavigate()
   // Deleting a feed follows the same own-vs-any rule the backend applies to
   // feed items (FeedService.DeleteFeed), so it needs the same gate (#225).

@@ -38,7 +38,7 @@ export function SelectSourceStep({
   onSelect,
   onNext,
   loadingInventory,
-}: SelectSourceStepProps) {
+}: Readonly<SelectSourceStepProps>) {
   const [open, setOpen] = useState(false)
   const { projects, loading, error, query, setQuery } = useProjectSearch()
 

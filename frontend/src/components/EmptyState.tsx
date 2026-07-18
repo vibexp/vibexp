@@ -17,7 +17,7 @@ export function EmptyState({
   description,
   actions,
   className,
-}: EmptyStateProps) {
+}: Readonly<EmptyStateProps>) {
   return (
     <div
       data-testid="empty-state"

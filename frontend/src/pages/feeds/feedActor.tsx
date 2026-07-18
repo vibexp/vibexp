@@ -65,7 +65,7 @@ interface FeedActorAvatarProps {
 export function FeedActorAvatar({
   actor,
   size = 'md',
-}: FeedActorAvatarProps): ReactNode {
+}: Readonly<FeedActorAvatarProps>): ReactNode {
   if (actor.isAi && actor.aiAssistantName) {
     const icon = resolveAiAssistantIcon(actor.aiAssistantName)
     return (

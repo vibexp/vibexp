@@ -38,7 +38,7 @@ export function RepositoryFilters({
   uniqueOwners,
   onResetFilters,
   hasActiveFilters,
-}: RepositoryFiltersProps) {
+}: Readonly<RepositoryFiltersProps>) {
   return (
     <Card>
       <CardContent className="space-y-4 p-4">

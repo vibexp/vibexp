@@ -28,7 +28,7 @@ export function PromptDetailSidebar({
   dependencies,
   loadingDependencies,
   versionHistory,
-}: Props) {
+}: Readonly<Props>) {
   return (
     <div className="space-y-4">
       {prompt.description && (

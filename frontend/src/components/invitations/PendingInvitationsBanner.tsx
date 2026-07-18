@@ -145,7 +145,7 @@ function SingleInvitationBanner({
   accepting,
   onAccept,
   onDismiss,
-}: SingleInvitationBannerProps) {
+}: Readonly<SingleInvitationBannerProps>) {
   const inviterName = invitation.invited_by?.name ?? 'A teammate'
 
   return (
@@ -191,7 +191,7 @@ function MultipleInvitationsBanner({
   count,
   onReview,
   onDismiss,
-}: MultipleInvitationsBannerProps) {
+}: Readonly<MultipleInvitationsBannerProps>) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">

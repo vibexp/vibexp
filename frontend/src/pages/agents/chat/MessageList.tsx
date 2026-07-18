@@ -27,7 +27,7 @@ export function MessageList({
   onLoadEarlier,
   isExecuting,
   currentState,
-}: MessageListProps) {
+}: Readonly<MessageListProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

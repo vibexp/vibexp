@@ -27,7 +27,7 @@ export function GitHubRepositoryTable({
   currentPage,
   totalPages,
   onPageChange,
-}: GitHubRepositoryTableProps) {
+}: Readonly<GitHubRepositoryTableProps>) {
   return (
     <div className="space-y-3">
       <div className="rounded-md border">

@@ -17,7 +17,7 @@ interface AgentBasicInfoProps {
   agent: Agent
 }
 
-export function AgentBasicInfo({ agent }: AgentBasicInfoProps) {
+export function AgentBasicInfo({ agent }: Readonly<AgentBasicInfoProps>) {
   const [iconLoadError, setIconLoadError] = useState(false)
 
   return (

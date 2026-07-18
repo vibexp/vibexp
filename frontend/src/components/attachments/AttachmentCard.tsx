@@ -93,7 +93,7 @@ export function AttachmentCard({
   maxFileSize = DEFAULT_MAX_FILE_SIZE,
   maxTotalSize = DEFAULT_MAX_TOTAL_SIZE,
   allowedExtensions = DEFAULT_ALLOWED_EXTENSIONS,
-}: AttachmentCardProps) {
+}: Readonly<AttachmentCardProps>) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)

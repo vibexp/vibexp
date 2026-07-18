@@ -15,11 +15,11 @@ function MetaTile({
   icon: Icon,
   label,
   value,
-}: {
+}: Readonly<{
   icon: typeof Globe
   label: string
   value: string
-}) {
+}>) {
   return (
     <div className="bg-muted rounded-md p-3">
       <div className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
@@ -31,7 +31,7 @@ function MetaTile({
   )
 }
 
-export function AgentCardDetails({ agent }: AgentCardDetailsProps) {
+export function AgentCardDetails({ agent }: Readonly<AgentCardDetailsProps>) {
   if (!agent.agent_card) return null
 
   const iface = primaryInterface(agent.agent_card)

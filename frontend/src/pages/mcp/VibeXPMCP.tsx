@@ -39,10 +39,10 @@ const STEPS = [
 function SectionHeading({
   title,
   description,
-}: {
+}: Readonly<{
   title: string
   description?: React.ReactNode
-}) {
+}>) {
   return (
     <div className="mb-4">
       <div className="text-lg font-semibold tracking-tight">{title}</div>
@@ -55,7 +55,7 @@ function SectionHeading({
   )
 }
 
-function Mono({ children }: { children: React.ReactNode }) {
+function Mono({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <code className="bg-secondary rounded-sm px-1.5 py-0.5 font-mono text-sm">
       {children}

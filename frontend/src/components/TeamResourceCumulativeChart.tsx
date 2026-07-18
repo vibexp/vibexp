@@ -81,7 +81,7 @@ interface TeamResourceCumulativeChartProps {
 export function TeamResourceCumulativeChart({
   teamId,
   range,
-}: TeamResourceCumulativeChartProps) {
+}: Readonly<TeamResourceCumulativeChartProps>) {
   const [data, setData] = useState<TimeSeriesDatum[]>([])
   const [grandTotal, setGrandTotal] = useState<number>(0)
   const [loading, setLoading] = useState(true)

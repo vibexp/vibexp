@@ -41,7 +41,7 @@ export function AgentCredentialsEditor({
   teamId,
   securitySchemes,
   hasCredentials,
-}: AgentCredentialsEditorProps) {
+}: Readonly<AgentCredentialsEditorProps>) {
   const [credentials, setCredentials] = useState<Credential[]>(() => {
     if (!securitySchemes || Object.keys(securitySchemes).length === 0) {
       return []

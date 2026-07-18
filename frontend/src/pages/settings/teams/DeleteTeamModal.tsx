@@ -33,7 +33,7 @@ export function DeleteTeamModal({
   team,
   onClose,
   onSuccess,
-}: DeleteTeamModalProps) {
+}: Readonly<DeleteTeamModalProps>) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)

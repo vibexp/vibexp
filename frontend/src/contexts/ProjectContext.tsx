@@ -30,7 +30,7 @@ interface ProjectProviderProps {
  * the current team, restored from storage on the first team resolution and
  * cleared whenever the team changes (a project always belongs to one team).
  */
-export function ProjectProvider({ children }: ProjectProviderProps) {
+export function ProjectProvider({ children }: Readonly<ProjectProviderProps>) {
   const { currentTeam } = useTeam()
   const [currentProject, setCurrentProjectState] = useState<Project | null>(
     null

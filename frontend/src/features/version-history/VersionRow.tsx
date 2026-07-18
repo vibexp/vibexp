@@ -27,7 +27,7 @@ export function VersionRow({
   onToggleSelect,
   onView,
   onRestore,
-}: VersionRowProps) {
+}: Readonly<VersionRowProps>) {
   const label = String(entry.versionNumber)
   return (
     <tr

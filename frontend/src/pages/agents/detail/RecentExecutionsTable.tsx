@@ -58,7 +58,7 @@ export function RecentExecutionsTable({
   recentExecutions,
   loadingExecutions,
   agentId,
-}: RecentExecutionsTableProps) {
+}: Readonly<RecentExecutionsTableProps>) {
   const navigate = useNavigate()
 
   return (

@@ -20,7 +20,7 @@ export interface QuickAction {
 
 /** A Quick-actions card: dark icon tile, title, description, and a CTA button
  * that navigates to the action's route. */
-export function QuickActionCard({ action }: { action: QuickAction }) {
+export function QuickActionCard({ action }: Readonly<{ action: QuickAction }>) {
   const Icon = action.icon
   const navigate = useNavigate()
   return (

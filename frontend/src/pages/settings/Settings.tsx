@@ -103,10 +103,10 @@ const COLLABORATION: SettingItem[] = [
 function SettingSection({
   title,
   items,
-}: {
+}: Readonly<{
   title: string
   items: SettingItem[]
-}) {
+}>) {
   const navigate = useNavigate()
   return (
     <section className="space-y-3">

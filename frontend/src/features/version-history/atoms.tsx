@@ -43,10 +43,10 @@ export function resolveAuthor(
 export function VersionAvatar({
   author,
   small,
-}: {
+}: Readonly<{
   author: ResolvedAuthor
   small?: boolean
-}) {
+}>) {
   return (
     <span
       className={cn(
@@ -70,10 +70,10 @@ export function VersionAvatar({
 export function VersionAuthorChip({
   entry,
   small,
-}: {
+}: Readonly<{
   entry: VersionTimelineEntry
   small?: boolean
-}) {
+}>) {
   const author = resolveAuthor(entry)
   if (!author) {
     return <span className="vhp-stat__none">—</span>
@@ -88,7 +88,7 @@ export function VersionAuthorChip({
 
 // +N −M diffstat with up to five proportional squares. Em-dash when there is no
 // prior version to diff against.
-export function Diffstat({ stat }: { stat: DiffStat | null }) {
+export function Diffstat({ stat }: Readonly<{ stat: DiffStat | null }>) {
   if (!stat || (stat.added === 0 && stat.removed === 0)) {
     return <span className="vhp-stat__none">—</span>
   }
@@ -115,10 +115,10 @@ export function Diffstat({ stat }: { stat: DiffStat | null }) {
 export function VersionLabel({
   entry,
   withDot,
-}: {
+}: Readonly<{
   entry: VersionTimelineEntry
   withDot?: boolean
-}) {
+}>) {
   return (
     <span className="vhc-vcell">
       {withDot && (

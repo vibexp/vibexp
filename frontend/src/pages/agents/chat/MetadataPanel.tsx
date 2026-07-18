@@ -10,7 +10,10 @@ interface MetadataPanelProps {
   onClose: () => void
 }
 
-export function MetadataPanel({ metadata, onClose }: MetadataPanelProps) {
+export function MetadataPanel({
+  metadata,
+  onClose,
+}: Readonly<MetadataPanelProps>) {
   return (
     <Card>
       <CardContent className="p-4">

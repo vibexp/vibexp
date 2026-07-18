@@ -43,7 +43,7 @@ interface ListPageRootProps {
   className?: string
 }
 
-function Root({ children, className }: ListPageRootProps) {
+function Root({ children, className }: Readonly<ListPageRootProps>) {
   return <div className={cn('space-y-6', className)}>{children}</div>
 }
 
@@ -53,7 +53,11 @@ interface ListPageHeaderProps {
   actions?: ReactNode
 }
 
-function Header({ title, description, actions }: ListPageHeaderProps) {
+function Header({
+  title,
+  description,
+  actions,
+}: Readonly<ListPageHeaderProps>) {
   return (
     <PageHeader title={title} description={description} actions={actions} />
   )
@@ -68,7 +72,7 @@ interface ListPageContainerProps {
  * The Card that wraps Filters / Body / Footer. Borders between zones are
  * applied by `<ListPage.Filters>` and `<ListPage.Footer>` themselves.
  */
-function Container({ children, className }: ListPageContainerProps) {
+function Container({ children, className }: Readonly<ListPageContainerProps>) {
   return <Card className={cn('overflow-hidden', className)}>{children}</Card>
 }
 
@@ -76,7 +80,7 @@ interface ListPageFiltersProps {
   children: ReactNode
 }
 
-function Filters({ children }: ListPageFiltersProps) {
+function Filters({ children }: Readonly<ListPageFiltersProps>) {
   return <div className="border-b px-4 py-3">{children}</div>
 }
 
@@ -103,7 +107,7 @@ function Body({
   loadingRows = 6,
   empty,
   children,
-}: ListPageBodyProps) {
+}: Readonly<ListPageBodyProps>) {
   if (status === 'loading') {
     return (
       <div className="space-y-3 p-4">
@@ -142,7 +146,12 @@ interface ListPageFooterProps {
   hideCount?: boolean
 }
 
-function Footer({ count, pagination, note, hideCount }: ListPageFooterProps) {
+function Footer({
+  count,
+  pagination,
+  note,
+  hideCount,
+}: Readonly<ListPageFooterProps>) {
   const noun = count
     ? count.total === 1
       ? count.noun

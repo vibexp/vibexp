@@ -31,11 +31,11 @@ export function MetaRow({
   label,
   children,
   className,
-}: {
+}: Readonly<{
   label: string
   children: ReactNode
   className?: string
-}) {
+}>) {
   return (
     <li
       className={cn(
@@ -63,10 +63,10 @@ export function MetaRow({
 export function MetaSlugRow({
   label = 'Slug',
   value,
-}: {
+}: Readonly<{
   label?: string
   value: string
-}) {
+}>) {
   const { copied, copy } = useCopyToClipboard()
   const CopyIcon = copied ? Check : Copy
   const action = `Copy ${label.toLowerCase()}`
@@ -99,11 +99,11 @@ function TimeRow({
   label,
   value,
   icon: Icon,
-}: {
+}: Readonly<{
   label: string
   value: string
   icon: IconType
-}) {
+}>) {
   return (
     <MetaRow label={label}>
       <span className="inline-flex items-center gap-1.5">
@@ -158,10 +158,10 @@ interface MetadataPanelProps {
 function VersionRow({
   currentVersion,
   editedAt,
-}: {
+}: Readonly<{
   currentVersion: number
   editedAt?: string
-}) {
+}>) {
   return (
     <MetaRow label="Version">
       <code className="rounded-sm bg-secondary px-[7px] py-[2px] font-mono text-xs text-secondary-foreground">
@@ -186,7 +186,7 @@ function VersionHistoryLink({
   to,
   count,
   label = 'View version history',
-}: Pick<VersionHistoryMeta, 'to' | 'count' | 'label'>) {
+}: Readonly<Pick<VersionHistoryMeta, 'to' | 'count' | 'label'>>) {
   return (
     <Link
       to={to}
@@ -225,7 +225,7 @@ export function MetadataPanel({
   children,
   versionHistory,
   className,
-}: MetadataPanelProps) {
+}: Readonly<MetadataPanelProps>) {
   const createdMs = createdAt ? new Date(createdAt).getTime() : 0
   const updatedMs = updatedAt ? new Date(updatedAt).getTime() : 0
   // The version row already surfaces the edit time ("edited 12m ago"), so a

@@ -20,12 +20,12 @@ function StatCard({
   value,
   icon: Icon,
   valueClassName,
-}: {
+}: Readonly<{
   title: string
   value: string
   icon: LucideIcon
   valueClassName?: string
-}) {
+}>) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -43,7 +43,7 @@ function StatCard({
   )
 }
 
-export function AgentStatsCards({ agent }: AgentStatsCardsProps) {
+export function AgentStatsCards({ agent }: Readonly<AgentStatsCardsProps>) {
   const percentage = Math.round(agent.success_rate)
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
