@@ -95,13 +95,11 @@ func (m *MockActivityService) DeleteActivity(ctx context.Context, activityID str
 }
 
 func (m *MockActivityService) GetActivityTypes() []string {
-	args := m.Called()
-	return args.Get(0).([]string)
+	return mockTyped[[]string](&m.Mock, "GetActivityTypes")
 }
 
 func (m *MockActivityService) GetEntityTypes() []string {
-	args := m.Called()
-	return args.Get(0).([]string)
+	return mockTyped[[]string](&m.Mock, "GetEntityTypes")
 }
 
 func (m *MockActivityService) GetAllTypes() *activities.ActivityTypesResponse {

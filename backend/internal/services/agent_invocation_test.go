@@ -51,28 +51,26 @@ func (m *MockA2AHTTPClient) InvokeAgentStreaming(
 	return args.Error(0)
 }
 
-func (m *MockA2AHTTPClient) GetTask(
-	ctx context.Context, agent *models.Agent, taskID string,
+// taskCall is the shared mutex-guarded implementation behind GetTask and
+// CancelTask; method selects which testify expectation is recorded.
+func (m *MockA2AHTTPClient) taskCall(
+	ctx context.Context, method string, agent *models.Agent, taskID string,
 ) (*models.AgentExecution, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	args := m.Called(ctx, agent, taskID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.AgentExecution), args.Error(1)
+	return mockPtrCall[models.AgentExecution](&m.Mock, method, ctx, agent, taskID)
+}
+
+func (m *MockA2AHTTPClient) GetTask(
+	ctx context.Context, agent *models.Agent, taskID string,
+) (*models.AgentExecution, error) {
+	return m.taskCall(ctx, "GetTask", agent, taskID)
 }
 
 func (m *MockA2AHTTPClient) CancelTask(
 	ctx context.Context, agent *models.Agent, taskID string,
 ) (*models.AgentExecution, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	args := m.Called(ctx, agent, taskID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.AgentExecution), args.Error(1)
+	return m.taskCall(ctx, "CancelTask", agent, taskID)
 }
 
 func (m *MockA2AHTTPClient) SupportsStreaming(agent *models.Agent) bool {

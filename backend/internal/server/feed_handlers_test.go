@@ -1314,21 +1314,10 @@ func TestHandleListFeedItems_InvalidProjectIDQueryParam_Returns400(t *testing.T)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestHandleListFeedItemsByFeed_InvalidFeedIDQueryParam_Returns400(t *testing.T) {
-	fc := &MockFeedContainer{}
-	srv := newFeedTestServer(t, fc)
-
-	// feedIDOverride is set from URL param (already validated), but ?feed_id in query
-	// for the flat list endpoint should still fail.
-	req := authenticatedFeedRequest("GET",
-		"/api/v1/"+feedTestTeamID+"/feed-items?feed_id=not-a-uuid", "", feedTestUserID)
-	req = addFeedURLParams(req, map[string]string{"team_id": feedTestTeamID})
-	rr := httptest.NewRecorder()
-
-	// Call the flat list endpoint — feedIDOverride is "" so query param is used
-	srv.handleListFeedItems(rr, req)
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
+// Note: the by-feed endpoint (handleListFeedItemsByFeed) pins the feed_id from
+// the URL path, so buildFeedItemFilters ignores any ?feed_id query param there;
+// the invalid-?feed_id case is only reachable via the flat endpoint (covered by
+// TestHandleListFeedItems_InvalidFeedIDQueryParam_Returns400 above).
 
 // ─────────────────────────────────────────────────────────────────────────────
 // archived query param value validation (Fix 5)

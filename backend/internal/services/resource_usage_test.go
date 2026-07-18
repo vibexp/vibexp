@@ -16,6 +16,29 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
+// testify's mock.Mock.Called derives the mock method name from the call
+// stack, so mechanically identical mock methods cannot share one body
+// directly. These helpers take the method name explicitly (MethodCalled) so
+// boilerplate mock methods across this package's test files can delegate to a
+// single shared implementation.
+
+func mockErrCall(m *mock.Mock, method string, callArgs ...any) error {
+	return m.MethodCalled(method, callArgs...).Error(0)
+}
+
+func mockPtrCall[T any](m *mock.Mock, method string, callArgs ...any) (*T, error) {
+	args := m.MethodCalled(method, callArgs...)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*T), args.Error(1)
+}
+
+func mockListCall[T any](m *mock.Mock, method string, callArgs ...any) ([]T, int, error) {
+	args := m.MethodCalled(method, callArgs...)
+	return args.Get(0).([]T), args.Int(1), args.Error(2)
+}
+
 // Mock implementations
 type mockUserRepo struct {
 	mock.Mock
@@ -62,13 +85,11 @@ func (m *mockUserRepo) GetByStripeCustomerID(ctx context.Context, stripeCustomer
 }
 
 func (m *mockUserRepo) Create(ctx context.Context, user *models.User) error {
-	args := m.Called(ctx, user)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, user)
 }
 
 func (m *mockUserRepo) Update(ctx context.Context, user *models.User) error {
-	args := m.Called(ctx, user)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, user)
 }
 
 func (m *mockUserRepo) UpdateSubscriptionStatus(ctx context.Context, userID, status string, plan *string) error {
@@ -131,8 +152,7 @@ func (m *mockPromptRepo) CountByStatus(ctx context.Context, userID, status strin
 }
 
 func (m *mockPromptRepo) Create(ctx context.Context, prompt *models.Prompt) error {
-	args := m.Called(ctx, prompt)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, prompt)
 }
 
 func (m *mockPromptRepo) GetByID(ctx context.Context, userID, teamID, promptID string) (*models.Prompt, error) {
@@ -161,8 +181,7 @@ func (m *mockPromptRepo) List(
 }
 
 func (m *mockPromptRepo) Update(ctx context.Context, prompt *models.Prompt) error {
-	args := m.Called(ctx, prompt)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, prompt)
 }
 
 func (m *mockPromptRepo) Delete(ctx context.Context, userID, teamID, promptID string) error {
@@ -213,8 +232,7 @@ func (m *mockArtifactRepo) CountAll(ctx context.Context, userID string) (int, er
 }
 
 func (m *mockArtifactRepo) Create(ctx context.Context, artifact *models.Artifact) error {
-	args := m.Called(ctx, artifact)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, artifact)
 }
 
 func (m *mockArtifactRepo) GetByID(ctx context.Context, userID, teamID, artifactID string) (*models.Artifact, error) {
@@ -252,8 +270,7 @@ func (m *mockArtifactRepo) List(
 	userID string,
 	filters repositories.ArtifactFilters,
 ) ([]models.Artifact, int, error) {
-	args := m.Called(ctx, userID, filters)
-	return args.Get(0).([]models.Artifact), args.Int(1), args.Error(2)
+	return mockListCall[models.Artifact](&m.Mock, "List", ctx, userID, filters)
 }
 
 func (m *mockArtifactRepo) ListProjects(
@@ -266,8 +283,7 @@ func (m *mockArtifactRepo) ListProjects(
 }
 
 func (m *mockArtifactRepo) Update(ctx context.Context, artifact *models.Artifact) error {
-	args := m.Called(ctx, artifact)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, artifact)
 }
 
 func (m *mockArtifactRepo) Delete(ctx context.Context, userID, teamID, artifactID string) error {
@@ -296,8 +312,7 @@ func (m *mockArtifactRepo) GetByProjectIDAndSlugCrossTeam(
 func (m *mockArtifactRepo) ListCrossTeam(
 	ctx context.Context, userID string, filters repositories.ArtifactFilters,
 ) ([]models.Artifact, int, error) {
-	args := m.Called(ctx, userID, filters)
-	return args.Get(0).([]models.Artifact), args.Int(1), args.Error(2)
+	return mockListCall[models.Artifact](&m.Mock, "ListCrossTeam", ctx, userID, filters)
 }
 
 func (m *mockArtifactRepo) GetNamesByIDsCrossTeam(
@@ -320,8 +335,7 @@ func (m *mockMemoryRepo) List(
 }
 
 func (m *mockMemoryRepo) Create(ctx context.Context, memory *models.Memory) error {
-	args := m.Called(ctx, memory)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, memory)
 }
 
 func (m *mockMemoryRepo) GetByID(ctx context.Context, userID, teamID, memoryID string) (*models.Memory, error) {
@@ -333,8 +347,7 @@ func (m *mockMemoryRepo) GetByID(ctx context.Context, userID, teamID, memoryID s
 }
 
 func (m *mockMemoryRepo) Update(ctx context.Context, memory *models.Memory) error {
-	args := m.Called(ctx, memory)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, memory)
 }
 
 func (m *mockMemoryRepo) Delete(ctx context.Context, userID, teamID, memoryID string) error {
@@ -388,8 +401,7 @@ func (m *mockSpecLibraryRepo) GetStats(ctx context.Context, userID string) (*mod
 }
 
 func (m *mockSpecLibraryRepo) Create(ctx context.Context, specLibrary *models.Blueprint) error {
-	args := m.Called(ctx, specLibrary)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, specLibrary)
 }
 
 func (m *mockSpecLibraryRepo) GetByID(
@@ -453,8 +465,7 @@ func (m *mockSpecLibraryRepo) ListProjects(
 }
 
 func (m *mockSpecLibraryRepo) Update(ctx context.Context, specLibrary *models.Blueprint) error {
-	args := m.Called(ctx, specLibrary)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, specLibrary)
 }
 
 func (m *mockSpecLibraryRepo) Delete(ctx context.Context, userID, teamID, specLibraryID string) error {
@@ -495,8 +506,7 @@ func (m *mockAgentRepo) GetStats(ctx context.Context, userID, teamID string) (*m
 }
 
 func (m *mockAgentRepo) Create(ctx context.Context, agent *models.Agent) error {
-	args := m.Called(ctx, agent)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, agent)
 }
 
 func (m *mockAgentRepo) GetByID(ctx context.Context, userID, teamID, agentID string) (*models.Agent, error) {
@@ -517,8 +527,7 @@ func (m *mockAgentRepo) List(
 }
 
 func (m *mockAgentRepo) Update(ctx context.Context, agent *models.Agent) error {
-	args := m.Called(ctx, agent)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, agent)
 }
 
 func (m *mockAgentRepo) Delete(ctx context.Context, userID, teamID, agentID string) error {
@@ -803,8 +812,7 @@ func (m *mockFeedItemReplyRepo) CountAll(ctx context.Context, userID string) (in
 }
 
 func (m *mockAgentExecRepo) Create(ctx context.Context, execution *models.AgentExecution) error {
-	args := m.Called(ctx, execution)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, execution)
 }
 
 func (m *mockAgentExecRepo) GetByID(ctx context.Context, userID, executionID string) (*models.AgentExecution, error) {
@@ -825,8 +833,7 @@ func (m *mockAgentExecRepo) List(
 }
 
 func (m *mockAgentExecRepo) Update(ctx context.Context, execution *models.AgentExecution) error {
-	args := m.Called(ctx, execution)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, execution)
 }
 
 func (m *mockAgentExecRepo) GetByAgentID(
@@ -1245,8 +1252,7 @@ type mockTeamRepo struct {
 }
 
 func (m *mockTeamRepo) Create(ctx context.Context, team *models.Team) error {
-	args := m.Called(ctx, team)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, team)
 }
 
 func (m *mockTeamRepo) GetByID(ctx context.Context, teamID string) (*models.Team, error) {
@@ -1274,8 +1280,7 @@ func (m *mockTeamRepo) GetByOwnerAndSlug(ctx context.Context, ownerID, slug stri
 }
 
 func (m *mockTeamRepo) Update(ctx context.Context, team *models.Team) error {
-	args := m.Called(ctx, team)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, team)
 }
 
 func (m *mockTeamRepo) Delete(ctx context.Context, ownerID, teamID string) error {
@@ -1541,8 +1546,7 @@ type mockTeamSubscriptionRepo struct {
 }
 
 func (m *mockTeamSubscriptionRepo) Create(ctx context.Context, subscription *models.TeamSubscription) error {
-	args := m.Called(ctx, subscription)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, subscription)
 }
 
 func (m *mockTeamSubscriptionRepo) GetByID(ctx context.Context, id string) (*models.TeamSubscription, error) {
@@ -1554,11 +1558,7 @@ func (m *mockTeamSubscriptionRepo) GetByID(ctx context.Context, id string) (*mod
 }
 
 func (m *mockTeamSubscriptionRepo) GetByTeamID(ctx context.Context, teamID string) (*models.TeamSubscription, error) {
-	args := m.Called(ctx, teamID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.TeamSubscription), args.Error(1)
+	return mockPtrCall[models.TeamSubscription](&m.Mock, "GetByTeamID", ctx, teamID)
 }
 
 func (m *mockTeamSubscriptionRepo) GetByStripeSubscriptionID(
@@ -1573,8 +1573,7 @@ func (m *mockTeamSubscriptionRepo) GetByStripeSubscriptionID(
 }
 
 func (m *mockTeamSubscriptionRepo) Update(ctx context.Context, subscription *models.TeamSubscription) error {
-	args := m.Called(ctx, subscription)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, subscription)
 }
 
 func (m *mockTeamSubscriptionRepo) Delete(ctx context.Context, id string) error {
@@ -1620,22 +1619,14 @@ func (m *mockTeamSubscriptionRepo) GetActiveByTeamID(
 	ctx context.Context,
 	teamID string,
 ) (*models.TeamSubscription, error) {
-	args := m.Called(ctx, teamID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.TeamSubscription), args.Error(1)
+	return mockPtrCall[models.TeamSubscription](&m.Mock, "GetActiveByTeamID", ctx, teamID)
 }
 
 func (m *mockTeamSubscriptionRepo) GetCanceledByTeamID(
 	ctx context.Context,
 	teamID string,
 ) (*models.TeamSubscription, error) {
-	args := m.Called(ctx, teamID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.TeamSubscription), args.Error(1)
+	return mockPtrCall[models.TeamSubscription](&m.Mock, "GetCanceledByTeamID", ctx, teamID)
 }
 
 // TestGetTeamQuotaContribution_SingleTeam tests quota calculation for a single team

@@ -39,8 +39,7 @@ type MockAgentExecutionRepository struct {
 }
 
 func (m *MockAgentExecutionRepository) Create(ctx context.Context, execution *models.AgentExecution) error {
-	args := m.Called(ctx, execution)
-	return args.Error(0)
+	return mockErr(&m.Mock, "Create", ctx, execution)
 }
 
 func (m *MockAgentExecutionRepository) GetByID(
@@ -64,8 +63,7 @@ func (m *MockAgentExecutionRepository) List(
 }
 
 func (m *MockAgentExecutionRepository) Update(ctx context.Context, execution *models.AgentExecution) error {
-	args := m.Called(ctx, execution)
-	return args.Error(0)
+	return mockErr(&m.Mock, "Update", ctx, execution)
 }
 
 func (m *MockAgentExecutionRepository) GetByAgentID(
@@ -154,8 +152,7 @@ type MockAgentRepository struct {
 }
 
 func (m *MockAgentRepository) Create(ctx context.Context, agent *models.Agent) error {
-	args := m.Called(ctx, agent)
-	return args.Error(0)
+	return mockErr(&m.Mock, "Create", ctx, agent)
 }
 
 func (m *MockAgentRepository) GetByID(ctx context.Context, userID, teamID, agentID string) (*models.Agent, error) {
@@ -184,8 +181,7 @@ func (m *MockAgentRepository) List(
 }
 
 func (m *MockAgentRepository) Update(ctx context.Context, agent *models.Agent) error {
-	args := m.Called(ctx, agent)
-	return args.Error(0)
+	return mockErr(&m.Mock, "Update", ctx, agent)
 }
 
 func (m *MockAgentRepository) Delete(ctx context.Context, userID, teamID, agentID string) error {

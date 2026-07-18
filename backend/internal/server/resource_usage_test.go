@@ -34,16 +34,14 @@ func (m *MockResourceUsageService) TrackResourceCreation(
 	ctx context.Context,
 	userID, resourceType, resourceID string,
 ) error {
-	args := m.Called(ctx, userID, resourceType, resourceID)
-	return args.Error(0)
+	return mockErr(&m.Mock, "TrackResourceCreation", ctx, userID, resourceType, resourceID)
 }
 
 func (m *MockResourceUsageService) TrackResourceDeletion(
 	ctx context.Context,
 	userID, resourceType, resourceID string,
 ) error {
-	args := m.Called(ctx, userID, resourceType, resourceID)
-	return args.Error(0)
+	return mockErr(&m.Mock, "TrackResourceDeletion", ctx, userID, resourceType, resourceID)
 }
 
 func (m *MockResourceUsageService) GetResourceUsage(
