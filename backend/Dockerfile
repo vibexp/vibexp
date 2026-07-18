@@ -23,8 +23,11 @@ FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 WORKDIR /app/frontend
 
 # Install deps first so this layer caches until the lockfile changes.
+# --ignore-scripts blocks package lifecycle scripts (supply-chain hardening);
+# the build needs none of them — vite/rolldown/tailwind ship platform binaries
+# as optional deps, not postinstall scripts.
 COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # Deployment-neutral build-time values. The API is same-origin in the combined
 # image, so the base URL is relative; branding/GTM are runtime (config.js).
@@ -77,11 +80,14 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
 # ---- 3) Minimal runtime ----
 FROM alpine:3.20
 
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates \
+    && addgroup -S vibexp && adduser -S -G vibexp vibexp
 
-WORKDIR /root/
+WORKDIR /app
 
-# Copy the pre-built binary (with embedded SPA) and migrations.
+# Copy the pre-built binary (with embedded SPA) and migrations. Root-owned and
+# world-readable is intentional: the app only reads them, so the unprivileged
+# user must not be able to overwrite the binary or migrations.
 COPY --from=backend /app/main .
 COPY --from=backend /app/migrations ./migrations
 
@@ -92,6 +98,9 @@ COPY --from=backend /app/migrations ./migrations
 # to replace it: `docker run -v $PWD/config.yaml:/app/config.yaml ...`.
 COPY --from=backend /app/config.docker.yaml /app/config.yaml
 ENV VIBEXP_CONFIG_FILE=/app/config.yaml
+
+# Drop root: the app binds :8080 (unprivileged) and writes nothing to disk.
+USER vibexp
 
 EXPOSE 8080
 
