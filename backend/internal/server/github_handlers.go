@@ -22,6 +22,10 @@ import (
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
+// githubMsgAppNotInstalled is the error message returned when a team has no
+// GitHub App installation.
+const githubMsgAppNotInstalled = "GitHub App not installed for this team"
+
 // signGitHubState creates an HMAC-signed state parameter for CSRF protection
 // Format: teamID:timestamp:signature
 func (s *Server) signGitHubState(teamID string) string {
@@ -184,7 +188,7 @@ func (s *Server) handleGitHubRepositories(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		if errors.Is(err, external.ErrGitHubInstallationGone) ||
 			errors.Is(err, repositories.ErrGitHubInstallationNotFound) {
-			writeErrorResponse(w, r, "github_not_installed", "GitHub App not installed for this team", http.StatusNotFound)
+			writeErrorResponse(w, r, "github_not_installed", githubMsgAppNotInstalled, http.StatusNotFound)
 			return
 		}
 		s.logger.Error("Failed to get GitHub repositories", "error", err)
@@ -253,7 +257,7 @@ func (s *Server) handleGitHubImportProject(w http.ResponseWriter, r *http.Reques
 // handleImportProjectError handles errors from the import project service call
 func (s *Server) handleImportProjectError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, repositories.ErrGitHubInstallationNotFound) {
-		writeErrorResponse(w, r, "github_not_installed", "GitHub App not installed for this team", http.StatusNotFound)
+		writeErrorResponse(w, r, "github_not_installed", githubMsgAppNotInstalled, http.StatusNotFound)
 		return
 	}
 	if errors.Is(err, repositories.ErrGitHubRepositoryNotFound) {
@@ -358,7 +362,7 @@ func (s *Server) handleGitHubImportBlueprints(w http.ResponseWriter, r *http.Req
 // handleImportBlueprintsError handles errors from the import blueprints service call
 func (s *Server) handleImportBlueprintsError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, repositories.ErrGitHubInstallationNotFound) {
-		writeErrorResponse(w, r, "github_not_installed", "GitHub App not installed for this team", http.StatusNotFound)
+		writeErrorResponse(w, r, "github_not_installed", githubMsgAppNotInstalled, http.StatusNotFound)
 		return
 	}
 	if errors.Is(err, repositories.ErrGitHubRepositoryNotFound) {

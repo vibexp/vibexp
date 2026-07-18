@@ -13,6 +13,9 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
+// logServiceProject is the "service" structured-log field value for this service.
+const logServiceProject = "project-service"
+
 // ProjectService implements the ProjectServiceInterface
 type ProjectService struct {
 	repo         repositories.ProjectRepository
@@ -60,7 +63,7 @@ func (s *ProjectService) validateAndResolveTeamID(
 	isMember, err := s.teamService.IsUserMemberOfTeam(ctx, userID, *requestedTeamID)
 	if err != nil {
 		s.logger.With(
-			"service", "project-service",
+			"service", logServiceProject,
 			"user_id", userID,
 			"team_id", *requestedTeamID,
 			"error", fmt.Sprintf("%+v", err),
@@ -70,7 +73,7 @@ func (s *ProjectService) validateAndResolveTeamID(
 
 	if !isMember {
 		s.logger.With(
-			"service", "project-service",
+			"service", logServiceProject,
 			"user_id", userID,
 			"team_id", *requestedTeamID,
 		).
@@ -85,7 +88,7 @@ func (s *ProjectService) validateAndResolveTeamID(
 func (s *ProjectService) validateTeamReassignment(requestedTeamID *string, currentTeamID, projectID string) error {
 	if requestedTeamID != nil && *requestedTeamID != currentTeamID {
 		s.logger.With(
-			"service", "project-service",
+			"service", logServiceProject,
 			"project_id", projectID,
 			"existing_team", currentTeamID,
 			"requested_team", *requestedTeamID,

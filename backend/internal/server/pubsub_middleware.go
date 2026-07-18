@@ -11,6 +11,11 @@ import (
 	"github.com/vibexp/vibexp/internal/contextkeys"
 )
 
+// Log-field values for the Pub/Sub OIDC middleware.
+const (
+	pubsubMiddlewareName = "pubsub-oidc"
+)
+
 // pubSubOIDCMiddleware validates OIDC tokens from Google Cloud Pub/Sub push subscriptions
 func (s *Server) pubSubOIDCMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,8 +38,8 @@ func (s *Server) pubSubOIDCMiddleware(next http.Handler) http.Handler {
 		}
 
 		s.logger.With(
-			"service", "vibexp-api",
-			"middleware", "pubsub-oidc",
+			"service", serverLogServiceName,
+			"middleware", pubsubMiddlewareName,
 			"path", r.URL.Path,
 			"service_account", email,
 			"issuer", payload.Issuer,
@@ -49,8 +54,8 @@ func (s *Server) extractPubSubToken(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		s.logger.With(
-			"service", "vibexp-api",
-			"middleware", "pubsub-oidc",
+			"service", serverLogServiceName,
+			"middleware", pubsubMiddlewareName,
 			"path", r.URL.Path,
 		).Warn("Missing Authorization header")
 		return "", http.ErrNoCookie
@@ -59,8 +64,8 @@ func (s *Server) extractPubSubToken(r *http.Request) (string, error) {
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 	if token == authHeader {
 		s.logger.With(
-			"service", "vibexp-api",
-			"middleware", "pubsub-oidc",
+			"service", serverLogServiceName,
+			"middleware", pubsubMiddlewareName,
 			"path", r.URL.Path,
 		).Warn("Invalid Authorization header format")
 		return "", http.ErrNoCookie
@@ -74,8 +79,8 @@ func (s *Server) validateOIDCToken(r *http.Request, token string) (*idtoken.Payl
 	payload, err := idtoken.Validate(context.Background(), token, audience)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"middleware", "pubsub-oidc",
+			"service", serverLogServiceName,
+			"middleware", pubsubMiddlewareName,
 			"path", r.URL.Path,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("OIDC token validation failed")
@@ -84,8 +89,8 @@ func (s *Server) validateOIDCToken(r *http.Request, token string) (*idtoken.Payl
 
 	if payload.Issuer != "https://accounts.google.com" {
 		s.logger.With(
-			"service", "vibexp-api",
-			"middleware", "pubsub-oidc",
+			"service", serverLogServiceName,
+			"middleware", pubsubMiddlewareName,
 			"path", r.URL.Path,
 			"issuer", payload.Issuer,
 		).Error("Invalid token issuer")
@@ -99,8 +104,8 @@ func (s *Server) verifyServiceAccount(r *http.Request, payload *idtoken.Payload)
 	email, ok := payload.Claims["email"].(string)
 	if !ok {
 		s.logger.With(
-			"service", "vibexp-api",
-			"middleware", "pubsub-oidc",
+			"service", serverLogServiceName,
+			"middleware", pubsubMiddlewareName,
 			"path", r.URL.Path,
 		).Error("Missing email in token claims")
 		return "", http.ErrNoCookie
@@ -115,8 +120,8 @@ func (s *Server) verifyServiceAccount(r *http.Request, payload *idtoken.Payload)
 	// signature and audience are still enforced upstream).
 	if suffix := s.config.GCP.PubSubPushServiceAccountSuffix; suffix != "" && !strings.HasSuffix(email, suffix) {
 		s.logger.With(
-			"service", "vibexp-api",
-			"middleware", "pubsub-oidc",
+			"service", serverLogServiceName,
+			"middleware", pubsubMiddlewareName,
 			"path", r.URL.Path,
 			"service_account", email,
 		).Warn("Service account not from expected project")

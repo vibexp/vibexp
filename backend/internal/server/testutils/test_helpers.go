@@ -13,6 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// statusCodeMismatchMsg is the assertion message used for status code checks
+const statusCodeMismatchMsg = "Status code mismatch"
+
 // HTTPTestCase represents a single HTTP test case
 type HTTPTestCase struct {
 	Name           string
@@ -51,7 +54,7 @@ func MakeRequest(
 
 	// Set default Content-Type for POST/PUT requests with body
 	if body != nil && (method == "POST" || method == "PUT") {
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(headerContentType, contentTypeJSON)
 	}
 
 	// Set custom headers
@@ -67,10 +70,10 @@ func MakeRequest(
 
 // AssertJSONResponse asserts that the response has the expected status and JSON body
 func AssertJSONResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedStatus int, expectedBody interface{}) {
-	assert.Equal(t, expectedStatus, rr.Code, "Status code mismatch")
+	assert.Equal(t, expectedStatus, rr.Code, statusCodeMismatchMsg)
 
 	if expectedBody != nil {
-		assert.Equal(t, "application/json", rr.Header().Get("Content-Type"), "Content-Type should be application/json")
+		assert.Equal(t, contentTypeJSON, rr.Header().Get(headerContentType), "Content-Type should be application/json")
 
 		var actualBody interface{}
 		err := json.Unmarshal(rr.Body.Bytes(), &actualBody)
@@ -89,14 +92,14 @@ func AssertJSONResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedSta
 
 // AssertTextResponse asserts that the response has the expected status and text body
 func AssertTextResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedStatus int, expectedBody string) {
-	assert.Equal(t, expectedStatus, rr.Code, "Status code mismatch")
+	assert.Equal(t, expectedStatus, rr.Code, statusCodeMismatchMsg)
 	assert.Equal(t, expectedBody, rr.Body.String(), "Response body mismatch")
 }
 
 // AssertErrorResponse asserts that the response is an error with the expected status and message
 func AssertErrorResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedStatus int, expectedMessage string) {
-	assert.Equal(t, expectedStatus, rr.Code, "Status code mismatch")
-	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"), "Content-Type should be application/json")
+	assert.Equal(t, expectedStatus, rr.Code, statusCodeMismatchMsg)
+	assert.Equal(t, contentTypeJSON, rr.Header().Get(headerContentType), "Content-Type should be application/json")
 
 	var errorResp map[string]interface{}
 	err := json.Unmarshal(rr.Body.Bytes(), &errorResp)
@@ -149,7 +152,7 @@ func RunHTTPTestCases(t *testing.T, ts *TestServer, testCases []HTTPTestCase) {
 					AssertJSONResponse(t, rr, tc.ExpectedStatus, expectedBody)
 				}
 			} else {
-				assert.Equal(t, tc.ExpectedStatus, rr.Code, "Status code mismatch")
+				assert.Equal(t, tc.ExpectedStatus, rr.Code, statusCodeMismatchMsg)
 			}
 
 			// Cleanup
@@ -175,7 +178,7 @@ func ParseJSONResponse(t *testing.T, rr *httptest.ResponseRecorder, v interface{
 
 // AssertStatusCode is a simple helper to assert just the status code
 func AssertStatusCode(t *testing.T, rr *httptest.ResponseRecorder, expectedStatus int) {
-	assert.Equal(t, expectedStatus, rr.Code, "Status code mismatch")
+	assert.Equal(t, expectedStatus, rr.Code, statusCodeMismatchMsg)
 }
 
 // AssertHeader asserts that a specific header has the expected value
@@ -185,5 +188,5 @@ func AssertHeader(t *testing.T, rr *httptest.ResponseRecorder, headerName, expec
 
 // AssertContentType is a helper to assert the Content-Type header
 func AssertContentType(t *testing.T, rr *httptest.ResponseRecorder, expectedContentType string) {
-	AssertHeader(t, rr, "Content-Type", expectedContentType)
+	AssertHeader(t, rr, headerContentType, expectedContentType)
 }

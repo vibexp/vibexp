@@ -9,6 +9,12 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
+// Structured-logging field values for this listener's log lines.
+const (
+	logServiceName           = "vibexp-api"
+	logComponentTeamCreation = "team-creation-listener"
+)
+
 // TeamCreatorServiceInterface defines the interface for team creation operations
 // This is defined here to avoid import cycles with the services package
 type TeamCreatorServiceInterface interface {
@@ -47,15 +53,15 @@ func NewTeamCreationListener(
 // Handle processes the user.created event to create a default team
 func (l *TeamCreationListener) Handle(ctx context.Context, event Event) error {
 	l.logger.With(
-		"service", "vibexp-api",
-		"component", "team-creation-listener",
+		"service", logServiceName,
+		"component", logComponentTeamCreation,
 		"event_type", event.Type(),
 	).Debug("Received event for team creation")
 
 	if event.Type() != EventTypeUserCreated {
 		l.logger.With(
-			"service", "vibexp-api",
-			"component", "team-creation-listener",
+			"service", logServiceName,
+			"component", logComponentTeamCreation,
 			"event_type", event.Type(),
 		).Warn("Unexpected event type received")
 		return nil
@@ -64,8 +70,8 @@ func (l *TeamCreationListener) Handle(ctx context.Context, event Event) error {
 	payload, ok := event.Payload().(*UserCreatedPayload)
 	if !ok {
 		l.logger.With(
-			"service", "vibexp-api",
-			"component", "team-creation-listener",
+			"service", logServiceName,
+			"component", logComponentTeamCreation,
 			"event_type", event.Type(),
 		).Error("Failed to cast payload to UserCreatedPayload")
 		// Don't return error to avoid retry storms
@@ -73,8 +79,8 @@ func (l *TeamCreationListener) Handle(ctx context.Context, event Event) error {
 	}
 
 	l.logger.With(
-		"service", "vibexp-api",
-		"component", "team-creation-listener",
+		"service", logServiceName,
+		"component", logComponentTeamCreation,
 		"user_id", payload.UserID,
 		"email", payload.Email,
 	).Info("Creating default team for new user")
@@ -82,8 +88,8 @@ func (l *TeamCreationListener) Handle(ctx context.Context, event Event) error {
 	team, err := l.teamService.CreateDefaultTeam(ctx, payload.UserID)
 	if err != nil {
 		l.logger.With(
-			"service", "vibexp-api",
-			"component", "team-creation-listener",
+			"service", logServiceName,
+			"component", logComponentTeamCreation,
 			"user_id", payload.UserID,
 			"email", payload.Email,
 			"error", fmt.Sprintf("%+v", err),
@@ -93,8 +99,8 @@ func (l *TeamCreationListener) Handle(ctx context.Context, event Event) error {
 	}
 
 	l.logger.With(
-		"service", "vibexp-api",
-		"component", "team-creation-listener",
+		"service", logServiceName,
+		"component", logComponentTeamCreation,
 		"user_id", payload.UserID,
 		"team_id", team.ID,
 	).Info("Default team created successfully")
@@ -110,8 +116,8 @@ func (l *TeamCreationListener) Handle(ctx context.Context, event Event) error {
 func (l *TeamCreationListener) createDefaultProject(userID, teamID string) {
 	if l.projectService == nil {
 		l.logger.With(
-			"service", "vibexp-api",
-			"component", "team-creation-listener",
+			"service", logServiceName,
+			"component", logComponentTeamCreation,
 			"user_id", userID,
 			"team_id", teamID,
 		).Warn("Project service not configured, skipping default project creation")
@@ -119,8 +125,8 @@ func (l *TeamCreationListener) createDefaultProject(userID, teamID string) {
 	}
 
 	l.logger.With(
-		"service", "vibexp-api",
-		"component", "team-creation-listener",
+		"service", logServiceName,
+		"component", logComponentTeamCreation,
 		"user_id", userID,
 		"team_id", teamID,
 	).Info("Creating default project for new user")
@@ -128,8 +134,8 @@ func (l *TeamCreationListener) createDefaultProject(userID, teamID string) {
 	project, err := l.projectService.CreateProject(userID, teamID, models.DefaultProjectRequest())
 	if err != nil {
 		l.logger.With(
-			"service", "vibexp-api",
-			"component", "team-creation-listener",
+			"service", logServiceName,
+			"component", logComponentTeamCreation,
 			"user_id", userID,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
@@ -140,8 +146,8 @@ func (l *TeamCreationListener) createDefaultProject(userID, teamID string) {
 	}
 
 	l.logger.With(
-		"service", "vibexp-api",
-		"component", "team-creation-listener",
+		"service", logServiceName,
+		"component", logComponentTeamCreation,
 		"user_id", userID,
 		"team_id", teamID,
 		"project_id", project.ID,

@@ -19,12 +19,18 @@ import (
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
+// Response and log messages shared across the agent handlers.
+const (
+	agentMsgNotFound     = "Agent not found"
+	agentMsgDeleteFailed = "Failed to delete agent"
+)
+
 func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateAgent",
 		"user_id", userID,
 		"team_id", teamID,
@@ -60,7 +66,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetAgent",
 		"user_id", userID,
 		"team_id", teamID,
@@ -70,7 +76,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	agent, err := s.container.AgentService().GetAgentByID(r.Context(), userID, teamID, agentID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetAgent",
 			"user_id", userID,
 			"team_id", teamID,
@@ -79,7 +85,7 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 		).Error("Failed to get agent")
 
 		if errors.Is(err, repositories.ErrAgentNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", agentMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -97,7 +103,7 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListAgents",
 		"user_id", userID,
 		"team_id", teamID,
@@ -112,7 +118,7 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	response, err := s.container.AgentService().ListAgents(r.Context(), userID, filters)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListAgents",
 			"user_id", userID,
 			"team_id", teamID,
@@ -164,7 +170,7 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateAgent",
 		"user_id", userID,
 		"team_id", teamID,
@@ -208,7 +214,7 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteAgent",
 		"user_id", userID,
 		"team_id", teamID,
@@ -219,7 +225,7 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	agent, err := s.container.AgentService().GetAgentByID(r.Context(), userID, teamID, agentID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteAgent",
 			"user_id", userID,
 			"team_id", teamID,
@@ -228,11 +234,11 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 		).Error("Failed to get agent for deletion")
 
 		if errors.Is(err, repositories.ErrAgentNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", agentMsgNotFound, http.StatusNotFound)
 			return
 		}
 
-		writeErrorResponse(w, nil, "internal_error", "Failed to delete agent", http.StatusInternalServerError)
+		writeErrorResponse(w, nil, "internal_error", agentMsgDeleteFailed, http.StatusInternalServerError)
 		return
 	}
 
@@ -257,7 +263,7 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteAgentError(w http.ResponseWriter, userID, agentID string, err error) {
 	if errors.Is(err, services.ErrPermissionDenied) {
 		s.logger.With(
-			"service", "vibexp-api", "handler", "handleDeleteAgent",
+			"service", serverLogServiceName, "handler", "handleDeleteAgent",
 			"user_id", userID, "agent_id", agentID,
 		).Warn("Forbidden agent delete attempt")
 		writeErrorResponse(
@@ -268,19 +274,19 @@ func (s *Server) handleDeleteAgentError(w http.ResponseWriter, userID, agentID s
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteAgent",
 		"user_id", userID,
 		"agent_id", agentID,
 		"error", fmt.Sprintf("%+v", err),
-	).Error("Failed to delete agent")
+	).Error(agentMsgDeleteFailed)
 
 	if errors.Is(err, repositories.ErrAgentNotFound) {
-		writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
+		writeErrorResponse(w, nil, "not_found", agentMsgNotFound, http.StatusNotFound)
 		return
 	}
 
-	writeErrorResponse(w, nil, "internal_error", "Failed to delete agent", http.StatusInternalServerError)
+	writeErrorResponse(w, nil, "internal_error", agentMsgDeleteFailed, http.StatusInternalServerError)
 }
 
 //nolint:funlen // structured slog attributes are marginally more verbose than the prior logrus WithFields calls
@@ -290,7 +296,7 @@ func (s *Server) handleUpdateAgentCredentials(w http.ResponseWriter, r *http.Req
 	agentID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateAgentCredentials",
 		"user_id", userID,
 		"team_id", teamID,
@@ -300,13 +306,13 @@ func (s *Server) handleUpdateAgentCredentials(w http.ResponseWriter, r *http.Req
 	var req models.UpdateAgentCredentialsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdateAgentCredentials",
 			"user_id", userID,
 			"agent_id", agentID,
 			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to decode request body")
-		writeErrorResponse(w, nil, "invalid_request", "Invalid request body", http.StatusBadRequest)
+		).Error(msgDecodeRequestBodyFailed)
+		writeErrorResponse(w, nil, "invalid_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
@@ -319,7 +325,7 @@ func (s *Server) handleUpdateAgentCredentials(w http.ResponseWriter, r *http.Req
 	// Validate the request
 	if err := validate.Struct(&req); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdateAgentCredentials",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -334,7 +340,7 @@ func (s *Server) handleUpdateAgentCredentials(w http.ResponseWriter, r *http.Req
 		// the same permission. ErrPermissionDenied matches nothing below.
 		if errors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
-				"service", "vibexp-api", "handler", "handleUpdateAgentCredentials",
+				"service", serverLogServiceName, "handler", "handleUpdateAgentCredentials",
 				"user_id", userID, "agent_id", agentID,
 			).Warn("Forbidden agent credentials write attempt")
 			writeErrorResponse(
@@ -345,7 +351,7 @@ func (s *Server) handleUpdateAgentCredentials(w http.ResponseWriter, r *http.Req
 		}
 
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdateAgentCredentials",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -353,7 +359,7 @@ func (s *Server) handleUpdateAgentCredentials(w http.ResponseWriter, r *http.Req
 		).Error("Failed to update agent credentials")
 
 		if errors.Is(err, repositories.ErrAgentNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", agentMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -381,7 +387,7 @@ func (s *Server) handleGetAgentStats(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetAgentStats",
 		"user_id", userID,
 		"team_id", teamID,
@@ -391,7 +397,7 @@ func (s *Server) handleGetAgentStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := s.container.AgentService().GetAgentStats(r.Context(), userID, teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetAgentStats",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -409,7 +415,7 @@ func (s *Server) handleStartAgentExecution(w http.ResponseWriter, r *http.Reques
 	agentID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleStartAgentExecution",
 		"user_id", userID,
 		"team_id", teamID,
@@ -419,13 +425,13 @@ func (s *Server) handleStartAgentExecution(w http.ResponseWriter, r *http.Reques
 	var req models.CreateAgentExecutionRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleStartAgentExecution",
 			"user_id", userID,
 			"agent_id", agentID,
 			"error", fmt.Sprintf("%+v", decodeErr),
-		).Error("Failed to decode request body")
-		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+		).Error(msgDecodeRequestBodyFailed)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
@@ -434,7 +440,7 @@ func (s *Server) handleStartAgentExecution(w http.ResponseWriter, r *http.Reques
 	execution, err := s.container.AgentService().StartExecution(r.Context(), userID, teamID, agentID, &req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleStartAgentExecution",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -442,7 +448,7 @@ func (s *Server) handleStartAgentExecution(w http.ResponseWriter, r *http.Reques
 		).Error("Failed to start agent execution")
 
 		if errors.Is(err, repositories.ErrAgentNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", agentMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -464,7 +470,7 @@ func (s *Server) handleCompleteAgentExecution(w http.ResponseWriter, r *http.Req
 	executionID := chi.URLParam(r, "execution_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCompleteAgentExecution",
 		"user_id", userID,
 		"execution_id", executionID,
@@ -473,13 +479,13 @@ func (s *Server) handleCompleteAgentExecution(w http.ResponseWriter, r *http.Req
 	var req models.UpdateAgentExecutionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCompleteAgentExecution",
 			"user_id", userID,
 			"execution_id", executionID,
 			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to decode request body")
-		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+		).Error(msgDecodeRequestBodyFailed)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
@@ -492,7 +498,7 @@ func (s *Server) handleCompleteAgentExecution(w http.ResponseWriter, r *http.Req
 	execution, err := s.container.AgentService().CompleteExecution(r.Context(), userID, executionID, &req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCompleteAgentExecution",
 			"user_id", userID,
 			"execution_id", executionID,
@@ -520,7 +526,7 @@ func (s *Server) handleListAgentExecutions(w http.ResponseWriter, r *http.Reques
 	agentID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListAgentExecutions",
 		"user_id", userID,
 		"agent_id", agentID,
@@ -531,7 +537,7 @@ func (s *Server) handleListAgentExecutions(w http.ResponseWriter, r *http.Reques
 	executions, totalCount, err := s.container.AgentService().ListExecutions(r.Context(), userID, filters)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListAgentExecutions",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -559,7 +565,7 @@ func (s *Server) handleGetAgentExecution(w http.ResponseWriter, r *http.Request)
 	executionID := chi.URLParam(r, "execution_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetAgentExecution",
 		"user_id", userID,
 		"execution_id", executionID,
@@ -568,7 +574,7 @@ func (s *Server) handleGetAgentExecution(w http.ResponseWriter, r *http.Request)
 	execution, err := s.container.AgentService().GetExecution(r.Context(), userID, executionID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetAgentExecution",
 			"user_id", userID,
 			"execution_id", executionID,
@@ -592,7 +598,7 @@ func (s *Server) handlePreviewAgentCard(w http.ResponseWriter, r *http.Request) 
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handlePreviewAgentCard",
 		"user_id", userID,
 	).
@@ -621,7 +627,7 @@ func (s *Server) handlePreviewAgentCard(w http.ResponseWriter, r *http.Request) 
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handlePreviewAgentCard",
 		"user_id", userID,
 		"card_url", req.CardURL,
@@ -645,7 +651,7 @@ func (s *Server) handleExecuteAgent(w http.ResponseWriter, r *http.Request) {
 	agentID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleExecuteAgent",
 		"user_id", userID,
 		"agent_id", agentID,
@@ -725,7 +731,7 @@ func (s *Server) checkAgentResourceLimit(
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, "agent")
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "checkAgentResourceLimit",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -736,7 +742,7 @@ func (s *Server) checkAgentResourceLimit(
 
 	if !allowed {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "checkAgentResourceLimit",
 			"user_id", userID,
 			"resource_type", "agent",
@@ -756,7 +762,7 @@ func (s *Server) handleAgentCreationError(w http.ResponseWriter, _ *http.Request
 	// Denial before the card-error string-matching below, which
 	// ErrPermissionDenied's text matches nowhere — it would 500 otherwise.
 	if errors.Is(err, services.ErrPermissionDenied) {
-		s.logger.With("service", "vibexp-api", "handler", "handleCreateAgent").
+		s.logger.With("service", serverLogServiceName, "handler", "handleCreateAgent").
 			Warn("Forbidden agent write attempt")
 		writeErrorResponse(
 			w, nil, "forbidden",
@@ -766,7 +772,7 @@ func (s *Server) handleAgentCreationError(w http.ResponseWriter, _ *http.Request
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateAgent",
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),
@@ -854,12 +860,15 @@ func (s *Server) logDecodeError(
 	handler, userID, resourceID string,
 	err error,
 ) {
-	fields := []any{"service", "vibexp-api", "handler", handler, "user_id", userID, "error", fmt.Sprintf("%+v", err)}
+	fields := []any{
+		"service", serverLogServiceName, "handler", handler,
+		"user_id", userID, "error", fmt.Sprintf("%+v", err),
+	}
 	if resourceID != "" {
 		fields = append(fields, "resource_id", resourceID)
 	}
-	s.logger.With(fields...).Error("Failed to decode request body")
-	writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+	s.logger.With(fields...).Error(msgDecodeRequestBodyFailed)
+	writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 }
 
 // validateUpdateAgentRequest validates the update agent request
@@ -943,7 +952,7 @@ func (s *Server) handleUpdateAgentError(
 ) {
 	// Denial first (see handleAgentCreationError).
 	if errors.Is(err, services.ErrPermissionDenied) {
-		s.logger.With("service", "vibexp-api", "handler", "handleUpdateAgent").
+		s.logger.With("service", serverLogServiceName, "handler", "handleUpdateAgent").
 			Warn("Forbidden agent write attempt")
 		writeErrorResponse(
 			w, nil, "forbidden",
@@ -953,7 +962,7 @@ func (s *Server) handleUpdateAgentError(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateAgent",
 		"user_id", userID,
 		"agent_id", agentID,
@@ -961,7 +970,7 @@ func (s *Server) handleUpdateAgentError(
 	).Error("Failed to update agent")
 
 	if errors.Is(err, repositories.ErrAgentNotFound) {
-		writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
+		writeErrorResponse(w, nil, "not_found", agentMsgNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -976,7 +985,7 @@ func (s *Server) handleUpdateAgentError(
 // handleAgentCardFetchError handles errors from agent card fetch for preview
 func (s *Server) handleAgentCardFetchError(w http.ResponseWriter, userID, cardURL string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handlePreviewAgentCard",
 		"user_id", userID,
 		"card_url", cardURL,
@@ -1060,7 +1069,7 @@ func (s *Server) stringPtrIfNotEmpty(str string) *string {
 // handleExecuteAgentError handles errors from agent execution
 func (s *Server) handleExecuteAgentError(w http.ResponseWriter, userID, agentID string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleExecuteAgent",
 		"user_id", userID,
 		"agent_id", agentID,
@@ -1069,7 +1078,7 @@ func (s *Server) handleExecuteAgentError(w http.ResponseWriter, userID, agentID 
 
 	errMsg := err.Error()
 	if strings.Contains(errMsg, "agent not found") {
-		writeErrorResponse(w, nil, "not_found", "Agent not found", http.StatusNotFound)
+		writeErrorResponse(w, nil, "not_found", agentMsgNotFound, http.StatusNotFound)
 		return
 	}
 	if strings.Contains(errMsg, "agent is not active") {

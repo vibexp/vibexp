@@ -14,6 +14,9 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 )
 
+// serverLogServiceName is the service log-field value for the attachment
+// handlers (this file and the universal attachments endpoint).
+
 // ownerTypeArtifact is the attachment owner_type for artifacts. The attachment
 // subsystem is generic; the artifact-nested routes below use this constant, and
 // owner types are registered in setupAttachmentAuthorizers.
@@ -105,7 +108,7 @@ func (s *Server) handleListArtifactAttachments(w http.ResponseWriter, r *http.Re
 	resp, err := s.container.AttachmentService().List(r.Context(), ownerTypeArtifact, artifact.ID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListArtifactAttachments",
 			"artifact_id", artifact.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -175,7 +178,7 @@ func (s *Server) deleteArtifactAttachments(userID, artifactID string) {
 	}
 	if err := svc.DeleteAllForOwner(context.Background(), ownerTypeArtifact, artifactID); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteArtifact",
 			"user_id", userID,
 			"artifact_id", artifactID,
@@ -187,7 +190,7 @@ func (s *Server) deleteArtifactAttachments(userID, artifactID string) {
 // handleAttachmentUploadError maps attachment upload errors to HTTP responses.
 func (s *Server) handleAttachmentUploadError(w http.ResponseWriter, userID, artifactID, fileName string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUploadArtifactAttachment",
 		"user_id", userID,
 		"artifact_id", artifactID,
@@ -220,7 +223,7 @@ func (s *Server) handleAttachmentGetError(w http.ResponseWriter, attachmentID st
 		return
 	}
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "attachment",
 		"attachment_id", attachmentID,
 		"error", fmt.Sprintf("%+v", err),
@@ -236,7 +239,7 @@ func (s *Server) handleAttachmentDownloadError(w http.ResponseWriter, attachment
 		return
 	}
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDownloadArtifactAttachment",
 		"attachment_id", attachmentID,
 		"error", fmt.Sprintf("%+v", err),

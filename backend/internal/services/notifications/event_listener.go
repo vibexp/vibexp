@@ -15,6 +15,13 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
+// Safe fallbacks used when a lookup fails, so a notification is never dropped
+// because of a missing user or feed item record.
+const (
+	fallbackActorName     = "A team member"
+	fallbackFeedItemTitle = "new post"
+)
+
 // NotificationEventListener subscribes to domain events and dispatches notifications
 // to all team members (excluding the event author) via NotificationService.Send.
 type NotificationEventListener struct {
@@ -139,13 +146,13 @@ func (l *NotificationEventListener) renderFeedItemTemplate(
 // notification is never dropped due to a missing user record.
 func (l *NotificationEventListener) resolveActorName(ctx context.Context, userID string) string {
 	if l.userRepo == nil {
-		return "A team member"
+		return fallbackActorName
 	}
 
 	user, err := l.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		l.logWarn("resolve actor name", userID, "Failed to look up actor for notification; using fallback", err)
-		return "A team member"
+		return fallbackActorName
 	}
 
 	if user.Name != "" {
@@ -156,7 +163,7 @@ func (l *NotificationEventListener) resolveActorName(ctx context.Context, userID
 		return user.Email[:idx]
 	}
 
-	return "A team member"
+	return fallbackActorName
 }
 
 // resolveFeedItemTitle looks up the real title of a feed item.
@@ -169,14 +176,14 @@ func (l *NotificationEventListener) resolveFeedItemTitle(
 	ctx context.Context, payload *events.FeedItemCreatedPayload,
 ) string {
 	if l.feedItemRepo == nil {
-		return "new post"
+		return fallbackFeedItemTitle
 	}
 
 	item, err := l.feedItemRepo.GetByID(ctx, payload.UserID, payload.TeamID, payload.ItemID)
 	if err != nil {
 		l.logWarn("resolve feed item title", payload.ItemID,
 			"Failed to look up feed item for notification; using fallback", err)
-		return "new post"
+		return fallbackFeedItemTitle
 	}
 
 	if item.Title != "" {
@@ -191,7 +198,7 @@ func (l *NotificationEventListener) resolveFeedItemTitle(
 		return runeAwareTruncate(item.Content, 80)
 	}
 
-	return "new post"
+	return fallbackFeedItemTitle
 }
 
 // buildActionURL constructs the deep-link URL for the feed item.

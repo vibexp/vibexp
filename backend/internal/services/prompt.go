@@ -19,6 +19,10 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
+// escapedAtSentinel temporarily replaces escaped "@@" sequences during prompt
+// rendering so they survive reference expansion before being restored as "@".
+const escapedAtSentinel = "\x00ESCAPED_AT\x00"
+
 type PromptService struct {
 	repo              repositories.PromptRepository
 	refRepo           repositories.PromptReferenceRepository
@@ -629,7 +633,7 @@ func (s *PromptService) renderPromptRecursive(
 	warnings := make([]string, 0)
 
 	// Handle escaped @@ sequences first
-	renderedBody = strings.ReplaceAll(renderedBody, "@@", "\x00ESCAPED_AT\x00")
+	renderedBody = strings.ReplaceAll(renderedBody, "@@", escapedAtSentinel)
 
 	// Parse placeholder patterns {{placeholder_key}}
 	placeholderRegex := regexp.MustCompile(`\{\{([^}]+)\}\}`)
@@ -710,7 +714,7 @@ func (s *PromptService) renderPromptRecursive(
 	referencesUsed = lo.Uniq(referencesUsed)
 
 	// Replace escaped sequences back
-	renderedBody = strings.ReplaceAll(renderedBody, "\x00ESCAPED_AT\x00", "@")
+	renderedBody = strings.ReplaceAll(renderedBody, escapedAtSentinel, "@")
 
 	return &models.RenderPromptResponse{
 		RenderedBody:   renderedBody,
@@ -733,7 +737,7 @@ func (s *PromptService) ExtractAllPlaceholders(userID, body string, visitedRefs 
 	var allPlaceholders []string
 
 	// Handle escaped @@ sequences first (replace temporarily to avoid matching them)
-	bodyForExtraction := strings.ReplaceAll(body, "@@", "\x00ESCAPED_AT\x00")
+	bodyForExtraction := strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
 	// Extract placeholders from current body
 	placeholderRegex := regexp.MustCompile(`\{\{([^}]+)\}\}`)
@@ -806,7 +810,7 @@ func (s *PromptService) updatePromptReferences(ctx context.Context, userID, prom
 	}
 
 	// Handle escaped @@ sequences first (replace temporarily to avoid matching them)
-	bodyForExtraction := strings.ReplaceAll(body, "@@", "\x00ESCAPED_AT\x00")
+	bodyForExtraction := strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
 	// Extract reference patterns @prompt_slug
 	referenceRegex := regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)

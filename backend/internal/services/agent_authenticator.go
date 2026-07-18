@@ -11,6 +11,10 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
+// bearerAuthPrefix is the RFC 7235 Bearer scheme prefix prepended to raw
+// credential values that do not already carry one.
+const bearerAuthPrefix = "Bearer "
+
 // orderedSchemeNames returns the card's security-scheme names in a deterministic
 // order so scheme selection is reproducible across requests (a Go map range is
 // not). It honors the card's ordered `security` requirement list first — ties
@@ -146,7 +150,7 @@ func (a *AgentAuthenticator) applyAPIKeyAuth(
 
 // hasAuthPrefix checks if the value already has an authentication prefix
 func hasAuthPrefix(value string) bool {
-	prefixes := []string{"Bearer ", "Basic ", "Token ", "ApiKey "}
+	prefixes := []string{bearerAuthPrefix, "Basic ", "Token ", "ApiKey "}
 	for _, prefix := range prefixes {
 		if len(value) >= len(prefix) && value[:len(prefix)] == prefix {
 			return true
@@ -180,7 +184,7 @@ func headerForScheme(scheme a2a.SecurityScheme, value string) (name, headerValue
 		}
 		// Special handling for Authorization header - add Bearer prefix if not already present
 		if s.Name == "Authorization" && !hasAuthPrefix(value) {
-			value = "Bearer " + value
+			value = bearerAuthPrefix + value
 		}
 		return s.Name, value, true
 	case a2a.HTTPAuthSecurityScheme:
@@ -191,7 +195,7 @@ func headerForScheme(scheme a2a.SecurityScheme, value string) (name, headerValue
 		} else {
 			// Default to bearer for "bearer" and any unspecified scheme
 			if !hasAuthPrefix(value) {
-				value = "Bearer " + value
+				value = bearerAuthPrefix + value
 			}
 		}
 		return "Authorization", value, true

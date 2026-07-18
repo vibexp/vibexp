@@ -15,6 +15,11 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 )
 
+const (
+	agentExecMsgExecutionNotFound = "Execution not found"
+	agentExecMsgAgentNotInTeam    = "Execution's agent not found in specified team"
+)
+
 // handleGetExecutionStatus handles GET /api/v1/{team_id}/agents/executions/{id}/status
 // Returns the current status and state of an agent execution
 //
@@ -25,7 +30,7 @@ func (s *Server) handleGetExecutionStatus(w http.ResponseWriter, r *http.Request
 	executionID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetExecutionStatus",
 		"user_id", userID,
 		"team_id", teamID,
@@ -36,7 +41,7 @@ func (s *Server) handleGetExecutionStatus(w http.ResponseWriter, r *http.Request
 	execution, err := s.container.AgentExecutionRepository().GetByID(r.Context(), userID, executionID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetExecutionStatus",
 			"user_id", userID,
 			"team_id", teamID,
@@ -46,7 +51,7 @@ func (s *Server) handleGetExecutionStatus(w http.ResponseWriter, r *http.Request
 
 		// Check if execution not found or belongs to different user
 		if errors.Is(err, repositories.ErrAgentExecutionNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", agentExecMsgExecutionNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -64,20 +69,20 @@ func (s *Server) handleGetExecutionStatus(w http.ResponseWriter, r *http.Request
 	agent, err := s.container.AgentRepository().GetByID(r.Context(), userID, teamID, execution.AgentID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetExecutionStatus",
 			"execution_id", executionID,
 			"agent_id", execution.AgentID,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
-		).Warn("Execution's agent not found in specified team")
-		writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
+		).Warn(agentExecMsgAgentNotInTeam)
+		writeErrorResponse(w, nil, "not_found", agentExecMsgExecutionNotFound, http.StatusNotFound)
 		return
 	}
 
 	// Log what we're returning
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetExecutionStatus",
 		"execution_id", executionID,
 		"agent_id", agent.ID,
@@ -100,7 +105,7 @@ func (s *Server) handleCancelExecution(w http.ResponseWriter, r *http.Request) {
 	executionID := chi.URLParam(r, "execution_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCancelExecution",
 		"user_id", userID,
 		"team_id", teamID,
@@ -110,7 +115,7 @@ func (s *Server) handleCancelExecution(w http.ResponseWriter, r *http.Request) {
 	execution, err := s.container.AgentExecutionRepository().GetByID(r.Context(), userID, executionID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrAgentExecutionNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", agentExecMsgExecutionNotFound, http.StatusNotFound)
 			return
 		}
 		writeErrorResponse(w, nil, "internal_error", "Failed to retrieve execution", http.StatusInternalServerError)
@@ -121,13 +126,13 @@ func (s *Server) handleCancelExecution(w http.ResponseWriter, r *http.Request) {
 	agent, err := s.container.AgentRepository().GetByID(r.Context(), userID, teamID, execution.AgentID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCancelExecution",
 			"execution_id", executionID,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
-		).Warn("Execution's agent not found in specified team")
-		writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
+		).Warn(agentExecMsgAgentNotInTeam)
+		writeErrorResponse(w, nil, "not_found", agentExecMsgExecutionNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -142,7 +147,7 @@ func (s *Server) handleCancelExecution(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCancelExecution",
 			"execution_id", executionID,
 			"error", fmt.Sprintf("%+v", err),
@@ -171,7 +176,7 @@ func (s *Server) handleCursorBasedPolling(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetExecutionEvents",
 		"execution_id", executionID,
 		"since", since,
@@ -181,7 +186,7 @@ func (s *Server) handleCursorBasedPolling(
 	events, listErr := s.container.AgentExecutionEventRepository().ListAfterSequence(r.Context(), execution.ID, since)
 	if listErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetExecutionEvents",
 			"execution_id", executionID,
 			"error", fmt.Sprintf("%+v", listErr),
@@ -279,7 +284,7 @@ func (s *Server) handleGetExecutionEvents(w http.ResponseWriter, r *http.Request
 	executionID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetExecutionEvents",
 		"user_id", userID,
 		"team_id", teamID,
@@ -290,7 +295,7 @@ func (s *Server) handleGetExecutionEvents(w http.ResponseWriter, r *http.Request
 	execution, err := s.container.AgentExecutionRepository().GetByID(r.Context(), userID, executionID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetExecutionEvents",
 			"user_id", userID,
 			"team_id", teamID,
@@ -299,7 +304,7 @@ func (s *Server) handleGetExecutionEvents(w http.ResponseWriter, r *http.Request
 		).Error("Failed to get execution")
 
 		if errors.Is(err, repositories.ErrAgentExecutionNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", agentExecMsgExecutionNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -311,14 +316,14 @@ func (s *Server) handleGetExecutionEvents(w http.ResponseWriter, r *http.Request
 	_, err = s.container.AgentRepository().GetByID(r.Context(), userID, teamID, execution.AgentID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetExecutionEvents",
 			"execution_id", executionID,
 			"agent_id", execution.AgentID,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
-		).Warn("Execution's agent not found in specified team")
-		writeErrorResponse(w, nil, "not_found", "Execution not found", http.StatusNotFound)
+		).Warn(agentExecMsgAgentNotInTeam)
+		writeErrorResponse(w, nil, "not_found", agentExecMsgExecutionNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -358,7 +363,7 @@ func (s *Server) handleGetConversationExecutions(w http.ResponseWriter, r *http.
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetConversationExecutions",
 		"user_id", userID,
 		"team_id", teamID,
@@ -377,7 +382,7 @@ func (s *Server) handleGetConversationExecutions(w http.ResponseWriter, r *http.
 	)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetConversationExecutions",
 			"user_id", userID,
 			"team_id", teamID,
@@ -394,7 +399,7 @@ func (s *Server) handleGetConversationExecutions(w http.ResponseWriter, r *http.
 		_, err = s.container.AgentRepository().GetByID(r.Context(), userID, teamID, executions[0].AgentID)
 		if err != nil {
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", serverLogServiceName,
 				"handler", "handleGetConversationExecutions",
 				"conversation_id", conversationID,
 				"agent_id", executions[0].AgentID,
@@ -443,7 +448,7 @@ func (s *Server) handleListAgentConversations(w http.ResponseWriter, r *http.Req
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListAgentConversations",
 		"user_id", userID,
 		"team_id", teamID,
@@ -456,7 +461,7 @@ func (s *Server) handleListAgentConversations(w http.ResponseWriter, r *http.Req
 	_, err := s.container.AgentRepository().GetByID(r.Context(), userID, teamID, agentID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListAgentConversations",
 			"user_id", userID,
 			"team_id", teamID,
@@ -477,7 +482,7 @@ func (s *Server) handleListAgentConversations(w http.ResponseWriter, r *http.Req
 	)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListAgentConversations",
 			"user_id", userID,
 			"team_id", teamID,

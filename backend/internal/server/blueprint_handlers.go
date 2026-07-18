@@ -18,12 +18,21 @@ import (
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
+const (
+	// serverLogServiceName tags blueprint handler log entries.
+
+	blueprintMsgListFailed = "Failed to list blueprints"
+
+	// errNotFoundFragment is matched against service errors to detect
+	// not-found conditions.
+)
+
 func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateBlueprint",
 		"user_id", userID,
 		"team_id", teamID,
@@ -79,12 +88,12 @@ func (s *Server) handleGetBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	// Validate project_id is a valid UUID
 	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid project_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetBlueprint",
 		"user_id", userID,
 		"project_id", decodedProjectID,
@@ -109,7 +118,7 @@ func (s *Server) handleListBlueprints(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListBlueprints",
 		"user_id", userID,
 		"team_id", teamID,
@@ -124,13 +133,13 @@ func (s *Server) handleListBlueprints(w http.ResponseWriter, r *http.Request) {
 	response, listErr := s.container.BlueprintService().ListBlueprints(userID, filters)
 	if listErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListBlueprints",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", listErr),
-		).Error("Failed to list blueprints")
+		).Error(blueprintMsgListFailed)
 
-		writeErrorResponse(w, nil, "internal_error", "Failed to list blueprints", http.StatusInternalServerError)
+		writeErrorResponse(w, nil, "internal_error", blueprintMsgListFailed, http.StatusInternalServerError)
 		return
 	}
 
@@ -151,12 +160,12 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 
 	// Validate project_id is a valid UUID
 	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid project_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListBlueprintsByProject",
 		"user_id", userID,
 		"team_id", teamID,
@@ -171,7 +180,7 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 	response, listErr := s.container.BlueprintService().ListBlueprints(userID, filters)
 	if listErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListBlueprintsByProject",
 			"user_id", userID,
 			"team_id", teamID,
@@ -179,7 +188,7 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 			"error", fmt.Sprintf("%+v", listErr),
 		).Error("Failed to list blueprints by project")
 
-		writeErrorResponse(w, nil, "internal_error", "Failed to list blueprints", http.StatusInternalServerError)
+		writeErrorResponse(w, nil, "internal_error", blueprintMsgListFailed, http.StatusInternalServerError)
 		return
 	}
 
@@ -201,12 +210,12 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	// Validate project_id is a valid UUID
 	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid project_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateBlueprint",
 		"user_id", userID,
 		"project_id", decodedProjectID,
@@ -260,12 +269,12 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	// Validate project_id is a valid UUID
 	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid project_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteBlueprint",
 		"user_id", userID,
 		"project_id", decodedProjectID,
@@ -286,7 +295,7 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 		// unconditional 500 — it has no branching at all.
 		if errors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
-				"service", "vibexp-api", "handler", "handleDeleteBlueprint",
+				"service", serverLogServiceName, "handler", "handleDeleteBlueprint",
 				"user_id", userID, "slug", decodedSlug,
 			).Warn("Forbidden blueprint delete attempt")
 			writeErrorResponse(
@@ -331,7 +340,7 @@ func (s *Server) handleGetBlueprintStats(w http.ResponseWriter, r *http.Request)
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetBlueprintStats",
 		"user_id", userID,
 		"team_id", teamID,
@@ -341,7 +350,7 @@ func (s *Server) handleGetBlueprintStats(w http.ResponseWriter, r *http.Request)
 	stats, err := s.container.BlueprintService().GetBlueprintStats(userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetBlueprintStats",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -553,7 +562,7 @@ func (s *Server) checkBlueprintResourceLimit(w http.ResponseWriter, ctx context.
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, "blueprint")
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "checkBlueprintResourceLimit",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -564,7 +573,7 @@ func (s *Server) checkBlueprintResourceLimit(w http.ResponseWriter, ctx context.
 
 	if !allowed {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "checkBlueprintResourceLimit",
 			"user_id", userID,
 			"resource_type", "blueprint",
@@ -586,7 +595,7 @@ func (s *Server) handleCreateBlueprintError(w http.ResponseWriter, userID string
 	// the strings.Contains chain below, which ErrPermissionDenied's text matches
 	// nowhere — it would otherwise fall through to a 500.
 	if errors.Is(err, services.ErrPermissionDenied) {
-		s.logger.With("service", "vibexp-api", "handler", "handleCreateBlueprint", "user_id", userID).
+		s.logger.With("service", serverLogServiceName, "handler", "handleCreateBlueprint", "user_id", userID).
 			Warn("Forbidden blueprint write attempt")
 		writeErrorResponse(
 			w, nil, "forbidden",
@@ -596,7 +605,7 @@ func (s *Server) handleCreateBlueprintError(w http.ResponseWriter, userID string
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateBlueprint",
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),
@@ -648,7 +657,7 @@ func (s *Server) decodeBlueprintURLParams(w http.ResponseWriter, userID, handler
 // handleGetBlueprintError handles errors from getting a blueprint
 func (s *Server) handleGetBlueprintError(w http.ResponseWriter, userID, projectID, slug string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetBlueprint",
 		"user_id", userID,
 		"project_id", projectID,
@@ -656,7 +665,7 @@ func (s *Server) handleGetBlueprintError(w http.ResponseWriter, userID, projectI
 		"error", fmt.Sprintf("%+v", err),
 	).Error("Failed to get blueprint")
 
-	if strings.Contains(err.Error(), "not found") {
+	if strings.Contains(err.Error(), errNotFoundFragment) {
 		writeErrorResponse(w, nil, "not_found", "Blueprint not found", http.StatusNotFound)
 		return
 	}
@@ -670,14 +679,14 @@ func (s *Server) handleUpdateBlueprintError(w http.ResponseWriter, userID, proje
 	// the strings.Contains chain below, which ErrPermissionDenied's text matches
 	// nowhere — it would otherwise fall through to a 500.
 	if errors.Is(err, services.ErrPermissionDenied) {
-		s.logger.With("service", "vibexp-api", "handler", "handleUpdateBlueprint", "user_id", userID).
+		s.logger.With("service", serverLogServiceName, "handler", "handleUpdateBlueprint", "user_id", userID).
 			Warn("Forbidden blueprint write attempt")
 		writeErrorResponse(w, nil, "forbidden", "You do not have permission to update this blueprint", http.StatusForbidden)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateBlueprint",
 		"user_id", userID,
 		"project_id", projectID,
@@ -685,7 +694,7 @@ func (s *Server) handleUpdateBlueprintError(w http.ResponseWriter, userID, proje
 		"error", fmt.Sprintf("%+v", err),
 	).Error("Failed to update blueprint")
 
-	if strings.Contains(err.Error(), "not found") {
+	if strings.Contains(err.Error(), errNotFoundFragment) {
 		writeErrorResponse(w, nil, "not_found", "Blueprint not found", http.StatusNotFound)
 		return
 	}
@@ -751,7 +760,7 @@ func (s *Server) deleteBlueprintEmbeddings(userID, blueprintID, projectID, slug 
 	err := s.container.EmbeddingService().DeleteEmbeddingsByEntity("blueprint", blueprintID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteBlueprint",
 			"user_id", userID,
 			"spec_library_id", blueprintID,
@@ -765,7 +774,10 @@ func (s *Server) deleteBlueprintEmbeddings(userID, blueprintID, projectID, slug 
 // logBlueprintError logs a blueprint error and writes error response
 func (s *Server) logBlueprintError(w http.ResponseWriter, handler, userID, projectID, slug string,
 	err error, logMsg, errCode, errMsg string, statusCode int) {
-	fields := []any{"service", "vibexp-api", "handler", handler, "user_id", userID, "error", fmt.Sprintf("%+v", err)}
+	fields := []any{
+		"service", serverLogServiceName, "handler", handler,
+		"user_id", userID, "error", fmt.Sprintf("%+v", err),
+	}
 	if projectID != "" {
 		fields = append(fields, "project_id", projectID)
 	}
@@ -807,12 +819,12 @@ func (s *Server) handleListBlueprintVersions(w http.ResponseWriter, r *http.Requ
 	}
 
 	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid project_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListBlueprintVersions",
 		"user_id", userID,
 		"project_id", decodedProjectID,
@@ -845,7 +857,7 @@ func (s *Server) handleGetBlueprintVersion(w http.ResponseWriter, r *http.Reques
 	}
 
 	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid project_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
 		return
 	}
 
@@ -855,7 +867,7 @@ func (s *Server) handleGetBlueprintVersion(w http.ResponseWriter, r *http.Reques
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetBlueprintVersion",
 		"user_id", userID,
 		"project_id", decodedProjectID,
@@ -890,7 +902,7 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 	}
 
 	if !isValidUUID(decodedProjectID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid project_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidProjectIDFormat, http.StatusBadRequest)
 		return
 	}
 
@@ -900,7 +912,7 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleRestoreBlueprintVersion",
 		"user_id", userID,
 		"project_id", decodedProjectID,
@@ -927,7 +939,7 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 // handleBlueprintVersionError maps content-version lookup errors to HTTP responses.
 func (s *Server) handleBlueprintVersionError(w http.ResponseWriter, userID, projectID, slug string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "blueprintVersion",
 		"user_id", userID,
 		"project_id", projectID,
@@ -935,7 +947,7 @@ func (s *Server) handleBlueprintVersionError(w http.ResponseWriter, userID, proj
 		"error", fmt.Sprintf("%+v", err),
 	).Error("Failed to process blueprint version request")
 
-	if strings.Contains(err.Error(), "not found") {
+	if strings.Contains(err.Error(), errNotFoundFragment) {
 		writeErrorResponse(w, nil, "not_found", "Not found", http.StatusNotFound)
 		return
 	}

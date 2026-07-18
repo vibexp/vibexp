@@ -74,7 +74,7 @@ func (s *Server) checkSessionLimitAndRespond(
 	canCreateSession, err := resourceUsageService.CheckResourceLimit(r.Context(), userID, "ai_session")
 	if err != nil {
 		s.logger.With("error", err).Error("Failed to check AI session limit")
-		respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
+		respondWithHookError(w, http.StatusInternalServerError, hookMsgResourceLimitCheckFailed, s.logger)
 		return false
 	}
 
@@ -120,7 +120,7 @@ func (s *Server) checkToolLimitAndRespond(
 	canCreateTool, err := resourceUsageService.CheckResourceLimit(r.Context(), userID, "ai_tool")
 	if err != nil {
 		s.logger.With("error", err).Error("Failed to check AI tool limit")
-		respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
+		respondWithHookError(w, http.StatusInternalServerError, hookMsgResourceLimitCheckFailed, s.logger)
 		return false
 	}
 
@@ -304,7 +304,7 @@ func (s *Server) checkCursorResourceLimits(
 		cursorCount, countErr := cursorIDERepo.CountUniqueSessions(r.Context(), userID)
 		if countErr != nil {
 			s.logger.With("error", countErr).Error("Failed to count Cursor IDE sessions")
-			respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
+			respondWithHookError(w, http.StatusInternalServerError, hookMsgResourceLimitCheckFailed, s.logger)
 			return false
 		}
 

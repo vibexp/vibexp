@@ -11,6 +11,15 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
+const (
+	// serverLogServiceName is the service log-field value for the team
+	// analytics handlers.
+
+	// teamAnalyticsMsgInvalidRange is the validation error returned for an
+	// unsupported ?range= value.
+	teamAnalyticsMsgInvalidRange = "range is invalid"
+)
+
 // dailyTeamCreationCount is the flattened per-day creation count returned to the
 // client for the team analytics page. It mirrors dailyCreationCount but adds a
 // projects series, since projects belong to a team (not a project).
@@ -52,7 +61,7 @@ func (s *Server) validateTeamAnalyticsRequest(
 
 	if err := s.validateTeamAccess(r.Context(), userID, teamID); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", handler,
 			"user_id", userID,
 			"team_id", teamID,
@@ -73,7 +82,7 @@ func (s *Server) handleGetTeamStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetTeamStats",
 		"team_id", teamID,
 	).Info("Get team stats request received")
@@ -81,7 +90,7 @@ func (s *Server) handleGetTeamStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := s.container.TeamService().GetTeamStats(r.Context(), teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetTeamStats",
 			"team_id", teamID,
 			"error", err.Error(),
@@ -109,12 +118,12 @@ func (s *Server) handleGetTeamResourceCreationMetrics(w http.ResponseWriter, r *
 	}
 	rangeDays, ok := resourceAccessRanges[rangeStr]
 	if !ok {
-		writeErrorResponse(w, r, "validation_error", "range is invalid", http.StatusBadRequest)
+		writeErrorResponse(w, r, "validation_error", teamAnalyticsMsgInvalidRange, http.StatusBadRequest)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetTeamResourceCreationMetrics",
 		"team_id", teamID,
 		"range", rangeStr,
@@ -129,7 +138,7 @@ func (s *Server) handleGetTeamResourceCreationMetrics(w http.ResponseWriter, r *
 	counts, err := s.container.TeamService().GetTeamResourceCreationMetrics(r.Context(), teamID, since)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetTeamResourceCreationMetrics",
 			"team_id", teamID,
 			"error", err.Error(),
@@ -184,12 +193,12 @@ func (s *Server) handleGetTeamFeedCreationMetrics(w http.ResponseWriter, r *http
 	}
 	rangeDays, ok := resourceAccessRanges[rangeStr]
 	if !ok {
-		writeErrorResponse(w, r, "validation_error", "range is invalid", http.StatusBadRequest)
+		writeErrorResponse(w, r, "validation_error", teamAnalyticsMsgInvalidRange, http.StatusBadRequest)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetTeamFeedCreationMetrics",
 		"team_id", teamID,
 		"range", rangeStr,
@@ -204,7 +213,7 @@ func (s *Server) handleGetTeamFeedCreationMetrics(w http.ResponseWriter, r *http
 	counts, err := s.container.TeamService().GetTeamFeedCreationMetrics(r.Context(), teamID, since)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetTeamFeedCreationMetrics",
 			"team_id", teamID,
 			"error", err.Error(),
@@ -240,12 +249,12 @@ func (s *Server) handleGetTeamResourceAccessMetrics(w http.ResponseWriter, r *ht
 	}
 	rangeDays, ok := resourceAccessRanges[rangeStr]
 	if !ok {
-		writeErrorResponse(w, r, "validation_error", "range is invalid", http.StatusBadRequest)
+		writeErrorResponse(w, r, "validation_error", teamAnalyticsMsgInvalidRange, http.StatusBadRequest)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetTeamResourceAccessMetrics",
 		"team_id", teamID,
 		"range", rangeStr,
@@ -254,7 +263,7 @@ func (s *Server) handleGetTeamResourceAccessMetrics(w http.ResponseWriter, r *ht
 	result, err := s.container.ResourceAccessService().GetTeamMetrics(r.Context(), teamID, rangeDays)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetTeamResourceAccessMetrics",
 			"team_id", teamID,
 			"error", err.Error(),
@@ -391,7 +400,7 @@ func (s *Server) handleGetTeamTopAccessedResources(w http.ResponseWriter, r *htt
 	}
 	rangeDays, ok := resourceAccessRanges[rangeStr]
 	if !ok {
-		writeErrorResponse(w, r, "validation_error", "range is invalid", http.StatusBadRequest)
+		writeErrorResponse(w, r, "validation_error", teamAnalyticsMsgInvalidRange, http.StatusBadRequest)
 		return
 	}
 
@@ -408,7 +417,7 @@ func (s *Server) handleGetTeamTopAccessedResources(w http.ResponseWriter, r *htt
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetTeamTopAccessedResources",
 		"team_id", teamID,
 		"range", rangeStr,
@@ -420,7 +429,7 @@ func (s *Server) handleGetTeamTopAccessedResources(w http.ResponseWriter, r *htt
 		GetTopAccessedResources(r.Context(), teamID, rangeDays, source, limit)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetTeamTopAccessedResources",
 			"team_id", teamID,
 			"error", err.Error(),

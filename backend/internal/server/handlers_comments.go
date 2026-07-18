@@ -16,6 +16,10 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 )
 
+// commentsMsgInternalError is the generic problem detail for unexpected
+// comment-service failures.
+const commentsMsgInternalError = "Internal server error"
+
 // commentsStrictServer implements commentsgen.StrictServerInterface (epic #272):
 // the resource-comments CRUD + recent-activity operations are served through
 // oapi-codegen strict-server bindings generated from openapi.yaml, so a
@@ -184,7 +188,7 @@ func (c *commentsStrictServer) commentError(
 		"team_id", teamID,
 		"error", err.Error(),
 	).Error("Comment operation failed")
-	return apierrors.NewInternalError("Internal server error")
+	return apierrors.NewInternalError(commentsMsgInternalError)
 }
 
 func (c *commentsStrictServer) commentConversionError(handler, teamID string, err error) *apierrors.APIError {
@@ -193,7 +197,7 @@ func (c *commentsStrictServer) commentConversionError(handler, teamID string, er
 		"team_id", teamID,
 		"error", err.Error(),
 	).Error("Failed to convert comment to spec type")
-	return apierrors.NewInternalError("Internal server error")
+	return apierrors.NewInternalError(commentsMsgInternalError)
 }
 
 // mapCommentServiceError translates the CommentService's errors (a mix of
@@ -350,5 +354,5 @@ func (s *Server) commentsResponseErrorHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	s.logger.With("error", err).Error("Comments strict handler failed")
-	apierrors.WriteJSONError(w, r, apierrors.NewInternalError("Internal server error"))
+	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(commentsMsgInternalError))
 }

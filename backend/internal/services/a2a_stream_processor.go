@@ -93,7 +93,7 @@ func (p *A2AStreamProcessor) storeEventInDB(
 	data, err := eventToMap(event)
 	if err != nil {
 		p.logger.With(
-			"service", "vibexp-api", "method", "ProcessStream",
+			"service", logServiceVibeXPAPI, "method", "ProcessStream",
 			"execution_id", executionID, "sequence_number", sequenceNumber,
 			"event_type", eventType, "error", fmt.Sprintf("%+v", err),
 		).Error("Failed to serialize event")
@@ -111,7 +111,7 @@ func (p *A2AStreamProcessor) storeEventInDB(
 
 	if err := p.eventRepo.Create(ctx, eventModel); err != nil {
 		p.logger.With(
-			"service", "vibexp-api", "method", "ProcessStream",
+			"service", logServiceVibeXPAPI, "method", "ProcessStream",
 			"execution_id", executionID, "sequence_number", sequenceNumber,
 			"event_type", eventType, "error", fmt.Sprintf("%+v", err),
 		).Error("Failed to store event")
@@ -131,7 +131,7 @@ func (p *A2AStreamProcessor) ProcessStream(
 	haveFinal := false
 
 	p.logger.With(
-		"service", "vibexp-api", "method", "ProcessStream", "execution_id", executionID,
+		"service", logServiceVibeXPAPI, "method", "ProcessStream", "execution_id", executionID,
 	).Info("Starting stream processing")
 
 	for event := range eventChan {
@@ -178,7 +178,7 @@ func (p *A2AStreamProcessor) ProcessStream(
 	p.finalizeExecution(executionID, artifacts, finalState, haveFinal)
 
 	p.logger.With(
-		"service", "vibexp-api", "method", "ProcessStream",
+		"service", logServiceVibeXPAPI, "method", "ProcessStream",
 		"execution_id", executionID, "total_events", sequenceNumber,
 	).Info("Stream processing completed")
 
@@ -191,7 +191,7 @@ func (p *A2AStreamProcessor) handleTaskEvent(ctx context.Context, executionID st
 		ctx, executionID, string(task.ID), task.ContextID, string(task.Status.State),
 	); err != nil {
 		p.logger.With(
-			"service", "vibexp-api", "method", "handleTaskEvent",
+			"service", logServiceVibeXPAPI, "method", "handleTaskEvent",
 			"execution_id", executionID, "error", fmt.Sprintf("%+v", err),
 		).Error("Failed to update task info")
 	}
@@ -205,7 +205,7 @@ func (p *A2AStreamProcessor) handleStatusUpdate(
 		ctx, executionID, string(event.TaskID), event.ContextID, string(event.Status.State),
 	); err != nil {
 		p.logger.With(
-			"service", "vibexp-api", "method", "handleStatusUpdate",
+			"service", logServiceVibeXPAPI, "method", "handleStatusUpdate",
 			"execution_id", executionID, "error", fmt.Sprintf("%+v", err),
 		).Error("Failed to update status")
 	}
@@ -269,7 +269,7 @@ func (p *A2AStreamProcessor) saveArtifacts(
 
 	if err := p.executionRepo.UpdateArtifacts(ctx, executionID, arr); err != nil {
 		p.logger.With(
-			"service", "vibexp-api", "method", "saveArtifacts",
+			"service", logServiceVibeXPAPI, "method", "saveArtifacts",
 			"execution_id", executionID, "error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to save artifacts")
 	}
@@ -309,14 +309,14 @@ func (p *A2AStreamProcessor) finalizeExecution(
 
 	if err := p.executionRepo.UpdateStatus(bgCtx, executionID, status); err != nil {
 		p.logger.With(
-			"service", "vibexp-api", "method", "finalizeExecution",
+			"service", logServiceVibeXPAPI, "method", "finalizeExecution",
 			"execution_id", executionID, "error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to finalize execution (may already be finalized)")
 		return
 	}
 
 	p.logger.With(
-		"service", "vibexp-api", "method", "finalizeExecution",
+		"service", logServiceVibeXPAPI, "method", "finalizeExecution",
 		"execution_id", executionID, "final_status", status,
 	).Info("Execution finalized after stream completion")
 }

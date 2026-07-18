@@ -13,6 +13,12 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
+// Structured-logging field values shared across the event-system providers.
+const (
+	logServiceName           = "vibexp-api"
+	logComponentEventManager = "event-manager"
+)
+
 // EventSystemDeps holds the event system dependencies.
 type EventSystemDeps struct {
 	EventManager *events.EventManager
@@ -42,8 +48,8 @@ func ProvideEventManager(
 	metricsRecorder *metrics.Metrics,
 ) *events.EventManager {
 	logger.With(
-		"service", "vibexp-api",
-		"component", "event-manager",
+		"service", logServiceName,
+		"component", logComponentEventManager,
 		"worker_count", cfg.EventBus.WorkerCount,
 		"buffer_size", cfg.EventBus.BufferSize,
 		"max_retries", cfg.EventBus.MaxRetries,
@@ -61,8 +67,8 @@ func ProvideEventManager(
 	if err := eventManager.Start(); err != nil {
 		logger.Error(
 			"Failed to start event manager",
-			"service", "vibexp-api",
-			"component", "event-manager",
+			"service", logServiceName,
+			"component", logComponentEventManager,
 			"error", fmt.Sprintf("%+v", err),
 		)
 		os.Exit(1)
@@ -135,15 +141,15 @@ func registerTeamCreationListener(
 	if err := eventManager.Subscribe(listener); err != nil {
 		logger.Error(
 			"Failed to subscribe team creation listener",
-			"service", "vibexp-api",
-			"component", "event-manager",
+			"service", logServiceName,
+			"component", logComponentEventManager,
 			"error", fmt.Sprintf("%+v", err),
 		)
 		return
 	}
 
 	logger.With(
-		"service", "vibexp-api",
+		"service", logServiceName,
 		"component", "team-creation-listener",
 		"event_types", listener.EventTypes(),
 	).Info("Team creation listener registered successfully")
@@ -155,8 +161,8 @@ func registerUserCreatedListener(eventManager *events.EventManager, logger *slog
 	if err := eventManager.Subscribe(userCreatedListener); err != nil {
 		logger.Error(
 			"Failed to subscribe user.created listener",
-			"service", "vibexp-api",
-			"component", "event-manager",
+			"service", logServiceName,
+			"component", logComponentEventManager,
 			"error", fmt.Sprintf("%+v", err),
 		)
 	}
@@ -182,7 +188,7 @@ func registerNotificationEventListener(
 	if err := eventManager.Subscribe(listener); err != nil {
 		logger.Error(
 			"Failed to subscribe notification event listener",
-			"service", "vibexp-api",
+			"service", logServiceName,
 			"component", "notification-event-listener",
 			"error", fmt.Sprintf("%+v", err),
 		)
@@ -190,7 +196,7 @@ func registerNotificationEventListener(
 	}
 
 	logger.With(
-		"service", "vibexp-api",
+		"service", logServiceName,
 		"component", "notification-event-listener",
 		"event_types", listener.EventTypes(),
 	).Info("Notification event listener registered successfully")
@@ -208,7 +214,7 @@ func registerEmbeddingWorker(
 	if err := eventManager.Subscribe(worker); err != nil {
 		logger.Error(
 			"Failed to subscribe embedding worker",
-			"service", "vibexp-api",
+			"service", logServiceName,
 			"component", "embedding-worker",
 			"error", fmt.Sprintf("%+v", err),
 		)
@@ -216,7 +222,7 @@ func registerEmbeddingWorker(
 	}
 
 	logger.With(
-		"service", "vibexp-api",
+		"service", logServiceName,
 		"component", "embedding-worker",
 		"event_types", worker.EventTypes(),
 	).Info("Embedding worker registered successfully")

@@ -20,6 +20,10 @@ const (
 	cardStalenessThreshold = 24 * time.Hour
 	// cardRefreshTimeout bounds a single background staleness refresh.
 	cardRefreshTimeout = 30 * time.Second
+	// logServiceAgent is the "service" structured-log field value for this service.
+	logServiceAgent = "agent-service"
+	// agentMsgEncryptionFailed is the log message for credential encryption failures.
+	agentMsgEncryptionFailed = "Failed to encrypt credentials"
 )
 
 type AgentService struct {
@@ -163,7 +167,7 @@ func (s *AgentService) cardFetchAuthHeaders(agent *models.Agent) map[string]stri
 	headers, err := s.authenticator.AuthHeaders(agent)
 	if err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "cardFetchAuthHeaders",
 			"agent_id", agent.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -193,7 +197,7 @@ func (s *AgentService) CreateAgent(
 	agentCard, err := s.cardFetcher.FetchAgentCard(ctx, req.CardURL, nil)
 	if err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "CreateAgent",
 			"user_id", userID,
 			"card_url", req.CardURL,
@@ -210,18 +214,18 @@ func (s *AgentService) CreateAgent(
 	if len(req.Credentials) > 0 {
 		if err := s.encryptCredentials(agent, req.Credentials); err != nil {
 			s.logger.With(
-				"service", "agent-service",
+				"service", logServiceAgent,
 				"method", "CreateAgent",
 				"user_id", userID,
 				"error", fmt.Sprintf("%+v", err),
-			).Error("Failed to encrypt credentials")
+			).Error(agentMsgEncryptionFailed)
 			return nil, fmt.Errorf("failed to encrypt credentials: %w", err)
 		}
 	}
 
 	if err := s.agentRepo.Create(ctx, agent); err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "CreateAgent",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -230,7 +234,7 @@ func (s *AgentService) CreateAgent(
 	}
 
 	s.logger.With(
-		"service", "agent-service",
+		"service", logServiceAgent,
 		"method", "CreateAgent",
 		"user_id", userID,
 		"agent_id", agent.ID,
@@ -251,7 +255,7 @@ func (s *AgentService) GetAgentByID(ctx context.Context, userID, teamID, agentID
 	agent, err := s.agentRepo.GetByID(ctx, userID, teamID, agentID)
 	if err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "GetAgentByID",
 			"user_id", userID,
 			"team_id", teamID,
@@ -309,7 +313,7 @@ func (s *AgentService) refreshCardInBackground(agent *models.Agent) {
 	agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *agent.CardURL, s.cardFetchAuthHeaders(agent))
 	if err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "refreshCardInBackground",
 			"agent_id", agent.ID,
 			"card_url", *agent.CardURL,
@@ -324,7 +328,7 @@ func (s *AgentService) refreshCardInBackground(agent *models.Agent) {
 
 	if err := s.agentRepo.Update(ctx, agent); err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "refreshCardInBackground",
 			"agent_id", agent.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -333,7 +337,7 @@ func (s *AgentService) refreshCardInBackground(agent *models.Agent) {
 	}
 
 	s.logger.With(
-		"service", "agent-service",
+		"service", logServiceAgent,
 		"method", "refreshCardInBackground",
 		"agent_id", agent.ID,
 		"card_url", *agent.CardURL,
@@ -363,7 +367,7 @@ func (s *AgentService) ListAgents(
 	agents, totalCount, err := s.agentRepo.List(ctx, userID, repoFilters)
 	if err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "ListAgents",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -411,7 +415,7 @@ func (s *AgentService) UpdateAgent(
 		agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *req.CardURL, s.cardFetchAuthHeaders(agent))
 		if err != nil {
 			s.logger.With(
-				"service", "agent-service",
+				"service", logServiceAgent,
 				"method", "UpdateAgent",
 				"user_id", userID,
 				"agent_id", agentID,
@@ -449,19 +453,19 @@ func (s *AgentService) UpdateAgent(
 	if len(req.Credentials) > 0 {
 		if err := s.encryptCredentials(agent, req.Credentials); err != nil {
 			s.logger.With(
-				"service", "agent-service",
+				"service", logServiceAgent,
 				"method", "UpdateAgent",
 				"user_id", userID,
 				"agent_id", agentID,
 				"error", fmt.Sprintf("%+v", err),
-			).Error("Failed to encrypt credentials")
+			).Error(agentMsgEncryptionFailed)
 			return nil, fmt.Errorf("failed to encrypt credentials: %w", err)
 		}
 	}
 
 	if err := s.agentRepo.Update(ctx, agent); err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "UpdateAgent",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -471,7 +475,7 @@ func (s *AgentService) UpdateAgent(
 	}
 
 	s.logger.With(
-		"service", "agent-service",
+		"service", logServiceAgent,
 		"method", "UpdateAgent",
 		"user_id", userID,
 		"agent_id", agentID,
@@ -499,7 +503,7 @@ func (s *AgentService) DeleteAgent(ctx context.Context, userID, teamID, agentID 
 
 	if err := s.agentRepo.Delete(ctx, userID, teamID, agentID); err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "DeleteAgent",
 			"user_id", userID,
 			"team_id", teamID,
@@ -510,7 +514,7 @@ func (s *AgentService) DeleteAgent(ctx context.Context, userID, teamID, agentID 
 	}
 
 	s.logger.With(
-		"service", "agent-service",
+		"service", logServiceAgent,
 		"method", "DeleteAgent",
 		"user_id", userID,
 		"team_id", teamID,
@@ -524,7 +528,7 @@ func (s *AgentService) GetAgentStats(ctx context.Context, userID, teamID string)
 	stats, err := s.agentRepo.GetStats(ctx, userID, teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "GetAgentStats",
 			"user_id", userID,
 			"team_id", teamID,
@@ -558,7 +562,7 @@ func (s *AgentService) StartExecution(
 
 	if err := s.executionRepo.Create(ctx, execution); err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "StartExecution",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -568,7 +572,7 @@ func (s *AgentService) StartExecution(
 	}
 
 	s.logger.With(
-		"service", "agent-service",
+		"service", logServiceAgent,
 		"method", "StartExecution",
 		"user_id", userID,
 		"agent_id", agentID,
@@ -602,7 +606,7 @@ func (s *AgentService) CompleteExecution(
 
 	if err := s.executionRepo.Update(ctx, execution); err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "CompleteExecution",
 			"user_id", userID,
 			"execution_id", executionID,
@@ -621,7 +625,7 @@ func (s *AgentService) CompleteExecution(
 
 		if err := s.agentRepo.UpdateExecutionStats(ctx, execution.AgentID, success, duration); err != nil {
 			s.logger.With(
-				"service", "agent-service",
+				"service", logServiceAgent,
 				"method", "CompleteExecution",
 				"user_id", userID,
 				"agent_id", execution.AgentID,
@@ -632,7 +636,7 @@ func (s *AgentService) CompleteExecution(
 	}
 
 	s.logger.With(
-		"service", "agent-service",
+		"service", logServiceAgent,
 		"method", "CompleteExecution",
 		"user_id", userID,
 		"execution_id", executionID,
@@ -646,7 +650,7 @@ func (s *AgentService) GetExecution(ctx context.Context, userID, executionID str
 	execution, err := s.executionRepo.GetByID(ctx, userID, executionID)
 	if err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "GetExecution",
 			"user_id", userID,
 			"execution_id", executionID,
@@ -680,7 +684,7 @@ func (s *AgentService) ListExecutions(
 	executions, totalCount, err := s.executionRepo.List(ctx, userID, repoFilters)
 	if err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "ListExecutions",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -721,7 +725,7 @@ func (s *AgentService) UpdateAgentCredentials(
 	agent, err := s.agentRepo.GetByID(ctx, userID, teamID, agentID)
 	if err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "UpdateAgentCredentials",
 			"user_id", userID,
 			"team_id", teamID,
@@ -741,20 +745,20 @@ func (s *AgentService) UpdateAgentCredentials(
 	// Encrypt and update credentials
 	if err := s.encryptCredentials(agent, req.Credentials); err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "UpdateAgentCredentials",
 			"user_id", userID,
 			"team_id", teamID,
 			"agent_id", agentID,
 			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to encrypt credentials")
+		).Error(agentMsgEncryptionFailed)
 		return fmt.Errorf("failed to encrypt credentials: %w", err)
 	}
 
 	// Update agent in database
 	if err := s.agentRepo.Update(ctx, agent); err != nil {
 		s.logger.With(
-			"service", "agent-service",
+			"service", logServiceAgent,
 			"method", "UpdateAgentCredentials",
 			"user_id", userID,
 			"team_id", teamID,
@@ -765,7 +769,7 @@ func (s *AgentService) UpdateAgentCredentials(
 	}
 
 	s.logger.With(
-		"service", "agent-service",
+		"service", logServiceAgent,
 		"method", "UpdateAgentCredentials",
 		"user_id", userID,
 		"agent_id", agentID,

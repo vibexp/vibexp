@@ -28,7 +28,7 @@ func (s *Server) handleGetMigrationInventory(w http.ResponseWriter, r *http.Requ
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetMigrationInventory",
 		"user_id", userID,
 		"team_id", teamID,
@@ -58,7 +58,7 @@ func (s *Server) handleMigrateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleMigrateProject",
 		"user_id", userID,
 		"team_id", teamID,
@@ -145,7 +145,7 @@ func (s *Server) handleMigrationError(
 	w http.ResponseWriter, handler, userID, projectID string, err error,
 ) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"project_id", projectID,

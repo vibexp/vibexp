@@ -12,6 +12,16 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
+// feedsTable is the aliased FROM target shared by the feed list queries.
+const feedsTable = "feeds f"
+
+// feedListColumns is the 7-column projection shared by the feed list queries
+// (queryList's SELECT and queryListWithLastPost's SELECT and GROUP BY).
+var feedListColumns = []string{
+	"f.id", "f.team_id", "f.name", "f.description",
+	"f.created_by_user_id", "f.created_at", "f.updated_at",
+}
+
 // FeedRepository implements repositories.FeedRepository for PostgreSQL
 type FeedRepository struct {
 	db *database.DB
@@ -125,7 +135,7 @@ func (r *FeedRepository) List(
 func (r *FeedRepository) countList(ctx context.Context, where squirrel.Sqlizer) (int, error) {
 	query, args, err := psql.
 		Select("COUNT(*)").
-		From("feeds f").
+		From(feedsTable).
 		Where(where).
 		ToSql()
 	if err != nil {
@@ -166,11 +176,8 @@ func (r *FeedRepository) queryList(
 	limit, offset := feedLimitOffset(filters.Page, filters.Limit)
 
 	query, args, err := psql.
-		Select(
-			"f.id", "f.team_id", "f.name", "f.description",
-			"f.created_by_user_id", "f.created_at", "f.updated_at",
-		).
-		From("feeds f").
+		Select(feedListColumns...).
+		From(feedsTable).
 		Where(where).
 		OrderBy("f.created_at DESC").
 		Limit(limit).
@@ -232,18 +239,12 @@ func (r *FeedRepository) queryListWithLastPost(
 	limit, offset := feedLimitOffset(filters.Page, filters.Limit)
 
 	query, args, err := psql.
-		Select(
-			"f.id", "f.team_id", "f.name", "f.description",
-			"f.created_by_user_id", "f.created_at", "f.updated_at",
-			"MAX(fi.posted_at) AS last_post_at",
-		).
-		From("feeds f").
+		Select(feedListColumns...).
+		Column("MAX(fi.posted_at) AS last_post_at").
+		From(feedsTable).
 		LeftJoin("feed_items fi ON fi.feed_id = f.id AND fi.archived_at IS NULL").
 		Where(where).
-		GroupBy(
-			"f.id", "f.team_id", "f.name", "f.description",
-			"f.created_by_user_id", "f.created_at", "f.updated_at",
-		).
+		GroupBy(feedListColumns...).
 		OrderBy("f.created_at DESC").
 		Limit(limit).
 		Offset(offset).

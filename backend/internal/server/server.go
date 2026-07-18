@@ -37,6 +37,31 @@ import (
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
 )
 
+// serverLogServiceName is the value of the "service" attribute attached to
+// structured log records emitted by the server and its HTTP handlers.
+const serverLogServiceName = "vibexp-api"
+
+// Handler strings shared by several resource handlers in this package
+// (deduplicated for SonarCloud go:S1192, issue #306 Phase 2).
+const (
+	errNotFoundFragment          = "not found"
+	msgInvalidRequestBody        = "Invalid request body"
+	msgDecodeRequestBodyFailed   = "Failed to decode request body"
+	msgInvalidProjectIDFormat    = "Invalid project_id format"
+	msgProviderIDRequired        = "Provider ID is required"
+	msgProviderIDRequiredInPath  = "Provider ID is required in the URL path"
+	msgInvalidBodyWellFormedJSON = "Invalid request body. Please ensure the JSON is well-formed."
+)
+
+// Chi route patterns shared by several resource routers below.
+const (
+	routePatternSlug        = "/{slug}"
+	routePatternSlugShare   = "/{slug}/share"
+	routePatternStats       = "/stats"
+	routePatternProjectSlug = "/{project_id}/{slug}"
+	routePatternFeedID      = "/{feed_id}"
+)
+
 // HTTP server timeouts harden the service against slow-client resource exhaustion
 // (Slowloris and slow-body attacks). They are fixed constants rather than config
 // because the values are operational invariants tuned to the Cloud Run request
@@ -145,14 +170,14 @@ func initializeMetrics(cfg *config.Config, logger *slog.Logger) *metrics.Metrics
 	)
 	if err != nil {
 		logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to initialize metrics, continuing without metrics")
 		return nil
 	}
 
 	logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"version", serviceVersion,
 		"otel_endpoint", cfg.OTel.Endpoint,
 		"export_interval", cfg.OTel.ExportInterval.String(),
@@ -258,7 +283,7 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 	c, err := container.InitializeContainer(db, cfg, logger)
 	if err != nil {
 		logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to initialize container")
 		os.Exit(1)
@@ -274,7 +299,7 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 		sessMgr, err = session.NewManager(cfg.Auth.SessionEncryptionKey, isLocal)
 		if err != nil {
 			logger.With(
-				"service", "vibexp-api",
+				"service", serverLogServiceName,
 				"error", fmt.Sprintf("%+v", err),
 			).Error("Failed to initialize session manager")
 			os.Exit(1)
@@ -393,7 +418,7 @@ func newAPITokenVerifier(cfg *config.Config, c container.Container, logger *slog
 	)
 	if err != nil {
 		logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to initialize API OAuth token verifier")
 		os.Exit(1)
@@ -719,9 +744,9 @@ func (s *Server) setupPromptsRoutes(r chi.Router) {
 		r.Post("/", s.handleCreatePrompt)
 		r.Get("/", s.handleListPrompts)
 		r.Get("/labels", s.handleGetPromptLabels)
-		r.With(s.recordResourceAccess(resourceTypePrompt)).Get("/{slug}", s.handleGetPrompt)
-		r.Put("/{slug}", s.handleUpdatePrompt)
-		r.Delete("/{slug}", s.handleDeletePrompt)
+		r.With(s.recordResourceAccess(resourceTypePrompt)).Get(routePatternSlug, s.handleGetPrompt)
+		r.Put(routePatternSlug, s.handleUpdatePrompt)
+		r.Delete(routePatternSlug, s.handleDeletePrompt)
 		// Prompt content versions (generic content-versioning core, resource_type=prompt).
 		r.Get("/{slug}/versions", s.handleListPromptVersions)
 		r.Get("/{slug}/versions/{version_number}", s.handleGetPromptVersion)
@@ -729,9 +754,9 @@ func (s *Server) setupPromptsRoutes(r chi.Router) {
 		r.Get("/{slug}/placeholders", s.handleGetPromptPlaceholders)
 		r.Get("/{slug}/dependencies", s.handleGetPromptDependencies)
 		r.Post("/{slug}/render", s.handleRenderPrompt)
-		r.Post("/{slug}/share", s.handleCreatePromptShare)
-		r.Get("/{slug}/share", s.handleGetPromptShare)
-		r.Delete("/{slug}/share", s.handleDeletePromptShare)
+		r.Post(routePatternSlugShare, s.handleCreatePromptShare)
+		r.Get(routePatternSlugShare, s.handleGetPromptShare)
+		r.Delete(routePatternSlugShare, s.handleDeletePromptShare)
 	})
 
 	// Public endpoint for shared prompts (optional auth)
@@ -763,11 +788,11 @@ func (s *Server) setupArtifactsRoutes(r chi.Router) {
 		r.Use(s.artifactTeamValidationMiddleware()) // Validate team_id from URL and team access
 		r.Post("/", s.handleCreateArtifact)
 		r.Get("/", s.handleListArtifacts)
-		r.Get("/stats", s.handleGetArtifactStats)
+		r.Get(routePatternStats, s.handleGetArtifactStats)
 		r.Get("/{project_id}", s.handleListArtifactsByProject)
-		r.With(s.recordResourceAccess(resourceTypeArtifact)).Get("/{project_id}/{slug}", s.handleGetArtifact)
-		r.Put("/{project_id}/{slug}", s.handleUpdateArtifact)
-		r.Delete("/{project_id}/{slug}", s.handleDeleteArtifact)
+		r.With(s.recordResourceAccess(resourceTypeArtifact)).Get(routePatternProjectSlug, s.handleGetArtifact)
+		r.Put(routePatternProjectSlug, s.handleUpdateArtifact)
+		r.Delete(routePatternProjectSlug, s.handleDeleteArtifact)
 		// Artifact file attachments — DEPRECATED aliases of the universal
 		// /api/v1/{team_id}/attachments endpoint (see setupAttachmentsRoutes).
 		// Kept for one release so the frontend can cut over safely; remove once no
@@ -855,11 +880,11 @@ func (s *Server) setupBlueprintRoutes(r chi.Router) {
 		r.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
 		r.Post("/", s.handleCreateBlueprint)
 		r.Get("/", s.handleListBlueprints)
-		r.Get("/stats", s.handleGetBlueprintStats)
+		r.Get(routePatternStats, s.handleGetBlueprintStats)
 		r.Get("/{project_id}", s.handleListBlueprintsByProject)
-		r.With(s.recordResourceAccess(resourceTypeBlueprint)).Get("/{project_id}/{slug}", s.handleGetBlueprint)
-		r.Put("/{project_id}/{slug}", s.handleUpdateBlueprint)
-		r.Delete("/{project_id}/{slug}", s.handleDeleteBlueprint)
+		r.With(s.recordResourceAccess(resourceTypeBlueprint)).Get(routePatternProjectSlug, s.handleGetBlueprint)
+		r.Put(routePatternProjectSlug, s.handleUpdateBlueprint)
+		r.Delete(routePatternProjectSlug, s.handleDeleteBlueprint)
 		// Blueprint content versions
 		r.Get("/{project_id}/{slug}/versions", s.handleListBlueprintVersions)
 		r.Get("/{project_id}/{slug}/versions/{version_number}", s.handleGetBlueprintVersion)
@@ -874,9 +899,9 @@ func (s *Server) setupFeedsRoutes(r chi.Router) {
 		r.Use(s.teamValidationMiddleware())
 		r.Post("/", s.handleCreateFeed)
 		r.Get("/", s.handleListFeeds)
-		r.Get("/{feed_id}", s.handleGetFeed)
-		r.Put("/{feed_id}", s.handleUpdateFeed)
-		r.Delete("/{feed_id}", s.handleDeleteFeed)
+		r.Get(routePatternFeedID, s.handleGetFeed)
+		r.Put(routePatternFeedID, s.handleUpdateFeed)
+		r.Delete(routePatternFeedID, s.handleDeleteFeed)
 
 		// Items nested under a specific feed
 		r.Post("/{feed_id}/items", s.handleCreateFeedItem)
@@ -928,7 +953,7 @@ func (s *Server) setupDeviceTokensRoutes(r chi.Router) {
 func (s *Server) setupActivitiesRoutes(r chi.Router) {
 	r.Route("/api/v1/activities", func(r chi.Router) {
 		r.Get("/", s.handleActivitiesGet)
-		r.Get("/stats", s.handleActivitiesStatsGet)
+		r.Get(routePatternStats, s.handleActivitiesStatsGet)
 		r.Get("/types", s.handleActivitiesTypesGet)
 		r.Get("/entity-types", s.handleActivitiesEntityTypesGet)
 		r.Get("/{id}", s.handleActivityGet)
@@ -942,7 +967,7 @@ func (s *Server) setupAgentsRoutes(r chi.Router) {
 		r.Post("/", s.handleCreateAgent)
 		r.Post("/preview-card", s.handlePreviewAgentCard)
 		r.Get("/", s.handleListAgents)
-		r.Get("/stats", s.handleGetAgentStats)
+		r.Get(routePatternStats, s.handleGetAgentStats)
 		r.With(s.recordResourceAccess(resourceTypeAgent)).Get("/{id}", s.handleGetAgent)
 		r.Put("/{id}", s.handleUpdateAgent)
 		r.Put("/{id}/credentials", s.handleUpdateAgentCredentials)
@@ -1008,9 +1033,9 @@ func (s *Server) setupProjectsRoutes(r chi.Router) {
 		r.Get("/", s.handleListProjects)
 		r.Get("/{slug}/stats", s.handleGetProjectStats)
 		r.Get("/{slug}/resource-creation-metrics", s.handleGetProjectResourceCreationMetrics)
-		r.With(s.recordResourceAccess(resourceTypeProject)).Get("/{slug}", s.handleGetProject)
-		r.Put("/{slug}", s.handleUpdateProject)
-		r.Delete("/{slug}", s.handleDeleteProject)
+		r.With(s.recordResourceAccess(resourceTypeProject)).Get(routePatternSlug, s.handleGetProject)
+		r.Put(routePatternSlug, s.handleUpdateProject)
+		r.Delete(routePatternSlug, s.handleDeleteProject)
 
 		// Project migration endpoints.
 		r.Get("/{project_id}/migration/inventory", s.handleGetMigrationInventory)

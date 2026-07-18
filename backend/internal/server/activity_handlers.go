@@ -17,19 +17,23 @@ import (
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
+const (
+	activityErrUnauthenticated = "User not authenticated"
+)
+
 // handleActivitiesGet handles GET /api/v1/activities
 func (s *Server) handleActivitiesGet(w http.ResponseWriter, r *http.Request) {
 	userID := s.getUserIDFromContext(r)
 	if userID == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleActivitiesGet",
 			"endpoint", "/api/v1/activities",
 			"remote_ip", getClientIP(r),
 			"user_agent", r.UserAgent(),
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to activities list endpoint")
-		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
+		writeErrorResponse(w, r, "unauthorized", activityErrUnauthenticated, http.StatusUnauthorized)
 		return
 	}
 
@@ -119,7 +123,7 @@ func (s *Server) handleActivityGet(w http.ResponseWriter, r *http.Request) {
 	if userID == "" {
 		// Log unauthorized access attempt for security monitoring
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleActivityGet",
 			"endpoint", "/api/v1/activities/{id}",
 			"remote_ip", getClientIP(r),
@@ -127,7 +131,7 @@ func (s *Server) handleActivityGet(w http.ResponseWriter, r *http.Request) {
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to individual activity endpoint")
 
-		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
+		writeErrorResponse(w, r, "unauthorized", activityErrUnauthenticated, http.StatusUnauthorized)
 		return
 	}
 
@@ -161,7 +165,7 @@ func (s *Server) handleActivitiesStatsGet(w http.ResponseWriter, r *http.Request
 	if userID == "" {
 		// Log unauthorized access attempt for security monitoring
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleActivitiesStatsGet",
 			"endpoint", "/api/v1/activities/stats",
 			"remote_ip", getClientIP(r),
@@ -169,7 +173,7 @@ func (s *Server) handleActivitiesStatsGet(w http.ResponseWriter, r *http.Request
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to activity stats endpoint")
 
-		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
+		writeErrorResponse(w, r, "unauthorized", activityErrUnauthenticated, http.StatusUnauthorized)
 		return
 	}
 
@@ -200,7 +204,7 @@ func (s *Server) handleActivitiesTypesGet(w http.ResponseWriter, r *http.Request
 	if userID == "" {
 		// Log unauthorized access attempt for security monitoring
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleActivitiesTypesGet",
 			"endpoint", "/api/v1/activities/types",
 			"remote_ip", getClientIP(r),
@@ -208,7 +212,7 @@ func (s *Server) handleActivitiesTypesGet(w http.ResponseWriter, r *http.Request
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to activity types endpoint")
 
-		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
+		writeErrorResponse(w, r, "unauthorized", activityErrUnauthenticated, http.StatusUnauthorized)
 		return
 	}
 
@@ -228,7 +232,7 @@ func (s *Server) handleActivitiesEntityTypesGet(w http.ResponseWriter, r *http.R
 	if userID == "" {
 		// Log unauthorized access attempt for security monitoring
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleActivitiesEntityTypesGet",
 			"endpoint", "/api/v1/activities/entity-types",
 			"remote_ip", getClientIP(r),
@@ -236,7 +240,7 @@ func (s *Server) handleActivitiesEntityTypesGet(w http.ResponseWriter, r *http.R
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to activity entity types endpoint")
 
-		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
+		writeErrorResponse(w, r, "unauthorized", activityErrUnauthenticated, http.StatusUnauthorized)
 		return
 	}
 
@@ -254,7 +258,7 @@ func (s *Server) handleActivityPost(w http.ResponseWriter, r *http.Request) {
 	userID := s.getUserIDFromContext(r)
 	if userID == "" {
 		s.logUnauthorizedActivityAccess(r, "handleActivityPost")
-		writeErrorResponse(w, r, "unauthorized", "User not authenticated", http.StatusUnauthorized)
+		writeErrorResponse(w, r, "unauthorized", activityErrUnauthenticated, http.StatusUnauthorized)
 		return
 	}
 
@@ -285,7 +289,7 @@ func (s *Server) handleActivityPost(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) logUnauthorizedActivityAccess(r *http.Request, handler string) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"endpoint", "/api/v1/activities",
 		"method", "POST",

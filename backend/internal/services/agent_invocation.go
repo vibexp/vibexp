@@ -101,7 +101,7 @@ func (s *AgentInvocationService) InvokeAgent(
 	if err := s.setupConversationID(ctx, execution, conversationID); err != nil {
 		// Log warning but continue
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "InvokeAgent",
 			"execution_id", execution.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -109,7 +109,7 @@ func (s *AgentInvocationService) InvokeAgent(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "InvokeAgent",
 		"user_id", userID,
 		"agent_id", agentID,
@@ -139,7 +139,7 @@ func (s *AgentInvocationService) getAndValidateAgent(
 	agent, err := s.agentRepo.GetByIDCrossTeam(ctx, userID, agentID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "InvokeAgent",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -150,7 +150,7 @@ func (s *AgentInvocationService) getAndValidateAgent(
 
 	if agent.Status != "active" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "InvokeAgent",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -175,7 +175,7 @@ func (s *AgentInvocationService) getContextIDForConversation(
 	firstExecution, err := s.executionRepo.GetFirstExecutionInConversation(ctx, userID, *conversationID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "InvokeAgent",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -186,7 +186,7 @@ func (s *AgentInvocationService) getContextIDForConversation(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "InvokeAgent",
 		"user_id", userID,
 		"agent_id", agentID,
@@ -222,7 +222,7 @@ func (s *AgentInvocationService) createExecutionRecord(
 	err := s.executionRepo.Create(ctx, execution)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "InvokeAgent",
 			"user_id", userID,
 			"agent_id", agentID,
@@ -346,7 +346,7 @@ func (s *AgentInvocationService) persistSyncReply(
 	if len(result.Artifacts) > 0 {
 		if artErr := s.executionRepo.UpdateArtifacts(ctx, execution.ID, result.Artifacts); artErr != nil {
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", logServiceVibeXPAPI,
 				"method", "invokeAgentSync",
 				"execution_id", execution.ID,
 				"error", fmt.Sprintf("%+v", artErr),
@@ -374,7 +374,7 @@ func (s *AgentInvocationService) persistTaskProgress(
 	}
 	if err := s.executionRepo.UpdateTaskInfo(ctx, execution.ID, taskID, contextID, state); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "pollSyncTask",
 			"execution_id", execution.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -399,7 +399,7 @@ func (s *AgentInvocationService) handleSyncInvocationError(
 
 	if updateErr := s.executionRepo.Update(ctx, execution); updateErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "invokeAgentSync",
 			"execution_id", execution.ID,
 			"error", fmt.Sprintf("%+v", updateErr),
@@ -410,7 +410,7 @@ func (s *AgentInvocationService) handleSyncInvocationError(
 	// Update agent statistics
 	if statsErr := s.agentRepo.UpdateExecutionStats(ctx, agent.ID, false, durationMs); statsErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "invokeAgentSync",
 			"agent_id", agent.ID,
 			"error", fmt.Sprintf("%+v", statsErr),
@@ -418,7 +418,7 @@ func (s *AgentInvocationService) handleSyncInvocationError(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "invokeAgentSync",
 		"execution_id", execution.ID,
 		"error", fmt.Sprintf("%+v", invocationErr),
@@ -455,7 +455,7 @@ func (s *AgentInvocationService) handleSyncInvocationSuccess(
 	err := s.executionRepo.Update(ctx, execution)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "invokeAgentSync",
 			"execution_id", execution.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -469,7 +469,7 @@ func (s *AgentInvocationService) handleSyncInvocationSuccess(
 	success := execution.Status == "success"
 	if err := s.agentRepo.UpdateExecutionStats(ctx, agent.ID, success, *execution.Duration); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "invokeAgentSync",
 			"agent_id", agent.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -477,7 +477,7 @@ func (s *AgentInvocationService) handleSyncInvocationSuccess(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "invokeAgentSync",
 		"execution_id", execution.ID,
 		"status", result.Status,
@@ -541,7 +541,7 @@ func (s *AgentInvocationService) CancelExecution(
 			}
 			// The user asked to stop; log the remote failure but still cancel locally.
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", logServiceVibeXPAPI,
 				"method", "CancelExecution",
 				"execution_id", execution.ID,
 				"task_id", *execution.TaskID,
@@ -574,7 +574,7 @@ func (s *AgentInvocationService) finalizeCancelled(
 	s.emitCancelledEvent(ctx, execution)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "CancelExecution",
 		"execution_id", execution.ID,
 	).Info("Execution cancelled")
@@ -609,7 +609,7 @@ func (s *AgentInvocationService) emitCancelledEvent(ctx context.Context, executi
 	}
 	if createErr := s.eventRepo.Create(ctx, event); createErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "CancelExecution",
 			"execution_id", execution.ID,
 			"error", fmt.Sprintf("%+v", createErr),
@@ -648,7 +648,7 @@ func (s *AgentInvocationService) invokeAgentStreaming(
 
 	// Return execution immediately (don't wait for goroutine)
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "invokeAgentStreaming",
 		"execution_id", execution.ID,
 	).
@@ -670,7 +670,7 @@ func (s *AgentInvocationService) startStreamProcessor(
 	}()
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "invokeAgentStreaming",
 		"execution_id", executionID,
 	).
@@ -679,14 +679,14 @@ func (s *AgentInvocationService) startStreamProcessor(
 	// Process stream events as they arrive
 	if err := s.streamProcessor.ProcessStream(ctx, executionID, eventChan); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "invokeAgentStreaming",
 			"execution_id", executionID,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Stream processing failed")
 	} else {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "invokeAgentStreaming",
 			"execution_id", executionID,
 		).Info("Stream processing completed")
@@ -706,7 +706,7 @@ func (s *AgentInvocationService) startHTTPStreaming(
 	defer s.closeEventChannelSafely(execution.ID, eventChan)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "invokeAgentStreaming",
 		"execution_id", execution.ID,
 		"context_id", contextID,
@@ -721,7 +721,7 @@ func (s *AgentInvocationService) startHTTPStreaming(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "invokeAgentStreaming",
 		"execution_id", execution.ID,
 	).
@@ -732,7 +732,7 @@ func (s *AgentInvocationService) startHTTPStreaming(
 func (s *AgentInvocationService) closeEventChannelSafely(executionID string, eventChan chan<- a2a.Event) {
 	if r := recover(); r != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "invokeAgentStreaming",
 			"execution_id", executionID,
 			"panic", r,
@@ -744,7 +744,7 @@ func (s *AgentInvocationService) closeEventChannelSafely(executionID string, eve
 		if r := recover(); r != nil {
 			// Channel was already closed, which is expected in some cases
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", logServiceVibeXPAPI,
 				"method", "invokeAgentStreaming",
 				"execution_id", executionID,
 			).
@@ -764,7 +764,7 @@ func (s *AgentInvocationService) handleStreamingError(
 	// final (cancelled) status, so do not overwrite it with "error".
 	if errors.Is(err, context.Canceled) {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "invokeAgentStreaming",
 			"execution_id", execution.ID,
 		).Info("Streaming aborted by cancellation")
@@ -772,7 +772,7 @@ func (s *AgentInvocationService) handleStreamingError(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", logServiceVibeXPAPI,
 		"method", "invokeAgentStreaming",
 		"execution_id", execution.ID,
 		"error", fmt.Sprintf("%+v", err),
@@ -789,7 +789,7 @@ func (s *AgentInvocationService) handleStreamingError(
 
 	if updateErr := s.executionRepo.Update(ctx, execution); updateErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", logServiceVibeXPAPI,
 			"method", "invokeAgentStreaming",
 			"execution_id", execution.ID,
 			"error", fmt.Sprintf("%+v", updateErr),

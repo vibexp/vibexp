@@ -12,6 +12,10 @@ import (
 	"github.com/vibexp/vibexp/internal/contextkeys"
 )
 
+// requestCompletedMsg is the access-log message emitted once per request at a
+// level derived from the response status.
+const requestCompletedMsg = "request completed"
+
 // RequestIDMiddleware creates a middleware that assigns each request a stable
 // request ID — honoring an inbound X-Request-ID header when present (so IDs
 // survive request forwarding), otherwise generating a UUID — and stores a
@@ -89,11 +93,11 @@ func structuredRequestLogger(logger *slog.Logger) func(http.Handler) http.Handle
 
 			switch {
 			case status >= 500:
-				entry.Error("request completed")
+				entry.Error(requestCompletedMsg)
 			case status >= 400:
-				entry.Warn("request completed")
+				entry.Warn(requestCompletedMsg)
 			default:
-				entry.Info("request completed")
+				entry.Info(requestCompletedMsg)
 			}
 		})
 	}

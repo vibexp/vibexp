@@ -22,6 +22,10 @@ import (
 // recipients (it looks like spam/phishing).
 const fallbackInviterName = "A teammate"
 
+// logComponentTeamInvitation is the "component" structured-log field value for
+// this service's log lines.
+const logComponentTeamInvitation = "team-invitation-service"
+
 // TeamInvitationService handles business logic for team invitations
 type TeamInvitationService struct {
 	invitationRepo repositories.TeamInvitationRepository
@@ -84,8 +88,8 @@ func (s *TeamInvitationService) InviteMembers(
 	// Prevent invitations to personal workspaces
 	if team.IsPersonal {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-invitation-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
 			"team_id", teamID,
 			"user_id", userID,
 		).Warn("Attempted to invite members to personal workspace")
@@ -117,8 +121,8 @@ func (s *TeamInvitationService) InviteMembers(
 			_, memberErr := s.teamMemberRepo.GetByTeamAndUser(ctx, teamID, user.ID)
 			if memberErr == nil {
 				s.logger.With(
-					"service", "vibexp-api",
-					"component", "team-invitation-service",
+					"service", logServiceVibeXPAPI,
+					"component", logComponentTeamInvitation,
 					"team_id", teamID,
 					"email", email,
 					"user_id", user.ID,
@@ -129,8 +133,8 @@ func (s *TeamInvitationService) InviteMembers(
 		} else if !errors.Is(err, repositories.ErrUserNotFound) {
 			// Database error (not "user not found"), log and skip this email
 			s.logger.With(
-				"service", "vibexp-api",
-				"component", "team-invitation-service",
+				"service", logServiceVibeXPAPI,
+				"component", logComponentTeamInvitation,
 				"team_id", teamID,
 				"email", email,
 				"error", fmt.Sprintf("%+v", err),
@@ -144,8 +148,8 @@ func (s *TeamInvitationService) InviteMembers(
 		if err != nil {
 			// Database error when checking pending invitations
 			s.logger.With(
-				"service", "vibexp-api",
-				"component", "team-invitation-service",
+				"service", logServiceVibeXPAPI,
+				"component", logComponentTeamInvitation,
 				"team_id", teamID,
 				"email", email,
 				"error", fmt.Sprintf("%+v", err),
@@ -158,8 +162,8 @@ func (s *TeamInvitationService) InviteMembers(
 		for _, pending := range pendingInvitations {
 			if pending.TeamID == teamID {
 				s.logger.With(
-					"service", "vibexp-api",
-					"component", "team-invitation-service",
+					"service", logServiceVibeXPAPI,
+					"component", logComponentTeamInvitation,
 					"team_id", teamID,
 					"email", email,
 				).Warn("Pending invitation already exists for this email and team")
@@ -191,8 +195,8 @@ func (s *TeamInvitationService) InviteMembers(
 
 		if err := s.invitationRepo.Create(ctx, invitation); err != nil {
 			s.logger.With(
-				"service", "vibexp-api",
-				"component", "team-invitation-service",
+				"service", logServiceVibeXPAPI,
+				"component", logComponentTeamInvitation,
 				"team_id", teamID,
 				"email", email,
 				"error", fmt.Sprintf("%+v", err),
@@ -203,8 +207,8 @@ func (s *TeamInvitationService) InviteMembers(
 		// Send invitation email
 		if err := s.emailService.SendTeamInvitation(invitation, team.Name, inviterName); err != nil {
 			s.logger.With(
-				"service", "vibexp-api",
-				"component", "team-invitation-service",
+				"service", logServiceVibeXPAPI,
+				"component", logComponentTeamInvitation,
 				"team_id", teamID,
 				"email", email,
 				"error", fmt.Sprintf("%+v", err),
@@ -216,8 +220,8 @@ func (s *TeamInvitationService) InviteMembers(
 		invitations = append(invitations, invitation)
 
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-invitation-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
 			"team_id", teamID,
 			"email", email,
 			"invitation_id", invitation.ID,
@@ -286,8 +290,8 @@ func (s *TeamInvitationService) GetInvitationByToken(
 	inviter, err := s.userRepo.GetByID(ctx, invitation.InviterID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-invitation-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
 			"invitation_id", invitation.ID,
 			"inviter_id", invitation.InviterID,
 			"error", fmt.Sprintf("%+v", err),
@@ -345,8 +349,8 @@ func (s *TeamInvitationService) AcceptInvitation(
 	// Verify the user's email matches the invitation
 	if !strings.EqualFold(user.Email, invitation.InviteeEmail) {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-invitation-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
 			"user_email", user.Email,
 			"invitee_email", invitation.InviteeEmail,
 			"invitation_id", invitation.ID,
@@ -388,8 +392,8 @@ func (s *TeamInvitationService) AcceptInvitation(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-invitation-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamInvitation,
 		"team_id", invitation.TeamID,
 		"user_id", userID,
 		"invitation_id", invitation.ID,
@@ -415,8 +419,8 @@ func (s *TeamInvitationService) RejectInvitation(ctx context.Context, token stri
 	// Verify the user's email matches the invitation
 	if !strings.EqualFold(user.Email, invitation.InviteeEmail) {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-invitation-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
 			"user_email", user.Email,
 			"invitee_email", invitation.InviteeEmail,
 			"invitation_id", invitation.ID,
@@ -435,8 +439,8 @@ func (s *TeamInvitationService) RejectInvitation(ctx context.Context, token stri
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-invitation-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamInvitation,
 		"invitation_id", invitation.ID,
 	).
 		Info("Team invitation rejected")
@@ -467,8 +471,8 @@ func (s *TeamInvitationService) RevokeInvitation(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-invitation-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamInvitation,
 		"team_id", invitation.TeamID,
 		"user_id", userID,
 		"invitation_id", invitationID,
@@ -521,8 +525,8 @@ func (s *TeamInvitationService) resolveInviterDisplayName(ctx context.Context, u
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-invitation-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to resolve inviter display name; using fallback")

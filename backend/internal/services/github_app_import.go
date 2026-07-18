@@ -14,6 +14,9 @@ import (
 
 // Import-related constants.
 const (
+	// logServiceGitHubApp is the "service" structured-log field value shared by the GitHub App import flows.
+	logServiceGitHubApp = "github-app"
+
 	// maxSlugRetries is the number of slug-suffix attempts before giving up on slug collision resolution.
 	maxSlugRetries = 10
 
@@ -147,7 +150,7 @@ func (s *GitHubAppService) createAndPublishProject(
 		}
 		if !wasCreated {
 			s.logger.With(
-				"service", "github-app",
+				"service", logServiceGitHubApp,
 				"team_id", teamID,
 				"project_id", project.ID,
 				"git_url", project.GitURL,
@@ -159,7 +162,7 @@ func (s *GitHubAppService) createAndPublishProject(
 	s.publishProjectCreatedEvent(ctx, project)
 
 	s.logger.With(
-		"service", "github-app",
+		"service", logServiceGitHubApp,
 		"user_id", userID,
 		"team_id", teamID,
 		"repo_id", repoID,
@@ -201,7 +204,7 @@ func (s *GitHubAppService) handleGitURLConstraintViolation(
 	teamID, userID string,
 ) error {
 	s.logger.With(
-		"service", "github-app",
+		"service", logServiceGitHubApp,
 		"team_id", teamID,
 		"git_url", project.GitURL,
 	).
@@ -227,7 +230,7 @@ func (s *GitHubAppService) handleSlugConstraintViolation(
 	repoID int64,
 ) error {
 	s.logger.With(
-		"service", "github-app",
+		"service", logServiceGitHubApp,
 		"team_id", teamID,
 		"original_slug", project.Slug,
 	).
@@ -248,7 +251,7 @@ func (s *GitHubAppService) handleSlugConstraintViolation(
 	}
 
 	s.logger.With(
-		"service", "github-app",
+		"service", logServiceGitHubApp,
 		"user_id", userID,
 		"team_id", teamID,
 		"repo_id", repoID,
@@ -266,7 +269,7 @@ func (s *GitHubAppService) logAndReturnCreateError(
 	err error,
 ) error {
 	s.logger.With(
-		"service", "github-app",
+		"service", logServiceGitHubApp,
 		"user_id", userID,
 		"team_id", teamID,
 		"repo_id", repoID,

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
@@ -17,6 +18,16 @@ import (
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
+)
+
+const (
+	// serverLogServiceName tags team invitation handler log entries.
+
+	invitationMsgDecodeTokenFailed    = "Failed to decode invitation token"
+	invitationMsgInvalidTokenEncoding = "Invalid invitation token encoding"
+
+	// errNotFoundFragment is matched against service errors to detect
+	// not-found conditions.
 )
 
 // parseTeamMemberRole converts string role to TeamMemberRole type
@@ -38,7 +49,7 @@ func (s *Server) validateInvitationRequest(
 	var req models.SendInvitationsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleSendTeamInvitations",
 			"user_id", userID,
 			"team_id", teamID,
@@ -50,7 +61,7 @@ func (s *Server) validateInvitationRequest(
 
 	if err := validator.New().Struct(req); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleSendTeamInvitations",
 			"user_id", userID,
 			"team_id", teamID,
@@ -84,8 +95,8 @@ func convertInvitationsToResponses(invitations []*models.TeamInvitation) []model
 			InviteeEmail: inv.InviteeEmail,
 			Role:         string(inv.Role),
 			Status:       string(inv.Status),
-			ExpiresAt:    inv.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
-			CreatedAt:    inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			ExpiresAt:    inv.ExpiresAt.Format(time.RFC3339),
+			CreatedAt:    inv.CreatedAt.Format(time.RFC3339),
 		}
 	}
 	return responses
@@ -98,7 +109,7 @@ func (s *Server) handleSendTeamInvitations(w http.ResponseWriter, r *http.Reques
 	teamID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleSendTeamInvitations",
 		"user_id", userID,
 		"team_id", teamID,
@@ -112,7 +123,7 @@ func (s *Server) handleSendTeamInvitations(w http.ResponseWriter, r *http.Reques
 	invitations, err := s.container.TeamInvitationService().InviteMembers(r.Context(), userID, teamID, req.Emails, role)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleSendTeamInvitations",
 			"user_id", userID,
 			"team_id", teamID,
@@ -135,7 +146,7 @@ func (s *Server) handleListTeamInvitations(w http.ResponseWriter, r *http.Reques
 	teamID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListTeamInvitations",
 		"user_id", userID,
 		"team_id", teamID,
@@ -144,7 +155,7 @@ func (s *Server) handleListTeamInvitations(w http.ResponseWriter, r *http.Reques
 	invitations, err := s.container.TeamInvitationService().GetTeamInvitations(r.Context(), userID, teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListTeamInvitations",
 			"user_id", userID,
 			"team_id", teamID,
@@ -170,8 +181,8 @@ func (s *Server) handleListTeamInvitations(w http.ResponseWriter, r *http.Reques
 			InviteeEmail: inv.InviteeEmail,
 			Role:         string(inv.Role),
 			Status:       string(inv.Status),
-			ExpiresAt:    inv.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
-			CreatedAt:    inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			ExpiresAt:    inv.ExpiresAt.Format(time.RFC3339),
+			CreatedAt:    inv.CreatedAt.Format(time.RFC3339),
 		}
 	}
 
@@ -274,7 +285,7 @@ func (s *Server) handleInvitationError(w http.ResponseWriter, r *http.Request, e
 		return
 	}
 
-	if strings.Contains(err.Error(), "not found") {
+	if strings.Contains(err.Error(), errNotFoundFragment) {
 		writeErrorResponse(w, nil, "not_found", "Team not found", http.StatusNotFound)
 		return
 	}
@@ -288,7 +299,7 @@ func (s *Server) handleRevokeInvitation(w http.ResponseWriter, r *http.Request) 
 	invitationID := chi.URLParam(r, "invitationId")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleRevokeInvitation",
 		"user_id", userID,
 		"team_id", teamID,
@@ -298,7 +309,7 @@ func (s *Server) handleRevokeInvitation(w http.ResponseWriter, r *http.Request) 
 	err := s.container.TeamInvitationService().RevokeInvitation(r.Context(), userID, invitationID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleRevokeInvitation",
 			"user_id", userID,
 			"team_id", teamID,
@@ -311,7 +322,7 @@ func (s *Server) handleRevokeInvitation(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		if strings.Contains(err.Error(), "not found") {
+		if strings.Contains(err.Error(), errNotFoundFragment) {
 			writeErrorResponse(w, nil, "not_found", "Invitation not found", http.StatusNotFound)
 			return
 		}
@@ -342,7 +353,7 @@ func (s *Server) fetchTeamsForInvitations(
 		team, teamErr := s.container.TeamRepository().GetByID(ctx, teamID)
 		if teamErr != nil {
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", serverLogServiceName,
 				"handler", "fetchTeamsForInvitations",
 				"team_id", teamID,
 				"error", fmt.Sprintf("%+v", teamErr),
@@ -385,8 +396,8 @@ func (s *Server) buildInvitationResponses(
 			InviteeEmail: inv.InviteeEmail,
 			Role:         string(inv.Role),
 			Status:       string(inv.Status),
-			ExpiresAt:    inv.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
-			CreatedAt:    inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			ExpiresAt:    inv.ExpiresAt.Format(time.RFC3339),
+			CreatedAt:    inv.CreatedAt.Format(time.RFC3339),
 		}
 
 		if team, exists := teams[inv.TeamID]; exists {
@@ -412,7 +423,7 @@ func (s *Server) handleGetPendingInvitations(w http.ResponseWriter, r *http.Requ
 	user, err := s.container.UserRepository().GetByID(r.Context(), userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPendingInvitations",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -424,7 +435,7 @@ func (s *Server) handleGetPendingInvitations(w http.ResponseWriter, r *http.Requ
 	invitations, err := s.container.TeamInvitationService().GetPendingInvitations(r.Context(), user.Email)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPendingInvitations",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -509,7 +520,7 @@ func (s *Server) handleGetInvitationByTokenError(w http.ResponseWriter, r *http.
 	// Unmapped error → genuine 500. Log the underlying error here (not in the
 	// caller) so 4xx-class typed errors don't add log noise. Token is redacted.
 	s.logger.With("error", err).With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetInvitationByToken",
 		"token_digest", invitationTokenDigest(r),
 	).Error("Failed to load invitation by token")
@@ -562,18 +573,18 @@ func (s *Server) handleGetInvitationByToken(w http.ResponseWriter, r *http.Reque
 	token, err := invitationTokenParam(r)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetInvitationByToken",
 			"error", fmt.Sprintf("%+v", err),
-		).Warn("Failed to decode invitation token")
-		apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("Invalid invitation token encoding"))
+		).Warn(invitationMsgDecodeTokenFailed)
+		apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(invitationMsgInvalidTokenEncoding))
 		return
 	}
 
 	// Token is the access credential for the invitation — never log it raw.
 	// A short, irreversible fingerprint is enough for correlation in logs.
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetInvitationByToken",
 		"token_digest", redactToken(token),
 	).Info("Get invitation by token request received")
@@ -594,8 +605,8 @@ func (s *Server) handleGetInvitationByToken(w http.ResponseWriter, r *http.Reque
 			InviteeEmail: inv.InviteeEmail,
 			Role:         string(inv.Role),
 			Status:       string(inv.Status),
-			ExpiresAt:    inv.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
-			CreatedAt:    inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			ExpiresAt:    inv.ExpiresAt.Format(time.RFC3339),
+			CreatedAt:    inv.CreatedAt.Format(time.RFC3339),
 			InvitedBy:    details.InvitedBy,
 		},
 	}
@@ -605,7 +616,7 @@ func (s *Server) handleGetInvitationByToken(w http.ResponseWriter, r *http.Reque
 
 // handleAcceptInvitationError handles errors during invitation acceptance
 func (s *Server) handleAcceptInvitationError(w http.ResponseWriter, err error) {
-	if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "not found") {
+	if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), errNotFoundFragment) {
 		writeErrorResponse(w, nil, "not_found", "Invalid invitation token", http.StatusNotFound)
 		return
 	}
@@ -644,18 +655,18 @@ func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) 
 	token, err := invitationTokenParam(r)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleAcceptInvitation",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
-		).Warn("Failed to decode invitation token")
-		writeErrorResponse(w, nil, "bad_request", "Invalid invitation token encoding", http.StatusBadRequest)
+		).Warn(invitationMsgDecodeTokenFailed)
+		writeErrorResponse(w, nil, "bad_request", invitationMsgInvalidTokenEncoding, http.StatusBadRequest)
 		return
 	}
 
 	// Token is the access credential for the invitation — never log it raw.
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleAcceptInvitation",
 		"user_id", userID,
 		"token_digest", redactToken(token),
@@ -664,7 +675,7 @@ func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) 
 	teamID, err := s.container.TeamInvitationService().AcceptInvitation(r.Context(), token, userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleAcceptInvitation",
 			"user_id", userID,
 			"token_digest", redactToken(token),
@@ -678,7 +689,7 @@ func (s *Server) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) 
 	team, err := s.container.TeamService().GetTeam(r.Context(), userID, teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleAcceptInvitation",
 			"user_id", userID,
 			"team_id", teamID,
@@ -708,18 +719,18 @@ func (s *Server) handleRejectInvitation(w http.ResponseWriter, r *http.Request) 
 	token, err := invitationTokenParam(r)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleRejectInvitation",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
-		).Warn("Failed to decode invitation token")
-		writeErrorResponse(w, nil, "bad_request", "Invalid invitation token encoding", http.StatusBadRequest)
+		).Warn(invitationMsgDecodeTokenFailed)
+		writeErrorResponse(w, nil, "bad_request", invitationMsgInvalidTokenEncoding, http.StatusBadRequest)
 		return
 	}
 
 	// Token is the access credential for the invitation — never log it raw.
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleRejectInvitation",
 		"user_id", userID,
 		"token_digest", redactToken(token),
@@ -727,14 +738,14 @@ func (s *Server) handleRejectInvitation(w http.ResponseWriter, r *http.Request) 
 
 	if err := s.container.TeamInvitationService().RejectInvitation(r.Context(), token, userID); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleRejectInvitation",
 			"user_id", userID,
 			"token_digest", redactToken(token),
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to reject invitation")
 
-		if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "not found") {
+		if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), errNotFoundFragment) {
 			writeErrorResponse(w, nil, "not_found", "Invalid invitation token", http.StatusNotFound)
 			return
 		}

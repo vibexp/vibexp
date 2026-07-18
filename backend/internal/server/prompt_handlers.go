@@ -19,6 +19,13 @@ import (
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
+const (
+	// serverLogServiceName tags prompt handler log entries.
+
+	promptMsgGetFailed = "Failed to get prompt"
+	promptMsgNotFound  = "Prompt not found"
+)
+
 // writeErrorResponse is a helper function for backward compatibility
 // It maps old error types to new RFC 9457 compliant errors
 func writeErrorResponse(w http.ResponseWriter, r *http.Request, errorType, message string, statusCode int) {
@@ -99,7 +106,7 @@ func (s *Server) checkPromptResourceLimit(w http.ResponseWriter, r *http.Request
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(r.Context(), userID, "prompt")
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreatePrompt",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -110,7 +117,7 @@ func (s *Server) checkPromptResourceLimit(w http.ResponseWriter, r *http.Request
 
 	if !allowed {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreatePrompt",
 			"user_id", userID,
 			"resource_type", "prompt",
@@ -136,7 +143,7 @@ func (s *Server) createPromptWithErrorHandling(
 		// before the string-matching below, which ErrPermissionDenied's text
 		// matches nowhere — it would otherwise fall through to a 500.
 		if stderrors.Is(err, services.ErrPermissionDenied) {
-			s.logger.With("service", "vibexp-api", "handler", "handleCreatePrompt", "user_id", userID).
+			s.logger.With("service", serverLogServiceName, "handler", "handleCreatePrompt", "user_id", userID).
 				Warn("Forbidden prompt write attempt")
 			writeErrorResponse(
 				w, nil, "forbidden",
@@ -146,7 +153,7 @@ func (s *Server) createPromptWithErrorHandling(
 		}
 
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreatePrompt",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -186,7 +193,7 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreatePrompt",
 		"user_id", userID,
 		"team_id", teamID,
@@ -195,12 +202,12 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 	var req models.CreatePromptRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreatePrompt",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to decode request body")
-		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+		).Error(msgDecodeRequestBodyFailed)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
@@ -229,7 +236,7 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	promptSlug := chi.URLParam(r, "slug")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetPrompt",
 		"user_id", userID,
 		"team_id", teamID,
@@ -239,19 +246,19 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	prompt, err := s.container.PromptService().GetPromptBySlug(userID, teamID, promptSlug)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPrompt",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
 			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to get prompt")
+		).Error(promptMsgGetFailed)
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", promptMsgNotFound, http.StatusNotFound)
 			return
 		}
 
-		writeErrorResponse(w, nil, "internal_error", "Failed to get prompt", http.StatusInternalServerError)
+		writeErrorResponse(w, nil, "internal_error", promptMsgGetFailed, http.StatusInternalServerError)
 		return
 	}
 
@@ -337,7 +344,7 @@ func (s *Server) handleListPrompts(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListPrompts",
 		"user_id", userID,
 		"team_id", teamID,
@@ -351,7 +358,7 @@ func (s *Server) handleListPrompts(w http.ResponseWriter, r *http.Request) {
 	response, err := s.container.PromptService().ListPrompts(userID, filters)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListPrompts",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -373,7 +380,7 @@ func (s *Server) handleGetPromptLabels(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetPromptLabels",
 		"user_id", userID,
 		"team_id", teamID,
@@ -383,7 +390,7 @@ func (s *Server) handleGetPromptLabels(w http.ResponseWriter, r *http.Request) {
 	labels, err := s.container.PromptService().GetUserLabels(userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPromptLabels",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -433,7 +440,7 @@ func (s *Server) validateUpdatePromptRequest(req *models.UpdatePromptRequest, w 
 func (s *Server) handleUpdatePromptError(err error, req *models.UpdatePromptRequest, w http.ResponseWriter) {
 	// Denial before the string-matching chain (see handleCreatePrompt).
 	if stderrors.Is(err, services.ErrPermissionDenied) {
-		s.logger.With("service", "vibexp-api", "handler", "handleUpdatePrompt").
+		s.logger.With("service", serverLogServiceName, "handler", "handleUpdatePrompt").
 			Warn("Forbidden prompt write attempt")
 		writeErrorResponse(
 			w, nil, "forbidden",
@@ -443,7 +450,7 @@ func (s *Server) handleUpdatePromptError(err error, req *models.UpdatePromptRequ
 	}
 
 	if stderrors.Is(err, repositories.ErrPromptNotFound) {
-		writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
+		writeErrorResponse(w, nil, "not_found", promptMsgNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -488,7 +495,7 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 	promptSlug := chi.URLParam(r, "slug")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdatePrompt",
 		"user_id", userID,
 		"team_id", teamID,
@@ -503,13 +510,13 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 	var req models.UpdatePromptRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdatePrompt",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
 			"error", fmt.Sprintf("%+v", decodeErr),
-		).Error("Failed to decode request body")
-		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+		).Error(msgDecodeRequestBodyFailed)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
@@ -520,7 +527,7 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 	prompt, err := s.container.PromptService().UpdatePromptBySlug(userID, teamID, promptSlug, &req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdatePrompt",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
@@ -547,7 +554,7 @@ func (s *Server) handleListPromptVersions(w http.ResponseWriter, r *http.Request
 	promptSlug := chi.URLParam(r, "slug")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListPromptVersions",
 		"user_id", userID,
 		"team_id", teamID,
@@ -575,7 +582,7 @@ func (s *Server) handleGetPromptVersion(w http.ResponseWriter, r *http.Request) 
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetPromptVersion",
 		"user_id", userID,
 		"team_id", teamID,
@@ -605,7 +612,7 @@ func (s *Server) handleRestorePromptVersion(w http.ResponseWriter, r *http.Reque
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleRestorePromptVersion",
 		"user_id", userID,
 		"team_id", teamID,
@@ -631,7 +638,7 @@ func (s *Server) handleRestorePromptVersion(w http.ResponseWriter, r *http.Reque
 // distinguishing a missing prompt/version (404) from other failures (500).
 func (s *Server) handlePromptVersionError(w http.ResponseWriter, userID, promptSlug string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "promptVersion",
 		"user_id", userID,
 		"prompt_slug", promptSlug,
@@ -653,7 +660,7 @@ func (s *Server) handleDeletePrompt(w http.ResponseWriter, r *http.Request) {
 	promptSlug := chi.URLParam(r, "slug")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeletePrompt",
 		"user_id", userID,
 		"team_id", teamID,
@@ -688,7 +695,7 @@ func (s *Server) handleRenderPrompt(w http.ResponseWriter, r *http.Request) {
 	promptSlug := chi.URLParam(r, "slug")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleRenderPrompt",
 		"user_id", userID,
 		"team_id", teamID,
@@ -698,20 +705,20 @@ func (s *Server) handleRenderPrompt(w http.ResponseWriter, r *http.Request) {
 	var req models.RenderPromptRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleRenderPrompt",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
 			"error", fmt.Sprintf("%+v", decodeErr),
-		).Error("Failed to decode request body")
-		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+		).Error(msgDecodeRequestBodyFailed)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
 	renderedPrompt, err := s.container.PromptService().RenderPrompt(userID, teamID, promptSlug, req.Placeholders)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleRenderPrompt",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
@@ -719,7 +726,7 @@ func (s *Server) handleRenderPrompt(w http.ResponseWriter, r *http.Request) {
 		).Error("Failed to render prompt")
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", promptMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -740,7 +747,7 @@ func (s *Server) handleGetPromptPlaceholders(w http.ResponseWriter, r *http.Requ
 	promptSlug := chi.URLParam(r, "slug")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetPromptPlaceholders",
 		"user_id", userID,
 		"team_id", teamID,
@@ -750,7 +757,7 @@ func (s *Server) handleGetPromptPlaceholders(w http.ResponseWriter, r *http.Requ
 	placeholders, err := s.container.PromptService().GetPromptPlaceholders(userID, teamID, promptSlug)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPromptPlaceholders",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
@@ -758,7 +765,7 @@ func (s *Server) handleGetPromptPlaceholders(w http.ResponseWriter, r *http.Requ
 		).Error("Failed to get prompt placeholders")
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", promptMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -788,19 +795,19 @@ func (s *Server) getPromptForDeletion(
 	prompt, err := s.container.PromptService().GetPromptBySlug(userID, teamID, promptSlug)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeletePrompt",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
 			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to get prompt")
+		).Error(promptMsgGetFailed)
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", promptMsgNotFound, http.StatusNotFound)
 			return nil, err
 		}
 
-		writeErrorResponse(w, nil, "internal_error", "Failed to get prompt", http.StatusInternalServerError)
+		writeErrorResponse(w, nil, "internal_error", promptMsgGetFailed, http.StatusInternalServerError)
 		return nil, err
 	}
 
@@ -817,7 +824,7 @@ func (s *Server) deletePromptAndEmbeddings(
 		// Denial before the string-matching chain (see handleCreatePrompt).
 		if stderrors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
-				"service", "vibexp-api", "handler", "handleDeletePrompt",
+				"service", serverLogServiceName, "handler", "handleDeletePrompt",
 				"user_id", userID, "prompt_slug", promptSlug,
 			).Warn("Forbidden prompt delete attempt")
 			writeErrorResponse(
@@ -828,7 +835,7 @@ func (s *Server) deletePromptAndEmbeddings(
 		}
 
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeletePrompt",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
@@ -853,7 +860,7 @@ func (s *Server) deletePromptAndEmbeddings(
 	// embedding regardless of which team member triggers the delete.
 	if err := s.container.EmbeddingService().DeleteEmbeddingsByEntity("prompt", prompt.ID); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeletePrompt",
 			"user_id", userID,
 			"prompt_id", prompt.ID,
@@ -871,7 +878,7 @@ func (s *Server) handleGetPromptDependencies(w http.ResponseWriter, r *http.Requ
 	promptSlug := chi.URLParam(r, "slug")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetPromptDependencies",
 		"user_id", userID,
 		"team_id", teamID,
@@ -881,7 +888,7 @@ func (s *Server) handleGetPromptDependencies(w http.ResponseWriter, r *http.Requ
 	dependencies, err := s.container.PromptService().GetPromptDependenciesBySlug(userID, teamID, promptSlug)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPromptDependencies",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
@@ -889,7 +896,7 @@ func (s *Server) handleGetPromptDependencies(w http.ResponseWriter, r *http.Requ
 		).Error("Failed to get prompt dependencies")
 
 		if stderrors.Is(err, repositories.ErrPromptNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Prompt not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", promptMsgNotFound, http.StatusNotFound)
 			return
 		}
 

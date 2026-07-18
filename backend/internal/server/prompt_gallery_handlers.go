@@ -14,6 +14,9 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
+// serverLogServiceName is the service log-field value for the prompt
+// gallery handlers.
+
 // Input validation constants
 const (
 	maxSearchQueryLength  = 255
@@ -50,7 +53,7 @@ func (s *Server) handleGetPromptGalleryCategories(w http.ResponseWriter, r *http
 	categories, err := s.container.PromptGalleryService().GetCategories()
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPromptGalleryCategories",
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to get prompt gallery categories")
@@ -98,7 +101,7 @@ func (s *Server) handleListPromptGalleryPrompts(w http.ResponseWriter, r *http.R
 	prompts, err := s.container.PromptGalleryService().ListPrompts(category, search, tags, page, limit)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListPromptGalleryPrompts",
 			"category", category,
 			"search", search,
@@ -128,7 +131,7 @@ func (s *Server) handleGetPromptGalleryPrompt(w http.ResponseWriter, r *http.Req
 	prompt, err := s.container.PromptGalleryService().GetPromptByID(promptID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPromptGalleryPrompt",
 			"prompt_id", promptID,
 			"error", fmt.Sprintf("%+v", err),
@@ -171,7 +174,7 @@ func (s *Server) handleTrackPromptGalleryUsage(w http.ResponseWriter, r *http.Re
 
 	if err := s.container.PromptGalleryService().TrackPromptUsage(userID, req); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleTrackPromptGalleryUsage",
 			"user_id", userID,
 			"prompt_id", promptID,

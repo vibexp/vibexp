@@ -21,6 +21,9 @@ import (
 // embed request.
 const maxEmbeddingPrefixLen = 256
 
+// Response and log messages shared across the embedding provider handlers.
+const ()
+
 // appendPrefixLengthErrors appends a max-length validation error for each
 // instruction prefix that exceeds maxEmbeddingPrefixLen. A nil pointer (field
 // omitted) is skipped. Shared by the create and update handlers so both enforce
@@ -85,7 +88,7 @@ func (s *Server) reembedTeamIfProviderIdentityChanged(
 // click never stacks duplicate bursts for the same team.
 func (s *Server) enqueueTeamReembed(teamID string, wipe bool) {
 	logger := s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"component", "embedding-reembed",
 		"team_id", teamID,
 	)
@@ -125,16 +128,16 @@ func (s *Server) handleCreateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateEmbeddingProvider",
 		"user_id", userID,
 	).Info("Embedding provider creation request received")
 
 	var req models.CreateEmbeddingProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logEmbeddingProviderError("handleCreateEmbeddingProvider", userID, "", err, "Failed to decode request body")
+		s.logEmbeddingProviderError("handleCreateEmbeddingProvider", userID, "", err, msgDecodeRequestBodyFailed)
 		apiErr := errors.NewBadRequestError(
-			"Invalid request body. Please ensure the JSON is well-formed.",
+			msgInvalidBodyWellFormedJSON,
 		)
 		errors.WriteJSONError(w, r, apiErr)
 		return
@@ -148,7 +151,7 @@ func (s *Server) handleCreateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	provider, err := s.container.EmbeddingProviderService().CreateEmbeddingProvider(r.Context(), teamID, userID, req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateEmbeddingProvider",
 			"user_id", userID,
 			"name", req.Name,
@@ -168,7 +171,7 @@ func (s *Server) handleCreateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateEmbeddingProvider",
 		"user_id", userID,
 		"provider_id", provider.ID,
@@ -194,7 +197,7 @@ func (s *Server) validateCreateEmbeddingProviderRequest(
 
 	if req.Name == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateEmbeddingProvider",
 			"user_id", userID,
 		).Error("Embedding provider name is required")
@@ -203,7 +206,7 @@ func (s *Server) validateCreateEmbeddingProviderRequest(
 
 	if req.ProviderType == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateEmbeddingProvider",
 			"user_id", userID,
 		).Error("Provider type is required")
@@ -212,7 +215,7 @@ func (s *Server) validateCreateEmbeddingProviderRequest(
 
 	if req.Model == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateEmbeddingProvider",
 			"user_id", userID,
 		).Error("Model is required")
@@ -239,7 +242,7 @@ func (s *Server) logEmbeddingProviderError(
 	msg string,
 ) {
 	fields := []any{
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),
@@ -264,7 +267,7 @@ func (s *Server) handleListEmbeddingProviders(w http.ResponseWriter, r *http.Req
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListEmbeddingProviders",
 		"user_id", userID,
 	).Info("Embedding providers list request received")
@@ -273,7 +276,7 @@ func (s *Server) handleListEmbeddingProviders(w http.ResponseWriter, r *http.Req
 	providers, err := s.container.EmbeddingProviderService().GetEmbeddingProvidersByTeamID(r.Context(), teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListEmbeddingProviders",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -292,7 +295,7 @@ func (s *Server) handleGetEmbeddingCoverage(w http.ResponseWriter, r *http.Reque
 	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetEmbeddingCoverage",
 		"user_id", userID,
 	).Info("Embedding coverage request received")
@@ -300,7 +303,7 @@ func (s *Server) handleGetEmbeddingCoverage(w http.ResponseWriter, r *http.Reque
 	coverage, err := s.container.EmbeddingStatusService().GetCoverage(r.Context(), teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetEmbeddingCoverage",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -320,7 +323,7 @@ func (s *Server) handleGetEmbeddingProvider(w http.ResponseWriter, r *http.Reque
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetEmbeddingProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -328,12 +331,12 @@ func (s *Server) handleGetEmbeddingProvider(w http.ResponseWriter, r *http.Reque
 
 	if providerID == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetEmbeddingProvider",
 			"user_id", userID,
-		).Error("Provider ID is required")
+		).Error(msgProviderIDRequired)
 		apiErr := errors.NewProviderValidationError(
-			"Provider ID is required in the URL path",
+			msgProviderIDRequiredInPath,
 			[]errors.ValidationError{errors.NewRequiredFieldError("id")},
 		)
 		errors.WriteJSONError(w, r, apiErr)
@@ -343,7 +346,7 @@ func (s *Server) handleGetEmbeddingProvider(w http.ResponseWriter, r *http.Reque
 	provider, err := s.container.EmbeddingProviderService().GetEmbeddingProvider(r.Context(), teamID, providerID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetEmbeddingProvider",
 			"user_id", userID,
 			"provider_id", providerID,
@@ -368,7 +371,7 @@ func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateEmbeddingProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -376,12 +379,12 @@ func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 
 	if providerID == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdateEmbeddingProvider",
 			"user_id", userID,
-		).Error("Provider ID is required")
+		).Error(msgProviderIDRequired)
 		apiErr := errors.NewProviderValidationError(
-			"Provider ID is required in the URL path",
+			msgProviderIDRequiredInPath,
 			[]errors.ValidationError{errors.NewRequiredFieldError("id")},
 		)
 		errors.WriteJSONError(w, r, apiErr)
@@ -410,7 +413,7 @@ func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	s.reembedTeamIfProviderIdentityChanged(teamID, oldProvider, provider)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateEmbeddingProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -430,10 +433,10 @@ func (s *Server) decodeAndValidateUpdateEmbeddingProviderRequest(
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.logEmbeddingProviderError(
 			"handleUpdateEmbeddingProvider", userID, providerID, err,
-			"Failed to decode request body",
+			msgDecodeRequestBodyFailed,
 		)
 		errors.WriteJSONError(w, r, errors.NewBadRequestError(
-			"Invalid request body. Please ensure the JSON is well-formed.",
+			msgInvalidBodyWellFormedJSON,
 		))
 		return req, false
 	}
@@ -455,7 +458,7 @@ func (s *Server) handleUpdateEmbeddingProviderError(
 	err error,
 ) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateEmbeddingProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -477,7 +480,7 @@ func (s *Server) handleDeleteEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteEmbeddingProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -485,12 +488,12 @@ func (s *Server) handleDeleteEmbeddingProvider(w http.ResponseWriter, r *http.Re
 
 	if providerID == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteEmbeddingProvider",
 			"user_id", userID,
-		).Error("Provider ID is required")
+		).Error(msgProviderIDRequired)
 		apiErr := errors.NewProviderValidationError(
-			"Provider ID is required in the URL path",
+			msgProviderIDRequiredInPath,
 			[]errors.ValidationError{errors.NewRequiredFieldError("id")},
 		)
 		errors.WriteJSONError(w, r, apiErr)
@@ -500,7 +503,7 @@ func (s *Server) handleDeleteEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	err := s.container.EmbeddingProviderService().DeleteEmbeddingProvider(r.Context(), teamID, providerID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteEmbeddingProvider",
 			"user_id", userID,
 			"provider_id", providerID,
@@ -521,7 +524,7 @@ func (s *Server) handleDeleteEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteEmbeddingProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -545,7 +548,7 @@ func (s *Server) handleReprocessEmbeddingProvider(w http.ResponseWriter, r *http
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleReprocessEmbeddingProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -553,7 +556,7 @@ func (s *Server) handleReprocessEmbeddingProvider(w http.ResponseWriter, r *http
 
 	if providerID == "" {
 		apiErr := errors.NewProviderValidationError(
-			"Provider ID is required in the URL path",
+			msgProviderIDRequiredInPath,
 			[]errors.ValidationError{errors.NewRequiredFieldError("id")},
 		)
 		errors.WriteJSONError(w, r, apiErr)
@@ -598,7 +601,7 @@ func (s *Server) handleClearEmbeddings(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleClearEmbeddings",
 		"user_id", userID,
 		"team_id", teamID,
@@ -607,7 +610,7 @@ func (s *Server) handleClearEmbeddings(w http.ResponseWriter, r *http.Request) {
 	deleted, err := s.container.EmbeddingRepository().DeleteByTeam(r.Context(), teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleClearEmbeddings",
 			"user_id", userID,
 			"team_id", teamID,
@@ -620,7 +623,7 @@ func (s *Server) handleClearEmbeddings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleClearEmbeddings",
 		"user_id", userID,
 		"team_id", teamID,
@@ -634,16 +637,16 @@ func (s *Server) handleValidateEmbeddingProvider(w http.ResponseWriter, r *http.
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleValidateEmbeddingProvider",
 		"user_id", userID,
 	).Info("Embedding provider validation request received")
 
 	var req models.ValidateEmbeddingProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logEmbeddingProviderError("handleValidateEmbeddingProvider", userID, "", err, "Failed to decode request body")
+		s.logEmbeddingProviderError("handleValidateEmbeddingProvider", userID, "", err, msgDecodeRequestBodyFailed)
 		apiErr := errors.NewBadRequestError(
-			"Invalid request body. Please ensure the JSON is well-formed.",
+			msgInvalidBodyWellFormedJSON,
 		)
 		errors.WriteJSONError(w, r, apiErr)
 		return
@@ -656,7 +659,7 @@ func (s *Server) handleValidateEmbeddingProvider(w http.ResponseWriter, r *http.
 	response, err := s.container.EmbeddingProviderService().ValidateEmbeddingProvider(r.Context(), req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleValidateEmbeddingProvider",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -669,7 +672,7 @@ func (s *Server) handleValidateEmbeddingProvider(w http.ResponseWriter, r *http.
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleValidateEmbeddingProvider",
 		"user_id", userID,
 		"is_valid", response.IsValid,
@@ -689,7 +692,7 @@ func (s *Server) validateEmbeddingProviderRequest(
 
 	if req.ProviderType == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleValidateEmbeddingProvider",
 			"user_id", userID,
 		).Error("Provider type is required")
@@ -698,7 +701,7 @@ func (s *Server) validateEmbeddingProviderRequest(
 
 	if req.BaseURL == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleValidateEmbeddingProvider",
 			"user_id", userID,
 		).Error("Base URL is required")
@@ -707,7 +710,7 @@ func (s *Server) validateEmbeddingProviderRequest(
 
 	if req.Model == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleValidateEmbeddingProvider",
 			"user_id", userID,
 		).Error("Model is required")

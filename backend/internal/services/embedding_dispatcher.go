@@ -20,6 +20,10 @@ const (
 
 	// maxEmbeddingRetryBackoff caps the base retry interval before jitter.
 	maxEmbeddingRetryBackoff = 30 * time.Second
+
+	// logComponentEmbeddingDispatcher is the "component" structured-log field
+	// value for the dispatcher's log lines.
+	logComponentEmbeddingDispatcher = "embedding-dispatcher"
 )
 
 // EmbeddingRetryConfig is the bounded-retry policy applied to a single entity's
@@ -130,7 +134,7 @@ func (d *EmbeddingDispatcher) resolveAndRoute(event events.Event) {
 		// invisible drop #142 exists to eliminate.
 		d.logger.With(
 			"service", "embedding",
-			"component", "embedding-dispatcher",
+			"component", logComponentEmbeddingDispatcher,
 			"event_type", event.Type(),
 			"entity_type", input.entityType,
 			"entity_id", input.entityID,
@@ -178,7 +182,7 @@ func (d *EmbeddingDispatcher) submitGenerate(input embeddingInput, teamID string
 		// the map. Log rather than drop, so a regression never goes silent.
 		d.logger.With(
 			"service", "embedding",
-			"component", "embedding-dispatcher",
+			"component", logComponentEmbeddingDispatcher,
 			"entity_type", input.entityType,
 			"entity_id", input.entityID,
 			"team_id", teamID,
@@ -208,7 +212,7 @@ func (d *EmbeddingDispatcher) generate(input embeddingInput, teamID string, reso
 			if attempt > 0 {
 				d.logger.With(
 					"service", "embedding",
-					"component", "embedding-dispatcher",
+					"component", logComponentEmbeddingDispatcher,
 					"entity_type", input.entityType,
 					"entity_id", input.entityID,
 					"team_id", teamID,
@@ -227,7 +231,7 @@ func (d *EmbeddingDispatcher) generate(input embeddingInput, teamID string, reso
 
 	d.logger.With(
 		"service", "embedding",
-		"component", "embedding-dispatcher",
+		"component", logComponentEmbeddingDispatcher,
 		"entity_type", input.entityType,
 		"entity_id", input.entityID,
 		"team_id", teamID,

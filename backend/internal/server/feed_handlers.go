@@ -16,6 +16,20 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
+// Response and log messages shared across the feed handlers.
+const (
+	feedMsgInvalidFeedID  = "Invalid feed_id format"
+	feedMsgInvalidItemID  = "Invalid item_id format"
+	feedMsgItemNotFound   = "Feed item not found"
+	feedLogForbiddenWrite = "Forbidden feed write attempt"
+)
+
+// Service-error substrings matched when mapping feed service errors to HTTP
+// status codes.
+const (
+	feedErrNotTeamMember = "user is not a member of the specified team"
+)
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Feed CRUD handlers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,7 +39,7 @@ func (s *Server) handleCreateFeed(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateFeed",
 		"user_id", userID,
 		"team_id", teamID,
@@ -33,7 +47,7 @@ func (s *Server) handleCreateFeed(w http.ResponseWriter, r *http.Request) {
 
 	var req models.CreateFeedRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
@@ -60,7 +74,7 @@ func (s *Server) handleGetFeed(w http.ResponseWriter, r *http.Request) {
 	feedID := chi.URLParam(r, "feed_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetFeed",
 		"user_id", userID,
 		"team_id", teamID,
@@ -68,7 +82,7 @@ func (s *Server) handleGetFeed(w http.ResponseWriter, r *http.Request) {
 	).Info("Get feed request received")
 
 	if !isValidUUID(feedID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidFeedID, http.StatusBadRequest)
 		return
 	}
 
@@ -86,7 +100,7 @@ func (s *Server) handleListFeeds(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListFeeds",
 		"user_id", userID,
 		"team_id", teamID,
@@ -109,7 +123,7 @@ func (s *Server) handleUpdateFeed(w http.ResponseWriter, r *http.Request) {
 	feedID := chi.URLParam(r, "feed_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateFeed",
 		"user_id", userID,
 		"team_id", teamID,
@@ -117,13 +131,13 @@ func (s *Server) handleUpdateFeed(w http.ResponseWriter, r *http.Request) {
 	).Info("Update feed request received")
 
 	if !isValidUUID(feedID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidFeedID, http.StatusBadRequest)
 		return
 	}
 
 	var req models.UpdateFeedRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
@@ -146,7 +160,7 @@ func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request) {
 	feedID := chi.URLParam(r, "feed_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteFeed",
 		"user_id", userID,
 		"team_id", teamID,
@@ -154,7 +168,7 @@ func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request) {
 	).Info("Delete feed request received")
 
 	if !isValidUUID(feedID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidFeedID, http.StatusBadRequest)
 		return
 	}
 
@@ -177,7 +191,7 @@ func (s *Server) handleCreateFeedItem(w http.ResponseWriter, r *http.Request) {
 	feedID := chi.URLParam(r, "feed_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateFeedItem",
 		"user_id", userID,
 		"team_id", teamID,
@@ -185,13 +199,13 @@ func (s *Server) handleCreateFeedItem(w http.ResponseWriter, r *http.Request) {
 	).Info("Create feed item request received")
 
 	if !isValidUUID(feedID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidFeedID, http.StatusBadRequest)
 		return
 	}
 
 	var req models.CreateFeedItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
@@ -217,7 +231,7 @@ func (s *Server) handleListFeedItems(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListFeedItems",
 		"user_id", userID,
 		"team_id", teamID,
@@ -251,7 +265,7 @@ func (s *Server) handleListFeedItemsByFeed(w http.ResponseWriter, r *http.Reques
 	feedID := chi.URLParam(r, "feed_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListFeedItemsByFeed",
 		"user_id", userID,
 		"team_id", teamID,
@@ -259,7 +273,7 @@ func (s *Server) handleListFeedItemsByFeed(w http.ResponseWriter, r *http.Reques
 	).Info("List feed items by feed request received")
 
 	if !isValidUUID(feedID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid feed_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidFeedID, http.StatusBadRequest)
 		return
 	}
 
@@ -291,7 +305,7 @@ func (s *Server) handleGetFeedItem(w http.ResponseWriter, r *http.Request) {
 	itemID := chi.URLParam(r, "item_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetFeedItem",
 		"user_id", userID,
 		"team_id", teamID,
@@ -299,7 +313,7 @@ func (s *Server) handleGetFeedItem(w http.ResponseWriter, r *http.Request) {
 	).Info("Get feed item request received")
 
 	if !isValidUUID(itemID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidItemID, http.StatusBadRequest)
 		return
 	}
 
@@ -318,7 +332,7 @@ func (s *Server) handleArchiveFeedItem(w http.ResponseWriter, r *http.Request) {
 	itemID := chi.URLParam(r, "item_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleArchiveFeedItem",
 		"user_id", userID,
 		"team_id", teamID,
@@ -326,7 +340,7 @@ func (s *Server) handleArchiveFeedItem(w http.ResponseWriter, r *http.Request) {
 	).Info("Archive feed item request received")
 
 	if !isValidUUID(itemID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidItemID, http.StatusBadRequest)
 		return
 	}
 
@@ -345,7 +359,7 @@ func (s *Server) handleUnarchiveFeedItem(w http.ResponseWriter, r *http.Request)
 	itemID := chi.URLParam(r, "item_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUnarchiveFeedItem",
 		"user_id", userID,
 		"team_id", teamID,
@@ -353,7 +367,7 @@ func (s *Server) handleUnarchiveFeedItem(w http.ResponseWriter, r *http.Request)
 	).Info("Unarchive feed item request received")
 
 	if !isValidUUID(itemID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidItemID, http.StatusBadRequest)
 		return
 	}
 
@@ -372,7 +386,7 @@ func (s *Server) handleDeleteFeedItem(w http.ResponseWriter, r *http.Request) {
 	itemID := chi.URLParam(r, "item_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteFeedItem",
 		"user_id", userID,
 		"team_id", teamID,
@@ -380,7 +394,7 @@ func (s *Server) handleDeleteFeedItem(w http.ResponseWriter, r *http.Request) {
 	).Info("Delete feed item request received")
 
 	if !isValidUUID(itemID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidItemID, http.StatusBadRequest)
 		return
 	}
 
@@ -417,7 +431,7 @@ func (s *Server) deleteFeedItemEmbeddings(
 		"feed_item", item.ID,
 	); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteFeedItem",
 			"user_id", item.PostedByUserID,
 			"item_id", item.ID,
@@ -430,7 +444,7 @@ func (s *Server) deleteFeedItemEmbeddings(
 			"feed_item_reply", poster.ReplyID,
 		); err != nil {
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", serverLogServiceName,
 				"handler", "handleDeleteFeedItem",
 				"user_id", poster.PostedByUserID,
 				"reply_id", poster.ReplyID,
@@ -451,7 +465,7 @@ func (s *Server) gatherReplyPostersForCleanup(
 	replyPosters, err := s.container.FeedItemReplyService().ListReplyPosters(ctx, userID, teamID, itemID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteFeedItem",
 			"user_id", userID,
 			"team_id", teamID,
@@ -660,8 +674,8 @@ func (s *Server) handleFeedServiceError(w http.ResponseWriter, handler, userID, 
 	// nowhere — it would otherwise fall through to the default 500.
 	if errors.Is(err, services.ErrPermissionDenied) {
 		s.logger.With(
-			"service", "vibexp-api", "handler", handler, "user_id", userID, "team_id", teamID,
-		).Warn("Forbidden feed write attempt")
+			"service", serverLogServiceName, "handler", handler, "user_id", userID, "team_id", teamID,
+		).Warn(feedLogForbiddenWrite)
 		writeErrorResponse(
 			w, nil, "forbidden",
 			"You do not have permission to perform this action on this team's feeds", http.StatusForbidden,
@@ -670,7 +684,7 @@ func (s *Server) handleFeedServiceError(w http.ResponseWriter, handler, userID, 
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"team_id", teamID,
@@ -681,9 +695,9 @@ func (s *Server) handleFeedServiceError(w http.ResponseWriter, handler, userID, 
 	switch {
 	case strings.Contains(msg, "already exists") || strings.Contains(msg, "duplicate"):
 		writeErrorResponse(w, nil, "conflict", "A feed with that name already exists in this team", http.StatusConflict)
-	case strings.Contains(msg, "user is not a member of the specified team"):
+	case strings.Contains(msg, feedErrNotTeamMember):
 		writeErrorResponse(w, nil, "forbidden", msg, http.StatusForbidden)
-	case strings.Contains(msg, "not found"):
+	case strings.Contains(msg, errNotFoundFragment):
 		writeErrorResponse(w, nil, "not_found", "Feed not found", http.StatusNotFound)
 	default:
 		writeErrorResponse(w, nil, "internal_error", "Failed to process feed request", http.StatusInternalServerError)
@@ -693,7 +707,7 @@ func (s *Server) handleFeedServiceError(w http.ResponseWriter, handler, userID, 
 // handleFeedGetError maps service errors for Feed get/update/delete operations.
 func (s *Server) handleFeedGetError(w http.ResponseWriter, handler, userID, teamID, feedID string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"team_id", teamID,
@@ -710,11 +724,11 @@ func (s *Server) handleFeedGetError(w http.ResponseWriter, handler, userID, team
 
 	msg := err.Error()
 	switch {
-	case strings.Contains(msg, "not found"):
+	case strings.Contains(msg, errNotFoundFragment):
 		writeErrorResponse(w, nil, "not_found", "Feed not found", http.StatusNotFound)
 	case strings.Contains(msg, "already exists") || strings.Contains(msg, "duplicate"):
 		writeErrorResponse(w, nil, "conflict", "A feed with that name already exists in this team", http.StatusConflict)
-	case strings.Contains(msg, "user is not a member of the specified team"):
+	case strings.Contains(msg, feedErrNotTeamMember):
 		writeErrorResponse(w, nil, "forbidden", msg, http.StatusForbidden)
 	default:
 		writeErrorResponse(w, nil, "internal_error", "Failed to process feed request", http.StatusInternalServerError)
@@ -728,8 +742,8 @@ func (s *Server) handleFeedItemServiceError(w http.ResponseWriter, handler, user
 	// nowhere — it would otherwise fall through to the default 500.
 	if errors.Is(err, services.ErrPermissionDenied) {
 		s.logger.With(
-			"service", "vibexp-api", "handler", handler, "user_id", userID, "team_id", teamID,
-		).Warn("Forbidden feed write attempt")
+			"service", serverLogServiceName, "handler", handler, "user_id", userID, "team_id", teamID,
+		).Warn(feedLogForbiddenWrite)
 		writeErrorResponse(
 			w, nil, "forbidden",
 			"You do not have permission to perform this action on this feed", http.StatusForbidden,
@@ -738,7 +752,7 @@ func (s *Server) handleFeedItemServiceError(w http.ResponseWriter, handler, user
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"team_id", teamID,
@@ -748,13 +762,13 @@ func (s *Server) handleFeedItemServiceError(w http.ResponseWriter, handler, user
 
 	msg := err.Error()
 	switch {
-	case strings.Contains(msg, "user is not a member of the specified team"):
+	case strings.Contains(msg, feedErrNotTeamMember):
 		writeErrorResponse(w, nil, "forbidden", msg, http.StatusForbidden)
 	case strings.Contains(msg, "project not found"):
 		writeErrorResponse(w, nil, "bad_request", "Project not found or does not belong to user", http.StatusBadRequest)
 	case strings.Contains(msg, "project does not belong to the specified team"):
 		writeErrorResponse(w, nil, "forbidden", "Project does not belong to the specified team", http.StatusForbidden)
-	case strings.Contains(msg, "not found"):
+	case strings.Contains(msg, errNotFoundFragment):
 		writeErrorResponse(w, nil, "not_found", "Feed or item not found", http.StatusNotFound)
 	default:
 		writeErrorResponse(w, nil, "internal_error", "Failed to process feed item request", http.StatusInternalServerError)
@@ -764,7 +778,7 @@ func (s *Server) handleFeedItemServiceError(w http.ResponseWriter, handler, user
 // handleFeedItemGetError maps service errors for FeedItem get/archive/delete operations.
 func (s *Server) handleFeedItemGetError(w http.ResponseWriter, handler, userID, teamID, itemID string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"team_id", teamID,
@@ -781,11 +795,11 @@ func (s *Server) handleFeedItemGetError(w http.ResponseWriter, handler, userID, 
 		writeErrorResponse(w, nil, "forbidden",
 			"You can only delete feed items you posted; team admins can delete any", http.StatusForbidden)
 	case errors.Is(err, repositories.ErrFeedItemNotFound):
-		writeErrorResponse(w, nil, "not_found", "Feed item not found", http.StatusNotFound)
-	case strings.Contains(err.Error(), "user is not a member of the specified team"):
+		writeErrorResponse(w, nil, "not_found", feedMsgItemNotFound, http.StatusNotFound)
+	case strings.Contains(err.Error(), feedErrNotTeamMember):
 		writeErrorResponse(w, nil, "forbidden", err.Error(), http.StatusForbidden)
-	case strings.Contains(err.Error(), "not found"):
-		writeErrorResponse(w, nil, "not_found", "Feed item not found", http.StatusNotFound)
+	case strings.Contains(err.Error(), errNotFoundFragment):
+		writeErrorResponse(w, nil, "not_found", feedMsgItemNotFound, http.StatusNotFound)
 	default:
 		writeErrorResponse(w, nil, "internal_error", "Failed to process feed item request", http.StatusInternalServerError)
 	}
@@ -801,7 +815,7 @@ func (s *Server) checkFeedResourceLimit(w http.ResponseWriter, ctx context.Conte
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeed)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "checkFeedResourceLimit",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -812,7 +826,7 @@ func (s *Server) checkFeedResourceLimit(w http.ResponseWriter, ctx context.Conte
 
 	if !allowed {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "checkFeedResourceLimit",
 			"user_id", userID,
 			"resource_type", events.ResourceTypeFeed,
@@ -834,7 +848,7 @@ func (s *Server) checkFeedItemResourceLimit(w http.ResponseWriter, ctx context.C
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeedItem)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "checkFeedItemResourceLimit",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -845,7 +859,7 @@ func (s *Server) checkFeedItemResourceLimit(w http.ResponseWriter, ctx context.C
 
 	if !allowed {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "checkFeedItemResourceLimit",
 			"user_id", userID,
 			"resource_type", events.ResourceTypeFeedItem,
@@ -876,7 +890,7 @@ func (s *Server) handleCreateFeedItemReply(w http.ResponseWriter, r *http.Reques
 	itemID := chi.URLParam(r, "item_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateFeedItemReply",
 		"user_id", userID,
 		"team_id", teamID,
@@ -884,13 +898,13 @@ func (s *Server) handleCreateFeedItemReply(w http.ResponseWriter, r *http.Reques
 	).Info("Create feed item reply request received")
 
 	if !isValidUUID(itemID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidItemID, http.StatusBadRequest)
 		return
 	}
 
 	var req models.CreateFeedItemReplyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErrorResponse(w, nil, "bad_request", "Invalid request body", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", msgInvalidRequestBody, http.StatusBadRequest)
 		return
 	}
 
@@ -917,7 +931,7 @@ func (s *Server) handleListFeedItemReplies(w http.ResponseWriter, r *http.Reques
 	itemID := chi.URLParam(r, "item_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListFeedItemReplies",
 		"user_id", userID,
 		"team_id", teamID,
@@ -925,7 +939,7 @@ func (s *Server) handleListFeedItemReplies(w http.ResponseWriter, r *http.Reques
 	).Info("List feed item replies request received")
 
 	if !isValidUUID(itemID) {
-		writeErrorResponse(w, nil, "bad_request", "Invalid item_id format", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "bad_request", feedMsgInvalidItemID, http.StatusBadRequest)
 		return
 	}
 
@@ -980,14 +994,14 @@ func (s *Server) handleFeedItemReplyServiceError(
 	// nowhere — it would otherwise fall through to the default 500.
 	if errors.Is(err, services.ErrPermissionDenied) {
 		s.logger.With(
-			"service", "vibexp-api", "handler", handler, "user_id", userID, "team_id", teamID,
-		).Warn("Forbidden feed write attempt")
+			"service", serverLogServiceName, "handler", handler, "user_id", userID, "team_id", teamID,
+		).Warn(feedLogForbiddenWrite)
 		writeErrorResponse(w, nil, "forbidden", "You do not have permission to reply on this feed", http.StatusForbidden)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"team_id", teamID,
@@ -1000,10 +1014,10 @@ func (s *Server) handleFeedItemReplyServiceError(
 	case strings.Contains(msg, "feed item is archived"):
 		writeErrorResponse(w, nil, "unprocessable_entity",
 			"Cannot reply to an archived feed item", http.StatusUnprocessableEntity)
-	case strings.Contains(msg, "user is not a member of the specified team"):
+	case strings.Contains(msg, feedErrNotTeamMember):
 		writeErrorResponse(w, nil, "forbidden", msg, http.StatusForbidden)
-	case strings.Contains(msg, "not found"):
-		writeErrorResponse(w, nil, "not_found", "Feed item not found", http.StatusNotFound)
+	case strings.Contains(msg, errNotFoundFragment):
+		writeErrorResponse(w, nil, "not_found", feedMsgItemNotFound, http.StatusNotFound)
 	default:
 		writeErrorResponse(w, nil, "internal_error",
 			"Failed to process feed item reply request", http.StatusInternalServerError)

@@ -12,13 +12,21 @@ import (
 	"strings"
 )
 
+// Common guard-clause messages and HTTP header names/values shared by the test helpers
+const (
+	nilTestingInterfaceMsg = "testing interface cannot be nil"
+	nilResponseRecorderMsg = "response recorder cannot be nil"
+	headerContentType      = "Content-Type"
+	contentTypeJSON        = "application/json"
+)
+
 // validateTestingParams performs common nil checks for testing functions
 func validateTestingParams(t TestingT, response *httptest.ResponseRecorder) bool {
 	if t == nil {
-		panic("testing interface cannot be nil")
+		panic(nilTestingInterfaceMsg)
 	}
 	if response == nil {
-		t.Fatal("response recorder cannot be nil")
+		t.Fatal(nilResponseRecorderMsg)
 		return false
 	}
 	return true
@@ -60,7 +68,7 @@ func CreateTestRequest(method, url string, body interface{}) (*http.Request, err
 
 	// Set content type for JSON requests
 	if body != nil && !isStringOrBytes(body) {
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(headerContentType, contentTypeJSON)
 	}
 
 	return req, nil
@@ -78,17 +86,17 @@ func CreateTestRequestWithContext(ctx context.Context, method, url string, body 
 // AssertJSONResponse asserts that the HTTP response matches the expected JSON structure
 func AssertJSONResponse(t TestingT, response *httptest.ResponseRecorder, expected interface{}) {
 	if t == nil {
-		panic("testing interface cannot be nil")
+		panic(nilTestingInterfaceMsg)
 	}
 	if response == nil {
-		t.Fatal("response recorder cannot be nil")
+		t.Fatal(nilResponseRecorderMsg)
 		return
 	}
 	t.Helper()
 
 	// Check content type
-	contentType := response.Header().Get("Content-Type")
-	if !strings.Contains(contentType, "application/json") {
+	contentType := response.Header().Get(headerContentType)
+	if !strings.Contains(contentType, contentTypeJSON) {
 		t.Errorf("Expected JSON content type, got: %s", contentType)
 		return
 	}
@@ -122,10 +130,10 @@ func AssertJSONResponseContains(
 	t TestingT, response *httptest.ResponseRecorder, expectedFields map[string]interface{},
 ) {
 	if t == nil {
-		panic("testing interface cannot be nil")
+		panic(nilTestingInterfaceMsg)
 	}
 	if response == nil {
-		t.Fatal("response recorder cannot be nil")
+		t.Fatal(nilResponseRecorderMsg)
 		return
 	}
 	if expectedFields == nil {
@@ -135,8 +143,8 @@ func AssertJSONResponseContains(
 	t.Helper()
 
 	// Check content type
-	contentType := response.Header().Get("Content-Type")
-	if !strings.Contains(contentType, "application/json") {
+	contentType := response.Header().Get(headerContentType)
+	if !strings.Contains(contentType, contentTypeJSON) {
 		t.Errorf("Expected JSON content type, got: %s", contentType)
 		return
 	}
@@ -287,7 +295,7 @@ func CreateMultipartFormRequest(
 		return nil, err
 	}
 
-	req.Header.Set("Content-Type", fmt.Sprintf("multipart/form-data; boundary=%s", boundary))
+	req.Header.Set(headerContentType, fmt.Sprintf("multipart/form-data; boundary=%s", boundary))
 	return req, nil
 }
 

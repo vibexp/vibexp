@@ -13,6 +13,9 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
+// apiAccessHeader is the HTTP header used for API key authentication
+const apiAccessHeader = "X-API-Key"
+
 // CreateTestUser creates a test user with default values for testing
 func CreateTestUser() *models.User {
 	return CreateTestUserWithID("test-user-123")
@@ -114,7 +117,7 @@ func AddAuthHeader(req *http.Request, token string) {
 
 // AddAPIKeyHeader adds API key authentication header to an HTTP request
 func AddAPIKeyHeader(req *http.Request, apiKey string) {
-	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set(apiAccessHeader, apiKey)
 }
 
 // CreateAuthenticatedRequest creates an HTTP request with JWT authentication
@@ -296,7 +299,7 @@ func GetAuthToken(req *http.Request) string {
 
 // GetAPIKey extracts the API key from a request header
 func GetAPIKey(req *http.Request) string {
-	return req.Header.Get("X-API-Key")
+	return req.Header.Get(apiAccessHeader)
 }
 
 // ValidateAuthHeaders checks if the request has proper authentication headers
@@ -304,7 +307,7 @@ func ValidateAuthHeaders(t TestingT, req *http.Request, expectJWT, expectAPIKey 
 	t.Helper()
 
 	hasJWT := req.Header.Get("Authorization") != ""
-	hasAPIKey := req.Header.Get("X-API-Key") != ""
+	hasAPIKey := req.Header.Get(apiAccessHeader) != ""
 
 	if expectJWT && !hasJWT {
 		t.Error("Expected JWT authentication header to be present")

@@ -12,6 +12,15 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
+const (
+	// serverLogServiceName is the service log-field value for the prompt
+	// share handlers.
+
+	// promptShareErrPromptNotFound is the share-service error string that maps
+	// to a 404 with promptMsgNotFound.
+	promptShareErrPromptNotFound = "prompt not found"
+)
+
 // handleCreatePromptShare creates or updates a share for a prompt
 func (s *Server) handleCreatePromptShare(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
@@ -44,15 +53,15 @@ func (s *Server) handleCreatePromptShare(w http.ResponseWriter, r *http.Request)
 	shareResp, err := s.container.PromptShareService().CreateShare(userID, promptSlug, &req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreatePromptShare",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to create prompt share")
 
-		if err.Error() == "prompt not found" {
-			writeErrorResponse(w, r, "not_found", "Prompt not found", http.StatusNotFound)
+		if err.Error() == promptShareErrPromptNotFound {
+			writeErrorResponse(w, r, "not_found", promptMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -72,15 +81,15 @@ func (s *Server) handleGetPromptShare(w http.ResponseWriter, r *http.Request) {
 	shareResp, err := s.container.PromptShareService().GetShare(userID, promptSlug)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPromptShare",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to get prompt share")
 
-		if err.Error() == "prompt not found" {
-			writeErrorResponse(w, r, "not_found", "Prompt not found", http.StatusNotFound)
+		if err.Error() == promptShareErrPromptNotFound {
+			writeErrorResponse(w, r, "not_found", promptMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -105,15 +114,15 @@ func (s *Server) handleDeletePromptShare(w http.ResponseWriter, r *http.Request)
 	err := s.container.PromptShareService().DeleteShare(userID, promptSlug)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeletePromptShare",
 			"user_id", userID,
 			"prompt_slug", promptSlug,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to delete prompt share")
 
-		if err.Error() == "prompt not found" {
-			writeErrorResponse(w, r, "not_found", "Prompt not found", http.StatusNotFound)
+		if err.Error() == promptShareErrPromptNotFound {
+			writeErrorResponse(w, r, "not_found", promptMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -132,7 +141,7 @@ func (s *Server) handleDeletePromptShare(w http.ResponseWriter, r *http.Request)
 // handleSharedPromptError handles error responses for shared prompt retrieval
 func (s *Server) handleSharedPromptError(w http.ResponseWriter, r *http.Request, err error, shareToken string) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetSharedPrompt",
 		"share_token", shareToken,
 		"error", fmt.Sprintf("%+v", err),
@@ -145,7 +154,7 @@ func (s *Server) handleSharedPromptError(w http.ResponseWriter, r *http.Request,
 		errors.WriteJSONError(w, r, apiErr)
 	case "access denied":
 		writeErrorResponse(w, r, "forbidden", "You do not have access to this shared prompt", http.StatusForbidden)
-	case "shared prompt not found", "prompt not found":
+	case "shared prompt not found", promptShareErrPromptNotFound:
 		writeErrorResponse(w, r, "not_found", "Shared prompt not found", http.StatusNotFound)
 	case "share has been disabled":
 		writeErrorResponse(w, r, "forbidden", "This share has been disabled", http.StatusForbidden)

@@ -41,7 +41,7 @@ func (s *Server) authorizeAttachmentOwner(
 		writeErrorResponse(w, nil, "not_found", "Attachment owner not found", http.StatusNotFound)
 	default:
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "authorizeAttachmentOwner",
 			"owner_type", ownerType,
 			"owner_id", ownerID,
@@ -142,7 +142,7 @@ func (s *Server) handleListAttachments(w http.ResponseWriter, r *http.Request) {
 	resp, err := s.container.AttachmentService().List(r.Context(), ownerType, ownerID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListAttachments",
 			"owner_type", ownerType,
 			"owner_id", ownerID,
@@ -226,7 +226,7 @@ func (s *Server) streamAttachment(
 	if _, copyErr := io.Copy(w, rc); copyErr != nil {
 		// Headers are already sent; log and stop. Cannot change the status now.
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", handler,
 			"attachment_id", att.ID,
 			"error", fmt.Sprintf("%+v", copyErr),

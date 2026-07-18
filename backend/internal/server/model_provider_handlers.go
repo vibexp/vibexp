@@ -13,20 +13,23 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 )
 
+// Response and log messages shared across the model provider handlers.
+const ()
+
 func (s *Server) handleCreateModelProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateModelProvider",
 		"user_id", userID,
 	).Info("Model provider creation request received")
 
 	var req models.CreateModelProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logModelProviderError("handleCreateModelProvider", userID, "", err, "Failed to decode request body")
+		s.logModelProviderError("handleCreateModelProvider", userID, "", err, msgDecodeRequestBodyFailed)
 		apiErr := errors.NewBadRequestError(
-			"Invalid request body. Please ensure the JSON is well-formed.",
+			msgInvalidBodyWellFormedJSON,
 		)
 		errors.WriteJSONError(w, r, apiErr)
 		return
@@ -40,7 +43,7 @@ func (s *Server) handleCreateModelProvider(w http.ResponseWriter, r *http.Reques
 	provider, err := s.container.ModelProviderService().CreateModelProvider(r.Context(), teamID, userID, req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateModelProvider",
 			"user_id", userID,
 			"name", req.Name,
@@ -60,7 +63,7 @@ func (s *Server) handleCreateModelProvider(w http.ResponseWriter, r *http.Reques
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateModelProvider",
 		"user_id", userID,
 		"provider_id", provider.ID,
@@ -80,7 +83,7 @@ func (s *Server) validateCreateModelProviderRequest(
 
 	if req.Name == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateModelProvider",
 			"user_id", userID,
 		).Error("Model provider name is required")
@@ -89,7 +92,7 @@ func (s *Server) validateCreateModelProviderRequest(
 
 	if req.ProviderType == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateModelProvider",
 			"user_id", userID,
 		).Error("Provider type is required")
@@ -98,7 +101,7 @@ func (s *Server) validateCreateModelProviderRequest(
 
 	if req.Model == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateModelProvider",
 			"user_id", userID,
 		).Error("Model is required")
@@ -123,7 +126,7 @@ func (s *Server) logModelProviderError(
 	msg string,
 ) {
 	fields := []any{
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),
@@ -148,7 +151,7 @@ func (s *Server) handleListModelProviders(w http.ResponseWriter, r *http.Request
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListModelProviders",
 		"user_id", userID,
 	).Info("Model providers list request received")
@@ -157,7 +160,7 @@ func (s *Server) handleListModelProviders(w http.ResponseWriter, r *http.Request
 	providers, err := s.container.ModelProviderService().GetModelProvidersByTeamID(r.Context(), teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListModelProviders",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -177,7 +180,7 @@ func (s *Server) handleGetModelProvider(w http.ResponseWriter, r *http.Request) 
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetModelProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -185,12 +188,12 @@ func (s *Server) handleGetModelProvider(w http.ResponseWriter, r *http.Request) 
 
 	if providerID == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetModelProvider",
 			"user_id", userID,
-		).Error("Provider ID is required")
+		).Error(msgProviderIDRequired)
 		apiErr := errors.NewModelProviderValidationError(
-			"Provider ID is required in the URL path",
+			msgProviderIDRequiredInPath,
 			[]errors.ValidationError{errors.NewRequiredFieldError("id")},
 		)
 		errors.WriteJSONError(w, r, apiErr)
@@ -200,7 +203,7 @@ func (s *Server) handleGetModelProvider(w http.ResponseWriter, r *http.Request) 
 	provider, err := s.container.ModelProviderService().GetModelProvider(r.Context(), teamID, providerID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetModelProvider",
 			"user_id", userID,
 			"provider_id", providerID,
@@ -225,7 +228,7 @@ func (s *Server) handleUpdateModelProvider(w http.ResponseWriter, r *http.Reques
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateModelProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -233,12 +236,12 @@ func (s *Server) handleUpdateModelProvider(w http.ResponseWriter, r *http.Reques
 
 	if providerID == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdateModelProvider",
 			"user_id", userID,
-		).Error("Provider ID is required")
+		).Error(msgProviderIDRequired)
 		apiErr := errors.NewModelProviderValidationError(
-			"Provider ID is required in the URL path",
+			msgProviderIDRequiredInPath,
 			[]errors.ValidationError{errors.NewRequiredFieldError("id")},
 		)
 		errors.WriteJSONError(w, r, apiErr)
@@ -249,10 +252,10 @@ func (s *Server) handleUpdateModelProvider(w http.ResponseWriter, r *http.Reques
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.logModelProviderError(
 			"handleUpdateModelProvider", userID, providerID, err,
-			"Failed to decode request body",
+			msgDecodeRequestBodyFailed,
 		)
 		apiErr := errors.NewBadRequestError(
-			"Invalid request body. Please ensure the JSON is well-formed.",
+			msgInvalidBodyWellFormedJSON,
 		)
 		errors.WriteJSONError(w, r, apiErr)
 		return
@@ -265,7 +268,7 @@ func (s *Server) handleUpdateModelProvider(w http.ResponseWriter, r *http.Reques
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateModelProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -281,7 +284,7 @@ func (s *Server) handleUpdateModelProviderError(
 	err error,
 ) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateModelProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -303,7 +306,7 @@ func (s *Server) handleDeleteModelProvider(w http.ResponseWriter, r *http.Reques
 	providerID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteModelProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -311,12 +314,12 @@ func (s *Server) handleDeleteModelProvider(w http.ResponseWriter, r *http.Reques
 
 	if providerID == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteModelProvider",
 			"user_id", userID,
-		).Error("Provider ID is required")
+		).Error(msgProviderIDRequired)
 		apiErr := errors.NewModelProviderValidationError(
-			"Provider ID is required in the URL path",
+			msgProviderIDRequiredInPath,
 			[]errors.ValidationError{errors.NewRequiredFieldError("id")},
 		)
 		errors.WriteJSONError(w, r, apiErr)
@@ -326,7 +329,7 @@ func (s *Server) handleDeleteModelProvider(w http.ResponseWriter, r *http.Reques
 	err := s.container.ModelProviderService().DeleteModelProvider(r.Context(), teamID, providerID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteModelProvider",
 			"user_id", userID,
 			"provider_id", providerID,
@@ -347,7 +350,7 @@ func (s *Server) handleDeleteModelProvider(w http.ResponseWriter, r *http.Reques
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteModelProvider",
 		"user_id", userID,
 		"provider_id", providerID,
@@ -360,16 +363,16 @@ func (s *Server) handleValidateModelProvider(w http.ResponseWriter, r *http.Requ
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleValidateModelProvider",
 		"user_id", userID,
 	).Info("Model provider validation request received")
 
 	var req models.ValidateModelProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logModelProviderError("handleValidateModelProvider", userID, "", err, "Failed to decode request body")
+		s.logModelProviderError("handleValidateModelProvider", userID, "", err, msgDecodeRequestBodyFailed)
 		apiErr := errors.NewBadRequestError(
-			"Invalid request body. Please ensure the JSON is well-formed.",
+			msgInvalidBodyWellFormedJSON,
 		)
 		errors.WriteJSONError(w, r, apiErr)
 		return
@@ -382,7 +385,7 @@ func (s *Server) handleValidateModelProvider(w http.ResponseWriter, r *http.Requ
 	response, err := s.container.ModelProviderService().ValidateModelProvider(r.Context(), req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleValidateModelProvider",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -395,7 +398,7 @@ func (s *Server) handleValidateModelProvider(w http.ResponseWriter, r *http.Requ
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleValidateModelProvider",
 		"user_id", userID,
 		"is_valid", response.IsValid,
@@ -415,7 +418,7 @@ func (s *Server) validateModelProviderRequest(
 
 	if req.ProviderType == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleValidateModelProvider",
 			"user_id", userID,
 		).Error("Provider type is required")
@@ -424,7 +427,7 @@ func (s *Server) validateModelProviderRequest(
 
 	if req.BaseURL == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleValidateModelProvider",
 			"user_id", userID,
 		).Error("Base URL is required")
@@ -433,7 +436,7 @@ func (s *Server) validateModelProviderRequest(
 
 	if req.Model == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleValidateModelProvider",
 			"user_id", userID,
 		).Error("Model is required")

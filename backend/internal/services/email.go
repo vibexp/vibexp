@@ -20,6 +20,9 @@ import (
 //go:embed templates/email/*.html templates/email/*.txt
 var templateFS embed.FS
 
+// emailBaseTemplate is the shared layout template every HTML email renders inside.
+const emailBaseTemplate = "templates/email/base.html"
+
 type EmailService struct {
 	provider external.EmailProvider
 	cfg      *config.Config
@@ -151,7 +154,7 @@ func (es *EmailService) sendSupportNotificationToAdmin(userName, userEmail strin
 
 	// Render HTML template
 	htmlBody, err := es.renderTemplateFromFS(
-		"templates/email/base.html",
+		emailBaseTemplate,
 		"templates/email/support-notification.html",
 		data,
 	)
@@ -194,7 +197,7 @@ func (es *EmailService) sendSupportAcknowledgement(userName, userEmail string, r
 
 	// Render HTML template
 	htmlBody, err := es.renderTemplateFromFS(
-		"templates/email/base.html",
+		emailBaseTemplate,
 		"templates/email/support-acknowledgement.html",
 		data,
 	)
@@ -249,7 +252,7 @@ func (es *EmailService) SendTeamInvitation(invitation *models.TeamInvitation, te
 
 	// Render HTML template
 	htmlBody, err := es.renderTemplateFromFS(
-		"templates/email/base.html",
+		emailBaseTemplate,
 		"templates/email/team-invitation.html",
 		data,
 	)

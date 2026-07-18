@@ -8,11 +8,16 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
 )
+
+// hookMsgResourceLimitCheckFailed is the hook error message returned when a
+// resource-limit check fails (shared with the Cursor IDE hook handlers).
+const hookMsgResourceLimitCheckFailed = "Failed to check resource limits"
 
 // decodeClaudeHookPayload decodes and validates the Claude Code hook payload
 func (s *Server) decodeClaudeHookPayload(r *http.Request) (*models.IncomingHookPayload, error) {
@@ -40,7 +45,7 @@ func (s *Server) checkClaudeSessionLimit(w http.ResponseWriter, r *http.Request,
 	canCreateSession, err := resourceUsageService.CheckResourceLimit(r.Context(), userID, "ai_session")
 	if err != nil {
 		s.logger.With("error", err).Error("Failed to check AI session limit")
-		respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
+		respondWithHookError(w, http.StatusInternalServerError, hookMsgResourceLimitCheckFailed, s.logger)
 		return false
 	}
 
@@ -82,7 +87,7 @@ func (s *Server) checkClaudeToolLimit(w http.ResponseWriter, r *http.Request, us
 	canCreateTool, err := resourceUsageService.CheckResourceLimit(r.Context(), userID, "ai_tool")
 	if err != nil {
 		s.logger.With("error", err).Error("Failed to check AI tool limit")
-		respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
+		respondWithHookError(w, http.StatusInternalServerError, hookMsgResourceLimitCheckFailed, s.logger)
 		return false
 	}
 
@@ -201,7 +206,7 @@ func (s *Server) checkClaudeResourceLimits(
 		claudeCount, countErr := claudeCodeRepo.CountUniqueSessions(r.Context(), userID)
 		if countErr != nil {
 			s.logger.With("error", countErr).Error("Failed to count Claude Code sessions")
-			respondWithHookError(w, http.StatusInternalServerError, "Failed to check resource limits", s.logger)
+			respondWithHookError(w, http.StatusInternalServerError, hookMsgResourceLimitCheckFailed, s.logger)
 			return false
 		}
 
@@ -276,12 +281,12 @@ func respondWithHookSuccess(w http.ResponseWriter, hookPayload interface{}, logg
 	switch v := hookPayload.(type) {
 	case *models.ClaudeCodeHookPayload:
 		resp.ID = v.ID
-		resp.CreatedAt = v.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
-		resp.UpdatedAt = v.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+		resp.CreatedAt = v.CreatedAt.Format(time.RFC3339)
+		resp.UpdatedAt = v.UpdatedAt.Format(time.RFC3339)
 	case *models.CursorIDEHookPayload:
 		resp.ID = v.ID
-		resp.CreatedAt = v.CreatedAt.Format("2006-01-02T15:04:05Z07:00")
-		resp.UpdatedAt = v.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+		resp.CreatedAt = v.CreatedAt.Format(time.RFC3339)
+		resp.UpdatedAt = v.UpdatedAt.Format(time.RFC3339)
 	}
 
 	writeCreated(w, map[string]any{

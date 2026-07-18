@@ -17,20 +17,26 @@ const TestAPIKeyValue = "test-api-key-12345"
 // #nosec G101 -- This is a test fixture, not a real hardcoded credential
 const TestJWTToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.token"
 
+// Common HTTP header names and values used across the test helpers
+const (
+	headerContentType = "Content-Type"
+	contentTypeJSON   = "application/json"
+)
+
 // Common HTTP Headers for testing
 var (
 	JSONHeaders = map[string]string{
-		"Content-Type": "application/json",
+		headerContentType: contentTypeJSON,
 	}
 
 	AuthHeaders = map[string]string{
-		"Authorization": "Bearer " + TestJWTToken,
-		"Content-Type":  "application/json",
+		"Authorization":   "Bearer " + TestJWTToken,
+		headerContentType: contentTypeJSON,
 	}
 
 	APIKeyHeaders = map[string]string{
-		"Authorization": "Bearer " + TestAPIKeyValue,
-		"Content-Type":  "application/json",
+		"Authorization":   "Bearer " + TestAPIKeyValue,
+		headerContentType: contentTypeJSON,
 	}
 )
 
