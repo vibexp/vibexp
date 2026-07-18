@@ -1,8 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { MetadataEditor } from '@/components/metadata/MetadataEditor'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
@@ -45,6 +52,12 @@ const schema = z.object({
 
 export type BlueprintFormValues = z.infer<typeof schema>
 
+// Stable reference so the editor doesn't re-validate on every render. Sub-agents
+// blueprints require a `model` metadata key (enforced in the backend at
+// internal/services/blueprint.go); marking it required keeps the row from being
+// deleted or blanked in the UI.
+const SUB_AGENTS_REQUIRED_KEYS = ['model']
+
 export interface BlueprintFormHandle {
   submit: () => void
 }
@@ -66,6 +79,13 @@ export const BlueprintForm = forwardRef<
   ref
 ) {
   const formElRef = useRef<HTMLFormElement>(null)
+  const [metadata, setMetadata] = useState<Record<string, unknown>>(
+    blueprint?.metadata ?? {}
+  )
+  const [metadataValid, setMetadataValid] = useState(true)
+
+  const requiredMetadataKeys =
+    blueprint?.subtype === 'sub-agents' ? SUB_AGENTS_REQUIRED_KEYS : undefined
 
   const form = useForm<BlueprintFormValues>({
     resolver: zodResolver(schema),
@@ -89,6 +109,7 @@ export const BlueprintForm = forwardRef<
         type: blueprint.type,
         content: blueprint.content,
       })
+      setMetadata(blueprint.metadata ?? {})
     }
   }, [blueprint, form])
 
@@ -99,6 +120,9 @@ export const BlueprintForm = forwardRef<
   }))
 
   const handleSubmit = form.handleSubmit(async values => {
+    // The editor surfaces its own inline errors; block the submit so an invalid
+    // metadata map (e.g. a blanked required `model` key) never reaches the API.
+    if (!metadataValid) return
     await onSubmit({
       title: values.title.trim(),
       slug: values.slug.trim(),
@@ -106,6 +130,7 @@ export const BlueprintForm = forwardRef<
       project_id: values.project_id,
       type: values.type,
       content: values.content,
+      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
     })
   })
 
@@ -252,6 +277,21 @@ export const BlueprintForm = forwardRef<
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Metadata</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MetadataEditor
+                value={metadata}
+                onChange={setMetadata}
+                onValidityChange={setMetadataValid}
+                requiredKeys={requiredMetadataKeys}
+                disabled={isLoading}
               />
             </CardContent>
           </Card>
