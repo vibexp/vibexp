@@ -516,6 +516,14 @@ func TestLoad_MissingEncryptionKey_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "security.encryption_key")
 }
 
+func TestLoad_MalformedInstanceAdmin_ReturnsError(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+"auth:\n  instance_admins:\n    - notanemail\n")
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "auth.instance_admins")
+}
+
 func TestLoad_ShortEncryptionKey_ReturnsError(t *testing.T) {
 	cfg, err := loadYAML(t, "security:\n  encryption_key: \"tooshort\"\n")
 
