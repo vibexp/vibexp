@@ -14,7 +14,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// MockTeamCreatorService is a mock implementation of TeamCreatorServiceInterface
+// MockTeamCreatorService is a mock implementation of DefaultTeamCreator
 type MockTeamCreatorService struct {
 	mock.Mock
 }
@@ -27,7 +27,7 @@ func (m *MockTeamCreatorService) CreateDefaultTeam(ctx context.Context, userID s
 	return args.Get(0).(*models.Team), args.Error(1)
 }
 
-// MockProjectCreatorService is a mock implementation of ProjectCreatorServiceInterface
+// MockProjectCreatorService is a mock implementation of ProjectCreator
 type MockProjectCreatorService struct {
 	mock.Mock
 }
@@ -45,8 +45,8 @@ func (m *MockProjectCreatorService) CreateProject(
 func TestNewTeamCreationListener(t *testing.T) {
 	tests := []struct {
 		name           string
-		teamService    TeamCreatorServiceInterface
-		projectService ProjectCreatorServiceInterface
+		teamService    DefaultTeamCreator
+		projectService ProjectCreator
 		logger         *slog.Logger
 	}{
 		{

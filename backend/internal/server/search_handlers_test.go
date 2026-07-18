@@ -27,12 +27,12 @@ const searchTestTeamID = "550e8400-e29b-41d4-a716-446655440000"
 // MockSearchContainer implements the Container interface for search handler tests.
 type MockSearchContainer struct {
 	BaseMockContainer
-	searchService *svcmocks.MockSearchServiceInterface
+	searchService *svcmocks.MockSearcher
 	authService   *svcmocks.MockAuthServiceInterface
 	teamService   *svcmocks.MockTeamServiceInterface
 }
 
-func (m *MockSearchContainer) SearchService() services.SearchServiceInterface {
+func (m *MockSearchContainer) SearchService() services.Searcher {
 	return m.searchService
 }
 
@@ -46,7 +46,7 @@ func (m *MockSearchContainer) TeamService() services.TeamServiceInterface {
 
 func newMockSearchContainer(t *testing.T) *MockSearchContainer {
 	return &MockSearchContainer{
-		searchService: svcmocks.NewMockSearchServiceInterface(t),
+		searchService: svcmocks.NewMockSearcher(t),
 		authService:   svcmocks.NewMockAuthServiceInterface(t),
 		teamService:   svcmocks.NewMockTeamServiceInterface(t),
 	}

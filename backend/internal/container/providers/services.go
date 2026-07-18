@@ -265,7 +265,7 @@ func ProvideAgentService(
 
 // ProvideAgentCardFetcher creates a new AgentCardFetcher. cfg drives the SSRF
 // policy: loopback/private agent card hosts are reachable only in local development.
-func ProvideAgentCardFetcher(cfg *config.Config) services.AgentCardFetcherInterface {
+func ProvideAgentCardFetcher(cfg *config.Config) services.CardFetcher {
 	return services.NewAgentCardFetcher(cfg)
 }
 
@@ -289,7 +289,7 @@ func ProvideA2AStreamProcessor(
 	eventRepo repositories.AgentExecutionEventRepository,
 	executionRepo repositories.AgentExecutionRepository,
 	logger *slog.Logger,
-) services.A2AStreamProcessorInterface {
+) services.StreamProcessor {
 	return services.NewA2AStreamProcessor(eventRepo, executionRepo, logger)
 }
 
@@ -299,7 +299,7 @@ func ProvideAgentInvocationService(
 	executionRepo repositories.AgentExecutionRepository,
 	eventRepo repositories.AgentExecutionEventRepository,
 	a2aClient services.A2AHTTPClientInterface,
-	streamProcessor services.A2AStreamProcessorInterface,
+	streamProcessor services.StreamProcessor,
 	logger *slog.Logger,
 ) services.AgentInvocationServiceInterface {
 	return services.NewAgentInvocationService(agentRepo, executionRepo, eventRepo, a2aClient, streamProcessor, logger)
@@ -391,7 +391,7 @@ func ProvideSearchService(
 	embedder services.QueryEmbedder,
 	logger *slog.Logger,
 	cfg *config.Config,
-) services.SearchServiceInterface {
+) services.Searcher {
 	ranking := services.SearchRankingConfig{
 		Enabled:         cfg.Search.RecencyRankingEnabled,
 		WeightRelevance: cfg.Search.RankWeightRelevance,
@@ -432,7 +432,7 @@ func ProvideFeatureFlagService(cfg *config.Config, logger *slog.Logger) *feature
 // ProvideBackofficeService creates a new BackofficeService
 func ProvideBackofficeService(
 	backofficeRepo repositories.BackofficeRepository,
-) services.BackofficeServiceInterface {
+) services.UsageAndGrowthGetter {
 	return services.NewBackofficeService(backofficeRepo)
 }
 
@@ -450,7 +450,7 @@ func ProvideEmbeddingBackfillService(
 	publisher events.EventPublisher,
 	promptService services.PromptServiceInterface,
 	logger *slog.Logger,
-) services.EmbeddingBackfillServiceInterface {
+) services.EmbeddingBackfiller {
 	return services.NewEmbeddingBackfillService(repo, publisher, promptService, logger)
 }
 
@@ -460,7 +460,7 @@ func ProvideEmbeddingStatusService(
 	providerRepo repositories.EmbeddingProviderRepository,
 	coverageRepo repositories.EmbeddingBackfillRepository,
 	logger *slog.Logger,
-) services.EmbeddingStatusServiceInterface {
+) services.EmbeddingCoverageGetter {
 	return services.NewEmbeddingStatusService(providerRepo, coverageRepo, logger)
 }
 

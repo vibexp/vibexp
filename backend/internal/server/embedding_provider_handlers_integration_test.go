@@ -32,15 +32,15 @@ type MockEmbeddingProviderContainer struct {
 	mock.Mock
 	embeddingProviderService *svcmocks.MockEmbeddingProviderServiceInterface
 	embeddingRepository      *repomocks.MockEmbeddingRepository
-	embeddingBackfillService *svcmocks.MockEmbeddingBackfillServiceInterface
-	embeddingStatusService   *svcmocks.MockEmbeddingStatusServiceInterface
+	embeddingBackfillService *svcmocks.MockEmbeddingBackfiller
+	embeddingStatusService   *svcmocks.MockEmbeddingCoverageGetter
 }
 
 func (m *MockEmbeddingProviderContainer) EmbeddingProviderService() services.EmbeddingProviderServiceInterface {
 	return m.embeddingProviderService
 }
 
-func (m *MockEmbeddingProviderContainer) EmbeddingStatusService() services.EmbeddingStatusServiceInterface {
+func (m *MockEmbeddingProviderContainer) EmbeddingStatusService() services.EmbeddingCoverageGetter {
 	return m.embeddingStatusService
 }
 
@@ -48,7 +48,7 @@ func (m *MockEmbeddingProviderContainer) EmbeddingRepository() repositories.Embe
 	return m.embeddingRepository
 }
 
-func (m *MockEmbeddingProviderContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
+func (m *MockEmbeddingProviderContainer) EmbeddingBackfillService() services.EmbeddingBackfiller {
 	return m.embeddingBackfillService
 }
 
@@ -56,8 +56,8 @@ func newMockEmbeddingProviderContainer(t *testing.T) *MockEmbeddingProviderConta
 	return &MockEmbeddingProviderContainer{
 		embeddingProviderService: svcmocks.NewMockEmbeddingProviderServiceInterface(t),
 		embeddingRepository:      repomocks.NewMockEmbeddingRepository(t),
-		embeddingBackfillService: svcmocks.NewMockEmbeddingBackfillServiceInterface(t),
-		embeddingStatusService:   svcmocks.NewMockEmbeddingStatusServiceInterface(t),
+		embeddingBackfillService: svcmocks.NewMockEmbeddingBackfiller(t),
+		embeddingStatusService:   svcmocks.NewMockEmbeddingCoverageGetter(t),
 	}
 }
 

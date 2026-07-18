@@ -20,8 +20,8 @@ type EmailProvider interface {
 	SendEmail(ctx context.Context, message *gomail.EmailMessage) error
 }
 
-// SMTPClient defines the interface for SMTP operations (DEPRECATED: Use EmailProvider instead)
-type SMTPClient interface {
+// EmailSender defines the interface for SMTP operations (DEPRECATED: Use EmailProvider instead)
+type EmailSender interface {
 	SendEmail(ctx context.Context, req *EmailRequest) error
 }
 

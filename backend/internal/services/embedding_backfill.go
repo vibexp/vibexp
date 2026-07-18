@@ -79,11 +79,11 @@ type EmbeddingBackfillResult struct {
 	TotalFailed    int                           `json:"total_failed"`
 }
 
-// EmbeddingBackfillServiceInterface regenerates embeddings for every embeddable
+// EmbeddingBackfiller regenerates embeddings for every embeddable
 // entity by republishing each entity's `.created` event, letting the in-process
 // embedding worker (chunk in Go → embed via the active provider → SaveEmbeddingChunks)
 // rebuild the vectors. It is a permanent operational tool for model/dimension swaps.
-type EmbeddingBackfillServiceInterface interface {
+type EmbeddingBackfiller interface {
 	Backfill(ctx context.Context, req EmbeddingBackfillRequest) (*EmbeddingBackfillResult, error)
 }
 
@@ -96,7 +96,7 @@ type PromptBodyRenderer interface {
 	RenderPromptBody(userID, body string) (string, error)
 }
 
-// EmbeddingBackfillService implements EmbeddingBackfillServiceInterface.
+// EmbeddingBackfillService implements EmbeddingBackfiller.
 type EmbeddingBackfillService struct {
 	repo           repositories.EmbeddingBackfillRepository
 	publisher      events.EventPublisher
@@ -110,7 +110,7 @@ type EmbeddingBackfillService struct {
 	logger  *slog.Logger
 }
 
-var _ EmbeddingBackfillServiceInterface = (*EmbeddingBackfillService)(nil)
+var _ EmbeddingBackfiller = (*EmbeddingBackfillService)(nil)
 
 // NewEmbeddingBackfillService creates a new EmbeddingBackfillService.
 func NewEmbeddingBackfillService(

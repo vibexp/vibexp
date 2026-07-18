@@ -26,8 +26,8 @@ const (
 // to all team members (excluding the event author) via NotificationService.Send.
 type NotificationEventListener struct {
 	notifSvc        NotificationServiceInterface
-	resolver        RecipientResolverInterface
-	renderer        TemplateRendererInterface
+	resolver        EventRecipientResolver
+	renderer        ContentRenderer
 	userRepo        repositories.UserRepository
 	feedItemRepo    repositories.FeedItemRepository
 	frontendBaseURL string
@@ -38,8 +38,8 @@ type NotificationEventListener struct {
 // NotificationEventListenerDeps groups the dependencies injected into NotificationEventListener.
 type NotificationEventListenerDeps struct {
 	NotifSvc        NotificationServiceInterface
-	Resolver        RecipientResolverInterface
-	Renderer        TemplateRendererInterface
+	Resolver        EventRecipientResolver
+	Renderer        ContentRenderer
 	UserRepo        repositories.UserRepository
 	FeedItemRepo    repositories.FeedItemRepository
 	FrontendBaseURL string

@@ -370,7 +370,7 @@ func newOAuthAuthorizationServer(
 			PKCE:          postgres.NewOAuthPKCERepository(db),
 			SigningKeys:   postgres.NewOAuthSigningKeyRepository(db),
 			LoginSessions: postgres.NewOAuthLoginSessionRepository(db),
-			AccessPolicy:  newConsentAccessPolicy(cfg, c, logger),
+			AccessPolicy:  newConsentAccessChecker(cfg, c, logger),
 			Logger:        logger,
 		},
 	)
@@ -378,13 +378,13 @@ func newOAuthAuthorizationServer(
 	return svc
 }
 
-// newConsentAccessPolicy builds the attach-time access-allowlist re-check (#217)
+// newConsentAccessChecker builds the attach-time access-allowlist re-check (#217)
 // from configuration. Kept separate from newOAuthAuthorizationServer so the
 // config-to-policy wiring — which allowlist fields feed the evaluator — is
 // directly testable without a database.
-func newConsentAccessPolicy(
+func newConsentAccessChecker(
 	cfg *config.Config, c container.Container, logger *slog.Logger,
-) oauthserver.ConsentAccessPolicy {
+) oauthserver.ConsentAccessChecker {
 	return consentAccessPolicyAdapter{
 		users: c.UserRepository(),
 		allowlist: feature_flags.NewUserSignInAllowlistFlag(

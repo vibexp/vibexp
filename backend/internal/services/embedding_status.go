@@ -11,8 +11,8 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// EmbeddingStatusServiceInterface computes derived embedding coverage for a team.
-type EmbeddingStatusServiceInterface interface {
+// EmbeddingCoverageGetter computes derived embedding coverage for a team.
+type EmbeddingCoverageGetter interface {
 	// GetCoverage reports, per entity type, how many of the team's embeddable
 	// entities have an embedding under the team's active provider model vs. are still
 	// pending. A team with no active provider is reported as all-pending (0%), not an
@@ -30,7 +30,7 @@ type EmbeddingStatusService struct {
 	logger       *slog.Logger
 }
 
-var _ EmbeddingStatusServiceInterface = (*EmbeddingStatusService)(nil)
+var _ EmbeddingCoverageGetter = (*EmbeddingStatusService)(nil)
 
 // NewEmbeddingStatusService creates a new EmbeddingStatusService.
 func NewEmbeddingStatusService(

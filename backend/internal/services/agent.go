@@ -29,7 +29,7 @@ const (
 type AgentService struct {
 	agentRepo         repositories.AgentRepository
 	executionRepo     repositories.AgentExecutionRepository
-	cardFetcher       AgentCardFetcherInterface
+	cardFetcher       CardFetcher
 	encryptionService EncryptionServiceInterface
 	authenticator     *AgentAuthenticator
 	teamService       TeamServiceInterface
@@ -68,7 +68,7 @@ func NewAgentService(
 func NewAgentServiceWithCardFetcher(
 	agentRepo repositories.AgentRepository,
 	executionRepo repositories.AgentExecutionRepository,
-	cardFetcher AgentCardFetcherInterface,
+	cardFetcher CardFetcher,
 	encryptionService EncryptionServiceInterface,
 	teamService TeamServiceInterface,
 	authzService AuthorizationServiceInterface,

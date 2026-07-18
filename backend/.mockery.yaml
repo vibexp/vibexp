@@ -21,15 +21,19 @@ packages:
       EmbeddingProviderServiceInterface:
       ModelProviderServiceInterface:
       EmbeddingServiceInterface:
-      SearchServiceInterface:
+      Searcher:
       QueryEmbedder:
       SubscriptionServiceInterface:
       EmailServiceInterface:
-      AgentCardFetcherInterface:
+      CardFetcher:
       AgentServiceInterface:
       MemoryServiceInterface:
       ProjectServiceInterface:
       ContentVersionServiceInterface:
+      StreamProcessor:
+      EmbeddingBackfiller:
+      EmbeddingCoverageGetter:
+      UsageAndGrowthGetter:
   github.com/vibexp/vibexp/internal/services/resourceaccess:
     interfaces:
       ResourceAccessService:
@@ -39,7 +43,7 @@ packages:
   github.com/vibexp/vibexp/internal/external:
     interfaces:
       StripeClient:
-      SMTPClient:
+      EmailSender:
   github.com/vibexp/vibexp/internal/repositories:
     interfaces:
       AdminRepository:
@@ -78,3 +82,5 @@ packages:
   github.com/vibexp/vibexp/pkg/events:
     interfaces:
       EventPublisher:
+      DefaultTeamCreator:
+      ProjectCreator:

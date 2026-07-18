@@ -34,8 +34,8 @@ var (
 	errInvalidCardJSON  = errors.New("agent card response is not valid JSON")
 )
 
-// AgentCardFetcherInterface defines methods for fetching agent cards
-type AgentCardFetcherInterface interface {
+// CardFetcher defines methods for fetching agent cards
+type CardFetcher interface {
 	// FetchAgentCard discovers the agent card at cardURL. authHeaders, when
 	// non-empty, are attached to the discovery request so cards that sit behind
 	// header authentication can be fetched; pass nil for a public card. Derive

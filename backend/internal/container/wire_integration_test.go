@@ -180,7 +180,7 @@ func TestInitializeContainer_AllExternalDependenciesNonNil(t *testing.T) {
 
 	// Assert - Verify all external dependencies are non-nil
 	assert.NotNil(t, c.IdentityProviderRegistry(), "IdentityProviderRegistry should not be nil")
-	assert.NotNil(t, c.SMTPClient(), "SMTPClient should not be nil")
+	assert.NotNil(t, c.EmailSender(), "EmailSender should not be nil")
 }
 
 // TestInitializeContainer_EventManagerNonNil verifies event manager is properly initialized

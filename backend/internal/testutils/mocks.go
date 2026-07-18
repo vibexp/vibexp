@@ -70,14 +70,14 @@ func NewMockRepositoryContainer(t TestingInterface) *MockRepositoryContainer {
 // MockExternalContainer holds all external service mocks for easy setup in tests
 type MockExternalContainer struct {
 	IDP  *idpmocks.MockIdentityProvider
-	SMTP *extmocks.MockSMTPClient
+	SMTP *extmocks.MockEmailSender
 }
 
 // NewMockExternalContainer creates all external service mocks
 func NewMockExternalContainer(t TestingInterface) *MockExternalContainer {
 	return &MockExternalContainer{
 		IDP:  idpmocks.NewMockIdentityProvider(t),
-		SMTP: extmocks.NewMockSMTPClient(t),
+		SMTP: extmocks.NewMockEmailSender(t),
 	}
 }
 
@@ -312,12 +312,12 @@ func (m *MockAppContainer) AgentService() services.AgentServiceInterface {
 	return args.Get(0).(services.AgentServiceInterface)
 }
 
-func (m *MockAppContainer) AgentCardFetcher() services.AgentCardFetcherInterface {
+func (m *MockAppContainer) AgentCardFetcher() services.CardFetcher {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(services.AgentCardFetcherInterface)
+	return args.Get(0).(services.CardFetcher)
 }
 
 func (m *MockAppContainer) AgentInvocationService() services.AgentInvocationServiceInterface {
@@ -369,12 +369,12 @@ func (m *MockAppContainer) IdentityProviderRegistry() *idp.Registry {
 	return args.Get(0).(*idp.Registry)
 }
 
-func (m *MockAppContainer) SMTPClient() external.SMTPClient {
+func (m *MockAppContainer) EmailSender() external.EmailSender {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(external.SMTPClient)
+	return args.Get(0).(external.EmailSender)
 }
 
 func (m *MockAppContainer) Database() *database.DB {

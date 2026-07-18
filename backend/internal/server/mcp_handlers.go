@@ -27,7 +27,7 @@ const promptsListPageSize = 100
 const maxPromptPrimitives = 50
 
 // extractPromptArguments extracts placeholder arguments from prompt body
-func (s *Server) extractPromptArguments(body string, userID string) []*mcp.PromptArgument {
+func (s *Server) extractPromptArguments(body, userID string) []*mcp.PromptArgument {
 	// Use the same logic as the prompt service to extract placeholders
 	// Note: ExtractAllPlaceholders doesn't require teamID as it operates on prompt body content
 	placeholders, err := s.container.PromptService().ExtractAllPlaceholders(userID, body, make(map[string]bool))

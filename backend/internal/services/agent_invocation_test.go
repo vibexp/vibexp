@@ -80,7 +80,7 @@ func (m *MockA2AHTTPClient) SupportsStreaming(agent *models.Agent) bool {
 	return args.Bool(0)
 }
 
-// MockA2AStreamProcessor is a mock for A2AStreamProcessorInterface
+// MockA2AStreamProcessor is a mock for StreamProcessor
 type MockA2AStreamProcessor struct {
 	mock.Mock
 }
@@ -526,6 +526,7 @@ func TestAgentInvocationService_InvokeAgent_StreamingError(t *testing.T) {
 		Run(func(args mock.Arguments) {
 			eventChan := args.Get(2).(<-chan a2a.Event)
 			for range eventChan {
+				// Drain the channel; the events themselves are irrelevant here.
 			}
 		}).Return(nil)
 
@@ -591,6 +592,7 @@ func TestAgentInvocationService_InvokeAgent_ChannelClosing(t *testing.T) {
 			eventChan := args.Get(2).(<-chan a2a.Event)
 			// Read all events
 			for range eventChan {
+				// Drain until the channel is closed by the producer.
 			}
 			// Channel was properly closed if we reach here without blocking
 			channelClosed <- true

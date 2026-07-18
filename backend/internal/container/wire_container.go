@@ -78,18 +78,18 @@ type WireContainer struct {
 	activityService          activities.ActivityService
 	resourceAccessService    resourceaccess.ResourceAccessService
 	agentService             services.AgentServiceInterface
-	agentCardFetcher         services.AgentCardFetcherInterface
+	agentCardFetcher         services.CardFetcher
 	agentInvocationService   services.AgentInvocationServiceInterface
 	memoryService            services.MemoryServiceInterface
 	embeddingService         services.EmbeddingServiceInterface
-	searchService            services.SearchServiceInterface
+	searchService            services.Searcher
 	environmentService       *services.EnvironmentService
 	resourceUsageService     services.ResourceUsageServiceInterface
 	featureFlagService       *feature_flags.FeatureFlagService
-	backofficeService        services.BackofficeServiceInterface
+	backofficeService        services.UsageAndGrowthGetter
 	adminService             services.AdminServiceInterface
-	embeddingBackfillService services.EmbeddingBackfillServiceInterface
-	embeddingStatusService   services.EmbeddingStatusServiceInterface
+	embeddingBackfillService services.EmbeddingBackfiller
+	embeddingStatusService   services.EmbeddingCoverageGetter
 	userPreferencesService   services.UserPreferencesServiceInterface
 	authorizationService     services.AuthorizationServiceInterface
 	teamService              services.TeamServiceInterface
@@ -106,7 +106,7 @@ type WireContainer struct {
 
 	// External dependencies
 	identityRegistry *idp.Registry
-	smtpClient       external.SMTPClient
+	smtpClient       external.EmailSender
 	githubAppClient  external.GitHubAppClient
 
 	// Event system
@@ -330,7 +330,7 @@ func (c *WireContainer) AgentService() services.AgentServiceInterface {
 	return c.agentService
 }
 
-func (c *WireContainer) AgentCardFetcher() services.AgentCardFetcherInterface {
+func (c *WireContainer) AgentCardFetcher() services.CardFetcher {
 	return c.agentCardFetcher
 }
 
@@ -346,7 +346,7 @@ func (c *WireContainer) EmbeddingService() services.EmbeddingServiceInterface {
 	return c.embeddingService
 }
 
-func (c *WireContainer) SearchService() services.SearchServiceInterface {
+func (c *WireContainer) SearchService() services.Searcher {
 	return c.searchService
 }
 
@@ -358,7 +358,7 @@ func (c *WireContainer) ResourceUsageService() services.ResourceUsageServiceInte
 	return c.resourceUsageService
 }
 
-func (c *WireContainer) BackofficeService() services.BackofficeServiceInterface {
+func (c *WireContainer) BackofficeService() services.UsageAndGrowthGetter {
 	return c.backofficeService
 }
 
@@ -367,12 +367,12 @@ func (c *WireContainer) AdminService() services.AdminServiceInterface {
 }
 
 // EmbeddingBackfillService returns the embedding backfill service.
-func (c *WireContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
+func (c *WireContainer) EmbeddingBackfillService() services.EmbeddingBackfiller {
 	return c.embeddingBackfillService
 }
 
 // EmbeddingStatusService returns the embedding status (coverage) service.
-func (c *WireContainer) EmbeddingStatusService() services.EmbeddingStatusServiceInterface {
+func (c *WireContainer) EmbeddingStatusService() services.EmbeddingCoverageGetter {
 	return c.embeddingStatusService
 }
 
@@ -425,7 +425,7 @@ func (c *WireContainer) IdentityProviderRegistry() *idp.Registry {
 	return c.identityRegistry
 }
 
-func (c *WireContainer) SMTPClient() external.SMTPClient {
+func (c *WireContainer) EmailSender() external.EmailSender {
 	return c.smtpClient
 }
 

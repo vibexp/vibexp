@@ -23,8 +23,8 @@ type RenderedContent struct {
 	EntityID string
 }
 
-// TemplateRendererInterface defines the contract for rendering notification content
-type TemplateRendererInterface interface {
+// ContentRenderer defines the contract for rendering notification content
+type ContentRenderer interface {
 	Render(notifType NotificationType, data map[string]interface{}) (*RenderedContent, error)
 }
 

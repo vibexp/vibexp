@@ -671,7 +671,7 @@ func (s *Service) generateAuthActivityDescription(activityType string, metadata 
 }
 
 func (s *Service) generateClaudeCodeActivityDescription(
-	hookEventName string, toolName *string, _metadata map[string]interface{},
+	hookEventName string, toolName *string, _ map[string]interface{},
 ) string {
 	switch hookEventName {
 	case "UserPromptSubmit":

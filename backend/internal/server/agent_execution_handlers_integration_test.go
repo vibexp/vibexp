@@ -332,7 +332,7 @@ func createTestExecutionServer(container *MockAgentExecutionContainer) *Server {
 }
 
 //nolint:unparam // userID parameter kept for test flexibility, may vary in future tests
-func makeExecutionAuthenticatedRequest(path string, userID string) *http.Request {
+func makeExecutionAuthenticatedRequest(path, userID string) *http.Request {
 	req := httptest.NewRequest("GET", path, nil)
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, userID))
@@ -1182,7 +1182,7 @@ func TestHandleGetExecutionStatus_CrossTeamAccess(t *testing.T) {
 }
 
 // makeExecutionPostRequest builds an authenticated POST request for cancel tests.
-func makeExecutionPostRequest(path string, userID string) *http.Request {
+func makeExecutionPostRequest(path, userID string) *http.Request {
 	req := httptest.NewRequest("POST", path, nil)
 	req.Header.Set("Content-Type", "application/json")
 	return req.WithContext(context.WithValue(req.Context(), contextKeyUserID, userID))

@@ -14,9 +14,9 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// A2AStreamProcessorInterface defines the interface for A2A stream processing.
+// StreamProcessor defines the interface for A2A stream processing.
 // It consumes the SDK's typed a2a.Event union.
-type A2AStreamProcessorInterface interface {
+type StreamProcessor interface {
 	ProcessStream(ctx context.Context, executionID string, eventChan <-chan a2a.Event) error
 }
 

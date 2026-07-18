@@ -46,7 +46,7 @@ func TestEmbeddingsBackfillRoute_Removed_Returns404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-// MockBackofficeService is a mock implementation of BackofficeServiceInterface
+// MockBackofficeService is a mock implementation of UsageAndGrowthGetter
 type MockBackofficeService struct {
 	mock.Mock
 }
@@ -68,7 +68,7 @@ type MockContainerForBackoffice struct {
 	backofficeService *MockBackofficeService
 }
 
-func (m *MockContainerForBackoffice) BackofficeService() services.BackofficeServiceInterface {
+func (m *MockContainerForBackoffice) BackofficeService() services.UsageAndGrowthGetter {
 	return m.backofficeService
 }
 func (m *MockContainerForBackoffice) AdminService() services.AdminServiceInterface {
@@ -131,7 +131,7 @@ func (m *MockContainerForBackoffice) ResourceAccessService() resourceaccess.Reso
 	return nil
 }
 func (m *MockContainerForBackoffice) AgentService() services.AgentServiceInterface { return nil }
-func (m *MockContainerForBackoffice) AgentCardFetcher() services.AgentCardFetcherInterface {
+func (m *MockContainerForBackoffice) AgentCardFetcher() services.CardFetcher {
 	return nil
 }
 func (m *MockContainerForBackoffice) AgentInvocationService() services.AgentInvocationServiceInterface {
@@ -141,7 +141,7 @@ func (m *MockContainerForBackoffice) MemoryService() services.MemoryServiceInter
 func (m *MockContainerForBackoffice) EmbeddingService() services.EmbeddingServiceInterface {
 	return nil
 }
-func (m *MockContainerForBackoffice) SearchService() services.SearchServiceInterface   { return nil }
+func (m *MockContainerForBackoffice) SearchService() services.Searcher                 { return nil }
 func (m *MockContainerForBackoffice) EnvironmentService() *services.EnvironmentService { return nil }
 func (m *MockContainerForBackoffice) ResourceUsageService() services.ResourceUsageServiceInterface {
 	return nil

@@ -8,13 +8,13 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// BackofficeService implements the BackofficeServiceInterface
+// BackofficeService implements the UsageAndGrowthGetter
 type BackofficeService struct {
 	backofficeRepo repositories.BackofficeRepository
 }
 
 // NewBackofficeService creates a new BackofficeService
-func NewBackofficeService(backofficeRepo repositories.BackofficeRepository) BackofficeServiceInterface {
+func NewBackofficeService(backofficeRepo repositories.BackofficeRepository) UsageAndGrowthGetter {
 	return &BackofficeService{
 		backofficeRepo: backofficeRepo,
 	}

@@ -81,7 +81,7 @@ func TestExternalMocksImplementInterfaces(t *testing.T) {
 		expected interface{}
 	}{
 		{"IdentityProvider", &idpmocks.MockIdentityProvider{}, (*idp.IdentityProvider)(nil)},
-		{"SMTPClient", &extmocks.MockSMTPClient{}, (*external.SMTPClient)(nil)},
+		{"EmailSender", &extmocks.MockEmailSender{}, (*external.EmailSender)(nil)},
 	}
 
 	for _, tt := range tests {

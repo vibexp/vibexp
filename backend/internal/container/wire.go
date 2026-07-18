@@ -23,7 +23,7 @@ var ProviderSet = wire.NewSet(
 	// External dependencies
 	providers.ProvideIdentityProviderRegistry,
 	providers.ProvideEmailProvider,
-	providers.ProvideSMTPClient,
+	providers.ProvideEmailSender,
 	providers.ProvideGitHubAppClient,
 
 	// Event system

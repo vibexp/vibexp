@@ -15,29 +15,29 @@ const (
 	logComponentTeamCreation = "team-creation-listener"
 )
 
-// TeamCreatorServiceInterface defines the interface for team creation operations
+// DefaultTeamCreator defines the interface for team creation operations
 // This is defined here to avoid import cycles with the services package
-type TeamCreatorServiceInterface interface {
+type DefaultTeamCreator interface {
 	CreateDefaultTeam(ctx context.Context, userID string) (*models.Team, error)
 }
 
-// ProjectCreatorServiceInterface defines the interface for project creation operations
+// ProjectCreator defines the interface for project creation operations
 // This is defined here to avoid import cycles with the services package
-type ProjectCreatorServiceInterface interface {
+type ProjectCreator interface {
 	CreateProject(userID, teamID string, req *models.CreateProjectRequest) (*models.Project, error)
 }
 
 // TeamCreationListener handles user.created events and creates default teams and projects
 type TeamCreationListener struct {
-	teamService    TeamCreatorServiceInterface
-	projectService ProjectCreatorServiceInterface
+	teamService    DefaultTeamCreator
+	projectService ProjectCreator
 	logger         *slog.Logger
 }
 
 // NewTeamCreationListener creates a new TeamCreationListener
 func NewTeamCreationListener(
-	teamService TeamCreatorServiceInterface,
-	projectService ProjectCreatorServiceInterface,
+	teamService DefaultTeamCreator,
+	projectService ProjectCreator,
 	logger *slog.Logger,
 ) *TeamCreationListener {
 	if logger == nil {

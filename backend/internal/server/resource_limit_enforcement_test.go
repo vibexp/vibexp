@@ -76,13 +76,13 @@ func (m *MockContainerForHandlers) ResourceUsageService() services.ResourceUsage
 	return m.resourceUsageService
 }
 
-func (m *MockContainerForHandlers) BackofficeService() services.BackofficeServiceInterface {
+func (m *MockContainerForHandlers) BackofficeService() services.UsageAndGrowthGetter {
 	return nil
 }
 func (m *MockContainerForHandlers) AdminService() services.AdminServiceInterface {
 	return nil
 }
-func (m *MockContainerForHandlers) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
+func (m *MockContainerForHandlers) EmbeddingBackfillService() services.EmbeddingBackfiller {
 	return nil
 }
 func (m *MockContainerForHandlers) AgentService() services.AgentServiceInterface {
@@ -117,7 +117,7 @@ func (m *MockContainerForHandlers) EmbeddingService() services.EmbeddingServiceI
 	return nil
 }
 
-func (m *MockContainerForHandlers) SearchService() services.SearchServiceInterface {
+func (m *MockContainerForHandlers) SearchService() services.Searcher {
 	return nil
 }
 
@@ -129,7 +129,7 @@ func (m *MockContainerForHandlers) ResourceAccessService() resourceaccess.Resour
 	return nil
 }
 
-func (m *MockContainerForHandlers) AgentCardFetcher() services.AgentCardFetcherInterface {
+func (m *MockContainerForHandlers) AgentCardFetcher() services.CardFetcher {
 	return nil
 }
 
@@ -223,7 +223,7 @@ func (m *MockContainerForHandlers) IdentityProviderRegistry() *idp.Registry {
 	return nil
 }
 
-func (m *MockContainerForHandlers) SMTPClient() external.SMTPClient {
+func (m *MockContainerForHandlers) EmailSender() external.EmailSender {
 	return nil
 }
 

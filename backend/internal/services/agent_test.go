@@ -17,7 +17,7 @@ import (
 	repoMocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
-// MockAgentCardFetcher is a mock implementation of AgentCardFetcherInterface
+// MockAgentCardFetcher is a mock implementation of CardFetcher
 type MockAgentCardFetcher struct {
 	mock.Mock
 }
@@ -35,7 +35,7 @@ func (m *MockAgentCardFetcher) FetchAgentCard(
 func createTestAgentService(
 	agentRepo repositories.AgentRepository,
 	executionRepo repositories.AgentExecutionRepository,
-	cardFetcher AgentCardFetcherInterface,
+	cardFetcher CardFetcher,
 ) *AgentService {
 	encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
 	if err != nil {

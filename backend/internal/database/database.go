@@ -10,8 +10,8 @@ import (
 	"github.com/XSAM/otelsql"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/lib/pq"
+	_ "github.com/golang-migrate/migrate/v4/source/file" // registers the file:// migration source driver
+	_ "github.com/lib/pq"                                // registers the "postgres" database/sql driver
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/vibexp/vibexp/internal/config"

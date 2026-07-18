@@ -66,7 +66,7 @@ var TeamQuotaConfigs = map[string]TeamQuotaConfig{
 }
 
 // GetTeamResourceQuota returns the quota configuration for a specific resource type and tier
-func GetTeamResourceQuota(tier string, resourceType string) (base int, perSeat int) {
+func GetTeamResourceQuota(tier, resourceType string) (base, perSeat int) {
 	config, exists := TeamQuotaConfigs[tier]
 	if !exists {
 		// Default to starter tier if tier is not recognized

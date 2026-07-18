@@ -44,7 +44,7 @@ type CircuitBreaker struct {
 // first recorded failure, and resetTimeoutSeconds <= 0 falls back to
 // gobreaker's default open duration of 60 seconds rather than disabling the
 // timeout. The event bus always constructs the breaker with positive values.
-func NewCircuitBreaker(maxFailures int, resetTimeoutSeconds int) *CircuitBreaker {
+func NewCircuitBreaker(maxFailures, resetTimeoutSeconds int) *CircuitBreaker {
 	return &CircuitBreaker{
 		maxFailures:  maxFailures,
 		resetTimeout: time.Duration(resetTimeoutSeconds) * time.Second,

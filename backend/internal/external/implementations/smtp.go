@@ -10,20 +10,20 @@ import (
 	"github.com/vibexp/vibexp/internal/external"
 )
 
-// SMTPClientImpl implements the SMTPClient interface
-type SMTPClientImpl struct {
+// EmailSenderImpl implements the EmailSender interface
+type EmailSenderImpl struct {
 	config *config.Config
 }
 
-// NewSMTPClient creates a new SMTP client
-func NewSMTPClient(cfg *config.Config) external.SMTPClient {
-	return &SMTPClientImpl{
+// NewEmailSender creates a new SMTP client
+func NewEmailSender(cfg *config.Config) external.EmailSender {
+	return &EmailSenderImpl{
 		config: cfg,
 	}
 }
 
 // SendEmail sends an email using SMTP
-func (s *SMTPClientImpl) SendEmail(ctx context.Context, req *external.EmailRequest) error {
+func (s *EmailSenderImpl) SendEmail(ctx context.Context, req *external.EmailRequest) error {
 	var buffer bytes.Buffer
 
 	// Build email headers
@@ -37,7 +37,7 @@ func (s *SMTPClientImpl) SendEmail(ctx context.Context, req *external.EmailReque
 }
 
 // buildHeaders constructs the email headers
-func (s *SMTPClientImpl) buildHeaders(buffer *bytes.Buffer, req *external.EmailRequest) {
+func (s *EmailSenderImpl) buildHeaders(buffer *bytes.Buffer, req *external.EmailRequest) {
 	buffer.WriteString("From: " + req.From + "\r\n")
 
 	if len(req.To) > 0 {
@@ -61,7 +61,7 @@ func (s *SMTPClientImpl) buildHeaders(buffer *bytes.Buffer, req *external.EmailR
 }
 
 // buildBody constructs the email body based on content type
-func (s *SMTPClientImpl) buildBody(buffer *bytes.Buffer, req *external.EmailRequest) {
+func (s *EmailSenderImpl) buildBody(buffer *bytes.Buffer, req *external.EmailRequest) {
 	hasHTML := req.HTMLBody != ""
 	hasText := req.TextBody != ""
 
@@ -76,7 +76,7 @@ func (s *SMTPClientImpl) buildBody(buffer *bytes.Buffer, req *external.EmailRequ
 }
 
 // buildMultipartBody creates a multipart email with both HTML and text
-func (s *SMTPClientImpl) buildMultipartBody(buffer *bytes.Buffer, req *external.EmailRequest) {
+func (s *EmailSenderImpl) buildMultipartBody(buffer *bytes.Buffer, req *external.EmailRequest) {
 	boundary := "boundary123456789"
 	buffer.WriteString("Content-Type: multipart/alternative; boundary=" + boundary + "\r\n")
 	buffer.WriteString("\r\n")
@@ -99,21 +99,21 @@ func (s *SMTPClientImpl) buildMultipartBody(buffer *bytes.Buffer, req *external.
 }
 
 // buildHTMLBody creates an HTML-only email
-func (s *SMTPClientImpl) buildHTMLBody(buffer *bytes.Buffer, req *external.EmailRequest) {
+func (s *EmailSenderImpl) buildHTMLBody(buffer *bytes.Buffer, req *external.EmailRequest) {
 	buffer.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	buffer.WriteString("\r\n")
 	buffer.WriteString(req.HTMLBody)
 }
 
 // buildTextBody creates a text-only email
-func (s *SMTPClientImpl) buildTextBody(buffer *bytes.Buffer, req *external.EmailRequest) {
+func (s *EmailSenderImpl) buildTextBody(buffer *bytes.Buffer, req *external.EmailRequest) {
 	buffer.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 	buffer.WriteString("\r\n")
 	buffer.WriteString(req.TextBody)
 }
 
 // sendMail sends the email using SMTP
-func (s *SMTPClientImpl) sendMail(req *external.EmailRequest, message []byte) error {
+func (s *EmailSenderImpl) sendMail(req *external.EmailRequest, message []byte) error {
 	auth := smtp.PlainAuth(
 		"",
 		s.config.Email.SMTP.Username,

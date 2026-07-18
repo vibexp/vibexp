@@ -212,7 +212,7 @@ func (b *BaseMockContainer) AgentService() services.AgentServiceInterface {
 	return nil
 }
 
-func (b *BaseMockContainer) AgentCardFetcher() services.AgentCardFetcherInterface {
+func (b *BaseMockContainer) AgentCardFetcher() services.CardFetcher {
 	return nil
 }
 
@@ -228,7 +228,7 @@ func (b *BaseMockContainer) EmbeddingService() services.EmbeddingServiceInterfac
 	return nil
 }
 
-func (b *BaseMockContainer) SearchService() services.SearchServiceInterface {
+func (b *BaseMockContainer) SearchService() services.Searcher {
 	return nil
 }
 
@@ -240,7 +240,7 @@ func (b *BaseMockContainer) ResourceUsageService() services.ResourceUsageService
 	return nil
 }
 
-func (b *BaseMockContainer) BackofficeService() services.BackofficeServiceInterface {
+func (b *BaseMockContainer) BackofficeService() services.UsageAndGrowthGetter {
 	return nil
 }
 
@@ -248,11 +248,11 @@ func (b *BaseMockContainer) AdminService() services.AdminServiceInterface {
 	return nil
 }
 
-func (b *BaseMockContainer) EmbeddingStatusService() services.EmbeddingStatusServiceInterface {
+func (b *BaseMockContainer) EmbeddingStatusService() services.EmbeddingCoverageGetter {
 	return nil
 }
 
-func (b *BaseMockContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
+func (b *BaseMockContainer) EmbeddingBackfillService() services.EmbeddingBackfiller {
 	return nil
 }
 
@@ -337,7 +337,7 @@ func (b *BaseMockContainer) IdentityProviderRegistry() *idp.Registry {
 	return nil
 }
 
-func (b *BaseMockContainer) SMTPClient() external.SMTPClient {
+func (b *BaseMockContainer) EmailSender() external.EmailSender {
 	return nil
 }
 

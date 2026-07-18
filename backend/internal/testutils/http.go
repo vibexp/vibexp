@@ -278,7 +278,7 @@ func AssertHasHeader(t TestingT, response *httptest.ResponseRecorder, headerName
 	}
 	t.Helper()
 
-	if value := response.Header().Get(headerName); value == "" {
+	if response.Header().Get(headerName) == "" {
 		t.Errorf("Expected response to have header '%s'", headerName)
 	}
 }

@@ -35,7 +35,7 @@ type Config struct {
 	CleanupInterval     time.Duration // how often expired rows/retired keys are pruned
 }
 
-// ConsentAccessPolicy re-checks, at consent time, whether a user may still be
+// ConsentAccessChecker re-checks, at consent time, whether a user may still be
 // bound to a login session (issue #217).
 //
 // The AS authenticates nobody itself — it piggybacks on the app's vx_session, so
@@ -49,7 +49,7 @@ type Config struct {
 // It is deliberately one method over a user id: the AS must not grow a dependency
 // on the services layer to answer it. Implementations resolve the user's email and
 // apply the configured access allowlist. A nil policy disables the re-check.
-type ConsentAccessPolicy interface {
+type ConsentAccessChecker interface {
 	// AllowUser reports whether userID may be bound to a consent session. A
 	// non-nil error means the decision could not be made; callers fail closed.
 	AllowUser(ctx context.Context, userID string) (bool, error)
@@ -62,7 +62,7 @@ type Service struct {
 	store         *Store
 	clients       repositories.OAuthClientRepository
 	loginSessions repositories.OAuthLoginSessionRepository
-	access        ConsentAccessPolicy
+	access        ConsentAccessChecker
 	cfg           Config
 	consentMACKey []byte
 	logger        *slog.Logger
@@ -80,7 +80,7 @@ type Dependencies struct {
 	LoginSessions repositories.OAuthLoginSessionRepository
 	// AccessPolicy re-checks the access allowlist at consent-attach; leave nil to
 	// disable the re-check (an unconfigured allowlist is open access anyway).
-	AccessPolicy ConsentAccessPolicy
+	AccessPolicy ConsentAccessChecker
 	Logger       *slog.Logger
 }
 

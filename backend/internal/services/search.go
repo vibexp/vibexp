@@ -27,7 +27,7 @@ var pluralToSingular = map[string]string{
 // allEntityTypes is the singular entity_type set used when the request omits types.
 var allEntityTypes = []string{"prompt", "artifact", "blueprint", "memory"}
 
-// SearchService implements SearchServiceInterface.
+// SearchService implements Searcher.
 type SearchService struct {
 	repo     repositories.SearchRepository
 	embedder QueryEmbedder
@@ -37,7 +37,7 @@ type SearchService struct {
 	now func() time.Time
 }
 
-var _ SearchServiceInterface = (*SearchService)(nil)
+var _ Searcher = (*SearchService)(nil)
 
 // NewSearchService creates a new SearchService. ranking controls result ordering:
 // when disabled the service preserves the historical relevance-only ordering. The

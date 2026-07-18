@@ -155,7 +155,7 @@ func (s *Service) ConsentAttach(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body consentAttachRequest
-	if derr := decodeJSONBody(r, &body); derr != nil {
+	if decodeJSONBody(r, &body) != nil {
 		s.writeJSONError(w, http.StatusBadRequest, "malformed request body")
 		return
 	}

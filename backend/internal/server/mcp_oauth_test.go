@@ -299,18 +299,18 @@ type containerWithUsers struct {
 
 func (c containerWithUsers) UserRepository() repositories.UserRepository { return c.users }
 
-// TestNewConsentAccessPolicy pins the config-to-policy wiring (#217): which
+// TestNewConsentAccessChecker pins the config-to-policy wiring (#217): which
 // allowlist fields reach the evaluator. Without this, transposing Domains/Emails
 // would leave every other test green while the MCP gate silently allows (or
 // denies) the wrong people.
-func TestNewConsentAccessPolicy(t *testing.T) {
+func TestNewConsentAccessChecker(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.DiscardHandler)
 
-	newPolicy := func(repo repositories.UserRepository, allowlist config.AccessAllowlistConfig) oauthserver.ConsentAccessPolicy {
+	newPolicy := func(repo repositories.UserRepository, allowlist config.AccessAllowlistConfig) oauthserver.ConsentAccessChecker {
 		cfg := &config.Config{}
 		cfg.Auth.AccessAllowlist = allowlist
-		return newConsentAccessPolicy(
+		return newConsentAccessChecker(
 			cfg,
 			containerWithUsers{BaseMockContainer: &BaseMockContainer{}, users: repo},
 			logger,
@@ -371,10 +371,10 @@ func TestNewConsentAccessPolicy(t *testing.T) {
 	})
 }
 
-// TestConsentAccessPolicyAdapter covers the attach-time allowlist re-check (#217):
+// TestConsentAccessCheckerAdapter covers the attach-time allowlist re-check (#217):
 // the adapter resolves the consenting user's email and applies the same evaluator
 // the login path uses, and fails closed on anything it cannot vouch for.
-func TestConsentAccessPolicyAdapter(t *testing.T) {
+func TestConsentAccessCheckerAdapter(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.DiscardHandler)
 
