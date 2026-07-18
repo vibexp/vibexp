@@ -148,3 +148,105 @@ func (r *AdminRepository) GetUserDetail(
 	}
 	return &detail, nil
 }
+
+// adminTeamListQuery lists teams (newest first) with their owner and a member
+// count. The owner join is inner (teams.owner_id -> users, ON DELETE CASCADE, so
+// an existing team always has an owner). No role predicate (decision D3).
+const adminTeamListQuery = `
+SELECT t.id, t.name, t.created_at,
+	u.id, u.email, u.name,
+	(SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) AS member_count
+FROM teams t
+JOIN users u ON u.id = t.owner_id
+ORDER BY t.created_at DESC, t.id
+LIMIT $1 OFFSET $2
+`
+
+// ListTeams returns a page of teams with owner and member count, plus the total.
+func (r *AdminRepository) ListTeams(
+	ctx context.Context, page, limit int,
+) ([]models.AdminTeamListItem, int, error) {
+	var totalCount int
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM teams").Scan(&totalCount); err != nil {
+		return nil, 0, fmt.Errorf("failed to count teams: %w", err)
+	}
+
+	offset := (page - 1) * limit
+	rows, err := r.db.QueryContext(ctx, adminTeamListQuery, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list teams: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close admin team rows", "error", closeErr)
+		}
+	}()
+
+	teams := make([]models.AdminTeamListItem, 0)
+	for rows.Next() {
+		var t models.AdminTeamListItem
+		if scanErr := rows.Scan(
+			&t.ID, &t.Name, &t.CreatedAt,
+			&t.Owner.ID, &t.Owner.Email, &t.Owner.Name,
+			&t.MemberCount,
+		); scanErr != nil {
+			return nil, 0, fmt.Errorf("failed to scan admin team: %w", scanErr)
+		}
+		teams = append(teams, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("failed to iterate admin teams: %w", err)
+	}
+	return teams, totalCount, nil
+}
+
+// adminTeamMembersQuery returns a team's members with the member's role (plain
+// column — no role predicate, decision D3) and join time.
+const adminTeamMembersQuery = `
+SELECT u.id, u.email, u.name, tm.role, tm.created_at
+FROM team_members tm
+JOIN users u ON u.id = tm.user_id
+WHERE tm.team_id = $1
+ORDER BY u.name, u.id
+`
+
+// GetTeamDetail returns one team with owner and member list, or (nil, nil) when
+// no team with that id exists.
+func (r *AdminRepository) GetTeamDetail(
+	ctx context.Context, id string,
+) (*models.AdminTeamDetail, error) {
+	var detail models.AdminTeamDetail
+	err := r.db.QueryRowContext(ctx,
+		`SELECT t.id, t.name, t.created_at, u.id, u.email, u.name
+		 FROM teams t JOIN users u ON u.id = t.owner_id WHERE t.id = $1`, id,
+	).Scan(&detail.ID, &detail.Name, &detail.CreatedAt, &detail.Owner.ID, &detail.Owner.Email, &detail.Owner.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query admin team: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, adminTeamMembersQuery, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query team members: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close team member rows", "error", closeErr)
+		}
+	}()
+
+	detail.Members = make([]models.AdminTeamMember, 0)
+	for rows.Next() {
+		var m models.AdminTeamMember
+		if scanErr := rows.Scan(&m.UserID, &m.Email, &m.Name, &m.Role, &m.JoinedAt); scanErr != nil {
+			return nil, fmt.Errorf("failed to scan team member: %w", scanErr)
+		}
+		detail.Members = append(detail.Members, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate team members: %w", err)
+	}
+	return &detail, nil
+}

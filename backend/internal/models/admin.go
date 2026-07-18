@@ -53,3 +53,49 @@ type AdminUserDetail struct {
 	CreatedAt   time.Time
 	Memberships []AdminTeamMembership
 }
+
+// AdminTeamOwner is the owning user of a team, as shown in the admin team views.
+type AdminTeamOwner struct {
+	ID    string
+	Email string
+	Name  string
+}
+
+// AdminTeamListItem is one row of the instance-wide admin team listing
+// (GET /api/v1/admin/teams): identity, owner, and member count.
+type AdminTeamListItem struct {
+	ID          string
+	Name        string
+	Owner       AdminTeamOwner
+	MemberCount int64
+	CreatedAt   time.Time
+}
+
+// AdminTeamList is a page of the admin team listing plus pagination metadata.
+type AdminTeamList struct {
+	Teams      []AdminTeamListItem
+	TotalCount int
+	Page       int
+	PerPage    int
+	TotalPages int
+}
+
+// AdminTeamMember is one member of a team, with the member's role and join time
+// (role returned as a plain column — no role predicate in SQL, per D3).
+type AdminTeamMember struct {
+	UserID   string
+	Email    string
+	Name     string
+	Role     string
+	JoinedAt time.Time
+}
+
+// AdminTeamDetail is the per-team admin view (GET /api/v1/admin/teams/{id}):
+// identity, owner, and the member list.
+type AdminTeamDetail struct {
+	ID        string
+	Name      string
+	Owner     AdminTeamOwner
+	CreatedAt time.Time
+	Members   []AdminTeamMember
+}

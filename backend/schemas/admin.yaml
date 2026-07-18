@@ -172,3 +172,137 @@ AdminUserDetail:
       description: Teams the user belongs to.
       items:
         $ref: '#/AdminTeamMembership'
+
+AdminTeamOwner:
+  type: object
+  description: The owning user of a team.
+  required:
+    - id
+    - email
+    - name
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: "user_123"
+    email:
+      type: string
+      format: email
+      example: "owner@example.com"
+    name:
+      type: string
+      example: "Jane Owner"
+
+AdminTeamListItem:
+  type: object
+  description: One team in the instance-wide admin team listing.
+  required:
+    - id
+    - name
+    - owner
+    - member_count
+    - created_at
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: "team_abc123"
+    name:
+      type: string
+      example: "Acme Engineering"
+    owner:
+      $ref: '#/AdminTeamOwner'
+    member_count:
+      type: integer
+      format: int64
+      description: Number of members in the team.
+      example: 8
+    created_at:
+      type: string
+      format: date-time
+
+AdminTeamListResponse:
+  type: object
+  description: A page of the instance-wide team listing, newest first.
+  required:
+    - teams
+    - total_count
+    - page
+    - per_page
+    - total_pages
+  properties:
+    teams:
+      type: array
+      description: Teams on this page, newest first.
+      items:
+        $ref: '#/AdminTeamListItem'
+    total_count:
+      type: integer
+      description: Total number of teams across the instance.
+      example: 12
+    page:
+      type: integer
+      example: 1
+    per_page:
+      type: integer
+      example: 20
+    total_pages:
+      type: integer
+      example: 1
+
+AdminTeamMember:
+  type: object
+  description: One member of a team, with the member's role and join time.
+  required:
+    - user_id
+    - email
+    - name
+    - role
+    - joined_at
+  properties:
+    user_id:
+      type: string
+      format: uuid
+      example: "user_123"
+    email:
+      type: string
+      format: email
+      example: "member@example.com"
+    name:
+      type: string
+      example: "John Member"
+    role:
+      type: string
+      description: The member's role in the team (owner, admin, or member).
+      example: "member"
+    joined_at:
+      type: string
+      format: date-time
+
+AdminTeamDetail:
+  type: object
+  description: A single team with its owner and member list (GET /api/v1/admin/teams/{id}).
+  required:
+    - id
+    - name
+    - owner
+    - created_at
+    - members
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: "team_abc123"
+    name:
+      type: string
+      example: "Acme Engineering"
+    owner:
+      $ref: '#/AdminTeamOwner'
+    created_at:
+      type: string
+      format: date-time
+    members:
+      type: array
+      description: The team's members.
+      items:
+        $ref: '#/AdminTeamMember'

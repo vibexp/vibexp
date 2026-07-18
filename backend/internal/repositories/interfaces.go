@@ -942,6 +942,12 @@ type AdminRepository interface {
 	// GetUserDetail returns one user with their team memberships, or (nil, nil)
 	// when no user with that id exists.
 	GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error)
+	// ListTeams returns a page of all teams (newest first) with owner and member
+	// count, plus the total team count. page/limit are already clamped.
+	ListTeams(ctx context.Context, page, limit int) ([]models.AdminTeamListItem, int, error)
+	// GetTeamDetail returns one team with owner and member list, or (nil, nil)
+	// when no team with that id exists.
+	GetTeamDetail(ctx context.Context, id string) (*models.AdminTeamDetail, error)
 }
 
 // BlueprintRepository defines the interface for blueprint data access operations

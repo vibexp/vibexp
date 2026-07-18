@@ -78,6 +78,65 @@ func (_c *MockAdminServiceInterface_GetInstanceCounts_Call) RunAndReturn(run fun
 	return _c
 }
 
+// GetTeamDetail provides a mock function with given fields: ctx, id
+func (_m *MockAdminServiceInterface) GetTeamDetail(ctx context.Context, id string) (*models.AdminTeamDetail, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetTeamDetail")
+	}
+
+	var r0 *models.AdminTeamDetail
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.AdminTeamDetail, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.AdminTeamDetail); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminTeamDetail)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetTeamDetail_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTeamDetail'
+type MockAdminServiceInterface_GetTeamDetail_Call struct {
+	*mock.Call
+}
+
+// GetTeamDetail is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminServiceInterface_Expecter) GetTeamDetail(ctx interface{}, id interface{}) *MockAdminServiceInterface_GetTeamDetail_Call {
+	return &MockAdminServiceInterface_GetTeamDetail_Call{Call: _e.mock.On("GetTeamDetail", ctx, id)}
+}
+
+func (_c *MockAdminServiceInterface_GetTeamDetail_Call) Run(run func(ctx context.Context, id string)) *MockAdminServiceInterface_GetTeamDetail_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetTeamDetail_Call) Return(_a0 *models.AdminTeamDetail, _a1 error) *MockAdminServiceInterface_GetTeamDetail_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetTeamDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminTeamDetail, error)) *MockAdminServiceInterface_GetTeamDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetUserDetail provides a mock function with given fields: ctx, id
 func (_m *MockAdminServiceInterface) GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error) {
 	ret := _m.Called(ctx, id)
@@ -133,6 +192,64 @@ func (_c *MockAdminServiceInterface_GetUserDetail_Call) Return(_a0 *models.Admin
 }
 
 func (_c *MockAdminServiceInterface_GetUserDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminUserDetail, error)) *MockAdminServiceInterface_GetUserDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListTeams provides a mock function with given fields: ctx, page, limit
+func (_m *MockAdminServiceInterface) ListTeams(ctx context.Context, page int, limit int) (models.AdminTeamList, error) {
+	ret := _m.Called(ctx, page, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListTeams")
+	}
+
+	var r0 models.AdminTeamList
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) (models.AdminTeamList, error)); ok {
+		return rf(ctx, page, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) models.AdminTeamList); ok {
+		r0 = rf(ctx, page, limit)
+	} else {
+		r0 = ret.Get(0).(models.AdminTeamList)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int, int) error); ok {
+		r1 = rf(ctx, page, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_ListTeams_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListTeams'
+type MockAdminServiceInterface_ListTeams_Call struct {
+	*mock.Call
+}
+
+// ListTeams is a helper method to define mock.On call
+//   - ctx context.Context
+//   - page int
+//   - limit int
+func (_e *MockAdminServiceInterface_Expecter) ListTeams(ctx interface{}, page interface{}, limit interface{}) *MockAdminServiceInterface_ListTeams_Call {
+	return &MockAdminServiceInterface_ListTeams_Call{Call: _e.mock.On("ListTeams", ctx, page, limit)}
+}
+
+func (_c *MockAdminServiceInterface_ListTeams_Call) Run(run func(ctx context.Context, page int, limit int)) *MockAdminServiceInterface_ListTeams_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int), args[2].(int))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ListTeams_Call) Return(_a0 models.AdminTeamList, _a1 error) *MockAdminServiceInterface_ListTeams_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ListTeams_Call) RunAndReturn(run func(context.Context, int, int) (models.AdminTeamList, error)) *MockAdminServiceInterface_ListTeams_Call {
 	_c.Call.Return(run)
 	return _c
 }
