@@ -78,6 +78,132 @@ func (_c *MockAdminRepository_GetInstanceCounts_Call) RunAndReturn(run func(cont
 	return _c
 }
 
+// GetUserDetail provides a mock function with given fields: ctx, id
+func (_m *MockAdminRepository) GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserDetail")
+	}
+
+	var r0 *models.AdminUserDetail
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.AdminUserDetail, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.AdminUserDetail); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminUserDetail)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_GetUserDetail_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserDetail'
+type MockAdminRepository_GetUserDetail_Call struct {
+	*mock.Call
+}
+
+// GetUserDetail is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminRepository_Expecter) GetUserDetail(ctx interface{}, id interface{}) *MockAdminRepository_GetUserDetail_Call {
+	return &MockAdminRepository_GetUserDetail_Call{Call: _e.mock.On("GetUserDetail", ctx, id)}
+}
+
+func (_c *MockAdminRepository_GetUserDetail_Call) Run(run func(ctx context.Context, id string)) *MockAdminRepository_GetUserDetail_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserDetail_Call) Return(_a0 *models.AdminUserDetail, _a1 error) *MockAdminRepository_GetUserDetail_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_GetUserDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminUserDetail, error)) *MockAdminRepository_GetUserDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListUsers provides a mock function with given fields: ctx, page, limit
+func (_m *MockAdminRepository) ListUsers(ctx context.Context, page int, limit int) ([]models.AdminUserListItem, int, error) {
+	ret := _m.Called(ctx, page, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListUsers")
+	}
+
+	var r0 []models.AdminUserListItem
+	var r1 int
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) ([]models.AdminUserListItem, int, error)); ok {
+		return rf(ctx, page, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) []models.AdminUserListItem); ok {
+		r0 = rf(ctx, page, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminUserListItem)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int, int) int); ok {
+		r1 = rf(ctx, page, limit)
+	} else {
+		r1 = ret.Get(1).(int)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, int, int) error); ok {
+		r2 = rf(ctx, page, limit)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockAdminRepository_ListUsers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListUsers'
+type MockAdminRepository_ListUsers_Call struct {
+	*mock.Call
+}
+
+// ListUsers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - page int
+//   - limit int
+func (_e *MockAdminRepository_Expecter) ListUsers(ctx interface{}, page interface{}, limit interface{}) *MockAdminRepository_ListUsers_Call {
+	return &MockAdminRepository_ListUsers_Call{Call: _e.mock.On("ListUsers", ctx, page, limit)}
+}
+
+func (_c *MockAdminRepository_ListUsers_Call) Run(run func(ctx context.Context, page int, limit int)) *MockAdminRepository_ListUsers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int), args[2].(int))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_ListUsers_Call) Return(_a0 []models.AdminUserListItem, _a1 int, _a2 error) *MockAdminRepository_ListUsers_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockAdminRepository_ListUsers_Call) RunAndReturn(run func(context.Context, int, int) ([]models.AdminUserListItem, int, error)) *MockAdminRepository_ListUsers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockAdminRepository creates a new instance of MockAdminRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockAdminRepository(t interface {

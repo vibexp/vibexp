@@ -50,3 +50,125 @@ AdminStatsResponse:
       type: string
       description: The running backend application version (config server.service_version; "dev" when unset).
       example: "1.2.3"
+
+AdminUserListItem:
+  type: object
+  description: One user in the instance-wide admin user listing.
+  required:
+    - id
+    - email
+    - name
+    - created_at
+    - team_count
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: "user_123"
+    email:
+      type: string
+      format: email
+      example: "user@example.com"
+    name:
+      type: string
+      example: "John Doe"
+    idp_provider:
+      type: string
+      nullable: true
+      description: Identity provider name (e.g. "google", "oidc"); null for accounts without one.
+      example: "oidc"
+    created_at:
+      type: string
+      format: date-time
+    team_count:
+      type: integer
+      format: int64
+      description: Number of teams the user belongs to.
+      example: 3
+
+AdminUserListResponse:
+  type: object
+  description: A page of the instance-wide user listing, newest first.
+  required:
+    - users
+    - total_count
+    - page
+    - per_page
+    - total_pages
+  properties:
+    users:
+      type: array
+      description: Users on this page, newest first.
+      items:
+        $ref: '#/AdminUserListItem'
+    total_count:
+      type: integer
+      description: Total number of users across the instance.
+      example: 128
+    page:
+      type: integer
+      description: Current page number.
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page.
+      example: 20
+    total_pages:
+      type: integer
+      description: Total number of pages.
+      example: 7
+
+AdminTeamMembership:
+  type: object
+  description: A team the user belongs to, with the user's role in that team.
+  required:
+    - team_id
+    - team_name
+    - role
+  properties:
+    team_id:
+      type: string
+      format: uuid
+      example: "team_abc123"
+    team_name:
+      type: string
+      example: "Acme Engineering"
+    role:
+      type: string
+      description: The user's role in the team (owner, admin, or member).
+      example: "member"
+
+AdminUserDetail:
+  type: object
+  description: A single user with their team memberships (GET /api/v1/admin/users/{id}).
+  required:
+    - id
+    - email
+    - name
+    - created_at
+    - memberships
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: "user_123"
+    email:
+      type: string
+      format: email
+      example: "user@example.com"
+    name:
+      type: string
+      example: "John Doe"
+    idp_provider:
+      type: string
+      nullable: true
+      description: Identity provider name (e.g. "google", "oidc"); null for accounts without one.
+      example: "oidc"
+    created_at:
+      type: string
+      format: date-time
+    memberships:
+      type: array
+      description: Teams the user belongs to.
+      items:
+        $ref: '#/AdminTeamMembership'

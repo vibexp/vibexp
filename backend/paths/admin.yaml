@@ -36,3 +36,95 @@ api-v1-admin-stats:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-users:
+  get:
+    summary: List instance users
+    description: |
+      Returns a paginated, instance-wide listing of users (newest first) with
+      each user's team count. Instance-admin only; non-admin and unauthenticated
+      requests receive 404.
+    operationId: listAdminUsers
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        description: 1-based page number
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: A page of users
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserListResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-users-id:
+  get:
+    summary: Get an instance user
+    description: |
+      Returns one user with their team memberships (team name + the user's role
+      in each team). Instance-admin only; non-admin and unauthenticated requests
+      receive 404, as does an unknown user id.
+    operationId: getAdminUser
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The user with their team memberships
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserDetail'
+      '404':
+        description: Not found — unknown user id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

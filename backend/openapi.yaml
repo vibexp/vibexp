@@ -748,6 +748,14 @@ components:
       $ref: "./schemas/admin.yaml#/AdminInstanceCounts"
     AdminStatsResponse:
       $ref: "./schemas/admin.yaml#/AdminStatsResponse"
+    AdminUserListItem:
+      $ref: "./schemas/admin.yaml#/AdminUserListItem"
+    AdminUserListResponse:
+      $ref: "./schemas/admin.yaml#/AdminUserListResponse"
+    AdminTeamMembership:
+      $ref: "./schemas/admin.yaml#/AdminTeamMembership"
+    AdminUserDetail:
+      $ref: "./schemas/admin.yaml#/AdminUserDetail"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1056,6 +1064,10 @@ paths:
     $ref: "./paths/types.yaml#/api-v1-team_id-types-id"
   /api/v1/admin/stats:
     $ref: "./paths/admin.yaml#/api-v1-admin-stats"
+  /api/v1/admin/users:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users"
+  /api/v1/admin/users/{id}:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:
