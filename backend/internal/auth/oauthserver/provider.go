@@ -68,34 +68,39 @@ type Service struct {
 	logger        *slog.Logger
 }
 
+// Dependencies bundles the storage and policy collaborators NewService wires
+// into the Authorization Server.
+type Dependencies struct {
+	Clients       repositories.OAuthClientRepository
+	Codes         repositories.OAuthRequestRepository
+	AccessTokens  repositories.OAuthRequestRepository
+	RefreshTokens repositories.OAuthRequestRepository
+	PKCE          repositories.OAuthRequestRepository
+	SigningKeys   repositories.OAuthSigningKeyRepository
+	LoginSessions repositories.OAuthLoginSessionRepository
+	// AccessPolicy re-checks the access allowlist at consent-attach; leave nil to
+	// disable the re-check (an unconfigured allowlist is open access anyway).
+	AccessPolicy ConsentAccessPolicy
+	Logger       *slog.Logger
+}
+
 // NewService wires the Authorization Server. encKey is the 32-byte app encryption
 // key (seals signing keys at rest and derives fosite's HMAC global secret).
-// accessPolicy re-checks the access allowlist at consent-attach; pass nil to
-// disable the re-check (an unconfigured allowlist is open access anyway).
-func NewService(
-	cfg Config,
-	encKey []byte,
-	clients repositories.OAuthClientRepository,
-	codes, access, refresh, pkce repositories.OAuthRequestRepository,
-	signingKeys repositories.OAuthSigningKeyRepository,
-	loginSessions repositories.OAuthLoginSessionRepository,
-	accessPolicy ConsentAccessPolicy,
-	logger *slog.Logger,
-) *Service {
-	store := NewStore(clients, codes, access, refresh, pkce)
-	keys := NewKeyManager(signingKeys, encKey, cfg.KeyRotationInterval)
+func NewService(cfg Config, encKey []byte, deps Dependencies) *Service {
+	store := NewStore(deps.Clients, deps.Codes, deps.AccessTokens, deps.RefreshTokens, deps.PKCE)
+	keys := NewKeyManager(deps.SigningKeys, encKey, cfg.KeyRotationInterval)
 	fc := newFositeConfig(cfg, encKey)
 
 	return &Service{
 		provider:      buildProvider(fc, store, keys),
 		keys:          keys,
 		store:         store,
-		clients:       clients,
-		loginSessions: loginSessions,
-		access:        accessPolicy,
+		clients:       deps.Clients,
+		loginSessions: deps.LoginSessions,
+		access:        deps.AccessPolicy,
 		cfg:           cfg,
 		consentMACKey: deriveSecret(encKey, consentMACTag),
-		logger:        logger,
+		logger:        deps.Logger,
 	}
 }
 

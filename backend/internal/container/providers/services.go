@@ -42,23 +42,10 @@ func ProvideAPIKeyService(
 	return services.NewAPIKeyService(apiKeyRepo, logger)
 }
 
-// ProvidePromptService creates a new PromptService
-func ProvidePromptService(
-	repo repositories.PromptRepository,
-	refRepo repositories.PromptReferenceRepository,
-	userRepo repositories.UserRepository,
-	projectRepo repositories.ProjectRepository,
-	teamService services.TeamServiceInterface,
-	authzService services.AuthorizationServiceInterface,
-	eventManager events.EventPublisher,
-	logger *slog.Logger,
-	contentVersionSvc services.ContentVersionServiceInterface,
-	commentRepo repositories.CommentRepository,
-) services.PromptServiceInterface {
-	return services.NewPromptService(
-		repo, refRepo, userRepo, projectRepo, teamService, authzService, eventManager,
-		logger, contentVersionSvc, commentRepo,
-	)
+// ProvidePromptService creates a new PromptService. Wire fills the deps struct
+// via wire.Struct (see the container ProviderSet).
+func ProvidePromptService(deps services.PromptServiceDeps) services.PromptServiceInterface {
+	return services.NewPromptService(deps)
 }
 
 // ProvidePromptGalleryService creates a new PromptGalleryService
@@ -124,20 +111,10 @@ func ProvideContentVersionService(
 	)
 }
 
-// ProvideArtifactService creates a new ArtifactService
-func ProvideArtifactService(
-	repo repositories.ArtifactRepository,
-	teamService services.TeamServiceInterface,
-	authzService services.AuthorizationServiceInterface,
-	eventManager events.EventPublisher,
-	resourceUsageSvc services.ResourceUsageServiceInterface,
-	logger *slog.Logger,
-	contentVersionSvc services.ContentVersionServiceInterface,
-	commentRepo repositories.CommentRepository,
-) services.ArtifactServiceInterface {
-	return services.NewArtifactService(
-		repo, teamService, authzService, eventManager, resourceUsageSvc, logger, contentVersionSvc, commentRepo,
-	)
+// ProvideArtifactService creates a new ArtifactService. Wire fills the deps
+// struct via wire.Struct (see the container ProviderSet).
+func ProvideArtifactService(deps services.ArtifactServiceDeps) services.ArtifactServiceInterface {
+	return services.NewArtifactService(deps)
 }
 
 // ProvideCommentService creates a new CommentService.
@@ -168,20 +145,10 @@ func ProvideTypeService(
 	return services.NewTypeService(repo, logger)
 }
 
-// ProvideBlueprintService creates a new BlueprintService
-func ProvideBlueprintService(
-	repo repositories.BlueprintRepository,
-	teamService services.TeamServiceInterface,
-	authzService services.AuthorizationServiceInterface,
-	eventManager events.EventPublisher,
-	resourceUsageSvc services.ResourceUsageServiceInterface,
-	logger *slog.Logger,
-	contentVersionSvc services.ContentVersionServiceInterface,
-	commentRepo repositories.CommentRepository,
-) services.BlueprintServiceInterface {
-	return services.NewBlueprintService(
-		repo, teamService, authzService, eventManager, resourceUsageSvc, logger, contentVersionSvc, commentRepo,
-	)
+// ProvideBlueprintService creates a new BlueprintService. Wire fills the deps
+// struct via wire.Struct (see the container ProviderSet).
+func ProvideBlueprintService(deps services.BlueprintServiceDeps) services.BlueprintServiceInterface {
+	return services.NewBlueprintService(deps)
 }
 
 // ProvideEmbeddingProviderService creates a new EmbeddingProviderService. Secret
@@ -212,24 +179,35 @@ func ProvideEmailService(
 	return services.NewEmailService(provider, cfg)
 }
 
+// ActivityServiceDeps groups the dependencies of ProvideActivityService. Wire
+// fills it via wire.Struct (see the container ProviderSet).
+type ActivityServiceDeps struct {
+	Repo          repositories.ActivityRepository
+	ProjectRepo   repositories.ProjectRepository
+	PromptRepo    repositories.PromptRepository
+	ArtifactRepo  repositories.ArtifactRepository
+	UserRepo      repositories.UserRepository
+	AgentRepo     repositories.AgentRepository
+	BlueprintRepo repositories.BlueprintRepository
+	APIKeyRepo    repositories.APIKeyRepository
+	MemoryRepo    repositories.MemoryRepository
+	Cfg           *config.Config
+}
+
 // ProvideActivityService creates a new ActivityService
-func ProvideActivityService(
-	repo repositories.ActivityRepository,
-	projectRepo repositories.ProjectRepository,
-	promptRepo repositories.PromptRepository,
-	artifactRepo repositories.ArtifactRepository,
-	userRepo repositories.UserRepository,
-	agentRepo repositories.AgentRepository,
-	blueprintRepo repositories.BlueprintRepository,
-	apiKeyRepo repositories.APIKeyRepository,
-	memoryRepo repositories.MemoryRepository,
-	cfg *config.Config,
-) activities.ActivityService {
-	return activities.NewService(
-		repo, projectRepo, promptRepo, artifactRepo, userRepo,
-		agentRepo, blueprintRepo, apiKeyRepo, memoryRepo,
-		cfg.Retention.ActivityDays,
-	)
+func ProvideActivityService(deps ActivityServiceDeps) activities.ActivityService {
+	return activities.NewService(activities.ServiceDeps{
+		Repo:          deps.Repo,
+		ProjectRepo:   deps.ProjectRepo,
+		PromptRepo:    deps.PromptRepo,
+		ArtifactRepo:  deps.ArtifactRepo,
+		UserRepo:      deps.UserRepo,
+		AgentRepo:     deps.AgentRepo,
+		BlueprintRepo: deps.BlueprintRepo,
+		APIKeyRepo:    deps.APIKeyRepo,
+		MemoryRepo:    deps.MemoryRepo,
+		RetentionDays: deps.Cfg.Retention.ActivityDays,
+	})
 }
 
 // resourceAccessWorkerCount is the number of worker goroutines dedicated to
@@ -342,21 +320,32 @@ func ProvideMemoryService(
 	)
 }
 
+// EmbeddingServiceDeps groups the dependencies of ProvideEmbeddingService. Wire
+// fills it via wire.Struct (see the container ProviderSet).
+type EmbeddingServiceDeps struct {
+	Repo              repositories.EmbeddingRepository
+	PromptRepo        repositories.PromptRepository
+	ArtifactRepo      repositories.ArtifactRepository
+	MemoryRepo        repositories.MemoryRepository
+	BlueprintRepo     repositories.BlueprintRepository
+	FeedItemRepo      repositories.FeedItemRepository
+	FeedItemReplyRepo repositories.FeedItemReplyRepository
+	Logger            *slog.Logger
+}
+
 // ProvideEmbeddingService creates a new EmbeddingService
-func ProvideEmbeddingService(
-	repo repositories.EmbeddingRepository,
-	promptRepo repositories.PromptRepository,
-	artifactRepo repositories.ArtifactRepository,
-	memoryRepo repositories.MemoryRepository,
-	blueprintRepo repositories.BlueprintRepository,
-	feedItemRepo repositories.FeedItemRepository,
-	feedItemReplyRepo repositories.FeedItemReplyRepository,
-	logger *slog.Logger,
-) services.EmbeddingServiceInterface {
-	return services.NewEmbeddingService(
-		repo, promptRepo, artifactRepo, memoryRepo, blueprintRepo, feedItemRepo, feedItemReplyRepo,
-		services.EmbeddingVectorDimensions, logger,
-	)
+func ProvideEmbeddingService(deps EmbeddingServiceDeps) services.EmbeddingServiceInterface {
+	return services.NewEmbeddingService(services.EmbeddingServiceDeps{
+		Repo:              deps.Repo,
+		PromptRepo:        deps.PromptRepo,
+		ArtifactRepo:      deps.ArtifactRepo,
+		MemoryRepo:        deps.MemoryRepo,
+		BlueprintRepo:     deps.BlueprintRepo,
+		FeedItemRepo:      deps.FeedItemRepo,
+		FeedItemReplyRepo: deps.FeedItemReplyRepo,
+		Dimensions:        services.EmbeddingVectorDimensions,
+		Logger:            deps.Logger,
+	})
 }
 
 // ProvideQueryEmbedder creates a QueryEmbedder backed by the active system-wide
@@ -419,43 +408,10 @@ func ProvideEnvironmentService(cfg *config.Config) *services.EnvironmentService 
 	return services.NewEnvironmentService(cfg)
 }
 
-// ProvideResourceUsageService creates a new ResourceUsageService
-func ProvideResourceUsageService(
-	userRepo repositories.UserRepository,
-	promptRepo repositories.PromptRepository,
-	artifactRepo repositories.ArtifactRepository,
-	memoryRepo repositories.MemoryRepository,
-	agentRepo repositories.AgentRepository,
-	agentExecRepo repositories.AgentExecutionRepository,
-	claudeCodeRepo repositories.ClaudeCodeHooksRepository,
-	cursorIDERepo repositories.CursorIDEHooksRepository,
-	blueprintRepo repositories.BlueprintRepository,
-	teamRepo repositories.TeamRepository,
-	teamMemberRepo repositories.TeamMemberRepository,
-	teamSubscriptionRepo repositories.TeamSubscriptionRepository,
-	feedRepo repositories.FeedRepository,
-	feedItemRepo repositories.FeedItemRepository,
-	feedItemReplyRepo repositories.FeedItemReplyRepository,
-	logger *slog.Logger,
-) services.ResourceUsageServiceInterface {
-	return services.NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		blueprintRepo,
-		teamRepo,
-		teamMemberRepo,
-		teamSubscriptionRepo,
-		feedRepo,
-		feedItemRepo,
-		feedItemReplyRepo,
-		logger,
-	)
+// ProvideResourceUsageService creates a new ResourceUsageService. Wire fills
+// the deps struct via wire.Struct (see the container ProviderSet).
+func ProvideResourceUsageService(deps services.ResourceUsageServiceDeps) services.ResourceUsageServiceInterface {
+	return services.NewResourceUsageService(deps)
 }
 
 // ProvideFeatureFlagService creates a new FeatureFlagService and registers all feature flags.
@@ -535,27 +491,10 @@ func ProvideTeamService(
 	return services.NewTeamService(teamRepo, teamMemberRepo, userRepo, authzService, logger, commentRepo)
 }
 
-// ProvideTeamInvitationService creates a new TeamInvitationService
-func ProvideTeamInvitationService(
-	invitationRepo repositories.TeamInvitationRepository,
-	teamRepo repositories.TeamRepository,
-	teamMemberRepo repositories.TeamMemberRepository,
-	userRepo repositories.UserRepository,
-	emailService services.EmailServiceInterface,
-	authzService services.AuthorizationServiceInterface,
-	cfg *config.Config,
-	logger *slog.Logger,
-) *services.TeamInvitationService {
-	return services.NewTeamInvitationService(
-		invitationRepo,
-		teamRepo,
-		teamMemberRepo,
-		userRepo,
-		emailService,
-		authzService,
-		cfg,
-		logger,
-	)
+// ProvideTeamInvitationService creates a new TeamInvitationService. Wire fills
+// the deps struct via wire.Struct (see the container ProviderSet).
+func ProvideTeamInvitationService(deps services.TeamInvitationServiceDeps) *services.TeamInvitationService {
+	return services.NewTeamInvitationService(deps)
 }
 
 // ProvideProjectService creates a new ProjectService
@@ -626,70 +565,78 @@ func ProvideWebPushChannel(
 	return notifchannels.NewWebPushChannel(fcmClient, tokenRepo, logger)
 }
 
+// NotificationServiceDeps groups the dependencies of ProvideNotificationService.
+// Wire fills it via wire.Struct (see the container ProviderSet).
+type NotificationServiceDeps struct {
+	NotifRepo    repositories.NotificationRepository
+	DeliveryRepo repositories.NotificationDeliveryRepository
+	PrefRepo     repositories.UserPreferencesRepository
+	UserRepo     repositories.UserRepository
+	DigestRepo   repositories.NotificationDigestQueueRepository
+	EmailSvc     services.EmailServiceInterface
+	WebPushCh    *notifchannels.WebPushChannel
+	AppMetrics   *metrics.Metrics
+	Logger       *slog.Logger
+}
+
 // ProvideNotificationService creates a new NotificationService with all registered channels.
 // The WebPush channel is included only when ProvideWebPushChannel returned a non-nil value
 // (i.e. FCM is configured). No FCMEnabled() predicate is needed: a nil channel means FCM is
 // disabled, and WebPushChannel.Deliver returns StatusSkipped when fcm is nil regardless.
-func ProvideNotificationService(
-	notifRepo repositories.NotificationRepository,
-	deliveryRepo repositories.NotificationDeliveryRepository,
-	prefRepo repositories.UserPreferencesRepository,
-	userRepo repositories.UserRepository,
-	digestRepo repositories.NotificationDigestQueueRepository,
-	emailSvc services.EmailServiceInterface,
-	webPushCh *notifchannels.WebPushChannel,
-	appMetrics *metrics.Metrics,
-	logger *slog.Logger,
-) *notificationsvc.NotificationService {
+func ProvideNotificationService(deps NotificationServiceDeps) *notificationsvc.NotificationService {
 	inAppCh := notifchannels.NewInAppChannel()
-	emailCh := notifchannels.NewEmailChannel(emailSvc, digestRepo, logger)
+	emailCh := notifchannels.NewEmailChannel(deps.EmailSvc, deps.DigestRepo, deps.Logger)
 
 	channels := []notificationsvc.Channel{inAppCh, emailCh}
 
 	// Only append the web push channel when FCM is configured.
 	// ProvideWebPushChannel returns nil when FCM is disabled, making this a
 	// straightforward nil check with no need for an FCMEnabled() predicate.
-	if webPushCh != nil {
-		channels = append(channels, webPushCh)
+	if deps.WebPushCh != nil {
+		channels = append(channels, deps.WebPushCh)
 	}
 
 	return notificationsvc.NewNotificationService(
-		notifRepo,
-		deliveryRepo,
-		prefRepo,
-		userRepo,
+		deps.NotifRepo,
+		deps.DeliveryRepo,
+		deps.PrefRepo,
+		deps.UserRepo,
 		channels,
-		appMetrics,
-		logger,
+		deps.AppMetrics,
+		deps.Logger,
 	)
+}
+
+// DigestRunnerDeps groups the dependencies of ProvideDigestRunner. Wire fills
+// it via wire.Struct (see the container ProviderSet).
+type DigestRunnerDeps struct {
+	Cfg        *config.Config
+	DigestRepo repositories.NotificationDigestQueueRepository
+	NotifRepo  repositories.NotificationRepository
+	UserRepo   repositories.UserRepository
+	TeamRepo   repositories.TeamRepository
+	PrefRepo   repositories.UserPreferencesRepository
+	EmailSvc   services.EmailServiceInterface
+	AppMetrics *metrics.Metrics
+	Logger     *slog.Logger
 }
 
 // ProvideDigestRunner creates a new DigestRunner for the daily notification digest job.
 // EmailServiceInterface satisfies notifications.DigestEmailSender via Go structural typing
 // (both declare SendNotificationEmail(to, subject, htmlBody string) error).
-func ProvideDigestRunner(
-	cfg *config.Config,
-	digestRepo repositories.NotificationDigestQueueRepository,
-	notifRepo repositories.NotificationRepository,
-	userRepo repositories.UserRepository,
-	teamRepo repositories.TeamRepository,
-	prefRepo repositories.UserPreferencesRepository,
-	emailSvc services.EmailServiceInterface,
-	appMetrics *metrics.Metrics,
-	logger *slog.Logger,
-) *notificationsvc.DigestRunner {
-	renderer := notificationsvc.NewTemplateRenderer(cfg.Frontend.BaseURL)
-	return notificationsvc.NewDigestRunner(
-		digestRepo,
-		notifRepo,
-		userRepo,
-		teamRepo,
-		prefRepo,
-		emailSvc,
-		renderer,
-		appMetrics,
-		logger,
-	)
+func ProvideDigestRunner(deps DigestRunnerDeps) *notificationsvc.DigestRunner {
+	renderer := notificationsvc.NewTemplateRenderer(deps.Cfg.Frontend.BaseURL)
+	return notificationsvc.NewDigestRunner(notificationsvc.DigestRunnerDeps{
+		DigestRepo: deps.DigestRepo,
+		NotifRepo:  deps.NotifRepo,
+		UserRepo:   deps.UserRepo,
+		TeamRepo:   deps.TeamRepo,
+		PrefRepo:   deps.PrefRepo,
+		EmailSvc:   deps.EmailSvc,
+		Renderer:   renderer,
+		AppMetrics: deps.AppMetrics,
+		Logger:     deps.Logger,
+	})
 }
 
 // ProvideProjectMigrationService creates a new ProjectMigrationService

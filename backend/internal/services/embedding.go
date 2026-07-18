@@ -180,29 +180,33 @@ func buildEntityValidator(entityName string, lookup crossTeamLookup) EntityValid
 	}
 }
 
+// EmbeddingServiceDeps groups the dependencies injected into EmbeddingService.
+type EmbeddingServiceDeps struct {
+	Repo              repositories.EmbeddingRepository
+	PromptRepo        repositories.PromptRepository
+	ArtifactRepo      repositories.ArtifactRepository
+	MemoryRepo        repositories.MemoryRepository
+	BlueprintRepo     repositories.BlueprintRepository
+	FeedItemRepo      repositories.FeedItemRepository
+	FeedItemReplyRepo repositories.FeedItemReplyRepository
+	Dimensions        int
+	Logger            *slog.Logger
+}
+
 // NewEmbeddingService creates a new EmbeddingService and builds the per-instance
 // entity registry. Each ValidatorFunc closes over the service's repositories so
 // resolveEntityTeam can dispatch by entity-type name without a switch.
-func NewEmbeddingService(
-	repo repositories.EmbeddingRepository,
-	promptRepo repositories.PromptRepository,
-	artifactRepo repositories.ArtifactRepository,
-	memoryRepo repositories.MemoryRepository,
-	blueprintRepo repositories.BlueprintRepository,
-	feedItemRepo repositories.FeedItemRepository,
-	feedItemReplyRepo repositories.FeedItemReplyRepository,
-	dimensions int,
-	logger *slog.Logger) *EmbeddingService {
+func NewEmbeddingService(deps EmbeddingServiceDeps) *EmbeddingService {
 	svc := &EmbeddingService{
-		repo:              repo,
-		promptRepo:        promptRepo,
-		artifactRepo:      artifactRepo,
-		memoryRepo:        memoryRepo,
-		blueprintRepo:     blueprintRepo,
-		feedItemRepo:      feedItemRepo,
-		feedItemReplyRepo: feedItemReplyRepo,
-		dimensions:        dimensions,
-		logger:            logger,
+		repo:              deps.Repo,
+		promptRepo:        deps.PromptRepo,
+		artifactRepo:      deps.ArtifactRepo,
+		memoryRepo:        deps.MemoryRepo,
+		blueprintRepo:     deps.BlueprintRepo,
+		feedItemRepo:      deps.FeedItemRepo,
+		feedItemReplyRepo: deps.FeedItemReplyRepo,
+		dimensions:        deps.Dimensions,
+		logger:            deps.Logger,
 	}
 	svc.entityRegistry = map[string]EmbeddingEntityConfig{
 		"prompt":          {ValidatorFunc: buildEntityValidator("prompt", promptCrossTeamLookup(svc))},

@@ -21,12 +21,32 @@ func (eventWithoutMarker) UserID() string           { return "" }
 func (eventWithoutMarker) RetryPolicy() RetryPolicy { return RetryPolicyNone }
 
 func TestIsBackfillOrigin_UnmarkedEvent(t *testing.T) {
-	event := NewPromptCreatedEvent("p1", "u1", "e@x.com", "proj", "slug", "title", "", "body", time.Now())
+	event := NewPromptCreatedEvent(PromptCreatedPayload{
+		PromptID:    "p1",
+		UserID:      "u1",
+		Email:       "e@x.com",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "title",
+		Description: "",
+		Body:        "body",
+		CreatedAt:   time.Now(),
+	})
 	assert.False(t, IsBackfillOrigin(event), "a freshly built event must not be backfill-origin")
 }
 
 func TestMarkBackfillOrigin_MarksEvent(t *testing.T) {
-	event := NewPromptCreatedEvent("p1", "u1", "e@x.com", "proj", "slug", "title", "", "body", time.Now())
+	event := NewPromptCreatedEvent(PromptCreatedPayload{
+		PromptID:    "p1",
+		UserID:      "u1",
+		Email:       "e@x.com",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "title",
+		Description: "",
+		Body:        "body",
+		CreatedAt:   time.Now(),
+	})
 
 	returned := MarkBackfillOrigin(event)
 
@@ -35,7 +55,16 @@ func TestMarkBackfillOrigin_MarksEvent(t *testing.T) {
 }
 
 func TestMarkBackfillOrigin_IsIdempotent(t *testing.T) {
-	event := NewFeedItemCreatedEvent("i1", "u1", "t1", "f1", "title", "content", "exc", time.Now())
+	event := NewFeedItemCreatedEvent(FeedItemCreatedPayload{
+		ItemID:   "i1",
+		UserID:   "u1",
+		TeamID:   "t1",
+		FeedID:   "f1",
+		Title:    "title",
+		Content:  "content",
+		Excerpt:  "exc",
+		PostedAt: time.Now(),
+	})
 
 	MarkBackfillOrigin(event)
 	MarkBackfillOrigin(event)
@@ -44,8 +73,28 @@ func TestMarkBackfillOrigin_IsIdempotent(t *testing.T) {
 }
 
 func TestMarkBackfillOrigin_DoesNotAffectOtherEvents(t *testing.T) {
-	marked := NewPromptCreatedEvent("p1", "u1", "e@x.com", "proj", "slug", "title", "", "body", time.Now())
-	unmarked := NewPromptCreatedEvent("p2", "u1", "e@x.com", "proj", "slug", "title", "", "body", time.Now())
+	marked := NewPromptCreatedEvent(PromptCreatedPayload{
+		PromptID:    "p1",
+		UserID:      "u1",
+		Email:       "e@x.com",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "title",
+		Description: "",
+		Body:        "body",
+		CreatedAt:   time.Now(),
+	})
+	unmarked := NewPromptCreatedEvent(PromptCreatedPayload{
+		PromptID:    "p2",
+		UserID:      "u1",
+		Email:       "e@x.com",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "title",
+		Description: "",
+		Body:        "body",
+		CreatedAt:   time.Now(),
+	})
 
 	MarkBackfillOrigin(marked)
 
@@ -83,9 +132,17 @@ func TestBackfillOrigin_BusDispatch_MarkerSurvives(t *testing.T) {
 	forwarder := NewMockListener([]string{EventTypePromptCreated})
 	require.NoError(t, bus.Subscribe(forwarder))
 
-	backfillEvent := NewPromptCreatedEvent(
-		"prompt-1", "user-1", "test@example.com", "proj", "slug", "title", "", "body", time.Now(),
-	)
+	backfillEvent := NewPromptCreatedEvent(PromptCreatedPayload{
+		PromptID:    "prompt-1",
+		UserID:      "user-1",
+		Email:       "test@example.com",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "title",
+		Description: "",
+		Body:        "body",
+		CreatedAt:   time.Now(),
+	})
 	MarkBackfillOrigin(backfillEvent)
 	require.NoError(t, bus.Publish(context.Background(), backfillEvent))
 

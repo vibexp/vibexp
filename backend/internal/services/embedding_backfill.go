@@ -281,24 +281,54 @@ func resolveBackfillTypes(all bool, requested []string) ([]string, error) {
 func (s *EmbeddingBackfillService) buildCreatedEvent(e *models.BackfillEntity) (events.Event, error) {
 	switch e.EntityType {
 	case "prompt":
-		return events.NewPromptCreatedEvent(
-			e.EntityID, e.UserID, e.Email, e.ProjectName, e.Slug, e.Title, e.Description,
-			s.renderPromptBody(e), e.CreatedAt,
-		), nil
+		return events.NewPromptCreatedEvent(events.PromptCreatedPayload{
+			PromptID:    e.EntityID,
+			UserID:      e.UserID,
+			Email:       e.Email,
+			ProjectName: e.ProjectName,
+			Slug:        e.Slug,
+			Title:       e.Title,
+			Description: e.Description,
+			Body:        s.renderPromptBody(e),
+			CreatedAt:   e.CreatedAt,
+		}), nil
 	case "artifact":
-		return events.NewArtifactCreatedEvent(
-			e.EntityID, e.UserID, e.ProjectName, e.Slug, e.Title, e.Description, e.Type, e.Body, e.CreatedAt,
-		), nil
+		return events.NewArtifactCreatedEvent(events.ArtifactCreatedPayload{
+			ArtifactID:  e.EntityID,
+			UserID:      e.UserID,
+			ProjectName: e.ProjectName,
+			Slug:        e.Slug,
+			Title:       e.Title,
+			Description: e.Description,
+			Type:        e.Type,
+			Body:        e.Body,
+			CreatedAt:   e.CreatedAt,
+		}), nil
 	case "memory":
 		return events.NewMemoryCreatedEvent(e.EntityID, e.UserID, e.ProjectName, e.Body, e.CreatedAt), nil
 	case "blueprint":
-		return events.NewBlueprintCreatedEvent(
-			e.EntityID, e.UserID, e.ProjectName, e.Slug, e.Title, e.Description, e.Type, e.Body, e.CreatedAt,
-		), nil
+		return events.NewBlueprintCreatedEvent(events.BlueprintCreatedPayload{
+			BlueprintID: e.EntityID,
+			UserID:      e.UserID,
+			ProjectName: e.ProjectName,
+			Slug:        e.Slug,
+			Title:       e.Title,
+			Description: e.Description,
+			Type:        e.Type,
+			Body:        e.Body,
+			CreatedAt:   e.CreatedAt,
+		}), nil
 	case "feed_item":
-		return events.NewFeedItemCreatedEvent(
-			e.EntityID, e.UserID, e.TeamID, e.FeedID, e.Title, e.Body, e.Excerpt, e.CreatedAt,
-		), nil
+		return events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+			ItemID:   e.EntityID,
+			UserID:   e.UserID,
+			TeamID:   e.TeamID,
+			FeedID:   e.FeedID,
+			Title:    e.Title,
+			Content:  e.Body,
+			Excerpt:  e.Excerpt,
+			PostedAt: e.CreatedAt,
+		}), nil
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedBackfillEntityType, e.EntityType)
 	}

@@ -130,16 +130,19 @@ func (m *mockUserRepository) GetNamesByIDs(_ context.Context, _ []string) (map[s
 	return map[string]string{}, nil
 }
 
-func runPromptShareTest(
-	t *testing.T,
-	method, url string,
-	slug string,
-	body interface{},
-	userID string,
-	mockSetup func(*svcmocks.MockPromptShareServiceInterface),
-	expectedStatus int,
-	checkResponse func(*testing.T, *httptest.ResponseRecorder),
-) {
+// promptShareTestParams describes one prompt-share handler request/assertion
+// round-trip executed by runPromptShareTest.
+type promptShareTestParams struct {
+	method, url    string
+	slug           string
+	body           interface{}
+	userID         string
+	mockSetup      func(*svcmocks.MockPromptShareServiceInterface)
+	expectedStatus int
+	checkResponse  func(*testing.T, *httptest.ResponseRecorder)
+}
+
+func runPromptShareTest(t *testing.T, p promptShareTestParams) {
 	t.Helper()
 	mockService := svcmocks.NewMockPromptShareServiceInterface(t)
 	mockResourceUsage := &MockResourceUsageServiceForHandlers{}
@@ -156,38 +159,38 @@ func runPromptShareTest(
 		teamService:          mockTeamService,
 	}
 
-	mockSetup(mockService)
+	p.mockSetup(mockService)
 
 	cfg := &config.Config{}
 	srv := newTestServer(t, mockContainer, cfg)
 
 	var reqBody []byte
-	if body != nil {
+	if p.body != nil {
 		var err error
-		reqBody, err = json.Marshal(body)
+		reqBody, err = json.Marshal(p.body)
 		assert.NoError(t, err)
 	}
 
-	req := httptest.NewRequest(method, url, bytes.NewReader(reqBody))
-	if body != nil {
+	req := httptest.NewRequest(p.method, p.url, bytes.NewReader(reqBody))
+	if p.body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("team_id", "550e8400-e29b-41d4-a716-446655440000")
-	rctx.URLParams.Add("slug", slug)
+	rctx.URLParams.Add("slug", p.slug)
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
-	if userID != "" {
-		req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, userID))
+	if p.userID != "" {
+		req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, p.userID))
 	}
 
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
-	assert.Equal(t, expectedStatus, rr.Code)
-	if checkResponse != nil {
-		checkResponse(t, rr)
+	assert.Equal(t, p.expectedStatus, rr.Code)
+	if p.checkResponse != nil {
+		p.checkResponse(t, rr)
 	}
 }
 
@@ -272,17 +275,16 @@ var createPromptShareTests = []struct {
 func TestCreatePromptShare_Integration(t *testing.T) {
 	for _, tt := range createPromptShareTests {
 		t.Run(tt.name, func(t *testing.T) {
-			runPromptShareTest(
-				t,
-				"POST",
-				"/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/test-prompt/share",
-				"test-prompt",
-				tt.request,
-				"test-user",
-				tt.setupMocks,
-				tt.expectedStatus,
-				tt.checkResponse,
-			)
+			runPromptShareTest(t, promptShareTestParams{
+				method:         "POST",
+				url:            "/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/test-prompt/share",
+				slug:           "test-prompt",
+				body:           tt.request,
+				userID:         "test-user",
+				mockSetup:      tt.setupMocks,
+				expectedStatus: tt.expectedStatus,
+				checkResponse:  tt.checkResponse,
+			})
 		})
 	}
 }
@@ -331,17 +333,15 @@ func TestGetPromptShare_Integration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runPromptShareTest(
-				t,
-				"GET",
-				fmt.Sprintf("/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/%s/share", tt.slug),
-				tt.slug,
-				nil,
-				"test-user",
-				tt.setupMocks,
-				tt.expectedStatus,
-				tt.checkResponse,
-			)
+			runPromptShareTest(t, promptShareTestParams{
+				method:         "GET",
+				url:            fmt.Sprintf("/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/%s/share", tt.slug),
+				slug:           tt.slug,
+				userID:         "test-user",
+				mockSetup:      tt.setupMocks,
+				expectedStatus: tt.expectedStatus,
+				checkResponse:  tt.checkResponse,
+			})
 		})
 	}
 }
@@ -377,17 +377,14 @@ func TestDeletePromptShare_Integration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runPromptShareTest(
-				t,
-				"DELETE",
-				fmt.Sprintf("/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/%s/share", tt.slug),
-				tt.slug,
-				nil,
-				"test-user",
-				tt.setupMocks,
-				tt.expectedStatus,
-				nil,
-			)
+			runPromptShareTest(t, promptShareTestParams{
+				method:         "DELETE",
+				url:            fmt.Sprintf("/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts/%s/share", tt.slug),
+				slug:           tt.slug,
+				userID:         "test-user",
+				mockSetup:      tt.setupMocks,
+				expectedStatus: tt.expectedStatus,
+			})
 		})
 	}
 }

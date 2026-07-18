@@ -15,7 +15,18 @@ import (
 
 func setupTestService(_t *testing.T) (*Service, *mocks.ActivityRepositoryMock) {
 	mockRepo := &mocks.ActivityRepositoryMock{}
-	service := NewService(mockRepo, nil, nil, nil, nil, nil, nil, nil, nil, 90)
+	service := NewService(ServiceDeps{
+		Repo:          mockRepo,
+		ProjectRepo:   nil,
+		PromptRepo:    nil,
+		ArtifactRepo:  nil,
+		UserRepo:      nil,
+		AgentRepo:     nil,
+		BlueprintRepo: nil,
+		APIKeyRepo:    nil,
+		MemoryRepo:    nil,
+		RetentionDays: 90,
+	})
 	return service, mockRepo
 }
 
@@ -636,7 +647,18 @@ func TestService_RunRetentionJob_Success(t *testing.T) {
 
 	const testRetentionDays = 30
 	mockRepo := &mocks.ActivityRepositoryMock{}
-	service := NewService(mockRepo, nil, nil, nil, nil, nil, nil, nil, nil, testRetentionDays)
+	service := NewService(ServiceDeps{
+		Repo:          mockRepo,
+		ProjectRepo:   nil,
+		PromptRepo:    nil,
+		ArtifactRepo:  nil,
+		UserRepo:      nil,
+		AgentRepo:     nil,
+		BlueprintRepo: nil,
+		APIKeyRepo:    nil,
+		MemoryRepo:    nil,
+		RetentionDays: testRetentionDays,
+	})
 
 	ctx := context.Background()
 	before := time.Now()
@@ -662,7 +684,18 @@ func TestService_RunRetentionJob_RepositoryError(t *testing.T) {
 	t.Parallel()
 
 	mockRepo := &mocks.ActivityRepositoryMock{}
-	service := NewService(mockRepo, nil, nil, nil, nil, nil, nil, nil, nil, 90)
+	service := NewService(ServiceDeps{
+		Repo:          mockRepo,
+		ProjectRepo:   nil,
+		PromptRepo:    nil,
+		ArtifactRepo:  nil,
+		UserRepo:      nil,
+		AgentRepo:     nil,
+		BlueprintRepo: nil,
+		APIKeyRepo:    nil,
+		MemoryRepo:    nil,
+		RetentionDays: 90,
+	})
 
 	ctx := context.Background()
 

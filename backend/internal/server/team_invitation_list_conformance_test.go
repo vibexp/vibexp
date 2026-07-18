@@ -74,9 +74,16 @@ func TestHandleListTeamInvitations_TokenPopulatedAndConforms(t *testing.T) {
 	invRepo.On("GetByTeamID", mock.Anything, listInvitationsTeamID).
 		Return(invitations, nil).Once()
 
-	svc := services.NewTeamInvitationService(
-		invRepo, nil, nil, nil, nil, authzMock, &config.Config{}, slog.New(slog.DiscardHandler),
-	)
+	svc := services.NewTeamInvitationService(services.TeamInvitationServiceDeps{
+		InvitationRepo: invRepo,
+		TeamRepo:       nil,
+		TeamMemberRepo: nil,
+		UserRepo:       nil,
+		EmailService:   nil,
+		Authz:          authzMock,
+		Cfg:            &config.Config{},
+		Logger:         slog.New(slog.DiscardHandler),
+	})
 	srv := newInvitationListServer(svc)
 
 	req := createAuthenticatedRequest(
@@ -110,9 +117,16 @@ func TestHandleListTeamInvitations_MemberForbidden(t *testing.T) {
 	authzMock.On("Can", mock.Anything, "member-user", listInvitationsTeamID, authz.MemberInvite).
 		Return(services.ErrPermissionDenied).Once()
 
-	svc := services.NewTeamInvitationService(
-		invRepo, nil, nil, nil, nil, authzMock, &config.Config{}, slog.New(slog.DiscardHandler),
-	)
+	svc := services.NewTeamInvitationService(services.TeamInvitationServiceDeps{
+		InvitationRepo: invRepo,
+		TeamRepo:       nil,
+		TeamMemberRepo: nil,
+		UserRepo:       nil,
+		EmailService:   nil,
+		Authz:          authzMock,
+		Cfg:            &config.Config{},
+		Logger:         slog.New(slog.DiscardHandler),
+	})
 	srv := newInvitationListServer(svc)
 
 	req := createAuthenticatedRequest(

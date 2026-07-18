@@ -54,10 +54,18 @@ func promptServiceForRole(
 			}, nil).Maybe()
 	}
 
-	return NewPromptService(
-		repo, refRepo, nil, projectRepo, nil,
-		NewAuthorizationService(memberRepo, logger), nil, logger, nil,
-		nil)
+	return NewPromptService(PromptServiceDeps{
+		Repo:              repo,
+		RefRepo:           refRepo,
+		UserRepo:          nil,
+		ProjectRepo:       projectRepo,
+		TeamService:       nil,
+		Authz:             NewAuthorizationService(memberRepo, logger),
+		EventManager:      nil,
+		Logger:            logger,
+		ContentVersionSvc: nil,
+		CommentRepo:       nil,
+	})
 }
 
 func promptOwnedBy(ownerID string) *models.Prompt {

@@ -39,29 +39,32 @@ type PromptService struct {
 // Ensure PromptService implements PromptServiceInterface
 var _ PromptServiceInterface = (*PromptService)(nil)
 
-func NewPromptService(
-	repo repositories.PromptRepository,
-	refRepo repositories.PromptReferenceRepository,
-	userRepo repositories.UserRepository,
-	projectRepo repositories.ProjectRepository,
-	teamService TeamServiceInterface,
-	authzService AuthorizationServiceInterface,
-	eventManager events.EventPublisher,
-	logger *slog.Logger,
-	contentVersionSvc ContentVersionServiceInterface,
-	commentRepo repositories.CommentRepository,
-) *PromptService {
+// PromptServiceDeps groups the dependencies injected into PromptService.
+type PromptServiceDeps struct {
+	Repo              repositories.PromptRepository
+	RefRepo           repositories.PromptReferenceRepository
+	UserRepo          repositories.UserRepository
+	ProjectRepo       repositories.ProjectRepository
+	TeamService       TeamServiceInterface
+	Authz             AuthorizationServiceInterface
+	EventManager      events.EventPublisher
+	Logger            *slog.Logger
+	ContentVersionSvc ContentVersionServiceInterface
+	CommentRepo       repositories.CommentRepository
+}
+
+func NewPromptService(deps PromptServiceDeps) *PromptService {
 	return &PromptService{
-		repo:              repo,
-		refRepo:           refRepo,
-		userRepo:          userRepo,
-		projectRepo:       projectRepo,
-		teamService:       teamService,
-		authz:             authzService,
-		eventManager:      eventManager,
-		contentVersionSvc: contentVersionSvc,
-		commentRepo:       commentRepo,
-		logger:            logger,
+		repo:              deps.Repo,
+		refRepo:           deps.RefRepo,
+		userRepo:          deps.UserRepo,
+		projectRepo:       deps.ProjectRepo,
+		teamService:       deps.TeamService,
+		authz:             deps.Authz,
+		eventManager:      deps.EventManager,
+		contentVersionSvc: deps.ContentVersionSvc,
+		commentRepo:       deps.CommentRepo,
+		logger:            deps.Logger,
 	}
 }
 
@@ -108,10 +111,17 @@ func (s *PromptService) publishPromptCreatedEvent(ctx context.Context, prompt *m
 		renderedBody = prompt.Body
 	}
 
-	event := events.NewPromptCreatedEvent(
-		prompt.ID, prompt.UserID, userEmail, "default", prompt.Slug, prompt.Name,
-		prompt.Description, renderedBody, prompt.CreatedAt,
-	)
+	event := events.NewPromptCreatedEvent(events.PromptCreatedPayload{
+		PromptID:    prompt.ID,
+		UserID:      prompt.UserID,
+		Email:       userEmail,
+		ProjectName: "default",
+		Slug:        prompt.Slug,
+		Title:       prompt.Name,
+		Description: prompt.Description,
+		Body:        renderedBody,
+		CreatedAt:   prompt.CreatedAt,
+	})
 	if err := s.eventManager.Publish(ctx, event); err != nil {
 		s.logger.With("error", err).Warn("Failed to publish prompt created event")
 	}
@@ -470,10 +480,16 @@ func (s *PromptService) publishPromptUpdatedEvent(
 		renderedBody = renderResponse.RenderedBody
 	}
 
-	event := events.NewPromptUpdatedEvent(
-		updatedPrompt.ID, updatedPrompt.UserID, "default", updatedPrompt.Slug,
-		updatedPrompt.Name, updatedPrompt.Description, renderedBody, updatedPrompt.UpdatedAt,
-	)
+	event := events.NewPromptUpdatedEvent(events.PromptUpdatedPayload{
+		PromptID:    updatedPrompt.ID,
+		UserID:      updatedPrompt.UserID,
+		ProjectName: "default",
+		Slug:        updatedPrompt.Slug,
+		Title:       updatedPrompt.Name,
+		Description: updatedPrompt.Description,
+		Body:        renderedBody,
+		UpdatedAt:   updatedPrompt.UpdatedAt,
+	})
 	if err := s.eventManager.Publish(ctx, event); err != nil {
 		s.logger.With("error", err).Warn("Failed to publish prompt updated event")
 	}

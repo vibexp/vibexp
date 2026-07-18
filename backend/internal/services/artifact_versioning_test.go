@@ -68,7 +68,16 @@ func TestArtifactService_UpdateSnapshotsOldContent(t *testing.T) {
 					Once()
 			}
 
-			svc := services.NewArtifactService(repo, nil, permissiveAuthz(t), nil, nil, logger, cvs, nil)
+			svc := services.NewArtifactService(services.ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             permissiveAuthz(t),
+				EventManager:      nil,
+				ResourceUsageSvc:  nil,
+				Logger:            logger,
+				ContentVersionSvc: cvs,
+				CommentRepo:       nil,
+			})
 
 			content := tt.newContent
 			_, err := svc.UpdateArtifactByProjectIDAndSlugInTeam(
@@ -120,7 +129,16 @@ func TestArtifactService_RestoreSnapshotsAsSystem(t *testing.T) {
 		Once()
 	repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 
-	svc := services.NewArtifactService(repo, nil, permissiveAuthz(t), nil, nil, logger, cvs, nil)
+	svc := services.NewArtifactService(services.ArtifactServiceDeps{
+		Repo:              repo,
+		TeamService:       nil,
+		Authz:             permissiveAuthz(t),
+		EventManager:      nil,
+		ResourceUsageSvc:  nil,
+		Logger:            logger,
+		ContentVersionSvc: cvs,
+		CommentRepo:       nil,
+	})
 	_, err := svc.RestoreArtifactVersionInTeam(userID, teamID, projectID, slug, 2)
 	require.NoError(t, err)
 }

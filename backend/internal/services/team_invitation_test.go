@@ -44,16 +44,16 @@ func TestTeamInvitationService_InviteMembers_SingleDuplicate(t *testing.T) {
 	mockUserRepo := &mocks.MockUserRepository{}
 	mockEmailService := &MockEmailService{}
 
-	service := NewTeamInvitationService(
-		mockInvitationRepo,
-		mockTeamRepo,
-		mockTeamMemberRepo,
-		mockUserRepo,
-		mockEmailService,
-		NewAuthorizationService(mockTeamMemberRepo, nil),
-		&config.Config{},
-		nil,
-	)
+	service := NewTeamInvitationService(TeamInvitationServiceDeps{
+		InvitationRepo: mockInvitationRepo,
+		TeamRepo:       mockTeamRepo,
+		TeamMemberRepo: mockTeamMemberRepo,
+		UserRepo:       mockUserRepo,
+		EmailService:   mockEmailService,
+		Authz:          NewAuthorizationService(mockTeamMemberRepo, nil),
+		Cfg:            &config.Config{},
+		Logger:         nil,
+	})
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -130,16 +130,16 @@ func TestTeamInvitationService_InviteMembers_MultipleDuplicates(t *testing.T) {
 	mockUserRepo := &mocks.MockUserRepository{}
 	mockEmailService := &MockEmailService{}
 
-	service := NewTeamInvitationService(
-		mockInvitationRepo,
-		mockTeamRepo,
-		mockTeamMemberRepo,
-		mockUserRepo,
-		mockEmailService,
-		NewAuthorizationService(mockTeamMemberRepo, nil),
-		&config.Config{},
-		nil,
-	)
+	service := NewTeamInvitationService(TeamInvitationServiceDeps{
+		InvitationRepo: mockInvitationRepo,
+		TeamRepo:       mockTeamRepo,
+		TeamMemberRepo: mockTeamMemberRepo,
+		UserRepo:       mockUserRepo,
+		EmailService:   mockEmailService,
+		Authz:          NewAuthorizationService(mockTeamMemberRepo, nil),
+		Cfg:            &config.Config{},
+		Logger:         nil,
+	})
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -246,16 +246,16 @@ func TestTeamInvitationService_InviteMembers_NoDuplicatesSuccess(t *testing.T) {
 	mockUserRepo := &mocks.MockUserRepository{}
 	mockEmailService := &MockEmailService{}
 
-	service := NewTeamInvitationService(
-		mockInvitationRepo,
-		mockTeamRepo,
-		mockTeamMemberRepo,
-		mockUserRepo,
-		mockEmailService,
-		NewAuthorizationService(mockTeamMemberRepo, nil),
-		&config.Config{},
-		nil,
-	)
+	service := NewTeamInvitationService(TeamInvitationServiceDeps{
+		InvitationRepo: mockInvitationRepo,
+		TeamRepo:       mockTeamRepo,
+		TeamMemberRepo: mockTeamMemberRepo,
+		UserRepo:       mockUserRepo,
+		EmailService:   mockEmailService,
+		Authz:          NewAuthorizationService(mockTeamMemberRepo, nil),
+		Cfg:            &config.Config{},
+		Logger:         nil,
+	})
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -330,16 +330,16 @@ func TestTeamInvitationService_InviteMembers_PendingInvitationExists(t *testing.
 	mockUserRepo := &mocks.MockUserRepository{}
 	mockEmailService := &MockEmailService{}
 
-	service := NewTeamInvitationService(
-		mockInvitationRepo,
-		mockTeamRepo,
-		mockTeamMemberRepo,
-		mockUserRepo,
-		mockEmailService,
-		NewAuthorizationService(mockTeamMemberRepo, nil),
-		&config.Config{},
-		nil,
-	)
+	service := NewTeamInvitationService(TeamInvitationServiceDeps{
+		InvitationRepo: mockInvitationRepo,
+		TeamRepo:       mockTeamRepo,
+		TeamMemberRepo: mockTeamMemberRepo,
+		UserRepo:       mockUserRepo,
+		EmailService:   mockEmailService,
+		Authz:          NewAuthorizationService(mockTeamMemberRepo, nil),
+		Cfg:            &config.Config{},
+		Logger:         nil,
+	})
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -409,16 +409,16 @@ func TestTeamInvitationService_InviteMembers_NoPermission(t *testing.T) {
 	mockUserRepo := &mocks.MockUserRepository{}
 	mockEmailService := &MockEmailService{}
 
-	service := NewTeamInvitationService(
-		mockInvitationRepo,
-		mockTeamRepo,
-		mockTeamMemberRepo,
-		mockUserRepo,
-		mockEmailService,
-		NewAuthorizationService(mockTeamMemberRepo, nil),
-		&config.Config{},
-		nil,
-	)
+	service := NewTeamInvitationService(TeamInvitationServiceDeps{
+		InvitationRepo: mockInvitationRepo,
+		TeamRepo:       mockTeamRepo,
+		TeamMemberRepo: mockTeamMemberRepo,
+		UserRepo:       mockUserRepo,
+		EmailService:   mockEmailService,
+		Authz:          NewAuthorizationService(mockTeamMemberRepo, nil),
+		Cfg:            &config.Config{},
+		Logger:         nil,
+	})
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -468,16 +468,16 @@ func TestTeamInvitationService_InviteMembers_PersonalWorkspace(t *testing.T) {
 	mockUserRepo := &mocks.MockUserRepository{}
 	mockEmailService := &MockEmailService{}
 
-	service := NewTeamInvitationService(
-		mockInvitationRepo,
-		mockTeamRepo,
-		mockTeamMemberRepo,
-		mockUserRepo,
-		mockEmailService,
-		NewAuthorizationService(mockTeamMemberRepo, nil),
-		&config.Config{},
-		nil,
-	)
+	service := NewTeamInvitationService(TeamInvitationServiceDeps{
+		InvitationRepo: mockInvitationRepo,
+		TeamRepo:       mockTeamRepo,
+		TeamMemberRepo: mockTeamMemberRepo,
+		UserRepo:       mockUserRepo,
+		EmailService:   mockEmailService,
+		Authz:          NewAuthorizationService(mockTeamMemberRepo, nil),
+		Cfg:            &config.Config{},
+		Logger:         nil,
+	})
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -534,16 +534,16 @@ func TestTeamInvitationService_InviteMembers_NonPersonalWorkspace(t *testing.T) 
 	mockUserRepo := &mocks.MockUserRepository{}
 	mockEmailService := &MockEmailService{}
 
-	service := NewTeamInvitationService(
-		mockInvitationRepo,
-		mockTeamRepo,
-		mockTeamMemberRepo,
-		mockUserRepo,
-		mockEmailService,
-		NewAuthorizationService(mockTeamMemberRepo, nil),
-		&config.Config{},
-		nil,
-	)
+	service := NewTeamInvitationService(TeamInvitationServiceDeps{
+		InvitationRepo: mockInvitationRepo,
+		TeamRepo:       mockTeamRepo,
+		TeamMemberRepo: mockTeamMemberRepo,
+		UserRepo:       mockUserRepo,
+		EmailService:   mockEmailService,
+		Authz:          NewAuthorizationService(mockTeamMemberRepo, nil),
+		Cfg:            &config.Config{},
+		Logger:         nil,
+	})
 
 	ctx := context.Background()
 	userID := "user-123"
@@ -639,10 +639,16 @@ func newInviterNameTestMocks() (*TeamInvitationService, *inviterNameTestMocks) {
 		userRepo:       &mocks.MockUserRepository{},
 		emailService:   &MockEmailService{},
 	}
-	service := NewTeamInvitationService(
-		m.invitationRepo, m.teamRepo, m.teamMemberRepo,
-		m.userRepo, m.emailService, NewAuthorizationService(m.teamMemberRepo, nil), &config.Config{}, nil,
-	)
+	service := NewTeamInvitationService(TeamInvitationServiceDeps{
+		InvitationRepo: m.invitationRepo,
+		TeamRepo:       m.teamRepo,
+		TeamMemberRepo: m.teamMemberRepo,
+		UserRepo:       m.userRepo,
+		EmailService:   m.emailService,
+		Authz:          NewAuthorizationService(m.teamMemberRepo, nil),
+		Cfg:            &config.Config{},
+		Logger:         nil,
+	})
 	return service, m
 }
 

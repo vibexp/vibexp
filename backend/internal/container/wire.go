@@ -10,6 +10,7 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container/providers"
 	"github.com/vibexp/vibexp/internal/database"
+	"github.com/vibexp/vibexp/internal/services"
 	notificationsvc "github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/pkg/events"
 )
@@ -28,6 +29,7 @@ var ProviderSet = wire.NewSet(
 	// Event system
 	providers.ProvideEventManager,
 	wire.Bind(new(events.EventPublisher), new(*events.EventManager)),
+	wire.Struct(new(providers.EventListenerDeps), "*"),
 	providers.ProvideEventSystemDeps,
 
 	// Cache
@@ -77,6 +79,18 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideNotificationDeliveryRepository,
 	providers.ProvideNotificationDigestQueueRepository,
 	providers.ProvideDeviceTokenRepository,
+
+	// Provider dependency structs (filled by Wire so provider functions stay
+	// under the parameter-count lint limit)
+	wire.Struct(new(services.PromptServiceDeps), "*"),
+	wire.Struct(new(services.ArtifactServiceDeps), "*"),
+	wire.Struct(new(services.BlueprintServiceDeps), "*"),
+	wire.Struct(new(services.ResourceUsageServiceDeps), "*"),
+	wire.Struct(new(services.TeamInvitationServiceDeps), "*"),
+	wire.Struct(new(providers.ActivityServiceDeps), "*"),
+	wire.Struct(new(providers.EmbeddingServiceDeps), "*"),
+	wire.Struct(new(providers.NotificationServiceDeps), "*"),
+	wire.Struct(new(providers.DigestRunnerDeps), "*"),
 
 	// Services
 	providers.ProvideFeatureFlagService,
@@ -133,11 +147,15 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideDigestRunner,
 )
 
-// InitializeContainer creates a new container with Wire-based dependency injection
+// InitializeContainer creates a new container with Wire-based dependency injection.
+// The WireContainer itself is assembled by wire.Struct (field-by-field, replacing a
+// hand-written 80+-parameter constructor); Wire may fill its unexported fields
+// because the generated injector lives in this same package.
 func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logger) (Container, error) {
 	wire.Build(
 		ProviderSet,
-		NewWireContainer,
+		wire.Struct(new(WireContainer), "*"),
+		wire.Bind(new(Container), new(*WireContainer)),
 	)
 	return nil, nil
 }

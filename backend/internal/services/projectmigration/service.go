@@ -247,69 +247,82 @@ func (s *Service) migratePrompts(
 	return nil
 }
 
-// migrateWithSlugConflict resolves a single row's slug collision according to policy.
-// It returns (migrated bool, err error). When migrated is false, the row was skipped or failed
-// and the caller must not increment the migrated counter.
+// sluggedMigration carries the per-table context shared by migrateSluggedResources
+// and migrateWithSlugConflict: the source/destination projects, the conflict policy,
+// the table with its selection/queries, and the result sinks to record outcomes
+// into. dstSlugs is populated by migrateSluggedResources before the row loop runs.
+type sluggedMigration struct {
+	srcProjectID  string
+	destProjectID string
+	policy        ConflictPolicy
+	table         string
+	sel           ResourceSelection
+	allQuery      string
+	dstSlugs      map[string]struct{}
+	failed        *[]ResourceOutcome
+	skipped       *[]ResourceOutcome
+	count         *int
+}
+
+// migrateWithSlugConflict resolves a single row's slug collision according to m.policy.
+// It returns migrated=false when the row was skipped or failed, in which case the
+// caller must not increment the migrated counter.
 func (s *Service) migrateWithSlugConflict(
 	ctx context.Context,
 	tx *sql.Tx,
-	id, slug, srcProjectID, destProjectID string,
-	policy ConflictPolicy,
-	table string,
-	dstSlugs map[string]struct{},
-	failed *[]ResourceOutcome,
-	skipped *[]ResourceOutcome,
+	m *sluggedMigration,
+	id, slug string,
 ) (migrated bool) {
-	switch policy {
+	switch m.policy {
 	case ConflictPolicySkip:
-		*skipped = append(*skipped, ResourceOutcome{ID: id, Reason: "slug conflict: " + slug})
+		*m.skipped = append(*m.skipped, ResourceOutcome{ID: id, Reason: "slug conflict: " + slug})
 		return false
 
 	case ConflictPolicyRename:
-		newSlug := s.uniqueSlug(slug+"-moved", dstSlugs)
+		newSlug := s.uniqueSlug(slug+"-moved", m.dstSlugs)
 		// #nosec G201 - table is a hardcoded string literal from callers, never user input
 		q := fmt.Sprintf(
 			`UPDATE %s SET project_id = $1, slug = $2, version = version + 1, `+
 				`updated_at = NOW() WHERE id = $3 AND project_id = $4`,
-			table,
+			m.table,
 		)
-		res, execErr := tx.ExecContext(ctx, q, destProjectID, newSlug, id, srcProjectID)
+		res, execErr := tx.ExecContext(ctx, q, m.destProjectID, newSlug, id, m.srcProjectID)
 		if execErr != nil {
-			*failed = append(*failed, ResourceOutcome{ID: id, Reason: execErr.Error()})
+			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: execErr.Error()})
 			return false
 		}
 		if n, rowErr := res.RowsAffected(); rowErr == nil && n == 0 {
-			*failed = append(*failed, ResourceOutcome{ID: id, Reason: "concurrent_modification"})
+			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "concurrent_modification"})
 			return false
 		}
-		dstSlugs[newSlug] = struct{}{}
+		m.dstSlugs[newSlug] = struct{}{}
 		return true
 
 	case ConflictPolicyOverwrite:
 		// #nosec G201 - table is a hardcoded string literal from callers, never user input
-		dq := fmt.Sprintf(`DELETE FROM %s WHERE project_id = $1 AND slug = $2`, table)
-		if _, execErr := tx.ExecContext(ctx, dq, destProjectID, slug); execErr != nil {
-			*failed = append(*failed, ResourceOutcome{ID: id, Reason: "overwrite delete failed: " + execErr.Error()})
+		dq := fmt.Sprintf(`DELETE FROM %s WHERE project_id = $1 AND slug = $2`, m.table)
+		if _, execErr := tx.ExecContext(ctx, dq, m.destProjectID, slug); execErr != nil {
+			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "overwrite delete failed: " + execErr.Error()})
 			return false
 		}
 		// #nosec G201 - table is a hardcoded string literal from callers, never user input
 		uq := fmt.Sprintf(
 			`UPDATE %s SET project_id = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND project_id = $3`,
-			table,
+			m.table,
 		)
-		res, execErr := tx.ExecContext(ctx, uq, destProjectID, id, srcProjectID)
+		res, execErr := tx.ExecContext(ctx, uq, m.destProjectID, id, m.srcProjectID)
 		if execErr != nil {
-			*failed = append(*failed, ResourceOutcome{ID: id, Reason: "overwrite move failed: " + execErr.Error()})
+			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "overwrite move failed: " + execErr.Error()})
 			return false
 		}
 		if n, rowErr := res.RowsAffected(); rowErr == nil && n == 0 {
-			*failed = append(*failed, ResourceOutcome{ID: id, Reason: "concurrent_modification"})
+			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "concurrent_modification"})
 			return false
 		}
 		return true
 
 	default:
-		*skipped = append(*skipped, ResourceOutcome{ID: id, Reason: "unknown conflict policy"})
+		*m.skipped = append(*m.skipped, ResourceOutcome{ID: id, Reason: "unknown conflict policy"})
 		return false
 	}
 }
@@ -318,15 +331,9 @@ func (s *Service) migrateWithSlugConflict(
 func (s *Service) migrateSluggedResources(
 	ctx context.Context,
 	tx *sql.Tx,
-	sourceProjectID string,
-	sel ResourceSelection,
-	destProjectID string,
-	policy ConflictPolicy,
-	table, allQuery string,
-	failed, skipped *[]ResourceOutcome,
-	count *int,
+	m *sluggedMigration,
 ) error {
-	rows, err := s.querySlugRows(ctx, tx, sourceProjectID, sel, allQuery)
+	rows, err := s.querySlugRows(ctx, tx, m.srcProjectID, m.sel, m.allQuery)
 	if err != nil {
 		return err
 	}
@@ -335,8 +342,8 @@ func (s *Service) migrateSluggedResources(
 	}
 
 	// #nosec G201 - table is a hardcoded string literal from callers ("artifacts"/"blueprints"), never user input
-	slugQuery := fmt.Sprintf(`SELECT slug FROM %s WHERE project_id = $1`, table)
-	dstSlugs, err := s.existingSlugs(ctx, tx, destProjectID, slugQuery)
+	slugQuery := fmt.Sprintf(`SELECT slug FROM %s WHERE project_id = $1`, m.table)
+	m.dstSlugs, err = s.existingSlugs(ctx, tx, m.destProjectID, slugQuery)
 	if err != nil {
 		return err
 	}
@@ -344,31 +351,29 @@ func (s *Service) migrateSluggedResources(
 	// #nosec G201 - table is a hardcoded string literal from callers, never user input
 	updateQ := fmt.Sprintf(
 		`UPDATE %s SET project_id = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND project_id = $3`,
-		table,
+		m.table,
 	)
 	for _, row := range rows {
 		id, slug := row[0], row[1]
 
-		if _, collision := dstSlugs[slug]; collision {
-			if migrated := s.migrateWithSlugConflict(
-				ctx, tx, id, slug, sourceProjectID, destProjectID, policy, table, dstSlugs, failed, skipped,
-			); migrated {
-				*count++
+		if _, collision := m.dstSlugs[slug]; collision {
+			if migrated := s.migrateWithSlugConflict(ctx, tx, m, id, slug); migrated {
+				*m.count++
 			}
 			continue
 		}
 
-		execRes, execErr := tx.ExecContext(ctx, updateQ, destProjectID, id, sourceProjectID)
+		execRes, execErr := tx.ExecContext(ctx, updateQ, m.destProjectID, id, m.srcProjectID)
 		if execErr != nil {
-			*failed = append(*failed, ResourceOutcome{ID: id, Reason: execErr.Error()})
+			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: execErr.Error()})
 			continue
 		}
 		if n, rowErr := execRes.RowsAffected(); rowErr == nil && n == 0 {
-			*failed = append(*failed, ResourceOutcome{ID: id, Reason: "concurrent_modification"})
+			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "concurrent_modification"})
 			continue
 		}
-		dstSlugs[slug] = struct{}{}
-		*count++
+		m.dstSlugs[slug] = struct{}{}
+		*m.count++
 	}
 	return nil
 }
@@ -381,13 +386,17 @@ func (s *Service) migrateArtifacts(
 	req *MigrationRequest,
 	result *MigrationResult,
 ) error {
-	return s.migrateSluggedResources(
-		ctx, tx, sourceProjectID,
-		req.Resources.Artifacts, req.DestinationProjectID, req.ConflictPolicy,
-		"artifacts",
-		`SELECT id, slug FROM artifacts WHERE project_id = $1`,
-		&result.Failed.Artifacts, &result.Skipped.Artifacts, &result.Migrated.Artifacts,
-	)
+	return s.migrateSluggedResources(ctx, tx, &sluggedMigration{
+		srcProjectID:  sourceProjectID,
+		destProjectID: req.DestinationProjectID,
+		policy:        req.ConflictPolicy,
+		table:         "artifacts",
+		sel:           req.Resources.Artifacts,
+		allQuery:      `SELECT id, slug FROM artifacts WHERE project_id = $1`,
+		failed:        &result.Failed.Artifacts,
+		skipped:       &result.Skipped.Artifacts,
+		count:         &result.Migrated.Artifacts,
+	})
 }
 
 // migrateBlueprints moves selected blueprints to the destination project.
@@ -398,13 +407,17 @@ func (s *Service) migrateBlueprints(
 	req *MigrationRequest,
 	result *MigrationResult,
 ) error {
-	return s.migrateSluggedResources(
-		ctx, tx, sourceProjectID,
-		req.Resources.Blueprints, req.DestinationProjectID, req.ConflictPolicy,
-		"blueprints",
-		`SELECT id, slug FROM blueprints WHERE project_id = $1`,
-		&result.Failed.Blueprints, &result.Skipped.Blueprints, &result.Migrated.Blueprints,
-	)
+	return s.migrateSluggedResources(ctx, tx, &sluggedMigration{
+		srcProjectID:  sourceProjectID,
+		destProjectID: req.DestinationProjectID,
+		policy:        req.ConflictPolicy,
+		table:         "blueprints",
+		sel:           req.Resources.Blueprints,
+		allQuery:      `SELECT id, slug FROM blueprints WHERE project_id = $1`,
+		failed:        &result.Failed.Blueprints,
+		skipped:       &result.Skipped.Blueprints,
+		count:         &result.Migrated.Blueprints,
+	})
 }
 
 // migrateFeedItems moves feed items whose project_id matches sourceProjectID.

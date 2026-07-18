@@ -35,26 +35,29 @@ type NotificationEventListener struct {
 	logger          *slog.Logger
 }
 
+// NotificationEventListenerDeps groups the dependencies injected into NotificationEventListener.
+type NotificationEventListenerDeps struct {
+	NotifSvc        NotificationServiceInterface
+	Resolver        RecipientResolverInterface
+	Renderer        TemplateRendererInterface
+	UserRepo        repositories.UserRepository
+	FeedItemRepo    repositories.FeedItemRepository
+	FrontendBaseURL string
+	AppMetrics      *metrics.Metrics
+	Logger          *slog.Logger
+}
+
 // NewNotificationEventListener creates a new NotificationEventListener
-func NewNotificationEventListener(
-	notifSvc NotificationServiceInterface,
-	resolver RecipientResolverInterface,
-	renderer TemplateRendererInterface,
-	userRepo repositories.UserRepository,
-	feedItemRepo repositories.FeedItemRepository,
-	frontendBaseURL string,
-	appMetrics *metrics.Metrics,
-	logger *slog.Logger,
-) *NotificationEventListener {
+func NewNotificationEventListener(deps NotificationEventListenerDeps) *NotificationEventListener {
 	return &NotificationEventListener{
-		notifSvc:        notifSvc,
-		resolver:        resolver,
-		renderer:        renderer,
-		userRepo:        userRepo,
-		feedItemRepo:    feedItemRepo,
-		frontendBaseURL: frontendBaseURL,
-		appMetrics:      appMetrics,
-		logger:          logger,
+		notifSvc:        deps.NotifSvc,
+		resolver:        deps.Resolver,
+		renderer:        deps.Renderer,
+		userRepo:        deps.UserRepo,
+		feedItemRepo:    deps.FeedItemRepo,
+		frontendBaseURL: deps.FrontendBaseURL,
+		appMetrics:      deps.AppMetrics,
+		logger:          deps.Logger,
 	}
 }
 

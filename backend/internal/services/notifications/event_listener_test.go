@@ -87,17 +87,29 @@ func newTestListener(
 	userRepo *mocks.MockUserRepository,
 	feedItemRepo *mocks.MockFeedItemRepository,
 ) *notifications.NotificationEventListener {
-	return notifications.NewNotificationEventListener(
-		svc, resolver, renderer,
-		userRepo, feedItemRepo,
-		"https://app.example.com",
-		nil,
-		newTestLogger(),
-	)
+	return notifications.NewNotificationEventListener(notifications.NotificationEventListenerDeps{
+		NotifSvc:        svc,
+		Resolver:        resolver,
+		Renderer:        renderer,
+		UserRepo:        userRepo,
+		FeedItemRepo:    feedItemRepo,
+		FrontendBaseURL: "https://app.example.com",
+		AppMetrics:      nil,
+		Logger:          newTestLogger(),
+	})
 }
 
 func TestNotificationEventListener_EventTypes(t *testing.T) {
-	listener := notifications.NewNotificationEventListener(nil, nil, nil, nil, nil, "", nil, nil)
+	listener := notifications.NewNotificationEventListener(notifications.NotificationEventListenerDeps{
+		NotifSvc:        nil,
+		Resolver:        nil,
+		Renderer:        nil,
+		UserRepo:        nil,
+		FeedItemRepo:    nil,
+		FrontendBaseURL: "",
+		AppMetrics:      nil,
+		Logger:          nil,
+	})
 	assert.Equal(t, []string{events.EventTypeFeedItemCreated}, listener.EventTypes())
 }
 
@@ -112,7 +124,16 @@ func TestNotificationEventListener_Handle_FeedItemCreated(t *testing.T) {
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
 
-	event := events.NewFeedItemCreatedEvent("item-1", "author-id", "team-abc", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "author-id",
+		TeamID:   "team-abc",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"member-1", "member-2"}, "team-abc", nil)
@@ -141,7 +162,16 @@ func TestNotificationEventListener_Handle_FeedItemCreated(t *testing.T) {
 }
 
 func TestNotificationEventListener_Handle_NilEvent(t *testing.T) {
-	listener := notifications.NewNotificationEventListener(nil, nil, nil, nil, nil, "", nil, nil)
+	listener := notifications.NewNotificationEventListener(notifications.NotificationEventListenerDeps{
+		NotifSvc:        nil,
+		Resolver:        nil,
+		Renderer:        nil,
+		UserRepo:        nil,
+		FeedItemRepo:    nil,
+		FrontendBaseURL: "",
+		AppMetrics:      nil,
+		Logger:          nil,
+	})
 	err := listener.Handle(context.Background(), nil)
 	assert.NoError(t, err)
 }
@@ -155,7 +185,16 @@ func TestNotificationEventListener_Handle_ResolverError_ReturnsNil(t *testing.T)
 
 	listener := newTestListener(svc, resolver, renderer, nil, nil)
 
-	event := events.NewFeedItemCreatedEvent("item-1", "author-id", "team-abc", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "author-id",
+		TeamID:   "team-abc",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{}, "", errors.New("db error"))
@@ -175,7 +214,16 @@ func TestNotificationEventListener_Handle_NoRecipients(t *testing.T) {
 
 	listener := newTestListener(svc, resolver, renderer, nil, nil)
 
-	event := events.NewFeedItemCreatedEvent("item-1", "author-id", "team-abc", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "author-id",
+		TeamID:   "team-abc",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).Return([]string{}, "team-abc", nil)
 
@@ -196,7 +244,16 @@ func TestNotificationEventListener_Handle_SendError_ContinuesOtherRecipients(t *
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
 
-	event := events.NewFeedItemCreatedEvent("item-1", "author-id", "team-abc", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "author-id",
+		TeamID:   "team-abc",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"m1", "m2"}, "team-abc", nil)
@@ -237,7 +294,16 @@ func TestRenderFeedItemTemplate_UsesRealActorName(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("item-99", "user-alice", "team-1", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-99",
+		UserID:   "user-alice",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -271,7 +337,16 @@ func TestRenderFeedItemTemplate_UsesRealFeedItemTitle(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("item-42", "user-bob", "team-2", "feed-2", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-42",
+		UserID:   "user-bob",
+		TeamID:   "team-2",
+		FeedID:   "feed-2",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-2", nil)
@@ -305,7 +380,16 @@ func TestRenderFeedItemTemplate_UserRepoError_UsesFallback_NotDropped(t *testing
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("item-1", "missing-user", "team-1", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "missing-user",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -343,7 +427,16 @@ func TestRenderFeedItemTemplate_FeedItemRepoError_UsesFallback_NotDropped(t *tes
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("missing-item", "user-1", "team-1", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "missing-item",
+		UserID:   "user-1",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -381,7 +474,16 @@ func TestRenderFeedItemTemplate_ActionURLSetInSendRequest(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("item-55", "user-1", "team-1", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-55",
+		UserID:   "user-1",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -415,7 +517,16 @@ func TestResolveActorName_EmailFallback(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("item-1", "user-nname", "team-1", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "user-nname",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -451,7 +562,16 @@ func TestRenderFeedItemTemplate_RendererError_NotDropped(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("item-1", "user-1", "team-1", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "user-1",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -481,7 +601,16 @@ func TestResolveActorName_NoAtSignEmail_FallbackToTeamMember(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("item-1", "user-noemail", "team-1", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "user-noemail",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -516,7 +645,16 @@ func TestResolveFeedItemTitle_ContentExcerptFallback(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("item-1", "user-1", "team-1", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "user-1",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -556,7 +694,16 @@ func TestResolveFeedItemTitle_ExcerptPreferredOverContent(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	listener := newTestListener(svc, resolver, renderer, userRepo, feedItemRepo)
-	event := events.NewFeedItemCreatedEvent("item-e", "user-1", "team-1", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-e",
+		UserID:   "user-1",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -596,13 +743,26 @@ func TestBuildActionURL_TrailingSlashNormalized(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	// Create listener with a trailing-slash base URL
-	listener := notifications.NewNotificationEventListener(
-		svc, resolver, renderer,
-		userRepo, feedItemRepo,
-		"https://app.example.com/",
-		nil, newTestLogger(),
-	)
-	event := events.NewFeedItemCreatedEvent("item-ts", "user-1", "team-1", "feed-1", "", "", "", time.Now())
+	listener := notifications.NewNotificationEventListener(notifications.NotificationEventListenerDeps{
+		NotifSvc:        svc,
+		Resolver:        resolver,
+		Renderer:        renderer,
+		UserRepo:        userRepo,
+		FeedItemRepo:    feedItemRepo,
+		FrontendBaseURL: "https://app.example.com/",
+		AppMetrics:      nil,
+		Logger:          newTestLogger(),
+	})
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-ts",
+		UserID:   "user-1",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -639,13 +799,26 @@ func TestBuildActionURL_EmptyBase_ProducesEmptyURL(t *testing.T) {
 	feedItemRepo := new(mocks.MockFeedItemRepository)
 
 	// Create listener with empty frontendBaseURL
-	listener := notifications.NewNotificationEventListener(
-		svc, resolver, renderer,
-		userRepo, feedItemRepo,
-		"",
-		nil, newTestLogger(),
-	)
-	event := events.NewFeedItemCreatedEvent("item-em", "user-1", "team-1", "feed-1", "", "", "", time.Now())
+	listener := notifications.NewNotificationEventListener(notifications.NotificationEventListenerDeps{
+		NotifSvc:        svc,
+		Resolver:        resolver,
+		Renderer:        renderer,
+		UserRepo:        userRepo,
+		FeedItemRepo:    feedItemRepo,
+		FrontendBaseURL: "",
+		AppMetrics:      nil,
+		Logger:          newTestLogger(),
+	})
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-em",
+		UserID:   "user-1",
+		TeamID:   "team-1",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	resolver.On("ResolveForEvent", ctx, event).
 		Return([]string{"recipient-1"}, "team-1", nil)
@@ -681,7 +854,16 @@ func TestNotificationEventListener_Handle_BackfillOrigin_Skips(t *testing.T) {
 
 	listener := newTestListener(svc, resolver, renderer, nil, nil)
 
-	event := events.NewFeedItemCreatedEvent("item-1", "author-id", "team-abc", "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   "author-id",
+		TeamID:   "team-abc",
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 	events.MarkBackfillOrigin(event)
 
 	err := listener.Handle(ctx, event)

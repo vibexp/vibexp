@@ -497,9 +497,16 @@ func (s *FeedItemService) CreateFeedItem(
 	// Publish feed item created event. userID is the item's PostedByUserID, which
 	// keys the embedding row written by the downstream pipeline.
 	if s.eventManager != nil {
-		event := events.NewFeedItemCreatedEvent(
-			item.ID, userID, teamID, feedID, item.Title, item.Content, item.Excerpt, item.PostedAt,
-		)
+		event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+			ItemID:   item.ID,
+			UserID:   userID,
+			TeamID:   teamID,
+			FeedID:   feedID,
+			Title:    item.Title,
+			Content:  item.Content,
+			Excerpt:  item.Excerpt,
+			PostedAt: item.PostedAt,
+		})
 		if pubErr := s.eventManager.Publish(ctx, event); pubErr != nil {
 			s.logger.With("error", pubErr).Warn("Failed to publish feed item created event")
 		}

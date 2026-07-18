@@ -122,9 +122,17 @@ func TestProcessEvent_HappyPath_SavesChunks(t *testing.T) {
 	svc := &fakeEmbeddingService{team: "team-9"}
 	p := newProcessor(resolver, svc)
 
-	event := events.NewPromptCreatedEvent(
-		"prompt-1", "user-1", "u@example.com", "proj", "slug", "Title", "", "Body text", time.Now(),
-	)
+	event := events.NewPromptCreatedEvent(events.PromptCreatedPayload{
+		PromptID:    "prompt-1",
+		UserID:      "user-1",
+		Email:       "u@example.com",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "Title",
+		Description: "",
+		Body:        "Body text",
+		CreatedAt:   time.Now(),
+	})
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 
@@ -147,9 +155,17 @@ func TestProcessEvent_AppliesDocumentPrefix_StoresRawContent(t *testing.T) {
 	svc := &fakeEmbeddingService{team: "team-9"}
 	p := newProcessor(resolver, svc)
 
-	event := events.NewPromptCreatedEvent(
-		"prompt-1", "user-1", "u@example.com", "proj", "slug", "Title", "", "Body text", time.Now(),
-	)
+	event := events.NewPromptCreatedEvent(events.PromptCreatedPayload{
+		PromptID:    "prompt-1",
+		UserID:      "user-1",
+		Email:       "u@example.com",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "Title",
+		Description: "",
+		Body:        "Body text",
+		CreatedAt:   time.Now(),
+	})
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 
@@ -216,9 +232,17 @@ func TestProcessEvent_ContextHeader_MultiChunk_EveryChunkPrefixed(t *testing.T) 
 
 	// Body well over the 1000-rune window so it spans several chunks.
 	body := strings.Repeat("lorem ipsum dolor sit amet ", 200)
-	event := events.NewArtifactCreatedEvent(
-		"art-1", "user-1", "proj", "slug", "My Title", "A short description", "note", body, time.Now(),
-	)
+	event := events.NewArtifactCreatedEvent(events.ArtifactCreatedPayload{
+		ArtifactID:  "art-1",
+		UserID:      "user-1",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "My Title",
+		Description: "A short description",
+		Type:        "note",
+		Body:        body,
+		CreatedAt:   time.Now(),
+	})
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 
@@ -244,9 +268,17 @@ func TestProcessEvent_ContextHeader_TitleOnly(t *testing.T) {
 
 	body := strings.Repeat("lorem ipsum dolor sit amet ", 200)
 	// Empty description: header is the title alone.
-	event := events.NewArtifactCreatedEvent(
-		"art-1", "user-1", "proj", "slug", "My Title", "", "note", body, time.Now(),
-	)
+	event := events.NewArtifactCreatedEvent(events.ArtifactCreatedPayload{
+		ArtifactID:  "art-1",
+		UserID:      "user-1",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "My Title",
+		Description: "",
+		Type:        "note",
+		Body:        body,
+		CreatedAt:   time.Now(),
+	})
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 
@@ -265,9 +297,17 @@ func TestProcessEvent_ContextHeader_SingleChunk_HeaderPlusBody(t *testing.T) {
 	svc := &fakeEmbeddingService{team: "team-1"}
 	p := newProcessor(resolver, svc)
 
-	event := events.NewArtifactCreatedEvent(
-		"art-1", "user-1", "proj", "slug", "My Title", "Desc", "note", "short body", time.Now(),
-	)
+	event := events.NewArtifactCreatedEvent(events.ArtifactCreatedPayload{
+		ArtifactID:  "art-1",
+		UserID:      "user-1",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "My Title",
+		Description: "Desc",
+		Type:        "note",
+		Body:        "short body",
+		CreatedAt:   time.Now(),
+	})
 
 	require.NoError(t, p.ProcessEvent(context.Background(), event))
 

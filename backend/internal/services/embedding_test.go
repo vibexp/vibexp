@@ -29,17 +29,17 @@ func createTestEmbeddingService(
 	memoryRepo *mocks.MockMemoryRepository,
 	blueprintRepo *mocks.MockBlueprintRepository,
 ) *EmbeddingService {
-	return NewEmbeddingService(
-		repo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		blueprintRepo,
-		nil, // feedItemRepo — not exercised by non-feed tests
-		nil, // feedItemReplyRepo — not exercised by non-feed tests
-		testEmbeddingDimensions,
-		func() *slog.Logger { l, _ := logtest.New(); return l }(),
-	)
+	return NewEmbeddingService(EmbeddingServiceDeps{
+		Repo:              repo,
+		PromptRepo:        promptRepo,
+		ArtifactRepo:      artifactRepo,
+		MemoryRepo:        memoryRepo,
+		BlueprintRepo:     blueprintRepo,
+		FeedItemRepo:      nil,
+		FeedItemReplyRepo: nil,
+		Dimensions:        testEmbeddingDimensions,
+		Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+	})
 }
 
 // createTestEmbeddingServiceWithFeed builds an EmbeddingService wired with the feed
@@ -50,17 +50,17 @@ func createTestEmbeddingServiceWithFeed(
 	feedItemRepo *mocks.MockFeedItemRepository,
 	feedItemReplyRepo *mocks.MockFeedItemReplyRepository,
 ) *EmbeddingService {
-	return NewEmbeddingService(
-		repo,
-		nil,
-		nil,
-		nil,
-		nil,
-		feedItemRepo,
-		feedItemReplyRepo,
-		testEmbeddingDimensions,
-		func() *slog.Logger { l, _ := logtest.New(); return l }(),
-	)
+	return NewEmbeddingService(EmbeddingServiceDeps{
+		Repo:              repo,
+		PromptRepo:        nil,
+		ArtifactRepo:      nil,
+		MemoryRepo:        nil,
+		BlueprintRepo:     nil,
+		FeedItemRepo:      feedItemRepo,
+		FeedItemReplyRepo: feedItemReplyRepo,
+		Dimensions:        testEmbeddingDimensions,
+		Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+	})
 }
 
 func createTestVector384() []float32 {
@@ -1111,10 +1111,17 @@ func TestEmbeddingService_resolveEntityTeam_NilValidatorSkips(t *testing.T) {
 func TestEmbeddingService_resolveEntityTeam_NilRepoSkipsForBuiltinTypes(t *testing.T) {
 	embRepo := mocks.NewMockEmbeddingRepository(t)
 	// All typed repos are intentionally nil.
-	service := NewEmbeddingService(
-		embRepo, nil, nil, nil, nil, nil, nil, testEmbeddingDimensions,
-		func() *slog.Logger { l, _ := logtest.New(); return l }(),
-	)
+	service := NewEmbeddingService(EmbeddingServiceDeps{
+		Repo:              embRepo,
+		PromptRepo:        nil,
+		ArtifactRepo:      nil,
+		MemoryRepo:        nil,
+		BlueprintRepo:     nil,
+		FeedItemRepo:      nil,
+		FeedItemReplyRepo: nil,
+		Dimensions:        testEmbeddingDimensions,
+		Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+	})
 
 	for _, et := range []string{"prompt", "artifact", "memory", "blueprint", "feed_item", "feed_item_reply"} {
 		teamID, err := service.resolveEntityTeam(context.Background(), "user-x", et, "id-x")

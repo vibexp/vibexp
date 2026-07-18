@@ -913,24 +913,24 @@ func (m *mockAgentExecRepo) ListConversations(
 func TestCheckResourceLimit(t *testing.T) {
 	// The open-source build has no paid tiers or quotas: CheckResourceLimit
 	// always permits the operation regardless of resource type or usage.
-	service := NewResourceUsageService(
-		new(mockUserRepo),
-		new(mockPromptRepo),
-		new(mockArtifactRepo),
-		new(mockMemoryRepo),
-		new(mockAgentRepo),
-		new(mockAgentExecRepo),
-		new(mockClaudeCodeRepo),
-		new(mockCursorIDERepo),
-		new(mockSpecLibraryRepo),
-		new(mockTeamRepo),
-		new(mockTeamMemberRepo),
-		new(mockTeamSubscriptionRepo),
-		new(mockFeedRepo),
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		slog.New(slog.DiscardHandler),
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             new(mockUserRepo),
+		PromptRepo:           new(mockPromptRepo),
+		ArtifactRepo:         new(mockArtifactRepo),
+		MemoryRepo:           new(mockMemoryRepo),
+		AgentRepo:            new(mockAgentRepo),
+		AgentExecRepo:        new(mockAgentExecRepo),
+		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
+		CursorIDERepo:        new(mockCursorIDERepo),
+		SpecLibraryRepo:      new(mockSpecLibraryRepo),
+		TeamRepo:             new(mockTeamRepo),
+		TeamMemberRepo:       new(mockTeamMemberRepo),
+		TeamSubscriptionRepo: new(mockTeamSubscriptionRepo),
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               slog.New(slog.DiscardHandler),
+	})
 
 	for _, resourceType := range []string{
 		events.ResourceTypePrompt,
@@ -1063,24 +1063,24 @@ func TestCountAgentConversations_EmptyAgentID(t *testing.T) {
 	teamRepo := new(mockTeamRepo)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		nil, // teamMemberRepo
-		nil, // teamSubscriptionRepo
-		new(mockFeedRepo),
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       nil,
+		TeamSubscriptionRepo: nil,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               logger,
+	})
 
 	// Setup test data
 	userID := "test-user-id"
@@ -1137,24 +1137,24 @@ func TestCountAgentConversations_Pagination(t *testing.T) {
 	teamRepo := new(mockTeamRepo)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		nil, // teamMemberRepo
-		nil, // teamSubscriptionRepo
-		new(mockFeedRepo),
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       nil,
+		TeamSubscriptionRepo: nil,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               logger,
+	})
 
 	// Setup test data
 	userID := "test-user-id"
@@ -1208,24 +1208,24 @@ func TestCountSpecLibraries(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		nil, // teamMemberRepo
-		nil, // teamSubscriptionRepo
-		new(mockFeedRepo),
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       nil,
+		TeamSubscriptionRepo: nil,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               logger,
+	})
 
 	// Setup test data
 	userID := "test-user-id"
@@ -1356,24 +1356,24 @@ func TestCountTeams(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		nil, // teamMemberRepo
-		nil, // teamSubscriptionRepo
-		new(mockFeedRepo),
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       nil,
+		TeamSubscriptionRepo: nil,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               logger,
+	})
 
 	// Setup test data
 	userID := "test-user-id"
@@ -1414,24 +1414,24 @@ func TestGetResourceUsage_IncludesTeams(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		teamMemberRepo,
-		teamSubscriptionRepo,
-		feedRepo,
-		feedItemRepo,
-		feedItemReplyRepo,
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       teamMemberRepo,
+		TeamSubscriptionRepo: teamSubscriptionRepo,
+		FeedRepo:             feedRepo,
+		FeedItemRepo:         feedItemRepo,
+		FeedItemReplyRepo:    feedItemReplyRepo,
+		Logger:               logger,
+	})
 
 	// Setup test data
 	userID := "test-user-id"
@@ -1693,24 +1693,24 @@ func TestGetTeamQuotaContribution_SingleTeam(t *testing.T) {
 			logger := slog.New(slog.DiscardHandler)
 
 			// Setup service
-			service := NewResourceUsageService(
-				userRepo,
-				promptRepo,
-				artifactRepo,
-				memoryRepo,
-				agentRepo,
-				agentExecRepo,
-				claudeCodeRepo,
-				cursorIDERepo,
-				specLibraryRepo,
-				teamRepo,
-				teamMemberRepo,
-				teamSubscriptionRepo,
-				new(mockFeedRepo),
-				new(mockFeedItemRepo),
-				new(mockFeedItemReplyRepo),
-				logger,
-			)
+			service := NewResourceUsageService(ResourceUsageServiceDeps{
+				UserRepo:             userRepo,
+				PromptRepo:           promptRepo,
+				ArtifactRepo:         artifactRepo,
+				MemoryRepo:           memoryRepo,
+				AgentRepo:            agentRepo,
+				AgentExecRepo:        agentExecRepo,
+				ClaudeCodeRepo:       claudeCodeRepo,
+				CursorIDERepo:        cursorIDERepo,
+				SpecLibraryRepo:      specLibraryRepo,
+				TeamRepo:             teamRepo,
+				TeamMemberRepo:       teamMemberRepo,
+				TeamSubscriptionRepo: teamSubscriptionRepo,
+				FeedRepo:             new(mockFeedRepo),
+				FeedItemRepo:         new(mockFeedItemRepo),
+				FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+				Logger:               logger,
+			})
 
 			// Setup test data
 			userID := "test-user-id"
@@ -1770,24 +1770,24 @@ func TestGetTeamQuotaContribution_MultipleTeams(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		teamMemberRepo,
-		teamSubscriptionRepo,
-		new(mockFeedRepo),
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       teamMemberRepo,
+		TeamSubscriptionRepo: teamSubscriptionRepo,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               logger,
+	})
 
 	// Setup test data
 	userID := "test-user-id"
@@ -1860,24 +1860,24 @@ func TestGetTeamQuotaContribution_PersonalWorkspaceExcluded(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		teamMemberRepo,
-		teamSubscriptionRepo,
-		new(mockFeedRepo),
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       teamMemberRepo,
+		TeamSubscriptionRepo: teamSubscriptionRepo,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               logger,
+	})
 
 	// Setup test data
 	userID := "test-user-id"
@@ -1942,24 +1942,24 @@ func TestGetTeamQuotaContribution_InactiveSubscriptionExcluded(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		teamMemberRepo,
-		teamSubscriptionRepo,
-		new(mockFeedRepo),
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       teamMemberRepo,
+		TeamSubscriptionRepo: teamSubscriptionRepo,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               logger,
+	})
 
 	// Setup test data
 	userID := "test-user-id"
@@ -2036,24 +2036,24 @@ func TestGetResourceUsage_WithTeamQuotaBreakdown(t *testing.T) {
 	feedItemReplyRepo2 := new(mockFeedItemReplyRepo)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		teamMemberRepo,
-		teamSubscriptionRepo,
-		feedRepo2,
-		feedItemRepo2,
-		feedItemReplyRepo2,
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       teamMemberRepo,
+		TeamSubscriptionRepo: teamSubscriptionRepo,
+		FeedRepo:             feedRepo2,
+		FeedItemRepo:         feedItemRepo2,
+		FeedItemReplyRepo:    feedItemReplyRepo2,
+		Logger:               logger,
+	})
 
 	// Setup test data
 	userID := "test-user-id"
@@ -2213,24 +2213,24 @@ func TestGetTeamQuotaContribution_OverflowProtection(t *testing.T) {
 			logger := slog.New(slog.DiscardHandler)
 
 			// Setup service
-			service := NewResourceUsageService(
-				userRepo,
-				promptRepo,
-				artifactRepo,
-				memoryRepo,
-				agentRepo,
-				agentExecRepo,
-				claudeCodeRepo,
-				cursorIDERepo,
-				specLibraryRepo,
-				teamRepo,
-				teamMemberRepo,
-				teamSubscriptionRepo,
-				new(mockFeedRepo),
-				new(mockFeedItemRepo),
-				new(mockFeedItemReplyRepo),
-				logger,
-			)
+			service := NewResourceUsageService(ResourceUsageServiceDeps{
+				UserRepo:             userRepo,
+				PromptRepo:           promptRepo,
+				ArtifactRepo:         artifactRepo,
+				MemoryRepo:           memoryRepo,
+				AgentRepo:            agentRepo,
+				AgentExecRepo:        agentExecRepo,
+				ClaudeCodeRepo:       claudeCodeRepo,
+				CursorIDERepo:        cursorIDERepo,
+				SpecLibraryRepo:      specLibraryRepo,
+				TeamRepo:             teamRepo,
+				TeamMemberRepo:       teamMemberRepo,
+				TeamSubscriptionRepo: teamSubscriptionRepo,
+				FeedRepo:             new(mockFeedRepo),
+				FeedItemRepo:         new(mockFeedItemRepo),
+				FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+				Logger:               logger,
+			})
 
 			// Setup test data
 			userID := "test-user-id"
@@ -2295,24 +2295,24 @@ func TestGetTeamQuotaContribution_AccumulationOverflow(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// Setup service
-	service := NewResourceUsageService(
-		userRepo,
-		promptRepo,
-		artifactRepo,
-		memoryRepo,
-		agentRepo,
-		agentExecRepo,
-		claudeCodeRepo,
-		cursorIDERepo,
-		specLibraryRepo,
-		teamRepo,
-		teamMemberRepo,
-		teamSubscriptionRepo,
-		new(mockFeedRepo),
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		ClaudeCodeRepo:       claudeCodeRepo,
+		CursorIDERepo:        cursorIDERepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       teamMemberRepo,
+		TeamSubscriptionRepo: teamSubscriptionRepo,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               logger,
+	})
 
 	// Setup test data - user in 3 large teams
 	userID := "test-user-id"
@@ -2435,24 +2435,24 @@ func TestGetTeamQuotaContribution_NegativeValueValidation(t *testing.T) {
 			logger := slog.New(slog.DiscardHandler)
 
 			// Setup service
-			service := NewResourceUsageService(
-				userRepo,
-				promptRepo,
-				artifactRepo,
-				memoryRepo,
-				agentRepo,
-				agentExecRepo,
-				claudeCodeRepo,
-				cursorIDERepo,
-				specLibraryRepo,
-				teamRepo,
-				teamMemberRepo,
-				teamSubscriptionRepo,
-				new(mockFeedRepo),
-				new(mockFeedItemRepo),
-				new(mockFeedItemReplyRepo),
-				logger,
-			)
+			service := NewResourceUsageService(ResourceUsageServiceDeps{
+				UserRepo:             userRepo,
+				PromptRepo:           promptRepo,
+				ArtifactRepo:         artifactRepo,
+				MemoryRepo:           memoryRepo,
+				AgentRepo:            agentRepo,
+				AgentExecRepo:        agentExecRepo,
+				ClaudeCodeRepo:       claudeCodeRepo,
+				CursorIDERepo:        cursorIDERepo,
+				SpecLibraryRepo:      specLibraryRepo,
+				TeamRepo:             teamRepo,
+				TeamMemberRepo:       teamMemberRepo,
+				TeamSubscriptionRepo: teamSubscriptionRepo,
+				FeedRepo:             new(mockFeedRepo),
+				FeedItemRepo:         new(mockFeedItemRepo),
+				FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+				Logger:               logger,
+			})
 
 			// Setup test data
 			userID := "test-user-id"
@@ -2501,24 +2501,24 @@ func TestCountFeeds(t *testing.T) {
 	feedRepo := new(mockFeedRepo)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewResourceUsageService(
-		new(mockUserRepo),
-		new(mockPromptRepo),
-		new(mockArtifactRepo),
-		new(mockMemoryRepo),
-		new(mockAgentRepo),
-		new(mockAgentExecRepo),
-		new(mockClaudeCodeRepo),
-		new(mockCursorIDERepo),
-		new(mockSpecLibraryRepo),
-		new(mockTeamRepo),
-		nil, // teamMemberRepo
-		nil, // teamSubscriptionRepo
-		feedRepo,
-		new(mockFeedItemRepo),
-		new(mockFeedItemReplyRepo),
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             new(mockUserRepo),
+		PromptRepo:           new(mockPromptRepo),
+		ArtifactRepo:         new(mockArtifactRepo),
+		MemoryRepo:           new(mockMemoryRepo),
+		AgentRepo:            new(mockAgentRepo),
+		AgentExecRepo:        new(mockAgentExecRepo),
+		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
+		CursorIDERepo:        new(mockCursorIDERepo),
+		SpecLibraryRepo:      new(mockSpecLibraryRepo),
+		TeamRepo:             new(mockTeamRepo),
+		TeamMemberRepo:       nil,
+		TeamSubscriptionRepo: nil,
+		FeedRepo:             feedRepo,
+		FeedItemRepo:         new(mockFeedItemRepo),
+		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
+		Logger:               logger,
+	})
 
 	userID := "user-test"
 	expectedCount := 7
@@ -2538,24 +2538,24 @@ func TestCountFeedItems(t *testing.T) {
 	feedItemReplyRepo := new(mockFeedItemReplyRepo)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewResourceUsageService(
-		new(mockUserRepo),
-		new(mockPromptRepo),
-		new(mockArtifactRepo),
-		new(mockMemoryRepo),
-		new(mockAgentRepo),
-		new(mockAgentExecRepo),
-		new(mockClaudeCodeRepo),
-		new(mockCursorIDERepo),
-		new(mockSpecLibraryRepo),
-		new(mockTeamRepo),
-		nil, // teamMemberRepo
-		nil, // teamSubscriptionRepo
-		new(mockFeedRepo),
-		feedItemRepo,
-		feedItemReplyRepo,
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             new(mockUserRepo),
+		PromptRepo:           new(mockPromptRepo),
+		ArtifactRepo:         new(mockArtifactRepo),
+		MemoryRepo:           new(mockMemoryRepo),
+		AgentRepo:            new(mockAgentRepo),
+		AgentExecRepo:        new(mockAgentExecRepo),
+		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
+		CursorIDERepo:        new(mockCursorIDERepo),
+		SpecLibraryRepo:      new(mockSpecLibraryRepo),
+		TeamRepo:             new(mockTeamRepo),
+		TeamMemberRepo:       nil,
+		TeamSubscriptionRepo: nil,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         feedItemRepo,
+		FeedItemReplyRepo:    feedItemReplyRepo,
+		Logger:               logger,
+	})
 
 	userID := "user-test"
 	itemCount := 60
@@ -2578,24 +2578,24 @@ func TestCountFeedItems_ItemRepoError(t *testing.T) {
 	feedItemReplyRepo := new(mockFeedItemReplyRepo)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewResourceUsageService(
-		new(mockUserRepo),
-		new(mockPromptRepo),
-		new(mockArtifactRepo),
-		new(mockMemoryRepo),
-		new(mockAgentRepo),
-		new(mockAgentExecRepo),
-		new(mockClaudeCodeRepo),
-		new(mockCursorIDERepo),
-		new(mockSpecLibraryRepo),
-		new(mockTeamRepo),
-		nil, // teamMemberRepo
-		nil, // teamSubscriptionRepo
-		new(mockFeedRepo),
-		feedItemRepo,
-		feedItemReplyRepo,
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             new(mockUserRepo),
+		PromptRepo:           new(mockPromptRepo),
+		ArtifactRepo:         new(mockArtifactRepo),
+		MemoryRepo:           new(mockMemoryRepo),
+		AgentRepo:            new(mockAgentRepo),
+		AgentExecRepo:        new(mockAgentExecRepo),
+		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
+		CursorIDERepo:        new(mockCursorIDERepo),
+		SpecLibraryRepo:      new(mockSpecLibraryRepo),
+		TeamRepo:             new(mockTeamRepo),
+		TeamMemberRepo:       nil,
+		TeamSubscriptionRepo: nil,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         feedItemRepo,
+		FeedItemReplyRepo:    feedItemReplyRepo,
+		Logger:               logger,
+	})
 
 	userID := "user-test"
 
@@ -2614,24 +2614,24 @@ func TestCountFeedItems_ReplyRepoError(t *testing.T) {
 	feedItemReplyRepo := new(mockFeedItemReplyRepo)
 	logger := slog.New(slog.DiscardHandler)
 
-	service := NewResourceUsageService(
-		new(mockUserRepo),
-		new(mockPromptRepo),
-		new(mockArtifactRepo),
-		new(mockMemoryRepo),
-		new(mockAgentRepo),
-		new(mockAgentExecRepo),
-		new(mockClaudeCodeRepo),
-		new(mockCursorIDERepo),
-		new(mockSpecLibraryRepo),
-		new(mockTeamRepo),
-		nil, // teamMemberRepo
-		nil, // teamSubscriptionRepo
-		new(mockFeedRepo),
-		feedItemRepo,
-		feedItemReplyRepo,
-		logger,
-	)
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             new(mockUserRepo),
+		PromptRepo:           new(mockPromptRepo),
+		ArtifactRepo:         new(mockArtifactRepo),
+		MemoryRepo:           new(mockMemoryRepo),
+		AgentRepo:            new(mockAgentRepo),
+		AgentExecRepo:        new(mockAgentExecRepo),
+		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
+		CursorIDERepo:        new(mockCursorIDERepo),
+		SpecLibraryRepo:      new(mockSpecLibraryRepo),
+		TeamRepo:             new(mockTeamRepo),
+		TeamMemberRepo:       nil,
+		TeamSubscriptionRepo: nil,
+		FeedRepo:             new(mockFeedRepo),
+		FeedItemRepo:         feedItemRepo,
+		FeedItemReplyRepo:    feedItemReplyRepo,
+		Logger:               logger,
+	})
 
 	userID := "user-test"
 

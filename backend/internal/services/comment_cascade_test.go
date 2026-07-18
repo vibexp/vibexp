@@ -33,7 +33,16 @@ func TestArtifactService_Delete_CascadesComments(t *testing.T) {
 	commentRepo.EXPECT().DeleteByResource(mock.Anything, commentTeamID, models.CommentResourceTypeArtifact, artifactID).
 		Return(int64(2), nil).Once()
 
-	svc := NewArtifactService(repo, nil, authzForRole(t, models.TeamMemberRoleMember), nil, nil, logger, nil, commentRepo)
+	svc := NewArtifactService(ArtifactServiceDeps{
+		Repo:              repo,
+		TeamService:       nil,
+		Authz:             authzForRole(t, models.TeamMemberRoleMember),
+		EventManager:      nil,
+		ResourceUsageSvc:  nil,
+		Logger:            logger,
+		ContentVersionSvc: nil,
+		CommentRepo:       commentRepo,
+	})
 	require.NoError(t, svc.DeleteArtifactByProjectIDAndSlug(commentCaller, commentTeamID, projectID, slug))
 }
 
@@ -53,7 +62,16 @@ func TestBlueprintService_Delete_CascadesComments(t *testing.T) {
 	commentRepo.EXPECT().DeleteByResource(mock.Anything, commentTeamID, models.CommentResourceTypeBlueprint, blueprintID).
 		Return(int64(1), nil).Once()
 
-	svc := NewBlueprintService(repo, nil, authzForRole(t, models.TeamMemberRoleMember), nil, nil, logger, nil, commentRepo)
+	svc := NewBlueprintService(BlueprintServiceDeps{
+		Repo:              repo,
+		TeamService:       nil,
+		Authz:             authzForRole(t, models.TeamMemberRoleMember),
+		EventManager:      nil,
+		ResourceUsageSvc:  nil,
+		Logger:            logger,
+		ContentVersionSvc: nil,
+		CommentRepo:       commentRepo,
+	})
 	require.NoError(t, svc.DeleteBlueprintByProjectIDAndSlug(commentCaller, commentTeamID, projectID, slug))
 }
 
@@ -87,9 +105,18 @@ func TestPromptService_Delete_CascadesComments(t *testing.T) {
 	commentRepo.EXPECT().DeleteByResource(mock.Anything, commentTeamID, models.CommentResourceTypePrompt, promptID).
 		Return(int64(1), nil).Once()
 
-	svc := NewPromptService(
-		repo, refRepo, nil, nil, nil, authzForRole(t, models.TeamMemberRoleMember), nil, logger, nil, commentRepo,
-	)
+	svc := NewPromptService(PromptServiceDeps{
+		Repo:              repo,
+		RefRepo:           refRepo,
+		UserRepo:          nil,
+		ProjectRepo:       nil,
+		TeamService:       nil,
+		Authz:             authzForRole(t, models.TeamMemberRoleMember),
+		EventManager:      nil,
+		Logger:            logger,
+		ContentVersionSvc: nil,
+		CommentRepo:       commentRepo,
+	})
 	require.NoError(t, svc.DeletePrompt(commentCaller, commentTeamID, promptID))
 }
 

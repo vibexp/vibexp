@@ -27,25 +27,28 @@ type BlueprintService struct {
 // Ensure BlueprintService implements BlueprintServiceInterface
 var _ BlueprintServiceInterface = (*BlueprintService)(nil)
 
-func NewBlueprintService(
-	repo repositories.BlueprintRepository,
-	teamService TeamServiceInterface,
-	authzService AuthorizationServiceInterface,
-	eventManager events.EventPublisher,
-	resourceUsageSvc ResourceUsageServiceInterface,
-	logger *slog.Logger,
-	contentVersionSvc ContentVersionServiceInterface,
-	commentRepo repositories.CommentRepository,
-) *BlueprintService {
+// BlueprintServiceDeps groups the dependencies injected into BlueprintService.
+type BlueprintServiceDeps struct {
+	Repo              repositories.BlueprintRepository
+	TeamService       TeamServiceInterface
+	Authz             AuthorizationServiceInterface
+	EventManager      events.EventPublisher
+	ResourceUsageSvc  ResourceUsageServiceInterface
+	Logger            *slog.Logger
+	ContentVersionSvc ContentVersionServiceInterface
+	CommentRepo       repositories.CommentRepository
+}
+
+func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
 	return &BlueprintService{
-		repo:              repo,
-		teamService:       teamService,
-		authz:             authzService,
-		eventManager:      eventManager,
-		resourceUsageSvc:  resourceUsageSvc,
-		contentVersionSvc: contentVersionSvc,
-		commentRepo:       commentRepo,
-		logger:            logger,
+		repo:              deps.Repo,
+		teamService:       deps.TeamService,
+		authz:             deps.Authz,
+		eventManager:      deps.EventManager,
+		resourceUsageSvc:  deps.ResourceUsageSvc,
+		contentVersionSvc: deps.ContentVersionSvc,
+		commentRepo:       deps.CommentRepo,
+		logger:            deps.Logger,
 	}
 }
 
@@ -130,10 +133,17 @@ func (s *BlueprintService) CreateBlueprint(
 
 	// Publish blueprint created event
 	if s.eventManager != nil {
-		event := events.NewBlueprintCreatedEvent(
-			blueprint.ID, blueprint.UserID, blueprint.ProjectID, blueprint.Slug,
-			blueprint.Title, blueprint.Description, blueprint.Type, blueprint.Content, blueprint.CreatedAt,
-		)
+		event := events.NewBlueprintCreatedEvent(events.BlueprintCreatedPayload{
+			BlueprintID: blueprint.ID,
+			UserID:      blueprint.UserID,
+			ProjectName: blueprint.ProjectID,
+			Slug:        blueprint.Slug,
+			Title:       blueprint.Title,
+			Description: blueprint.Description,
+			Type:        blueprint.Type,
+			Body:        blueprint.Content,
+			CreatedAt:   blueprint.CreatedAt,
+		})
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish blueprint created event")
 		}
@@ -358,6 +368,30 @@ func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlugInTeam(
 // (ActorTypeHuman, nil); a restore passes (ActorTypeSystem, "Restored Version N"). changeSummary
 // is an internal snapshot attribute only — it is never read from UpdateBlueprintRequest, so the
 // blueprint update API exposes no user-facing change-summary field (parity with artifacts).
+// snapshotBlueprintContent records a best-effort content-version snapshot of the
+// pre-update content when it changed. A snapshot failure must not fail the
+// update (mirrors event publishing).
+func (s *BlueprintService) snapshotBlueprintContent(
+	ctx context.Context, userID string, blueprint *models.Blueprint,
+	oldContent, actorType string, changeSummary *string,
+) {
+	if s.contentVersionSvc == nil || oldContent == blueprint.Content {
+		return
+	}
+	if err := s.contentVersionSvc.SnapshotIfChanged(ctx, SnapshotRequest{
+		ResourceType:  "blueprint",
+		ResourceID:    blueprint.ID,
+		TeamID:        blueprint.TeamID,
+		UserID:        userID,
+		OldContent:    oldContent,
+		NewContent:    blueprint.Content,
+		ChangeSummary: changeSummary,
+		ActorType:     actorType,
+	}); err != nil {
+		s.logger.With("error", err).Warn("Failed to snapshot blueprint content version")
+	}
+}
+
 func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	userID string, blueprint *models.Blueprint, req *models.UpdateBlueprintRequest,
 	actorType string, changeSummary *string,
@@ -388,22 +422,7 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		return nil, err
 	}
 
-	// Best-effort content-version snapshot: record the pre-update content when it
-	// changed. A snapshot failure must not fail the update (mirrors event publishing).
-	if s.contentVersionSvc != nil && oldContent != blueprint.Content {
-		if err := s.contentVersionSvc.SnapshotIfChanged(ctx, SnapshotRequest{
-			ResourceType:  "blueprint",
-			ResourceID:    blueprint.ID,
-			TeamID:        blueprint.TeamID,
-			UserID:        userID,
-			OldContent:    oldContent,
-			NewContent:    blueprint.Content,
-			ChangeSummary: changeSummary,
-			ActorType:     actorType,
-		}); err != nil {
-			s.logger.With("error", err).Warn("Failed to snapshot blueprint content version")
-		}
-	}
+	s.snapshotBlueprintContent(ctx, userID, blueprint, oldContent, actorType, changeSummary)
 
 	if err := s.repo.Update(ctx, blueprint); err != nil {
 		s.logger.With(
@@ -418,10 +437,17 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 
 	// Publish blueprint updated event
 	if s.eventManager != nil {
-		event := events.NewBlueprintUpdatedEvent(
-			blueprint.ID, blueprint.UserID, blueprint.ProjectID, blueprint.Slug,
-			blueprint.Title, blueprint.Description, blueprint.Type, blueprint.Content, blueprint.UpdatedAt,
-		)
+		event := events.NewBlueprintUpdatedEvent(events.BlueprintUpdatedPayload{
+			BlueprintID: blueprint.ID,
+			UserID:      blueprint.UserID,
+			ProjectName: blueprint.ProjectID,
+			Slug:        blueprint.Slug,
+			Title:       blueprint.Title,
+			Description: blueprint.Description,
+			Type:        blueprint.Type,
+			Body:        blueprint.Content,
+			UpdatedAt:   blueprint.UpdatedAt,
+		})
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish blueprint updated event")
 		}

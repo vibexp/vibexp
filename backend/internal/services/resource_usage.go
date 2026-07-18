@@ -36,42 +36,45 @@ type ResourceUsageService struct {
 	logger               *slog.Logger
 }
 
+// ResourceUsageServiceDeps groups the dependencies injected into ResourceUsageService.
+type ResourceUsageServiceDeps struct {
+	UserRepo             repositories.UserRepository
+	PromptRepo           repositories.PromptRepository
+	ArtifactRepo         repositories.ArtifactRepository
+	MemoryRepo           repositories.MemoryRepository
+	AgentRepo            repositories.AgentRepository
+	AgentExecRepo        repositories.AgentExecutionRepository
+	ClaudeCodeRepo       repositories.ClaudeCodeHooksRepository
+	CursorIDERepo        repositories.CursorIDEHooksRepository
+	SpecLibraryRepo      repositories.BlueprintRepository
+	TeamRepo             repositories.TeamRepository
+	TeamMemberRepo       repositories.TeamMemberRepository
+	TeamSubscriptionRepo repositories.TeamSubscriptionRepository
+	FeedRepo             repositories.FeedRepository
+	FeedItemRepo         repositories.FeedItemRepository
+	FeedItemReplyRepo    repositories.FeedItemReplyRepository
+	Logger               *slog.Logger
+}
+
 // NewResourceUsageService creates a new resource usage service
-func NewResourceUsageService(
-	userRepo repositories.UserRepository,
-	promptRepo repositories.PromptRepository,
-	artifactRepo repositories.ArtifactRepository,
-	memoryRepo repositories.MemoryRepository,
-	agentRepo repositories.AgentRepository,
-	agentExecRepo repositories.AgentExecutionRepository,
-	claudeCodeRepo repositories.ClaudeCodeHooksRepository,
-	cursorIDERepo repositories.CursorIDEHooksRepository,
-	specLibraryRepo repositories.BlueprintRepository,
-	teamRepo repositories.TeamRepository,
-	teamMemberRepo repositories.TeamMemberRepository,
-	teamSubscriptionRepo repositories.TeamSubscriptionRepository,
-	feedRepo repositories.FeedRepository,
-	feedItemRepo repositories.FeedItemRepository,
-	feedItemReplyRepo repositories.FeedItemReplyRepository,
-	logger *slog.Logger,
-) *ResourceUsageService {
+func NewResourceUsageService(deps ResourceUsageServiceDeps) *ResourceUsageService {
 	return &ResourceUsageService{
-		userRepo:             userRepo,
-		promptRepo:           promptRepo,
-		artifactRepo:         artifactRepo,
-		memoryRepo:           memoryRepo,
-		agentRepo:            agentRepo,
-		agentExecRepo:        agentExecRepo,
-		claudeCodeRepo:       claudeCodeRepo,
-		cursorIDERepo:        cursorIDERepo,
-		specLibraryRepo:      specLibraryRepo,
-		teamRepo:             teamRepo,
-		teamMemberRepo:       teamMemberRepo,
-		teamSubscriptionRepo: teamSubscriptionRepo,
-		feedRepo:             feedRepo,
-		feedItemRepo:         feedItemRepo,
-		feedItemReplyRepo:    feedItemReplyRepo,
-		logger:               logger,
+		userRepo:             deps.UserRepo,
+		promptRepo:           deps.PromptRepo,
+		artifactRepo:         deps.ArtifactRepo,
+		memoryRepo:           deps.MemoryRepo,
+		agentRepo:            deps.AgentRepo,
+		agentExecRepo:        deps.AgentExecRepo,
+		claudeCodeRepo:       deps.ClaudeCodeRepo,
+		cursorIDERepo:        deps.CursorIDERepo,
+		specLibraryRepo:      deps.SpecLibraryRepo,
+		teamRepo:             deps.TeamRepo,
+		teamMemberRepo:       deps.TeamMemberRepo,
+		teamSubscriptionRepo: deps.TeamSubscriptionRepo,
+		feedRepo:             deps.FeedRepo,
+		feedItemRepo:         deps.FeedItemRepo,
+		feedItemReplyRepo:    deps.FeedItemReplyRepo,
+		logger:               deps.Logger,
 	}
 }
 

@@ -689,7 +689,13 @@ func (s *Server) recordAgentActivity(
 	ctx context.Context, userID, activityType, agentID, description string, r *http.Request,
 ) {
 	ar := NewActivityRecorder(s.activityService)
-	ar.RecordResourceActivity(ctx, userID, activityType, activities.EntityTypeAgent, &agentID, description, nil, r)
+	ar.RecordResourceActivity(ctx, resourceActivityParams{
+		userID:       userID,
+		activityType: activityType,
+		entityType:   activities.EntityTypeAgent,
+		entityID:     &agentID,
+		description:  description,
+	}, r)
 }
 
 // validateCreateAgentRequest validates the create agent request

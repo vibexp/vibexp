@@ -38,28 +38,32 @@ type TeamInvitationService struct {
 	logger         *slog.Logger
 }
 
+// TeamInvitationServiceDeps groups the dependencies injected into TeamInvitationService.
+type TeamInvitationServiceDeps struct {
+	InvitationRepo repositories.TeamInvitationRepository
+	TeamRepo       repositories.TeamRepository
+	TeamMemberRepo repositories.TeamMemberRepository
+	UserRepo       repositories.UserRepository
+	EmailService   EmailServiceInterface
+	Authz          AuthorizationServiceInterface
+	Cfg            *config.Config
+	Logger         *slog.Logger
+}
+
 // NewTeamInvitationService creates a new TeamInvitationService
-func NewTeamInvitationService(
-	invitationRepo repositories.TeamInvitationRepository,
-	teamRepo repositories.TeamRepository,
-	teamMemberRepo repositories.TeamMemberRepository,
-	userRepo repositories.UserRepository,
-	emailService EmailServiceInterface,
-	authz AuthorizationServiceInterface,
-	cfg *config.Config,
-	logger *slog.Logger,
-) *TeamInvitationService {
+func NewTeamInvitationService(deps TeamInvitationServiceDeps) *TeamInvitationService {
+	logger := deps.Logger
 	if logger == nil {
 		logger = logging.New(logging.Config{})
 	}
 	return &TeamInvitationService{
-		invitationRepo: invitationRepo,
-		teamRepo:       teamRepo,
-		teamMemberRepo: teamMemberRepo,
-		userRepo:       userRepo,
-		emailService:   emailService,
-		authz:          authz,
-		cfg:            cfg,
+		invitationRepo: deps.InvitationRepo,
+		teamRepo:       deps.TeamRepo,
+		teamMemberRepo: deps.TeamMemberRepo,
+		userRepo:       deps.UserRepo,
+		emailService:   deps.EmailService,
+		authz:          deps.Authz,
+		cfg:            deps.Cfg,
 		logger:         logger,
 	}
 }

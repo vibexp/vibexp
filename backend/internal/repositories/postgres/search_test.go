@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/database"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 func setupSearchTest(t *testing.T) (*SearchRepository, sqlmock.Sqlmock, *sql.DB) {
@@ -189,7 +190,7 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 			WithArgs(sqlmock.AnyArg(), teamID, modelID, nil, 10, 0).
 			WillReturnRows(resultRows)
 
-		rows, total, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt", "artifact"}, "", 10, 0)
+		rows, total, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt", "artifact"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, total)
@@ -222,7 +223,7 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 			WithArgs(sqlmock.AnyArg(), teamID, modelID, projectID, 10, 0).
 			WillReturnRows(resultRows)
 
-		rows, total, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"artifact"}, projectID, 10, 0)
+		rows, total, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"artifact"}, projectID, repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
@@ -236,7 +237,7 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 			WithArgs(teamID, modelID, nil).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-		rows, total, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
@@ -249,7 +250,7 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 			WithArgs(teamID, modelID, nil).
 			WillReturnError(sql.ErrConnDone)
 
-		_, _, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt"}, "", 10, 0)
+		_, _, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		assert.Error(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -263,7 +264,7 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 			WithArgs(sqlmock.AnyArg(), teamID, modelID, nil, 10, 0).
 			WillReturnError(sql.ErrConnDone)
 
-		_, _, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt"}, "", 10, 0)
+		_, _, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		assert.Error(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -294,7 +295,7 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 			WithArgs(sqlmock.AnyArg(), teamID, modelID, nil, 10, 0).
 			WillReturnRows(resultRows)
 
-		rows, total, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchSimilar(ctx, teamID, vec, modelID, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, total)
@@ -312,7 +313,7 @@ func TestSearchRepository_SearchSimilar(t *testing.T) {
 			WithArgs(otherTeamID, modelID, nil).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-		rows, total, err := repo.SearchSimilar(ctx, otherTeamID, vec, modelID, []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchSimilar(ctx, otherTeamID, vec, modelID, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
@@ -557,7 +558,7 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 			WithArgs(query, teamID, nil, 10, 0).
 			WillReturnRows(resultRows)
 
-		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt", "artifact"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt", "artifact"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, total)
@@ -581,7 +582,7 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 			WithArgs(query, teamID, projectID, 10, 0).
 			WillReturnRows(resultRows)
 
-		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"artifact"}, projectID, 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"artifact"}, projectID, repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
@@ -610,7 +611,7 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 		mock.ExpectRollback()
 
-		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
@@ -647,7 +648,7 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 			WillReturnRows(resultRows)
 		mock.ExpectRollback()
 
-		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
@@ -674,7 +675,7 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 			WithArgs(query, teamID, nil, 10, 0).
 			WillReturnRows(resultRows)
 
-		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
@@ -691,7 +692,7 @@ func TestSearchRepository_SearchKeyword(t *testing.T) {
 			WithArgs(query, teamID, nil, 10, 0).
 			WillReturnError(sql.ErrConnDone)
 
-		_, _, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", 10, 0)
+		_, _, err := repo.SearchKeyword(ctx, teamID, query, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 
 		assert.Error(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())

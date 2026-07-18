@@ -82,12 +82,17 @@ func newTestHarness(t *testing.T, opts ...harnessOpt) *testHarness {
 			KeyRotationInterval: 720 * time.Hour,
 		},
 		encKey,
-		clients,
-		newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(),
-		newMemSigningKeyRepo(),
-		newMemLoginSessionRepo(),
-		ho.access,
-		slog.New(slog.DiscardHandler),
+		Dependencies{
+			Clients:       clients,
+			Codes:         newMemRequestRepo(),
+			AccessTokens:  newMemRequestRepo(),
+			RefreshTokens: newMemRequestRepo(),
+			PKCE:          newMemRequestRepo(),
+			SigningKeys:   newMemSigningKeyRepo(),
+			LoginSessions: newMemLoginSessionRepo(),
+			AccessPolicy:  ho.access,
+			Logger:        slog.New(slog.DiscardHandler),
+		},
 	)
 	require.NoError(t, svc.keys.EnsureActiveKey(context.Background()))
 
@@ -403,12 +408,17 @@ func TestMCPVerifierAcceptsASMintedToken(t *testing.T) {
 			KeyRotationInterval: 720 * time.Hour,
 		},
 		encKey,
-		clients,
-		newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(), newMemRequestRepo(),
-		newMemSigningKeyRepo(),
-		newMemLoginSessionRepo(),
-		nil, // no allowlist configured: attach-time re-check disabled
-		slog.New(slog.DiscardHandler),
+		Dependencies{
+			Clients:       clients,
+			Codes:         newMemRequestRepo(),
+			AccessTokens:  newMemRequestRepo(),
+			RefreshTokens: newMemRequestRepo(),
+			PKCE:          newMemRequestRepo(),
+			SigningKeys:   newMemSigningKeyRepo(),
+			LoginSessions: newMemLoginSessionRepo(),
+			AccessPolicy:  nil, // no allowlist configured: attach-time re-check disabled
+			Logger:        slog.New(slog.DiscardHandler),
+		},
 	)
 	require.NoError(t, svc.keys.EnsureActiveKey(context.Background()))
 	mux.HandleFunc("GET "+AuthorizePath, svc.Authorize)
