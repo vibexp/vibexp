@@ -44,6 +44,10 @@ type GitHubAppClient struct {
 	httpClient    *http.Client
 	clientCache   map[int64]*github.Client
 	clientCacheMu sync.RWMutex
+	// baseURL is a test-only seam: when non-empty, all GitHub API and
+	// installation-token traffic is routed to this URL instead of github.com.
+	// NewGitHubAppClient never sets it, so it is always empty in production.
+	baseURL string
 }
 
 // NewGitHubAppClient creates a new GitHub App client
@@ -83,6 +87,10 @@ func (c *GitHubAppClient) GetInstallationToken(ctx context.Context, installation
 	// permanently corrupts its Transport for all subsequent callers, causing
 	// ghinstallation's installation-token auth to be overwritten by the JWT wrapper.
 	client := github.NewClient(nil).WithAuthToken(jwtToken)
+	client, err = c.withBaseURL(client)
+	if err != nil {
+		return "", time.Time{}, err
+	}
 	token, resp, err := client.Apps.CreateInstallationToken(ctx, installationID, nil)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("failed to create installation token: %w", err)
@@ -93,6 +101,21 @@ func (c *GitHubAppClient) GetInstallationToken(ctx context.Context, installation
 	}
 
 	return token.GetToken(), token.GetExpiresAt().Time, nil
+}
+
+// withBaseURL applies the test-only base-URL seam: when c.baseURL is non-empty
+// (tests only; NewGitHubAppClient never sets it) the client is re-pointed at
+// that URL via WithEnterpriseURLs. With an empty baseURL (production) the
+// client is returned unchanged, byte-identical to the pre-seam behavior.
+func (c *GitHubAppClient) withBaseURL(client *github.Client) (*github.Client, error) {
+	if c.baseURL == "" {
+		return client, nil
+	}
+	routed, err := client.WithEnterpriseURLs(c.baseURL, c.baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply GitHub base URL: %w", err)
+	}
+	return routed, nil
 }
 
 // createInstallationTransport returns a GitHub client for the given installation.
@@ -134,7 +157,17 @@ func (c *GitHubAppClient) createInstallationTransport(installationID int64) (*gi
 		return nil, fmt.Errorf("failed to create installation transport: %w", err)
 	}
 
+	if c.baseURL != "" {
+		// Test-only seam (empty in production): route ghinstallation's
+		// installation-token minting at the fake server as well.
+		itr.BaseURL = c.baseURL
+	}
+
 	client := github.NewClient(&http.Client{Transport: itr})
+	client, err = c.withBaseURL(client)
+	if err != nil {
+		return nil, err
+	}
 
 	// Store in cache under write lock. Use double-checked locking so we don't
 	// overwrite an entry another goroutine may have written while we were building.
@@ -332,6 +365,12 @@ func (c *GitHubAppClient) GetInstallation(
 
 	// IMPORTANT: Use nil — see comment in GetInstallationToken.
 	client := github.NewClient(nil).WithAuthToken(jwtToken)
+	client, err = c.withBaseURL(client)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
 	installation, _, err := client.Apps.GetInstallation(ctx, installationID)
 	if err != nil {
 		span.RecordError(err)
@@ -339,21 +378,7 @@ func (c *GitHubAppClient) GetInstallation(
 		return nil, fmt.Errorf("failed to get installation: %w", err)
 	}
 
-	permissions := make(map[string]string)
-	if installation.Permissions != nil {
-		if installation.Permissions.Contents != nil {
-			permissions["contents"] = *installation.Permissions.Contents
-		}
-		if installation.Permissions.Metadata != nil {
-			permissions["metadata"] = *installation.Permissions.Metadata
-		}
-		if installation.Permissions.PullRequests != nil {
-			permissions["pull_requests"] = *installation.Permissions.PullRequests
-		}
-		if installation.Permissions.Issues != nil {
-			permissions["issues"] = *installation.Permissions.Issues
-		}
-	}
+	permissions := mapInstallationPermissions(installation.Permissions)
 
 	var suspendedAt *time.Time
 	if installation.SuspendedAt != nil {
@@ -369,6 +394,28 @@ func (c *GitHubAppClient) GetInstallation(
 		Events:       installation.Events,
 		SuspendedAt:  suspendedAt,
 	}, nil
+}
+
+// mapInstallationPermissions extracts the four permissions VibeXP surfaces
+// (contents, metadata, pull_requests, issues) from an installation payload.
+func mapInstallationPermissions(p *github.InstallationPermissions) map[string]string {
+	permissions := make(map[string]string)
+	if p == nil {
+		return permissions
+	}
+	if p.Contents != nil {
+		permissions["contents"] = *p.Contents
+	}
+	if p.Metadata != nil {
+		permissions["metadata"] = *p.Metadata
+	}
+	if p.PullRequests != nil {
+		permissions["pull_requests"] = *p.PullRequests
+	}
+	if p.Issues != nil {
+		permissions["issues"] = *p.Issues
+	}
+	return permissions
 }
 
 // GetFileContent retrieves the content of a single file from a repository
