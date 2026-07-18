@@ -187,7 +187,7 @@ export function ToolOverview({
         <h2 className="text-lg font-semibold">Recent activity</h2>
         <Card>
           <CardContent className="space-y-2 p-4">
-            {loading ? (
+            {loading && (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-3 py-2">
@@ -200,13 +200,15 @@ export function ToolOverview({
                   </div>
                 ))}
               </div>
-            ) : activities.length === 0 ? (
+            )}
+            {!loading && activities.length === 0 && (
               <EmptyState
                 icon={Activity}
                 title="No recent activity"
                 description={`${title} sessions and tool events will appear here.`}
               />
-            ) : (
+            )}
+            {!loading && activities.length > 0 && (
               <>
                 <ul className="divide-y font-mono text-sm">
                   {activities.map((activity, index) => (

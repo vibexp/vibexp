@@ -49,17 +49,19 @@ export function PromptGallery() {
         description="Explore pre-defined reusable prompts organized by category."
       />
 
-      {loading ? (
+      {loading && (
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      ) : categories.length === 0 ? (
+      )}
+      {!loading && categories.length === 0 && (
         <EmptyState
           icon={FileText}
           title="No categories available"
           description="Prompt categories will appear here once they are added."
         />
-      ) : (
+      )}
+      {!loading && categories.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {categories.map(category => (
             <Card

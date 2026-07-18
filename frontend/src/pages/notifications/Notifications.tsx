@@ -49,6 +49,31 @@ export function Notifications() {
 
   const unreadCount = notifications.filter(n => !n.read_at).length
 
+  const notificationsContent =
+    notifications.length === 0 ? (
+      <div className="p-6">
+        <EmptyState
+          icon={Bell}
+          title="You're all caught up"
+          description={
+            filter === 'unread'
+              ? 'No unread notifications.'
+              : 'No notifications yet. Activity across your workspace will appear here.'
+          }
+        />
+      </div>
+    ) : (
+      <div className="divide-y">
+        {notifications.map(notification => (
+          <NotificationItem
+            key={notification.id}
+            notification={notification}
+            onRead={handleRead}
+          />
+        ))}
+      </div>
+    )
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -107,28 +132,8 @@ export function Notifications() {
                 </div>
               ))}
             </div>
-          ) : notifications.length === 0 ? (
-            <div className="p-6">
-              <EmptyState
-                icon={Bell}
-                title="You're all caught up"
-                description={
-                  filter === 'unread'
-                    ? 'No unread notifications.'
-                    : 'No notifications yet. Activity across your workspace will appear here.'
-                }
-              />
-            </div>
           ) : (
-            <div className="divide-y">
-              {notifications.map(notification => (
-                <NotificationItem
-                  key={notification.id}
-                  notification={notification}
-                  onRead={handleRead}
-                />
-              ))}
-            </div>
+            notificationsContent
           )}
         </CardContent>
       </Card>

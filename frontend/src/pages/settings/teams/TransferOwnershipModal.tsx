@@ -25,6 +25,21 @@ interface TransferOwnershipModalProps {
   onSuccess: () => Promise<void> | void
 }
 
+function transferErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) return err.getMessage()
+  if (err instanceof Error) return err.message
+  return 'Failed to transfer ownership'
+}
+
+function transferButtonLabel(
+  isTransferring: boolean,
+  selected: TeamMember | undefined
+): string {
+  if (isTransferring) return 'Transferring…'
+  if (selected) return `Make ${selected.name} owner`
+  return 'Select a member'
+}
+
 /**
  * Hands team ownership to another member (#225).
  *
@@ -79,12 +94,7 @@ export function TransferOwnershipModal({
       reset()
       onClose()
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.getMessage()
-          : err instanceof Error
-            ? err.message
-            : 'Failed to transfer ownership'
+      const message = transferErrorMessage(err)
       setError(message)
       toast.error(message)
     } finally {
@@ -175,11 +185,7 @@ export function TransferOwnershipModal({
             }}
             disabled={!selected || isTransferring}
           >
-            {isTransferring
-              ? 'Transferring…'
-              : selected
-                ? `Make ${selected.name} owner`
-                : 'Select a member'}
+            {transferButtonLabel(isTransferring, selected)}
           </Button>
         </DialogFooter>
       </DialogContent>

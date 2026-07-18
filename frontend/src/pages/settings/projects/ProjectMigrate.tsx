@@ -58,6 +58,13 @@ const STEP_LABELS: Record<WizardStep, string> = {
   4: 'Result',
 }
 
+function stepBadgeClass(step: WizardStep, currentStep: WizardStep): string {
+  if (step === currentStep) return 'bg-primary text-primary-foreground'
+  return step < currentStep
+    ? 'bg-primary/20 text-primary'
+    : 'bg-muted text-muted-foreground'
+}
+
 function StepIndicator({ currentStep }: Readonly<{ currentStep: WizardStep }>) {
   const steps: WizardStep[] = [1, 2, 3, 4]
   return (
@@ -66,13 +73,7 @@ function StepIndicator({ currentStep }: Readonly<{ currentStep: WizardStep }>) {
         <div key={step} className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
             <div
-              className={`flex size-6 items-center justify-center rounded-full text-xs font-medium ${
-                step === currentStep
-                  ? 'bg-primary text-primary-foreground'
-                  : step < currentStep
-                    ? 'bg-primary/20 text-primary'
-                    : 'bg-muted text-muted-foreground'
-              }`}
+              className={`flex size-6 items-center justify-center rounded-full text-xs font-medium ${stepBadgeClass(step, currentStep)}`}
               aria-current={step === currentStep ? 'step' : undefined}
             >
               {step}

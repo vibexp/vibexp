@@ -236,7 +236,7 @@ export function ModelProviders() {
         }
       />
 
-      {loading ? (
+      {loading && (
         <Card>
           <CardContent className="space-y-3 p-6">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -244,7 +244,8 @@ export function ModelProviders() {
             ))}
           </CardContent>
         </Card>
-      ) : providers.length === 0 ? (
+      )}
+      {!loading && providers.length === 0 && (
         <EmptyState
           icon={Bot}
           title="No model providers yet"
@@ -261,7 +262,8 @@ export function ModelProviders() {
             </Button>
           }
         />
-      ) : (
+      )}
+      {!loading && providers.length > 0 && (
         <Card>
           <CardContent className="p-4">
             <ListTable rows={providers} columns={columns} />

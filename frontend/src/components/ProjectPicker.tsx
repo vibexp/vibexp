@@ -101,9 +101,10 @@ export function ProjectPicker({
     )
   }, [projects, value, picked])
 
+  const fallbackLabel = value ? 'Selected project' : placeholder
   const triggerLabel = isAllSelected
     ? allOptionLabel
-    : (selected?.name ?? (value ? 'Selected project' : placeholder))
+    : (selected?.name ?? fallbackLabel)
 
   const handleSelectProject = (project: Project) => {
     setPicked(project)

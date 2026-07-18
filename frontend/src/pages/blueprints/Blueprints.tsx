@@ -4,7 +4,11 @@ import { useNavigate } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
-import { ListPage, ListTable } from '@/components/patterns/list-page'
+import {
+  ListPage,
+  listPageStatus,
+  ListTable,
+} from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -181,13 +185,11 @@ export function Blueprints() {
     [navigate, canDeleteResource]
   )
 
-  const status = state.loading
-    ? 'loading'
-    : state.error
-      ? 'error'
-      : state.blueprints.length === 0
-        ? 'empty'
-        : 'ready'
+  const status = listPageStatus(
+    state.loading,
+    state.error,
+    state.blueprints.length === 0
+  )
 
   return (
     <ListPage>

@@ -68,6 +68,70 @@ export function CommentsPanel({
     }
   }
 
+  // Body: loading / error / empty / list
+  const renderBody = () => {
+    if (state.loading) {
+      return (
+        <div className="space-y-4 px-5 py-4" data-testid="comments-loading">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="flex gap-3">
+              <Skeleton className="size-8 shrink-0 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3 w-1/3" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    }
+    if (state.error) {
+      return (
+        <div className="flex flex-col items-center gap-2 px-5 py-6 text-center">
+          <p className="text-muted-foreground text-sm">
+            Couldn&apos;t load comments.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={state.reload}
+          >
+            Retry
+          </Button>
+        </div>
+      )
+    }
+    if (state.comments.length === 0) {
+      return (
+        <p className="text-muted-foreground px-5 py-6 text-center text-sm">
+          No comments yet.
+          {canComment && ' Be the first to leave one.'}
+        </p>
+      )
+    }
+    return (
+      <div className="divide-border divide-y px-5">
+        {visible.map(comment => (
+          <CommentRow
+            key={comment.id}
+            comment={comment}
+            member={state.members.get(comment.user_id)}
+            currentUserId={currentUserId}
+            canDeleteResource={canDeleteResource}
+            clamp
+            onEdit={state.editComment}
+            onDelete={setPendingDelete}
+            onReadFull={() => {
+              setDialogOpen(true)
+            }}
+          />
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div
       className="bg-card text-card-foreground overflow-hidden rounded-lg border shadow-sm"
@@ -113,58 +177,7 @@ export function CommentsPanel({
 
       <div className="bg-border h-px" />
 
-      {/* Body: loading / error / empty / list */}
-      {state.loading ? (
-        <div className="space-y-4 px-5 py-4" data-testid="comments-loading">
-          {[0, 1, 2].map(i => (
-            <div key={i} className="flex gap-3">
-              <Skeleton className="size-8 shrink-0 rounded-full" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-3 w-1/3" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-2/3" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : state.error ? (
-        <div className="flex flex-col items-center gap-2 px-5 py-6 text-center">
-          <p className="text-muted-foreground text-sm">
-            Couldn&apos;t load comments.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={state.reload}
-          >
-            Retry
-          </Button>
-        </div>
-      ) : state.comments.length === 0 ? (
-        <p className="text-muted-foreground px-5 py-6 text-center text-sm">
-          No comments yet.
-          {canComment && ' Be the first to leave one.'}
-        </p>
-      ) : (
-        <div className="divide-border divide-y px-5">
-          {visible.map(comment => (
-            <CommentRow
-              key={comment.id}
-              comment={comment}
-              member={state.members.get(comment.user_id)}
-              currentUserId={currentUserId}
-              canDeleteResource={canDeleteResource}
-              clamp
-              onEdit={state.editComment}
-              onDelete={setPendingDelete}
-              onReadFull={() => {
-                setDialogOpen(true)
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {renderBody()}
 
       {/* Footer: "See all comments (N)" — only when there are more than the widget shows */}
       {state.totalCount > WIDGET_VISIBLE && (

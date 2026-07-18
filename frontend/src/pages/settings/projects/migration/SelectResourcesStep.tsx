@@ -56,6 +56,14 @@ function ResourceSection({
   const someChecked = !allChecked && items.some(i => selectedIds.has(i.id))
   const selectedCount = selection.all ? inventory.count : selectedIds.size
 
+  // Radix tri-state: fully selected → checked, partially → indeterminate.
+  let selectAllChecked: boolean | 'indeterminate' = false
+  if (allChecked) {
+    selectAllChecked = true
+  } else if (someChecked) {
+    selectAllChecked = 'indeterminate'
+  }
+
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
     onSelectAll(checked === true)
   }
@@ -93,9 +101,7 @@ function ResourceSection({
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id={`select-all-${resourceKey}`}
-                    checked={
-                      allChecked ? true : someChecked ? 'indeterminate' : false
-                    }
+                    checked={selectAllChecked}
                     onCheckedChange={handleSelectAll}
                   />
                   <Label
@@ -169,6 +175,7 @@ export function SelectResourcesStep({
   }, 0)
 
   const hasSelection = totalSelected > 0
+  const resourceNoun = totalSelected === 1 ? 'resource' : 'resources'
 
   const handleSelectAll = (key: ResourceKey, checked: boolean) => {
     const items = inventory[key]?.items ?? []
@@ -235,7 +242,7 @@ export function SelectResourcesStep({
       <div className="flex items-center justify-between">
         <p className="text-muted-foreground text-sm">
           {hasSelection
-            ? `${String(totalSelected)} resource${totalSelected === 1 ? '' : 's'} selected`
+            ? `${String(totalSelected)} ${resourceNoun} selected`
             : 'No resources selected'}
         </p>
         <div className="flex gap-2">

@@ -221,6 +221,8 @@ export function AgentEditor() {
     !!securitySchemes &&
     Object.keys(securitySchemes).length > 0
 
+  const submitLabel = isEditing ? 'Update agent' : 'Create agent'
+
   return (
     <div className="space-y-6">
       <Button
@@ -249,7 +251,7 @@ export function AgentEditor() {
             disabled={saving || !preview.data || preview.loading}
           >
             <Save className="mr-2 size-4" />
-            {saving ? 'Saving…' : isEditing ? 'Update agent' : 'Create agent'}
+            {saving ? 'Saving…' : submitLabel}
           </Button>
         }
       />

@@ -28,6 +28,37 @@ export function EditorSettings({
   onSlugChange,
   onFormDataChange,
 }: Readonly<EditorSettingsProps>) {
+  const projectField =
+    projects.length === 0 ? (
+      <Alert>
+        <AlertDescription className="text-sm">
+          No projects available. Please{' '}
+          <Link to="/settings/projects/create" className="underline">
+            create a project
+          </Link>{' '}
+          first.
+        </AlertDescription>
+      </Alert>
+    ) : (
+      <Select
+        value={formData.project_id}
+        onValueChange={v => {
+          onFormDataChange(prev => ({ ...prev, project_id: v }))
+        }}
+      >
+        <SelectTrigger id="prompt-project" aria-invalid={!!errors.project_id}>
+          <SelectValue placeholder="Select a project…" />
+        </SelectTrigger>
+        <SelectContent>
+          {projects.map(project => (
+            <SelectItem key={project.id} value={project.id}>
+              {project.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+
   return (
     <Card>
       <CardHeader>
@@ -75,37 +106,8 @@ export function EditorSettings({
           </Label>
           {loadingProjects ? (
             <p className="text-muted-foreground text-sm">Loading projects…</p>
-          ) : projects.length === 0 ? (
-            <Alert>
-              <AlertDescription className="text-sm">
-                No projects available. Please{' '}
-                <Link to="/settings/projects/create" className="underline">
-                  create a project
-                </Link>{' '}
-                first.
-              </AlertDescription>
-            </Alert>
           ) : (
-            <Select
-              value={formData.project_id}
-              onValueChange={v => {
-                onFormDataChange(prev => ({ ...prev, project_id: v }))
-              }}
-            >
-              <SelectTrigger
-                id="prompt-project"
-                aria-invalid={!!errors.project_id}
-              >
-                <SelectValue placeholder="Select a project…" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map(project => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            projectField
           )}
           {errors.project_id && (
             <p className="text-destructive flex items-center gap-1 text-xs">

@@ -43,6 +43,20 @@ function alignClass(meta: ListTableColumnMeta | undefined): string | undefined {
   return meta?.align === 'right' ? 'text-right' : undefined
 }
 
+function sortIcon(active: boolean, sortDir: SortDir | undefined) {
+  if (!active) return ChevronsUpDown
+  return sortDir === 'asc' ? ChevronUp : ChevronDown
+}
+
+function sortAriaValue(
+  active: boolean,
+  isSortable: boolean,
+  sortDir: SortDir | undefined
+): AriaAttributes['aria-sort'] {
+  if (active) return sortDir === 'asc' ? 'ascending' : 'descending'
+  return isSortable ? 'none' : undefined
+}
+
 export function ListTable<
   T extends { id: string },
   SortKey extends string = string,
@@ -72,23 +86,13 @@ export function ListTable<
               accessorKey !== undefined &&
               sortable.has(accessorKey)
             const active = isSortable && sortKey === accessorKey
-            const Icon = !active
-              ? ChevronsUpDown
-              : sortDir === 'asc'
-                ? ChevronUp
-                : ChevronDown
+            const Icon = sortIcon(active, sortDir)
             const triggerSort = isSortable
               ? () => {
                   onSortChange(accessorKey as SortKey)
                 }
               : undefined
-            const ariaSort: AriaAttributes['aria-sort'] = active
-              ? sortDir === 'asc'
-                ? 'ascending'
-                : 'descending'
-              : isSortable
-                ? 'none'
-                : undefined
+            const ariaSort = sortAriaValue(active, isSortable, sortDir)
             return (
               <TableHead
                 key={key}

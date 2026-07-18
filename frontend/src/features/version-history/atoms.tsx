@@ -95,9 +95,11 @@ export function Diffstat({ stat }: Readonly<{ stat: DiffStat | null }>) {
   const { added, removed } = stat
   const total = Math.min(added + removed, 5)
   const nAdd = Math.round((added / (added + removed)) * total)
-  const squares = Array.from({ length: 5 }, (_, i) =>
-    i < nAdd ? 'is-add' : i < total ? 'is-del' : ''
-  )
+  const squareClass = (i: number): string => {
+    if (i < nAdd) return 'is-add'
+    return i < total ? 'is-del' : ''
+  }
+  const squares = Array.from({ length: 5 }, (_, i) => squareClass(i))
   return (
     <span className="vhp-stat">
       <span className="vhp-stat__add">+{added}</span>

@@ -55,11 +55,13 @@ export function buildOverviewStats(inputs: OverviewInputs): OverviewStat[] {
   const weekLabel = (n: number): string | undefined =>
     !isEmptyWorkspace && n > 0 ? `+${String(n)} this week` : undefined
 
-  const sessionsTrend: Trend | null = isEmptyWorkspace
-    ? null
-    : sessionsTrendPct > 0
-      ? { label: `+${String(sessionsTrendPct)}%`, tone: 'up' }
-      : { label: '0%', tone: 'flat' }
+  let sessionsTrend: Trend | null = null
+  if (!isEmptyWorkspace) {
+    sessionsTrend =
+      sessionsTrendPct > 0
+        ? { label: `+${String(sessionsTrendPct)}%`, tone: 'up' }
+        : { label: '0%', tone: 'flat' }
+  }
 
   return [
     {

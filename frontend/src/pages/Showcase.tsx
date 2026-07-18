@@ -36,6 +36,12 @@ interface Row {
   updated: string
 }
 
+const STATUS_TONE: Record<Row['status'], 'success' | 'warning' | 'neutral'> = {
+  active: 'success',
+  draft: 'warning',
+  archived: 'neutral',
+}
+
 const SAMPLE: Row[] = [
   {
     id: '1',
@@ -127,13 +133,7 @@ export function Showcase() {
         header: 'Status',
         cell: ({ row }) => {
           const status = row.original.status
-          const tone =
-            status === 'active'
-              ? 'success'
-              : status === 'draft'
-                ? 'warning'
-                : 'neutral'
-          return <StatusBadge tone={tone}>{status}</StatusBadge>
+          return <StatusBadge tone={STATUS_TONE[status]}>{status}</StatusBadge>
         },
       },
       { accessorKey: 'owner', header: 'Owner' },

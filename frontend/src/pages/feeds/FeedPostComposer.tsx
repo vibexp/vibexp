@@ -147,6 +147,10 @@ export function FeedPostComposer({
   const charCount = content.length
   const overChar = charCount > MAX_CONTENT_CHARS
 
+  const contentSizeDescribedBy = contentTooLargeError
+    ? 'post-content-size-error'
+    : undefined
+
   return (
     <form
       onSubmit={e => {
@@ -230,11 +234,7 @@ export function FeedPostComposer({
                 aria-label="Post content"
                 aria-invalid={!!contentError || !!contentTooLargeError}
                 aria-describedby={
-                  contentError
-                    ? 'post-content-error'
-                    : contentTooLargeError
-                      ? 'post-content-size-error'
-                      : undefined
+                  contentError ? 'post-content-error' : contentSizeDescribedBy
                 }
                 className="feed-composer-input block min-h-[60px] w-full resize-none bg-transparent text-sm leading-relaxed text-foreground placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60"
               />

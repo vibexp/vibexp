@@ -29,6 +29,24 @@ interface FeedItemListProps {
   showMcpHint?: boolean
 }
 
+function emptyStateTitle(
+  hasFilters: boolean,
+  tab: 'active' | 'archived'
+): string {
+  if (hasFilters) return 'No feed items match your filters'
+  if (tab === 'archived') return 'No archived feed items'
+  return 'No feed items yet'
+}
+
+function emptyStateDescription(
+  hasFilters: boolean,
+  tab: 'active' | 'archived'
+): string {
+  if (hasFilters) return 'Try different search or filter settings.'
+  if (tab === 'archived') return 'Archived feed items will appear here.'
+  return 'Feed items are posted by AI assistants via MCP. Set up your MCP integration to start receiving AI-generated content.'
+}
+
 export function FeedItemList({
   items,
   loading,
@@ -73,20 +91,8 @@ export function FeedItemList({
     return (
       <EmptyState
         icon={Rss}
-        title={
-          hasFilters
-            ? 'No feed items match your filters'
-            : tab === 'archived'
-              ? 'No archived feed items'
-              : 'No feed items yet'
-        }
-        description={
-          hasFilters
-            ? 'Try different search or filter settings.'
-            : tab === 'archived'
-              ? 'Archived feed items will appear here.'
-              : 'Feed items are posted by AI assistants via MCP. Set up your MCP integration to start receiving AI-generated content.'
-        }
+        title={emptyStateTitle(hasFilters, tab)}
+        description={emptyStateDescription(hasFilters, tab)}
         actions={
           showMcpHint && !hasFilters && tab === 'active' ? (
             <Button
