@@ -73,7 +73,7 @@ ARG RELEASE_DATE=""
 # Build with the embedfrontend tag so the SPA is embedded and served.
 # GOOS/GOARCH come from buildx's TARGETOS/TARGETARCH so one native build stage
 # emits a binary for each target platform (linux/amd64, linux/arm64).
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+RUN CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build \
     -ldflags "-X github.com/vibexp/vibexp/cmd.buildSHA=${RELEASE_SHA} -X github.com/vibexp/vibexp/cmd.buildDate=${RELEASE_DATE}" \
     -tags embedfrontend -a -installsuffix cgo -o main .
 
