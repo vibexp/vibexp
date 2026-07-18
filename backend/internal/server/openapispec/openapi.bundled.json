@@ -14417,6 +14417,143 @@
         }
       }
     },
+    "/api/v1/admin/users": {
+      "get": {
+        "summary": "List instance users",
+        "description": "Returns a paginated, instance-wide listing of users (newest first) with\neach user's team count. Instance-admin only; non-admin and unauthenticated\nrequests receive 404.\n",
+        "operationId": "listAdminUsers",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "1-based page number",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin (surface not advertised)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{id}": {
+      "get": {
+        "summary": "Get an instance user",
+        "description": "Returns one user with their team memberships (team name + the user's role\nin each team). Instance-admin only; non-admin and unauthenticated requests\nreceive 404, as does an unknown user id.\n",
+        "operationId": "getAdminUser",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user with their team memberships",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown user id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/{team_id}/comments": {
       "get": {
         "summary": "List a resource's comments",
@@ -26942,6 +27079,158 @@
             "type": "string",
             "description": "The running backend application version (config server.service_version; \"dev\" when unset).",
             "example": "1.2.3"
+          }
+        }
+      },
+      "AdminUserListItem": {
+        "type": "object",
+        "description": "One user in the instance-wide admin user listing.",
+        "required": [
+          "id",
+          "email",
+          "name",
+          "created_at",
+          "team_count"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "user_123"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          },
+          "name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "idp_provider": {
+            "type": "string",
+            "nullable": true,
+            "description": "Identity provider name (e.g. \"google\", \"oidc\"); null for accounts without one.",
+            "example": "oidc"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "team_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of teams the user belongs to.",
+            "example": 3
+          }
+        }
+      },
+      "AdminUserListResponse": {
+        "type": "object",
+        "description": "A page of the instance-wide user listing, newest first.",
+        "required": [
+          "users",
+          "total_count",
+          "page",
+          "per_page",
+          "total_pages"
+        ],
+        "properties": {
+          "users": {
+            "type": "array",
+            "description": "Users on this page, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserListItem"
+            }
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Total number of users across the instance.",
+            "example": 128
+          },
+          "page": {
+            "type": "integer",
+            "description": "Current page number.",
+            "example": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of items per page.",
+            "example": 20
+          },
+          "total_pages": {
+            "type": "integer",
+            "description": "Total number of pages.",
+            "example": 7
+          }
+        }
+      },
+      "AdminTeamMembership": {
+        "type": "object",
+        "description": "A team the user belongs to, with the user's role in that team.",
+        "required": [
+          "team_id",
+          "team_name",
+          "role"
+        ],
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "team_abc123"
+          },
+          "team_name": {
+            "type": "string",
+            "example": "Acme Engineering"
+          },
+          "role": {
+            "type": "string",
+            "description": "The user's role in the team (owner, admin, or member).",
+            "example": "member"
+          }
+        }
+      },
+      "AdminUserDetail": {
+        "type": "object",
+        "description": "A single user with their team memberships (GET /api/v1/admin/users/{id}).",
+        "required": [
+          "id",
+          "email",
+          "name",
+          "created_at",
+          "memberships"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "user_123"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          },
+          "name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "idp_provider": {
+            "type": "string",
+            "nullable": true,
+            "description": "Identity provider name (e.g. \"google\", \"oidc\"); null for accounts without one.",
+            "example": "oidc"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "memberships": {
+            "type": "array",
+            "description": "Teams the user belongs to.",
+            "items": {
+              "$ref": "#/components/schemas/AdminTeamMembership"
+            }
           }
         }
       },

@@ -78,6 +78,123 @@ func (_c *MockAdminServiceInterface_GetInstanceCounts_Call) RunAndReturn(run fun
 	return _c
 }
 
+// GetUserDetail provides a mock function with given fields: ctx, id
+func (_m *MockAdminServiceInterface) GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserDetail")
+	}
+
+	var r0 *models.AdminUserDetail
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.AdminUserDetail, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.AdminUserDetail); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminUserDetail)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetUserDetail_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserDetail'
+type MockAdminServiceInterface_GetUserDetail_Call struct {
+	*mock.Call
+}
+
+// GetUserDetail is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminServiceInterface_Expecter) GetUserDetail(ctx interface{}, id interface{}) *MockAdminServiceInterface_GetUserDetail_Call {
+	return &MockAdminServiceInterface_GetUserDetail_Call{Call: _e.mock.On("GetUserDetail", ctx, id)}
+}
+
+func (_c *MockAdminServiceInterface_GetUserDetail_Call) Run(run func(ctx context.Context, id string)) *MockAdminServiceInterface_GetUserDetail_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserDetail_Call) Return(_a0 *models.AdminUserDetail, _a1 error) *MockAdminServiceInterface_GetUserDetail_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetUserDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminUserDetail, error)) *MockAdminServiceInterface_GetUserDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListUsers provides a mock function with given fields: ctx, page, limit
+func (_m *MockAdminServiceInterface) ListUsers(ctx context.Context, page int, limit int) (models.AdminUserList, error) {
+	ret := _m.Called(ctx, page, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListUsers")
+	}
+
+	var r0 models.AdminUserList
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) (models.AdminUserList, error)); ok {
+		return rf(ctx, page, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) models.AdminUserList); ok {
+		r0 = rf(ctx, page, limit)
+	} else {
+		r0 = ret.Get(0).(models.AdminUserList)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int, int) error); ok {
+		r1 = rf(ctx, page, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_ListUsers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListUsers'
+type MockAdminServiceInterface_ListUsers_Call struct {
+	*mock.Call
+}
+
+// ListUsers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - page int
+//   - limit int
+func (_e *MockAdminServiceInterface_Expecter) ListUsers(ctx interface{}, page interface{}, limit interface{}) *MockAdminServiceInterface_ListUsers_Call {
+	return &MockAdminServiceInterface_ListUsers_Call{Call: _e.mock.On("ListUsers", ctx, page, limit)}
+}
+
+func (_c *MockAdminServiceInterface_ListUsers_Call) Run(run func(ctx context.Context, page int, limit int)) *MockAdminServiceInterface_ListUsers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int), args[2].(int))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ListUsers_Call) Return(_a0 models.AdminUserList, _a1 error) *MockAdminServiceInterface_ListUsers_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ListUsers_Call) RunAndReturn(run func(context.Context, int, int) (models.AdminUserList, error)) *MockAdminServiceInterface_ListUsers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockAdminServiceInterface creates a new instance of MockAdminServiceInterface. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockAdminServiceInterface(t interface {

@@ -936,6 +936,12 @@ type AdminRepository interface {
 	// GetInstanceCounts returns unscoped COUNT(*) totals for the top-level
 	// entities (users, teams, prompts, artifacts, memories).
 	GetInstanceCounts(ctx context.Context) (models.InstanceCounts, error)
+	// ListUsers returns a page of all users (newest first) with each user's team
+	// count, plus the total user count. page/limit are already clamped.
+	ListUsers(ctx context.Context, page, limit int) ([]models.AdminUserListItem, int, error)
+	// GetUserDetail returns one user with their team memberships, or (nil, nil)
+	// when no user with that id exists.
+	GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error)
 }
 
 // BlueprintRepository defines the interface for blueprint data access operations

@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -130,11 +132,20 @@ func TestAdminRoutes_Unauthenticated_Returns404(t *testing.T) {
 	}
 	srv := New("8080", nil, "test-api-key", cfg, slog.New(slog.DiscardHandler))
 
-	req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
-	rr := httptest.NewRecorder()
-	srv.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusNotFound, rr.Code)
+	// Every mounted admin route must be behind the middleware — not just /stats.
+	paths := []string{
+		"/api/v1/admin/stats",
+		"/api/v1/admin/users",
+		"/api/v1/admin/users/" + uuid.NewString(),
+	}
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", path, nil)
+			rr := httptest.NewRecorder()
+			srv.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusNotFound, rr.Code)
+		})
+	}
 }
 
 // TestGetAdminStats_Success verifies the stats handler returns the repository
@@ -222,6 +233,185 @@ func TestAdminBindErrorHandler(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
 	srv.adminBindErrorHandler(rr, req, errors.New("bad param"))
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+// mountAdminStrictRouter builds the generated admin router around srv (without
+// the auth middleware, which is exercised separately).
+func mountAdminStrictRouter(srv *Server) *chi.Mux {
+	strict := admingen.NewStrictHandlerWithOptions(
+		&adminStrictServer{s: srv},
+		nil,
+		admingen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  srv.adminBindErrorHandler,
+			ResponseErrorHandlerFunc: srv.adminResponseErrorHandler,
+		},
+	)
+	router := chi.NewRouter()
+	admingen.HandlerWithOptions(strict, admingen.ChiServerOptions{
+		BaseRouter:       router,
+		ErrorHandlerFunc: srv.adminBindErrorHandler,
+	})
+	return router
+}
+
+// TestListAdminUsers verifies the paginated user listing returns the service's
+// page (including an empty page as `[]`) and conforms to the spec.
+func TestListAdminUsers(t *testing.T) {
+	idp := "oidc"
+	populated := models.AdminUserList{
+		Users: []models.AdminUserListItem{
+			{ID: uuid.NewString(), Email: "a@example.com", Name: "A", IDPProvider: &idp, CreatedAt: time.Now(), TeamCount: 2},
+			{ID: uuid.NewString(), Email: "b@example.com", Name: "B", CreatedAt: time.Now(), TeamCount: 0},
+		},
+		TotalCount: 2, Page: 1, PerPage: 20, TotalPages: 1,
+	}
+	empty := models.AdminUserList{Users: []models.AdminUserListItem{}, TotalCount: 0, Page: 1, PerPage: 20, TotalPages: 0}
+
+	tests := []struct {
+		name      string
+		list      models.AdminUserList
+		wantUsers int
+	}{
+		{"populated page", populated, 2},
+		{"empty page serializes as []", empty, 0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+			mockAdmin.On("ListUsers", mock.Anything, 0, 0).Return(tc.list, nil)
+			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+			req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
+			rr := httptest.NewRecorder()
+			mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusOK, rr.Code)
+			var resp admingen.AdminUserListResponse
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+			assert.Len(t, resp.Users, tc.wantUsers)
+			// The required array must never be null.
+			assert.Contains(t, rr.Body.String(), `"users":`)
+			assert.NotContains(t, rr.Body.String(), `"users":null`)
+
+			specconformance.AssertConformsToSpec(t, req, rr)
+		})
+	}
+}
+
+// TestGetAdminUser_Found verifies a user detail with memberships conforms to spec.
+func TestGetAdminUser_Found(t *testing.T) {
+	id := uuid.NewString()
+	teamID := uuid.NewString()
+	idp := "google"
+	detail := &models.AdminUserDetail{
+		ID: id, Email: "admin@example.com", Name: "Admin", IDPProvider: &idp, CreatedAt: time.Now(),
+		Memberships: []models.AdminTeamMembership{{TeamID: teamID, TeamName: "Acme", Role: "owner"}},
+	}
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("GetUserDetail", mock.Anything, id).Return(detail, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/users/"+id, nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	var resp admingen.AdminUserDetail
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, id, resp.Id.String())
+	require.Len(t, resp.Memberships, 1)
+	assert.Equal(t, "owner", resp.Memberships[0].Role)
+
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
+// TestListAdminUsers_ServiceError maps a service failure to 500.
+func TestListAdminUsers_ServiceError(t *testing.T) {
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ListUsers", mock.Anything, 0, 0).Return(models.AdminUserList{}, errors.New("db down"))
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// TestListAdminUsers_ConversionError maps a non-UUID id from the store to 500.
+func TestListAdminUsers_ConversionError(t *testing.T) {
+	bad := models.AdminUserList{
+		Users:   []models.AdminUserListItem{{ID: "not-a-uuid", Email: "a@example.com", Name: "A"}},
+		Page:    1,
+		PerPage: 20,
+	}
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ListUsers", mock.Anything, 0, 0).Return(bad, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// TestGetAdminUser_ServiceError maps a service failure to 500.
+func TestGetAdminUser_ServiceError(t *testing.T) {
+	id := uuid.NewString()
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("GetUserDetail", mock.Anything, id).Return(nil, errors.New("db down"))
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/users/"+id, nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// TestGetAdminUser_ConversionError maps a non-UUID stored id to 500.
+func TestGetAdminUser_ConversionError(t *testing.T) {
+	id := uuid.NewString()
+	// Valid user id but a membership with a non-UUID team id → conversion fails.
+	bad := &models.AdminUserDetail{
+		ID: id, Email: "a@example.com", Name: "A",
+		Memberships: []models.AdminTeamMembership{{TeamID: "not-a-uuid", TeamName: "X", Role: "member"}},
+	}
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("GetUserDetail", mock.Anything, id).Return(bad, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/users/"+id, nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// TestGetAdminUser_NotFound verifies an unknown id 404s (service returns nil).
+func TestGetAdminUser_NotFound(t *testing.T) {
+	id := uuid.NewString()
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("GetUserDetail", mock.Anything, id).Return(nil, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/users/"+id, nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+// TestGetAdminUser_InvalidUUID verifies a non-UUID id is rejected (400) by the
+// generated binding layer before reaching the service.
+func TestGetAdminUser_InvalidUUID(t *testing.T) {
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
+		adminService: servicesmocks.NewMockAdminServiceInterface(t),
+	})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/users/not-a-uuid", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 

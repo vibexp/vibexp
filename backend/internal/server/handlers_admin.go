@@ -3,9 +3,14 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	apierrors "github.com/vibexp/vibexp/internal/errors"
+	"github.com/vibexp/vibexp/internal/models"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 )
 
@@ -51,6 +56,121 @@ func (a *adminStrictServer) GetAdminStats(
 		},
 		Version: version,
 	}), nil
+}
+
+// ListAdminUsers returns a paginated, instance-wide user listing with team counts.
+func (a *adminStrictServer) ListAdminUsers(
+	ctx context.Context, request admingen.ListAdminUsersRequestObject,
+) (admingen.ListAdminUsersResponseObject, error) {
+	page, limit := derefPageLimit(request.Params.Page, request.Params.Limit)
+
+	list, err := a.s.container.AdminService().ListUsers(ctx, page, limit)
+	if err != nil {
+		a.s.logger.With(
+			"service", serverLogServiceName, "handler", "ListAdminUsers", "error", err,
+		).Error("Failed to list admin users")
+		return nil, apierrors.NewInternalError(adminMsgInternalError)
+	}
+
+	genResp, convErr := toGenAdminUserList(list)
+	if convErr != nil {
+		a.s.logger.With(
+			"service", serverLogServiceName, "handler", "ListAdminUsers", "error", convErr,
+		).Error("Failed to convert admin user list")
+		return nil, apierrors.NewInternalError(adminMsgInternalError)
+	}
+	return admingen.ListAdminUsers200JSONResponse(genResp), nil
+}
+
+// GetAdminUser returns one user with their team memberships; an unknown id 404s.
+func (a *adminStrictServer) GetAdminUser(
+	ctx context.Context, request admingen.GetAdminUserRequestObject,
+) (admingen.GetAdminUserResponseObject, error) {
+	detail, err := a.s.container.AdminService().GetUserDetail(ctx, request.Id.String())
+	if err != nil {
+		a.s.logger.With(
+			"service", serverLogServiceName, "handler", "GetAdminUser", "error", err,
+		).Error("Failed to get admin user")
+		return nil, apierrors.NewInternalError(adminMsgInternalError)
+	}
+	if detail == nil {
+		return nil, apierrors.NewResourceNotFoundError("user", "User not found")
+	}
+
+	genDetail, convErr := toGenAdminUserDetail(detail)
+	if convErr != nil {
+		a.s.logger.With(
+			"service", serverLogServiceName, "handler", "GetAdminUser", "error", convErr,
+		).Error("Failed to convert admin user detail")
+		return nil, apierrors.NewInternalError(adminMsgInternalError)
+	}
+	return admingen.GetAdminUser200JSONResponse(genDetail), nil
+}
+
+// toGenAdminUserListItem converts a domain user-list row to the generated type,
+// parsing the string id into a UUID.
+func toGenAdminUserListItem(u models.AdminUserListItem) (admingen.AdminUserListItem, error) {
+	id, err := uuid.Parse(u.ID)
+	if err != nil {
+		return admingen.AdminUserListItem{}, fmt.Errorf("user id %q is not a UUID: %w", u.ID, err)
+	}
+	return admingen.AdminUserListItem{
+		Id:          id,
+		Email:       openapi_types.Email(u.Email),
+		Name:        u.Name,
+		IdpProvider: u.IDPProvider,
+		CreatedAt:   u.CreatedAt,
+		TeamCount:   u.TeamCount,
+	}, nil
+}
+
+// toGenAdminUserList converts a domain user page to the generated response. The
+// users slice is always non-nil so the required array serializes as [], not null.
+func toGenAdminUserList(l models.AdminUserList) (admingen.AdminUserListResponse, error) {
+	users := make([]admingen.AdminUserListItem, 0, len(l.Users))
+	for _, u := range l.Users {
+		gu, err := toGenAdminUserListItem(u)
+		if err != nil {
+			return admingen.AdminUserListResponse{}, err
+		}
+		users = append(users, gu)
+	}
+	return admingen.AdminUserListResponse{
+		Users:      users,
+		TotalCount: l.TotalCount,
+		Page:       l.Page,
+		PerPage:    l.PerPage,
+		TotalPages: l.TotalPages,
+	}, nil
+}
+
+// toGenAdminUserDetail converts a domain user detail to the generated type. The
+// memberships slice is always non-nil so the required array serializes as [].
+func toGenAdminUserDetail(d *models.AdminUserDetail) (admingen.AdminUserDetail, error) {
+	id, err := uuid.Parse(d.ID)
+	if err != nil {
+		return admingen.AdminUserDetail{}, fmt.Errorf("user id %q is not a UUID: %w", d.ID, err)
+	}
+	memberships := make([]admingen.AdminTeamMembership, 0, len(d.Memberships))
+	for _, m := range d.Memberships {
+		teamID, parseErr := uuid.Parse(m.TeamID)
+		if parseErr != nil {
+			return admingen.AdminUserDetail{}, fmt.Errorf("team id %q is not a UUID: %w", m.TeamID, parseErr)
+		}
+		memberships = append(memberships, admingen.AdminTeamMembership{
+			TeamId:   teamID,
+			TeamName: m.TeamName,
+			Role:     m.Role,
+		})
+	}
+	return admingen.AdminUserDetail{
+		Id:          id,
+		Email:       openapi_types.Email(d.Email),
+		Name:        d.Name,
+		IdpProvider: d.IDPProvider,
+		CreatedAt:   d.CreatedAt,
+		Memberships: memberships,
+	}, nil
 }
 
 // adminBindErrorHandler translates parameter-binding failures from the generated

@@ -181,6 +181,8 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"NotificationListResponse":         "generated strict-server type (internal/server/gen); handler builds via make(...,0) — handlers_notifications.go toGenNotifications",
 	"TypeListResponse":                 "generated strict-server type (internal/server/gen/types); handler builds via make(...,0) — handlers_types.go toGenTypes",
 	"CommentListResponse":              "generated strict-server type (internal/server/gen/comments); handler builds via make(...,0) — handlers_comments.go toGenCommentListResponse",
+	"AdminUserListResponse":            "generated strict-server type (internal/server/gen/admin); handler builds users via make(...,0) — handlers_admin.go toGenAdminUserList",
+	"AdminUserDetail":                  "generated strict-server type (internal/server/gen/admin); handler builds memberships via make(...,0) — handlers_admin.go toGenAdminUserDetail",
 	"RecentCommentListResponse":        "generated strict-server type (internal/server/gen/comments); handler builds via make(...,0) — handlers_comments.go toGenRecentComments",
 	"ActivityListResponse":             "activities-pkg wire type wrapped in a data-envelope map; slices always make(...,0) — services/activities/service.go",
 	"ActivityStatsResponse":            "activities-pkg wire type wrapped in a data-envelope map; slices always make(...,0) — services/activities/service.go",

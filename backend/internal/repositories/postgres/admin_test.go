@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -11,6 +13,13 @@ import (
 
 	"github.com/vibexp/vibexp/internal/database"
 )
+
+func newAdminRepoMock(t *testing.T) (*AdminRepository, sqlmock.Sqlmock, *sql.DB) {
+	mockDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	repo := &AdminRepository{db: &database.DB{DB: mockDB}}
+	return repo, mock, mockDB
+}
 
 func TestAdminRepository_GetInstanceCounts(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
@@ -52,4 +61,135 @@ func TestAdminRepository_GetInstanceCounts_QueryError(t *testing.T) {
 	_, err = repo.GetInstanceCounts(context.Background())
 	require.Error(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdminRepository_ListUsers(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery(`FROM users`).
+		WithArgs(20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "idp_provider", "created_at", "team_count"}).
+			AddRow("u1", "a@example.com", "A", "oidc", time.Now(), 2).
+			AddRow("u2", "b@example.com", "B", nil, time.Now(), 0))
+
+	users, total, err := repo.ListUsers(context.Background(), 1, 20)
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	require.Len(t, users, 2)
+	assert.Equal(t, int64(2), users[0].TeamCount)
+	require.NotNil(t, users[0].IDPProvider)
+	assert.Nil(t, users[1].IDPProvider)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdminRepository_GetUserDetail_Found(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`FROM users WHERE id = \$1`).
+		WithArgs("u1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "idp_provider", "created_at"}).
+			AddRow("u1", "a@example.com", "A", "oidc", time.Now()))
+	mock.ExpectQuery(`FROM team_members tm`).
+		WithArgs("u1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "role"}).
+			AddRow("t1", "Acme", "owner"))
+
+	detail, err := repo.GetUserDetail(context.Background(), "u1")
+	require.NoError(t, err)
+	require.NotNil(t, detail)
+	assert.Equal(t, "u1", detail.ID)
+	require.Len(t, detail.Memberships, 1)
+	assert.Equal(t, "owner", detail.Memberships[0].Role)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdminRepository_GetUserDetail_NotFound(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`FROM users WHERE id = \$1`).
+		WithArgs("missing").
+		WillReturnError(sql.ErrNoRows)
+
+	detail, err := repo.GetUserDetail(context.Background(), "missing")
+	require.NoError(t, err)
+	assert.Nil(t, detail)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdminRepository_ListUsers_CountError(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).WillReturnError(errors.New("boom"))
+
+	_, _, err := repo.ListUsers(context.Background(), 1, 20)
+	require.Error(t, err)
+}
+
+func TestAdminRepository_ListUsers_QueryError(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery(`FROM users`).WithArgs(20, 0).WillReturnError(errors.New("boom"))
+
+	_, _, err := repo.ListUsers(context.Background(), 1, 20)
+	require.Error(t, err)
+}
+
+func TestAdminRepository_GetUserDetail_QueryError(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`FROM users WHERE id = \$1`).WithArgs("u1").WillReturnError(errors.New("boom"))
+
+	_, err := repo.GetUserDetail(context.Background(), "u1")
+	require.Error(t, err)
+}
+
+func TestAdminRepository_GetUserDetail_MembershipError(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`FROM users WHERE id = \$1`).WithArgs("u1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "idp_provider", "created_at"}).
+			AddRow("u1", "a@example.com", "A", nil, time.Now()))
+	mock.ExpectQuery(`FROM team_members tm`).WithArgs("u1").WillReturnError(errors.New("boom"))
+
+	_, err := repo.GetUserDetail(context.Background(), "u1")
+	require.Error(t, err)
 }
