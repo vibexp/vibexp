@@ -129,6 +129,15 @@ type AuthConfig struct {
 	// anyone may sign in. See AccessAllowlistConfig.
 	AccessAllowlist AccessAllowlistConfig `koanf:"access_allowlist"`
 
+	// InstanceAdmins is the set of instance-admin email addresses (authored as a
+	// comma-separated ${VAR} in the combined image, or a YAML list), declaring
+	// who may access instance-level admin surfaces. Resolved at request time by
+	// Config.IsInstanceAdmin (case-insensitive). Empty (the zero value) means the
+	// feature is dormant — no user is an instance admin — preserving the behavior
+	// of every existing deployment. Follows the same EnvStringSlice pattern as
+	// AccessAllowlist.
+	InstanceAdmins EnvStringSlice `koanf:"instance_admins"`
+
 	Google  GoogleAuthConfig `koanf:"google"`
 	GitHub  GitHubAuthConfig `koanf:"github"`
 	OIDC    OIDCAuthConfig   `koanf:"oidc"`
@@ -590,6 +599,42 @@ func validateEncryptionKey(cfg *Config) error {
 	return nil
 }
 
+// looksLikeEmail is a deliberately permissive shape check (NOT full RFC 5322
+// validation) used to catch obviously malformed auth.instance_admins entries at
+// startup while accepting any real-world address. It requires a single non-empty
+// local part, an "@", and a dotted domain, with no internal whitespace.
+func looksLikeEmail(s string) bool {
+	at := strings.LastIndex(s, "@")
+	if at <= 0 || at == len(s)-1 {
+		return false
+	}
+	local, domain := s[:at], s[at+1:]
+	if strings.ContainsAny(local, " \t") || strings.ContainsAny(domain, " \t") {
+		return false
+	}
+	// The domain must contain a dot that is neither the first nor the last char.
+	dot := strings.IndexByte(domain, '.')
+	return dot > 0 && dot < len(domain)-1
+}
+
+// validateInstanceAdmins fails startup when auth.instance_admins contains a
+// malformed email, so a self-hoster learns of a typo immediately rather than
+// silently granting no one admin. An empty list is valid (the feature is
+// dormant), and blank entries (e.g. from a trailing comma in the env value) are
+// tolerated and ignored — mirroring how the sign-in allowlist drops blanks.
+func validateInstanceAdmins(cfg *Config) error {
+	for _, entry := range cfg.Auth.InstanceAdmins {
+		e := strings.TrimSpace(entry)
+		if e == "" {
+			continue
+		}
+		if !looksLikeEmail(e) {
+			return fmt.Errorf("auth.instance_admins entry %q is not a valid email address", entry)
+		}
+	}
+	return nil
+}
+
 // IsLocalDevelopment reports whether the process is running in local development,
 // detected from frontend.base_url pointing at localhost/127.0.0.1. An empty value
 // is treated as NOT development (fail-closed) so a misconfigured deployment never
@@ -602,6 +647,23 @@ func (c *Config) IsLocalDevelopment() bool {
 		return false
 	}
 	return strings.Contains(u, "localhost") || strings.Contains(u, "127.0.0.1")
+}
+
+// IsInstanceAdmin reports whether email belongs to a configured instance admin.
+// Matching is case-insensitive and whitespace-trimmed on both sides. An empty
+// auth.instance_admins list (or an empty email) ⇒ always false: the feature is
+// dormant and existing deployments are unaffected.
+func (c *Config) IsInstanceAdmin(email string) bool {
+	target := strings.ToLower(strings.TrimSpace(email))
+	if target == "" {
+		return false
+	}
+	for _, admin := range c.Auth.InstanceAdmins {
+		if strings.ToLower(strings.TrimSpace(admin)) == target {
+			return true
+		}
+	}
+	return false
 }
 
 // applyDevOAuthASDefaults auto-enables the embedded Authorization Server for local
@@ -730,6 +792,7 @@ func validateAll(cfg *Config) error {
 		validateSearchRankingConfig,
 		validateDatabaseSSLMode,
 		validateEncryptionKey,
+		validateInstanceAdmins,
 		validateOAuthASConfig,
 	}
 	for _, check := range checks {

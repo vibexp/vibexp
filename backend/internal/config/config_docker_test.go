@@ -132,6 +132,33 @@ func TestConfigDockerYAML_AccessAllowlistDefaultsOpen(t *testing.T) {
 	require.Empty(t, cfg.Auth.AccessAllowlist.Emails)
 }
 
+// TestConfigDockerYAML_InstanceAdminsEnvSplitsToSlice proves the comma-separated
+// INSTANCE_ADMIN_EMAILS env value unmarshals into the []string instance-admins
+// field (koanf's StringToSliceHookFunc(",")), matching the AccessAllowlist
+// pattern.
+func TestConfigDockerYAML_InstanceAdminsEnvSplitsToSlice(t *testing.T) {
+	setDockerRequiredEnv(t)
+	t.Setenv("INSTANCE_ADMIN_EMAILS", "alice@example.com,bob@other.com")
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"alice@example.com", "bob@other.com"}, []string(cfg.Auth.InstanceAdmins))
+	require.True(t, cfg.IsInstanceAdmin("BOB@other.com"))
+}
+
+// TestConfigDockerYAML_InstanceAdminsDefaultDormant verifies the dormant default:
+// with INSTANCE_ADMIN_EMAILS unset the list is empty and no one is an admin.
+func TestConfigDockerYAML_InstanceAdminsDefaultDormant(t *testing.T) {
+	setDockerRequiredEnv(t)
+
+	cfg, err := Load(dockerConfigPath)
+	require.NoError(t, err)
+
+	require.Empty(t, cfg.Auth.InstanceAdmins)
+	require.False(t, cfg.IsInstanceAdmin("alice@example.com"))
+}
+
 // TestConfigDockerYAML_MatchesSchema validates the baked config against the
 // committed config.schema.json (additionalProperties:false), so a stray or
 // misspelled key in config.docker.yaml fails CI just as it would for the example.
