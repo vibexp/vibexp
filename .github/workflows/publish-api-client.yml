@@ -1,0 +1,54 @@
+name: Publish api-client on spec change
+
+# When the OpenAPI spec changes on main, trigger a publish of @vibexp/api-client
+# (the npm client generated from this spec, source in vibexp/api-client-js).
+#
+# The default GITHUB_TOKEN cannot trigger a workflow in another repo, so we mint
+# a short-lived installation token from the "VibeXP Bot" GitHub App (installed on
+# vibexp/api-client-js with Repository -> Actions: read & write) and use it to
+# workflow_dispatch that repo's Publish workflow. The publish itself computes the
+# next npm version (minor bump) and generates the client from vibexp/vibexp@main,
+# so no version is passed here.
+#
+# Path-filtered to the spec surface only — non-spec backend/** changes never
+# publish a client.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/openapi.yaml'
+      - 'backend/paths/**'
+      - 'backend/schemas/**'
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch-publish:
+    name: Dispatch api-client publish
+    runs-on: ubuntu-latest
+
+    steps:
+      # Mint an installation access token scoped to vibexp/api-client-js only.
+      # app-id accepts the App's client id (VIBEXP_BOT_APP_CLIENT_ID).
+      - name: Mint app token for api-client-js
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.VIBEXP_BOT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.VIBEXP_BOT_APP_PRIVATE_KEY }}
+          owner: vibexp
+          repositories: api-client-js
+
+      # backend_ref=main pins the spec to this commit's branch; version is left
+      # empty so the Publish workflow auto-resolves the next patch version.
+      - name: Dispatch Publish workflow
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh workflow run publish.yml \
+            --repo vibexp/api-client-js \
+            --ref main \
+            -f backend_ref=main
+          echo "Dispatched vibexp/api-client-js Publish (backend_ref=main, version=auto) for ${GITHUB_SHA}."
