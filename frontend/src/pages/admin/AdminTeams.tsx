@@ -9,7 +9,7 @@ import {
   listPageStatus,
   ListTable,
 } from '@/components/patterns/list-page'
-import { formatAdminDate } from '@/pages/admin/formatAdminDate'
+import { formatDate } from '@/lib/time'
 import type { AdminTeamListItem } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
@@ -102,7 +102,7 @@ export function AdminTeams() {
         header: 'Created',
         cell: ({ row }) => (
           <span className="text-muted-foreground whitespace-nowrap text-xs">
-            {formatAdminDate(row.original.created_at)}
+            {formatDate(row.original.created_at)}
           </span>
         ),
       },

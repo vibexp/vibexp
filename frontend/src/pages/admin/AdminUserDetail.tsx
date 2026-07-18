@@ -12,8 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { formatDate } from '@/lib/time'
 import { AdminDetailScaffold } from '@/pages/admin/AdminDetailScaffold'
-import { formatAdminDate } from '@/pages/admin/formatAdminDate'
 import type { AdminUserDetail as AdminUserDetailType } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
@@ -68,7 +68,7 @@ export function AdminUserDetail() {
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">Joined</p>
-                <p className="text-sm">{formatAdminDate(user.created_at)}</p>
+                <p className="text-sm">{formatDate(user.created_at)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">Teams</p>

@@ -12,8 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { formatDate } from '@/lib/time'
 import { AdminDetailScaffold } from '@/pages/admin/AdminDetailScaffold'
-import { formatAdminDate } from '@/pages/admin/formatAdminDate'
 import type { AdminTeamDetail as AdminTeamDetailType } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
@@ -65,7 +65,7 @@ export function AdminTeamDetail() {
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">Created</p>
-                <p className="text-sm">{formatAdminDate(team.created_at)}</p>
+                <p className="text-sm">{formatDate(team.created_at)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">Members</p>
@@ -112,7 +112,7 @@ export function AdminTeamDetail() {
                           <Badge variant="outline">{m.role}</Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground py-3 text-xs">
-                          {formatAdminDate(m.joined_at)}
+                          {formatDate(m.joined_at)}
                         </TableCell>
                       </TableRow>
                     ))}
