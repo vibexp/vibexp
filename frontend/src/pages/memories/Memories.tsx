@@ -157,7 +157,7 @@ export function Memories() {
     () =>
       Array.from(
         new Set(state.memories.flatMap(m => extractTags(m.metadata)))
-      ).sort(),
+      ).sort((a, b) => a.localeCompare(b)),
     [state.memories]
   )
 
