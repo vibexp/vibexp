@@ -1,14 +1,19 @@
-name: Publish api-client on spec change
+name: Publish API clients on spec change
 
-# When the OpenAPI spec changes on main, trigger a publish of @vibexp/api-client
-# (the npm client generated from this spec, source in vibexp/api-client-js).
+# When the OpenAPI spec changes on main, trigger a publish of both generated
+# clients from this spec:
+#   - @vibexp/api-client       (npm,    source in vibexp/api-client-js)
+#   - github.com/vibexp/api-client-go (Go module, source in vibexp/api-client-go)
 #
 # The default GITHUB_TOKEN cannot trigger a workflow in another repo, so we mint
 # a short-lived installation token from the "VibeXP Bot" GitHub App (installed on
-# vibexp/api-client-js with Repository -> Actions: read & write) and use it to
-# workflow_dispatch that repo's Publish workflow. The publish itself computes the
-# next npm version (minor bump) and generates the client from vibexp/vibexp@main,
-# so no version is passed here.
+# both client repos with Repository -> Actions: read & write) and use it to
+# workflow_dispatch each repo's publish/release workflow. Each downstream
+# workflow computes its own next version (minor bump) and generates from
+# vibexp/vibexp@main, so no version is passed here.
+#
+# Note: the bot app only needs Actions: read & write. The Go release pushes its
+# tag with api-client-go's own in-repo GITHUB_TOKEN, not this app token.
 #
 # Path-filtered to the spec surface only — non-spec backend/** changes never
 # publish a client.
@@ -52,3 +57,31 @@ jobs:
             --ref main \
             -f backend_ref=main
           echo "Dispatched vibexp/api-client-js Publish (backend_ref=main, version=auto) for ${GITHUB_SHA}."
+
+  dispatch-go-release:
+    name: Dispatch api-client-go release
+    runs-on: ubuntu-latest
+
+    steps:
+      # Mint an installation access token scoped to vibexp/api-client-go only.
+      - name: Mint app token for api-client-go
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.VIBEXP_BOT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.VIBEXP_BOT_APP_PRIVATE_KEY }}
+          owner: vibexp
+          repositories: api-client-go
+
+      # backend_ref=main pins the spec to this commit's branch; version is left
+      # empty so the Release workflow auto-resolves the next minor version and
+      # pushes the vX.Y.Z tag with its own in-repo GITHUB_TOKEN.
+      - name: Dispatch Release workflow
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh workflow run release.yml \
+            --repo vibexp/api-client-go \
+            --ref main \
+            -f backend_ref=main
+          echo "Dispatched vibexp/api-client-go Release (backend_ref=main, version=auto) for ${GITHUB_SHA}."
