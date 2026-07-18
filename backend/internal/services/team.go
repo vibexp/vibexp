@@ -14,6 +14,13 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
+// Structured-logging field values. logServiceVibeXPAPI names this API in log
+// lines and is shared by the other services in this package that emit it.
+const (
+	logServiceVibeXPAPI     = "vibexp-api"
+	logComponentTeamService = "team-service"
+)
+
 // TeamService implements the TeamServiceInterface
 type TeamService struct {
 	teamRepo       repositories.TeamRepository
@@ -61,8 +68,8 @@ func (s *TeamService) CreateDefaultTeam(ctx context.Context, userID string) (*mo
 
 	if err := s.teamRepo.Create(ctx, team); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to create default team")
@@ -79,8 +86,8 @@ func (s *TeamService) CreateDefaultTeam(ctx context.Context, userID string) (*mo
 	}
 	if err := s.teamMemberRepo.Create(ctx, member); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"team_id", team.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -91,8 +98,8 @@ func (s *TeamService) CreateDefaultTeam(ctx context.Context, userID string) (*mo
 	// Update user's default_team_id
 	if err := s.userRepo.UpdateDefaultTeamID(ctx, userID, team.ID); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"team_id", team.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -102,8 +109,8 @@ func (s *TeamService) CreateDefaultTeam(ctx context.Context, userID string) (*mo
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamService,
 		"user_id", userID,
 		"team_id", team.ID,
 	).
@@ -148,8 +155,8 @@ func (s *TeamService) CreateTeam(
 
 	if err := s.teamRepo.Create(ctx, team); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to create team")
@@ -166,8 +173,8 @@ func (s *TeamService) CreateTeam(
 	}
 	if err := s.teamMemberRepo.Create(ctx, member); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"team_id", team.ID,
 			"error", fmt.Sprintf("%+v", err),
@@ -176,8 +183,8 @@ func (s *TeamService) CreateTeam(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamService,
 		"user_id", userID,
 		"team_id", team.ID,
 	).
@@ -290,8 +297,8 @@ func (s *TeamService) UpdateTeam(
 
 	if err := s.teamRepo.Update(ctx, team); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
@@ -300,8 +307,8 @@ func (s *TeamService) UpdateTeam(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamService,
 		"user_id", userID,
 		"team_id", teamID,
 	).
@@ -331,8 +338,8 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to get user")
@@ -351,8 +358,8 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 	members, err := s.teamMemberRepo.GetByTeamID(ctx, teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to get team members for deletion validation")
@@ -368,8 +375,8 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 		for _, member := range members {
 			if delErr := s.teamMemberRepo.Delete(ctx, teamID, member.UserID); delErr != nil {
 				s.logger.With(
-					"service", "vibexp-api",
-					"component", "team-service",
+					"service", logServiceVibeXPAPI,
+					"component", logComponentTeamService,
 					"team_id", teamID,
 					"user_id", member.UserID,
 					"error", fmt.Sprintf("%+v", delErr),
@@ -384,8 +391,8 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 	// future matrix change into a silent no-op delete.
 	if err := s.teamRepo.Delete(ctx, team.OwnerID, teamID); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
@@ -394,8 +401,8 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamService,
 		"user_id", userID,
 		"team_id", teamID,
 	).
@@ -432,8 +439,8 @@ func (s *TeamService) GetTeamMembers(
 	members, err := s.teamMemberRepo.GetByTeamID(ctx, teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
@@ -464,8 +471,8 @@ func (s *TeamService) fetchMemberDetails(
 		user, userErr := s.userRepo.GetByID(ctx, member.UserID)
 		if userErr != nil {
 			s.logger.With(
-				"service", "vibexp-api",
-				"component", "team-service",
+				"service", logServiceVibeXPAPI,
+				"component", logComponentTeamService,
 				"user_id", member.UserID,
 				"error", fmt.Sprintf("%+v", userErr),
 			).Warn("Failed to get user details for team member")
@@ -537,8 +544,8 @@ func (s *TeamService) UpdateMemberRole(
 			return nil, updateErr
 		}
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"team_id", teamID,
 			"member_id", targetUserID,
@@ -558,8 +565,8 @@ func (s *TeamService) UpdateMemberRole(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamService,
 		"user_id", userID,
 		"team_id", teamID,
 		"member_id", targetUserID,
@@ -611,8 +618,8 @@ func (s *TeamService) TransferOwnership(
 			return nil, err
 		}
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"team_id", teamID,
 			"new_owner_id", newOwnerID,
@@ -622,8 +629,8 @@ func (s *TeamService) TransferOwnership(
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamService,
 		"user_id", userID,
 		"team_id", teamID,
 		"new_owner_id", newOwnerID,
@@ -653,8 +660,8 @@ func (s *TeamService) RemoveTeamMember(ctx context.Context, userID, teamID, memb
 	// Remove the member
 	if err := s.teamMemberRepo.Delete(ctx, teamID, memberUserID); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"team_id", teamID,
 			"member_id", memberUserID,
@@ -669,8 +676,8 @@ func (s *TeamService) RemoveTeamMember(ctx context.Context, userID, teamID, memb
 	if s.commentRepo != nil {
 		if _, err := s.commentRepo.DeleteByUser(ctx, teamID, memberUserID); err != nil {
 			s.logger.With(
-				"service", "vibexp-api",
-				"component", "team-service",
+				"service", logServiceVibeXPAPI,
+				"component", logComponentTeamService,
 				"team_id", teamID,
 				"member_id", memberUserID,
 				"error", fmt.Sprintf("%+v", err),
@@ -679,8 +686,8 @@ func (s *TeamService) RemoveTeamMember(ctx context.Context, userID, teamID, memb
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "team-service",
+		"service", logServiceVibeXPAPI,
+		"component", logComponentTeamService,
 		"user_id", userID,
 		"team_id", teamID,
 		"member_id", memberUserID,
@@ -708,8 +715,8 @@ func (s *TeamService) ListTeams(
 	teams, totalCount, err := s.teamRepo.ListByUserID(ctx, userID, pageSize, offset)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "team-service",
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamService,
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to list teams")
@@ -722,8 +729,8 @@ func (s *TeamService) ListTeams(
 		member, err := s.teamMemberRepo.GetByTeamAndUser(ctx, teams[i].ID, userID)
 		if err != nil {
 			s.logger.With(
-				"service", "vibexp-api",
-				"component", "team-service",
+				"service", logServiceVibeXPAPI,
+				"component", logComponentTeamService,
 				"team_id", teams[i].ID,
 				"user_id", userID,
 				"error", fmt.Sprintf("%+v", err),
@@ -737,8 +744,8 @@ func (s *TeamService) ListTeams(
 		members, err := s.teamMemberRepo.GetByTeamID(ctx, teams[i].ID)
 		if err != nil {
 			s.logger.With(
-				"service", "vibexp-api",
-				"component", "team-service",
+				"service", logServiceVibeXPAPI,
+				"component", logComponentTeamService,
 				"team_id", teams[i].ID,
 				"error", fmt.Sprintf("%+v", err),
 			).Warn("Failed to get team members count, setting to 0")

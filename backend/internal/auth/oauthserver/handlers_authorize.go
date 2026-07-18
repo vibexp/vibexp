@@ -15,6 +15,17 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
+// errInvalidConsentSession is the JSON error returned whenever an opaque login
+// id does not resolve to a live consent session.
+const errInvalidConsentSession = "invalid or expired consent session"
+
+// Consent responses carry single-use secrets (CSRF token, authorization code),
+// so every one is marked Cache-Control: no-store.
+const (
+	headerCacheControl  = "Cache-Control"
+	cacheControlNoStore = "no-store"
+)
+
 // Authorize handles GET /oauth2/authorize. It validates the OAuth request and
 // PKCE, stashes it as a USER-LESS login session, and redirects the browser to the
 // SPA consent gate. The Authorization Server never authenticates anyone itself:
@@ -101,11 +112,11 @@ func (s *Service) ConsentDetails(w http.ResponseWriter, r *http.Request) {
 	loginID := r.URL.Query().Get("login")
 	ls, err := s.loginSessions.Get(ctx, loginID)
 	if err != nil {
-		s.writeJSONError(w, http.StatusBadRequest, "invalid or expired consent session")
+		s.writeJSONError(w, http.StatusBadRequest, errInvalidConsentSession)
 		return
 	}
 	// The body carries the consent CSRF token; keep it out of any cache.
-	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set(headerCacheControl, cacheControlNoStore)
 	// No user bound yet: the AS never logs anyone in itself. Signal the SPA to
 	// complete an app login and bind the user via /consent/attach; the CSRF token
 	// authorizes that call.
@@ -154,7 +165,7 @@ func (s *Service) ConsentAttach(w http.ResponseWriter, r *http.Request) {
 	}
 	ls, err := s.loginSessions.Get(ctx, body.Login)
 	if err != nil {
-		s.writeJSONError(w, http.StatusBadRequest, "invalid or expired consent session")
+		s.writeJSONError(w, http.StatusBadRequest, errInvalidConsentSession)
 		return
 	}
 	// Idempotent for the same user; never let one user rebind another's session.
@@ -175,7 +186,7 @@ func (s *Service) ConsentAttach(w http.ResponseWriter, r *http.Request) {
 		s.writeJSONError(w, http.StatusInternalServerError, "failed to record login")
 		return
 	}
-	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set(headerCacheControl, cacheControlNoStore)
 	s.writeJSON(w, http.StatusOK, consentAttachResponse{Authenticated: true})
 }
 
@@ -238,7 +249,7 @@ func (s *Service) ConsentDecision(w http.ResponseWriter, r *http.Request) {
 	}
 	ls, err := s.loginSessions.Get(ctx, body.Login)
 	if err != nil || ls.UserID == nil {
-		s.writeJSONError(w, http.StatusBadRequest, "invalid or expired consent session")
+		s.writeJSONError(w, http.StatusBadRequest, errInvalidConsentSession)
 		return
 	}
 	ar, err := s.reconstructAuthorizeRequest(ctx, ls)
@@ -260,7 +271,7 @@ func (s *Service) ConsentDecision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// redirect_to embeds the single-use authorization code; never cache it.
-	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set(headerCacheControl, cacheControlNoStore)
 	s.writeJSON(w, http.StatusOK, consentDecisionResponse{RedirectTo: redirectTo})
 }
 

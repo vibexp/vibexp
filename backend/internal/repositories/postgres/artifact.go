@@ -35,12 +35,19 @@ func artifactSlugConflictError(pqErr *pq.Error, slug string) error {
 	}
 }
 
+// artifactTeamIDColumn and artifactStatusColumn are the alias-qualified column
+// references shared by the list projection and the squirrel WHERE predicates.
+const (
+	artifactTeamIDColumn = "a.team_id"
+	artifactStatusColumn = "a.status"
+)
+
 // artifactListColumns is the 12-column projection shared by List and
 // ListCrossTeam. The content column is deliberately excluded from list
 // operations to keep payloads small.
 var artifactListColumns = []string{
-	"a.id", "a.project_id", "a.slug", "a.user_id", "a.team_id",
-	"a.title", "a.description", "a.status", "a.type", "a.metadata",
+	"a.id", "a.project_id", "a.slug", "a.user_id", artifactTeamIDColumn,
+	"a.title", "a.description", artifactStatusColumn, "a.type", "a.metadata",
 	"a.created_at", "a.updated_at",
 }
 
@@ -296,15 +303,15 @@ func applyArtifactStatusVisibility(
 	case filters.Search != "":
 		term := "%" + filters.Search + "%"
 		return append(where,
-			squirrel.Eq{"a.status": models.ArtifactStatusActive},
+			squirrel.Eq{artifactStatusColumn: models.ArtifactStatusActive},
 			squirrel.Expr(
 				"(a.title ILIKE ? OR a.description ILIKE ? OR a.content ILIKE ?)", term, term, term,
 			),
 		)
 	case filters.Status != nil && *filters.Status != "":
-		return append(where, squirrel.Eq{"a.status": *filters.Status})
+		return append(where, squirrel.Eq{artifactStatusColumn: *filters.Status})
 	default:
-		return append(where, squirrel.NotEq{"a.status": models.ArtifactStatusArchived})
+		return append(where, squirrel.NotEq{artifactStatusColumn: models.ArtifactStatusArchived})
 	}
 }
 
@@ -449,7 +456,7 @@ func (r *ArtifactRepository) ListCrossTeam(
 	// owner or member of the artifact's team (defense-in-depth on top of user_id).
 	where := squirrel.And{
 		squirrel.Eq{"a.user_id": userID},
-		teamRowReadAccess("a.team_id", userID),
+		teamRowReadAccess(artifactTeamIDColumn, userID),
 	}
 
 	where, err := applyArtifactFilters(where, filters)
@@ -484,7 +491,7 @@ func (r *ArtifactRepository) List(
 
 	// Build the WHERE clause with team membership check using EXISTS subqueries.
 	where := squirrel.And{
-		squirrel.Eq{"a.team_id": teamID},
+		squirrel.Eq{artifactTeamIDColumn: teamID},
 		teamReadAccess(teamID, userID),
 	}
 

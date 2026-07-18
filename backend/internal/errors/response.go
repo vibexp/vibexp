@@ -8,6 +8,10 @@ import (
 	"github.com/vibexp/vibexp/internal/contextkeys"
 )
 
+// neutralTypeURI is the RFC 9457 problem "type" that signals "no further
+// information".
+const neutralTypeURI = "about:blank"
+
 // typeBaseURI is the base used to build the RFC 9457 "type" member of error
 // responses, joined with the error code as "<base>/<code>". It defaults to the
 // neutral "about:blank" (a valid problem "type" that signals "no further
@@ -17,13 +21,13 @@ import (
 // It is a package-level var rather than threaded through every constructor to
 // keep the error constructors dependency-free; it is written exactly once
 // during config load, before any request is served.
-var typeBaseURI = "about:blank"
+var typeBaseURI = neutralTypeURI
 
 // SetTypeBaseURI configures the base URI used to build RFC 9457 "type" members.
 // An empty value resets to the neutral "about:blank". Call this once at startup.
 func SetTypeBaseURI(base string) {
 	if base == "" {
-		base = "about:blank"
+		base = neutralTypeURI
 	}
 	typeBaseURI = base
 }
@@ -32,8 +36,8 @@ func SetTypeBaseURI(base string) {
 // neutral "about:blank" the code is not appended (about:blank is only meaningful
 // on its own), otherwise the code is joined as "<base>/<code>".
 func typeURI(code string) string {
-	if typeBaseURI == "about:blank" {
-		return "about:blank"
+	if typeBaseURI == neutralTypeURI {
+		return neutralTypeURI
 	}
 	return typeBaseURI + "/" + code
 }

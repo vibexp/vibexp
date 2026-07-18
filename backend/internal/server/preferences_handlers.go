@@ -9,11 +9,14 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
+// serverLogServiceName is the service log-field value for the user
+// preferences handlers.
+
 func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetPreferences",
 		"user_id", userID,
 	).Info("User preferences get request received")
@@ -21,7 +24,7 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 	prefs, err := s.container.UserPreferencesService().GetPreferences(r.Context(), userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetPreferences",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -33,7 +36,7 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetPreferences",
 		"user_id", userID,
 	).Info("User preferences retrieved successfully")
@@ -45,7 +48,7 @@ func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request)
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdatePreferences",
 		"user_id", userID,
 	).Info("User preferences update request received")
@@ -53,7 +56,7 @@ func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request)
 	var req models.UpdatePreferencesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdatePreferences",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -68,7 +71,7 @@ func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request)
 	prefs, err := s.container.UserPreferencesService().UpdatePreferences(r.Context(), userID, req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdatePreferences",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -80,7 +83,7 @@ func (s *Server) handleUpdatePreferences(w http.ResponseWriter, r *http.Request)
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdatePreferences",
 		"user_id", userID,
 	).Info("User preferences updated successfully")

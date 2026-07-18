@@ -21,6 +21,8 @@ import (
 )
 
 const (
+	// serverLogServiceName is the service log-field value for the auth handlers.
+
 	// stateCookieName is the short-lived HMAC-signed cookie used to carry
 	// the CSRF state value between the login redirect and the callback.
 	stateCookieName = "vx_state"
@@ -47,7 +49,7 @@ type LogoutResponse struct {
 // GET /api/v1/auth/login[?provider=<name>]
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleLogin",
 		"user_agent", r.Header.Get("User-Agent"),
 		"remote_ip", r.RemoteAddr,
@@ -57,7 +59,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	provider, apiErr := s.resolveLoginProvider(requested)
 	if apiErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleLogin",
 			"requested_provider", requested,
 		).Warn("Login provider rejected")
@@ -68,7 +70,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	state, err := generateRandomState()
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleLogin",
 			"error", fmt.Sprintf("%+v", err),
 		).
@@ -81,7 +83,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	authURL := s.container.AuthService().GetLoginURL(state, provider)
 	if authURL == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleLogin",
 			"provider", provider,
 		).
@@ -99,7 +101,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.writeStateCookie(w, s.signState(state, provider))
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleLogin",
 		"state", state,
 		"provider", provider,
@@ -213,7 +215,7 @@ func (s *Server) handleCallbackFailure(w http.ResponseWriter, r *http.Request, s
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCallback",
 		"error", fmt.Sprintf("%+v", err),
 		"state", state,
@@ -237,7 +239,7 @@ func (s *Server) handleCallbackSuccess(
 	isNewUser bool,
 ) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCallback",
 		"user_id", user.ID,
 		"email", user.Email,
@@ -291,7 +293,7 @@ func (s *Server) handleCallbackSuccess(
 // POST /api/v1/auth/logout
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleLogout",
 	).Info("Logout request received")
 
@@ -309,7 +311,7 @@ func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetMe",
 		"user_id", userID,
 	).Info("Get user profile request")
@@ -317,7 +319,7 @@ func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {
 	user, err := s.container.AuthService().GetUserByID(r.Context(), userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetMe",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -339,7 +341,7 @@ type DevLoginRequest struct {
 func (s *Server) handleDevLogin(w http.ResponseWriter, r *http.Request) {
 	if !s.container.EnvironmentService().IsDevLoginEnabled() {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDevLogin",
 		).
 			Warn("Dev login attempted in non-development environment")
@@ -391,7 +393,7 @@ func (s *Server) handleDevLoginFailure(w http.ResponseWriter, r *http.Request, e
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDevLogin",
 		"email", email,
 		"error", fmt.Sprintf("%+v", err),
@@ -403,7 +405,7 @@ func (s *Server) handleDevLoginFailure(w http.ResponseWriter, r *http.Request, e
 
 func (s *Server) handleDevLoginSuccess(w http.ResponseWriter, r *http.Request, user *models.User) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDevLogin",
 		"user_id", user.ID,
 		"email", user.Email,
@@ -508,7 +510,7 @@ func (s *Server) validateStateCookie(r *http.Request, state string) (string, err
 
 func (s *Server) logAuthRequest(handler, description string, r *http.Request) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_agent", r.Header.Get("User-Agent"),
 		"remote_ip", r.RemoteAddr,
@@ -516,7 +518,7 @@ func (s *Server) logAuthRequest(handler, description string, r *http.Request) {
 }
 
 func (s *Server) logAuthError(handler, message string, err error) {
-	fields := []any{"service", "vibexp-api", "handler", handler}
+	fields := []any{"service", serverLogServiceName, "handler", handler}
 	if err != nil {
 		fields = append(fields, "error", err)
 	}
@@ -527,7 +529,7 @@ func (s *Server) handleMarkOnboardingCompleted(w http.ResponseWriter, r *http.Re
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleMarkOnboardingCompleted",
 		"user_id", userID,
 	).
@@ -536,7 +538,7 @@ func (s *Server) handleMarkOnboardingCompleted(w http.ResponseWriter, r *http.Re
 	err := s.container.UserRepository().MarkOnboardingCompleted(r.Context(), userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleMarkOnboardingCompleted",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -550,7 +552,7 @@ func (s *Server) handleMarkOnboardingCompleted(w http.ResponseWriter, r *http.Re
 	user, err := s.container.UserRepository().GetByID(r.Context(), userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleMarkOnboardingCompleted",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -561,7 +563,7 @@ func (s *Server) handleMarkOnboardingCompleted(w http.ResponseWriter, r *http.Re
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleMarkOnboardingCompleted",
 		"user_id", userID,
 	).

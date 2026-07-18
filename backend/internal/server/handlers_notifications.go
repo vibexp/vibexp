@@ -14,6 +14,10 @@ import (
 	"github.com/vibexp/vibexp/internal/services/notifications"
 )
 
+// notificationsMsgListFailed is the problem detail for a failed notification
+// list/count query.
+const notificationsMsgListFailed = "Failed to list notifications"
+
 // notificationsStrictServer implements gen.StrictServerInterface (#1713 PoC):
 // the four REST notification operations are served through oapi-codegen
 // strict-server bindings generated from openapi.yaml, so a spec/handler
@@ -48,9 +52,9 @@ func (n *notificationsStrictServer) ListNotifications(
 			"handler", "ListNotifications",
 			"user_id", userID,
 			"error", listErr.Error(),
-		).Error("Failed to list notifications")
+		).Error(notificationsMsgListFailed)
 
-		return nil, apierrors.NewInternalError("Failed to list notifications")
+		return nil, apierrors.NewInternalError(notificationsMsgListFailed)
 	}
 
 	genItems, convErr := toGenNotifications(items)
@@ -61,7 +65,7 @@ func (n *notificationsStrictServer) ListNotifications(
 			"error", convErr.Error(),
 		).Error("Failed to convert notifications to spec types")
 
-		return nil, apierrors.NewInternalError("Failed to list notifications")
+		return nil, apierrors.NewInternalError(notificationsMsgListFailed)
 	}
 
 	return gen.ListNotifications200JSONResponse(gen.NotificationListResponse{

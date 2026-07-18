@@ -28,6 +28,8 @@ const (
 	githubAPITimeout = 30 * time.Second
 	// githubAPIFastTimeout is the timeout for simple GitHub API lookups
 	githubAPIFastTimeout = 15 * time.Second
+	// attrInstallationID is the OTel span attribute key for the GitHub App installation id
+	attrInstallationID = "github.installation_id"
 )
 
 // githubTracer is the OTel tracer used by the GitHub App client.
@@ -199,7 +201,7 @@ func (c *GitHubAppClient) GetInstallationRepositories(
 ) ([]models.GitHubRepository, int, error) {
 	ctx, span := githubTracer.Start(ctx, "github.list_repositories",
 		trace.WithAttributes(
-			attribute.Int64("github.installation_id", installationID),
+			attribute.Int64(attrInstallationID, installationID),
 			attribute.Int("github.page", page),
 		),
 	)
@@ -261,7 +263,7 @@ func (c *GitHubAppClient) GetRepository(
 ) (*models.GitHubRepository, error) {
 	ctx, span := githubTracer.Start(ctx, "github.get_repository",
 		trace.WithAttributes(
-			attribute.Int64("github.installation_id", installationID),
+			attribute.Int64(attrInstallationID, installationID),
 			attribute.Int64("github.repo_id", repoID),
 		),
 	)
@@ -313,7 +315,7 @@ func (c *GitHubAppClient) GetInstallation(
 ) (*external.GitHubInstallationInfo, error) {
 	ctx, span := githubTracer.Start(ctx, "github.get_installation",
 		trace.WithAttributes(
-			attribute.Int64("github.installation_id", installationID),
+			attribute.Int64(attrInstallationID, installationID),
 		),
 	)
 	defer span.End()

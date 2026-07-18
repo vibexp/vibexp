@@ -15,6 +15,13 @@ import (
 	"github.com/vibexp/vibexp/internal/utils"
 )
 
+const (
+	// msgSkippedBlueprintFile is the log message emitted for each repository file skipped during blueprint import.
+	msgSkippedBlueprintFile = "Skipped file during blueprint import"
+	// blueprintTypeClaudeCode is the blueprint type assigned to files under .claude/.
+	blueprintTypeClaudeCode = "claude-code"
+)
+
 // ImportBlueprintsFromRepository imports AI assistant configurations from a GitHub repository as blueprints.
 // The project is automatically discovered by matching the repository URL. If no project exists for the
 // repository, an error is returned instructing the user to import the repository as a project first.
@@ -139,7 +146,7 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 func (s *GitHubAppService) logImportProgress(report *models.BlueprintImportReport, repoID int64, teamID string) {
 	if report.TotalScanned%importProgressInterval == 0 {
 		s.logger.With(
-			"service", "github-app",
+			"service", logServiceGitHubApp,
 			"scanned", report.TotalScanned,
 			"successful", report.TotalSuccessful,
 			"failed", report.TotalFailed,
@@ -164,13 +171,13 @@ func (s *GitHubAppService) importSingleFile(
 	// Check file extension - ONLY markdown files
 	if !strings.HasSuffix(strings.ToLower(file.Path), ".md") {
 		s.logger.With(
-			"service", "github-app",
+			"service", logServiceGitHubApp,
 			"file_path", file.Path,
 			"extension", filepath.Ext(file.Path),
 			"repo_id", repo.ID,
 			"team_id", teamID,
 			"reason", "invalid_extension",
-		).Info("Skipped file during blueprint import")
+		).Info(msgSkippedBlueprintFile)
 		report.TotalSkipped++
 		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
 			FilePath: file.Path,
@@ -182,7 +189,7 @@ func (s *GitHubAppService) importSingleFile(
 	// Skip if file is empty
 	if len(file.Content) == 0 {
 		s.logger.With(
-			"service", "github-app",
+			"service", logServiceGitHubApp,
 			"file_path", file.Path,
 			"repo_id", repo.ID,
 			"team_id", teamID,
@@ -199,14 +206,14 @@ func (s *GitHubAppService) importSingleFile(
 	// Skip files larger than maxFileSize
 	if len(file.Content) > maxFileSize {
 		s.logger.With(
-			"service", "github-app",
+			"service", logServiceGitHubApp,
 			"file_path", file.Path,
 			"file_size", len(file.Content),
 			"max_size", maxFileSize,
 			"repo_id", repo.ID,
 			"team_id", teamID,
 			"reason", "file_too_large",
-		).Info("Skipped file during blueprint import")
+		).Info(msgSkippedBlueprintFile)
 		report.TotalSkipped++
 		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
 			FilePath: file.Path,
@@ -299,13 +306,13 @@ func (s *GitHubAppService) importSingleFile(
 	existingBlueprint, checkErr := s.blueprintRepo.GetByProjectIDAndSlug(ctx, userID, teamID, projectID, slug)
 	if checkErr == nil && existingBlueprint != nil {
 		s.logger.With(
-			"service", "github-app",
+			"service", logServiceGitHubApp,
 			"file_path", file.Path,
 			"slug", slug,
 			"repo_id", repo.ID,
 			"team_id", teamID,
 			"reason", "existing_slug",
-		).Info("Skipped file during blueprint import")
+		).Info(msgSkippedBlueprintFile)
 		report.TotalSkipped++
 		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
 			FilePath: file.Path,
@@ -341,7 +348,7 @@ func (s *GitHubAppService) importSingleFile(
 	})
 
 	s.logger.With(
-		"service", "github-app",
+		"service", logServiceGitHubApp,
 		"file_path", file.Path,
 		"blueprint_id", blueprint.ID,
 		"title", blueprint.Title,
@@ -357,16 +364,16 @@ func (s *GitHubAppService) importSingleFile(
 //nolint:gocognit,gocyclo // Path pattern matching requires sequential checks
 func (s *GitHubAppService) determineTypeFromPath(path string) (string, string) {
 	if strings.HasPrefix(path, ".claude/agents/") {
-		return "claude-code", "sub-agents"
+		return blueprintTypeClaudeCode, "sub-agents"
 	}
 	if strings.HasPrefix(path, ".claude/skills/") {
-		return "claude-code", "skills"
+		return blueprintTypeClaudeCode, "skills"
 	}
 	if strings.HasPrefix(path, ".claude/commands/") {
-		return "claude-code", "slash-commands"
+		return blueprintTypeClaudeCode, "slash-commands"
 	}
 	if strings.HasPrefix(path, ".claude/") {
-		return "claude-code", "others"
+		return blueprintTypeClaudeCode, "others"
 	}
 	if path == "CLAUDE.md" {
 		return "claude", "claude-md"

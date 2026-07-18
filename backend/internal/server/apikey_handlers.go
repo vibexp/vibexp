@@ -14,11 +14,15 @@ import (
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
+const (
+	apikeyMsgValidationFailed = "Request validation failed"
+)
+
 func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateAPIKey",
 		"user_id", userID,
 	).
@@ -44,7 +48,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		GenerateAPIKey(r.Context(), userID, req.Name, req.IntegrationCodes)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateAPIKey",
 			"user_id", userID,
 			"name", req.Name,
@@ -57,7 +61,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateAPIKey",
 		"user_id", userID,
 		"api_key_id", apiKey.ID,
@@ -81,7 +85,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 func (s *Server) validateAPIKeyName(w http.ResponseWriter, r *http.Request, userID, name string) bool {
 	if name == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateAPIKey",
 			"user_id", userID,
 		).
@@ -89,14 +93,14 @@ func (s *Server) validateAPIKeyName(w http.ResponseWriter, r *http.Request, user
 		validationErrs := []errors.ValidationError{
 			errors.NewRequiredFieldError("name"),
 		}
-		apiErr := errors.NewValidationError("Request validation failed", validationErrs)
+		apiErr := errors.NewValidationError(apikeyMsgValidationFailed, validationErrs)
 		errors.WriteJSONError(w, r, apiErr)
 		return false
 	}
 
 	if len(name) > 255 {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateAPIKey",
 			"user_id", userID,
 			"name_len", len(name),
@@ -104,7 +108,7 @@ func (s *Server) validateAPIKeyName(w http.ResponseWriter, r *http.Request, user
 		validationErrs := []errors.ValidationError{
 			errors.NewMaxLengthError("name", 255),
 		}
-		apiErr := errors.NewValidationError("Request validation failed", validationErrs)
+		apiErr := errors.NewValidationError(apikeyMsgValidationFailed, validationErrs)
 		errors.WriteJSONError(w, r, apiErr)
 		return false
 	}
@@ -115,7 +119,7 @@ func (s *Server) validateAPIKeyName(w http.ResponseWriter, r *http.Request, user
 func (s *Server) validateIntegrationCodes(w http.ResponseWriter, r *http.Request, userID string, codes []string) bool {
 	if len(codes) == 0 {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateAPIKey",
 			"user_id", userID,
 		).
@@ -138,7 +142,7 @@ func (s *Server) validateIntegrationCodes(w http.ResponseWriter, r *http.Request
 	for _, code := range codes {
 		if !validCodesMap[code] {
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", serverLogServiceName,
 				"handler", "handleCreateAPIKey",
 				"user_id", userID,
 				"invalid_code", code,
@@ -161,7 +165,7 @@ func (s *Server) validateIntegrationCodes(w http.ResponseWriter, r *http.Request
 
 func (s *Server) logAPIKeyError(handler, userID, msg string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),
@@ -183,7 +187,7 @@ func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListAPIKeys",
 		"user_id", userID,
 	).
@@ -192,7 +196,7 @@ func (s *Server) handleListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	apiKeys, err := s.container.APIKeyService().GetAPIKeysByUserID(r.Context(), userID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListAPIKeys",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -210,7 +214,7 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	apiKeyID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteAPIKey",
 		"user_id", userID,
 		"api_key_id", apiKeyID,
@@ -219,7 +223,7 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	if apiKeyID == "" {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteAPIKey",
 			"user_id", userID,
 		).
@@ -227,7 +231,7 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 		validationErrs := []errors.ValidationError{
 			errors.NewRequiredFieldError("id"),
 		}
-		apiErr := errors.NewValidationError("Request validation failed", validationErrs)
+		apiErr := errors.NewValidationError(apikeyMsgValidationFailed, validationErrs)
 		errors.WriteJSONError(w, r, apiErr)
 		return
 	}
@@ -235,7 +239,7 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	err := s.container.APIKeyService().DeleteAPIKey(r.Context(), userID, apiKeyID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteAPIKey",
 			"user_id", userID,
 			"api_key_id", apiKeyID,
@@ -252,7 +256,7 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteAPIKey",
 		"user_id", userID,
 		"api_key_id", apiKeyID,

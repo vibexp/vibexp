@@ -27,6 +27,10 @@ func NewAttachmentRepository(db *database.DB) repositories.AttachmentRepository 
 const attachmentColumns = "id, team_id, user_id, owner_type, owner_id, " +
 	"file_name, content_type, size_bytes, gcs_object_key, created_at"
 
+// attachmentSelectBase is the shared "SELECT <columns> FROM attachments" prefix
+// of every attachment read query.
+const attachmentSelectBase = "SELECT " + attachmentColumns + " FROM attachments "
+
 func (r *AttachmentRepository) Create(ctx context.Context, attachment *models.Attachment) error {
 	// user_id is nullable (ON DELETE SET NULL); store NULL for an empty creator.
 	var userID interface{}
@@ -56,7 +60,7 @@ func (r *AttachmentRepository) Create(ctx context.Context, attachment *models.At
 func (r *AttachmentRepository) GetByID(
 	ctx context.Context, ownerType, ownerID, id string,
 ) (*models.Attachment, error) {
-	query := "SELECT " + attachmentColumns + " FROM attachments " +
+	query := attachmentSelectBase +
 		"WHERE id = $1 AND owner_type = $2 AND owner_id = $3"
 
 	var (
@@ -80,7 +84,7 @@ func (r *AttachmentRepository) GetByID(
 func (r *AttachmentRepository) GetByIDInTeam(
 	ctx context.Context, teamID, id string,
 ) (*models.Attachment, error) {
-	query := "SELECT " + attachmentColumns + " FROM attachments " +
+	query := attachmentSelectBase +
 		"WHERE id = $1 AND team_id = $2"
 
 	var (
@@ -104,7 +108,7 @@ func (r *AttachmentRepository) GetByIDInTeam(
 func (r *AttachmentRepository) ListByOwner(
 	ctx context.Context, ownerType, ownerID string,
 ) ([]models.Attachment, error) {
-	query := "SELECT " + attachmentColumns + " FROM attachments " +
+	query := attachmentSelectBase +
 		"WHERE owner_type = $1 AND owner_id = $2 ORDER BY created_at DESC"
 
 	rows, err := r.db.QueryContext(ctx, query, ownerType, ownerID)

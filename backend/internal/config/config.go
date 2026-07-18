@@ -744,6 +744,10 @@ func validateAll(cfg *Config) error {
 // VIBEXP_CONFIG_FILE is provided.
 const configFileDefaultPath = "./config.yaml"
 
+// defaultAuthRedirectURI is the local-development OAuth callback used as the
+// default redirect_uri for every identity provider.
+const defaultAuthRedirectURI = "http://localhost:8080/api/v1/auth/callback"
+
 // defaults returns the code-level configuration defaults as flat, dot-delimited
 // keys. They are merged first (lowest precedence); the config.yaml file overrides
 // any of them. Duration defaults are expressed as strings ("15m") and decoded by
@@ -763,9 +767,9 @@ func defaults() map[string]any {
 		"database.user":                       "postgres",
 		"database.name":                       "vibexp_io",
 		"database.sslmode":                    "disable",
-		"auth.google.redirect_uri":            "http://localhost:8080/api/v1/auth/callback",
-		"auth.github.redirect_uri":            "http://localhost:8080/api/v1/auth/callback",
-		"auth.oidc.redirect_uri":              "http://localhost:8080/api/v1/auth/callback",
+		"auth.google.redirect_uri":            defaultAuthRedirectURI,
+		"auth.github.redirect_uri":            defaultAuthRedirectURI,
+		"auth.oidc.redirect_uri":              defaultAuthRedirectURI,
 		"auth.oauth_as.access_token_ttl":      "15m",
 		"auth.oauth_as.refresh_token_ttl":     "720h",
 		"auth.oauth_as.auth_code_ttl":         "10m",

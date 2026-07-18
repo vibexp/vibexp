@@ -98,8 +98,8 @@ func (f *UserSignInAllowlistFlag) Evaluate(ctx context.Context) bool {
 	email, ok := ctx.Value(EmailContextKey).(string)
 	if !ok || email == "" {
 		f.logger.With(
-			"service", "vibexp-api",
-			"component", "feature-flags",
+			"service", logServiceName,
+			"component", logComponentFeatureFlags,
 			"flag", "user_signin_allowlist",
 		).Debug("No email found in context, denying sign-in access")
 		return false
@@ -114,8 +114,8 @@ func (f *UserSignInAllowlistFlag) Evaluate(ctx context.Context) bool {
 	// verification concept (dev login) are unaffected.
 	if verified, present := ctx.Value(EmailVerifiedContextKey).(bool); present && !verified {
 		f.logger.With(
-			"service", "vibexp-api",
-			"component", "feature-flags",
+			"service", logServiceName,
+			"component", logComponentFeatureFlags,
 			"flag", "user_signin_allowlist",
 			"email", strings.ToLower(strings.TrimSpace(email)),
 		).Debug("Email is not provider-verified, denying sign-in access")
@@ -124,8 +124,8 @@ func (f *UserSignInAllowlistFlag) Evaluate(ctx context.Context) bool {
 
 	if f.IsEmailAllowed(email) {
 		f.logger.With(
-			"service", "vibexp-api",
-			"component", "feature-flags",
+			"service", logServiceName,
+			"component", logComponentFeatureFlags,
 			"flag", "user_signin_allowlist",
 			"email", strings.ToLower(strings.TrimSpace(email)),
 		).Debug("Email is in sign-in allowlist, granting access")
@@ -133,8 +133,8 @@ func (f *UserSignInAllowlistFlag) Evaluate(ctx context.Context) bool {
 	}
 
 	f.logger.With(
-		"service", "vibexp-api",
-		"component", "feature-flags",
+		"service", logServiceName,
+		"component", logComponentFeatureFlags,
 		"flag", "user_signin_allowlist",
 		"email", strings.ToLower(strings.TrimSpace(email)),
 	).Debug("Email not in sign-in allowlist, denying access")

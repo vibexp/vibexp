@@ -8,6 +8,13 @@ import (
 	"github.com/vibexp/vibexp/internal/container"
 )
 
+// Common guard-clause and failure messages for table-driven test runners
+const (
+	emptyTestCasesMsg      = "test cases cannot be empty"
+	nilServerMsg           = "server cannot be nil"
+	failedCreateRequestFmt = "Failed to create request: %v"
+)
+
 // HTTPTestCase represents a single HTTP test case for table-driven tests
 type HTTPTestCase struct {
 	// Test identification
@@ -64,10 +71,10 @@ type TableTestConfig struct {
 // RunHTTPTests executes a table of HTTP test cases
 func RunHTTPTests(t TestingT, tests []HTTPTestCase, config TableTestConfig) {
 	if t == nil {
-		panic("testing interface cannot be nil")
+		panic(nilTestingInterfaceMsg)
 	}
 	if len(tests) == 0 {
-		t.Fatal("test cases cannot be empty")
+		t.Fatal(emptyTestCasesMsg)
 		return
 	}
 
@@ -83,14 +90,14 @@ func RunHTTPTests(t TestingT, tests []HTTPTestCase, config TableTestConfig) {
 // RunHTTPTestsWithServer executes a table of HTTP test cases with a pre-created server
 func RunHTTPTestsWithServer(t TestingT, tests []HTTPTestCase, server *httptest.Server) {
 	if t == nil {
-		panic("testing interface cannot be nil")
+		panic(nilTestingInterfaceMsg)
 	}
 	if server == nil {
-		t.Fatal("server cannot be nil")
+		t.Fatal(nilServerMsg)
 		return
 	}
 	if len(tests) == 0 {
-		t.Fatal("test cases cannot be empty")
+		t.Fatal(emptyTestCasesMsg)
 		return
 	}
 
@@ -150,7 +157,7 @@ func runSingleHTTPTestWithServer(t TestingT, tt HTTPTestCase, server *httptest.S
 	// Create request
 	req, err := createRequestForTest(tt)
 	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
+		t.Fatalf(failedCreateRequestFmt, err)
 		return
 	}
 
@@ -166,7 +173,7 @@ func runSingleHTTPTestWithServer(t TestingT, tt HTTPTestCase, server *httptest.S
 		case AuthTypeJWT:
 			req.Header.Set("Authorization", "Bearer "+token)
 		case AuthTypeAPIKey:
-			req.Header.Set("X-API-Key", token)
+			req.Header.Set(apiAccessHeader, token)
 		}
 	}
 
@@ -215,7 +222,7 @@ func validateHTTPTestResponse(t TestingT, tt HTTPTestCase, response *httptest.Re
 
 	// Validate content type if not skipped
 	if !tt.SkipContentTypeCheck && response.Code < 400 {
-		AssertContentType(t, response, "application/json")
+		AssertContentType(t, response, contentTypeJSON)
 	}
 
 	// Validate expected body if provided
@@ -248,14 +255,14 @@ type AuthTestCase struct {
 // RunAuthTests executes authentication-focused test cases
 func RunAuthTests(t TestingT, tests []AuthTestCase, server *httptest.Server) {
 	if t == nil {
-		panic("testing interface cannot be nil")
+		panic(nilTestingInterfaceMsg)
 	}
 	if server == nil {
-		t.Fatal("server cannot be nil")
+		t.Fatal(nilServerMsg)
 		return
 	}
 	if len(tests) == 0 {
-		t.Fatal("test cases cannot be empty")
+		t.Fatal(emptyTestCasesMsg)
 		return
 	}
 
@@ -274,7 +281,7 @@ func runSingleAuthTest(t TestingT, tt AuthTestCase, server *httptest.Server) {
 	// Create request
 	req, err := NewTestRequest(tt.Method, tt.URL, tt.Body)
 	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
+		t.Fatalf(failedCreateRequestFmt, err)
 		return
 	}
 
@@ -325,10 +332,10 @@ type CRUDTestSuite struct {
 // In a real implementation, you would use testing.T.Run for subtests
 func RunCRUDTests(t TestingT, suite CRUDTestSuite, server *httptest.Server) {
 	if t == nil {
-		panic("testing interface cannot be nil")
+		panic(nilTestingInterfaceMsg)
 	}
 	if server == nil {
-		t.Fatal("server cannot be nil")
+		t.Fatal(nilServerMsg)
 		return
 	}
 
@@ -346,7 +353,7 @@ func runCRUDCreateTest(t TestingT, suite CRUDTestSuite, server *httptest.Server)
 	t.Helper()
 	req, err := createAuthenticatedRequest("POST", suite.BasePath, suite.CreateData, suite.AuthToken, suite.AuthType)
 	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
+		t.Fatalf(failedCreateRequestFmt, err)
 		return ""
 	}
 
@@ -369,7 +376,7 @@ func runCRUDReadTest(t TestingT, suite CRUDTestSuite, server *httptest.Server, r
 	url := fmt.Sprintf("%s/%s", suite.BasePath, resourceID)
 	req, err := createAuthenticatedRequest("GET", url, nil, suite.AuthToken, suite.AuthType)
 	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
+		t.Fatalf(failedCreateRequestFmt, err)
 		return
 	}
 
@@ -383,7 +390,7 @@ func runCRUDUpdateTest(t TestingT, suite CRUDTestSuite, server *httptest.Server,
 	url := fmt.Sprintf("%s/%s", suite.BasePath, resourceID)
 	req, err := createAuthenticatedRequest("PUT", url, suite.UpdateData, suite.AuthToken, suite.AuthType)
 	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
+		t.Fatalf(failedCreateRequestFmt, err)
 		return
 	}
 
@@ -403,7 +410,7 @@ func runCRUDListTest(t TestingT, suite CRUDTestSuite, server *httptest.Server) {
 	t.Helper()
 	req, err := createAuthenticatedRequest("GET", suite.BasePath, nil, suite.AuthToken, suite.AuthType)
 	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
+		t.Fatalf(failedCreateRequestFmt, err)
 		return
 	}
 
@@ -421,7 +428,7 @@ func runCRUDDeleteTest(t TestingT, suite CRUDTestSuite, server *httptest.Server,
 	url := fmt.Sprintf("%s/%s", suite.BasePath, resourceID)
 	req, err := createAuthenticatedRequest("DELETE", url, nil, suite.AuthToken, suite.AuthType)
 	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
+		t.Fatalf(failedCreateRequestFmt, err)
 		return
 	}
 
@@ -441,7 +448,7 @@ func runCRUDInvalidDataTest(t TestingT, suite CRUDTestSuite, server *httptest.Se
 
 	req, err := createAuthenticatedRequest("POST", suite.BasePath, suite.InvalidData, suite.AuthToken, suite.AuthType)
 	if err != nil {
-		t.Fatalf("Failed to create request: %v", err)
+		t.Fatalf(failedCreateRequestFmt, err)
 		return
 	}
 
@@ -462,7 +469,7 @@ func createAuthenticatedRequest(
 	case AuthTypeJWT:
 		req.Header.Set("Authorization", "Bearer "+token)
 	case AuthTypeAPIKey:
-		req.Header.Set("X-API-Key", token)
+		req.Header.Set(apiAccessHeader, token)
 	}
 
 	return req, nil

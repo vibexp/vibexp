@@ -14,6 +14,10 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
+// countCursorIDESessionsQuery counts a user's distinct Cursor IDE sessions;
+// shared by GetSessions, GetOverviewStats, and CountUniqueSessions.
+const countCursorIDESessionsQuery = "SELECT COUNT(DISTINCT session_id) FROM cursor_ide_hooks_payload WHERE user_id = $1"
+
 // cursorIDEHooksRepository implements the CursorIDEHooksRepository interface using PostgreSQL
 type cursorIDEHooksRepository struct {
 	db *database.DB
@@ -270,9 +274,8 @@ func (r *cursorIDEHooksRepository) GetSessions(ctx context.Context, filters repo
 	}
 
 	// Count total unique sessions for the user
-	countQuery := "SELECT COUNT(DISTINCT session_id) FROM cursor_ide_hooks_payload WHERE user_id = $1"
 	var total int
-	err := r.db.QueryRowContext(ctx, countQuery, *filters.UserID).Scan(&total)
+	err := r.db.QueryRowContext(ctx, countCursorIDESessionsQuery, *filters.UserID).Scan(&total)
 	if err != nil {
 		slog.Error("Failed to count Cursor IDE sessions", "error", err)
 		return nil, fmt.Errorf("failed to count Cursor IDE sessions: %w", err)
@@ -420,8 +423,7 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 	var stats models.CursorOverviewStats
 
 	// Get total sessions for the user
-	totalQuery := "SELECT COUNT(DISTINCT session_id) FROM cursor_ide_hooks_payload WHERE user_id = $1"
-	err := r.db.QueryRowContext(ctx, totalQuery, userID).Scan(&stats.TotalSessions)
+	err := r.db.QueryRowContext(ctx, countCursorIDESessionsQuery, userID).Scan(&stats.TotalSessions)
 	if err != nil {
 		slog.Error("Failed to count total sessions", "error", err)
 		return nil, fmt.Errorf("failed to count total sessions: %w", err)
@@ -732,10 +734,8 @@ func (r *cursorIDEHooksRepository) CountUniqueSessions(ctx context.Context, user
 		return 0, fmt.Errorf("database connection is nil")
 	}
 
-	query := "SELECT COUNT(DISTINCT session_id) FROM cursor_ide_hooks_payload WHERE user_id = $1"
-
 	var count int
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	err := r.db.QueryRowContext(ctx, countCursorIDESessionsQuery, userID).Scan(&count)
 	if err != nil {
 		slog.Error("Failed to count unique Cursor IDE sessions", "error", err)
 		return 0, fmt.Errorf("failed to count unique sessions: %w", err)

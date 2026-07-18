@@ -16,12 +16,22 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 )
 
+const (
+	// serverLogServiceName is the service log-field value for the project
+	// handlers (shared with the project migration handlers).
+
+	// errNotFoundFragment is the service-error substring that maps to a
+	// 404 with projectMsgNotFound.
+	projectMsgNotFound       = "Project not found"
+	projectMsgForbiddenWrite = "Forbidden project write attempt"
+)
+
 func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateProject",
 		"user_id", userID,
 		"team_id", teamID,
@@ -58,7 +68,7 @@ func (s *Server) handleGetProjectStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetProjectStats",
 		"user_id", userID,
 		"team_id", teamID,
@@ -85,7 +95,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetProject",
 		"user_id", userID,
 		"team_id", teamID,
@@ -108,7 +118,7 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListProjects",
 		"user_id", userID,
 		"team_id", teamID,
@@ -119,7 +129,7 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	response, listErr := s.container.ProjectService().ListProjects(userID, filters)
 	if listErr != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListProjects",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", listErr),
@@ -135,7 +145,7 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	if ghErr != nil {
 		// Non-fatal: log and continue with github_connected defaulting to false
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListProjects",
 			"user_id", userID,
 			"team_id", teamID,
@@ -178,7 +188,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateProject",
 		"user_id", userID,
 		"team_id", teamID,
@@ -216,7 +226,7 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteProject",
 		"user_id", userID,
 		"team_id", teamID,
@@ -324,16 +334,16 @@ func (s *Server) handleCreateProjectError(w http.ResponseWriter, r *http.Request
 	// match any branch there, so it would otherwise fall through to a 500.
 	if errors.Is(err, services.ErrPermissionDenied) {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateProject",
 			"user_id", userID,
-		).Warn("Forbidden project write attempt")
+		).Warn(projectMsgForbiddenWrite)
 		writeErrorResponse(w, r, "forbidden", "Only team owners and admins can create projects", http.StatusForbidden)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateProject",
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),
@@ -356,15 +366,15 @@ func (s *Server) handleCreateProjectError(w http.ResponseWriter, r *http.Request
 // handleGetProjectError handles errors from getting a project
 func (s *Server) handleGetProjectError(w http.ResponseWriter, userID, slug string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetProject",
 		"user_id", userID,
 		"slug", slug,
 		"error", fmt.Sprintf("%+v", err),
 	).Error("Failed to get project")
 
-	if strings.Contains(err.Error(), "not found") {
-		writeErrorResponse(w, nil, "not_found", "Project not found", http.StatusNotFound)
+	if strings.Contains(err.Error(), errNotFoundFragment) {
+		writeErrorResponse(w, nil, "not_found", projectMsgNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -375,25 +385,25 @@ func (s *Server) handleGetProjectError(w http.ResponseWriter, userID, slug strin
 func (s *Server) handleUpdateProjectError(w http.ResponseWriter, r *http.Request, userID, slug string, err error) {
 	if errors.Is(err, services.ErrPermissionDenied) {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdateProject",
 			"user_id", userID,
 			"slug", slug,
-		).Warn("Forbidden project write attempt")
+		).Warn(projectMsgForbiddenWrite)
 		writeErrorResponse(w, r, "forbidden", "Only team owners and admins can update projects", http.StatusForbidden)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateProject",
 		"user_id", userID,
 		"slug", slug,
 		"error", fmt.Sprintf("%+v", err),
 	).Error("Failed to update project")
 
-	if strings.Contains(err.Error(), "not found") {
-		writeErrorResponse(w, nil, "not_found", "Project not found", http.StatusNotFound)
+	if strings.Contains(err.Error(), errNotFoundFragment) {
+		writeErrorResponse(w, nil, "not_found", projectMsgNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -425,25 +435,25 @@ func (s *Server) handleUpdateProjectError(w http.ResponseWriter, r *http.Request
 func (s *Server) handleDeleteProjectError(w http.ResponseWriter, r *http.Request, userID, slug string, err error) {
 	if errors.Is(err, services.ErrPermissionDenied) {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteProject",
 			"user_id", userID,
 			"slug", slug,
-		).Warn("Forbidden project write attempt")
+		).Warn(projectMsgForbiddenWrite)
 		writeErrorResponse(w, r, "forbidden", "Only team owners and admins can delete projects", http.StatusForbidden)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteProject",
 		"user_id", userID,
 		"slug", slug,
 		"error", fmt.Sprintf("%+v", err),
 	).Error("Failed to delete project")
 
-	if strings.Contains(err.Error(), "not found") {
-		writeErrorResponse(w, nil, "not_found", "Project not found", http.StatusNotFound)
+	if strings.Contains(err.Error(), errNotFoundFragment) {
+		writeErrorResponse(w, nil, "not_found", projectMsgNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -460,15 +470,15 @@ func (s *Server) handleDeleteProjectError(w http.ResponseWriter, r *http.Request
 // handleGetProjectStatsError handles errors from getting project stats
 func (s *Server) handleGetProjectStatsError(w http.ResponseWriter, userID, slug string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetProjectStats",
 		"user_id", userID,
 		"slug", slug,
 		"error", fmt.Sprintf("%+v", err),
 	).Error("Failed to get project stats")
 
-	if strings.Contains(err.Error(), "not found") {
-		writeErrorResponse(w, nil, "not_found", "Project not found", http.StatusNotFound)
+	if strings.Contains(err.Error(), errNotFoundFragment) {
+		writeErrorResponse(w, nil, "not_found", projectMsgNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -512,7 +522,7 @@ func (s *Server) buildProjectFilters(r *http.Request, teamID string) services.Pr
 func (s *Server) logProjectError(w http.ResponseWriter, handler, userID, slug string,
 	err error, logMsg, errCode, errMsg string, statusCode int) {
 	fields := []any{
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),

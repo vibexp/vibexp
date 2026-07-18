@@ -17,6 +17,14 @@ import (
 // even in builds without an embedded frontend.
 const configJSPath = "/config.js"
 
+// Cache-Control values for SPA responses: mutable entry points (index.html,
+// /config.js) must revalidate on every load, while hashed static assets are
+// immutable (see handleSPA).
+const (
+	spaHeaderCacheControl = "Cache-Control"
+	spaCacheNoCache       = "no-cache"
+)
+
 // backendPathPrefixes are the request-path prefixes owned by the backend (API,
 // MCP, OAuth AS, discovery, internal jobs). The SPA catch-all must never serve
 // index.html for these: an unmatched path under one of them is a genuine 404
@@ -112,7 +120,7 @@ func (s *Server) serveSPAIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set(spaHeaderCacheControl, spaCacheNoCache)
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodHead {
 		return
@@ -128,10 +136,10 @@ func (s *Server) serveSPAIndex(w http.ResponseWriter, r *http.Request) {
 // be revalidated so a redeploy is picked up without stale references.
 func setSPACacheHeaders(w http.ResponseWriter, reqPath string) {
 	if strings.HasPrefix(reqPath, "assets/") {
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Header().Set(spaHeaderCacheControl, "public, max-age=31536000, immutable")
 		return
 	}
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set(spaHeaderCacheControl, spaCacheNoCache)
 }
 
 // handleConfigJS renders /config.js: the deploy-time frontend configuration as
@@ -155,7 +163,7 @@ func (s *Server) handleConfigJS(w http.ResponseWriter, r *http.Request) {
 	body = append(body, ";\n"...)
 
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set(spaHeaderCacheControl, spaCacheNoCache)
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodHead {
 		return

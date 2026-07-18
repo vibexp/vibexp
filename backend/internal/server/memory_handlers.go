@@ -17,13 +17,21 @@ import (
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
 
+const (
+	// serverLogServiceName tags memory handler log entries.
+
+	memoryMsgNotFound         = "Memory not found"
+	memoryMsgInvalidProjectID = "project_id must be a valid UUID"
+	memoryMsgInvalidStatus    = "status must be one of: active, draft, archived"
+)
+
 // handleCreateMemoryError handles errors from CreateMemory and writes appropriate responses
 func (s *Server) handleCreateMemoryError(w http.ResponseWriter, userID string, err error) {
 	// Denials are benign client errors: handled before the ERROR log and before
 	// any matching below, which ErrPermissionDenied's text matches nowhere — it
 	// would otherwise fall through to a 500.
 	if errors.Is(err, services.ErrPermissionDenied) {
-		s.logger.With("service", "vibexp-api", "handler", "handleCreateMemory", "user_id", userID).
+		s.logger.With("service", serverLogServiceName, "handler", "handleCreateMemory", "user_id", userID).
 			Warn("Forbidden memory write attempt")
 		writeErrorResponse(
 			w, nil, "forbidden",
@@ -33,7 +41,7 @@ func (s *Server) handleCreateMemoryError(w http.ResponseWriter, userID string, e
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateMemory",
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),
@@ -47,7 +55,7 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateMemory",
 		"user_id", userID,
 		"team_id", teamID,
@@ -66,7 +74,7 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !isValidUUID(req.ProjectID) {
-		writeErrorResponse(w, nil, "validation_error", "project_id must be a valid UUID", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "validation_error", memoryMsgInvalidProjectID, http.StatusBadRequest)
 		return
 	}
 
@@ -78,7 +86,7 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 	if req.Status != nil && *req.Status != "" && !isAllowedMemoryStatus(*req.Status) {
 		writeErrorResponse(
 			w, nil, "validation_error",
-			"status must be one of: active, draft, archived", http.StatusBadRequest,
+			memoryMsgInvalidStatus, http.StatusBadRequest,
 		)
 		return
 	}
@@ -111,7 +119,7 @@ func (s *Server) checkMemoryResourceLimit(w http.ResponseWriter, r *http.Request
 	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(r.Context(), userID, "memory")
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateMemory",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -122,7 +130,7 @@ func (s *Server) checkMemoryResourceLimit(w http.ResponseWriter, r *http.Request
 
 	if !allowed {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateMemory",
 			"user_id", userID,
 			"resource_type", "memory",
@@ -140,7 +148,7 @@ func (s *Server) checkMemoryResourceLimit(w http.ResponseWriter, r *http.Request
 
 func (s *Server) logMemoryError(handler, userID, memoryID string, err error, msg string) {
 	fields := []any{
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),
@@ -194,7 +202,7 @@ func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (
 	var projectID *string
 	if pid := query.Get("project_id"); pid != "" {
 		if !isValidUUID(pid) {
-			writeErrorResponse(w, nil, "validation_error", "project_id must be a valid UUID", http.StatusBadRequest)
+			writeErrorResponse(w, nil, "validation_error", memoryMsgInvalidProjectID, http.StatusBadRequest)
 			return services.MemoryFilters{}, false
 		}
 		projectID = &pid
@@ -205,7 +213,7 @@ func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (
 		if !isAllowedMemoryStatus(st) {
 			writeErrorResponse(
 				w, nil, "validation_error",
-				"status must be one of: active, draft, archived", http.StatusBadRequest,
+				memoryMsgInvalidStatus, http.StatusBadRequest,
 			)
 			return services.MemoryFilters{}, false
 		}
@@ -234,7 +242,7 @@ func (s *Server) handleGetMemory(w http.ResponseWriter, r *http.Request) {
 	memoryID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetMemory",
 		"user_id", userID,
 		"team_id", teamID,
@@ -244,7 +252,7 @@ func (s *Server) handleGetMemory(w http.ResponseWriter, r *http.Request) {
 	memory, err := s.container.MemoryService().GetMemory(userID, teamID, memoryID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetMemory",
 			"user_id", userID,
 			"memory_id", memoryID,
@@ -252,7 +260,7 @@ func (s *Server) handleGetMemory(w http.ResponseWriter, r *http.Request) {
 		).Error("Failed to get memory")
 
 		if errors.Is(err, repositories.ErrMemoryNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Memory not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", memoryMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -270,7 +278,7 @@ func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListMemories",
 		"user_id", userID,
 		"team_id", teamID,
@@ -284,7 +292,7 @@ func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 	response, err := s.container.MemoryService().ListMemories(userID, filters)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListMemories",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -302,7 +310,7 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 	memoryID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateMemory",
 		"user_id", userID,
 		"team_id", teamID,
@@ -358,14 +366,14 @@ func (s *Server) validateUpdateMemoryRequest(w http.ResponseWriter, req *models.
 	}
 
 	if req.ProjectID != nil && !isValidUUID(*req.ProjectID) {
-		writeErrorResponse(w, nil, "validation_error", "project_id must be a valid UUID", http.StatusBadRequest)
+		writeErrorResponse(w, nil, "validation_error", memoryMsgInvalidProjectID, http.StatusBadRequest)
 		return false
 	}
 
 	if req.Status != nil && *req.Status != "" && !isAllowedMemoryStatus(*req.Status) {
 		writeErrorResponse(
 			w, nil, "validation_error",
-			"status must be one of: active, draft, archived", http.StatusBadRequest,
+			memoryMsgInvalidStatus, http.StatusBadRequest,
 		)
 		return false
 	}
@@ -378,14 +386,14 @@ func (s *Server) handleUpdateMemoryError(w http.ResponseWriter, userID, memoryID
 	// any matching below, which ErrPermissionDenied's text matches nowhere — it
 	// would otherwise fall through to a 500.
 	if errors.Is(err, services.ErrPermissionDenied) {
-		s.logger.With("service", "vibexp-api", "handler", "handleUpdateMemory", "user_id", userID).
+		s.logger.With("service", serverLogServiceName, "handler", "handleUpdateMemory", "user_id", userID).
 			Warn("Forbidden memory write attempt")
 		writeErrorResponse(w, nil, "forbidden", "You do not have permission to update this memory", http.StatusForbidden)
 		return
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateMemory",
 		"user_id", userID,
 		"memory_id", memoryID,
@@ -393,7 +401,7 @@ func (s *Server) handleUpdateMemoryError(w http.ResponseWriter, userID, memoryID
 	).Error("Failed to update memory")
 
 	if errors.Is(err, repositories.ErrMemoryNotFound) {
-		writeErrorResponse(w, nil, "not_found", "Memory not found", http.StatusNotFound)
+		writeErrorResponse(w, nil, "not_found", memoryMsgNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -406,7 +414,7 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 	memoryID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteMemory",
 		"user_id", userID,
 		"team_id", teamID,
@@ -417,7 +425,7 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 	err := s.container.MemoryService().DeleteMemory(userID, teamID, memoryID)
 	if err != nil {
 		if errors.Is(err, services.ErrPermissionDenied) {
-			s.logger.With("service", "vibexp-api", "handler", "handleDeleteMemory", "user_id", userID).
+			s.logger.With("service", serverLogServiceName, "handler", "handleDeleteMemory", "user_id", userID).
 				Warn("Forbidden memory delete attempt")
 			writeErrorResponse(
 				w, nil, "forbidden",
@@ -427,7 +435,7 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteMemory",
 			"user_id", userID,
 			"memory_id", memoryID,
@@ -435,7 +443,7 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 		).Error("Failed to delete memory")
 
 		if errors.Is(err, repositories.ErrMemoryNotFound) {
-			writeErrorResponse(w, nil, "not_found", "Memory not found", http.StatusNotFound)
+			writeErrorResponse(w, nil, "not_found", memoryMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -448,7 +456,7 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Log the error but don't fail the deletion - embeddings might not exist
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteMemory",
 			"user_id", userID,
 			"memory_id", memoryID,
@@ -472,7 +480,7 @@ func (s *Server) handleSearchMemoriesByMetadata(w http.ResponseWriter, r *http.R
 	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleSearchMemoriesByMetadata",
 		"user_id", userID,
 		"team_id", teamID,
@@ -498,7 +506,7 @@ func (s *Server) handleSearchMemoriesByMetadata(w http.ResponseWriter, r *http.R
 	response, err := s.container.MemoryService().SearchMemoriesByMetadata(userID, metadataKey, metadataValue, filters)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleSearchMemoriesByMetadata",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -524,7 +532,7 @@ func (s *Server) validateProjectBelongsToTeam(
 			return false
 		}
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"user_id", userID,
 			"project_id", projectID,
 			"error", fmt.Sprintf("%+v", err),
@@ -546,7 +554,7 @@ func (s *Server) handleListMemoryVersions(w http.ResponseWriter, r *http.Request
 	memoryID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListMemoryVersions",
 		"user_id", userID,
 		"team_id", teamID,
@@ -574,7 +582,7 @@ func (s *Server) handleGetMemoryVersion(w http.ResponseWriter, r *http.Request) 
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetMemoryVersion",
 		"user_id", userID,
 		"team_id", teamID,
@@ -604,7 +612,7 @@ func (s *Server) handleRestoreMemoryVersion(w http.ResponseWriter, r *http.Reque
 	}
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleRestoreMemoryVersion",
 		"user_id", userID,
 		"team_id", teamID,
@@ -627,7 +635,7 @@ func (s *Server) handleRestoreMemoryVersion(w http.ResponseWriter, r *http.Reque
 // distinguishing a missing memory/version (404) from other failures (500).
 func (s *Server) handleMemoryVersionError(w http.ResponseWriter, userID, memoryID string, err error) {
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "memoryVersion",
 		"user_id", userID,
 		"memory_id", memoryID,
@@ -663,7 +671,7 @@ func (s *Server) recordMemoryActivity(
 	_, err := s.container.ActivityService().RecordActivity(ctx, userID, req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"user_id", userID,
 			"activity_type", activityType,
 			"entity_id", entityID,

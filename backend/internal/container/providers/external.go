@@ -17,6 +17,12 @@ import (
 	"github.com/vibexp/vibexp/internal/external/implementations"
 )
 
+// Log messages shared by the per-provider construction paths below.
+const (
+	msgIdentityProviderEnabled  = "Identity provider enabled"
+	msgEmailProviderInitialized = "Email provider initialized"
+)
+
 // ProvideIdentityProviderRegistry builds the set of web-login identity
 // providers enabled for this deployment. A deployment may enable one or
 // several providers at once (e.g. Google + GitHub) via AUTH_PROVIDERS.
@@ -120,7 +126,7 @@ func buildGoogleProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityP
 			Warn("Google provider initialization failed; skipping")
 		return nil, false
 	}
-	logger.With("provider", "google").Info("Identity provider enabled")
+	logger.With("provider", "google").Info(msgIdentityProviderEnabled)
 	return provider, true
 }
 
@@ -140,7 +146,7 @@ func buildGitHubProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityP
 			Warn("GitHub provider initialization failed; skipping")
 		return nil, false
 	}
-	logger.With("provider", "github").Info("Identity provider enabled")
+	logger.With("provider", "github").Info(msgIdentityProviderEnabled)
 	return provider, true
 }
 
@@ -157,7 +163,7 @@ func buildOIDCProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityPro
 			Warn("OIDC provider initialization failed; skipping")
 		return nil, false
 	}
-	logger.With("provider", "oidc", "issuer_url", cfg.Auth.OIDC.IssuerURL).Info("Identity provider enabled")
+	logger.With("provider", "oidc", "issuer_url", cfg.Auth.OIDC.IssuerURL).Info(msgIdentityProviderEnabled)
 	return provider, true
 }
 
@@ -173,32 +179,32 @@ func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.Ema
 		if err != nil {
 			return nil, fmt.Errorf("email provider factory: %w", err)
 		}
-		logger.With("email_provider", "mailgun").Info("Email provider initialized")
+		logger.With("email_provider", "mailgun").Info(msgEmailProviderInitialized)
 		return provider, nil
 	case "postmark":
 		provider, err := implementations.NewPostmarkEmailProvider(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("email provider factory: %w", err)
 		}
-		logger.With("email_provider", "postmark").Info("Email provider initialized")
+		logger.With("email_provider", "postmark").Info(msgEmailProviderInitialized)
 		return provider, nil
 	case "sendgrid":
 		provider, err := implementations.NewSendGridEmailProvider(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("email provider factory: %w", err)
 		}
-		logger.With("email_provider", "sendgrid").Info("Email provider initialized")
+		logger.With("email_provider", "sendgrid").Info(msgEmailProviderInitialized)
 		return provider, nil
 	case "smtp", "":
 		if cfg.Email.SMTP.Host == "" || cfg.Email.SMTP.Port == "" {
-			logger.With("email_provider", "stub").Info("Email provider initialized")
+			logger.With("email_provider", "stub").Info(msgEmailProviderInitialized)
 			return &stubEmailProvider{}, nil
 		}
 		provider, err := implementations.NewSMTPEmailProvider(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("email provider factory: %w", err)
 		}
-		logger.With("email_provider", "smtp").Info("Email provider initialized")
+		logger.With("email_provider", "smtp").Info(msgEmailProviderInitialized)
 		return provider, nil
 	default:
 		return nil, fmt.Errorf("email provider factory: unknown email provider %q", cfg.Email.Provider)

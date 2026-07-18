@@ -6,6 +6,12 @@ import (
 	"sync"
 )
 
+// Structured-logging field values shared by this package's log lines.
+const (
+	logServiceName           = "vibexp-api"
+	logComponentFeatureFlags = "feature-flags"
+)
+
 // FeatureFlagService is the core implementation of the feature flag system
 type FeatureFlagService struct {
 	flags  map[string]FeatureFlagEvaluator
@@ -34,8 +40,8 @@ func (s *FeatureFlagService) RegisterFlag(flag FeatureFlagEvaluator) {
 	s.flags[flagName] = flag
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "feature-flags",
+		"service", logServiceName,
+		"component", logComponentFeatureFlags,
 		"flag_name", flagName,
 	).Info("Feature flag registered")
 }
@@ -50,8 +56,8 @@ func (s *FeatureFlagService) IsEnabled(ctx context.Context, flagName string) boo
 
 	if !exists {
 		s.logger.With(
-			"service", "vibexp-api",
-			"component", "feature-flags",
+			"service", logServiceName,
+			"component", logComponentFeatureFlags,
 			"flag_name", flagName,
 		).Debug("Feature flag not registered, returning false")
 		return false
@@ -61,8 +67,8 @@ func (s *FeatureFlagService) IsEnabled(ctx context.Context, flagName string) boo
 	enabled := s.evaluateFlag(ctx, flag)
 
 	s.logger.With(
-		"service", "vibexp-api",
-		"component", "feature-flags",
+		"service", logServiceName,
+		"component", logComponentFeatureFlags,
 		"flag_name", flagName,
 		"enabled", enabled,
 	).Debug("Feature flag evaluated")
@@ -75,8 +81,8 @@ func (s *FeatureFlagService) evaluateFlag(ctx context.Context, flag FeatureFlagE
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.With(
-				"service", "vibexp-api",
-				"component", "feature-flags",
+				"service", logServiceName,
+				"component", logComponentFeatureFlags,
 				"flag_name", flag.Name(),
 				"panic", r,
 			).Error("Feature flag evaluation panicked, returning false")

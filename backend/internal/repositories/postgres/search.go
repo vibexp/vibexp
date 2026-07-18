@@ -42,35 +42,61 @@ type entitySource struct {
 	statusFilter string
 }
 
+// SQL fragments shared across the search branch builders. Every branch aliases
+// its source table AS src and the projects join AS proj, so these compose
+// identically for the semantic, FTS and trgm passes.
+const (
+	// srcSlugExpr / srcStatusActiveFilter are the entitySources values shared by
+	// every slug-carrying / active-status entity type.
+	srcSlugExpr           = "src.slug"
+	srcStatusActiveFilter = "src.status = 'active'"
+	// searchProjectProjection projects the uniform project id/name pair derived
+	// via the projects LEFT JOIN (projectsLeftJoin).
+	searchProjectProjection = "src.project_id::text AS project_id, COALESCE(proj.name, '') AS project_name, "
+	// searchTimestampProjection projects the source row's timestamps.
+	searchTimestampProjection = "src.created_at AS created_at, src.updated_at AS updated_at, "
+	// projectsLeftJoin derives project_name; LEFT so rows survive a missing project row.
+	projectsLeftJoin = "LEFT JOIN projects proj ON src.project_id = proj.id "
+	// whereSrcTeamFilter scopes a keyword/trgm branch to the caller's team ($2).
+	whereSrcTeamFilter = "WHERE src.team_id = $2"
+	// andSrcProjectFilterArg3 applies the optional project filter where the
+	// project id is bound as $3 (NULL disables the filter).
+	andSrcProjectFilterArg3 = " AND ($3::uuid IS NULL OR src.project_id = $3::uuid)"
+	// searchResultProjection is the outer 12-column SearchResultRow projection
+	// every page query re-selects from its union subquery.
+	searchResultProjection = "SELECT entity_type, entity_id, chunk_id, title, slug, project_id, project_name, " +
+		"chunk_content, source_body, created_at, updated_at, distance "
+)
+
 // entitySources maps the singular embeddings entity_type to its source-table metadata.
 var entitySources = map[string]entitySource{
 	"prompt": {
 		table:        "prompts",
 		titleExpr:    "src.name",
 		bodyExpr:     "src.body",
-		slugExpr:     "src.slug",
+		slugExpr:     srcSlugExpr,
 		statusFilter: "src.status = 'published'",
 	},
 	"artifact": {
 		table:        "artifacts",
 		titleExpr:    "src.title",
 		bodyExpr:     "src.content",
-		slugExpr:     "src.slug",
-		statusFilter: "src.status = 'active'",
+		slugExpr:     srcSlugExpr,
+		statusFilter: srcStatusActiveFilter,
 	},
 	"blueprint": {
 		table:        "blueprints",
 		titleExpr:    "src.title",
 		bodyExpr:     "src.content",
-		slugExpr:     "src.slug",
-		statusFilter: "src.status = 'active'",
+		slugExpr:     srcSlugExpr,
+		statusFilter: srcStatusActiveFilter,
 	},
 	"memory": {
 		table:        "memories",
 		titleExpr:    "LEFT(src.text, 100)",
 		bodyExpr:     "src.text",
 		slugExpr:     "''",
-		statusFilter: "src.status = 'active'",
+		statusFilter: srcStatusActiveFilter,
 	},
 }
 
@@ -119,12 +145,12 @@ func buildBranch(entityType string, src entitySource) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "SELECT '%s' AS entity_type, e.entity_id AS entity_id, e.id AS chunk_id, ", entityType)
 	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.titleExpr, src.slugExpr)
-	b.WriteString("src.project_id::text AS project_id, COALESCE(proj.name, '') AS project_name, ")
+	b.WriteString(searchProjectProjection)
 	fmt.Fprintf(&b, "e.content AS chunk_content, %s AS source_body, ", src.bodyExpr)
-	b.WriteString("src.created_at AS created_at, src.updated_at AS updated_at, ")
+	b.WriteString(searchTimestampProjection)
 	b.WriteString("e.vector_embeddings <=> $1 AS distance ")
 	fmt.Fprintf(&b, "FROM embeddings e JOIN %s src ON e.entity_id = src.id ", src.table)
-	b.WriteString("LEFT JOIN projects proj ON src.project_id = proj.id ")
+	b.WriteString(projectsLeftJoin)
 	b.WriteString("WHERE e.entity_type = '" + entityType + "' AND e.team_id = $2 AND e.model_id = $3")
 	if src.statusFilter != "" {
 		b.WriteString(" AND " + src.statusFilter)
@@ -146,7 +172,7 @@ func buildCountBranch(entityType string, src entitySource) string {
 	if src.statusFilter != "" {
 		b.WriteString(" AND " + src.statusFilter)
 	}
-	b.WriteString(" AND ($3::uuid IS NULL OR src.project_id = $3::uuid)")
+	b.WriteString(andSrcProjectFilterArg3)
 	return b.String()
 }
 
@@ -171,8 +197,7 @@ func buildCountUnion(entityTypes []string) (string, error) {
 // Positional args are unchanged: $5 = limit, $6 = offset.
 func buildDedupPageQuery(union string) string {
 	return fmt.Sprintf(
-		"SELECT entity_type, entity_id, chunk_id, title, slug, project_id, project_name, "+
-			"chunk_content, source_body, created_at, updated_at, distance "+
+		searchResultProjection+
 			"FROM (SELECT results.*, ROW_NUMBER() OVER ("+
 			"PARTITION BY entity_type, entity_id ORDER BY distance ASC, chunk_id ASC) AS dedup_rank "+
 			"FROM (%s) AS results) AS ranked "+
@@ -397,17 +422,17 @@ func buildKeywordBranch(entityType string, src entitySource, tsquery string) str
 	var b strings.Builder
 	fmt.Fprintf(&b, "SELECT '%s' AS entity_type, src.id AS entity_id, src.id AS chunk_id, ", entityType)
 	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.titleExpr, src.slugExpr)
-	b.WriteString("src.project_id::text AS project_id, COALESCE(proj.name, '') AS project_name, ")
+	b.WriteString(searchProjectProjection)
 	fmt.Fprintf(&b, "'' AS chunk_content, %s AS source_body, ", src.bodyExpr)
-	b.WriteString("src.created_at AS created_at, src.updated_at AS updated_at, ")
+	b.WriteString(searchTimestampProjection)
 	fmt.Fprintf(&b, "1 - ts_rank(%s, %s) AS distance ", tsv, tsquery)
 	fmt.Fprintf(&b, "FROM %s src ", src.table)
-	b.WriteString("LEFT JOIN projects proj ON src.project_id = proj.id ")
-	b.WriteString("WHERE src.team_id = $2")
+	b.WriteString(projectsLeftJoin)
+	b.WriteString(whereSrcTeamFilter)
 	if src.statusFilter != "" {
 		b.WriteString(" AND " + src.statusFilter)
 	}
-	b.WriteString(" AND ($3::uuid IS NULL OR src.project_id = $3::uuid)")
+	b.WriteString(andSrcProjectFilterArg3)
 	fmt.Fprintf(&b, " AND %s @@ %s", tsv, tsquery)
 	return b.String()
 }
@@ -421,11 +446,11 @@ func buildKeywordCountBranch(src entitySource, tsquery string) string {
 	var b strings.Builder
 	b.WriteString("SELECT 1 ")
 	fmt.Fprintf(&b, "FROM %s src ", src.table)
-	b.WriteString("WHERE src.team_id = $2")
+	b.WriteString(whereSrcTeamFilter)
 	if src.statusFilter != "" {
 		b.WriteString(" AND " + src.statusFilter)
 	}
-	b.WriteString(" AND ($3::uuid IS NULL OR src.project_id = $3::uuid)")
+	b.WriteString(andSrcProjectFilterArg3)
 	fmt.Fprintf(&b, " AND %s @@ %s", ftsExpr(src), tsquery)
 	return b.String()
 }
@@ -467,17 +492,17 @@ func buildKeywordTrgmBranch(entityType string, src entitySource) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "SELECT '%s' AS entity_type, src.id AS entity_id, src.id AS chunk_id, ", entityType)
 	fmt.Fprintf(&b, "%s AS title, %s AS slug, ", src.titleExpr, src.slugExpr)
-	b.WriteString("src.project_id::text AS project_id, COALESCE(proj.name, '') AS project_name, ")
+	b.WriteString(searchProjectProjection)
 	fmt.Fprintf(&b, "'' AS chunk_content, %s AS source_body, ", src.bodyExpr)
-	b.WriteString("src.created_at AS created_at, src.updated_at AS updated_at, ")
+	b.WriteString(searchTimestampProjection)
 	fmt.Fprintf(&b, "1 - word_similarity($1, %s) AS distance ", title)
 	fmt.Fprintf(&b, "FROM %s src ", src.table)
-	b.WriteString("LEFT JOIN projects proj ON src.project_id = proj.id ")
-	b.WriteString("WHERE src.team_id = $2")
+	b.WriteString(projectsLeftJoin)
+	b.WriteString(whereSrcTeamFilter)
 	if src.statusFilter != "" {
 		b.WriteString(" AND " + src.statusFilter)
 	}
-	b.WriteString(" AND ($3::uuid IS NULL OR src.project_id = $3::uuid)")
+	b.WriteString(andSrcProjectFilterArg3)
 	b.WriteString(" AND " + title + " %> $1")
 	return b.String()
 }
@@ -490,11 +515,11 @@ func buildKeywordTrgmCountBranch(src entitySource) string {
 	var b strings.Builder
 	b.WriteString("SELECT 1 ")
 	fmt.Fprintf(&b, "FROM %s src ", src.table)
-	b.WriteString("WHERE src.team_id = $2")
+	b.WriteString(whereSrcTeamFilter)
 	if src.statusFilter != "" {
 		b.WriteString(" AND " + src.statusFilter)
 	}
-	b.WriteString(" AND ($3::uuid IS NULL OR src.project_id = $3::uuid)")
+	b.WriteString(andSrcProjectFilterArg3)
 	b.WriteString(" AND " + title + " %> $1")
 	return b.String()
 }
@@ -604,8 +629,7 @@ func queryKeywordTrgmPage(
 	// when several titles share a word_similarity score (mirrors the FTS passes).
 	// The union comes from the validated entity-type allowlist; values are bound.
 	pageSQL := fmt.Sprintf( // #nosec G201
-		"SELECT entity_type, entity_id, chunk_id, title, slug, project_id, project_name, "+
-			"chunk_content, source_body, created_at, updated_at, distance "+
+		searchResultProjection+
 			"FROM (%s) AS results ORDER BY distance ASC, entity_id ASC LIMIT $4 OFFSET $5",
 		union,
 	)
@@ -642,8 +666,7 @@ func (r *SearchRepository) queryKeywordPage(
 	// mode), and an unstable sort under LIMIT/OFFSET could repeat or skip rows across
 	// pages. Tie-break by entity_id so pagination is stable.
 	sqlQuery := fmt.Sprintf(
-		"SELECT entity_type, entity_id, chunk_id, title, slug, project_id, project_name, "+
-			"chunk_content, source_body, created_at, updated_at, distance "+
+		searchResultProjection+
 			"FROM (%s) AS results ORDER BY distance ASC, entity_id ASC LIMIT $4 OFFSET $5",
 		union,
 	)

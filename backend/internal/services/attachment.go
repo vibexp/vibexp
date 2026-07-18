@@ -25,6 +25,13 @@ const (
 	contentSniffLen              = 512
 )
 
+// MIME types that recur across the attachment allowlist below.
+const (
+	mimeImageJPEG      = "image/jpeg"
+	mimeTextPlain      = "text/plain"
+	mimeApplicationZip = "application/zip"
+)
+
 // Attachment service errors. Handlers map these to specific HTTP statuses.
 var (
 	// ErrAttachmentStorageNotConfigured is returned when no object store is
@@ -57,24 +64,24 @@ type allowedAttachmentType struct {
 // attachments regardless.
 var allowedAttachmentTypes = map[string]allowedAttachmentType{
 	".png":  {contentType: "image/png", sniff: []string{"image/png"}},
-	".jpg":  {contentType: "image/jpeg", sniff: []string{"image/jpeg"}},
-	".jpeg": {contentType: "image/jpeg", sniff: []string{"image/jpeg"}},
+	".jpg":  {contentType: mimeImageJPEG, sniff: []string{mimeImageJPEG}},
+	".jpeg": {contentType: mimeImageJPEG, sniff: []string{mimeImageJPEG}},
 	".gif":  {contentType: "image/gif", sniff: []string{"image/gif"}},
 	".webp": {contentType: "image/webp", sniff: []string{"image/webp"}},
 	".pdf":  {contentType: "application/pdf", sniff: []string{"application/pdf"}},
-	".txt":  {contentType: "text/plain", sniff: []string{"text/plain"}},
-	".md":   {contentType: "text/markdown", sniff: []string{"text/plain"}},
-	".csv":  {contentType: "text/csv", sniff: []string{"text/plain", "text/csv"}},
-	".json": {contentType: "application/json", sniff: []string{"text/plain"}},
+	".txt":  {contentType: mimeTextPlain, sniff: []string{mimeTextPlain}},
+	".md":   {contentType: "text/markdown", sniff: []string{mimeTextPlain}},
+	".csv":  {contentType: "text/csv", sniff: []string{mimeTextPlain, "text/csv"}},
+	".json": {contentType: "application/json", sniff: []string{mimeTextPlain}},
 	".docx": {
 		contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-		sniff:       []string{"application/zip"},
+		sniff:       []string{mimeApplicationZip},
 	},
 	".xlsx": {
 		contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-		sniff:       []string{"application/zip"},
+		sniff:       []string{mimeApplicationZip},
 	},
-	".zip": {contentType: "application/zip", sniff: []string{"application/zip"}},
+	".zip": {contentType: mimeApplicationZip, sniff: []string{mimeApplicationZip}},
 }
 
 // UploadAttachmentParams carries everything needed to store one file for an

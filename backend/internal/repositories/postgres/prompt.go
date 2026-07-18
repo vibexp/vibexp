@@ -14,6 +14,14 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
+// promptListSelectColumns is the 13-column projection shared by both variants
+// of the prompt list SELECT clause; each variant appends its own is_shared
+// expression (see buildListSelectClause).
+var promptListSelectColumns = []string{
+	"p.id", "p.name", "p.slug", "p.description", "p.body", "p.user_id", "p.team_id",
+	"p.project_id", "p.status", "p.mcp_expose", "p.labels", "p.created_at", "p.updated_at",
+}
+
 // PromptRepository implements the repositories.PromptRepository interface for PostgreSQL
 type PromptRepository struct {
 	db *database.DB
@@ -267,19 +275,12 @@ func buildListWhereClause(userID string, filters repositories.PromptFilters) squ
 // EXISTS subqueries eliminate team_members duplicates and is_shared is computed
 // via a correlated EXISTS subquery.
 func buildListSelectClause(filters repositories.PromptFilters) []string {
+	isShared := "EXISTS(SELECT 1 FROM prompt_shares ps2 WHERE ps2.prompt_id = p.id AND ps2.is_active = true " +
+		"AND (ps2.expires_at IS NULL OR ps2.expires_at > NOW())) as is_shared"
 	if filters.IsShared != nil {
-		return []string{
-			"p.id", "p.name", "p.slug", "p.description", "p.body", "p.user_id", "p.team_id",
-			"p.project_id", "p.status", "p.mcp_expose", "p.labels", "p.created_at", "p.updated_at",
-			"CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared",
-		}
+		isShared = "CASE WHEN ps.id IS NOT NULL THEN true ELSE false END as is_shared"
 	}
-	return []string{
-		"p.id", "p.name", "p.slug", "p.description", "p.body", "p.user_id", "p.team_id", "p.project_id",
-		"p.status", "p.mcp_expose", "p.labels", "p.created_at", "p.updated_at",
-		"EXISTS(SELECT 1 FROM prompt_shares ps2 WHERE ps2.prompt_id = p.id AND ps2.is_active = true " +
-			"AND (ps2.expires_at IS NULL OR ps2.expires_at > NOW())) as is_shared",
-	}
+	return append(append([]string{}, promptListSelectColumns...), isShared)
 }
 
 // buildListOrderByClause builds the ORDER BY clause for prompt list query using allowlisted fields.

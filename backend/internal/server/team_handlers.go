@@ -16,12 +16,21 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
+const (
+	// serverLogServiceName is the service log-field value for the team handlers.
+
+	// errNotFoundFragment is the service-error substring that maps to a
+	// 404 with teamMsgNotFound.
+	teamMsgNotFound       = "Team not found"
+	teamMsgForbiddenWrite = "Forbidden team write attempt"
+)
+
 //nolint:funlen // Validation and limit checking adds necessary complexity
 func (s *Server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleCreateTeam",
 		"user_id", userID,
 	).Info("Create team request received")
@@ -41,7 +50,7 @@ func (s *Server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 	canCreate, err := s.container.ResourceUsageService().CheckResourceLimit(r.Context(), userID, events.ResourceTypeTeam)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateTeam",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -51,7 +60,7 @@ func (s *Server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 	if !canCreate {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateTeam",
 			"user_id", userID,
 		).Warn("Team creation limit exceeded")
@@ -66,7 +75,7 @@ func (s *Server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 	team, err := s.container.TeamService().CreateTeam(r.Context(), userID, &req)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateTeam",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -93,7 +102,7 @@ func (s *Server) bootstrapDefaultProject(userID string, team *models.Team) {
 	projectService := s.container.ProjectService()
 	if projectService == nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateTeam",
 			"user_id", userID,
 			"team_id", team.ID,
@@ -103,7 +112,7 @@ func (s *Server) bootstrapDefaultProject(userID string, team *models.Team) {
 
 	if _, err := projectService.CreateProject(userID, team.ID, models.DefaultProjectRequest()); err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleCreateTeam",
 			"user_id", userID,
 			"team_id", team.ID,
@@ -117,7 +126,7 @@ func (s *Server) handleGetTeam(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetTeam",
 		"user_id", userID,
 		"team_id", teamID,
@@ -126,15 +135,15 @@ func (s *Server) handleGetTeam(w http.ResponseWriter, r *http.Request) {
 	team, err := s.container.TeamService().GetTeam(r.Context(), userID, teamID)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetTeam",
 			"user_id", userID,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to get team")
 
-		if strings.Contains(err.Error(), "not found") {
-			writeErrorResponse(w, nil, "not_found", "Team not found", http.StatusNotFound)
+		if strings.Contains(err.Error(), errNotFoundFragment) {
+			writeErrorResponse(w, nil, "not_found", teamMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -149,7 +158,7 @@ func (s *Server) handleListTeams(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleListTeams",
 		"user_id", userID,
 	).Info("List teams request received")
@@ -172,7 +181,7 @@ func (s *Server) handleListTeams(w http.ResponseWriter, r *http.Request) {
 	response, err := s.container.TeamService().ListTeams(r.Context(), userID, page, pageSize)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleListTeams",
 			"user_id", userID,
 			"error", fmt.Sprintf("%+v", err),
@@ -189,7 +198,7 @@ func (s *Server) handleUpdateTeam(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleUpdateTeam",
 		"user_id", userID,
 		"team_id", teamID,
@@ -210,11 +219,11 @@ func (s *Server) handleUpdateTeam(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if stderrors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", serverLogServiceName,
 				"handler", "handleUpdateTeam",
 				"user_id", userID,
 				"team_id", teamID,
-			).Warn("Forbidden team write attempt")
+			).Warn(teamMsgForbiddenWrite)
 			writeErrorResponse(
 				w, r, "forbidden",
 				"Only team owners and admins can update a team", http.StatusForbidden,
@@ -222,13 +231,13 @@ func (s *Server) handleUpdateTeam(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if stderrors.Is(err, services.ErrTeamNotFound) || strings.Contains(err.Error(), "not found") {
-			writeErrorResponse(w, nil, "not_found", "Team not found", http.StatusNotFound)
+		if stderrors.Is(err, services.ErrTeamNotFound) || strings.Contains(err.Error(), errNotFoundFragment) {
+			writeErrorResponse(w, nil, "not_found", teamMsgNotFound, http.StatusNotFound)
 			return
 		}
 
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleUpdateTeam",
 			"user_id", userID,
 			"team_id", teamID,
@@ -247,7 +256,7 @@ func (s *Server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleDeleteTeam",
 		"user_id", userID,
 		"team_id", teamID,
@@ -258,17 +267,17 @@ func (s *Server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 		// Handle forbidden before logging at ERROR to keep benign client errors at WARN
 		if stderrors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", serverLogServiceName,
 				"handler", "handleDeleteTeam",
 				"user_id", userID,
 				"team_id", teamID,
-			).Warn("Forbidden team write attempt")
+			).Warn(teamMsgForbiddenWrite)
 			writeErrorResponse(w, r, "forbidden", "Only the team owner can delete a team", http.StatusForbidden)
 			return
 		}
 
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleDeleteTeam",
 			"user_id", userID,
 			"team_id", teamID,
@@ -319,8 +328,8 @@ func (s *Server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Handle generic error strings
-		if stderrors.Is(err, services.ErrTeamNotFound) || strings.Contains(err.Error(), "not found") {
-			writeErrorResponse(w, nil, "not_found", "Team not found", http.StatusNotFound)
+		if stderrors.Is(err, services.ErrTeamNotFound) || strings.Contains(err.Error(), errNotFoundFragment) {
+			writeErrorResponse(w, nil, "not_found", teamMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -401,7 +410,7 @@ func (s *Server) validateUpdateTeamRequest(w http.ResponseWriter, req *models.Up
 // logTeamError logs a team-related error
 func (s *Server) logTeamError(handler, userID, teamID string, err error, msg string) {
 	fields := []any{
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", handler,
 		"user_id", userID,
 		"error", fmt.Sprintf("%+v", err),
@@ -417,7 +426,7 @@ func (s *Server) handleGetTeamMembers(w http.ResponseWriter, r *http.Request) {
 	teamID := chi.URLParam(r, "id")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleGetTeamMembers",
 		"user_id", userID,
 		"team_id", teamID,
@@ -441,15 +450,15 @@ func (s *Server) handleGetTeamMembers(w http.ResponseWriter, r *http.Request) {
 	response, err := s.container.TeamService().GetTeamMembers(r.Context(), userID, teamID, page, pageSize)
 	if err != nil {
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleGetTeamMembers",
 			"user_id", userID,
 			"team_id", teamID,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to get team members")
 
-		if strings.Contains(err.Error(), "not found") {
-			writeErrorResponse(w, nil, "not_found", "Team not found", http.StatusNotFound)
+		if strings.Contains(err.Error(), errNotFoundFragment) {
+			writeErrorResponse(w, nil, "not_found", teamMsgNotFound, http.StatusNotFound)
 			return
 		}
 
@@ -466,7 +475,7 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 	memberUserID := chi.URLParam(r, "userId")
 
 	s.logger.With(
-		"service", "vibexp-api",
+		"service", serverLogServiceName,
 		"handler", "handleRemoveTeamMember",
 		"user_id", userID,
 		"team_id", teamID,
@@ -477,12 +486,12 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		if stderrors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
-				"service", "vibexp-api",
+				"service", serverLogServiceName,
 				"handler", "handleRemoveTeamMember",
 				"user_id", userID,
 				"team_id", teamID,
 				"member_id", memberUserID,
-			).Warn("Forbidden team write attempt")
+			).Warn(teamMsgForbiddenWrite)
 			writeErrorResponse(
 				w, r, "forbidden",
 				"Only team owners and admins can remove members", http.StatusForbidden,
@@ -491,7 +500,7 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 		}
 
 		s.logger.With(
-			"service", "vibexp-api",
+			"service", serverLogServiceName,
 			"handler", "handleRemoveTeamMember",
 			"user_id", userID,
 			"team_id", teamID,
@@ -499,7 +508,7 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to remove team member")
 
-		if stderrors.Is(err, services.ErrTeamNotFound) || strings.Contains(err.Error(), "not found") {
+		if stderrors.Is(err, services.ErrTeamNotFound) || strings.Contains(err.Error(), errNotFoundFragment) {
 			writeErrorResponse(w, nil, "not_found", "Team or member not found", http.StatusNotFound)
 			return
 		}

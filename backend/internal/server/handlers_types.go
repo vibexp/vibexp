@@ -15,6 +15,12 @@ import (
 	"github.com/vibexp/vibexp/internal/services"
 )
 
+// Problem details for failed type (category) operations.
+const (
+	typesMsgListFailed   = "Failed to list types"
+	typesMsgCreateFailed = "Failed to create type"
+)
+
 // typesStrictServer implements typesgen.StrictServerInterface (#1846): the
 // team-customizable type (category) CRUD operations are served through
 // oapi-codegen strict-server bindings generated from openapi.yaml, so a
@@ -50,8 +56,8 @@ func (t *typesStrictServer) ListTypes(
 			"team_id", teamID,
 			"resource_type", resourceType,
 			"error", err.Error(),
-		).Error("Failed to list types")
-		return nil, apierrors.NewInternalError("Failed to list types")
+		).Error(typesMsgListFailed)
+		return nil, apierrors.NewInternalError(typesMsgListFailed)
 	}
 
 	genTypes, convErr := toGenTypes(items)
@@ -61,7 +67,7 @@ func (t *typesStrictServer) ListTypes(
 			"team_id", teamID,
 			"error", convErr.Error(),
 		).Error("Failed to convert types to spec types")
-		return nil, apierrors.NewInternalError("Failed to list types")
+		return nil, apierrors.NewInternalError(typesMsgListFailed)
 	}
 
 	return typesgen.ListTypes200JSONResponse(typesgen.TypeListResponse{
@@ -100,8 +106,8 @@ func (t *typesStrictServer) CreateType(
 			"handler", "CreateType",
 			"team_id", teamID,
 			"error", err.Error(),
-		).Error("Failed to create type")
-		return nil, apierrors.NewInternalError("Failed to create type")
+		).Error(typesMsgCreateFailed)
+		return nil, apierrors.NewInternalError(typesMsgCreateFailed)
 	}
 
 	genType, convErr := toGenType(*created)
@@ -111,7 +117,7 @@ func (t *typesStrictServer) CreateType(
 			"team_id", teamID,
 			"error", convErr.Error(),
 		).Error("Failed to convert created type to spec type")
-		return nil, apierrors.NewInternalError("Failed to create type")
+		return nil, apierrors.NewInternalError(typesMsgCreateFailed)
 	}
 
 	return typesgen.CreateType201JSONResponse(genType), nil

@@ -13,6 +13,11 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
+// countClaudeCodeSessionsQuery counts a user's distinct Claude Code sessions;
+// shared by GetSessions, GetOverviewStats, and CountUniqueSessions.
+const countClaudeCodeSessionsQuery = "SELECT COUNT(DISTINCT session_id) " +
+	"FROM claude_code_hooks_payload WHERE user_id = $1"
+
 // claudeCodeHooksRepository implements the ClaudeCodeHooksRepository interface using PostgreSQL
 type claudeCodeHooksRepository struct {
 	db *database.DB
@@ -259,9 +264,8 @@ func (r *claudeCodeHooksRepository) GetSessions(ctx context.Context, filters rep
 	}
 
 	// Count total unique sessions for the user
-	countQuery := "SELECT COUNT(DISTINCT session_id) FROM claude_code_hooks_payload WHERE user_id = $1"
 	var total int
-	err := r.db.QueryRowContext(ctx, countQuery, *filters.UserID).Scan(&total)
+	err := r.db.QueryRowContext(ctx, countClaudeCodeSessionsQuery, *filters.UserID).Scan(&total)
 	if err != nil {
 		slog.Error("Failed to count Claude Code sessions", "error", err)
 		return nil, fmt.Errorf("failed to count Claude Code sessions: %w", err)
@@ -418,8 +422,7 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 	var stats models.OverviewStats
 
 	// Get total sessions for the user
-	totalQuery := "SELECT COUNT(DISTINCT session_id) FROM claude_code_hooks_payload WHERE user_id = $1"
-	err := r.db.QueryRowContext(ctx, totalQuery, userID).Scan(&stats.TotalSessions)
+	err := r.db.QueryRowContext(ctx, countClaudeCodeSessionsQuery, userID).Scan(&stats.TotalSessions)
 	if err != nil {
 		slog.Error("Failed to count total sessions", "error", err)
 		return nil, fmt.Errorf("failed to count total sessions: %w", err)
@@ -739,10 +742,8 @@ func (r *claudeCodeHooksRepository) CountUniqueSessions(ctx context.Context, use
 		return 0, fmt.Errorf("database connection is nil")
 	}
 
-	query := "SELECT COUNT(DISTINCT session_id) FROM claude_code_hooks_payload WHERE user_id = $1"
-
 	var count int
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	err := r.db.QueryRowContext(ctx, countClaudeCodeSessionsQuery, userID).Scan(&count)
 	if err != nil {
 		slog.Error("Failed to count unique Claude Code sessions", "error", err)
 		return 0, fmt.Errorf("failed to count unique sessions: %w", err)
