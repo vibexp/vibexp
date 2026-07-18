@@ -162,11 +162,11 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	workerPool := providers.ProvideResourceAccessWorkerPool()
 	resourceAccessService := providers.ProvideResourceAccessService(resourceAccessRepository, workerPool, logger, cfg)
 	agentServiceInterface := providers.ProvideAgentService(agentRepository, agentExecutionRepository, encryptionServiceInterface, teamServiceInterface, authorizationServiceInterface, cfg, logger)
-	agentCardFetcherInterface := providers.ProvideAgentCardFetcher(cfg)
+	cardFetcher := providers.ProvideAgentCardFetcher(cfg)
 	agentAuthenticator := providers.ProvideAgentAuthenticator(encryptionServiceInterface)
 	a2AHTTPClientInterface := providers.ProvideA2AHTTPClient(agentAuthenticator, cfg)
-	a2AStreamProcessorInterface := providers.ProvideA2AStreamProcessor(agentExecutionEventRepository, agentExecutionRepository, logger)
-	agentInvocationServiceInterface := providers.ProvideAgentInvocationService(agentRepository, agentExecutionRepository, agentExecutionEventRepository, a2AHTTPClientInterface, a2AStreamProcessorInterface, logger)
+	streamProcessor := providers.ProvideA2AStreamProcessor(agentExecutionEventRepository, agentExecutionRepository, logger)
+	agentInvocationServiceInterface := providers.ProvideAgentInvocationService(agentRepository, agentExecutionRepository, agentExecutionEventRepository, a2AHTTPClientInterface, streamProcessor, logger)
 	memoryServiceInterface := providers.ProvideMemoryService(memoryRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger, contentVersionServiceInterface, commentRepository)
 	embeddingServiceDeps := providers.EmbeddingServiceDeps{
 		Repo:              embeddingRepository,
@@ -181,14 +181,14 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	embeddingServiceInterface := providers.ProvideEmbeddingService(embeddingServiceDeps)
 	searchRepository := providers.ProvideSearchRepository(db)
 	queryEmbedder := providers.ProvideQueryEmbedder(embeddingProviderServiceInterface, logger)
-	searchServiceInterface := providers.ProvideSearchService(searchRepository, queryEmbedder, logger, cfg)
+	searcher := providers.ProvideSearchService(searchRepository, queryEmbedder, logger, cfg)
 	environmentService := providers.ProvideEnvironmentService(cfg)
-	backofficeServiceInterface := providers.ProvideBackofficeService(backofficeRepository)
+	usageAndGrowthGetter := providers.ProvideBackofficeService(backofficeRepository)
 	adminRepository := providers.ProvideAdminRepository(db)
 	adminServiceInterface := providers.ProvideAdminService(adminRepository)
 	embeddingBackfillRepository := providers.ProvideEmbeddingBackfillRepository(db)
-	embeddingBackfillServiceInterface := providers.ProvideEmbeddingBackfillService(embeddingBackfillRepository, eventManager, promptServiceInterface, logger)
-	embeddingStatusServiceInterface := providers.ProvideEmbeddingStatusService(embeddingProviderRepository, embeddingBackfillRepository, logger)
+	embeddingBackfiller := providers.ProvideEmbeddingBackfillService(embeddingBackfillRepository, eventManager, promptServiceInterface, logger)
+	embeddingCoverageGetter := providers.ProvideEmbeddingStatusService(embeddingProviderRepository, embeddingBackfillRepository, logger)
 	userPreferencesServiceInterface := providers.ProvideUserPreferencesService(userPreferencesRepository)
 	teamInvitationServiceDeps := services.TeamInvitationServiceDeps{
 		InvitationRepo: teamInvitationRepository,
@@ -241,7 +241,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		Logger:     logger,
 	}
 	digestRunner := providers.ProvideDigestRunner(digestRunnerDeps)
-	smtpClient := providers.ProvideSMTPClient(cfg)
+	emailSender := providers.ProvideEmailSender(cfg)
 	embeddingProcessor := providers.ProvideEmbeddingProcessor(embeddingProviderServiceInterface, embeddingServiceInterface, cfg, logger)
 	eventListenerDeps := providers.EventListenerDeps{
 		EventManager:       eventManager,
@@ -312,18 +312,18 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		activityService:          activityService,
 		resourceAccessService:    resourceAccessService,
 		agentService:             agentServiceInterface,
-		agentCardFetcher:         agentCardFetcherInterface,
+		agentCardFetcher:         cardFetcher,
 		agentInvocationService:   agentInvocationServiceInterface,
 		memoryService:            memoryServiceInterface,
 		embeddingService:         embeddingServiceInterface,
-		searchService:            searchServiceInterface,
+		searchService:            searcher,
 		environmentService:       environmentService,
 		resourceUsageService:     resourceUsageServiceInterface,
 		featureFlagService:       featureFlagService,
-		backofficeService:        backofficeServiceInterface,
+		backofficeService:        usageAndGrowthGetter,
 		adminService:             adminServiceInterface,
-		embeddingBackfillService: embeddingBackfillServiceInterface,
-		embeddingStatusService:   embeddingStatusServiceInterface,
+		embeddingBackfillService: embeddingBackfiller,
+		embeddingStatusService:   embeddingCoverageGetter,
 		userPreferencesService:   userPreferencesServiceInterface,
 		authorizationService:     authorizationServiceInterface,
 		teamService:              teamServiceInterface,
@@ -338,7 +338,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		notificationService:      notificationService,
 		digestRunner:             digestRunner,
 		identityRegistry:         registry,
-		smtpClient:               smtpClient,
+		smtpClient:               emailSender,
 		githubAppClient:          gitHubAppClient,
 		eventSystemDeps:          eventSystemDeps,
 		resourceAccessWorkerPool: workerPool,
@@ -349,4 +349,4 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 // wire.go:
 
 // ProviderSet is the Wire provider set for the entire application
-var ProviderSet = wire.NewSet(providers.ProvideMetrics, providers.ProvideIdentityProviderRegistry, providers.ProvideEmailProvider, providers.ProvideSMTPClient, providers.ProvideGitHubAppClient, providers.ProvideEventManager, wire.Bind(new(events.EventPublisher), new(*events.EventManager)), wire.Struct(new(providers.EventListenerDeps), "*"), providers.ProvideEventSystemDeps, providers.ProvideCache, providers.ProvideUserRepository, providers.ProvideAPIKeyRepository, providers.ProvidePromptRepository, providers.ProvidePromptReferenceRepository, providers.ProvidePromptGalleryRepository, providers.ProvidePromptShareRepository, providers.ProvideArtifactRepository, providers.ProvideAttachmentRepository, providers.ProvideCommentRepository, providers.ProvideTypeRepository, providers.ProvideContentVersionRepository, providers.ProvideBlueprintRepository, providers.ProvideEmbeddingProviderRepository, providers.ProvideModelProviderRepository, providers.ProvideActivityRepository, providers.ProvideResourceAccessRepository, providers.ProvideClaudeCodeHooksRepository, providers.ProvideCursorIDEHooksRepository, providers.ProvideAgentRepository, providers.ProvideAgentExecutionRepository, providers.ProvideAgentExecutionEventRepository, providers.ProvideMemoryRepository, providers.ProvideEmbeddingRepository, providers.ProvideEmbeddingBackfillRepository, providers.ProvideSearchRepository, providers.ProvideResourceUsageRepository, providers.ProvideBackofficeRepository, providers.ProvideAdminRepository, providers.ProvideUserPreferencesRepository, providers.ProvideTeamRepository, providers.ProvideTeamMemberRepository, providers.ProvideTeamInvitationRepository, providers.ProvideTeamSubscriptionRepository, providers.ProvideProjectRepository, providers.ProvideWebhookEventRepository, providers.ProvideGitHubInstallationRepository, providers.ProvideFeedRepository, providers.ProvideFeedItemRepository, providers.ProvideFeedItemReplyRepository, providers.ProvideNotificationRepository, providers.ProvideNotificationDeliveryRepository, providers.ProvideNotificationDigestQueueRepository, providers.ProvideDeviceTokenRepository, wire.Struct(new(services.PromptServiceDeps), "*"), wire.Struct(new(services.ArtifactServiceDeps), "*"), wire.Struct(new(services.BlueprintServiceDeps), "*"), wire.Struct(new(services.ResourceUsageServiceDeps), "*"), wire.Struct(new(services.TeamInvitationServiceDeps), "*"), wire.Struct(new(providers.ActivityServiceDeps), "*"), wire.Struct(new(providers.EmbeddingServiceDeps), "*"), wire.Struct(new(providers.NotificationServiceDeps), "*"), wire.Struct(new(providers.DigestRunnerDeps), "*"), providers.ProvideFeatureFlagService, providers.ProvideAuthService, providers.ProvideAPIKeyService, providers.ProvidePromptService, providers.ProvidePromptGalleryService, providers.ProvidePromptShareService, providers.ProvideResourceUsageService, providers.ProvideContentVersionService, providers.ProvideArtifactService, providers.ProvideObjectStore, providers.ProvideAttachmentService, providers.ProvideCommentService, providers.ProvideTypeService, providers.ProvideBlueprintService, providers.ProvideEmbeddingProviderService, providers.ProvideModelProviderService, providers.ProvideEmailService, providers.ProvideActivityService, providers.ProvideResourceAccessWorkerPool, providers.ProvideResourceAccessService, providers.ProvideEncryptionService, providers.ProvideAgentService, providers.ProvideAgentCardFetcher, providers.ProvideAgentAuthenticator, providers.ProvideA2AHTTPClient, providers.ProvideA2AStreamProcessor, providers.ProvideAgentInvocationService, providers.ProvideMemoryService, providers.ProvideEmbeddingService, providers.ProvideQueryEmbedder, providers.ProvideSearchService, providers.ProvideEnvironmentService, providers.ProvideEmbeddingProcessor, providers.ProvideBackofficeService, providers.ProvideAdminService, providers.ProvideEmbeddingBackfillService, providers.ProvideEmbeddingStatusService, providers.ProvideUserPreferencesService, providers.ProvideAuthorizationService, providers.ProvideTeamService, providers.ProvideTeamInvitationService, providers.ProvideProjectService, providers.ProvideProjectMigrationService, providers.ProvideGitHubAppService, providers.ProvideFeedService, providers.ProvideFeedItemService, providers.ProvideFeedItemReplyService, providers.ProvideFirebaseMessagingClient, providers.ProvideWebPushChannel, providers.ProvideNotificationService, wire.Bind(new(notifications.NotificationServiceInterface), new(*notifications.NotificationService)), providers.ProvideDigestRunner)
+var ProviderSet = wire.NewSet(providers.ProvideMetrics, providers.ProvideIdentityProviderRegistry, providers.ProvideEmailProvider, providers.ProvideEmailSender, providers.ProvideGitHubAppClient, providers.ProvideEventManager, wire.Bind(new(events.EventPublisher), new(*events.EventManager)), wire.Struct(new(providers.EventListenerDeps), "*"), providers.ProvideEventSystemDeps, providers.ProvideCache, providers.ProvideUserRepository, providers.ProvideAPIKeyRepository, providers.ProvidePromptRepository, providers.ProvidePromptReferenceRepository, providers.ProvidePromptGalleryRepository, providers.ProvidePromptShareRepository, providers.ProvideArtifactRepository, providers.ProvideAttachmentRepository, providers.ProvideCommentRepository, providers.ProvideTypeRepository, providers.ProvideContentVersionRepository, providers.ProvideBlueprintRepository, providers.ProvideEmbeddingProviderRepository, providers.ProvideModelProviderRepository, providers.ProvideActivityRepository, providers.ProvideResourceAccessRepository, providers.ProvideClaudeCodeHooksRepository, providers.ProvideCursorIDEHooksRepository, providers.ProvideAgentRepository, providers.ProvideAgentExecutionRepository, providers.ProvideAgentExecutionEventRepository, providers.ProvideMemoryRepository, providers.ProvideEmbeddingRepository, providers.ProvideEmbeddingBackfillRepository, providers.ProvideSearchRepository, providers.ProvideResourceUsageRepository, providers.ProvideBackofficeRepository, providers.ProvideAdminRepository, providers.ProvideUserPreferencesRepository, providers.ProvideTeamRepository, providers.ProvideTeamMemberRepository, providers.ProvideTeamInvitationRepository, providers.ProvideTeamSubscriptionRepository, providers.ProvideProjectRepository, providers.ProvideWebhookEventRepository, providers.ProvideGitHubInstallationRepository, providers.ProvideFeedRepository, providers.ProvideFeedItemRepository, providers.ProvideFeedItemReplyRepository, providers.ProvideNotificationRepository, providers.ProvideNotificationDeliveryRepository, providers.ProvideNotificationDigestQueueRepository, providers.ProvideDeviceTokenRepository, wire.Struct(new(services.PromptServiceDeps), "*"), wire.Struct(new(services.ArtifactServiceDeps), "*"), wire.Struct(new(services.BlueprintServiceDeps), "*"), wire.Struct(new(services.ResourceUsageServiceDeps), "*"), wire.Struct(new(services.TeamInvitationServiceDeps), "*"), wire.Struct(new(providers.ActivityServiceDeps), "*"), wire.Struct(new(providers.EmbeddingServiceDeps), "*"), wire.Struct(new(providers.NotificationServiceDeps), "*"), wire.Struct(new(providers.DigestRunnerDeps), "*"), providers.ProvideFeatureFlagService, providers.ProvideAuthService, providers.ProvideAPIKeyService, providers.ProvidePromptService, providers.ProvidePromptGalleryService, providers.ProvidePromptShareService, providers.ProvideResourceUsageService, providers.ProvideContentVersionService, providers.ProvideArtifactService, providers.ProvideObjectStore, providers.ProvideAttachmentService, providers.ProvideCommentService, providers.ProvideTypeService, providers.ProvideBlueprintService, providers.ProvideEmbeddingProviderService, providers.ProvideModelProviderService, providers.ProvideEmailService, providers.ProvideActivityService, providers.ProvideResourceAccessWorkerPool, providers.ProvideResourceAccessService, providers.ProvideEncryptionService, providers.ProvideAgentService, providers.ProvideAgentCardFetcher, providers.ProvideAgentAuthenticator, providers.ProvideA2AHTTPClient, providers.ProvideA2AStreamProcessor, providers.ProvideAgentInvocationService, providers.ProvideMemoryService, providers.ProvideEmbeddingService, providers.ProvideQueryEmbedder, providers.ProvideSearchService, providers.ProvideEnvironmentService, providers.ProvideEmbeddingProcessor, providers.ProvideBackofficeService, providers.ProvideAdminService, providers.ProvideEmbeddingBackfillService, providers.ProvideEmbeddingStatusService, providers.ProvideUserPreferencesService, providers.ProvideAuthorizationService, providers.ProvideTeamService, providers.ProvideTeamInvitationService, providers.ProvideProjectService, providers.ProvideProjectMigrationService, providers.ProvideGitHubAppService, providers.ProvideFeedService, providers.ProvideFeedItemService, providers.ProvideFeedItemReplyService, providers.ProvideFirebaseMessagingClient, providers.ProvideWebPushChannel, providers.ProvideNotificationService, wire.Bind(new(notifications.NotificationServiceInterface), new(*notifications.NotificationService)), providers.ProvideDigestRunner)

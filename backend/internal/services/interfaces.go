@@ -305,8 +305,8 @@ type PromptGalleryServiceInterface interface {
 	TrackPromptUsage(userID string, req *models.PromptGalleryUsageRequest) error
 }
 
-// BackofficeServiceInterface defines the interface for back office operations
-type BackofficeServiceInterface interface {
+// UsageAndGrowthGetter defines the interface for back office operations
+type UsageAndGrowthGetter interface {
 	GetUsageAndGrowth(ctx context.Context, fromDate, toDate *time.Time) (*models.UsageAndGrowthResponse, error)
 }
 
@@ -529,8 +529,8 @@ type ProjectMigrationServiceInterface interface {
 	) (*projectmigration.MigrationResult, error)
 }
 
-// SearchServiceInterface defines the interface for team-scoped semantic search operations.
-type SearchServiceInterface interface {
+// Searcher defines the interface for team-scoped semantic search operations.
+type Searcher interface {
 	// Search embeds the query, runs a semantic search scoped to teamID over the
 	// requested resource types (or all four when empty), and returns a paginated,
 	// relevance-ranked response.

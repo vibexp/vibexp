@@ -8,8 +8,8 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
-// RecipientResolverInterface resolves notification recipients from domain events
-type RecipientResolverInterface interface {
+// EventRecipientResolver resolves notification recipients from domain events
+type EventRecipientResolver interface {
 	// ResolveForEvent returns (recipientUserIDs, teamID, error).
 	// The author of the event is excluded from the recipient list.
 	ResolveForEvent(ctx context.Context, event events.Event) ([]string, string, error)

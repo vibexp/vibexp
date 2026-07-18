@@ -33,7 +33,10 @@ func NewWorkerPool(workerCount int) *WorkerPool {
 	pool, err := ants.NewPool(
 		workerCount,
 		ants.WithNonblocking(true),
-		ants.WithPanicHandler(func(any) {}),
+		ants.WithPanicHandler(func(any) {
+			// Intentionally empty: swallow task panics so one panicking task
+			// cannot kill a shared worker or crash the process.
+		}),
 	)
 	if err != nil {
 		panic(err)
@@ -46,7 +49,9 @@ func NewWorkerPool(workerCount int) *WorkerPool {
 }
 
 // Start is retained for API compatibility; the ants pool runs immediately.
-func (p *WorkerPool) Start() {}
+func (p *WorkerPool) Start() {
+	// Intentionally empty: the ants pool starts working at construction time.
+}
 
 // Stop gracefully stops the pool, waiting for in-flight tasks to finish. It is
 // idempotent: subsequent calls are no-ops, so it is safe to invoke from a

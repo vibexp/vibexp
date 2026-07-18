@@ -16,7 +16,7 @@ package openapispec
 
 import (
 	"crypto/sha256"
-	_ "embed"
+	_ "embed" // enables the go:embed directives for the bundled spec files
 	"encoding/hex"
 	"fmt"
 )

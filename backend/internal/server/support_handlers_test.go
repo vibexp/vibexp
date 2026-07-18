@@ -115,21 +115,21 @@ func (m *MockContainerForSupport) ActivityService() activities.ActivityService {
 func (m *MockContainerForSupport) ResourceAccessService() resourceaccess.ResourceAccessService {
 	return nil
 }
-func (m *MockContainerForSupport) AgentService() services.AgentServiceInterface         { return nil }
-func (m *MockContainerForSupport) AgentCardFetcher() services.AgentCardFetcherInterface { return nil }
+func (m *MockContainerForSupport) AgentService() services.AgentServiceInterface { return nil }
+func (m *MockContainerForSupport) AgentCardFetcher() services.CardFetcher       { return nil }
 func (m *MockContainerForSupport) AgentInvocationService() services.AgentInvocationServiceInterface {
 	return nil
 }
 func (m *MockContainerForSupport) MemoryService() services.MemoryServiceInterface       { return nil }
 func (m *MockContainerForSupport) EmbeddingService() services.EmbeddingServiceInterface { return nil }
-func (m *MockContainerForSupport) SearchService() services.SearchServiceInterface       { return nil }
+func (m *MockContainerForSupport) SearchService() services.Searcher                     { return nil }
 func (m *MockContainerForSupport) EnvironmentService() *services.EnvironmentService     { return nil }
 func (m *MockContainerForSupport) ResourceUsageService() services.ResourceUsageServiceInterface {
 	return nil
 }
-func (m *MockContainerForSupport) BackofficeService() services.BackofficeServiceInterface { return nil }
-func (m *MockContainerForSupport) AdminService() services.AdminServiceInterface           { return nil }
-func (m *MockContainerForSupport) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
+func (m *MockContainerForSupport) BackofficeService() services.UsageAndGrowthGetter { return nil }
+func (m *MockContainerForSupport) AdminService() services.AdminServiceInterface     { return nil }
+func (m *MockContainerForSupport) EmbeddingBackfillService() services.EmbeddingBackfiller {
 	return nil
 }
 func (m *MockContainerForSupport) BlueprintService() services.BlueprintServiceInterface {

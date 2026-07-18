@@ -13,7 +13,7 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
-func setupTestService(_t *testing.T) (*Service, *mocks.ActivityRepositoryMock) {
+func setupTestService(_ *testing.T) (*Service, *mocks.ActivityRepositoryMock) {
 	mockRepo := &mocks.ActivityRepositoryMock{}
 	service := NewService(ServiceDeps{
 		Repo:          mockRepo,

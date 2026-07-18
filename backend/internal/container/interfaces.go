@@ -73,17 +73,17 @@ type Container interface {
 	ActivityService() activities.ActivityService
 	ResourceAccessService() resourceaccess.ResourceAccessService
 	AgentService() services.AgentServiceInterface
-	AgentCardFetcher() services.AgentCardFetcherInterface
+	AgentCardFetcher() services.CardFetcher
 	AgentInvocationService() services.AgentInvocationServiceInterface
 	MemoryService() services.MemoryServiceInterface
 	EmbeddingService() services.EmbeddingServiceInterface
-	SearchService() services.SearchServiceInterface
+	SearchService() services.Searcher
 	EnvironmentService() *services.EnvironmentService
 	ResourceUsageService() services.ResourceUsageServiceInterface
-	BackofficeService() services.BackofficeServiceInterface
+	BackofficeService() services.UsageAndGrowthGetter
 	AdminService() services.AdminServiceInterface
-	EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface
-	EmbeddingStatusService() services.EmbeddingStatusServiceInterface
+	EmbeddingBackfillService() services.EmbeddingBackfiller
+	EmbeddingStatusService() services.EmbeddingCoverageGetter
 	UserPreferencesService() services.UserPreferencesServiceInterface
 	AuthorizationService() services.AuthorizationServiceInterface
 	TeamService() services.TeamServiceInterface
@@ -100,7 +100,7 @@ type Container interface {
 
 	// External dependencies
 	IdentityProviderRegistry() *idp.Registry
-	SMTPClient() external.SMTPClient
+	EmailSender() external.EmailSender
 	GitHubAppClient() external.GitHubAppClient
 
 	// Legacy method for database access (TODO: Remove once all handlers use repositories)

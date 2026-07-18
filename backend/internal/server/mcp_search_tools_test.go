@@ -19,11 +19,11 @@ import (
 
 // newSearchServer wires mock search + team services with the member user
 // belonging to testTeamUUID/testTeamSlug so resolveTeam succeeds.
-func newSearchServer(t *testing.T) (*Server, *mocks.MockSearchServiceInterface) {
+func newSearchServer(t *testing.T) (*Server, *mocks.MockSearcher) {
 	t.Helper()
 	srv := newServerWithNullLogger(t)
 	srv.config.Frontend.BaseURL = "https://app.vibexp.io"
-	mockSearchSvc := mocks.NewMockSearchServiceInterface(t)
+	mockSearchSvc := mocks.NewMockSearcher(t)
 	mockTeamService := mocks.NewMockTeamServiceInterface(t)
 	srv.container = &TestContainer{
 		SearchServiceMock: mockSearchSvc,

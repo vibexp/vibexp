@@ -10,7 +10,7 @@ package server
 //
 // The allowlist is shrink-only by construction: an entry whose route no longer
 // exists, or that has since been documented, fails the test and must be
-// removed. The #1696 backfill burned the original 88-entry TODO list down to
+// removed. The #1696 backfill burned the original 88-entry backlog down to
 // zero — new endpoints must be documented in openapi.yaml, never allowlisted
 // (only scope-policy exclusions belong here).
 
@@ -52,7 +52,7 @@ var notFoundStubRoutes = map[string]string{
 // undocumentedRouteAllowlist exempts individual operations, keyed
 // "METHOD /path" (path with normalized {param} names), each with a written
 // justification. Only documentation-scope-policy exclusions belong here —
-// the #1696 backfill eliminated all "TODO" entries; never add new ones.
+// the #1696 backfill eliminated all provisional entries; never add new ones.
 var undocumentedRouteAllowlist = map[string]string{
 	// Intentionally excluded by the documentation scope policy.
 	"POST /api/v1/integrations/github/webhook": "308 permanent-redirect shim to /api/v1/webhooks/github",

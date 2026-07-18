@@ -54,12 +54,12 @@ type testHarness struct {
 type harnessOpt func(*harnessOptions)
 
 type harnessOptions struct {
-	access ConsentAccessPolicy
+	access ConsentAccessChecker
 }
 
-// withAccessPolicy installs a ConsentAccessPolicy so the attach-time allowlist
+// withAccessPolicy installs a ConsentAccessChecker so the attach-time allowlist
 // re-check (#217) is exercised.
-func withAccessPolicy(p ConsentAccessPolicy) harnessOpt {
+func withAccessPolicy(p ConsentAccessChecker) harnessOpt {
 	return func(o *harnessOptions) { o.access = p }
 }
 

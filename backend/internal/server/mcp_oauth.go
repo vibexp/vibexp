@@ -73,7 +73,7 @@ func (a userResolverAdapter) ResolveUserID(ctx context.Context, provider, subjec
 	return user.ID, nil
 }
 
-// consentAccessPolicyAdapter implements oauthserver.ConsentAccessPolicy: it
+// consentAccessPolicyAdapter implements oauthserver.ConsentAccessChecker: it
 // resolves the consenting user's email and applies the SAME access-allowlist
 // evaluator the login path enforces (#214/#215), so the MCP consent surface and
 // web login can never drift apart on who is allowed.

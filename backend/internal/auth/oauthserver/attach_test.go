@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubAccessPolicy is a ConsentAccessPolicy that allows every user except those
+// stubAccessPolicy is a ConsentAccessChecker that allows every user except those
 // listed in denied, or fails outright when err is set.
 type stubAccessPolicy struct {
 	denied map[string]bool

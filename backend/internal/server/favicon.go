@@ -1,7 +1,7 @@
 package server
 
 import (
-	_ "embed"
+	_ "embed" // enables the go:embed directive for favicon.ico
 	"net/http"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"

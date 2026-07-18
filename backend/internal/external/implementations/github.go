@@ -628,7 +628,9 @@ func (s *stubGitHubAppClient) GetDirectoryContentsRecursive(
 	return nil, fmt.Errorf("GitHub App not configured")
 }
 
-func (s *stubGitHubAppClient) EvictCachedClient(_ int64) {}
+func (s *stubGitHubAppClient) EvictCachedClient(_ int64) {
+	// Intentionally empty: the stub caches no clients, so there is nothing to evict.
+}
 
 // EvictCachedClient removes the cached GitHub client for the given installationID.
 // Call this when an installation is disconnected to free resources and prevent

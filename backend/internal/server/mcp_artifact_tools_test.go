@@ -663,7 +663,7 @@ type TestContainer struct {
 	FeedItemServiceMock       services.FeedItemServiceInterface
 	FeedItemReplyServiceMock  services.FeedItemReplyServiceInterface
 	ResourceUsageServiceMock  services.ResourceUsageServiceInterface
-	SearchServiceMock         services.SearchServiceInterface
+	SearchServiceMock         services.Searcher
 	ResourceAccessServiceMock resourceaccess.ResourceAccessService
 	AttachmentServiceMock     services.AttachmentServiceInterface
 	EmbeddingServiceMock      services.EmbeddingServiceInterface
@@ -751,7 +751,7 @@ func (tc *TestContainer) ResourceUsageService() services.ResourceUsageServiceInt
 	return nil
 }
 
-func (tc *TestContainer) SearchService() services.SearchServiceInterface {
+func (tc *TestContainer) SearchService() services.Searcher {
 	if tc.SearchServiceMock != nil {
 		return tc.SearchServiceMock
 	}

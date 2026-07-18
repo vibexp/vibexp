@@ -337,7 +337,7 @@ func (r *activityRepository) queryTopActivityTypes(ctx context.Context, userID s
 	topActivityTypes := make([]models.ActivityTypeCount, 0)
 	for rows.Next() {
 		var item models.ActivityTypeCount
-		if scanErr := rows.Scan(&item.ActivityType, &item.Count); scanErr == nil {
+		if rows.Scan(&item.ActivityType, &item.Count) == nil {
 			topActivityTypes = append(topActivityTypes, item)
 		}
 	}
@@ -369,7 +369,7 @@ func (r *activityRepository) queryTopEntityTypes(ctx context.Context, userID str
 	topEntityTypes := make([]models.EntityTypeCount, 0)
 	for rows.Next() {
 		var item models.EntityTypeCount
-		if scanErr := rows.Scan(&item.EntityType, &item.Count); scanErr == nil {
+		if rows.Scan(&item.EntityType, &item.Count) == nil {
 			topEntityTypes = append(topEntityTypes, item)
 		}
 	}
@@ -422,7 +422,7 @@ func (r *activityRepository) queryRecentActivitiesForStats(ctx context.Context, 
 		// Parse metadata JSON
 		if metadataJSON != "" {
 			var metadata map[string]interface{}
-			if jsonErr := json.Unmarshal([]byte(metadataJSON), &metadata); jsonErr == nil {
+			if json.Unmarshal([]byte(metadataJSON), &metadata) == nil {
 				activity.Metadata = metadata
 			}
 		}

@@ -148,22 +148,22 @@ func (c *GitHubTestContainer) BlueprintService() services.BlueprintServiceInterf
 func (c *GitHubTestContainer) EmbeddingProviderService() services.EmbeddingProviderServiceInterface {
 	return nil
 }
-func (c *GitHubTestContainer) EmailService() services.EmailServiceInterface         { return nil }
-func (c *GitHubTestContainer) AgentService() services.AgentServiceInterface         { return nil }
-func (c *GitHubTestContainer) AgentCardFetcher() services.AgentCardFetcherInterface { return nil }
+func (c *GitHubTestContainer) EmailService() services.EmailServiceInterface { return nil }
+func (c *GitHubTestContainer) AgentService() services.AgentServiceInterface { return nil }
+func (c *GitHubTestContainer) AgentCardFetcher() services.CardFetcher       { return nil }
 func (c *GitHubTestContainer) AgentInvocationService() services.AgentInvocationServiceInterface {
 	return nil
 }
 func (c *GitHubTestContainer) MemoryService() services.MemoryServiceInterface       { return nil }
 func (c *GitHubTestContainer) EmbeddingService() services.EmbeddingServiceInterface { return nil }
-func (c *GitHubTestContainer) SearchService() services.SearchServiceInterface       { return nil }
+func (c *GitHubTestContainer) SearchService() services.Searcher                     { return nil }
 func (c *GitHubTestContainer) EnvironmentService() *services.EnvironmentService     { return nil }
 func (c *GitHubTestContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
 	return nil
 }
-func (c *GitHubTestContainer) BackofficeService() services.BackofficeServiceInterface { return nil }
-func (c *GitHubTestContainer) AdminService() services.AdminServiceInterface           { return nil }
-func (c *GitHubTestContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
+func (c *GitHubTestContainer) BackofficeService() services.UsageAndGrowthGetter { return nil }
+func (c *GitHubTestContainer) AdminService() services.AdminServiceInterface     { return nil }
+func (c *GitHubTestContainer) EmbeddingBackfillService() services.EmbeddingBackfiller {
 	return nil
 }
 func (c *GitHubTestContainer) TeamService() services.TeamServiceInterface             { return nil }

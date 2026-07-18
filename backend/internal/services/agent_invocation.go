@@ -40,7 +40,7 @@ type AgentInvocationService struct {
 	executionRepo   repositories.AgentExecutionRepository
 	eventRepo       repositories.AgentExecutionEventRepository
 	a2aClient       A2AHTTPClientInterface
-	streamProcessor A2AStreamProcessorInterface
+	streamProcessor StreamProcessor
 	logger          *slog.Logger
 	// execCancels holds the cancel func for each in-flight streaming execution
 	// (keyed by execution ID) so a cancel request can abort local goroutines.
@@ -53,7 +53,7 @@ func NewAgentInvocationService(
 	executionRepo repositories.AgentExecutionRepository,
 	eventRepo repositories.AgentExecutionEventRepository,
 	a2aClient A2AHTTPClientInterface,
-	streamProcessor A2AStreamProcessorInterface,
+	streamProcessor StreamProcessor,
 	logger *slog.Logger,
 ) *AgentInvocationService {
 	return &AgentInvocationService{
@@ -619,7 +619,7 @@ func (s *AgentInvocationService) emitCancelledEvent(ctx context.Context, executi
 
 // invokeAgentStreaming handles asynchronous agent invocation with streaming
 func (s *AgentInvocationService) invokeAgentStreaming(
-	_ctx context.Context,
+	_ context.Context,
 	agent *models.Agent,
 	execution *models.AgentExecution,
 	input map[string]interface{},
@@ -741,7 +741,7 @@ func (s *AgentInvocationService) closeEventChannelSafely(executionID string, eve
 
 	// Safe channel close - only panic is if channel is already closed
 	defer func() {
-		if r := recover(); r != nil {
+		if recover() != nil {
 			// Channel was already closed, which is expected in some cases
 			s.logger.With(
 				"service", logServiceVibeXPAPI,

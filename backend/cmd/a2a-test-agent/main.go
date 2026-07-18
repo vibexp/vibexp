@@ -50,7 +50,9 @@ func (*dummyExecutor) Execute(_ context.Context, execCtx *a2asrv.ExecutorContext
 
 // Cancel is a no-op: there is no long-running work to stop.
 func (*dummyExecutor) Cancel(_ context.Context, _ *a2asrv.ExecutorContext) iter.Seq2[a2a.Event, error] {
-	return func(_ func(a2a.Event, error) bool) {}
+	return func(_ func(a2a.Event, error) bool) {
+		// Intentionally empty: nothing to cancel, so the sequence yields no events.
+	}
 }
 
 // incomingText concatenates the text parts of the inbound message, if any.

@@ -219,9 +219,9 @@ func (s *stubEmailProvider) SendEmail(ctx context.Context, message *gomail.Email
 	return nil
 }
 
-// ProvideSMTPClient creates a new SMTPClient (DEPRECATED: Use ProvideEmailProvider instead)
-func ProvideSMTPClient(cfg *config.Config) external.SMTPClient {
-	return implementations.NewSMTPClient(cfg)
+// ProvideEmailSender creates a new EmailSender (DEPRECATED: Use ProvideEmailProvider instead)
+func ProvideEmailSender(cfg *config.Config) external.EmailSender {
+	return implementations.NewEmailSender(cfg)
 }
 
 // ProvideGitHubAppClient creates a new GitHubAppClient

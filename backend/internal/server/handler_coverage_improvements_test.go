@@ -72,7 +72,7 @@ func (c *CoverageTestContainer) EmbeddingProviderService() services.EmbeddingPro
 func (c *CoverageTestContainer) EmbeddingService() services.EmbeddingServiceInterface {
 	return c.embeddingService
 }
-func (c *CoverageTestContainer) SearchService() services.SearchServiceInterface {
+func (c *CoverageTestContainer) SearchService() services.Searcher {
 	return nil
 }
 func (c *CoverageTestContainer) PromptService() services.PromptServiceInterface {
@@ -98,9 +98,9 @@ func (c *CoverageTestContainer) ClaudeCodeHooksRepository() repositories.ClaudeC
 }
 
 // Stub implementations for unused services
-func (c *CoverageTestContainer) BackofficeService() services.BackofficeServiceInterface { return nil }
-func (c *CoverageTestContainer) AdminService() services.AdminServiceInterface           { return nil }
-func (c *CoverageTestContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
+func (c *CoverageTestContainer) BackofficeService() services.UsageAndGrowthGetter { return nil }
+func (c *CoverageTestContainer) AdminService() services.AdminServiceInterface     { return nil }
+func (c *CoverageTestContainer) EmbeddingBackfillService() services.EmbeddingBackfiller {
 	return nil
 }
 func (c *CoverageTestContainer) EmailService() services.EmailServiceInterface     { return nil }
