@@ -345,6 +345,7 @@ export function EmbeddingProviderDialog({
   })
 
   const busy = submitting || validating
+  const submitLabel = provider ? 'Save changes' : 'Add provider'
 
   return (
     <>
@@ -513,11 +514,7 @@ export function EmbeddingProviderDialog({
                 </Button>
                 <Button type="submit" disabled={busy}>
                   {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-                  {validating
-                    ? 'Validating…'
-                    : provider
-                      ? 'Save changes'
-                      : 'Add provider'}
+                  {validating ? 'Validating…' : submitLabel}
                 </Button>
               </DialogFooter>
             </form>

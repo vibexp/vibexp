@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import {
   Area,
   AreaChart,
@@ -340,6 +340,36 @@ export function TimeSeriesBarChart({
   const isEmpty = chartData.length === 0 || total === 0
   const stateBoxHeight = compact ? 'h-24' : 'h-16'
 
+  // Loading / error / empty pre-empt the chart; null means render the chart.
+  let chartStateContent: ReactNode = null
+  if (loading) {
+    chartStateContent = (
+      <Skeleton className={compact ? 'h-[110px] w-full' : 'h-[180px] w-full'} />
+    )
+  } else if (error) {
+    chartStateContent = (
+      <div
+        className={cn(
+          'text-muted-foreground flex items-center justify-center text-sm',
+          stateBoxHeight
+        )}
+      >
+        {errorMessage}
+      </div>
+    )
+  } else if (isEmpty) {
+    chartStateContent = (
+      <div
+        className={cn(
+          'text-muted-foreground flex items-center justify-center text-sm',
+          stateBoxHeight
+        )}
+      >
+        {emptyMessage}
+      </div>
+    )
+  }
+
   return (
     <Card
       className={compact ? 'overflow-hidden' : undefined}
@@ -396,29 +426,7 @@ export function TimeSeriesBarChart({
         )}
       </CardHeader>
       <CardContent className={compact ? 'p-5 pt-4' : undefined}>
-        {loading ? (
-          <Skeleton
-            className={compact ? 'h-[110px] w-full' : 'h-[180px] w-full'}
-          />
-        ) : error ? (
-          <div
-            className={cn(
-              'text-muted-foreground flex items-center justify-center text-sm',
-              stateBoxHeight
-            )}
-          >
-            {errorMessage}
-          </div>
-        ) : isEmpty ? (
-          <div
-            className={cn(
-              'text-muted-foreground flex items-center justify-center text-sm',
-              stateBoxHeight
-            )}
-          >
-            {emptyMessage}
-          </div>
-        ) : (
+        {chartStateContent ?? (
           <>
             <div className={compact ? 'h-[110px] w-full' : 'h-[180px] w-full'}>
               <ChartCanvas

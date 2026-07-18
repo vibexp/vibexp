@@ -148,6 +148,79 @@ export function AttachmentCard({
     }
   }
 
+  const renderAttachmentList = () => {
+    if (attachments.length === 0) {
+      return (
+        <p className="text-muted-foreground px-5 py-4 text-sm">
+          No attachments yet.
+        </p>
+      )
+    }
+    return (
+      <ul className="divide-border m-0 list-none divide-y p-0">
+        {attachments.map(attachment => {
+          const { Icon, kind } = fileMeta(attachment.content_type)
+          const isDeleting = deletingId === attachment.id
+          return (
+            <li
+              key={attachment.id}
+              className="group/item hover:bg-muted/55 flex items-center gap-3 px-5 py-3 transition-colors"
+              data-testid="attachment-item"
+            >
+              <div className="bg-muted text-muted-foreground grid size-[38px] shrink-0 place-items-center rounded-md">
+                <Icon className="size-[18px]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span
+                  className="text-foreground block truncate text-sm font-medium"
+                  title={attachment.file_name}
+                >
+                  {attachment.file_name}
+                </span>
+                <span className="text-muted-foreground mt-0.5 block text-xs tabular-nums">
+                  {kind} · {formatFileSize(attachment.size_bytes)}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/item:opacity-100 group-hover/item:opacity-100">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-[30px]"
+                  aria-label={`Download ${attachment.file_name}`}
+                  title="Download"
+                  onClick={() => {
+                    void onDownload(attachment)
+                  }}
+                >
+                  <Download className="size-[15px]" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-destructive/10 hover:text-destructive size-[30px]"
+                  aria-label={`Delete ${attachment.file_name}`}
+                  title="Delete"
+                  disabled={isDeleting || disabled}
+                  onClick={() => {
+                    void handleDelete(attachment)
+                  }}
+                >
+                  {isDeleting ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <Trash2 className="size-[15px]" />
+                  )}
+                </Button>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    )
+  }
+
   return (
     <div
       className="bg-card text-card-foreground overflow-hidden rounded-lg border shadow-sm"
@@ -216,72 +289,8 @@ export function AttachmentCard({
         <div className="flex justify-center py-4">
           <LoadingSpinner size="sm" />
         </div>
-      ) : attachments.length === 0 ? (
-        <p className="text-muted-foreground px-5 py-4 text-sm">
-          No attachments yet.
-        </p>
       ) : (
-        <ul className="divide-border m-0 list-none divide-y p-0">
-          {attachments.map(attachment => {
-            const { Icon, kind } = fileMeta(attachment.content_type)
-            const isDeleting = deletingId === attachment.id
-            return (
-              <li
-                key={attachment.id}
-                className="group/item hover:bg-muted/55 flex items-center gap-3 px-5 py-3 transition-colors"
-                data-testid="attachment-item"
-              >
-                <div className="bg-muted text-muted-foreground grid size-[38px] shrink-0 place-items-center rounded-md">
-                  <Icon className="size-[18px]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span
-                    className="text-foreground block truncate text-sm font-medium"
-                    title={attachment.file_name}
-                  >
-                    {attachment.file_name}
-                  </span>
-                  <span className="text-muted-foreground mt-0.5 block text-xs tabular-nums">
-                    {kind} · {formatFileSize(attachment.size_bytes)}
-                  </span>
-                </div>
-                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/item:opacity-100 group-hover/item:opacity-100">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-[30px]"
-                    aria-label={`Download ${attachment.file_name}`}
-                    title="Download"
-                    onClick={() => {
-                      void onDownload(attachment)
-                    }}
-                  >
-                    <Download className="size-[15px]" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="hover:bg-destructive/10 hover:text-destructive size-[30px]"
-                    aria-label={`Delete ${attachment.file_name}`}
-                    title="Delete"
-                    disabled={isDeleting || disabled}
-                    onClick={() => {
-                      void handleDelete(attachment)
-                    }}
-                  >
-                    {isDeleting ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <Trash2 className="size-[15px]" />
-                    )}
-                  </Button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        renderAttachmentList()
       )}
     </div>
   )

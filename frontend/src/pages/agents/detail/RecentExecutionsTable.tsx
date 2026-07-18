@@ -61,6 +61,52 @@ export function RecentExecutionsTable({
 }: Readonly<RecentExecutionsTableProps>) {
   const navigate = useNavigate()
 
+  const renderExecutions = () => {
+    if (recentExecutions.length === 0) {
+      return (
+        <p className="text-muted-foreground py-6 text-center text-sm">
+          No executions yet
+        </p>
+      )
+    }
+    return (
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>User message</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Started</TableHead>
+              <TableHead className="text-right">Duration</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {recentExecutions.map(execution => (
+              <TableRow key={execution.id}>
+                <TableCell className="max-w-md">
+                  <div className="truncate text-sm">
+                    {getUserMessage(execution.input)}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={executionStatusVariant(execution.status)}>
+                    {execution.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {formatRelativeTime(execution.started_at)}
+                </TableCell>
+                <TableCell className="text-right text-sm">
+                  {formatDuration(execution.duration)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    )
+  }
+
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -83,45 +129,8 @@ export function RecentExecutionsTable({
               <Skeleton key={i} className="h-10 w-full" />
             ))}
           </div>
-        ) : recentExecutions.length === 0 ? (
-          <p className="text-muted-foreground py-6 text-center text-sm">
-            No executions yet
-          </p>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User message</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Started</TableHead>
-                  <TableHead className="text-right">Duration</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentExecutions.map(execution => (
-                  <TableRow key={execution.id}>
-                    <TableCell className="max-w-md">
-                      <div className="truncate text-sm">
-                        {getUserMessage(execution.input)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={executionStatusVariant(execution.status)}>
-                        {execution.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {formatRelativeTime(execution.started_at)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {formatDuration(execution.duration)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          renderExecutions()
         )}
       </CardContent>
     </Card>

@@ -4,7 +4,11 @@ import { useNavigate } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
-import { ListPage, ListTable } from '@/components/patterns/list-page'
+import {
+  ListPage,
+  listPageStatus,
+  ListTable,
+} from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -33,6 +37,22 @@ interface MemoriesState {
   totalPages: number
   currentPage: number
   total: number
+}
+
+function emptyStateDescription(
+  filters: MemoryFiltersType,
+  currentProject: { name: string } | null | undefined
+): string {
+  if (filters.search && filters.project_id) {
+    return 'Try a different search term or clear the filters.'
+  }
+  if (filters.project_id && currentProject) {
+    return `No memories in ${currentProject.name}. Create one to get started.`
+  }
+  if (filters.search || filters.project_id || filters.status) {
+    return 'Try a different search term or clear the filters.'
+  }
+  return 'Create your first memory to save insights, snippets, or notes.'
 }
 
 export function Memories() {
@@ -218,13 +238,11 @@ export function Memories() {
     [navigate, hasAnyTags, projects, canDeleteResource]
   )
 
-  const status = state.loading
-    ? 'loading'
-    : state.error
-      ? 'error'
-      : state.memories.length === 0
-        ? 'empty'
-        : 'ready'
+  const status = listPageStatus(
+    state.loading,
+    state.error,
+    state.memories.length === 0
+  )
 
   return (
     <ListPage>
@@ -270,15 +288,7 @@ export function Memories() {
                   ? 'No memories match your filters'
                   : 'No memories yet'
               }
-              description={
-                filters.search && filters.project_id
-                  ? 'Try a different search term or clear the filters.'
-                  : filters.project_id && currentProject
-                    ? `No memories in ${currentProject.name}. Create one to get started.`
-                    : filters.search || filters.project_id || filters.status
-                      ? 'Try a different search term or clear the filters.'
-                      : 'Create your first memory to save insights, snippets, or notes.'
-              }
+              description={emptyStateDescription(filters, currentProject)}
               actions={
                 <Button
                   onClick={() => {

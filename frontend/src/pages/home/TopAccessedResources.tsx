@@ -116,6 +116,54 @@ function TopAccessedList({
   const showError = channel !== 'all' && filteredError
   const max = Math.max(1, ...items.map(i => i.access_count))
 
+  const renderList = () => {
+    if (showError) {
+      return (
+        <div className="text-muted-foreground flex h-24 items-center justify-center text-sm">
+          Couldn&apos;t load this channel
+        </div>
+      )
+    }
+    if (items.length === 0) {
+      return (
+        <div className="text-muted-foreground flex h-24 items-center justify-center text-sm">
+          No {(TYPE_LABEL[type] || type).toLowerCase()} access yet
+        </div>
+      )
+    }
+    return (
+      <ol className="space-y-2.5">
+        {items.map((item, index) => (
+          <li
+            key={`${item.resource_id}-${String(index)}`}
+            className="flex items-center gap-3 text-sm"
+          >
+            <span className="text-muted-foreground w-4 shrink-0 tabular-nums">
+              {index + 1}
+            </span>
+            <span className="min-w-0 flex-1 truncate">
+              {item.name || TYPE_LABEL[type] || type}
+            </span>
+            <span
+              aria-hidden
+              className="bg-muted hidden h-1.5 w-24 shrink-0 overflow-hidden rounded-full sm:block"
+            >
+              <span
+                className="bg-foreground block h-full rounded-full"
+                style={{
+                  width: `${String((item.access_count / max) * 100)}%`,
+                }}
+              />
+            </span>
+            <span className="w-8 shrink-0 text-right font-semibold tabular-nums">
+              {item.access_count}
+            </span>
+          </li>
+        ))}
+      </ol>
+    )
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
@@ -138,44 +186,8 @@ function TopAccessedList({
               <Skeleton key={i} className="h-5 w-full" />
             ))}
           </div>
-        ) : showError ? (
-          <div className="text-muted-foreground flex h-24 items-center justify-center text-sm">
-            Couldn&apos;t load this channel
-          </div>
-        ) : items.length === 0 ? (
-          <div className="text-muted-foreground flex h-24 items-center justify-center text-sm">
-            No {(TYPE_LABEL[type] || type).toLowerCase()} access yet
-          </div>
         ) : (
-          <ol className="space-y-2.5">
-            {items.map((item, index) => (
-              <li
-                key={`${item.resource_id}-${String(index)}`}
-                className="flex items-center gap-3 text-sm"
-              >
-                <span className="text-muted-foreground w-4 shrink-0 tabular-nums">
-                  {index + 1}
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {item.name || TYPE_LABEL[type] || type}
-                </span>
-                <span
-                  aria-hidden
-                  className="bg-muted hidden h-1.5 w-24 shrink-0 overflow-hidden rounded-full sm:block"
-                >
-                  <span
-                    className="bg-foreground block h-full rounded-full"
-                    style={{
-                      width: `${String((item.access_count / max) * 100)}%`,
-                    }}
-                  />
-                </span>
-                <span className="w-8 shrink-0 text-right font-semibold tabular-nums">
-                  {item.access_count}
-                </span>
-              </li>
-            ))}
-          </ol>
+          renderList()
         )}
       </CardContent>
     </Card>

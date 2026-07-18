@@ -72,6 +72,38 @@ function ListCard({
   onViewAll,
   children,
 }: Readonly<ListCardProps>) {
+  // Loading / error / empty pre-empt the list rows supplied as children.
+  let body: ReactNode = children
+  if (loading) {
+    body = (
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 py-2">
+            <Skeleton className="size-9 rounded-md" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+            <Skeleton className="h-3 w-12" />
+          </div>
+        ))}
+      </div>
+    )
+  } else if (error) {
+    body = (
+      <div className="text-muted-foreground flex h-32 items-center justify-center text-sm">
+        {error}
+      </div>
+    )
+  } else if (isEmpty) {
+    body = (
+      <div className="text-muted-foreground flex h-32 flex-col items-center justify-center gap-2 text-center text-sm">
+        <EmptyIcon className="size-5" />
+        {emptyMessage}
+      </div>
+    )
+  }
+
   return (
     <Card className="flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -82,33 +114,7 @@ function ListCard({
           </span>
         )}
       </CardHeader>
-      <CardContent className="flex-1">
-        {loading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 py-2">
-                <Skeleton className="size-9 rounded-md" />
-                <div className="flex-1 space-y-1.5">
-                  <Skeleton className="h-4 w-2/3" />
-                  <Skeleton className="h-3 w-1/3" />
-                </div>
-                <Skeleton className="h-3 w-12" />
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div className="text-muted-foreground flex h-32 items-center justify-center text-sm">
-            {error}
-          </div>
-        ) : isEmpty ? (
-          <div className="text-muted-foreground flex h-32 flex-col items-center justify-center gap-2 text-center text-sm">
-            <EmptyIcon className="size-5" />
-            {emptyMessage}
-          </div>
-        ) : (
-          children
-        )}
-      </CardContent>
+      <CardContent className="flex-1">{body}</CardContent>
       {!loading && !error && onViewAll && (
         <>
           <Separator />

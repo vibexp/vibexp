@@ -120,6 +120,12 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, onError }) => {
   return <div ref={elementRef} className="mermaid-container" />
 }
 
+function syntaxThemeClass(theme: 'light' | 'dark' | 'auto'): string {
+  if (theme === 'dark') return 'theme-dark'
+  if (theme === 'light') return 'theme-light'
+  return 'theme-auto'
+}
+
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
   className = '',
@@ -388,12 +394,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     })
   }, [renderedContent, mermaidDiagrams])
 
-  const themeClass =
-    syntaxTheme === 'dark'
-      ? 'theme-dark'
-      : syntaxTheme === 'light'
-        ? 'theme-light'
-        : 'theme-auto'
+  const themeClass = syntaxThemeClass(syntaxTheme)
 
   return (
     <div

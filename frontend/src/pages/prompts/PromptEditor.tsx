@@ -256,11 +256,9 @@ export function PromptEditor() {
     }
   }
 
-  const saveLabel = saving
-    ? 'Saving…'
-    : formData.status === 'published'
-      ? 'Publish'
-      : 'Save as draft'
+  const statusLabel =
+    formData.status === 'published' ? 'Publish' : 'Save as draft'
+  const saveLabel = saving ? 'Saving…' : statusLabel
 
   if (loading) {
     return (

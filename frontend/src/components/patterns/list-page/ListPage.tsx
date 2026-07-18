@@ -146,17 +146,18 @@ interface ListPageFooterProps {
   hideCount?: boolean
 }
 
+function countNoun(count: ListPageCount): string {
+  if (count.total === 1) return count.noun
+  return count.nounPlural ?? `${count.noun}s`
+}
+
 function Footer({
   count,
   pagination,
   note,
   hideCount,
 }: Readonly<ListPageFooterProps>) {
-  const noun = count
-    ? count.total === 1
-      ? count.noun
-      : (count.nounPlural ?? `${count.noun}s`)
-    : ''
+  const noun = count ? countNoun(count) : ''
   const showCount = count && !hideCount
   // Pagination controls only render when there's more than one page. Single-page
   // lists shouldn't carry always-disabled Prev/Next buttons.

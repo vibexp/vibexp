@@ -1,5 +1,5 @@
 import { Activity as ActivityIcon, ChevronDown, Search } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/EmptyState'
 import { PageHeader } from '@/components/PageHeader'
@@ -96,6 +96,41 @@ export function Activities() {
     }
   }, [searchInput])
 
+  // Loading / error / empty pre-empt the list; null means render the list.
+  let listStateContent: ReactNode = null
+  if (state.loading) {
+    listStateContent = (
+      <div className="space-y-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full" />
+        ))}
+      </div>
+    )
+  } else if (state.error) {
+    listStateContent = (
+      <Alert variant="destructive">
+        <AlertTitle>Failed to load activities</AlertTitle>
+        <AlertDescription>{state.error}</AlertDescription>
+      </Alert>
+    )
+  } else if (state.activities.length === 0) {
+    listStateContent = (
+      <EmptyState
+        icon={ActivityIcon}
+        title={
+          filters.search
+            ? 'No activities match your search'
+            : 'No activities yet'
+        }
+        description={
+          filters.search
+            ? 'Try a different search term.'
+            : 'Platform events and session activity will appear here.'
+        }
+      />
+    )
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -117,32 +152,7 @@ export function Activities() {
             />
           </div>
 
-          {state.loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : state.error ? (
-            <Alert variant="destructive">
-              <AlertTitle>Failed to load activities</AlertTitle>
-              <AlertDescription>{state.error}</AlertDescription>
-            </Alert>
-          ) : state.activities.length === 0 ? (
-            <EmptyState
-              icon={ActivityIcon}
-              title={
-                filters.search
-                  ? 'No activities match your search'
-                  : 'No activities yet'
-              }
-              description={
-                filters.search
-                  ? 'Try a different search term.'
-                  : 'Platform events and session activity will appear here.'
-              }
-            />
-          ) : (
+          {listStateContent ?? (
             <TooltipProvider>
               <div className="space-y-2">
                 {state.activities.map(activity => (

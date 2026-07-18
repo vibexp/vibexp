@@ -8,7 +8,13 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
@@ -253,6 +259,28 @@ function CoverageSection({
   clearing,
   onClear,
 }: Readonly<CoverageSectionProps>) {
+  // Loading / error pre-empt the cards; null when there is no coverage yet.
+  let coverageContent: ReactNode = null
+  if (coverageLoading) {
+    coverageContent = (
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full" />
+        ))}
+      </div>
+    )
+  } else if (coverageError) {
+    coverageContent = (
+      <Alert variant="destructive">
+        <AlertCircle className="size-4" />
+        <AlertTitle>Couldn&rsquo;t load embedding coverage</AlertTitle>
+        <AlertDescription>{coverageError}</AlertDescription>
+      </Alert>
+    )
+  } else if (coverage) {
+    coverageContent = <EmbeddingCoverageCards coverage={coverage} />
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
@@ -295,21 +323,7 @@ function CoverageSection({
         </div>
       </div>
 
-      {coverageLoading ? (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
-        </div>
-      ) : coverageError ? (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertTitle>Couldn&rsquo;t load embedding coverage</AlertTitle>
-          <AlertDescription>{coverageError}</AlertDescription>
-        </Alert>
-      ) : coverage ? (
-        <EmbeddingCoverageCards coverage={coverage} />
-      ) : null}
+      {coverageContent}
     </div>
   )
 }
@@ -500,6 +514,32 @@ export function EmbeddingProviders() {
     []
   )
 
+  const providersContent =
+    providers.length === 0 ? (
+      <EmptyState
+        icon={Cpu}
+        title="No embedding providers yet"
+        description="Add your first provider to start generating vector embeddings."
+        actions={
+          <Button
+            onClick={() => {
+              setEditing(undefined)
+              setDialogOpen(true)
+            }}
+          >
+            <Plus className="mr-2 size-4" />
+            Add provider
+          </Button>
+        }
+      />
+    ) : (
+      <Card>
+        <CardContent className="p-4">
+          <ListTable rows={providers} columns={columns} />
+        </CardContent>
+      </Card>
+    )
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -544,29 +584,8 @@ export function EmbeddingProviders() {
             ))}
           </CardContent>
         </Card>
-      ) : providers.length === 0 ? (
-        <EmptyState
-          icon={Cpu}
-          title="No embedding providers yet"
-          description="Add your first provider to start generating vector embeddings."
-          actions={
-            <Button
-              onClick={() => {
-                setEditing(undefined)
-                setDialogOpen(true)
-              }}
-            >
-              <Plus className="mr-2 size-4" />
-              Add provider
-            </Button>
-          }
-        />
       ) : (
-        <Card>
-          <CardContent className="p-4">
-            <ListTable rows={providers} columns={columns} />
-          </CardContent>
-        </Card>
+        providersContent
       )}
 
       <EmbeddingProviderDialog

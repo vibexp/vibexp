@@ -110,6 +110,23 @@ export function FeedItemReplies({
     }
   }
 
+  const repliesContent =
+    replies.length === 0 ? (
+      <p className="py-4 text-center text-sm text-muted-foreground">
+        No replies yet
+      </p>
+    ) : (
+      <div className="divide-y divide-border">
+        {replies.map(reply => (
+          <ReplyItem
+            key={reply.id}
+            reply={reply}
+            member={members.get(reply.posted_by_user_id)}
+          />
+        ))}
+      </div>
+    )
+
   return (
     <Card>
       <CardHeader>
@@ -124,20 +141,8 @@ export function FeedItemReplies({
           <div className="flex justify-center py-4">
             <LoadingSpinner size="sm" />
           </div>
-        ) : replies.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            No replies yet
-          </p>
         ) : (
-          <div className="divide-y divide-border">
-            {replies.map(reply => (
-              <ReplyItem
-                key={reply.id}
-                reply={reply}
-                member={members.get(reply.posted_by_user_id)}
-              />
-            ))}
-          </div>
+          repliesContent
         )}
 
         {/* Compose form — at the bottom of the thread */}

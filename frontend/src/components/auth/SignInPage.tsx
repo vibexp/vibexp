@@ -323,41 +323,39 @@ export function SignInPage() {
             )}
 
             <div className="mt-6 flex flex-col gap-2">
-              {providers === null ? (
+              {providers === null && (
                 <Button disabled className="w-full">
                   <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
                   <span>Loading sign-in options…</span>
                 </Button>
-              ) : providers.length === 0 ? (
-                !providersError && (
-                  <p className="text-muted-foreground text-sm">
-                    No login providers are configured for this deployment.
-                  </p>
-                )
-              ) : (
-                providers.map(provider => (
-                  <Button
-                    key={provider.name}
-                    onClick={() => {
-                      void handleSignIn(provider)
-                    }}
-                    disabled={signingIn !== null}
-                    className="w-full"
-                  >
-                    {signingIn === provider.name ? (
-                      <>
-                        <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
-                        <span>Signing you in…</span>
-                      </>
-                    ) : (
-                      <>
-                        <ProviderIcon name={provider.name} />
-                        <span>Continue with {provider.display_name}</span>
-                      </>
-                    )}
-                  </Button>
-                ))
               )}
+              {providers?.length === 0 && !providersError && (
+                <p className="text-muted-foreground text-sm">
+                  No login providers are configured for this deployment.
+                </p>
+              )}
+              {providers?.map(provider => (
+                <Button
+                  key={provider.name}
+                  onClick={() => {
+                    void handleSignIn(provider)
+                  }}
+                  disabled={signingIn !== null}
+                  className="w-full"
+                >
+                  {signingIn === provider.name ? (
+                    <>
+                      <span className="border-primary-foreground/40 border-r-primary-foreground inline-block h-4 w-4 animate-spin rounded-full border-2" />
+                      <span>Signing you in…</span>
+                    </>
+                  ) : (
+                    <>
+                      <ProviderIcon name={provider.name} />
+                      <span>Continue with {provider.display_name}</span>
+                    </>
+                  )}
+                </Button>
+              ))}
             </div>
 
             {/* Divider */}

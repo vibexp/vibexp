@@ -37,6 +37,32 @@ export function NotificationDropdown({
 
   const unreadCount = notifications.filter(n => !n.read_at).length
 
+  const renderNotificationList = () => {
+    if (notifications.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-2 py-10">
+          <Bell className="text-muted-foreground size-8" />
+          <p className="text-muted-foreground text-sm">
+            You&apos;re all caught up
+          </p>
+        </div>
+      )
+    }
+    return (
+      <ScrollArea className="max-h-96">
+        <div className="py-1">
+          {notifications.map(notification => (
+            <NotificationItem
+              key={notification.id}
+              notification={notification}
+              onRead={handleRead}
+            />
+          ))}
+        </div>
+      </ScrollArea>
+    )
+  }
+
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between px-4 py-3">
@@ -58,25 +84,8 @@ export function NotificationDropdown({
         <div className="flex items-center justify-center py-8">
           <span className="text-muted-foreground text-sm">Loading…</span>
         </div>
-      ) : notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 py-10">
-          <Bell className="text-muted-foreground size-8" />
-          <p className="text-muted-foreground text-sm">
-            You&apos;re all caught up
-          </p>
-        </div>
       ) : (
-        <ScrollArea className="max-h-96">
-          <div className="py-1">
-            {notifications.map(notification => (
-              <NotificationItem
-                key={notification.id}
-                notification={notification}
-                onRead={handleRead}
-              />
-            ))}
-          </div>
-        </ScrollArea>
+        renderNotificationList()
       )}
 
       <Separator />

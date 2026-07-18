@@ -4,7 +4,11 @@ import { useNavigate } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
-import { ListPage, ListTable } from '@/components/patterns/list-page'
+import {
+  ListPage,
+  listPageStatus,
+  ListTable,
+} from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -203,13 +207,11 @@ export function Agents() {
     [navigate, canDeleteResource]
   )
 
-  const status = state.loading
-    ? 'loading'
-    : state.error
-      ? 'error'
-      : state.agents.length === 0
-        ? 'empty'
-        : 'ready'
+  const status = listPageStatus(
+    state.loading,
+    state.error,
+    state.agents.length === 0
+  )
 
   return (
     <ListPage>

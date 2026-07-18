@@ -69,9 +69,15 @@ function linesDiff(oldText: string, newText: string) {
   return diffLines(normalize(oldText), normalize(newText))
 }
 
+function blockType(part: { added?: boolean; removed?: boolean }): BlockType {
+  if (part.added) return 'add'
+  if (part.removed) return 'del'
+  return 'context'
+}
+
 function toBlocks(oldText: string, newText: string): Block[] {
   return linesDiff(oldText, newText).map(part => ({
-    type: part.added ? 'add' : part.removed ? 'del' : 'context',
+    type: blockType(part),
     lines: toLines(part.value),
   }))
 }

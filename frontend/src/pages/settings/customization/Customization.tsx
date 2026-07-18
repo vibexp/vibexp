@@ -147,6 +147,40 @@ export function Customization() {
 
   const columns = buildColumns(setTypeToDelete)
 
+  const renderTypes = () => {
+    if (types.length === 0) {
+      return (
+        <EmptyState
+          icon={Shapes}
+          title="No artifact types"
+          description="Create your first custom type to organize artifacts your way."
+          actions={
+            <Button
+              disabled={!teamId}
+              onClick={() => {
+                setCreateOpen(true)
+              }}
+            >
+              <Plus className="mr-2 size-4" />
+              Create type
+            </Button>
+          }
+        />
+      )
+    }
+    return (
+      <Card>
+        <CardContent className="p-4">
+          <DataTable
+            columns={columns}
+            data={types}
+            rowTestId={() => 'type-item'}
+          />
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -183,33 +217,8 @@ export function Customization() {
               ))}
             </CardContent>
           </Card>
-        ) : types.length === 0 ? (
-          <EmptyState
-            icon={Shapes}
-            title="No artifact types"
-            description="Create your first custom type to organize artifacts your way."
-            actions={
-              <Button
-                disabled={!teamId}
-                onClick={() => {
-                  setCreateOpen(true)
-                }}
-              >
-                <Plus className="mr-2 size-4" />
-                Create type
-              </Button>
-            }
-          />
         ) : (
-          <Card>
-            <CardContent className="p-4">
-              <DataTable
-                columns={columns}
-                data={types}
-                rowTestId={() => 'type-item'}
-              />
-            </CardContent>
-          </Card>
+          renderTypes()
         )}
       </section>
 

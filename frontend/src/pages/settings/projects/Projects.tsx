@@ -4,7 +4,11 @@ import { useNavigate } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
-import { ListPage, ListTable } from '@/components/patterns/list-page'
+import {
+  ListPage,
+  listPageStatus,
+  ListTable,
+} from '@/components/patterns/list-page'
 import { RequirePermission } from '@/components/RequirePermission'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
@@ -129,13 +133,11 @@ export function Projects() {
     [navigate, canUpdateProject, canDeleteProject]
   )
 
-  const status = state.loading
-    ? 'loading'
-    : state.error
-      ? 'error'
-      : state.projects.length === 0
-        ? 'empty'
-        : 'ready'
+  const status = listPageStatus(
+    state.loading,
+    state.error,
+    state.projects.length === 0
+  )
 
   return (
     <ListPage>

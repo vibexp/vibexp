@@ -4,7 +4,11 @@ import { useNavigate } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
-import { ListPage, ListTable } from '@/components/patterns/list-page'
+import {
+  ListPage,
+  listPageStatus,
+  ListTable,
+} from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
 import { useProject } from '@/contexts/ProjectContext'
 import { useTeam } from '@/contexts/TeamContext'
@@ -38,6 +42,11 @@ interface State {
   totalPages: number
   currentPage: number
   total: number
+}
+
+function toSharedFilter(shared: boolean | undefined): SharedFilter {
+  if (shared === undefined) return 'all'
+  return shared ? 'shared' : 'not_shared'
 }
 
 export function Prompts() {
@@ -145,12 +154,7 @@ export function Prompts() {
   }
 
   const statusFilter = filters.status ?? 'all'
-  const sharedFilter: SharedFilter =
-    filters.shared === undefined
-      ? 'all'
-      : filters.shared
-        ? 'shared'
-        : 'not_shared'
+  const sharedFilter = toSharedFilter(filters.shared)
 
   const sortKey: PromptSortKey = filters.sort_by ?? 'updated_at'
   const sortDir = filters.sort_order ?? 'desc'
@@ -190,13 +194,11 @@ export function Prompts() {
   const visibleCount = state.prompts.length
   const totalCount = state.total
   const currentPage = filters.page ?? 1
-  const status = state.loading
-    ? 'loading'
-    : state.error
-      ? 'error'
-      : state.prompts.length === 0
-        ? 'empty'
-        : 'ready'
+  const status = listPageStatus(
+    state.loading,
+    state.error,
+    state.prompts.length === 0
+  )
 
   return (
     <ListPage>

@@ -249,6 +249,35 @@ export function APIKeys() {
 
   const columns = buildColumns(setKeyToDelete)
 
+  const keysContent =
+    apiKeys.length === 0 ? (
+      <EmptyState
+        icon={KeyIcon}
+        title="No API keys yet"
+        description="Create your first API key to start using the platform programmatically."
+        actions={
+          <Button
+            onClick={() => {
+              setCreateOpen(true)
+            }}
+          >
+            <Plus className="mr-2 size-4" />
+            Create your first API key
+          </Button>
+        }
+      />
+    ) : (
+      <Card>
+        <CardContent className="p-4">
+          <DataTable
+            columns={columns}
+            data={apiKeys}
+            rowTestId={() => 'api-key-item'}
+          />
+        </CardContent>
+      </Card>
+    )
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -307,32 +336,8 @@ export function APIKeys() {
             ))}
           </CardContent>
         </Card>
-      ) : apiKeys.length === 0 ? (
-        <EmptyState
-          icon={KeyIcon}
-          title="No API keys yet"
-          description="Create your first API key to start using the platform programmatically."
-          actions={
-            <Button
-              onClick={() => {
-                setCreateOpen(true)
-              }}
-            >
-              <Plus className="mr-2 size-4" />
-              Create your first API key
-            </Button>
-          }
-        />
       ) : (
-        <Card>
-          <CardContent className="p-4">
-            <DataTable
-              columns={columns}
-              data={apiKeys}
-              rowTestId={() => 'api-key-item'}
-            />
-          </CardContent>
-        </Card>
+        keysContent
       )}
 
       <CreateAPIKeyDialog

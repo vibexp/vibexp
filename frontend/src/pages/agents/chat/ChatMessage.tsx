@@ -26,16 +26,16 @@ export function ChatMessage({ message, agent }: Readonly<ChatMessageProps>) {
   const isUser = message.role === 'user'
   const isStreaming = message.timestamp === STREAMING
 
+  const agentBubbleClass = message.isError
+    ? 'border-destructive/30 bg-destructive/10 text-destructive border'
+    : 'bg-muted'
+
   return (
     <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
           'max-w-3xl rounded-lg px-4 py-3',
-          isUser
-            ? 'bg-primary text-primary-foreground'
-            : message.isError
-              ? 'border-destructive/30 bg-destructive/10 text-destructive border'
-              : 'bg-muted'
+          isUser ? 'bg-primary text-primary-foreground' : agentBubbleClass
         )}
       >
         <div className="flex items-start gap-3">
