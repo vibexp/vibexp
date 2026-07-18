@@ -115,6 +115,26 @@ func TestInstanceAdminMiddleware(t *testing.T) {
 	}
 }
 
+// TestAdminRoutes_Unauthenticated_Returns404 exercises the FULL router wiring
+// (setupAdminRoutes: optionalAuthMiddleware + instanceAdminMiddleware): an
+// unauthenticated request to a mounted /api/v1/admin route must get 404, proving
+// the surface is not advertised and the middleware is actually chained onto the
+// route. This guards against a wiring regression the isolated middleware/handler
+// tests would miss.
+func TestAdminRoutes_Unauthenticated_Returns404(t *testing.T) {
+	cfg := &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
+		Auth:     config.AuthConfig{InstanceAdmins: config.EnvStringSlice{"admin@example.com"}},
+	}
+	srv := New("8080", nil, "test-api-key", cfg, slog.New(slog.DiscardHandler))
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
 // TestGetAdminStats_Success verifies the stats handler returns the repository
 // counts plus the app version, and that the response conforms to the spec.
 func TestGetAdminStats_Success(t *testing.T) {
