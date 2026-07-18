@@ -10,6 +10,7 @@ import {
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { MetadataEditor } from '@/components/metadata/MetadataEditor'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -57,6 +58,11 @@ interface MemoryFormProps {
   isLoading?: boolean
 }
 
+// `tags` has its own dedicated chip UI below, so it must not appear as an
+// editable string row in the general metadata editor (stable ref avoids
+// re-validating the editor on every render).
+const RESERVED_METADATA_KEYS = ['tags']
+
 function extractTags(meta?: Record<string, unknown>): string[] {
   const tags = meta?.tags
   if (!Array.isArray(tags)) return []
@@ -77,9 +83,10 @@ export const MemoryForm = forwardRef<MemoryFormHandle, MemoryFormProps>(
       extractTags(memory?.metadata)
     )
     const [tagInput, setTagInput] = useState('')
-    const extrasRef = useRef<Record<string, unknown>>(
+    const [extras, setExtras] = useState<Record<string, unknown>>(() =>
       extractExtras(memory?.metadata)
     )
+    const [metadataValid, setMetadataValid] = useState(true)
     const formElRef = useRef<HTMLFormElement>(null)
 
     const firstProjectId = projects.length > 0 ? projects[0].id : ''
@@ -104,7 +111,7 @@ export const MemoryForm = forwardRef<MemoryFormHandle, MemoryFormProps>(
           status: memory.status,
         })
         setTags(extractTags(memory.metadata))
-        extrasRef.current = extractExtras(memory.metadata)
+        setExtras(extractExtras(memory.metadata))
       } else if (projects.length > 0 && !form.getValues('project_id')) {
         form.setValue('project_id', projects[0].id)
       }
@@ -117,7 +124,10 @@ export const MemoryForm = forwardRef<MemoryFormHandle, MemoryFormProps>(
     }))
 
     const submitHandler = form.handleSubmit(async values => {
-      const metadata: Record<string, unknown> = { ...extrasRef.current }
+      // The editor surfaces its own inline errors; block the submit so an
+      // invalid metadata map never reaches the API.
+      if (!metadataValid) return
+      const metadata: Record<string, unknown> = { ...extras }
       if (tags.length > 0) metadata.tags = tags
       const request: CreateMemoryRequest = {
         project_id: values.project_id,
@@ -306,6 +316,21 @@ Share insights, learnings, code snippets, or any valuable information you want t
                 <p className="text-muted-foreground text-xs">
                   Press Enter or comma to add. Click × to remove.
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Metadata</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MetadataEditor
+                  value={extras}
+                  onChange={setExtras}
+                  onValidityChange={setMetadataValid}
+                  reservedKeys={RESERVED_METADATA_KEYS}
+                  disabled={isLoading}
+                />
               </CardContent>
             </Card>
           </div>
