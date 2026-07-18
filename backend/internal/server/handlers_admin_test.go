@@ -137,6 +137,8 @@ func TestAdminRoutes_Unauthenticated_Returns404(t *testing.T) {
 		"/api/v1/admin/stats",
 		"/api/v1/admin/users",
 		"/api/v1/admin/users/" + uuid.NewString(),
+		"/api/v1/admin/teams",
+		"/api/v1/admin/teams/" + uuid.NewString(),
 	}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
@@ -428,4 +430,150 @@ func TestGetAdminStats_VersionFallback(t *testing.T) {
 	stats, ok := resp.(admingen.GetAdminStats200JSONResponse)
 	require.True(t, ok)
 	assert.Equal(t, "dev", stats.Version)
+}
+
+// TestListAdminTeams verifies the paginated team listing returns the service's
+// page (empty page as []) and conforms to the spec.
+func TestListAdminTeams(t *testing.T) {
+	owner := models.AdminTeamOwner{ID: uuid.NewString(), Email: "owner@example.com", Name: "Owner"}
+	populated := models.AdminTeamList{
+		Teams: []models.AdminTeamListItem{
+			{ID: uuid.NewString(), Name: "Acme", Owner: owner, MemberCount: 3, CreatedAt: time.Now()},
+			{ID: uuid.NewString(), Name: "Beta", Owner: owner, MemberCount: 0, CreatedAt: time.Now()},
+		},
+		TotalCount: 2, Page: 1, PerPage: 20, TotalPages: 1,
+	}
+	empty := models.AdminTeamList{Teams: []models.AdminTeamListItem{}, Page: 1, PerPage: 20}
+
+	tests := []struct {
+		name      string
+		list      models.AdminTeamList
+		wantTeams int
+	}{
+		{"populated page", populated, 2},
+		{"empty page serializes as []", empty, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+			mockAdmin.On("ListTeams", mock.Anything, 0, 0).Return(tc.list, nil)
+			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+			req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)
+			rr := httptest.NewRecorder()
+			mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusOK, rr.Code)
+			var resp admingen.AdminTeamListResponse
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+			assert.Len(t, resp.Teams, tc.wantTeams)
+			assert.NotContains(t, rr.Body.String(), `"teams":null`)
+			specconformance.AssertConformsToSpec(t, req, rr)
+		})
+	}
+}
+
+func TestGetAdminTeam_Found(t *testing.T) {
+	id := uuid.NewString()
+	owner := models.AdminTeamOwner{ID: uuid.NewString(), Email: "owner@example.com", Name: "Owner"}
+	detail := &models.AdminTeamDetail{
+		ID: id, Name: "Acme", Owner: owner, CreatedAt: time.Now(),
+		Members: []models.AdminTeamMember{
+			{UserID: uuid.NewString(), Email: "m@example.com", Name: "M", Role: "member", JoinedAt: time.Now()},
+		},
+	}
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("GetTeamDetail", mock.Anything, id).Return(detail, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams/"+id, nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	var resp admingen.AdminTeamDetail
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, id, resp.Id.String())
+	assert.Equal(t, "Owner", resp.Owner.Name)
+	require.Len(t, resp.Members, 1)
+	assert.Equal(t, "member", resp.Members[0].Role)
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
+func TestGetAdminTeam_NotFound(t *testing.T) {
+	id := uuid.NewString()
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("GetTeamDetail", mock.Anything, id).Return(nil, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams/"+id, nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestGetAdminTeam_InvalidUUID(t *testing.T) {
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
+		adminService: servicesmocks.NewMockAdminServiceInterface(t),
+	})
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams/not-a-uuid", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestListAdminTeams_ServiceError(t *testing.T) {
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ListTeams", mock.Anything, 0, 0).Return(models.AdminTeamList{}, errors.New("db down"))
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestListAdminTeams_ConversionError(t *testing.T) {
+	bad := models.AdminTeamList{
+		Teams:   []models.AdminTeamListItem{{ID: "not-a-uuid", Name: "X", Owner: models.AdminTeamOwner{ID: uuid.NewString()}}},
+		Page:    1,
+		PerPage: 20,
+	}
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ListTeams", mock.Anything, 0, 0).Return(bad, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestGetAdminTeam_ServiceError(t *testing.T) {
+	id := uuid.NewString()
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("GetTeamDetail", mock.Anything, id).Return(nil, errors.New("db down"))
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams/"+id, nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestGetAdminTeam_ConversionError(t *testing.T) {
+	id := uuid.NewString()
+	// Valid team id + owner, but a member with a non-UUID user id → conversion fails.
+	bad := &models.AdminTeamDetail{
+		ID: id, Name: "Acme", Owner: models.AdminTeamOwner{ID: uuid.NewString(), Email: "o@example.com", Name: "O"},
+		Members: []models.AdminTeamMember{{UserID: "not-a-uuid", Email: "m@example.com", Name: "M", Role: "member", JoinedAt: time.Now()}},
+	}
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("GetTeamDetail", mock.Anything, id).Return(bad, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams/"+id, nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }

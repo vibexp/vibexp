@@ -173,6 +173,147 @@ func toGenAdminUserDetail(d *models.AdminUserDetail) (admingen.AdminUserDetail, 
 	}, nil
 }
 
+// ListAdminTeams returns a paginated, instance-wide team listing with owner and
+// member counts.
+func (a *adminStrictServer) ListAdminTeams(
+	ctx context.Context, request admingen.ListAdminTeamsRequestObject,
+) (admingen.ListAdminTeamsResponseObject, error) {
+	page, limit := derefPageLimit(request.Params.Page, request.Params.Limit)
+
+	list, err := a.s.container.AdminService().ListTeams(ctx, page, limit)
+	if err != nil {
+		a.s.logger.With(
+			"service", serverLogServiceName, "handler", "ListAdminTeams", "error", err,
+		).Error("Failed to list admin teams")
+		return nil, apierrors.NewInternalError(adminMsgInternalError)
+	}
+
+	genResp, convErr := toGenAdminTeamList(list)
+	if convErr != nil {
+		a.s.logger.With(
+			"service", serverLogServiceName, "handler", "ListAdminTeams", "error", convErr,
+		).Error("Failed to convert admin team list")
+		return nil, apierrors.NewInternalError(adminMsgInternalError)
+	}
+	return admingen.ListAdminTeams200JSONResponse(genResp), nil
+}
+
+// GetAdminTeam returns one team with owner and member list; an unknown id 404s.
+func (a *adminStrictServer) GetAdminTeam(
+	ctx context.Context, request admingen.GetAdminTeamRequestObject,
+) (admingen.GetAdminTeamResponseObject, error) {
+	detail, err := a.s.container.AdminService().GetTeamDetail(ctx, request.Id.String())
+	if err != nil {
+		a.s.logger.With(
+			"service", serverLogServiceName, "handler", "GetAdminTeam", "error", err,
+		).Error("Failed to get admin team")
+		return nil, apierrors.NewInternalError(adminMsgInternalError)
+	}
+	if detail == nil {
+		return nil, apierrors.NewResourceNotFoundError("team", "Team not found")
+	}
+
+	genDetail, convErr := toGenAdminTeamDetail(detail)
+	if convErr != nil {
+		a.s.logger.With(
+			"service", serverLogServiceName, "handler", "GetAdminTeam", "error", convErr,
+		).Error("Failed to convert admin team detail")
+		return nil, apierrors.NewInternalError(adminMsgInternalError)
+	}
+	return admingen.GetAdminTeam200JSONResponse(genDetail), nil
+}
+
+// toGenAdminTeamOwner converts a domain team owner to the generated type.
+func toGenAdminTeamOwner(o models.AdminTeamOwner) (admingen.AdminTeamOwner, error) {
+	id, err := uuid.Parse(o.ID)
+	if err != nil {
+		return admingen.AdminTeamOwner{}, fmt.Errorf("team owner id %q is not a UUID: %w", o.ID, err)
+	}
+	return admingen.AdminTeamOwner{Id: id, Email: openapi_types.Email(o.Email), Name: o.Name}, nil
+}
+
+// toGenAdminTeamListItem converts a domain team-list row to the generated type.
+func toGenAdminTeamListItem(t models.AdminTeamListItem) (admingen.AdminTeamListItem, error) {
+	id, err := uuid.Parse(t.ID)
+	if err != nil {
+		return admingen.AdminTeamListItem{}, fmt.Errorf("team id %q is not a UUID: %w", t.ID, err)
+	}
+	owner, err := toGenAdminTeamOwner(t.Owner)
+	if err != nil {
+		return admingen.AdminTeamListItem{}, err
+	}
+	return admingen.AdminTeamListItem{
+		Id:          id,
+		Name:        t.Name,
+		Owner:       owner,
+		MemberCount: t.MemberCount,
+		CreatedAt:   t.CreatedAt,
+	}, nil
+}
+
+// toGenAdminTeamList converts a domain team page to the generated response. The
+// teams slice is always non-nil so the required array serializes as [], not null.
+func toGenAdminTeamList(l models.AdminTeamList) (admingen.AdminTeamListResponse, error) {
+	teams := make([]admingen.AdminTeamListItem, 0, len(l.Teams))
+	for _, t := range l.Teams {
+		gt, err := toGenAdminTeamListItem(t)
+		if err != nil {
+			return admingen.AdminTeamListResponse{}, err
+		}
+		teams = append(teams, gt)
+	}
+	return admingen.AdminTeamListResponse{
+		Teams:      teams,
+		TotalCount: l.TotalCount,
+		Page:       l.Page,
+		PerPage:    l.PerPage,
+		TotalPages: l.TotalPages,
+	}, nil
+}
+
+// toGenAdminTeamMember converts a domain team member to the generated type.
+func toGenAdminTeamMember(m models.AdminTeamMember) (admingen.AdminTeamMember, error) {
+	uid, err := uuid.Parse(m.UserID)
+	if err != nil {
+		return admingen.AdminTeamMember{}, fmt.Errorf("team member user id %q is not a UUID: %w", m.UserID, err)
+	}
+	return admingen.AdminTeamMember{
+		UserId:   uid,
+		Email:    openapi_types.Email(m.Email),
+		Name:     m.Name,
+		Role:     m.Role,
+		JoinedAt: m.JoinedAt,
+	}, nil
+}
+
+// toGenAdminTeamDetail converts a domain team detail to the generated type. The
+// members slice is always non-nil so the required array serializes as [].
+func toGenAdminTeamDetail(d *models.AdminTeamDetail) (admingen.AdminTeamDetail, error) {
+	id, err := uuid.Parse(d.ID)
+	if err != nil {
+		return admingen.AdminTeamDetail{}, fmt.Errorf("team id %q is not a UUID: %w", d.ID, err)
+	}
+	owner, err := toGenAdminTeamOwner(d.Owner)
+	if err != nil {
+		return admingen.AdminTeamDetail{}, err
+	}
+	members := make([]admingen.AdminTeamMember, 0, len(d.Members))
+	for _, m := range d.Members {
+		gm, memErr := toGenAdminTeamMember(m)
+		if memErr != nil {
+			return admingen.AdminTeamDetail{}, memErr
+		}
+		members = append(members, gm)
+	}
+	return admingen.AdminTeamDetail{
+		Id:        id,
+		Name:      d.Name,
+		Owner:     owner,
+		CreatedAt: d.CreatedAt,
+		Members:   members,
+	}, nil
+}
+
 // adminBindErrorHandler translates parameter-binding failures from the generated
 // layer into this domain's RFC 9457 400 responses.
 func (s *Server) adminBindErrorHandler(w http.ResponseWriter, r *http.Request, err error) {

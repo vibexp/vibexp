@@ -26,6 +26,12 @@ type AdminServiceInterface interface {
 	// GetUserDetail returns one user with team memberships, or (nil, nil) when no
 	// user with that id exists (the handler maps that to 404).
 	GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error)
+	// ListTeams returns a page of all teams with owner and member count plus
+	// pagination metadata. page/limit are clamped (page>=1, limit in [1,100], 20).
+	ListTeams(ctx context.Context, page, limit int) (models.AdminTeamList, error)
+	// GetTeamDetail returns one team with owner and member list, or (nil, nil)
+	// when no team with that id exists (the handler maps that to 404).
+	GetTeamDetail(ctx context.Context, id string) (*models.AdminTeamDetail, error)
 }
 
 // AdminService implements AdminServiceInterface.
@@ -81,4 +87,29 @@ func (s *AdminService) ListUsers(ctx context.Context, page, limit int) (models.A
 // user does not exist.
 func (s *AdminService) GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error) {
 	return s.adminRepo.GetUserDetail(ctx, id)
+}
+
+// ListTeams returns a page of teams with owner and member count plus pagination
+// metadata.
+func (s *AdminService) ListTeams(ctx context.Context, page, limit int) (models.AdminTeamList, error) {
+	page, limit = clampAdminPage(page, limit)
+
+	teams, totalCount, err := s.adminRepo.ListTeams(ctx, page, limit)
+	if err != nil {
+		return models.AdminTeamList{}, err
+	}
+
+	return models.AdminTeamList{
+		Teams:      teams,
+		TotalCount: totalCount,
+		Page:       page,
+		PerPage:    limit,
+		TotalPages: int(math.Ceil(float64(totalCount) / float64(limit))),
+	}, nil
+}
+
+// GetTeamDetail returns one team with owner and member list, or (nil, nil) when
+// the team does not exist.
+func (s *AdminService) GetTeamDetail(ctx context.Context, id string) (*models.AdminTeamDetail, error) {
+	return s.adminRepo.GetTeamDetail(ctx, id)
 }

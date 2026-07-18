@@ -14554,6 +14554,143 @@
         }
       }
     },
+    "/api/v1/admin/teams": {
+      "get": {
+        "summary": "List instance teams",
+        "description": "Returns a paginated, instance-wide listing of teams (newest first) with\neach team's owner and member count. Instance-admin only; non-admin and\nunauthenticated requests receive 404.\n",
+        "operationId": "listAdminTeams",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "1-based page number",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of teams",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTeamListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the caller is not an instance admin (surface not advertised)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/teams/{id}": {
+      "get": {
+        "summary": "Get an instance team",
+        "description": "Returns one team with its owner and member list (each member's user\nid/email/name, role, and join time). Instance-admin only; non-admin and\nunauthenticated requests receive 404, as does an unknown team id.\n",
+        "operationId": "getAdminTeam",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Team id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The team with its owner and members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTeamDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown team id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/{team_id}/comments": {
       "get": {
         "summary": "List a resource's comments",
@@ -27230,6 +27367,175 @@
             "description": "Teams the user belongs to.",
             "items": {
               "$ref": "#/components/schemas/AdminTeamMembership"
+            }
+          }
+        }
+      },
+      "AdminTeamOwner": {
+        "type": "object",
+        "description": "The owning user of a team.",
+        "required": [
+          "id",
+          "email",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "user_123"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "owner@example.com"
+          },
+          "name": {
+            "type": "string",
+            "example": "Jane Owner"
+          }
+        }
+      },
+      "AdminTeamListItem": {
+        "type": "object",
+        "description": "One team in the instance-wide admin team listing.",
+        "required": [
+          "id",
+          "name",
+          "owner",
+          "member_count",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "team_abc123"
+          },
+          "name": {
+            "type": "string",
+            "example": "Acme Engineering"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/AdminTeamOwner"
+          },
+          "member_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of members in the team.",
+            "example": 8
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminTeamListResponse": {
+        "type": "object",
+        "description": "A page of the instance-wide team listing, newest first.",
+        "required": [
+          "teams",
+          "total_count",
+          "page",
+          "per_page",
+          "total_pages"
+        ],
+        "properties": {
+          "teams": {
+            "type": "array",
+            "description": "Teams on this page, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminTeamListItem"
+            }
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Total number of teams across the instance.",
+            "example": 12
+          },
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "example": 20
+          },
+          "total_pages": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "AdminTeamMember": {
+        "type": "object",
+        "description": "One member of a team, with the member's role and join time.",
+        "required": [
+          "user_id",
+          "email",
+          "name",
+          "role",
+          "joined_at"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "user_123"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "member@example.com"
+          },
+          "name": {
+            "type": "string",
+            "example": "John Member"
+          },
+          "role": {
+            "type": "string",
+            "description": "The member's role in the team (owner, admin, or member).",
+            "example": "member"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminTeamDetail": {
+        "type": "object",
+        "description": "A single team with its owner and member list (GET /api/v1/admin/teams/{id}).",
+        "required": [
+          "id",
+          "name",
+          "owner",
+          "created_at",
+          "members"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "team_abc123"
+          },
+          "name": {
+            "type": "string",
+            "example": "Acme Engineering"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/AdminTeamOwner"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "members": {
+            "type": "array",
+            "description": "The team's members.",
+            "items": {
+              "$ref": "#/components/schemas/AdminTeamMember"
             }
           }
         }

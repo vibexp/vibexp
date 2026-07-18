@@ -73,3 +73,34 @@ func TestAdminService_GetUserDetail(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }
+
+func TestAdminService_ListTeams_ClampsAndComputesPages(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("ListTeams", mock.Anything, 1, 20).Return([]models.AdminTeamListItem{{ID: "t1"}}, 21, nil)
+
+	got, err := NewAdminService(repo).ListTeams(context.Background(), 0, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, got.Page)
+	assert.Equal(t, 20, got.PerPage)
+	assert.Equal(t, 21, got.TotalCount)
+	assert.Equal(t, 2, got.TotalPages) // ceil(21/20)
+	assert.Len(t, got.Teams, 1)
+}
+
+func TestAdminService_ListTeams_Error(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("ListTeams", mock.Anything, 1, 20).Return(nil, 0, errors.New("boom"))
+
+	_, err := NewAdminService(repo).ListTeams(context.Background(), 1, 20)
+	require.Error(t, err)
+}
+
+func TestAdminService_GetTeamDetail(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	want := &models.AdminTeamDetail{ID: "t1", Members: []models.AdminTeamMember{}}
+	repo.On("GetTeamDetail", mock.Anything, "t1").Return(want, nil)
+
+	got, err := NewAdminService(repo).GetTeamDetail(context.Background(), "t1")
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}

@@ -128,3 +128,95 @@ api-v1-admin-users-id:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams:
+  get:
+    summary: List instance teams
+    description: |
+      Returns a paginated, instance-wide listing of teams (newest first) with
+      each team's owner and member count. Instance-admin only; non-admin and
+      unauthenticated requests receive 404.
+    operationId: listAdminTeams
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        description: 1-based page number
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    responses:
+      '200':
+        description: A page of teams
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamListResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-teams-id:
+  get:
+    summary: Get an instance team
+    description: |
+      Returns one team with its owner and member list (each member's user
+      id/email/name, role, and join time). Instance-admin only; non-admin and
+      unauthenticated requests receive 404, as does an unknown team id.
+    operationId: getAdminTeam
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Team id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The team with its owner and members
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTeamDetail'
+      '404':
+        description: Not found — unknown team id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
