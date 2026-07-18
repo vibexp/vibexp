@@ -1,4 +1,4 @@
-import { LogOut, Settings as SettingsIcon } from 'lucide-react'
+import { LogOut, Settings as SettingsIcon, Shield } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -34,6 +34,10 @@ export function UserMenu() {
     void navigate('/settings')
   }
 
+  const handleAdminPortal = () => {
+    void navigate('/admin')
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -63,6 +67,12 @@ export function UserMenu() {
           <SettingsIcon className="mr-2 size-4" />
           Settings
         </DropdownMenuItem>
+        {user.is_instance_admin && (
+          <DropdownMenuItem onClick={handleAdminPortal}>
+            <Shield className="mr-2 size-4" />
+            Admin Portal
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 size-4" />

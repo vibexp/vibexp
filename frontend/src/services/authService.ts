@@ -6,6 +6,10 @@ import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 // source of truth. `LoginUrlResponse` keeps its historical name as an alias of
 // the generated `LoginResponse` ({ url }).
 export type User = components['schemas']['User']
+// The authenticated user as returned by GET /auth/me: the base User plus the
+// session-relative `is_instance_admin` flag (#315). Other endpoints that return
+// a user (dev login, onboarding) still return the base `User`.
+export type CurrentUser = components['schemas']['CurrentUser']
 export type AuthProvider = components['schemas']['AuthProvider']
 export type ProvidersResponse = components['schemas']['ProvidersResponse']
 export type LoginUrlResponse = components['schemas']['LoginResponse']
@@ -42,8 +46,9 @@ class AuthService {
   /**
    * Fetch the currently authenticated user via the httpOnly session cookie.
    * Returns the user object if the session is valid, throws on 401/network error.
+   * The `/auth/me` payload is `CurrentUser` — the base user plus `is_instance_admin`.
    */
-  async getCurrentUser(): Promise<User> {
+  async getCurrentUser(): Promise<CurrentUser> {
     return unwrap(generatedClient.GET('/api/v1/auth/me', {}))
   }
 
