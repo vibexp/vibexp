@@ -665,9 +665,10 @@ func (s *Server) handleClaudeCodeSessionDelete(w http.ResponseWriter, r *http.Re
 			).
 			Error("Failed to delete Claude Code session")
 
-		// Check if it's a "not found" error
+		// Check if it's a "not found" error. The spec documents this 404 as an
+		// RFC 9457 problem response (not the legacy hook error shape).
 		if errors.Is(err, repositories.ErrHookSessionNotFound) {
-			respondWithHookError(w, http.StatusNotFound, "Session not found or access denied", s.logger)
+			writeErrorResponse(w, r, "not_found", "Session not found or access denied", http.StatusNotFound)
 			return
 		}
 
