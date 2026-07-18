@@ -11,6 +11,8 @@ import (
 	"github.com/pgvector/pgvector-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/vibexp/vibexp/internal/models"
 )
 
 // resetSearchTables clears every table SearchKeyword reads plus the rows that hang
@@ -105,6 +107,29 @@ func insertTestEmbedding(
 	return id
 }
 
+// seedPrompts inserts n identical published prompts, used to build filler
+// volume (planner selectivity) or identically-ranked rows (pagination ties).
+func seedPrompts(t *testing.T, userID, teamID, projectID, name, body string, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		insertTestPrompt(t, userID, teamID, projectID, name, body, "published")
+	}
+}
+
+// assertRankedDistances asserts distances are non-decreasing, stay within
+// [0,1), and that the filtered-out draft never appears.
+func assertRankedDistances(t *testing.T, rows []models.SearchResultRow) {
+	t.Helper()
+	for i, r := range rows {
+		assert.GreaterOrEqual(t, r.Distance, 0.0)
+		assert.Less(t, r.Distance, 1.0)
+		assert.NotEqual(t, "draft postgres", r.Title)
+		if i > 0 {
+			assert.GreaterOrEqual(t, r.Distance, rows[i-1].Distance)
+		}
+	}
+}
+
 // TestSearchRepository_SearchKeyword_Integration exercises the full-text fallback
 // against a real PostgreSQL: it proves the generated SQL is valid, that ts_rank
 // ordering, status filtering, team/project scoping, pagination and the pg_trgm
@@ -149,14 +174,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		assert.Equal(t, "prompt", rows[0].EntityType)
 		assert.Equal(t, weakArtifact, rows[2].EntityID)
 		// Distances are non-decreasing and stay within [0,1); the draft never appears.
-		for i, r := range rows {
-			assert.GreaterOrEqual(t, r.Distance, 0.0)
-			assert.Less(t, r.Distance, 1.0)
-			assert.NotEqual(t, "draft postgres", r.Title)
-			if i > 0 {
-				assert.GreaterOrEqual(t, r.Distance, rows[i-1].Distance)
-			}
-		}
+		assertRankedDistances(t, rows)
 	})
 
 	t.Run("multi-word query stems via websearch_to_tsquery (english)", func(t *testing.T) {
@@ -217,10 +235,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		user := insertTestUser(t)
 		team := insertTestTeam(t, user)
 		project := insertTestProject(t, user, team)
-		for i := 0; i < 3; i++ {
-			insertTestPrompt(t, user, team, project,
-				"page item", "pagination keyword content number", "published")
-		}
+		seedPrompts(t, user, team, project, "page item", "pagination keyword content number", 3)
 
 		page1, total, err := repo.SearchKeyword(ctx, team, "pagination keyword", []string{"prompt"}, "", 2, 0)
 		require.NoError(t, err)
@@ -350,14 +365,8 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		// natural choice for the tsvector @@ tsquery match, so the EXPLAIN proves the
 		// FTS GIN index is eligible for both tsquery expressions — the assertion
 		// fails only if ftsExpr diverges from the indexed expression.
-		for i := 0; i < 2; i++ {
-			insertTestPrompt(t, user, team, project,
-				"rare hit", "zqzxqterm keyword lives here", "published")
-		}
-		for i := 0; i < 300; i++ {
-			insertTestPrompt(t, user, team, project,
-				"filler", "unrelated lorem ipsum filler body text", "published")
-		}
+		seedPrompts(t, user, team, project, "rare hit", "zqzxqterm keyword lives here", 2)
+		seedPrompts(t, user, team, project, "filler", "unrelated lorem ipsum filler body text", 300)
 		_, err := integrationDB.ExecContext(ctx, "ANALYZE prompts")
 		require.NoError(t, err)
 
@@ -448,9 +457,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		// The assertion fails only if trgmTitleExpr diverges from the indexed
 		// expression.
 		insertTestPrompt(t, user, team, project, "zqzxqwidget rare title", "body", "published")
-		for i := 0; i < 300; i++ {
-			insertTestPrompt(t, user, team, project, "common filler title", "body", "published")
-		}
+		seedPrompts(t, user, team, project, "common filler title", "body", 300)
 		_, err := integrationDB.ExecContext(ctx, "ANALYZE prompts")
 		require.NoError(t, err)
 

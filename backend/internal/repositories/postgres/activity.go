@@ -259,8 +259,6 @@ func scanActivityListRows(rows *sql.Rows) []models.Activity {
 }
 
 // GetStats retrieves activity statistics
-//
-//nolint:gocognit,gocyclo,funlen // Repository code with necessary complexity
 func (r *activityRepository) GetStats(ctx context.Context, userID string) (*models.ActivityStatsResponse, error) {
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection is nil")
@@ -299,6 +297,24 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 	}
 
 	// Get top activity types (last 30 days)
+	stats.TopActivityTypes = r.queryTopActivityTypes(ctx, userID)
+
+	// Get top entity types (last 30 days)
+	stats.TopEntityTypes = r.queryTopEntityTypes(ctx, userID)
+
+	// Get recent activities (last 10)
+	stats.RecentActivities = r.queryRecentActivitiesForStats(ctx, userID)
+
+	// Get activities by date (last 7 days)
+	stats.ActivitiesByDateWeek = r.queryActivitiesByDateWeek(ctx, userID)
+
+	return stats, nil
+}
+
+// queryTopActivityTypes returns the top activity types over the last 30 days.
+// Failures (query or per-row scan) are logged and degrade to an empty slice,
+// matching GetStats's best-effort behaviour.
+func (r *activityRepository) queryTopActivityTypes(ctx context.Context, userID string) []models.ActivityTypeCount {
 	topActivityTypesQuery := `
 		SELECT activity_type, COUNT(*) as count
 		FROM activities
@@ -310,27 +326,27 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 	rows, err := r.db.QueryContext(ctx, topActivityTypesQuery, userID)
 	if err != nil {
 		slog.Error("Failed to query top activity types", "error", err)
-		stats.TopActivityTypes = []models.ActivityTypeCount{}
-	} else {
-		defer func() {
-			if closeErr := rows.Close(); closeErr != nil {
-				slog.Error("Failed to close rows", "error", closeErr)
-			}
-		}()
-		var topActivityTypes []models.ActivityTypeCount
-		for rows.Next() {
-			var item models.ActivityTypeCount
-			if scanErr := rows.Scan(&item.ActivityType, &item.Count); scanErr == nil {
-				topActivityTypes = append(topActivityTypes, item)
-			}
-		}
-		if topActivityTypes == nil {
-			topActivityTypes = []models.ActivityTypeCount{}
-		}
-		stats.TopActivityTypes = topActivityTypes
+		return []models.ActivityTypeCount{}
 	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close rows", "error", closeErr)
+		}
+	}()
 
-	// Get top entity types (last 30 days)
+	topActivityTypes := make([]models.ActivityTypeCount, 0)
+	for rows.Next() {
+		var item models.ActivityTypeCount
+		if scanErr := rows.Scan(&item.ActivityType, &item.Count); scanErr == nil {
+			topActivityTypes = append(topActivityTypes, item)
+		}
+	}
+	return topActivityTypes
+}
+
+// queryTopEntityTypes returns the top entity types over the last 30 days,
+// degrading to an empty slice on failure.
+func (r *activityRepository) queryTopEntityTypes(ctx context.Context, userID string) []models.EntityTypeCount {
 	topEntityTypesQuery := `
 		SELECT entity_type, COUNT(*) as count
 		FROM activities
@@ -339,30 +355,31 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 		ORDER BY count DESC
 		LIMIT 5`
 
-	rows, err = r.db.QueryContext(ctx, topEntityTypesQuery, userID)
+	rows, err := r.db.QueryContext(ctx, topEntityTypesQuery, userID)
 	if err != nil {
 		slog.Error("Failed to query top entity types", "error", err)
-		stats.TopEntityTypes = []models.EntityTypeCount{}
-	} else {
-		defer func() {
-			if closeErr := rows.Close(); closeErr != nil {
-				slog.Error("Failed to close rows", "error", closeErr)
-			}
-		}()
-		var topEntityTypes []models.EntityTypeCount
-		for rows.Next() {
-			var item models.EntityTypeCount
-			if scanErr := rows.Scan(&item.EntityType, &item.Count); scanErr == nil {
-				topEntityTypes = append(topEntityTypes, item)
-			}
-		}
-		if topEntityTypes == nil {
-			topEntityTypes = []models.EntityTypeCount{}
-		}
-		stats.TopEntityTypes = topEntityTypes
+		return []models.EntityTypeCount{}
 	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close rows", "error", closeErr)
+		}
+	}()
 
-	// Get recent activities (last 10)
+	topEntityTypes := make([]models.EntityTypeCount, 0)
+	for rows.Next() {
+		var item models.EntityTypeCount
+		if scanErr := rows.Scan(&item.EntityType, &item.Count); scanErr == nil {
+			topEntityTypes = append(topEntityTypes, item)
+		}
+	}
+	return topEntityTypes
+}
+
+// queryRecentActivitiesForStats returns the last 10 activities for the stats
+// payload. A row that fails to scan is silently skipped and metadata that
+// fails to parse leaves Metadata nil, matching the prior behaviour.
+func (r *activityRepository) queryRecentActivitiesForStats(ctx context.Context, userID string) []models.Activity {
 	recentActivitiesQuery := `
 		SELECT id, user_id, activity_type, entity_type, entity_id, session_id,
 		       description, metadata, source_ip, user_agent, created_at
@@ -371,51 +388,54 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 		ORDER BY created_at DESC
 		LIMIT 10`
 
-	rows, err = r.db.QueryContext(ctx, recentActivitiesQuery, userID)
+	rows, err := r.db.QueryContext(ctx, recentActivitiesQuery, userID)
 	if err != nil {
 		slog.Error("Failed to query recent activities", "error", err)
-		stats.RecentActivities = []models.Activity{}
-	} else {
-		defer func() {
-			if closeErr := rows.Close(); closeErr != nil {
-				slog.Error("Failed to close rows", "error", closeErr)
-			}
-		}()
-		var recentActivities []models.Activity
-		for rows.Next() {
-			var activity models.Activity
-			var metadataJSON string
-			scanErr := rows.Scan(
-				&activity.ID,
-				&activity.UserID,
-				&activity.ActivityType,
-				&activity.EntityType,
-				&activity.EntityID,
-				&activity.SessionID,
-				&activity.Description,
-				&metadataJSON,
-				&activity.SourceIP,
-				&activity.UserAgent,
-				&activity.CreatedAt,
-			)
-			if scanErr == nil {
-				// Parse metadata JSON
-				if metadataJSON != "" {
-					var metadata map[string]interface{}
-					if jsonErr := json.Unmarshal([]byte(metadataJSON), &metadata); jsonErr == nil {
-						activity.Metadata = metadata
-					}
-				}
-				recentActivities = append(recentActivities, activity)
-			}
-		}
-		if recentActivities == nil {
-			recentActivities = []models.Activity{}
-		}
-		stats.RecentActivities = recentActivities
+		return []models.Activity{}
 	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close rows", "error", closeErr)
+		}
+	}()
 
-	// Get activities by date (last 7 days)
+	recentActivities := make([]models.Activity, 0)
+	for rows.Next() {
+		var activity models.Activity
+		var metadataJSON string
+		scanErr := rows.Scan(
+			&activity.ID,
+			&activity.UserID,
+			&activity.ActivityType,
+			&activity.EntityType,
+			&activity.EntityID,
+			&activity.SessionID,
+			&activity.Description,
+			&metadataJSON,
+			&activity.SourceIP,
+			&activity.UserAgent,
+			&activity.CreatedAt,
+		)
+		if scanErr != nil {
+			continue
+		}
+		// Parse metadata JSON
+		if metadataJSON != "" {
+			var metadata map[string]interface{}
+			if jsonErr := json.Unmarshal([]byte(metadataJSON), &metadata); jsonErr == nil {
+				activity.Metadata = metadata
+			}
+		}
+		recentActivities = append(recentActivities, activity)
+	}
+	return recentActivities
+}
+
+// queryActivitiesByDateWeek returns per-day activity counts for the last 7
+// days, degrading to an empty slice on failure.
+func (r *activityRepository) queryActivitiesByDateWeek(
+	ctx context.Context, userID string,
+) []models.ActivityCountByDate {
 	activitiesByDateQuery := `
 		SELECT DATE(created_at) as date, COUNT(*) as count
 		FROM activities
@@ -423,30 +443,25 @@ func (r *activityRepository) GetStats(ctx context.Context, userID string) (*mode
 		GROUP BY DATE(created_at)
 		ORDER BY date DESC`
 
-	rows, err = r.db.QueryContext(ctx, activitiesByDateQuery, userID)
+	rows, err := r.db.QueryContext(ctx, activitiesByDateQuery, userID)
 	if err != nil {
 		slog.Error("Failed to query activities by date", "error", err)
-		stats.ActivitiesByDateWeek = []models.ActivityCountByDate{}
-	} else {
-		defer func() {
-			if closeErr := rows.Close(); closeErr != nil {
-				slog.Error("Failed to close rows", "error", closeErr)
-			}
-		}()
-		var activitiesByDate []models.ActivityCountByDate
-		for rows.Next() {
-			var item models.ActivityCountByDate
-			if err := rows.Scan(&item.Date, &item.Count); err == nil {
-				activitiesByDate = append(activitiesByDate, item)
-			}
-		}
-		if activitiesByDate == nil {
-			activitiesByDate = []models.ActivityCountByDate{}
-		}
-		stats.ActivitiesByDateWeek = activitiesByDate
+		return []models.ActivityCountByDate{}
 	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close rows", "error", closeErr)
+		}
+	}()
 
-	return stats, nil
+	activitiesByDate := make([]models.ActivityCountByDate, 0)
+	for rows.Next() {
+		var item models.ActivityCountByDate
+		if err := rows.Scan(&item.Date, &item.Count); err == nil {
+			activitiesByDate = append(activitiesByDate, item)
+		}
+	}
+	return activitiesByDate
 }
 
 // Delete deletes an activity (admin only)

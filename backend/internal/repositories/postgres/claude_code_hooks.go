@@ -409,11 +409,96 @@ func (r *claudeCodeHooksRepository) GetSessionCounts(
 	return response, nil
 }
 
-//nolint:gocognit // Repository code with necessary complexity
+// scanStatOrZero runs a single-row, single-column stat query and scans it into
+// dest. On failure it logs errMsg and resets dest to its zero value, matching
+// the overview/stats endpoints' best-effort behaviour.
+func scanStatOrZero[T any](ctx context.Context, db *database.DB, query, userID, errMsg string, dest *T) {
+	if err := db.QueryRowContext(ctx, query, userID).Scan(dest); err != nil {
+		slog.Error(errMsg, "error", err)
+		var zero T
+		*dest = zero
+	}
+}
+
+// weeklyTrendPercent computes the week-over-week session trend percentage; a
+// rise from zero reports as a 100% increase.
+func weeklyTrendPercent(thisWeek, lastWeek int) float64 {
+	if lastWeek > 0 {
+		return float64(thisWeek-lastWeek) / float64(lastWeek) * 100
+	}
+	if thisWeek > 0 {
+		return 100.0 // 100% increase from 0
+	}
+	return 0
+}
+
+// queryTopToolUsage returns the most-used tools for the given query, degrading
+// to an empty slice on failure (the overview endpoints are best-effort).
+func queryTopToolUsage(ctx context.Context, db *database.DB, query, userID string) []models.ToolUsageCount {
+	topToolsRows, err := db.QueryContext(ctx, query, userID)
+	if err != nil {
+		slog.Error("Failed to query top tools", "error", err)
+		return []models.ToolUsageCount{}
+	}
+	defer func() {
+		if closeErr := topToolsRows.Close(); closeErr != nil {
+			slog.Error("Failed to close rows", "error", closeErr)
+		}
+	}()
+
+	topTools := make([]models.ToolUsageCount, 0)
+	for topToolsRows.Next() {
+		var tool models.ToolUsageCount
+		scanErr := topToolsRows.Scan(&tool.ToolName, &tool.Count)
+		if scanErr != nil {
+			slog.Error("Failed to scan top tool row", "error", scanErr)
+			continue
+		}
+		topTools = append(topTools, tool)
+	}
+	return topTools
+}
 
 // GetOverviewStats retrieves comprehensive overview statistics
-//
-//nolint:gocognit,gocyclo,funlen
+const (
+	claudeCodeOverviewThisWeekQuery = `SELECT COUNT(DISTINCT session_id) FROM claude_code_hooks_payload
+		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 day'`
+
+	claudeCodeOverviewLastWeekQuery = `SELECT COUNT(DISTINCT session_id) FROM claude_code_hooks_payload
+		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '14 day'
+		AND created_at < CURRENT_DATE - INTERVAL '7 day'`
+
+	claudeCodeOverviewAvgPromptsQuery = `
+		SELECT COALESCE(AVG(prompt_count), 0) as avg_prompts
+		FROM (
+			SELECT session_id, COUNT(*) as prompt_count
+			FROM claude_code_hooks_payload
+			WHERE user_id = $1 AND hook_event_name = 'UserPromptSubmit'
+			GROUP BY session_id
+		) as session_prompts`
+
+	claudeCodeOverviewUniqueToolsQuery = "SELECT COUNT(DISTINCT tool_name) FROM claude_code_hooks_payload " +
+		"WHERE user_id = $1 AND tool_name IS NOT NULL"
+
+	claudeCodeOverviewTopToolsQuery = `
+		SELECT tool_name, COUNT(*) as usage_count
+		FROM claude_code_hooks_payload
+		WHERE user_id = $1 AND tool_name IS NOT NULL
+		GROUP BY tool_name
+		ORDER BY usage_count DESC
+		LIMIT 3`
+
+	claudeCodeOverviewAvgDurationQuery = `
+		SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (last_seen - first_seen))/60), 0) as avg_duration_minutes
+		FROM (
+			SELECT session_id, MIN(created_at) as first_seen, MAX(created_at) as last_seen
+			FROM claude_code_hooks_payload
+			WHERE user_id = $1
+			GROUP BY session_id
+			HAVING MIN(created_at) != MAX(created_at)
+		) as session_durations`
+)
+
 func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID string) (*models.OverviewStats, error) { //nolint:lll
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection is nil")
@@ -429,116 +514,37 @@ func (r *claudeCodeHooksRepository) GetOverviewStats(ctx context.Context, userID
 	}
 
 	// Get sessions this week (last 7 days)
-	thisWeekQuery := `SELECT COUNT(DISTINCT session_id) FROM claude_code_hooks_payload
-		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 day'`
-	err = r.db.QueryRowContext(ctx, thisWeekQuery, userID).Scan(&stats.SessionsThisWeek)
-	if err != nil {
-		slog.Error("Failed to count sessions this week", "error", err)
-		stats.SessionsThisWeek = 0
-	}
+	scanStatOrZero(ctx, r.db, claudeCodeOverviewThisWeekQuery, userID,
+		"Failed to count sessions this week", &stats.SessionsThisWeek)
 
 	// Get sessions last week (8-14 days ago)
-	lastWeekQuery := `SELECT COUNT(DISTINCT session_id) FROM claude_code_hooks_payload
-		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '14 day'
-		AND created_at < CURRENT_DATE - INTERVAL '7 day'`
-	err = r.db.QueryRowContext(ctx, lastWeekQuery, userID).Scan(&stats.SessionsLastWeek)
-	if err != nil {
-		slog.Error("Failed to count sessions last week", "error", err)
-		stats.SessionsLastWeek = 0
-	}
+	scanStatOrZero(ctx, r.db, claudeCodeOverviewLastWeekQuery, userID,
+		"Failed to count sessions last week", &stats.SessionsLastWeek)
 
 	// Calculate weekly trend percentage
-	if stats.SessionsLastWeek > 0 {
-		stats.WeeklyTrendPercent = float64(stats.SessionsThisWeek-stats.SessionsLastWeek) /
-			float64(stats.SessionsLastWeek) * 100
-	} else if stats.SessionsThisWeek > 0 {
-		stats.WeeklyTrendPercent = 100.0 // 100% increase from 0
-	}
+	stats.WeeklyTrendPercent = weeklyTrendPercent(stats.SessionsThisWeek, stats.SessionsLastWeek)
 
 	// Get average UserPromptSubmit per session
-	avgPromptsQuery := `
-		SELECT COALESCE(AVG(prompt_count), 0) as avg_prompts
-		FROM (
-			SELECT session_id, COUNT(*) as prompt_count
-			FROM claude_code_hooks_payload
-			WHERE user_id = $1 AND hook_event_name = 'UserPromptSubmit'
-			GROUP BY session_id
-		) as session_prompts`
-	err = r.db.QueryRowContext(ctx, avgPromptsQuery, userID).Scan(&stats.AvgUserPromptsPerSession)
-	if err != nil {
-		slog.Error("Failed to calculate average prompts per session", "error", err)
-		stats.AvgUserPromptsPerSession = 0
-	}
+	scanStatOrZero(ctx, r.db, claudeCodeOverviewAvgPromptsQuery, userID,
+		"Failed to calculate average prompts per session", &stats.AvgUserPromptsPerSession)
 
 	// Get total unique tools
-	uniqueToolsQuery := "SELECT COUNT(DISTINCT tool_name) FROM claude_code_hooks_payload " +
-		"WHERE user_id = $1 AND tool_name IS NOT NULL"
-	err = r.db.QueryRowContext(ctx, uniqueToolsQuery, userID).Scan(&stats.TotalUniqueTools)
-	if err != nil {
-		slog.Error("Failed to count unique tools", "error", err)
-		stats.TotalUniqueTools = 0
-	}
+	scanStatOrZero(ctx, r.db, claudeCodeOverviewUniqueToolsQuery, userID,
+		"Failed to count unique tools", &stats.TotalUniqueTools)
 
 	// Get top 3 tools
-	topToolsQuery := `
-		SELECT tool_name, COUNT(*) as usage_count
-		FROM claude_code_hooks_payload
-		WHERE user_id = $1 AND tool_name IS NOT NULL
-		GROUP BY tool_name
-		ORDER BY usage_count DESC
-		LIMIT 3`
-	topToolsRows, err := r.db.QueryContext(ctx, topToolsQuery, userID)
-	if err != nil {
-		slog.Error("Failed to query top tools", "error", err)
-		stats.TopTools = []models.ToolUsageCount{}
-	} else {
-		defer func() {
-			if closeErr := topToolsRows.Close(); closeErr != nil {
-				slog.Error("Failed to close rows", "error", closeErr)
-			}
-		}()
-		var topTools []models.ToolUsageCount
-		for topToolsRows.Next() {
-			var tool models.ToolUsageCount
-			scanErr := topToolsRows.Scan(&tool.ToolName, &tool.Count)
-			if scanErr != nil {
-				slog.Error("Failed to scan top tool row", "error", scanErr)
-				continue
-			}
-			topTools = append(topTools, tool)
-		}
-		if topTools == nil {
-			topTools = []models.ToolUsageCount{}
-		}
-		stats.TopTools = topTools
-	}
+	stats.TopTools = queryTopToolUsage(ctx, r.db, claudeCodeOverviewTopToolsQuery, userID)
 
 	// Get average session duration
-	avgDurationQuery := `
-		SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (last_seen - first_seen))/60), 0) as avg_duration_minutes
-		FROM (
-			SELECT session_id, MIN(created_at) as first_seen, MAX(created_at) as last_seen
-			FROM claude_code_hooks_payload
-			WHERE user_id = $1
-			GROUP BY session_id
-			HAVING MIN(created_at) != MAX(created_at)
-		) as session_durations`
-	err = r.db.QueryRowContext(ctx, avgDurationQuery, userID).Scan(&stats.AvgSessionDurationMinutes)
-	if err != nil {
-		slog.Error("Failed to calculate average session duration", "error", err)
-		stats.AvgSessionDurationMinutes = 0
-	}
+	scanStatOrZero(ctx, r.db, claudeCodeOverviewAvgDurationQuery, userID,
+		"Failed to calculate average session duration", &stats.AvgSessionDurationMinutes)
 
 	// Get total memories count
 	memoriesCountQuery := "SELECT COUNT(*) FROM memories WHERE user_id = $1"
-	err = r.db.QueryRowContext(ctx, memoriesCountQuery, userID).Scan(&stats.TotalMemories)
-	if err != nil {
-		slog.Error("Failed to count total memories", "error", err)
-		stats.TotalMemories = 0
-	}
+	scanStatOrZero(ctx, r.db, memoriesCountQuery, userID,
+		"Failed to count total memories", &stats.TotalMemories)
 
 	return &stats, nil
-	//nolint:gocognit // Repository code with necessary complexity
 }
 
 // buildClaudeCodeRecentActivitiesConditions builds the shared WHERE conditions

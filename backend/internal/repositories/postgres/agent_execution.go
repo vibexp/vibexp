@@ -82,9 +82,34 @@ func (r *agentExecutionRepository) Create(ctx context.Context, execution *models
 	return nil
 }
 
+// nullTimePtr returns a pointer to the time value when valid, nil otherwise.
+func nullTimePtr(t sql.NullTime) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+	v := t.Time
+	return &v
+}
+
+// nullStringPtr returns a pointer to the string value when valid, nil otherwise.
+func nullStringPtr(s sql.NullString) *string {
+	if !s.Valid {
+		return nil
+	}
+	v := s.String
+	return &v
+}
+
+// nullIntPtr returns a pointer to the int64 value as int when valid, nil otherwise.
+func nullIntPtr(i sql.NullInt64) *int {
+	if !i.Valid {
+		return nil
+	}
+	v := int(i.Int64)
+	return &v
+}
+
 // GetByID retrieves an agent execution by ID
-//
-//nolint:gocognit,gocyclo,funlen
 func (r *agentExecutionRepository) GetByID(ctx context.Context, userID, executionID string) (*models.AgentExecution, error) { //nolint:lll
 	query := `
 		SELECT id, agent_id, user_id, status, input, error, started_at, ended_at, duration,
@@ -119,63 +144,47 @@ func (r *agentExecutionRepository) GetByID(ctx context.Context, userID, executio
 		return nil, fmt.Errorf("failed to get agent execution: %w", err)
 	}
 
-	if endedAt.Valid {
-		execution.EndedAt = &endedAt.Time
-	}
-
-	if errorMsg.Valid {
-		execution.Error = &errorMsg.String
-	}
-
-	if duration.Valid {
-		durationInt := int(duration.Int64)
-		execution.Duration = &durationInt
-	}
+	execution.EndedAt = nullTimePtr(endedAt)
+	execution.Error = nullStringPtr(errorMsg)
+	execution.Duration = nullIntPtr(duration)
 
 	// Handle A2A streaming fields
-	if taskID.Valid {
-		execution.TaskID = &taskID.String
-	}
+	execution.TaskID = nullStringPtr(taskID)
+	execution.ContextID = nullStringPtr(contextID)
+	execution.CurrentState = nullStringPtr(currentState)
+	execution.ConversationID = nullStringPtr(conversationID)
 
-	if contextID.Valid {
-		execution.ContextID = &contextID.String
+	if err := unmarshalLoggedField(
+		inputJSON, &execution.Input, "input", "Failed to unmarshal input", executionID,
+	); err != nil {
+		return nil, err
 	}
-
-	if currentState.Valid {
-		execution.CurrentState = &currentState.String
-	}
-
-	if conversationID.Valid {
-		execution.ConversationID = &conversationID.String
-	}
-
-	if len(inputJSON) > 0 {
-		if err := json.Unmarshal(inputJSON, &execution.Input); err != nil {
-			slog.Error(
-				"Failed to unmarshal input",
-				"service", "vibexp-api",
-				"method", "GetByID",
-				"execution_id", executionID,
-				"error", fmt.Sprintf("%+v", err),
-			)
-			return nil, fmt.Errorf("failed to unmarshal input: %w", err)
-		}
-	}
-
-	if len(artifactsJSON) > 0 {
-		if err := json.Unmarshal(artifactsJSON, &execution.Artifacts); err != nil {
-			slog.Error(
-				"Failed to unmarshal artifacts",
-				"service", "vibexp-api",
-				"method", "GetByID",
-				"execution_id", executionID,
-				"error", fmt.Sprintf("%+v", err),
-			)
-			return nil, fmt.Errorf("failed to unmarshal artifacts: %w", err)
-		}
+	if err := unmarshalLoggedField(
+		artifactsJSON, &execution.Artifacts, "artifacts", "Failed to unmarshal artifacts", executionID,
+	); err != nil {
+		return nil, err
 	}
 
 	return &execution, nil
+}
+
+// unmarshalLoggedField unmarshals an optional JSON column into dest, logging
+// and wrapping errors with the same fields GetByID always emitted.
+func unmarshalLoggedField(data []byte, dest any, field, logMsg, executionID string) error {
+	if len(data) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(data, dest); err != nil {
+		slog.Error(
+			logMsg,
+			"service", "vibexp-api",
+			"method", "GetByID",
+			"execution_id", executionID,
+			"error", fmt.Sprintf("%+v", err),
+		)
+		return fmt.Errorf("failed to unmarshal %s: %w", field, err)
+	}
+	return nil
 }
 
 // buildAgentExecutionListWhereClause builds the shared WHERE conditions for the
@@ -681,56 +690,26 @@ func (r *agentExecutionRepository) UpdateArtifacts(
 	return nil
 }
 
-//nolint:gocognit // Repository code with necessary complexity
-
-// GetByConversationID retrieves executions in a conversation with pagination
-// Returns: executions, hasMore, totalCount, error
-//
-//nolint:gocognit,gocyclo,funlen // Repository code with necessary complexity
-func (r *agentExecutionRepository) GetByConversationID(
-	ctx context.Context,
-	userID, conversationID string,
-	limit int,
-	before *time.Time,
-) ([]models.AgentExecution, bool, int, error) {
-	// Build query with optional before filter for pagination
-	query := `
-		SELECT id, agent_id, user_id, status, input, error, started_at, ended_at, duration,
-		       task_id, context_id, current_state, artifacts, conversation_id
-		FROM agent_executions
-		WHERE user_id = $1 AND conversation_id = $2
-	`
-
-	args := []interface{}{userID, conversationID}
-
-	// Add before filter for pagination (load messages before timestamp)
-	if before != nil {
-		query += ` AND started_at < $3`
-		args = append(args, before)
-	}
-
-	// Order DESC to get most recent first, then reverse in code for chronological display
-	query += ` ORDER BY started_at DESC LIMIT $` + fmt.Sprintf("%d", len(args)+1)
-	args = append(args, limit)
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		slog.Error(
-			"Failed to query executions by conversation",
-			"service", "vibexp-api",
-			"method", "GetByConversationID",
-			"user_id", userID,
-			"conversation_id", conversationID,
-			"error", fmt.Sprintf("%+v", err),
-		)
-		return nil, false, 0, fmt.Errorf("failed to query executions: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			slog.Error("Failed to close rows", "error", closeErr)
+// unmarshalExecutionPayloads decodes the input and artifacts JSON columns into
+// the execution, leaving absent columns untouched.
+func unmarshalExecutionPayloads(execution *models.AgentExecution, inputJSON, artifactsJSON []byte) error {
+	if len(inputJSON) > 0 {
+		if jsonErr := json.Unmarshal(inputJSON, &execution.Input); jsonErr != nil {
+			return fmt.Errorf("failed to unmarshal input: %w", jsonErr)
 		}
-	}()
+	}
+	if len(artifactsJSON) > 0 {
+		if jsonErr := json.Unmarshal(artifactsJSON, &execution.Artifacts); jsonErr != nil {
+			return fmt.Errorf("failed to unmarshal artifacts: %w", jsonErr)
+		}
+	}
+	return nil
+}
 
+// scanConversationExecutionRows scans the GetByConversationID projection into
+// a non-nil slice, preserving that method's exact error wrapping and log
+// fields.
+func scanConversationExecutionRows(rows *sql.Rows, userID, conversationID string) ([]models.AgentExecution, error) {
 	executions := make([]models.AgentExecution, 0)
 	for rows.Next() {
 		var execution models.AgentExecution
@@ -761,26 +740,98 @@ func (r *agentExecutionRepository) GetByConversationID(
 				"conversation_id", conversationID,
 				"error", fmt.Sprintf("%+v", scanErr),
 			)
-			return nil, false, 0, fmt.Errorf("failed to scan execution: %w", scanErr)
+			return nil, fmt.Errorf("failed to scan execution: %w", scanErr)
 		}
 
-		if len(inputJSON) > 0 {
-			if jsonErr := json.Unmarshal(inputJSON, &execution.Input); jsonErr != nil {
-				return nil, false, 0, fmt.Errorf("failed to unmarshal input: %w", jsonErr)
-			}
-		}
-
-		if len(artifactsJSON) > 0 {
-			if jsonErr := json.Unmarshal(artifactsJSON, &execution.Artifacts); jsonErr != nil {
-				return nil, false, 0, fmt.Errorf("failed to unmarshal artifacts: %w", jsonErr)
-			}
+		if jsonErr := unmarshalExecutionPayloads(&execution, inputJSON, artifactsJSON); jsonErr != nil {
+			return nil, jsonErr
 		}
 
 		executions = append(executions, execution)
 	}
 
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, false, 0, fmt.Errorf("error iterating rows: %w", rowsErr)
+		return nil, fmt.Errorf("error iterating rows: %w", rowsErr)
+	}
+
+	return executions, nil
+}
+
+// GetByConversationID retrieves executions in a conversation with pagination
+// Returns: executions, hasMore, totalCount, error
+// buildConversationExecutionsQuery assembles the paginated per-conversation
+// query: an optional before filter, then DESC ordering (callers reverse in
+// code for chronological display).
+// countConversationExecutions returns the conversation's total execution
+// count, falling back to the already-loaded count on query failure (warned,
+// as before).
+func (r *agentExecutionRepository) countConversationExecutions(
+	ctx context.Context, userID, conversationID string, fallback int,
+) int {
+	countQuery := `SELECT COUNT(*) FROM agent_executions WHERE user_id = $1 AND conversation_id = $2`
+	var totalCount int
+	if err := r.db.QueryRowContext(ctx, countQuery, userID, conversationID).Scan(&totalCount); err != nil {
+		slog.Warn(
+			"Failed to get total count",
+			"service", "vibexp-api",
+			"method", "GetByConversationID",
+			"user_id", userID,
+			"conversation_id", conversationID,
+			"error", fmt.Sprintf("%+v", err),
+		)
+		return fallback
+	}
+	return totalCount
+}
+
+func buildConversationExecutionsQuery(
+	userID, conversationID string, limit int, before *time.Time,
+) (string, []interface{}) {
+	query := `
+		SELECT id, agent_id, user_id, status, input, error, started_at, ended_at, duration,
+		       task_id, context_id, current_state, artifacts, conversation_id
+		FROM agent_executions
+		WHERE user_id = $1 AND conversation_id = $2
+	`
+	args := []interface{}{userID, conversationID}
+	if before != nil {
+		query += ` AND started_at < $3`
+		args = append(args, before)
+	}
+	query += ` ORDER BY started_at DESC LIMIT $` + fmt.Sprintf("%d", len(args)+1)
+	args = append(args, limit)
+	return query, args
+}
+
+func (r *agentExecutionRepository) GetByConversationID(
+	ctx context.Context,
+	userID, conversationID string,
+	limit int,
+	before *time.Time,
+) ([]models.AgentExecution, bool, int, error) {
+	query, args := buildConversationExecutionsQuery(userID, conversationID, limit, before)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		slog.Error(
+			"Failed to query executions by conversation",
+			"service", "vibexp-api",
+			"method", "GetByConversationID",
+			"user_id", userID,
+			"conversation_id", conversationID,
+			"error", fmt.Sprintf("%+v", err),
+		)
+		return nil, false, 0, fmt.Errorf("failed to query executions: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close rows", "error", closeErr)
+		}
+	}()
+
+	executions, err := scanConversationExecutionRows(rows, userID, conversationID)
+	if err != nil {
+		return nil, false, 0, err
 	}
 
 	// Reverse to get chronological order (oldest first)
@@ -791,21 +842,7 @@ func (r *agentExecutionRepository) GetByConversationID(
 	// Check if there are more messages
 	hasMore := len(executions) == limit
 
-	// Get total count
-	countQuery := `SELECT COUNT(*) FROM agent_executions WHERE user_id = $1 AND conversation_id = $2`
-	var totalCount int
-	err = r.db.QueryRowContext(ctx, countQuery, userID, conversationID).Scan(&totalCount)
-	if err != nil {
-		slog.Warn(
-			"Failed to get total count",
-			"service", "vibexp-api",
-			"method", "GetByConversationID",
-			"user_id", userID,
-			"conversation_id", conversationID,
-			"error", fmt.Sprintf("%+v", err),
-		)
-		totalCount = len(executions) // Fallback to current count
-	}
+	totalCount := r.countConversationExecutions(ctx, userID, conversationID, len(executions))
 
 	slog.Info(
 		"Retrieved executions by conversation",
@@ -819,7 +856,6 @@ func (r *agentExecutionRepository) GetByConversationID(
 	)
 
 	return executions, hasMore, totalCount, nil
-	//nolint:funlen // Repository code with necessary complexity
 }
 
 // GetFirstExecutionInConversation retrieves the first execution in a conversation

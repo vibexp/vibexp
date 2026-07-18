@@ -607,22 +607,46 @@ func TestAgentService_ListAgents(t *testing.T) {
 
 //nolint:funlen // Test function requires comprehensive setup and assertions
 
-//nolint:funlen,gocognit // Test function requires comprehensive setup and assertions
+// updateAgentCase is one UpdateAgent table case.
+type updateAgentCase struct {
+	name    string
+	userID  string
+	agentID string
+	request *models.UpdateAgentRequest
+	setup   func(
+		*repoMocks.MockAgentRepository,
+		*repoMocks.MockAgentExecutionRepository,
+		*MockAgentCardFetcher,
+	)
+	expectError bool
+	errorMsg    string
+	validate    func(*testing.T, *models.Agent)
+}
+
+// assertUpdateAgentOutcome verifies one UpdateAgent table case outcome.
+func assertUpdateAgentOutcome(t *testing.T, tt updateAgentCase, agent *models.Agent, err error) {
+	t.Helper()
+	if tt.expectError {
+		assert.Error(t, err)
+		assert.Nil(t, agent)
+		if tt.errorMsg != "" {
+			assert.Contains(t, err.Error(), tt.errorMsg)
+		}
+		return
+	}
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+	assert.Equal(t, tt.agentID, agent.ID)
+	assert.Equal(t, tt.userID, agent.UserID)
+
+	if tt.validate != nil {
+		tt.validate(t, agent)
+	}
+}
+
+//nolint:funlen // Test function requires comprehensive setup and assertions
 func TestAgentService_UpdateAgent(t *testing.T) {
-	tests := []struct {
-		name    string
-		userID  string
-		agentID string
-		request *models.UpdateAgentRequest
-		setup   func(
-			*repoMocks.MockAgentRepository,
-			*repoMocks.MockAgentExecutionRepository,
-			*MockAgentCardFetcher,
-		)
-		expectError bool
-		errorMsg    string
-		validate    func(*testing.T, *models.Agent)
-	}{
+	tests := []updateAgentCase{
 		{
 			name:    "Successful agent update with card URL change - sets last_synced_at",
 			userID:  "user-123",
@@ -727,27 +751,9 @@ func TestAgentService_UpdateAgent(t *testing.T) {
 			}
 			agent, err := service.UpdateAgent(context.Background(), tt.userID, teamID, tt.agentID, tt.request)
 
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, agent)
-				if tt.errorMsg != "" {
-					assert.Contains(t, err.Error(), tt.errorMsg)
-				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, agent)
-				assert.Equal(t, tt.agentID, agent.ID)
-				assert.Equal(t, tt.userID, agent.UserID)
-
-				if tt.validate != nil {
-					tt.validate(t, agent)
-				}
-			}
-			//nolint:funlen // Test function requires comprehensive setup and assertions
+			assertUpdateAgentOutcome(t, tt, agent, err)
 		})
-		//nolint:funlen // Test function requires comprehensive setup and assertions
 	}
-	//nolint:funlen // Test function requires comprehensive setup and assertions
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions

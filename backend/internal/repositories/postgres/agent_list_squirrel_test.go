@@ -141,11 +141,7 @@ func TestAgentRepository_List_SquirrelMigration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo, mock, mockDB := setupAgentListTest(t)
-			defer func() {
-				if closeErr := mockDB.Close(); closeErr != nil {
-					t.Logf("Failed to close mock DB: %v", closeErr)
-				}
-			}()
+			defer closeMockDB(t, mockDB)
 
 			mock.ExpectQuery(`SELECT COUNT\(\*\) FROM agents a`).
 				WithArgs(tt.countArgs...).
@@ -170,11 +166,7 @@ func TestAgentRepository_List_SquirrelMigration(t *testing.T) {
 // projection is asserted verbatim.
 func TestAgentRepository_List_ExplicitProjection(t *testing.T) {
 	repo, mock, mockDB := setupAgentListTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
+	defer closeMockDB(t, mockDB)
 
 	ctx := contextWithLogger()
 	now := time.Now()
@@ -207,11 +199,7 @@ func TestAgentRepository_List_ExplicitProjection(t *testing.T) {
 // before any query is issued.
 func TestAgentRepository_List_TeamIDGuard(t *testing.T) {
 	repo, mock, mockDB := setupAgentListTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
+	defer closeMockDB(t, mockDB)
 
 	agents, total, err := repo.List(contextWithLogger(), "user-123", repositories.AgentFilters{Page: 1, Limit: 10})
 
@@ -225,7 +213,7 @@ func TestAgentRepository_List_TeamIDGuard(t *testing.T) {
 // TestAgentRepository_List_CardHandling covers the agent_card WARN-and-continue
 // contract and the nullable-column mapping.
 //
-//nolint:funlen,gocognit // multiple subtests covering each card and null-column branch
+//nolint:funlen // multiple subtests covering each card and null-column branch
 func TestAgentRepository_List_CardHandling(t *testing.T) {
 	ctx := contextWithLogger()
 	now := time.Now()
@@ -245,11 +233,7 @@ func TestAgentRepository_List_CardHandling(t *testing.T) {
 
 	t.Run("oversize card JSON keeps the agent without a card", func(t *testing.T) {
 		repo, mock, mockDB := setupAgentListTest(t)
-		defer func() {
-			if closeErr := mockDB.Close(); closeErr != nil {
-				t.Logf("Failed to close mock DB: %v", closeErr)
-			}
-		}()
+		defer closeMockDB(t, mockDB)
 
 		oversize := make([]byte, MaxAgentCardJSONSize+1)
 		for i := range oversize {
@@ -270,11 +254,7 @@ func TestAgentRepository_List_CardHandling(t *testing.T) {
 
 	t.Run("invalid card JSON keeps the agent without a card", func(t *testing.T) {
 		repo, mock, mockDB := setupAgentListTest(t)
-		defer func() {
-			if closeErr := mockDB.Close(); closeErr != nil {
-				t.Logf("Failed to close mock DB: %v", closeErr)
-			}
-		}()
+		defer closeMockDB(t, mockDB)
 
 		row := sqlmock.NewRows(agentListColumns).AddRow(
 			"agent-1", userID, teamID, "A", "d", "active",
@@ -291,11 +271,7 @@ func TestAgentRepository_List_CardHandling(t *testing.T) {
 
 	t.Run("valid card JSON populates AgentCard", func(t *testing.T) {
 		repo, mock, mockDB := setupAgentListTest(t)
-		defer func() {
-			if closeErr := mockDB.Close(); closeErr != nil {
-				t.Logf("Failed to close mock DB: %v", closeErr)
-			}
-		}()
+		defer closeMockDB(t, mockDB)
 
 		row := sqlmock.NewRows(agentListColumns).AddRow(
 			"agent-1", userID, teamID, "A", "d", "active",
@@ -313,11 +289,7 @@ func TestAgentRepository_List_CardHandling(t *testing.T) {
 
 	t.Run("NULL nullable columns map to nil pointers", func(t *testing.T) {
 		repo, mock, mockDB := setupAgentListTest(t)
-		defer func() {
-			if closeErr := mockDB.Close(); closeErr != nil {
-				t.Logf("Failed to close mock DB: %v", closeErr)
-			}
-		}()
+		defer closeMockDB(t, mockDB)
 
 		row := sqlmock.NewRows(agentListColumns).AddRow(
 			"agent-1", userID, teamID, "A", "d", "active",
@@ -337,11 +309,7 @@ func TestAgentRepository_List_CardHandling(t *testing.T) {
 
 	t.Run("populated nullable columns map to set pointers", func(t *testing.T) {
 		repo, mock, mockDB := setupAgentListTest(t)
-		defer func() {
-			if closeErr := mockDB.Close(); closeErr != nil {
-				t.Logf("Failed to close mock DB: %v", closeErr)
-			}
-		}()
+		defer closeMockDB(t, mockDB)
 
 		cardURL := "https://example.com/card"
 		lastRun := now.Add(-time.Hour)
@@ -433,11 +401,7 @@ func TestAgentRepository_List_ErrorPaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo, mock, mockDB := setupAgentListTest(t)
-			defer func() {
-				if closeErr := mockDB.Close(); closeErr != nil {
-					t.Logf("Failed to close mock DB: %v", closeErr)
-				}
-			}()
+			defer closeMockDB(t, mockDB)
 
 			tt.setupMock(mock)
 

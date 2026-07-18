@@ -388,7 +388,6 @@ func (s *AgentService) ListAgents(
 	return response, nil
 }
 
-//nolint:funlen // Complex business logic for agent updates
 func (s *AgentService) UpdateAgent(
 	ctx context.Context, userID, teamID, agentID string, req *models.UpdateAgentRequest,
 ) (*models.Agent, error) {
@@ -410,39 +409,12 @@ func (s *AgentService) UpdateAgent(
 
 	// Handle agent card URL update
 	if req.CardURL != nil && *req.CardURL != "" {
-		// Fetch new agent card, applying the agent's stored header credentials so a
-		// card behind header auth can be re-discovered.
-		agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *req.CardURL, s.cardFetchAuthHeaders(agent))
-		if err != nil {
-			s.logger.With(
-				"service", logServiceAgent,
-				"method", "UpdateAgent",
-				"user_id", userID,
-				"agent_id", agentID,
-				"card_url", *req.CardURL,
-				"error", fmt.Sprintf("%+v", err),
-			).Error("Failed to fetch agent card during update")
-			// Return the detailed error message from the card fetcher directly
+		if err := s.refreshAgentFromCard(ctx, userID, agentID, agent, req.CardURL); err != nil {
 			return nil, err
 		}
-
-		// Update agent with card data
-		agent.CardURL = req.CardURL
-		agent.AgentCard = agentCard
-		agent.Name = agentCard.Name
-		agent.Description = agentCard.Description
-
-		// Update last_synced_at when card is updated
-		now := time.Now()
-		agent.LastSyncedAt = &now
 	} else {
 		// Update fields if provided (only if not using card)
-		if req.Name != nil {
-			agent.Name = *req.Name
-		}
-		if req.Description != nil {
-			agent.Description = *req.Description
-		}
+		applyAgentFieldUpdates(agent, req)
 	}
 
 	if req.Status != nil {
@@ -451,15 +423,8 @@ func (s *AgentService) UpdateAgent(
 
 	// Handle credentials update if provided
 	if len(req.Credentials) > 0 {
-		if err := s.encryptCredentials(agent, req.Credentials); err != nil {
-			s.logger.With(
-				"service", logServiceAgent,
-				"method", "UpdateAgent",
-				"user_id", userID,
-				"agent_id", agentID,
-				"error", fmt.Sprintf("%+v", err),
-			).Error(agentMsgEncryptionFailed)
-			return nil, fmt.Errorf("failed to encrypt credentials: %w", err)
+		if err := s.updateAgentCredentials(userID, agentID, agent, req.Credentials); err != nil {
+			return nil, err
 		}
 	}
 
@@ -483,6 +448,68 @@ func (s *AgentService) UpdateAgent(
 	).Info("Agent updated successfully")
 
 	return agent, nil
+}
+
+// applyAgentFieldUpdates applies the plain name/description updates used when the
+// update does not go through an agent card refresh.
+func applyAgentFieldUpdates(agent *models.Agent, req *models.UpdateAgentRequest) {
+	if req.Name != nil {
+		agent.Name = *req.Name
+	}
+	if req.Description != nil {
+		agent.Description = *req.Description
+	}
+}
+
+// refreshAgentFromCard fetches the agent card at cardURL and applies it to the
+// agent (card, name, description, last_synced_at). Fetch failures are logged and
+// returned verbatim so the caller surfaces the card fetcher's detailed message.
+func (s *AgentService) refreshAgentFromCard(
+	ctx context.Context, userID, agentID string, agent *models.Agent, cardURL *string,
+) error {
+	// Fetch new agent card, applying the agent's stored header credentials so a
+	// card behind header auth can be re-discovered.
+	agentCard, err := s.cardFetcher.FetchAgentCard(ctx, *cardURL, s.cardFetchAuthHeaders(agent))
+	if err != nil {
+		s.logger.With(
+			"service", logServiceAgent,
+			"method", "UpdateAgent",
+			"user_id", userID,
+			"agent_id", agentID,
+			"card_url", *cardURL,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to fetch agent card during update")
+		// Return the detailed error message from the card fetcher directly
+		return err
+	}
+
+	// Update agent with card data
+	agent.CardURL = cardURL
+	agent.AgentCard = agentCard
+	agent.Name = agentCard.Name
+	agent.Description = agentCard.Description
+
+	// Update last_synced_at when card is updated
+	now := time.Now()
+	agent.LastSyncedAt = &now
+	return nil
+}
+
+// updateAgentCredentials encrypts and applies new credentials during an agent update.
+func (s *AgentService) updateAgentCredentials(
+	userID, agentID string, agent *models.Agent, credentials map[string]models.CredentialRequest,
+) error {
+	if err := s.encryptCredentials(agent, credentials); err != nil {
+		s.logger.With(
+			"service", logServiceAgent,
+			"method", "UpdateAgent",
+			"user_id", userID,
+			"agent_id", agentID,
+			"error", fmt.Sprintf("%+v", err),
+		).Error(agentMsgEncryptionFailed)
+		return fmt.Errorf("failed to encrypt credentials: %w", err)
+	}
+	return nil
 }
 
 func (s *AgentService) DeleteAgent(ctx context.Context, userID, teamID, agentID string) error {

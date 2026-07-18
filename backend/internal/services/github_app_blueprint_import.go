@@ -22,11 +22,15 @@ const (
 	blueprintTypeClaudeCode = "claude-code"
 )
 
+// blueprintScanPath is a repository location scanned for importable blueprint files.
+type blueprintScanPath struct {
+	path  string
+	isDir bool
+}
+
 // ImportBlueprintsFromRepository imports AI assistant configurations from a GitHub repository as blueprints.
 // The project is automatically discovered by matching the repository URL. If no project exists for the
 // repository, an error is returned instructing the user to import the repository as a project first.
-//
-//nolint:funlen,gocognit // Blueprint import requires comprehensive scanning and context checks
 func (s *GitHubAppService) ImportBlueprintsFromRepository(
 	ctx context.Context,
 	userID, teamID string,
@@ -43,10 +47,6 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repository: %w", err)
 	}
-
-	// Extract owner and repo name for API calls
-	owner := repo.Owner.Login
-	repoName := repo.Name
 
 	// 3. Find project by repository URL.
 	// Blueprint import requires a project to exist for the repository.
@@ -76,70 +76,110 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 		SkippedItems:    []models.BlueprintImportSkipped{},
 	}
 
-	// 5. Define paths to scan
-	pathsToScan := []struct {
-		path  string
-		isDir bool
-	}{
-		{".claude", true},
-		{".cursor", true},
-		{".codex", true},
-		{".agents", true},
-		{"CLAUDE.md", false},
-		{"CURSOR.md", false},
-		{"AGENTS.md", false},
+	// 5-6. Scan and import each well-known path
+	job := &blueprintImportJob{
+		installationID: installation.InstallationID,
+		userID:         userID,
+		teamID:         teamID,
+		repo:           repo,
+		projectID:      projectID,
+		report:         report,
 	}
-
-	// 6. Scan and import each path
-	for _, scanPath := range pathsToScan {
-		select {
-		case <-ctx.Done():
-			return report, ctx.Err()
-		default:
-		}
-
-		if scanPath.isDir {
-			files, err := s.githubClient.GetDirectoryContentsRecursive(
-				ctx, installation.InstallationID, owner, repoName, scanPath.path,
-			)
-			if err != nil {
-				s.logger.With(
-					"path", scanPath.path,
-					"repo_id", repoID,
-				).Debug("Directory not found, skipping")
-				continue
-			}
-
-			for _, file := range files {
-				select {
-				case <-ctx.Done():
-					return report, ctx.Err()
-				default:
-				}
-
-				report.TotalScanned++
-				s.logImportProgress(report, repo.ID, teamID)
-				s.importSingleFile(ctx, userID, teamID, repo, file, projectID, report)
-			}
-		} else {
-			file, err := s.githubClient.GetFileContent(
-				ctx, installation.InstallationID, owner, repoName, scanPath.path,
-			)
-			if err != nil {
-				s.logger.With(
-					"path", scanPath.path,
-					"repo_id", repoID,
-				).Debug("File not found, skipping")
-				continue
-			}
-
-			report.TotalScanned++
-			s.logImportProgress(report, repo.ID, teamID)
-			s.importSingleFile(ctx, userID, teamID, repo, file, projectID, report)
+	for _, scanPath := range blueprintScanPaths {
+		if err := s.scanBlueprintPath(ctx, job, scanPath); err != nil {
+			return report, err
 		}
 	}
 
 	return report, nil
+}
+
+// blueprintScanPaths are the well-known AI-config locations scanned during a
+// blueprint import (directories recursively, files directly).
+var blueprintScanPaths = []blueprintScanPath{
+	{".claude", true},
+	{".cursor", true},
+	{".codex", true},
+	{".agents", true},
+	{"CLAUDE.md", false},
+	{"CURSOR.md", false},
+	{"AGENTS.md", false},
+}
+
+// blueprintImportJob carries the fields invariant across one repository's
+// blueprint import, so the per-path scan helpers stay at two parameters.
+type blueprintImportJob struct {
+	installationID int64
+	userID         string
+	teamID         string
+	repo           *models.GitHubRepository
+	projectID      string
+	report         *models.BlueprintImportReport
+}
+
+// scanBlueprintPath scans one repository path (file or directory) and imports every
+// discovered file into the report. It only returns an error on context cancellation;
+// a missing path is logged and skipped.
+func (s *GitHubAppService) scanBlueprintPath(
+	ctx context.Context, job *blueprintImportJob, scanPath blueprintScanPath,
+) error {
+	installationID, repo, report := job.installationID, job.repo, job.report
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	if scanPath.isDir {
+		return s.scanBlueprintDirectory(ctx, job, scanPath.path)
+	}
+
+	file, err := s.githubClient.GetFileContent(
+		ctx, installationID, repo.Owner.Login, repo.Name, scanPath.path,
+	)
+	if err != nil {
+		s.logger.With(
+			"path", scanPath.path,
+			"repo_id", repo.ID,
+		).Debug("File not found, skipping")
+		return nil
+	}
+
+	report.TotalScanned++
+	s.logImportProgress(report, repo.ID, job.teamID)
+	s.importSingleFile(ctx, job.userID, job.teamID, repo, file, job.projectID, report)
+	return nil
+}
+
+// scanBlueprintDirectory recursively lists a repository directory and imports each file.
+// It only returns an error on context cancellation; a missing directory is logged and skipped.
+func (s *GitHubAppService) scanBlueprintDirectory(
+	ctx context.Context, job *blueprintImportJob, dirPath string,
+) error {
+	installationID, repo, report := job.installationID, job.repo, job.report
+	files, err := s.githubClient.GetDirectoryContentsRecursive(
+		ctx, installationID, repo.Owner.Login, repo.Name, dirPath,
+	)
+	if err != nil {
+		s.logger.With(
+			"path", dirPath,
+			"repo_id", repo.ID,
+		).Debug("Directory not found, skipping")
+		return nil
+	}
+
+	for _, file := range files {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		report.TotalScanned++
+		s.logImportProgress(report, repo.ID, job.teamID)
+		s.importSingleFile(ctx, job.userID, job.teamID, repo, file, job.projectID, report)
+	}
+	return nil
 }
 
 // logImportProgress logs import progress every importProgressInterval files scanned.
@@ -158,8 +198,6 @@ func (s *GitHubAppService) logImportProgress(report *models.BlueprintImportRepor
 }
 
 // importSingleFile imports a single file as a blueprint
-//
-//nolint:funlen,gocognit,gocyclo // File processing requires multiple validation and transformation steps
 func (s *GitHubAppService) importSingleFile(
 	ctx context.Context,
 	userID, teamID string,
@@ -168,57 +206,7 @@ func (s *GitHubAppService) importSingleFile(
 	projectID string,
 	report *models.BlueprintImportReport,
 ) {
-	// Check file extension - ONLY markdown files
-	if !strings.HasSuffix(strings.ToLower(file.Path), ".md") {
-		s.logger.With(
-			"service", logServiceGitHubApp,
-			"file_path", file.Path,
-			"extension", filepath.Ext(file.Path),
-			"repo_id", repo.ID,
-			"team_id", teamID,
-			"reason", "invalid_extension",
-		).Info(msgSkippedBlueprintFile)
-		report.TotalSkipped++
-		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
-			FilePath: file.Path,
-			Reason:   "Not a markdown file",
-		})
-		return
-	}
-
-	// Skip if file is empty
-	if len(file.Content) == 0 {
-		s.logger.With(
-			"service", logServiceGitHubApp,
-			"file_path", file.Path,
-			"repo_id", repo.ID,
-			"team_id", teamID,
-			"reason", "empty_content",
-		).Debug("Skipped empty file during blueprint import")
-		report.TotalSkipped++
-		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
-			FilePath: file.Path,
-			Reason:   "Empty file",
-		})
-		return
-	}
-
-	// Skip files larger than maxFileSize
-	if len(file.Content) > maxFileSize {
-		s.logger.With(
-			"service", logServiceGitHubApp,
-			"file_path", file.Path,
-			"file_size", len(file.Content),
-			"max_size", maxFileSize,
-			"repo_id", repo.ID,
-			"team_id", teamID,
-			"reason", "file_too_large",
-		).Info(msgSkippedBlueprintFile)
-		report.TotalSkipped++
-		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
-			FilePath: file.Path,
-			Reason:   fmt.Sprintf("File too large (%d bytes, max %d bytes)", len(file.Content), maxFileSize),
-		})
+	if s.shouldSkipImportFile(file, repo, teamID, report) {
 		return
 	}
 
@@ -232,99 +220,26 @@ func (s *GitHubAppService) importSingleFile(
 		).Warn("Unmapped file path pattern encountered during blueprint import - consider adding support for this pattern")
 	}
 
-	slug := s.generateBlueprintSlug(file.Path, repo.Name)
+	blueprint := s.buildImportedBlueprint(userID, teamID, projectID, repo, file, blueprintType, subtype)
 
-	filename := file.Path
-	if idx := strings.LastIndex(file.Path, "/"); idx != -1 {
-		filename = file.Path[idx+1:]
-	}
-
-	fm := utils.ParseFrontMatter(file.Content)
-
-	title := fmt.Sprintf("%s from %s", filename, repo.Name)
-	if v, ok := fm.Metadata["name"]; ok && v != "" {
-		title = v
-	} else if v, ok := fm.Metadata["title"]; ok && v != "" {
-		title = v
-	}
-	if titleRunes := []rune(title); len(titleRunes) > maxTitleLen {
-		s.logger.With(
-			"file_path", file.Path,
-			"title_length", len(titleRunes),
-			"max_length", maxTitleLen,
-		).
-			Warn("Frontmatter title exceeds maximum length, truncating")
-		title = string(titleRunes[:maxTitleLen])
-	}
-
-	description := fmt.Sprintf("Imported from %s", repo.FullName)
-	if v, ok := fm.Metadata["description"]; ok && v != "" {
-		if descRunes := []rune(v); len(descRunes) > maxDescriptionLen {
-			s.logger.With(
-				"file_path", file.Path,
-				"description_length", len(descRunes),
-				"max_length", maxDescriptionLen,
-			).Warn("Frontmatter description exceeds maximum length, truncating")
-			v = string(descRunes[:maxDescriptionLen])
-		}
-		description = v
-	}
-
-	content := file.Content
-	if fm.HasFrontMatter {
-		content = fm.Body
-	}
-
-	metadata := make(map[string]interface{})
-	for k, v := range fm.Metadata {
-		if k != "name" && k != "title" && k != "description" {
-			metadata[k] = v
-		}
-	}
-
-	blueprint := &models.Blueprint{
-		ID:          uuid.New().String(),
-		ProjectID:   projectID,
-		Slug:        slug,
-		UserID:      userID,
-		TeamID:      teamID,
-		Content:     content,
-		Title:       title,
-		Description: description,
-		Type:        blueprintType,
-		Status:      "active",
-		Metadata:    metadata,
-		Version:     1,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-
-	if subtype != "" {
-		blueprint.Subtype = &subtype
-	}
-
-	existingBlueprint, checkErr := s.blueprintRepo.GetByProjectIDAndSlug(ctx, userID, teamID, projectID, slug)
+	existingBlueprint, checkErr := s.blueprintRepo.GetByProjectIDAndSlug(ctx, userID, teamID, projectID, blueprint.Slug)
 	if checkErr == nil && existingBlueprint != nil {
 		s.logger.With(
 			"service", logServiceGitHubApp,
 			"file_path", file.Path,
-			"slug", slug,
+			"slug", blueprint.Slug,
 			"repo_id", repo.ID,
 			"team_id", teamID,
 			"reason", "existing_slug",
 		).Info(msgSkippedBlueprintFile)
-		report.TotalSkipped++
-		report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
-			FilePath: file.Path,
-			Reason:   "Blueprint already exists with slug: " + slug,
-		})
+		recordSkippedImportFile(report, file.Path, "Blueprint already exists with slug: "+blueprint.Slug)
 		return
 	}
 
 	if err := s.blueprintRepo.Create(ctx, blueprint); err != nil {
 		s.logger.With("error", err).With(
 			"file_path", file.Path,
-			"slug", slug,
+			"slug", blueprint.Slug,
 		).Error("Failed to create blueprint")
 		report.TotalFailed++
 		report.FailedItems = append(report.FailedItems, models.BlueprintImportFailed{
@@ -334,6 +249,63 @@ func (s *GitHubAppService) importSingleFile(
 		return
 	}
 
+	s.recordImportedBlueprint(file, repo, teamID, blueprint, report)
+}
+
+// buildImportedBlueprint assembles the blueprint model for an imported repository
+// file, deriving slug, title, description, content, and metadata from the file.
+func (s *GitHubAppService) buildImportedBlueprint(
+	userID, teamID, projectID string,
+	repo *models.GitHubRepository,
+	file *external.GitHubFile,
+	blueprintType, subtype string,
+) *models.Blueprint {
+	slug := s.generateBlueprintSlug(file.Path, repo.Name)
+
+	filename := file.Path
+	if idx := strings.LastIndex(file.Path, "/"); idx != -1 {
+		filename = file.Path[idx+1:]
+	}
+
+	fm := utils.ParseFrontMatter(file.Content)
+
+	content := file.Content
+	if fm.HasFrontMatter {
+		content = fm.Body
+	}
+
+	blueprint := &models.Blueprint{
+		ID:          uuid.New().String(),
+		ProjectID:   projectID,
+		Slug:        slug,
+		UserID:      userID,
+		TeamID:      teamID,
+		Content:     content,
+		Title:       s.blueprintTitleFromFrontMatter(fm, file.Path, filename, repo.Name),
+		Description: s.blueprintDescriptionFromFrontMatter(fm, file.Path, repo.FullName),
+		Type:        blueprintType,
+		Status:      "active",
+		Metadata:    blueprintMetadataFromFrontMatter(fm),
+		Version:     1,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	if subtype != "" {
+		blueprint.Subtype = &subtype
+	}
+
+	return blueprint
+}
+
+// recordImportedBlueprint records a successful import in the report and logs it.
+func (s *GitHubAppService) recordImportedBlueprint(
+	file *external.GitHubFile,
+	repo *models.GitHubRepository,
+	teamID string,
+	blueprint *models.Blueprint,
+	report *models.BlueprintImportReport,
+) {
 	report.TotalSuccessful++
 	subtypeStr := ""
 	if blueprint.Subtype != nil {
@@ -359,64 +331,169 @@ func (s *GitHubAppService) importSingleFile(
 	).Info("Successfully imported blueprint from GitHub")
 }
 
+// shouldSkipImportFile checks the import guards (markdown-only, non-empty, size cap)
+// and records a skip in the report when one fails. It returns true when the file
+// must not be imported.
+func (s *GitHubAppService) shouldSkipImportFile(
+	file *external.GitHubFile,
+	repo *models.GitHubRepository,
+	teamID string,
+	report *models.BlueprintImportReport,
+) bool {
+	// Check file extension - ONLY markdown files
+	if !strings.HasSuffix(strings.ToLower(file.Path), ".md") {
+		s.logger.With(
+			"service", logServiceGitHubApp,
+			"file_path", file.Path,
+			"extension", filepath.Ext(file.Path),
+			"repo_id", repo.ID,
+			"team_id", teamID,
+			"reason", "invalid_extension",
+		).Info(msgSkippedBlueprintFile)
+		recordSkippedImportFile(report, file.Path, "Not a markdown file")
+		return true
+	}
+
+	// Skip if file is empty
+	if len(file.Content) == 0 {
+		s.logger.With(
+			"service", logServiceGitHubApp,
+			"file_path", file.Path,
+			"repo_id", repo.ID,
+			"team_id", teamID,
+			"reason", "empty_content",
+		).Debug("Skipped empty file during blueprint import")
+		recordSkippedImportFile(report, file.Path, "Empty file")
+		return true
+	}
+
+	// Skip files larger than maxFileSize
+	if len(file.Content) > maxFileSize {
+		s.logger.With(
+			"service", logServiceGitHubApp,
+			"file_path", file.Path,
+			"file_size", len(file.Content),
+			"max_size", maxFileSize,
+			"repo_id", repo.ID,
+			"team_id", teamID,
+			"reason", "file_too_large",
+		).Info(msgSkippedBlueprintFile)
+		recordSkippedImportFile(
+			report, file.Path,
+			fmt.Sprintf("File too large (%d bytes, max %d bytes)", len(file.Content), maxFileSize),
+		)
+		return true
+	}
+
+	return false
+}
+
+// recordSkippedImportFile appends a skipped entry to the import report.
+func recordSkippedImportFile(report *models.BlueprintImportReport, filePath, reason string) {
+	report.TotalSkipped++
+	report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
+		FilePath: filePath,
+		Reason:   reason,
+	})
+}
+
+// blueprintTitleFromFrontMatter derives the blueprint title, preferring the
+// frontmatter "name" then "title" over the default, truncated to maxTitleLen runes.
+func (s *GitHubAppService) blueprintTitleFromFrontMatter(
+	fm utils.FrontMatterResult, filePath, filename, repoName string,
+) string {
+	title := fmt.Sprintf("%s from %s", filename, repoName)
+	if v, ok := fm.Metadata["name"]; ok && v != "" {
+		title = v
+	} else if v, ok := fm.Metadata["title"]; ok && v != "" {
+		title = v
+	}
+	if titleRunes := []rune(title); len(titleRunes) > maxTitleLen {
+		s.logger.With(
+			"file_path", filePath,
+			"title_length", len(titleRunes),
+			"max_length", maxTitleLen,
+		).
+			Warn("Frontmatter title exceeds maximum length, truncating")
+		title = string(titleRunes[:maxTitleLen])
+	}
+	return title
+}
+
+// blueprintDescriptionFromFrontMatter derives the blueprint description, preferring
+// the frontmatter "description" over the default, truncated to maxDescriptionLen runes.
+func (s *GitHubAppService) blueprintDescriptionFromFrontMatter(
+	fm utils.FrontMatterResult, filePath, repoFullName string,
+) string {
+	description := fmt.Sprintf("Imported from %s", repoFullName)
+	if v, ok := fm.Metadata["description"]; ok && v != "" {
+		if descRunes := []rune(v); len(descRunes) > maxDescriptionLen {
+			s.logger.With(
+				"file_path", filePath,
+				"description_length", len(descRunes),
+				"max_length", maxDescriptionLen,
+			).Warn("Frontmatter description exceeds maximum length, truncating")
+			v = string(descRunes[:maxDescriptionLen])
+		}
+		description = v
+	}
+	return description
+}
+
+// blueprintMetadataFromFrontMatter copies the frontmatter metadata minus the keys
+// already mapped to dedicated blueprint fields (name/title/description).
+func blueprintMetadataFromFrontMatter(fm utils.FrontMatterResult) map[string]interface{} {
+	metadata := make(map[string]interface{})
+	for k, v := range fm.Metadata {
+		if k != "name" && k != "title" && k != "description" {
+			metadata[k] = v
+		}
+	}
+	return metadata
+}
+
+// blueprintPathType maps a repository path prefix to a blueprint type and subtype.
+type blueprintPathType struct {
+	prefix  string
+	typ     string
+	subtype string
+}
+
+// blueprintExactPathTypes maps exact root-level file paths to blueprint types.
+var blueprintExactPathTypes = map[string]blueprintPathType{
+	"CLAUDE.md": {typ: "claude", subtype: "claude-md"},
+	"CURSOR.md": {typ: "cursor", subtype: "cursor-md"},
+	"AGENTS.md": {typ: "codex", subtype: "agents-md"},
+}
+
+// blueprintPrefixPathTypes maps path prefixes to blueprint types, most specific first
+// (order matters: e.g. ".claude/agents/" must match before ".claude/").
+var blueprintPrefixPathTypes = []blueprintPathType{
+	{prefix: ".claude/agents/", typ: blueprintTypeClaudeCode, subtype: "sub-agents"},
+	{prefix: ".claude/skills/", typ: blueprintTypeClaudeCode, subtype: "skills"},
+	{prefix: ".claude/commands/", typ: blueprintTypeClaudeCode, subtype: "slash-commands"},
+	{prefix: ".claude/", typ: blueprintTypeClaudeCode, subtype: "others"},
+	{prefix: ".cursor/skills/", typ: "cursor", subtype: "skills"},
+	{prefix: ".cursor/agents/", typ: "cursor", subtype: "agents"},
+	{prefix: ".cursor/commands/", typ: "cursor", subtype: "commands"},
+	{prefix: ".cursor/rules/", typ: "cursor", subtype: "rules"},
+	{prefix: ".cursor/", typ: "cursor", subtype: "cursor-md"},
+	{prefix: ".codex/rules/", typ: "codex", subtype: "rules"},
+	{prefix: ".codex/skills/", typ: "codex", subtype: "skills"},
+	{prefix: ".codex/", typ: "codex", subtype: "others"},
+	{prefix: ".agents/skills/", typ: "codex", subtype: "skills"},
+	{prefix: ".agents/", typ: "codex", subtype: "others"},
+}
+
 // determineTypeFromPath determines blueprint type and subtype from file path
-//
-//nolint:gocognit,gocyclo // Path pattern matching requires sequential checks
 func (s *GitHubAppService) determineTypeFromPath(path string) (string, string) {
-	if strings.HasPrefix(path, ".claude/agents/") {
-		return blueprintTypeClaudeCode, "sub-agents"
+	if match, ok := blueprintExactPathTypes[path]; ok {
+		return match.typ, match.subtype
 	}
-	if strings.HasPrefix(path, ".claude/skills/") {
-		return blueprintTypeClaudeCode, "skills"
-	}
-	if strings.HasPrefix(path, ".claude/commands/") {
-		return blueprintTypeClaudeCode, "slash-commands"
-	}
-	if strings.HasPrefix(path, ".claude/") {
-		return blueprintTypeClaudeCode, "others"
-	}
-	if path == "CLAUDE.md" {
-		return "claude", "claude-md"
-	}
-
-	if strings.HasPrefix(path, ".cursor/skills/") {
-		return "cursor", "skills"
-	}
-	if strings.HasPrefix(path, ".cursor/agents/") {
-		return "cursor", "agents"
-	}
-	if strings.HasPrefix(path, ".cursor/commands/") {
-		return "cursor", "commands"
-	}
-	if strings.HasPrefix(path, ".cursor/rules/") {
-		return "cursor", "rules"
-	}
-	if strings.HasPrefix(path, ".cursor/") {
-		return "cursor", "cursor-md"
-	}
-	if path == "CURSOR.md" {
-		return "cursor", "cursor-md"
-	}
-
-	if path == "AGENTS.md" {
-		return "codex", "agents-md"
-	}
-
-	if strings.HasPrefix(path, ".codex/rules/") {
-		return "codex", "rules"
-	}
-	if strings.HasPrefix(path, ".codex/skills/") {
-		return "codex", "skills"
-	}
-	if strings.HasPrefix(path, ".codex/") {
-		return "codex", "others"
-	}
-
-	if strings.HasPrefix(path, ".agents/skills/") {
-		return "codex", "skills"
-	}
-	if strings.HasPrefix(path, ".agents/") {
-		return "codex", "others"
+	for _, match := range blueprintPrefixPathTypes {
+		if strings.HasPrefix(path, match.prefix) {
+			return match.typ, match.subtype
+		}
 	}
 
 	// Default fallback (will trigger warning log in caller)

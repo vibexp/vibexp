@@ -299,8 +299,6 @@ func (s *PromptService) UpdatePrompt(
 // UpdatePromptRequest, so the prompt update API exposes no user-facing change-summary field
 // (parity with artifacts/blueprints/memory). The versioned content is the raw Body template
 // (placeholders and @slug references), not any rendered output.
-//
-//nolint:funlen,gocyclo,gocognit // Prompt update validation requires checking multiple fields conditionally
 func (s *PromptService) updatePromptInternal(
 	userID, teamID, promptID string, req *models.UpdatePromptRequest,
 	actorType string, changeSummary *string,
@@ -322,9 +320,7 @@ func (s *PromptService) updatePromptInternal(
 	}
 
 	// Check if there are any updates to apply
-	hasUpdates := req.Name != nil || req.Slug != nil || req.Description != nil ||
-		req.Body != nil || req.ProjectID != nil || req.Status != nil || req.MCPExpose != nil || req.Labels != nil
-	if !hasUpdates {
+	if !hasPromptUpdates(req) {
 		return existingPrompt, nil
 	}
 
@@ -338,7 +334,43 @@ func (s *PromptService) updatePromptInternal(
 		}
 	}
 
-	// Create updated prompt
+	updatedPrompt := buildUpdatedPrompt(existingPrompt, req)
+
+	s.snapshotPromptBody(ctx, userID, existingPrompt, updatedPrompt, actorType, changeSummary)
+
+	err = s.repo.Update(ctx, updatedPrompt)
+	if err != nil {
+		s.logger.With("error", err).Error("Failed to update prompt")
+		return nil, err
+	}
+
+	// Update references if body changed
+	if req.Body != nil {
+		if err := s.updatePromptReferences(ctx, userID, updatedPrompt.ID, updatedPrompt.Body); err != nil {
+			s.logger.With("error", err).Warn("Failed to update prompt references")
+			// Don't fail the update, just log the warning
+		}
+	}
+
+	s.publishPromptUpdatedEvent(ctx, userID, updatedPrompt)
+
+	s.logger.With(
+		"prompt_id", updatedPrompt.ID,
+		"user_id", userID,
+	).Info("Prompt updated successfully")
+
+	return updatedPrompt, nil
+}
+
+// hasPromptUpdates reports whether the update request carries at least one field to apply.
+func hasPromptUpdates(req *models.UpdatePromptRequest) bool {
+	return req.Name != nil || req.Slug != nil || req.Description != nil ||
+		req.Body != nil || req.ProjectID != nil || req.Status != nil || req.MCPExpose != nil || req.Labels != nil
+}
+
+// buildUpdatedPrompt copies the existing prompt and applies the requested field
+// updates. TeamID is preserved (immutable after creation).
+func buildUpdatedPrompt(existingPrompt *models.Prompt, req *models.UpdatePromptRequest) *models.Prompt {
 	updatedPrompt := &models.Prompt{
 		ID:          existingPrompt.ID,
 		Name:        existingPrompt.Name,
@@ -382,72 +414,69 @@ func (s *PromptService) updatePromptInternal(
 		updatedPrompt.Labels = req.Labels
 	}
 
-	// Best-effort content-version snapshot: record the prior raw Body template when it
-	// changed. A snapshot failure must not fail the update (mirrors event publishing).
-	if s.contentVersionSvc != nil && existingPrompt.Body != updatedPrompt.Body {
-		if snapErr := s.contentVersionSvc.SnapshotIfChanged(ctx, SnapshotRequest{
-			ResourceType:  "prompt",
-			ResourceID:    updatedPrompt.ID,
-			TeamID:        updatedPrompt.TeamID,
-			UserID:        userID,
-			OldContent:    existingPrompt.Body,
-			NewContent:    updatedPrompt.Body,
-			ChangeSummary: changeSummary,
-			ActorType:     actorType,
-		}); snapErr != nil {
-			s.logger.With("error", snapErr).Warn("Failed to snapshot prompt content version")
-		}
+	return updatedPrompt
+}
+
+// snapshotPromptBody records a best-effort content-version snapshot of the prior raw
+// Body template when it changed. A snapshot failure must not fail the update (mirrors
+// event publishing), so it is logged and swallowed.
+func (s *PromptService) snapshotPromptBody(
+	ctx context.Context, userID string,
+	existingPrompt, updatedPrompt *models.Prompt,
+	actorType string, changeSummary *string,
+) {
+	if s.contentVersionSvc == nil || existingPrompt.Body == updatedPrompt.Body {
+		return
+	}
+	if snapErr := s.contentVersionSvc.SnapshotIfChanged(ctx, SnapshotRequest{
+		ResourceType:  "prompt",
+		ResourceID:    updatedPrompt.ID,
+		TeamID:        updatedPrompt.TeamID,
+		UserID:        userID,
+		OldContent:    existingPrompt.Body,
+		NewContent:    updatedPrompt.Body,
+		ChangeSummary: changeSummary,
+		ActorType:     actorType,
+	}); snapErr != nil {
+		s.logger.With("error", snapErr).Warn("Failed to snapshot prompt content version")
+	}
+}
+
+// publishPromptUpdatedEvent publishes the prompt updated event with the rendered body
+// (all @references and {{placeholders}} resolved, for embedding generation). Rendering
+// or publish failures are logged and swallowed — the update already succeeded.
+func (s *PromptService) publishPromptUpdatedEvent(
+	ctx context.Context, userID string, updatedPrompt *models.Prompt,
+) {
+	if s.eventManager == nil {
+		return
 	}
 
-	err = s.repo.Update(ctx, updatedPrompt)
+	// Render the prompt body to resolve all @references and {{placeholders}}
+	// For embedding generation, we want the fully resolved content
+	renderedBody := updatedPrompt.Body
+	renderResponse, err := s.renderPromptRecursive(
+		userID, updatedPrompt.Body, make(map[string]string), make(map[string]bool),
+	)
 	if err != nil {
-		s.logger.With("error", err).Error("Failed to update prompt")
-		return nil, err
+		// If rendering fails (e.g., missing placeholders or circular refs), log warning but continue
+		// We'll send the raw body instead
+		s.logger.With(
+			"prompt_id", updatedPrompt.ID,
+			"error", fmt.Sprintf("%+v", err),
+		).
+			Warn("Failed to render prompt for event, sending raw body instead")
+	} else {
+		renderedBody = renderResponse.RenderedBody
 	}
 
-	// Update references if body changed
-	if req.Body != nil {
-		if err := s.updatePromptReferences(ctx, userID, updatedPrompt.ID, updatedPrompt.Body); err != nil {
-			s.logger.With("error", err).Warn("Failed to update prompt references")
-			// Don't fail the update, just log the warning
-		}
+	event := events.NewPromptUpdatedEvent(
+		updatedPrompt.ID, updatedPrompt.UserID, "default", updatedPrompt.Slug,
+		updatedPrompt.Name, updatedPrompt.Description, renderedBody, updatedPrompt.UpdatedAt,
+	)
+	if err := s.eventManager.Publish(ctx, event); err != nil {
+		s.logger.With("error", err).Warn("Failed to publish prompt updated event")
 	}
-
-	// Publish prompt updated event with rendered body
-	if s.eventManager != nil {
-		// Render the prompt body to resolve all @references and {{placeholders}}
-		// For embedding generation, we want the fully resolved content
-		renderedBody := updatedPrompt.Body
-		renderResponse, err := s.renderPromptRecursive(
-			userID, updatedPrompt.Body, make(map[string]string), make(map[string]bool),
-		)
-		if err != nil {
-			// If rendering fails (e.g., missing placeholders or circular refs), log warning but continue
-			// We'll send the raw body instead
-			s.logger.With(
-				"prompt_id", updatedPrompt.ID,
-				"error", fmt.Sprintf("%+v", err),
-			).
-				Warn("Failed to render prompt for event, sending raw body instead")
-		} else {
-			renderedBody = renderResponse.RenderedBody
-		}
-
-		event := events.NewPromptUpdatedEvent(
-			updatedPrompt.ID, updatedPrompt.UserID, "default", updatedPrompt.Slug,
-			updatedPrompt.Name, updatedPrompt.Description, renderedBody, updatedPrompt.UpdatedAt,
-		)
-		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.With("error", err).Warn("Failed to publish prompt updated event")
-		}
-	}
-
-	s.logger.With(
-		"prompt_id", updatedPrompt.ID,
-		"user_id", userID,
-	).Info("Prompt updated successfully")
-
-	return updatedPrompt, nil
 }
 
 // ListPromptVersions returns the content-version history for a prompt, newest-first.
@@ -625,35 +654,17 @@ func (s *PromptService) RenderPromptBody(userID, body string) (string, error) {
 	return rendered.RenderedBody, nil
 }
 
-//nolint:funlen,gocognit // Recursive prompt rendering with placeholder resolution requires inherent complexity
 func (s *PromptService) renderPromptRecursive(
 	userID, body string, placeholders map[string]string, visitedRefs map[string]bool,
 ) (*models.RenderPromptResponse, error) {
-	renderedBody := body
 	warnings := make([]string, 0)
+	referencesUsed := make([]string, 0)
 
 	// Handle escaped @@ sequences first
-	renderedBody = strings.ReplaceAll(renderedBody, "@@", escapedAtSentinel)
+	renderedBody := strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
-	// Parse placeholder patterns {{placeholder_key}}
-	placeholderRegex := regexp.MustCompile(`\{\{([^}]+)\}\}`)
-	placeholderMatches := placeholderRegex.FindAllStringSubmatch(renderedBody, -1)
-	referencesUsed := make([]string, 0, len(placeholderMatches))
-
-	for _, match := range placeholderMatches {
-		if len(match) < 2 {
-			continue
-		}
-
-		placeholder := match[0]            // Full match like {{key}}
-		key := strings.TrimSpace(match[1]) // Just the key
-
-		// Only replace if value exists, otherwise keep placeholder as-is
-		if value, exists := placeholders[key]; exists {
-			renderedBody = strings.ReplaceAll(renderedBody, placeholder, value)
-		}
-		// If value doesn't exist, placeholder remains in the rendered body
-	}
+	// Substitute {{placeholder_key}} patterns with provided values
+	renderedBody = substitutePlaceholders(renderedBody, placeholders)
 
 	// Parse reference patterns @prompt_slug
 	referenceRegex := regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
@@ -686,15 +697,8 @@ func (s *PromptService) renderPromptRecursive(
 			return nil, fmt.Errorf("failed to get referenced prompt %s: %w", refSlug, err)
 		}
 
-		// Mark this reference as visited
-		newVisitedRefs := make(map[string]bool)
-		for k, v := range visitedRefs {
-			newVisitedRefs[k] = v
-		}
-		newVisitedRefs[refSlug] = true
-
-		// Recursively render the referenced prompt
-		refResponse, err := s.renderPromptRecursive(userID, refPrompt.Body, placeholders, newVisitedRefs)
+		// Recursively render the referenced prompt, marking this reference as visited
+		refResponse, err := s.renderPromptRecursive(userID, refPrompt.Body, placeholders, visitedWith(visitedRefs, refSlug))
 		if err != nil {
 			return nil, fmt.Errorf("failed to render referenced prompt %s: %w", refSlug, err)
 		}
@@ -732,26 +736,12 @@ func (s *PromptService) GetPromptPlaceholders(userID, teamID, slug string) ([]st
 	return s.ExtractAllPlaceholders(userID, prompt.Body, make(map[string]bool))
 }
 
-//nolint:gocognit,gocyclo // Recursive placeholder extraction with reference resolution requires inherent complexity
 func (s *PromptService) ExtractAllPlaceholders(userID, body string, visitedRefs map[string]bool) ([]string, error) {
-	var allPlaceholders []string
-
 	// Handle escaped @@ sequences first (replace temporarily to avoid matching them)
 	bodyForExtraction := strings.ReplaceAll(body, "@@", escapedAtSentinel)
 
 	// Extract placeholders from current body
-	placeholderRegex := regexp.MustCompile(`\{\{([^}]+)\}\}`)
-	placeholderMatches := placeholderRegex.FindAllStringSubmatch(bodyForExtraction, -1)
-
-	for _, match := range placeholderMatches {
-		if len(match) < 2 {
-			continue
-		}
-		placeholder := strings.TrimSpace(match[1])
-		if !slices.Contains(allPlaceholders, placeholder) {
-			allPlaceholders = append(allPlaceholders, placeholder)
-		}
-	}
+	allPlaceholders := appendUniquePlaceholders(nil, extractPlaceholderKeys(bodyForExtraction))
 
 	// Extract references and get their placeholders recursively
 	referenceRegex := regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
@@ -778,28 +768,74 @@ func (s *PromptService) ExtractAllPlaceholders(userID, body string, visitedRefs 
 			return nil, fmt.Errorf("failed to get referenced prompt %s: %w", refSlug, err)
 		}
 
-		// Mark this reference as visited
-		newVisitedRefs := make(map[string]bool)
-		for k, v := range visitedRefs {
-			newVisitedRefs[k] = v
-		}
-		newVisitedRefs[refSlug] = true
-
-		// Recursively get placeholders from referenced prompt
-		refPlaceholders, err := s.ExtractAllPlaceholders(userID, refPrompt.Body, newVisitedRefs)
+		// Recursively get placeholders from the referenced prompt, marking this
+		// reference as visited
+		refPlaceholders, err := s.ExtractAllPlaceholders(userID, refPrompt.Body, visitedWith(visitedRefs, refSlug))
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract placeholders from referenced prompt %s: %w", refSlug, err)
 		}
 
 		// Add unique placeholders
-		for _, placeholder := range refPlaceholders {
-			if !slices.Contains(allPlaceholders, placeholder) {
-				allPlaceholders = append(allPlaceholders, placeholder)
-			}
-		}
+		allPlaceholders = appendUniquePlaceholders(allPlaceholders, refPlaceholders)
 	}
 
 	return allPlaceholders, nil
+}
+
+// substitutePlaceholders replaces every {{placeholder_key}} pattern that has a value
+// in placeholders; patterns without a value remain in the body as-is.
+func substitutePlaceholders(body string, placeholders map[string]string) string {
+	placeholderRegex := regexp.MustCompile(`\{\{([^}]+)\}\}`)
+	for _, match := range placeholderRegex.FindAllStringSubmatch(body, -1) {
+		if len(match) < 2 {
+			continue
+		}
+
+		placeholder := match[0]            // Full match like {{key}}
+		key := strings.TrimSpace(match[1]) // Just the key
+
+		// Only replace if value exists, otherwise keep placeholder as-is
+		if value, exists := placeholders[key]; exists {
+			body = strings.ReplaceAll(body, placeholder, value)
+		}
+		// If value doesn't exist, placeholder remains in the rendered body
+	}
+	return body
+}
+
+// extractPlaceholderKeys returns the trimmed {{placeholder}} keys found in body, in order.
+func extractPlaceholderKeys(body string) []string {
+	placeholderRegex := regexp.MustCompile(`\{\{([^}]+)\}\}`)
+	matches := placeholderRegex.FindAllStringSubmatch(body, -1)
+	keys := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		keys = append(keys, strings.TrimSpace(match[1]))
+	}
+	return keys
+}
+
+// appendUniquePlaceholders appends each value not already present in dst, preserving order.
+func appendUniquePlaceholders(dst, values []string) []string {
+	for _, v := range values {
+		if !slices.Contains(dst, v) {
+			dst = append(dst, v)
+		}
+	}
+	return dst
+}
+
+// visitedWith returns a copy of visited with slug marked as visited, leaving the
+// original map untouched so sibling references do not see each other's paths.
+func visitedWith(visited map[string]bool, slug string) map[string]bool {
+	next := make(map[string]bool, len(visited)+1)
+	for k, v := range visited {
+		next[k] = v
+	}
+	next[slug] = true
+	return next
 }
 
 // updatePromptReferences extracts references from prompt body and updates the database

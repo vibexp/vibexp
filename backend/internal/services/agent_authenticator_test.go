@@ -170,6 +170,45 @@ func TestAgentAuthenticator_ApplyAuthentication(t *testing.T) {
 	})
 }
 
+// apiKeyAuthCase is one API-key authentication table case.
+type apiKeyAuthCase struct {
+	name                string
+	credentialValue     string
+	securityScheme      a2a.SecurityScheme
+	expectedHeaderName  string
+	expectedHeaderValue string
+	expectedQueryParam  string
+	expectedQueryValue  string
+	shouldError         bool
+	errorContains       string
+}
+
+// assertAPIKeyAuthOutcome verifies the authentication outcome of one API-key
+// table case: the expected error, or the expected header/query credential.
+func assertAPIKeyAuthOutcome(t *testing.T, tt apiKeyAuthCase, req *http.Request, err error) {
+	t.Helper()
+	if tt.shouldError {
+		assert.Error(t, err)
+		if tt.errorContains != "" {
+			assert.Contains(t, err.Error(), tt.errorContains)
+		}
+		return
+	}
+	assert.NoError(t, err)
+
+	// Verify header if expected
+	if tt.expectedHeaderName != "" {
+		assert.Equal(t, tt.expectedHeaderValue, req.Header.Get(tt.expectedHeaderName),
+			"Header %s should have value %s", tt.expectedHeaderName, tt.expectedHeaderValue)
+	}
+
+	// Verify query param if expected
+	if tt.expectedQueryParam != "" {
+		assert.Equal(t, tt.expectedQueryValue, req.URL.Query().Get(tt.expectedQueryParam),
+			"Query param %s should have value %s", tt.expectedQueryParam, tt.expectedQueryValue)
+	}
+}
+
 // TestAgentAuthenticator_APIKeyAuthentication_TableDriven tests various API key authentication scenarios
 //
 //nolint:funlen // Test function requires comprehensive setup and assertions
@@ -177,17 +216,7 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 	encryptionSvc, err := NewEncryptionService("test-encryption-key-32-bytes1234")
 	require.NoError(t, err)
 
-	tests := []struct {
-		name                string
-		credentialValue     string
-		securityScheme      a2a.SecurityScheme
-		expectedHeaderName  string
-		expectedHeaderValue string
-		expectedQueryParam  string
-		expectedQueryValue  string
-		shouldError         bool
-		errorContains       string
-	}{
+	tests := []apiKeyAuthCase{
 		{
 			name:            "API Key in custom header",
 			credentialValue: "custom-api-key-123", // #nosec G101 - test credential
@@ -274,26 +303,7 @@ func TestAgentAuthenticator_APIKeyAuthentication_TableDriven(t *testing.T) {
 			require.NoError(t, err)
 			err = authenticator.ApplyAuthentication(req, agent)
 
-			if tt.shouldError {
-				assert.Error(t, err)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-			} else {
-				assert.NoError(t, err)
-
-				// Verify header if expected
-				if tt.expectedHeaderName != "" {
-					assert.Equal(t, tt.expectedHeaderValue, req.Header.Get(tt.expectedHeaderName),
-						"Header %s should have value %s", tt.expectedHeaderName, tt.expectedHeaderValue)
-				}
-
-				// Verify query param if expected
-				if tt.expectedQueryParam != "" {
-					assert.Equal(t, tt.expectedQueryValue, req.URL.Query().Get(tt.expectedQueryParam),
-						"Query param %s should have value %s", tt.expectedQueryParam, tt.expectedQueryValue)
-				}
-			}
+			assertAPIKeyAuthOutcome(t, tt, req, err)
 		})
 	}
 }

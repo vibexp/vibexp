@@ -54,8 +54,6 @@ func (s *PromptShareService) generateShareToken() (string, error) {
 }
 
 // CreateShare creates or updates a share for a prompt
-//
-//nolint:gocognit,gocyclo,funlen // Complex business logic: create/update with access control
 func (s *PromptShareService) CreateShare(
 	userID, promptSlug string,
 	req *models.CreateShareRequest,
@@ -76,44 +74,63 @@ func (s *PromptShareService) CreateShare(
 	// Check if share already exists
 	existingShare, err := s.shareRepo.GetByPromptID(ctx, prompt.ID)
 	if err == nil {
-		// Share exists, update it
-		existingShare.ShareType = req.ShareType
-		if updateErr := s.shareRepo.Update(ctx, existingShare); updateErr != nil {
-			s.logger.With("error", updateErr).Error("Failed to update prompt share")
-			return nil, fmt.Errorf("failed to update share: %w", updateErr)
-		}
-
-		// Update access emails if restricted
-		if req.ShareType == "restricted" {
-			if emailErr := s.shareRepo.AddAccessEmails(ctx, existingShare.ID, req.Emails); emailErr != nil {
-				s.logger.With("error", emailErr).Error("Failed to update access emails")
-				return nil, fmt.Errorf("failed to update access emails: %w", emailErr)
-			}
-		} else {
-			// Clear access emails for public shares
-			if clearErr := s.shareRepo.AddAccessEmails(ctx, existingShare.ID, []string{}); clearErr != nil {
-				s.logger.With("error", clearErr).Error("Failed to clear access emails")
-			}
-		}
-
-		// Get emails for response
-		var emails []string
-		if req.ShareType == "restricted" {
-			if fetchedEmails, fetchErr := s.shareRepo.GetAccessEmails(ctx, existingShare.ID); fetchErr == nil {
-				emails = fetchedEmails
-			}
-		}
-
-		return &models.ShareResponse{
-			ShareToken: existingShare.ShareToken,
-			ShareURL:   fmt.Sprintf("/shared/prompts/%s", existingShare.ShareToken),
-			ShareType:  existingShare.ShareType,
-			Emails:     emails,
-			CreatedAt:  existingShare.CreatedAt,
-		}, nil
+		return s.updateExistingShare(ctx, existingShare, req)
 	}
 
-	// Create new share
+	return s.createNewShare(ctx, userID, prompt.ID, req)
+}
+
+// updateExistingShare applies the requested share type (and access emails) to an
+// already-existing share and returns the refreshed share response.
+func (s *PromptShareService) updateExistingShare(
+	ctx context.Context,
+	existingShare *models.PromptShare,
+	req *models.CreateShareRequest,
+) (*models.ShareResponse, error) {
+	// Share exists, update it
+	existingShare.ShareType = req.ShareType
+	if updateErr := s.shareRepo.Update(ctx, existingShare); updateErr != nil {
+		s.logger.With("error", updateErr).Error("Failed to update prompt share")
+		return nil, fmt.Errorf("failed to update share: %w", updateErr)
+	}
+
+	// Update access emails if restricted
+	if req.ShareType == "restricted" {
+		if emailErr := s.shareRepo.AddAccessEmails(ctx, existingShare.ID, req.Emails); emailErr != nil {
+			s.logger.With("error", emailErr).Error("Failed to update access emails")
+			return nil, fmt.Errorf("failed to update access emails: %w", emailErr)
+		}
+	} else {
+		// Clear access emails for public shares
+		if clearErr := s.shareRepo.AddAccessEmails(ctx, existingShare.ID, []string{}); clearErr != nil {
+			s.logger.With("error", clearErr).Error("Failed to clear access emails")
+		}
+	}
+
+	// Get emails for response
+	var emails []string
+	if req.ShareType == "restricted" {
+		if fetchedEmails, fetchErr := s.shareRepo.GetAccessEmails(ctx, existingShare.ID); fetchErr == nil {
+			emails = fetchedEmails
+		}
+	}
+
+	return &models.ShareResponse{
+		ShareToken: existingShare.ShareToken,
+		ShareURL:   fmt.Sprintf("/shared/prompts/%s", existingShare.ShareToken),
+		ShareType:  existingShare.ShareType,
+		Emails:     emails,
+		CreatedAt:  existingShare.CreatedAt,
+	}, nil
+}
+
+// createNewShare mints a share token, persists the new share (with access emails for
+// restricted shares), and returns the share response.
+func (s *PromptShareService) createNewShare(
+	ctx context.Context,
+	userID, promptID string,
+	req *models.CreateShareRequest,
+) (*models.ShareResponse, error) {
 	token, err := s.generateShareToken()
 	if err != nil {
 		s.logger.With("error", err).Error("Failed to generate share token")
@@ -121,7 +138,7 @@ func (s *PromptShareService) CreateShare(
 	}
 
 	share := &models.PromptShare{
-		PromptID:    prompt.ID,
+		PromptID:    promptID,
 		ShareToken:  token,
 		ShareType:   req.ShareType,
 		CreatedBy:   userID,
@@ -211,8 +228,6 @@ func (s *PromptShareService) DeleteShare(userID, promptSlug string) error {
 }
 
 // GetSharedPrompt retrieves a shared prompt by token with access control
-//
-//nolint:gocognit,gocyclo // Complex business logic: handles auth, access control, expiration, and prompt rendering
 func (s *PromptShareService) GetSharedPrompt(
 	token string,
 	userEmail *string,
@@ -225,26 +240,8 @@ func (s *PromptShareService) GetSharedPrompt(
 		return nil, fmt.Errorf("shared prompt not found")
 	}
 
-	// Check if share is active
-	if !share.IsActive {
-		return nil, fmt.Errorf("share has been disabled")
-	}
-
-	// Check expiration
-	if share.ExpiresAt != nil && time.Now().After(*share.ExpiresAt) {
-		return nil, fmt.Errorf("share has expired")
-	}
-
-	// Access control for restricted shares
-	if share.ShareType == "restricted" {
-		if userEmail == nil || *userEmail == "" {
-			return nil, fmt.Errorf("authentication required")
-		}
-
-		hasAccess, accessErr := s.shareRepo.HasAccess(ctx, share.ID, *userEmail)
-		if accessErr != nil || !hasAccess {
-			return nil, fmt.Errorf("access denied")
-		}
+	if accessErr := s.validateShareAccess(ctx, share, userEmail); accessErr != nil {
+		return nil, accessErr
 	}
 
 	// Increment access count asynchronously (don't block on errors)
@@ -261,24 +258,58 @@ func (s *PromptShareService) GetSharedPrompt(
 		return nil, fmt.Errorf("prompt not found")
 	}
 
-	// Render prompt body (resolve @references but leave {{placeholders}})
-	// The client will handle placeholder substitution
-	renderedBody := prompt.Body
-	if s.promptService != nil {
-		// Use the prompt service's render method to resolve @references
-		// We'll pass empty placeholders map so they remain in the output
-		// Pass empty teamID for shared prompts
-		renderResp, renderErr := s.promptService.RenderPrompt(prompt.UserID, "", prompt.Slug, make(map[string]string))
-		if renderErr != nil {
-			s.logger.With("error", renderErr).Warn("Failed to render prompt, using raw body")
-		} else {
-			renderedBody = renderResp.RenderedBody
-		}
-	}
-
 	return &models.SharedPromptResponse{
 		Prompt:       *prompt,
 		ShareType:    share.ShareType,
-		RenderedBody: renderedBody,
+		RenderedBody: s.renderSharedPromptBody(prompt),
 	}, nil
+}
+
+// validateShareAccess checks that the share is active, unexpired, and — for
+// restricted shares — that the caller's email is on the access list.
+func (s *PromptShareService) validateShareAccess(
+	ctx context.Context, share *models.PromptShare, userEmail *string,
+) error {
+	// Check if share is active
+	if !share.IsActive {
+		return fmt.Errorf("share has been disabled")
+	}
+
+	// Check expiration
+	if share.ExpiresAt != nil && time.Now().After(*share.ExpiresAt) {
+		return fmt.Errorf("share has expired")
+	}
+
+	// Access control for restricted shares
+	if share.ShareType == "restricted" {
+		if userEmail == nil || *userEmail == "" {
+			return fmt.Errorf("authentication required")
+		}
+
+		hasAccess, accessErr := s.shareRepo.HasAccess(ctx, share.ID, *userEmail)
+		if accessErr != nil || !hasAccess {
+			return fmt.Errorf("access denied")
+		}
+	}
+
+	return nil
+}
+
+// renderSharedPromptBody renders the prompt body for a shared prompt (resolving
+// @references but leaving {{placeholders}} — the client handles placeholder
+// substitution), falling back to the raw body when rendering is unavailable or fails.
+func (s *PromptShareService) renderSharedPromptBody(prompt *models.Prompt) string {
+	if s.promptService == nil {
+		return prompt.Body
+	}
+
+	// Use the prompt service's render method to resolve @references
+	// We'll pass empty placeholders map so they remain in the output
+	// Pass empty teamID for shared prompts
+	renderResp, renderErr := s.promptService.RenderPrompt(prompt.UserID, "", prompt.Slug, make(map[string]string))
+	if renderErr != nil {
+		s.logger.With("error", renderErr).Warn("Failed to render prompt, using raw body")
+		return prompt.Body
+	}
+	return renderResp.RenderedBody
 }

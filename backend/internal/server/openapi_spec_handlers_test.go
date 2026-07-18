@@ -17,6 +17,52 @@ func newSpecTestServer(t *testing.T) *Server {
 	return New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
 }
 
+// getSpec issues a GET for path, setting If-None-Match when non-empty.
+func getSpec(srv *Server, path, ifNoneMatch string) *httptest.ResponseRecorder {
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	if ifNoneMatch != "" {
+		req.Header.Set("If-None-Match", ifNoneMatch)
+	}
+	srv.ServeHTTP(rr, req)
+	return rr
+}
+
+// assertSpecFullResponse asserts a 200 with the whole spec, the right content
+// type, a strong ETag, and the permissive public CORS header.
+func assertSpecFullResponse(t *testing.T, rr *httptest.ResponseRecorder, path, contentType, etag string, bodyLen int) {
+	t.Helper()
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET %s: status = %d, want 200", path, rr.Code)
+	}
+	if got := rr.Header().Get("Content-Type"); got != contentType {
+		t.Errorf("GET %s: Content-Type = %q, want %q", path, got, contentType)
+	}
+	if got := rr.Header().Get("ETag"); got != etag {
+		t.Errorf("GET %s: ETag = %q, want %q", path, got, etag)
+	}
+	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("GET %s: Access-Control-Allow-Origin = %q, want *", path, got)
+	}
+	if rr.Body.Len() != bodyLen {
+		t.Errorf("GET %s: body length = %d, want %d", path, rr.Body.Len(), bodyLen)
+	}
+}
+
+// assertSpecNotModified asserts a 304 with no body and the strong ETag intact.
+func assertSpecNotModified(t *testing.T, rr *httptest.ResponseRecorder, path, etag string) {
+	t.Helper()
+	if rr.Code != http.StatusNotModified {
+		t.Fatalf("GET %s (If-None-Match): status = %d, want 304", path, rr.Code)
+	}
+	if rr.Body.Len() != 0 {
+		t.Errorf("GET %s (304): body should be empty, got %d bytes", path, rr.Body.Len())
+	}
+	if got := rr.Header().Get("ETag"); got != etag {
+		t.Errorf("GET %s (304): ETag = %q, want %q", path, got, etag)
+	}
+}
+
 func TestOpenAPISpecRoutes(t *testing.T) {
 	srv := newSpecTestServer(t)
 
@@ -34,48 +80,13 @@ func TestOpenAPISpecRoutes(t *testing.T) {
 		t.Run(tc.path, func(t *testing.T) {
 			// A plain GET returns 200, the whole spec, the right content type,
 			// a strong ETag, and the permissive public CORS header.
-			rr := httptest.NewRecorder()
-			srv.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, tc.path, nil))
-
-			if rr.Code != http.StatusOK {
-				t.Fatalf("GET %s: status = %d, want 200", tc.path, rr.Code)
-			}
-			if got := rr.Header().Get("Content-Type"); got != tc.contentType {
-				t.Errorf("GET %s: Content-Type = %q, want %q", tc.path, got, tc.contentType)
-			}
-			if got := rr.Header().Get("ETag"); got != tc.etag {
-				t.Errorf("GET %s: ETag = %q, want %q", tc.path, got, tc.etag)
-			}
-			if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-				t.Errorf("GET %s: Access-Control-Allow-Origin = %q, want *", tc.path, got)
-			}
-			if rr.Body.Len() != len(tc.body) {
-				t.Errorf("GET %s: body length = %d, want %d", tc.path, rr.Body.Len(), len(tc.body))
-			}
+			assertSpecFullResponse(t, getSpec(srv, tc.path, ""), tc.path, tc.contentType, tc.etag, len(tc.body))
 
 			// A matching If-None-Match short-circuits to 304 with no body.
-			rr = httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
-			req.Header.Set("If-None-Match", tc.etag)
-			srv.ServeHTTP(rr, req)
-
-			if rr.Code != http.StatusNotModified {
-				t.Fatalf("GET %s (If-None-Match): status = %d, want 304", tc.path, rr.Code)
-			}
-			if rr.Body.Len() != 0 {
-				t.Errorf("GET %s (304): body should be empty, got %d bytes", tc.path, rr.Body.Len())
-			}
-			if got := rr.Header().Get("ETag"); got != tc.etag {
-				t.Errorf("GET %s (304): ETag = %q, want %q", tc.path, got, tc.etag)
-			}
+			assertSpecNotModified(t, getSpec(srv, tc.path, tc.etag), tc.path, tc.etag)
 
 			// A non-matching If-None-Match still returns the full 200 response.
-			rr = httptest.NewRecorder()
-			req = httptest.NewRequest(http.MethodGet, tc.path, nil)
-			req.Header.Set("If-None-Match", `"stale-etag"`)
-			srv.ServeHTTP(rr, req)
-
-			if rr.Code != http.StatusOK {
+			if rr := getSpec(srv, tc.path, `"stale-etag"`); rr.Code != http.StatusOK {
 				t.Errorf("GET %s (stale If-None-Match): status = %d, want 200", tc.path, rr.Code)
 			}
 		})

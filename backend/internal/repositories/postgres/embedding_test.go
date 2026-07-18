@@ -28,11 +28,7 @@ func setupEmbeddingTest(t *testing.T) (*EmbeddingRepository, sqlmock.Sqlmock, *s
 //nolint:funlen // Test function with comprehensive scenarios
 func TestEmbeddingRepository_Create(t *testing.T) {
 	repo, mock, mockDB := setupEmbeddingTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
+	defer closeMockDB(t, mockDB)
 
 	ctx := context.Background()
 	now := time.Now()
@@ -159,11 +155,7 @@ func TestEmbeddingRepository_Create(t *testing.T) {
 //nolint:funlen // Test function with comprehensive scenarios
 func TestEmbeddingRepository_GetByEntity(t *testing.T) {
 	repo, mock, mockDB := setupEmbeddingTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
+	defer closeMockDB(t, mockDB)
 
 	ctx := context.Background()
 	now := time.Now()
@@ -253,14 +245,33 @@ func TestEmbeddingRepository_GetByEntity(t *testing.T) {
 	}
 }
 
+// assertFindSimilarOutcome verifies one FindSimilar table case: an expected
+// error yields no results; a success yields expectLen results whose distance
+// and team_id round-trip from the row.
+func assertFindSimilarOutcome(
+	t *testing.T, expectErr bool, expectLen int, results []models.EmbeddingSimilarity, err error,
+) {
+	t.Helper()
+	if expectErr {
+		assert.Error(t, err)
+		assert.Nil(t, results)
+		return
+	}
+	assert.NoError(t, err)
+	assert.Len(t, results, expectLen)
+	if expectLen > 0 {
+		// Verify distance values are included
+		for _, result := range results {
+			assert.Greater(t, result.Distance, float64(-1))
+			assert.Equal(t, "team-789", result.TeamID, "team_id must round-trip from the row")
+		}
+	}
+}
+
 //nolint:funlen // Test function with comprehensive scenarios
 func TestEmbeddingRepository_FindSimilar(t *testing.T) {
 	repo, mock, mockDB := setupEmbeddingTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
+	defer closeMockDB(t, mockDB)
 
 	ctx := context.Background()
 	now := time.Now()
@@ -341,21 +352,7 @@ func TestEmbeddingRepository_FindSimilar(t *testing.T) {
 
 			results, err := repo.FindSimilar(ctx, tt.userID, tt.entityType, tt.vector, tt.limit)
 
-			if tt.expectErr {
-				assert.Error(t, err)
-				assert.Nil(t, results)
-			} else {
-				assert.NoError(t, err)
-				assert.Len(t, results, tt.expectLen)
-				if tt.expectLen > 0 {
-					// Verify distance values are included
-					for _, result := range results {
-						assert.Greater(t, result.Distance, float64(-1))
-						assert.Equal(t, "team-789", result.TeamID, "team_id must round-trip from the row")
-					}
-				}
-			}
-
+			assertFindSimilarOutcome(t, tt.expectErr, tt.expectLen, results, err)
 			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
@@ -367,11 +364,7 @@ func TestEmbeddingRepository_FindSimilar(t *testing.T) {
 // part of the query.
 func TestEmbeddingRepository_DeleteByEntity(t *testing.T) {
 	repo, mock, mockDB := setupEmbeddingTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
+	defer closeMockDB(t, mockDB)
 
 	ctx := context.Background()
 

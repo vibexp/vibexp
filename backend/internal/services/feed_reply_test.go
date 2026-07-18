@@ -23,24 +23,80 @@ import (
 // FeedItemReplyService tests
 // ─────────────────────────────────────────────────────────────────────────────
 
-//nolint:funlen,gocognit,gocyclo // Table-driven test with multiple cases
+// createReplyCase is one CreateReply table case.
+type createReplyCase struct {
+	name        string
+	userID      string
+	teamID      string
+	feedItemID  string
+	req         *models.CreateFeedItemReplyRequest
+	isMember    bool
+	memberErr   error
+	feedItem    *models.FeedItem
+	feedItemErr error
+	replyErr    error
+	wantErr     bool
+	errContains string
+}
+
+// setupCreateReplyMocks wires the membership, feed-item-lookup and
+// reply-creation expectations one CreateReply table case needs to reach its
+// outcome.
+func setupCreateReplyMocks(
+	ctx context.Context,
+	tt createReplyCase,
+	mockTeamSvc *svcMocks.MockTeamServiceInterface,
+	mockFeedItemRepo *repoMocks.MockFeedItemRepository,
+	mockReplyRepo *repoMocks.MockFeedItemReplyRepository,
+) {
+	// Team membership check
+	switch {
+	case tt.memberErr != nil:
+		mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
+			Return(false, tt.memberErr)
+	case !tt.isMember && tt.feedItemErr == nil:
+		mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
+			Return(false, nil)
+	case tt.isMember:
+		mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
+			Return(true, nil)
+	}
+
+	// Feed item lookup (only when member and memberErr is nil)
+	if tt.isMember && tt.memberErr == nil {
+		if tt.feedItemErr != nil {
+			mockFeedItemRepo.On("GetByID", ctx, tt.userID, tt.teamID, tt.feedItemID).
+				Return((*models.FeedItem)(nil), tt.feedItemErr)
+		} else if tt.feedItem != nil {
+			mockFeedItemRepo.On("GetByID", ctx, tt.userID, tt.teamID, tt.feedItemID).
+				Return(tt.feedItem, nil)
+		}
+	}
+
+	// Reply creation (only when item is active and no error)
+	itemReachable := tt.isMember && tt.memberErr == nil &&
+		tt.feedItemErr == nil && tt.feedItem != nil && tt.feedItem.ArchivedAt == nil
+	if itemReachable {
+		if tt.replyErr != nil {
+			mockReplyRepo.On("CreateReply", ctx, mock.AnythingOfType("*models.FeedItemReply")).
+				Return((*models.FeedItemReply)(nil), tt.replyErr)
+		} else {
+			mockReplyRepo.On("CreateReply", ctx, mock.AnythingOfType("*models.FeedItemReply")).
+				Return(&models.FeedItemReply{
+					ID:         "reply-1",
+					TeamID:     tt.teamID,
+					FeedItemID: tt.feedItemID,
+					Content:    tt.req.Content,
+					PostedAt:   time.Now(),
+				}, nil)
+		}
+	}
+}
+
 func TestFeedItemReplyService_CreateReply(t *testing.T) {
 	archivedAt := time.Now()
 	assistantName := "claude-test"
-	tests := []struct {
-		name        string
-		userID      string
-		teamID      string
-		feedItemID  string
-		req         *models.CreateFeedItemReplyRequest
-		isMember    bool
-		memberErr   error
-		feedItem    *models.FeedItem
-		feedItemErr error
-		replyErr    error
-		wantErr     bool
-		errContains string
-	}{
+	tests := []createReplyCase{
 		{
 			name:       "success",
 			userID:     "user-1",
@@ -150,48 +206,7 @@ func TestFeedItemReplyService_CreateReply(t *testing.T) {
 				return
 			}
 
-			// Team membership check
-			switch {
-			case tt.memberErr != nil:
-				mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
-					Return(false, tt.memberErr)
-			case !tt.isMember && tt.feedItemErr == nil:
-				mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
-					Return(false, nil)
-			case tt.isMember:
-				mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
-					Return(true, nil)
-			}
-
-			// Feed item lookup (only when member and memberErr is nil)
-			if tt.isMember && tt.memberErr == nil {
-				if tt.feedItemErr != nil {
-					mockFeedItemRepo.On("GetByID", ctx, tt.userID, tt.teamID, tt.feedItemID).
-						Return((*models.FeedItem)(nil), tt.feedItemErr)
-				} else if tt.feedItem != nil {
-					mockFeedItemRepo.On("GetByID", ctx, tt.userID, tt.teamID, tt.feedItemID).
-						Return(tt.feedItem, nil)
-				}
-			}
-
-			// Reply creation (only when item is active and no error)
-			itemReachable := tt.isMember && tt.memberErr == nil &&
-				tt.feedItemErr == nil && tt.feedItem != nil && tt.feedItem.ArchivedAt == nil
-			if itemReachable {
-				if tt.replyErr != nil {
-					mockReplyRepo.On("CreateReply", ctx, mock.AnythingOfType("*models.FeedItemReply")).
-						Return((*models.FeedItemReply)(nil), tt.replyErr)
-				} else {
-					mockReplyRepo.On("CreateReply", ctx, mock.AnythingOfType("*models.FeedItemReply")).
-						Return(&models.FeedItemReply{
-							ID:         "reply-1",
-							TeamID:     tt.teamID,
-							FeedItemID: tt.feedItemID,
-							Content:    tt.req.Content,
-							PostedAt:   time.Now(),
-						}, nil)
-				}
-			}
+			setupCreateReplyMocks(ctx, tt, mockTeamSvc, mockFeedItemRepo, mockReplyRepo)
 
 			reply, err := svc.CreateReply(ctx, tt.userID, tt.teamID, tt.feedItemID, tt.req)
 
@@ -209,25 +224,65 @@ func TestFeedItemReplyService_CreateReply(t *testing.T) {
 	}
 }
 
-//nolint:funlen,gocognit // Table-driven test with multiple cases
+// listRepliesCase is one ListReplies table case.
+type listRepliesCase struct {
+	name        string
+	userID      string
+	teamID      string
+	feedItemID  string
+	page        int
+	limit       int
+	isMember    bool
+	memberErr   error
+	replies     []models.FeedItemReply
+	total       int
+	repoErr     error
+	wantErr     bool
+	errContains string
+	wantPage    int
+	wantLimit   int
+}
+
+// setupListRepliesMocks wires the membership and repository expectations one
+// ListReplies table case needs, mirroring the service's pagination defaults.
+func setupListRepliesMocks(
+	ctx context.Context,
+	tt listRepliesCase,
+	mockTeamSvc *svcMocks.MockTeamServiceInterface,
+	mockReplyRepo *repoMocks.MockFeedItemReplyRepository,
+) {
+	if tt.memberErr != nil {
+		mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
+			Return(false, tt.memberErr)
+	} else {
+		mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
+			Return(tt.isMember, nil)
+	}
+
+	if tt.isMember && tt.memberErr == nil {
+		expectedPage := tt.page
+		if expectedPage <= 0 {
+			expectedPage = 1
+		}
+		expectedLimit := tt.limit
+		if expectedLimit <= 0 {
+			expectedLimit = 20
+		} else if expectedLimit > 100 {
+			expectedLimit = 100
+		}
+
+		if tt.repoErr != nil {
+			mockReplyRepo.On("ListReplies", ctx, tt.teamID, tt.feedItemID, expectedPage, expectedLimit).
+				Return(nil, 0, tt.repoErr)
+		} else {
+			mockReplyRepo.On("ListReplies", ctx, tt.teamID, tt.feedItemID, expectedPage, expectedLimit).
+				Return(tt.replies, tt.total, nil)
+		}
+	}
+}
+
 func TestFeedItemReplyService_ListReplies(t *testing.T) {
-	tests := []struct {
-		name        string
-		userID      string
-		teamID      string
-		feedItemID  string
-		page        int
-		limit       int
-		isMember    bool
-		memberErr   error
-		replies     []models.FeedItemReply
-		total       int
-		repoErr     error
-		wantErr     bool
-		errContains string
-		wantPage    int
-		wantLimit   int
-	}{
+	tests := []listRepliesCase{
 		{
 			name:       "success with two replies",
 			userID:     "user-1",
@@ -305,34 +360,7 @@ func TestFeedItemReplyService_ListReplies(t *testing.T) {
 			svc := services.NewFeedItemReplyService(mockReplyRepo, mockFeedItemRepo, mockTeamSvc, permissiveAuthz(t), nil, logger)
 			ctx := context.Background()
 
-			if tt.memberErr != nil {
-				mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
-					Return(false, tt.memberErr)
-			} else {
-				mockTeamSvc.On("IsUserMemberOfTeam", ctx, tt.userID, tt.teamID).
-					Return(tt.isMember, nil)
-			}
-
-			if tt.isMember && tt.memberErr == nil {
-				expectedPage := tt.page
-				if expectedPage <= 0 {
-					expectedPage = 1
-				}
-				expectedLimit := tt.limit
-				if expectedLimit <= 0 {
-					expectedLimit = 20
-				} else if expectedLimit > 100 {
-					expectedLimit = 100
-				}
-
-				if tt.repoErr != nil {
-					mockReplyRepo.On("ListReplies", ctx, tt.teamID, tt.feedItemID, expectedPage, expectedLimit).
-						Return(nil, 0, tt.repoErr)
-				} else {
-					mockReplyRepo.On("ListReplies", ctx, tt.teamID, tt.feedItemID, expectedPage, expectedLimit).
-						Return(tt.replies, tt.total, nil)
-				}
-			}
+			setupListRepliesMocks(ctx, tt, mockTeamSvc, mockReplyRepo)
 
 			result, err := svc.ListReplies(ctx, tt.userID, tt.teamID, tt.feedItemID, tt.page, tt.limit)
 
@@ -356,16 +384,59 @@ func TestFeedItemReplyService_ListReplies(t *testing.T) {
 // FeedItemService.EnrichWithReplyCounts tests
 // ─────────────────────────────────────────────────────────────────────────────
 
-//nolint:funlen,gocognit // Table-driven test with multiple cases
+// enrichReplyCountsCase is one EnrichWithReplyCounts table case.
+type enrichReplyCountsCase struct {
+	name    string
+	teamID  string
+	items   []models.FeedItem
+	counts  map[string]int
+	repoErr error
+	wantErr bool
+}
+
+// setupReplyCountMocks wires the CountRepliesByItemIDs expectation one
+// EnrichWithReplyCounts table case needs (none when there are no items).
+func setupReplyCountMocks(
+	ctx context.Context, tt enrichReplyCountsCase, mockReplyRepo *repoMocks.MockFeedItemReplyRepository,
+) {
+	if len(tt.items) == 0 {
+		return
+	}
+	itemIDs := make([]string, len(tt.items))
+	for i, item := range tt.items {
+		itemIDs[i] = item.ID
+	}
+
+	if tt.repoErr != nil {
+		mockReplyRepo.On("CountRepliesByItemIDs", ctx, tt.teamID, mock.AnythingOfType("[]string")).
+			Return((map[string]int)(nil), tt.repoErr)
+	} else {
+		mockReplyRepo.On("CountRepliesByItemIDs", ctx, tt.teamID, mock.AnythingOfType("[]string")).
+			Return(tt.counts, nil)
+	}
+}
+
+// assertEnrichedReplyCounts verifies one EnrichWithReplyCounts table case
+// outcome: the propagated error, the untouched empty slice, or the annotated
+// per-item reply counts.
+func assertEnrichedReplyCounts(t *testing.T, tt enrichReplyCountsCase, result []models.FeedItem, err error) {
+	t.Helper()
+	if tt.wantErr {
+		require.Error(t, err)
+		return
+	}
+	require.NoError(t, err)
+	if len(tt.items) == 0 {
+		assert.Equal(t, tt.items, result)
+		return
+	}
+	for _, item := range result {
+		assert.Equal(t, tt.counts[item.ID], item.ReplyCount)
+	}
+}
+
 func TestFeedItemService_EnrichWithReplyCounts(t *testing.T) {
-	tests := []struct {
-		name    string
-		teamID  string
-		items   []models.FeedItem
-		counts  map[string]int
-		repoErr error
-		wantErr bool
-	}{
+	tests := []enrichReplyCountsCase{
 		{
 			name:   "annotates items with counts",
 			teamID: "team-1",
@@ -403,35 +474,11 @@ func TestFeedItemService_EnrichWithReplyCounts(t *testing.T) {
 			svc := services.NewFeedItemService(mockFeedItemRepo, mockReplyRepo, nil, nil, permissiveAuthz(t), nil, logger)
 			ctx := context.Background()
 
-			if len(tt.items) > 0 {
-				itemIDs := make([]string, len(tt.items))
-				for i, item := range tt.items {
-					itemIDs[i] = item.ID
-				}
-
-				if tt.repoErr != nil {
-					mockReplyRepo.On("CountRepliesByItemIDs", ctx, tt.teamID, mock.AnythingOfType("[]string")).
-						Return((map[string]int)(nil), tt.repoErr)
-				} else {
-					mockReplyRepo.On("CountRepliesByItemIDs", ctx, tt.teamID, mock.AnythingOfType("[]string")).
-						Return(tt.counts, nil)
-				}
-			}
+			setupReplyCountMocks(ctx, tt, mockReplyRepo)
 
 			result, err := svc.EnrichWithReplyCounts(ctx, tt.teamID, tt.items)
 
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				if len(tt.items) == 0 {
-					assert.Equal(t, tt.items, result)
-					return
-				}
-				for _, item := range result {
-					assert.Equal(t, tt.counts[item.ID], item.ReplyCount)
-				}
-			}
+			assertEnrichedReplyCounts(t, tt, result, err)
 		})
 	}
 }

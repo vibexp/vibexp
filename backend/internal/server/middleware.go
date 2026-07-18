@@ -88,8 +88,6 @@ func isAPIKey(token string) bool {
 //     auth when configured, otherwise 401
 //  3. If vx_session cookie is present → decrypt, check expiry, optionally refresh → session auth
 //  4. Otherwise → 401
-//
-//nolint:gocognit // Auth middleware intentionally handles multiple auth paths
 func (s *Server) flexibleAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := contextkeys.GetLoggerFromContext(r.Context())
@@ -97,28 +95,10 @@ func (s *Server) flexibleAuthMiddleware(next http.Handler) http.Handler {
 			"middleware", "flexibleAuthMiddleware",
 		).Debug("Processing flexible authentication")
 
-		// 1. Try API key from Authorization header
+		// 1. Try the Authorization header (API key, then OAuth JWT)
 		authHeader := r.Header.Get("Authorization")
-		if authHeader != "" {
-			token, err := s.extractBearerToken(r)
-			if err == nil && isAPIKey(token) {
-				s.authenticateWithAPIKey(w, r, next, token)
-				return
-			}
-			// Non-API-key bearer tokens are AuthKit OAuth JWTs when the API
-			// verifier is configured; otherwise they are rejected as before.
-			if err == nil && !isAPIKey(token) {
-				if s.apiTokenVerifier != nil {
-					s.authenticateWithOAuthJWT(w, r, next, token)
-					return
-				}
-				logger.With(
-					"middleware", "flexibleAuthMiddleware",
-				).Warn("Bearer token is not a valid API key; cookie session required")
-				apiErr := apierrors.NewAuthInvalidError("Invalid token; use session cookie authentication")
-				apierrors.WriteJSONError(w, r, apiErr)
-				return
-			}
+		if authHeader != "" && s.serveBearerAuth(w, r, next) {
+			return
 		}
 
 		// 2. Try cookie-based session authentication
@@ -131,6 +111,35 @@ func (s *Server) flexibleAuthMiddleware(next http.Handler) http.Handler {
 		apiErr := apierrors.NewAuthRequiredError("Authentication required")
 		apierrors.WriteJSONError(w, r, apiErr)
 	})
+}
+
+// serveBearerAuth handles the Authorization-header leg of
+// flexibleAuthMiddleware: a token with a known API-key prefix authenticates as
+// an API key; any other bearer token is verified as an AuthKit OAuth JWT when
+// the API verifier is configured, and rejected with 401 otherwise. Returns
+// false only for a malformed Authorization header, in which case the caller
+// falls through to cookie-session authentication.
+func (s *Server) serveBearerAuth(w http.ResponseWriter, r *http.Request, next http.Handler) bool {
+	token, err := s.extractBearerToken(r)
+	if err != nil {
+		return false
+	}
+	if isAPIKey(token) {
+		s.authenticateWithAPIKey(w, r, next, token)
+		return true
+	}
+	// Non-API-key bearer tokens are AuthKit OAuth JWTs when the API
+	// verifier is configured; otherwise they are rejected as before.
+	if s.apiTokenVerifier != nil {
+		s.authenticateWithOAuthJWT(w, r, next, token)
+		return true
+	}
+	contextkeys.GetLoggerFromContext(r.Context()).With(
+		"middleware", "flexibleAuthMiddleware",
+	).Warn("Bearer token is not a valid API key; cookie session required")
+	apiErr := apierrors.NewAuthInvalidError("Invalid token; use session cookie authentication")
+	apierrors.WriteJSONError(w, r, apiErr)
+	return true
 }
 
 func (s *Server) extractBearerToken(r *http.Request) (string, error) {
@@ -354,50 +363,74 @@ func (s *Server) refreshSession(
 // Optional auth middleware that allows both authenticated and unauthenticated access.
 // If a valid session cookie or API key is provided, it sets the user context;
 // otherwise allows the request to proceed unauthenticated.
-//
-//nolint:gocognit // Optional auth middleware handles multiple auth paths by design
 func (s *Server) optionalAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Try API key from Authorization header
+		// Try API key or OAuth JWT from Authorization header
 		authHeader := r.Header.Get("Authorization")
 		if authHeader != "" {
-			token, err := s.extractBearerToken(r)
-			if err == nil && isAPIKey(token) {
-				apiKey, apiKeyErr := s.container.APIKeyService().ValidateAPIKey(r.Context(), token)
-				if apiKeyErr == nil {
-					ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
-					ctx = authenticatedContext(ctx, apiKey.UserID, "api_key",
-						[]any{"api_key_id", apiKey.ID})
-					next.ServeHTTP(w, r.WithContext(ctx))
-					return
-				}
-			}
-			// Non-API-key bearer tokens may be AuthKit OAuth JWTs when the API
-			// verifier is configured; on any failure fall through unauthenticated.
-			if err == nil && !isAPIKey(token) && s.apiTokenVerifier != nil {
-				if ctx, ok := s.optionalOAuthJWTContext(r, token); ok {
-					next.ServeHTTP(w, r.WithContext(ctx))
-					return
-				}
-			}
-			// Invalid or unrecognized bearer token — fall through unauthenticated
-			next.ServeHTTP(w, r)
+			s.serveOptionalBearerAuth(w, r, next)
 			return
 		}
 
 		// Try cookie session
-		if s.sessionManager != nil {
-			sess, err := s.sessionManager.Read(r)
-			if err == nil && !sess.IsExpired() {
-				ctx := authenticatedContext(r.Context(), sess.UserID, "cookie", nil)
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
-			}
+		if ctx, ok := s.optionalSessionContext(r); ok {
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
 		}
 
 		// No auth provided, allow request to proceed without user context
 		next.ServeHTTP(w, r)
 	})
+}
+
+// serveOptionalBearerAuth handles the Authorization-header leg of
+// optionalAuthMiddleware: a valid API key or AuthKit OAuth JWT attaches the
+// user context; any other (or malformed) bearer token proceeds
+// unauthenticated.
+func (s *Server) serveOptionalBearerAuth(w http.ResponseWriter, r *http.Request, next http.Handler) {
+	token, err := s.extractBearerToken(r)
+	if err == nil && isAPIKey(token) {
+		if ctx, ok := s.optionalAPIKeyContext(r, token); ok {
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+	}
+	// Non-API-key bearer tokens may be AuthKit OAuth JWTs when the API
+	// verifier is configured; on any failure fall through unauthenticated.
+	if err == nil && !isAPIKey(token) && s.apiTokenVerifier != nil {
+		if ctx, ok := s.optionalOAuthJWTContext(r, token); ok {
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+	}
+	// Invalid or unrecognized bearer token — fall through unauthenticated
+	next.ServeHTTP(w, r)
+}
+
+// optionalAPIKeyContext validates an API key for the optional-auth path,
+// returning the authenticated context on success; ok = false lets the request
+// proceed anonymous (by design).
+func (s *Server) optionalAPIKeyContext(r *http.Request, token string) (context.Context, bool) {
+	apiKey, err := s.container.APIKeyService().ValidateAPIKey(r.Context(), token)
+	if err != nil {
+		return nil, false
+	}
+	ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
+	return authenticatedContext(ctx, apiKey.UserID, "api_key",
+		[]any{"api_key_id", apiKey.ID}), true
+}
+
+// optionalSessionContext returns the authenticated context for a valid,
+// unexpired session cookie; ok = false lets the request proceed anonymous.
+func (s *Server) optionalSessionContext(r *http.Request) (context.Context, bool) {
+	if s.sessionManager == nil {
+		return nil, false
+	}
+	sess, err := s.sessionManager.Read(r)
+	if err != nil || sess.IsExpired() {
+		return nil, false
+	}
+	return authenticatedContext(r.Context(), sess.UserID, "cookie", nil), true
 }
 
 // optionalOAuthJWTContext verifies an AuthKit bearer JWT for the optional-auth
