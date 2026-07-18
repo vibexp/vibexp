@@ -325,15 +325,16 @@ func (s *Server) fireAIToolSessionEvent(ctx context.Context, userID, sessionID, 
 	}
 }
 
-// processClaudeHookPayload handles the storage and post-processing of a hook payload
+// processClaudeHookPayload handles the storage and post-processing of a hook
+// payload. firstClaudeToolUse reports that the session is new and the user had
+// no prior Claude Code hook payloads, i.e. this is their first use of the tool.
 func (s *Server) processClaudeHookPayload(
 	w http.ResponseWriter,
 	r *http.Request,
 	repo repositories.ClaudeCodeHooksRepository,
 	userID, teamID string,
 	payload *models.IncomingHookPayload,
-	sessionExists bool,
-	claudeCount int,
+	firstClaudeToolUse bool,
 ) {
 	// Prepare hook payload for storage
 	hookPayload, prepareErr := prepareClaudeHookPayload(userID, teamID, payload)
@@ -367,7 +368,7 @@ func (s *Server) processClaudeHookPayload(
 	}
 
 	// Fire AI tool session created event only if this is the first time using this tool
-	if !sessionExists && claudeCount == 0 {
+	if firstClaudeToolUse {
 		isNewTool := true
 		s.fireAIToolSessionEvent(r.Context(), userID, payload.SessionID, "claude_code_cli", isNewTool)
 	}
@@ -421,7 +422,8 @@ func (s *Server) handleClaudeCodeHooksPost(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Process and store the payload
-	s.processClaudeHookPayload(w, r, repo, userID, teamID, payload, sessionExists, claudeCount)
+	firstClaudeToolUse := !sessionExists && claudeCount == 0
+	s.processClaudeHookPayload(w, r, repo, userID, teamID, payload, firstClaudeToolUse)
 }
 
 // handleClaudeCodeHooksGet handles GET /api/v1/claude-code/hooks with pagination

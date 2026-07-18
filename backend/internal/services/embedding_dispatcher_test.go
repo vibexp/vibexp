@@ -140,7 +140,17 @@ func newDispatcher(
 }
 
 func promptEvent(id string) events.Event {
-	return events.NewPromptCreatedEvent(id, "u1", "e", "proj", "slug", "Title", "", "Body of "+id, time.Now())
+	return events.NewPromptCreatedEvent(events.PromptCreatedPayload{
+		PromptID:    id,
+		UserID:      "u1",
+		Email:       "e",
+		ProjectName: "proj",
+		Slug:        "slug",
+		Title:       "Title",
+		Description: "",
+		Body:        "Body of " + id,
+		CreatedAt:   time.Now(),
+	})
 }
 
 func waitFor(t *testing.T, cond func() bool, msg string) {

@@ -362,15 +362,17 @@ func newOAuthAuthorizationServer(
 			CleanupInterval:     cfg.Auth.OAuthAS.CleanupInterval,
 		},
 		[]byte(cfg.Security.EncryptionKey),
-		postgres.NewOAuthClientRepository(db),
-		postgres.NewOAuthCodeRepository(db),
-		postgres.NewOAuthAccessTokenRepository(db),
-		postgres.NewOAuthRefreshTokenRepository(db),
-		postgres.NewOAuthPKCERepository(db),
-		postgres.NewOAuthSigningKeyRepository(db),
-		postgres.NewOAuthLoginSessionRepository(db),
-		newConsentAccessPolicy(cfg, c, logger),
-		logger,
+		oauthserver.Dependencies{
+			Clients:       postgres.NewOAuthClientRepository(db),
+			Codes:         postgres.NewOAuthCodeRepository(db),
+			AccessTokens:  postgres.NewOAuthAccessTokenRepository(db),
+			RefreshTokens: postgres.NewOAuthRefreshTokenRepository(db),
+			PKCE:          postgres.NewOAuthPKCERepository(db),
+			SigningKeys:   postgres.NewOAuthSigningKeyRepository(db),
+			LoginSessions: postgres.NewOAuthLoginSessionRepository(db),
+			AccessPolicy:  newConsentAccessPolicy(cfg, c, logger),
+			Logger:        logger,
+		},
 	)
 	logger.Info("Embedded OAuth 2.1 Authorization Server enabled", "issuer", cfg.Auth.OAuthAS.IssuerURL)
 	return svc

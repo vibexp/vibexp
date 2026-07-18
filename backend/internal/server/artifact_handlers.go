@@ -42,8 +42,11 @@ func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 
 	var req models.CreateArtifactRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logArtifactError(w, "handleCreateArtifact", userID, "", "", err,
-			"Failed to decode request body", "bad_request", "Invalid request body", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleCreateArtifact", userID: userID, err: err,
+			logMsg: "Failed to decode request body", errCode: "bad_request",
+			errMsg: "Invalid request body", statusCode: http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -61,10 +64,10 @@ func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.recordArtifactActivity(
-		r.Context(), userID, activities.ActivityTypeArtifactCreated, artifact.ID,
-		req.ProjectID, req.Slug, "Created new artifact: "+req.Title, r,
-	)
+	s.recordArtifactActivity(r.Context(), artifactActivityParams{
+		userID: userID, activityType: activities.ActivityTypeArtifactCreated, artifactID: artifact.ID,
+		projectName: req.ProjectID, slug: req.Slug, description: "Created new artifact: " + req.Title,
+	}, r)
 
 	// Record metrics
 	if s.metrics != nil {
@@ -151,8 +154,11 @@ func (s *Server) handleListArtifactsByProject(w http.ResponseWriter, r *http.Req
 
 	decodedProjectID, err := url.PathUnescape(projectID)
 	if err != nil {
-		s.logArtifactError(w, "handleListArtifactsByProject", userID, projectID, "", err,
-			"Failed to decode project ID", "bad_request", "Invalid project ID encoding", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleListArtifactsByProject", userID: userID, projectID: projectID, err: err,
+			logMsg: "Failed to decode project ID", errCode: "bad_request",
+			errMsg: "Invalid project ID encoding", statusCode: http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -223,8 +229,12 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 
 	var req models.UpdateArtifactRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		s.logArtifactError(w, "handleUpdateArtifact", userID, decodedProjectID, decodedSlug, decodeErr,
-			"Failed to decode request body", "bad_request", "Invalid request body", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleUpdateArtifact", userID: userID,
+			projectID: decodedProjectID, slug: decodedSlug, err: decodeErr,
+			logMsg: "Failed to decode request body", errCode: "bad_request",
+			errMsg: "Invalid request body", statusCode: http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -240,16 +250,16 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.recordArtifactActivity(
-		r.Context(), userID, activities.ActivityTypeArtifactUpdated, artifact.ID,
-		decodedProjectID, decodedSlug, "Updated artifact: "+artifact.Title, r,
-	)
+	s.recordArtifactActivity(r.Context(), artifactActivityParams{
+		userID: userID, activityType: activities.ActivityTypeArtifactUpdated, artifactID: artifact.ID,
+		projectName: decodedProjectID, slug: decodedSlug, description: "Updated artifact: " + artifact.Title,
+	}, r)
 
 	writeOK(w, artifact, s.logger)
 }
 
 // writeArtifactDeleteDenial writes a 403 for a denied delete and reports whether
-// it handled the error. Without it the denial would reach logArtifactError,
+// it handled the error. Without it the denial would reach logHandlerError,
 // which writes an unconditional 500.
 func (s *Server) writeArtifactDeleteDenial(w http.ResponseWriter, userID, slug string, err error) bool {
 	if !errors.Is(err, services.ErrPermissionDenied) {
@@ -306,18 +316,22 @@ func (s *Server) handleDeleteArtifact(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.logArtifactError(w, "handleDeleteArtifact", userID, decodedProjectID, decodedSlug, err,
-			"Failed to delete artifact", "internal_error", "Failed to delete artifact", http.StatusInternalServerError)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleDeleteArtifact", userID: userID,
+			projectID: decodedProjectID, slug: decodedSlug, err: err,
+			logMsg: "Failed to delete artifact", errCode: "internal_error",
+			errMsg: "Failed to delete artifact", statusCode: http.StatusInternalServerError,
+		})
 		return
 	}
 
 	s.deleteArtifactEmbeddings(userID, artifact.ID, decodedProjectID, decodedSlug)
 	s.deleteArtifactAttachments(userID, artifact.ID)
 
-	s.recordArtifactActivity(
-		r.Context(), userID, activities.ActivityTypeArtifactDeleted, artifact.ID,
-		decodedProjectID, decodedSlug, "Deleted artifact: "+decodedSlug, r,
-	)
+	s.recordArtifactActivity(r.Context(), artifactActivityParams{
+		userID: userID, activityType: activities.ActivityTypeArtifactDeleted, artifactID: artifact.ID,
+		projectName: decodedProjectID, slug: decodedSlug, description: "Deleted artifact: " + decodedSlug,
+	}, r)
 
 	// Record metrics
 	if s.metrics != nil {
@@ -479,10 +493,10 @@ func (s *Server) handleRestoreArtifactVersion(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	s.recordArtifactActivity(
-		r.Context(), userID, activities.ActivityTypeArtifactUpdated, artifact.ID,
-		decodedProjectID, decodedSlug, "Restored artifact: "+artifact.Title, r,
-	)
+	s.recordArtifactActivity(r.Context(), artifactActivityParams{
+		userID: userID, activityType: activities.ActivityTypeArtifactUpdated, artifactID: artifact.ID,
+		projectName: decodedProjectID, slug: decodedSlug, description: "Restored artifact: " + artifact.Title,
+	}, r)
 
 	writeOK(w, artifact, s.logger)
 }
@@ -550,7 +564,10 @@ func (s *Server) validateCreateArtifactRequest(
 		writeErrorResponse(w, nil, "validation_error", "Content is required", http.StatusBadRequest)
 		return false
 	}
-	return s.validateArtifactFieldLengths(ctx, w, teamID, req.Slug, req.Title, req.Description, &req.Type, &req.Status)
+	return s.validateArtifactFieldLengths(ctx, w, teamID, artifactFieldValues{
+		slug: req.Slug, title: req.Title, description: req.Description,
+		artifactType: &req.Type, status: &req.Status,
+	})
 }
 
 // validateUpdateArtifactRequest validates the update artifact request
@@ -575,25 +592,39 @@ func (s *Server) validateUpdateArtifactRequest(
 		description = *req.Description
 	}
 
-	return s.validateArtifactFieldLengths(ctx, w, teamID, slug, title, description, req.Type, req.Status)
+	return s.validateArtifactFieldLengths(ctx, w, teamID, artifactFieldValues{
+		slug: slug, title: title, description: description,
+		artifactType: req.Type, status: req.Status,
+	})
+}
+
+// artifactFieldValues carries the artifact field values checked by
+// validateArtifactFieldLengths.
+type artifactFieldValues struct {
+	slug         string
+	title        string
+	description  string
+	artifactType *string
+	status       *string
 }
 
 // validateArtifactFieldLengths validates field lengths for artifacts
-func (s *Server) validateArtifactFieldLengths(ctx context.Context, w http.ResponseWriter, teamID string,
-	slug, title, description string, artifactType, status *string) bool {
-	if !s.validateArtifactStringLength(w, slug, 255, "Slug") {
+func (s *Server) validateArtifactFieldLengths(
+	ctx context.Context, w http.ResponseWriter, teamID string, f artifactFieldValues,
+) bool {
+	if !s.validateArtifactStringLength(w, f.slug, 255, "Slug") {
 		return false
 	}
-	if !s.validateArtifactStringLength(w, title, 255, "Title") {
+	if !s.validateArtifactStringLength(w, f.title, 255, "Title") {
 		return false
 	}
-	if !s.validateArtifactStringLength(w, description, 500, "Description") {
+	if !s.validateArtifactStringLength(w, f.description, 500, "Description") {
 		return false
 	}
-	if !s.validateArtifactType(ctx, w, teamID, artifactType) {
+	if !s.validateArtifactType(ctx, w, teamID, f.artifactType) {
 		return false
 	}
-	if !s.validateArtifactStatus(w, status) {
+	if !s.validateArtifactStatus(w, f.status) {
 		return false
 	}
 	return true
@@ -734,15 +765,21 @@ func (s *Server) decodeArtifactURLParams(w http.ResponseWriter, userID, handler,
 	string, string, bool) {
 	decodedProjectID, err := url.PathUnescape(projectID)
 	if err != nil {
-		s.logArtifactError(w, handler, userID, projectID, "", err,
-			"Failed to decode project ID", "bad_request", "Invalid project ID encoding", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: handler, userID: userID, projectID: projectID, err: err,
+			logMsg: "Failed to decode project ID", errCode: "bad_request",
+			errMsg: "Invalid project ID encoding", statusCode: http.StatusBadRequest,
+		})
 		return "", "", false
 	}
 
 	decodedSlug, err := url.PathUnescape(slug)
 	if err != nil {
-		s.logArtifactError(w, handler, userID, "", slug, err,
-			"Failed to decode slug", "bad_request", "Invalid slug encoding", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: handler, userID: userID, slug: slug, err: err,
+			logMsg: "Failed to decode slug", errCode: "bad_request",
+			errMsg: "Invalid slug encoding", statusCode: http.StatusBadRequest,
+		})
 		return "", "", false
 	}
 
@@ -875,21 +912,4 @@ func (s *Server) deleteArtifactEmbeddings(userID, artifactID, projectID, slug st
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete artifact embeddings (non-fatal)")
 	}
-}
-
-// logArtifactError logs an artifact error and writes error response
-func (s *Server) logArtifactError(w http.ResponseWriter, handler, userID, projectID, slug string,
-	err error, logMsg, errCode, errMsg string, statusCode int) {
-	fields := []any{
-		"service", serverLogServiceName, "handler", handler,
-		"user_id", userID, "error", fmt.Sprintf("%+v", err),
-	}
-	if projectID != "" {
-		fields = append(fields, "project_id", projectID)
-	}
-	if slug != "" {
-		fields = append(fields, "slug", slug)
-	}
-	s.logger.With(fields...).Error(logMsg)
-	writeErrorResponse(w, nil, errCode, errMsg, statusCode)
 }

@@ -58,7 +58,17 @@ func TestPromptCreatedEvent(t *testing.T) {
 	body := "This is the rendered prompt body"
 	createdAt := time.Now()
 
-	event := NewPromptCreatedEvent(promptID, userID, email, projectName, slug, title, description, body, createdAt)
+	event := NewPromptCreatedEvent(PromptCreatedPayload{
+		PromptID:    promptID,
+		UserID:      userID,
+		Email:       email,
+		ProjectName: projectName,
+		Slug:        slug,
+		Title:       title,
+		Description: description,
+		Body:        body,
+		CreatedAt:   createdAt,
+	})
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypePromptCreated, event.Type())
@@ -86,7 +96,16 @@ func TestPromptUpdatedEvent(t *testing.T) {
 	body := "This is the updated rendered prompt body"
 	updatedAt := time.Now()
 
-	event := NewPromptUpdatedEvent(promptID, userID, projectName, slug, title, description, body, updatedAt)
+	event := NewPromptUpdatedEvent(PromptUpdatedPayload{
+		PromptID:    promptID,
+		UserID:      userID,
+		ProjectName: projectName,
+		Slug:        slug,
+		Title:       title,
+		Description: description,
+		Body:        body,
+		UpdatedAt:   updatedAt,
+	})
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypePromptUpdated, event.Type())
@@ -115,9 +134,17 @@ func TestArtifactCreatedEvent(t *testing.T) {
 	body := "This is the artifact content used for embeddings"
 	createdAt := time.Now()
 
-	event := NewArtifactCreatedEvent(
-		artifactID, userID, projectName, slug, title, description, artifactType, body, createdAt,
-	)
+	event := NewArtifactCreatedEvent(ArtifactCreatedPayload{
+		ArtifactID:  artifactID,
+		UserID:      userID,
+		ProjectName: projectName,
+		Slug:        slug,
+		Title:       title,
+		Description: description,
+		Type:        artifactType,
+		Body:        body,
+		CreatedAt:   createdAt,
+	})
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeArtifactCreated, event.Type())
@@ -147,9 +174,17 @@ func TestArtifactUpdatedEvent(t *testing.T) {
 	body := "Updated artifact content"
 	updatedAt := time.Now()
 
-	event := NewArtifactUpdatedEvent(
-		artifactID, userID, projectName, slug, title, description, artifactType, body, updatedAt,
-	)
+	event := NewArtifactUpdatedEvent(ArtifactUpdatedPayload{
+		ArtifactID:  artifactID,
+		UserID:      userID,
+		ProjectName: projectName,
+		Slug:        slug,
+		Title:       title,
+		Description: description,
+		Type:        artifactType,
+		Body:        body,
+		UpdatedAt:   updatedAt,
+	})
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeArtifactUpdated, event.Type())
@@ -170,7 +205,17 @@ func TestArtifactUpdatedEvent(t *testing.T) {
 
 func TestArtifactCreatedPayload_IncludesBody(t *testing.T) {
 	body := "Substantive artifact content for embedding"
-	event := NewArtifactCreatedEvent("a1", "u1", "p1", "s1", "t1", "desc", "general", body, time.Now())
+	event := NewArtifactCreatedEvent(ArtifactCreatedPayload{
+		ArtifactID:  "a1",
+		UserID:      "u1",
+		ProjectName: "p1",
+		Slug:        "s1",
+		Title:       "t1",
+		Description: "desc",
+		Type:        "general",
+		Body:        body,
+		CreatedAt:   time.Now(),
+	})
 
 	payload, ok := event.Payload().(*ArtifactCreatedPayload)
 	assert.True(t, ok)
@@ -179,7 +224,17 @@ func TestArtifactCreatedPayload_IncludesBody(t *testing.T) {
 
 func TestArtifactUpdatedPayload_IncludesBody(t *testing.T) {
 	body := "Updated artifact body for re-embedding"
-	event := NewArtifactUpdatedEvent("a1", "u1", "p1", "s1", "t1", "desc", "general", body, time.Now())
+	event := NewArtifactUpdatedEvent(ArtifactUpdatedPayload{
+		ArtifactID:  "a1",
+		UserID:      "u1",
+		ProjectName: "p1",
+		Slug:        "s1",
+		Title:       "t1",
+		Description: "desc",
+		Type:        "general",
+		Body:        body,
+		UpdatedAt:   time.Now(),
+	})
 
 	payload, ok := event.Payload().(*ArtifactUpdatedPayload)
 	assert.True(t, ok)
@@ -197,9 +252,17 @@ func TestBlueprintCreatedEvent(t *testing.T) {
 	body := "Blueprint content for embedding"
 	createdAt := time.Now()
 
-	event := NewBlueprintCreatedEvent(
-		blueprintID, userID, projectName, slug, title, description, blueprintType, body, createdAt,
-	)
+	event := NewBlueprintCreatedEvent(BlueprintCreatedPayload{
+		BlueprintID: blueprintID,
+		UserID:      userID,
+		ProjectName: projectName,
+		Slug:        slug,
+		Title:       title,
+		Description: description,
+		Type:        blueprintType,
+		Body:        body,
+		CreatedAt:   createdAt,
+	})
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeBlueprintCreated, event.Type())
@@ -229,9 +292,17 @@ func TestBlueprintUpdatedEvent(t *testing.T) {
 	body := "Updated blueprint content"
 	updatedAt := time.Now()
 
-	event := NewBlueprintUpdatedEvent(
-		blueprintID, userID, projectName, slug, title, description, blueprintType, body, updatedAt,
-	)
+	event := NewBlueprintUpdatedEvent(BlueprintUpdatedPayload{
+		BlueprintID: blueprintID,
+		UserID:      userID,
+		ProjectName: projectName,
+		Slug:        slug,
+		Title:       title,
+		Description: description,
+		Type:        blueprintType,
+		Body:        body,
+		UpdatedAt:   updatedAt,
+	})
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeBlueprintUpdated, event.Type())
@@ -252,7 +323,17 @@ func TestBlueprintUpdatedEvent(t *testing.T) {
 
 func TestBlueprintCreatedPayload_IncludesBody(t *testing.T) {
 	body := "Substantive blueprint content for embedding"
-	event := NewBlueprintCreatedEvent("b1", "u1", "p1", "s1", "t1", "desc", "spec", body, time.Now())
+	event := NewBlueprintCreatedEvent(BlueprintCreatedPayload{
+		BlueprintID: "b1",
+		UserID:      "u1",
+		ProjectName: "p1",
+		Slug:        "s1",
+		Title:       "t1",
+		Description: "desc",
+		Type:        "spec",
+		Body:        body,
+		CreatedAt:   time.Now(),
+	})
 
 	payload, ok := event.Payload().(*BlueprintCreatedPayload)
 	assert.True(t, ok)
@@ -261,7 +342,17 @@ func TestBlueprintCreatedPayload_IncludesBody(t *testing.T) {
 
 func TestBlueprintUpdatedPayload_IncludesBody(t *testing.T) {
 	body := "Updated blueprint body for re-embedding"
-	event := NewBlueprintUpdatedEvent("b1", "u1", "p1", "s1", "t1", "desc", "spec", body, time.Now())
+	event := NewBlueprintUpdatedEvent(BlueprintUpdatedPayload{
+		BlueprintID: "b1",
+		UserID:      "u1",
+		ProjectName: "p1",
+		Slug:        "s1",
+		Title:       "t1",
+		Description: "desc",
+		Type:        "spec",
+		Body:        body,
+		UpdatedAt:   time.Now(),
+	})
 
 	payload, ok := event.Payload().(*BlueprintUpdatedPayload)
 	assert.True(t, ok)
@@ -322,7 +413,16 @@ func TestFeedItemCreatedEvent_IncludesBody(t *testing.T) {
 	excerpt := "Substantive feed item content"
 	postedAt := time.Now()
 
-	event := NewFeedItemCreatedEvent(itemID, userID, teamID, feedID, title, content, excerpt, postedAt)
+	event := NewFeedItemCreatedEvent(FeedItemCreatedPayload{
+		ItemID:   itemID,
+		UserID:   userID,
+		TeamID:   teamID,
+		FeedID:   feedID,
+		Title:    title,
+		Content:  content,
+		Excerpt:  excerpt,
+		PostedAt: postedAt,
+	})
 
 	assert.NotNil(t, event)
 	assert.Equal(t, EventTypeFeedItemCreated, event.Type())

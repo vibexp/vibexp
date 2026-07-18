@@ -149,11 +149,16 @@ func (m *MockArtifactRepository) GetNamesByIDsCrossTeam(
 func TestNewArtifactService(t *testing.T) {
 	repo := &MockArtifactRepository{}
 	mockResourceUsageSvc := &MockResourceUsageService{}
-	service := NewArtifactService(
-		repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-		func() *slog.Logger { l, _ := logtest.New(); return l }(),
-		nil,
-		nil)
+	service := NewArtifactService(ArtifactServiceDeps{
+		Repo:              repo,
+		TeamService:       nil,
+		Authz:             allowAllAuthz{},
+		EventManager:      nil,
+		ResourceUsageSvc:  mockResourceUsageSvc,
+		Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+		ContentVersionSvc: nil,
+		CommentRepo:       nil,
+	})
 
 	assert.NotNil(t, service)
 	assert.IsType(t, &ArtifactService{}, service)
@@ -262,11 +267,16 @@ func TestArtifactService_CreateArtifact(t *testing.T) {
 			// Note: TrackResourceCreation was removed as part of resource tracking simplification
 			// Resource limits are now checked directly in handlers via CheckResourceLimit
 
-			service := NewArtifactService(
-				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-				func() *slog.Logger { l, _ := logtest.New(); return l }(),
-				nil,
-				nil)
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             allowAllAuthz{},
+				EventManager:      nil,
+				ResourceUsageSvc:  mockResourceUsageSvc,
+				Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			artifact, err := service.CreateArtifact(tt.userID, "team-123", tt.request)
 
 			tt.expected(t, artifact, err)
@@ -342,11 +352,16 @@ func TestArtifactService_GetArtifactByProjectIDAndSlug(t *testing.T) {
 			tt.setup(repo)
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
-			service := NewArtifactService(
-				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-				func() *slog.Logger { l, _ := logtest.New(); return l }(),
-				nil,
-				nil)
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             allowAllAuthz{},
+				EventManager:      nil,
+				ResourceUsageSvc:  mockResourceUsageSvc,
+				Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			artifact, err := service.GetArtifactByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug)
 
 			tt.expected(t, artifact, err)
@@ -405,11 +420,16 @@ func TestArtifactService_GetArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 			repo := &MockArtifactRepository{}
 			tt.setup(repo)
 
-			service := NewArtifactService(
-				repo, nil, allowAllAuthz{}, nil, &MockResourceUsageService{},
-				func() *slog.Logger { l, _ := logtest.New(); return l }(),
-				nil,
-				nil)
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             allowAllAuthz{},
+				EventManager:      nil,
+				ResourceUsageSvc:  &MockResourceUsageService{},
+				Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			artifact, err := service.GetArtifactByProjectIDAndSlugInTeam(userID, teamID, projectID, slug)
 
 			tt.expected(t, artifact, err)
@@ -439,11 +459,16 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 			return a.Title == "Updated Title" && a.TeamID == teamID
 		})).Return(nil)
 
-		service := NewArtifactService(
-			repo, nil, allowAllAuthz{}, nil, &MockResourceUsageService{},
-			func() *slog.Logger { l, _ := logtest.New(); return l }(),
-			nil,
-			nil)
+		service := NewArtifactService(ArtifactServiceDeps{
+			Repo:              repo,
+			TeamService:       nil,
+			Authz:             allowAllAuthz{},
+			EventManager:      nil,
+			ResourceUsageSvc:  &MockResourceUsageService{},
+			Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+			ContentVersionSvc: nil,
+			CommentRepo:       nil,
+		})
 		artifact, err := service.UpdateArtifactByProjectIDAndSlugInTeam(
 			userID, teamID, projectID, slug, &models.UpdateArtifactRequest{Title: stringPtr("Updated Title")},
 		)
@@ -461,11 +486,16 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlugInTeam(t *testing.T) {
 			"GetByProjectIDAndSlug", mock.Anything, userID, teamID, projectID, slug,
 		).Return(nil, assert.AnError)
 
-		service := NewArtifactService(
-			repo, nil, allowAllAuthz{}, nil, &MockResourceUsageService{},
-			func() *slog.Logger { l, _ := logtest.New(); return l }(),
-			nil,
-			nil)
+		service := NewArtifactService(ArtifactServiceDeps{
+			Repo:              repo,
+			TeamService:       nil,
+			Authz:             allowAllAuthz{},
+			EventManager:      nil,
+			ResourceUsageSvc:  &MockResourceUsageService{},
+			Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+			ContentVersionSvc: nil,
+			CommentRepo:       nil,
+		})
 		artifact, err := service.UpdateArtifactByProjectIDAndSlugInTeam(
 			userID, teamID, projectID, slug, &models.UpdateArtifactRequest{Title: stringPtr("Hijacked")},
 		)
@@ -578,11 +608,16 @@ func TestArtifactService_ListArtifacts(t *testing.T) {
 			tt.setup(repo)
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
-			service := NewArtifactService(
-				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-				func() *slog.Logger { l, _ := logtest.New(); return l }(),
-				nil,
-				nil)
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             allowAllAuthz{},
+				EventManager:      nil,
+				ResourceUsageSvc:  mockResourceUsageSvc,
+				Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			response, err := service.ListArtifacts(tt.userID, tt.filters)
 
 			tt.expected(t, response, err)
@@ -601,11 +636,16 @@ func TestArtifactService_ListArtifactsByProject(t *testing.T) {
 	})).Return(artifacts, 1, nil)
 
 	mockResourceUsageSvc := &MockResourceUsageService{}
-	service := NewArtifactService(
-		repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-		func() *slog.Logger { l, _ := logtest.New(); return l }(),
-		nil,
-		nil)
+	service := NewArtifactService(ArtifactServiceDeps{
+		Repo:              repo,
+		TeamService:       nil,
+		Authz:             allowAllAuthz{},
+		EventManager:      nil,
+		ResourceUsageSvc:  mockResourceUsageSvc,
+		Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+		ContentVersionSvc: nil,
+		CommentRepo:       nil,
+	})
 	response, err := service.ListArtifactsByProject(
 		"user-123",
 		"550e8400-e29b-41d4-a716-446655440000",
@@ -743,11 +783,16 @@ func TestArtifactService_UpdateArtifactByProjectIDAndSlug(t *testing.T) {
 			tt.setup(repo)
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
-			service := NewArtifactService(
-				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-				func() *slog.Logger { l, _ := logtest.New(); return l }(),
-				nil,
-				nil)
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             allowAllAuthz{},
+				EventManager:      nil,
+				ResourceUsageSvc:  mockResourceUsageSvc,
+				Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			artifact, err := service.UpdateArtifactByProjectIDAndSlug(tt.userID, tt.projectName, tt.slug, tt.request)
 
 			tt.expected(t, artifact, err)
@@ -852,11 +897,16 @@ func TestArtifactService_DeleteArtifactByProjectIDAndSlug(t *testing.T) {
 			// Note: TrackResourceDeletion was removed as part of resource tracking simplification
 			// Deletions are never blocked by resource limits
 
-			service := NewArtifactService(
-				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-				func() *slog.Logger { l, _ := logtest.New(); return l }(),
-				nil,
-				nil)
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             allowAllAuthz{},
+				EventManager:      nil,
+				ResourceUsageSvc:  mockResourceUsageSvc,
+				Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			err := service.DeleteArtifactByProjectIDAndSlug(tt.userID, tt.teamID, tt.projectName, tt.slug)
 
 			tt.expected(t, err)
@@ -930,11 +980,16 @@ func TestArtifactService_GetArtifactStats(t *testing.T) {
 			tt.setup(repo)
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
-			service := NewArtifactService(
-				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-				func() *slog.Logger { l, _ := logtest.New(); return l }(),
-				nil,
-				nil)
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             allowAllAuthz{},
+				EventManager:      nil,
+				ResourceUsageSvc:  mockResourceUsageSvc,
+				Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			stats, err := service.GetArtifactStats(tt.userID, tt.teamID)
 
 			tt.expected(t, stats, err)
@@ -1045,11 +1100,16 @@ func TestArtifactService_ListArtifactsByProjectCrossTeam(t *testing.T) {
 			tt.setup(repo)
 
 			mockResourceUsageSvc := &MockResourceUsageService{}
-			service := NewArtifactService(
-				repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-				func() *slog.Logger { l, _ := logtest.New(); return l }(),
-				nil,
-				nil)
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             allowAllAuthz{},
+				EventManager:      nil,
+				ResourceUsageSvc:  mockResourceUsageSvc,
+				Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			resp, err := service.ListArtifactsByProjectCrossTeam(tt.userID, tt.projectID, tt.filters)
 
 			tt.expected(t, resp, err)
@@ -1061,20 +1121,15 @@ func TestArtifactService_ListArtifactsByProjectCrossTeam(t *testing.T) {
 func TestArtifactService_ImplementsInterface(t *testing.T) {
 	repo := &MockArtifactRepository{}
 	mockResourceUsageSvc := &MockResourceUsageService{}
-	service := NewArtifactService(
-		repo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-		func() *slog.Logger { l, _ := logtest.New(); return l }(),
-		nil,
-		nil,
-		//nolint:funlen // Test function requires comprehensive setup and assertions
-	)
-	//nolint:funlen // Test function requires comprehensive setup and assertions
+	service := NewArtifactService(ArtifactServiceDeps{
+		Repo:             repo,
+		Authz:            allowAllAuthz{},
+		ResourceUsageSvc: mockResourceUsageSvc,
+		Logger:           func() *slog.Logger { l, _ := logtest.New(); return l }(),
+	})
 
-	//nolint:funlen // Test function requires comprehensive setup and assertions
 	// Verify that ArtifactService implements ArtifactServiceInterface
-	//nolint:funlen // Test function requires comprehensive setup and assertions
 	var _ ArtifactServiceInterface = service
-	//nolint:funlen // Test function requires comprehensive setup and assertions
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions
@@ -1178,11 +1233,16 @@ func TestArtifactService_PublishesArtifactEvents(t *testing.T) {
 				events.ResourceTypeArtifact, mock.Anything,
 			).Return(nil).Maybe()
 
-			service := NewArtifactService(
-				mockRepo, nil, allowAllAuthz{}, mockEventManager, mockResourceUsageSvc,
-				func() *slog.Logger { l, _ := logtest.New(); return l }(),
-				nil,
-				nil)
+			service := NewArtifactService(ArtifactServiceDeps{
+				Repo:              mockRepo,
+				TeamService:       nil,
+				Authz:             allowAllAuthz{},
+				EventManager:      mockEventManager,
+				ResourceUsageSvc:  mockResourceUsageSvc,
+				Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 
 			err := tt.executeAction(service)
 			assert.NoError(t, err)
@@ -1205,11 +1265,16 @@ func TestArtifactService_PublishesArtifactEvents(t *testing.T) {
 func TestArtifactService_UpdateArtifact_PreservesTeamID(t *testing.T) {
 	mockRepo := &MockArtifactRepository{}
 	mockResourceUsageSvc := &MockResourceUsageService{}
-	service := NewArtifactService(
-		mockRepo, nil, allowAllAuthz{}, nil, mockResourceUsageSvc,
-		func() *slog.Logger { l, _ := logtest.New(); return l }(),
-		nil,
-		nil)
+	service := NewArtifactService(ArtifactServiceDeps{
+		Repo:              mockRepo,
+		TeamService:       nil,
+		Authz:             allowAllAuthz{},
+		EventManager:      nil,
+		ResourceUsageSvc:  mockResourceUsageSvc,
+		Logger:            func() *slog.Logger { l, _ := logtest.New(); return l }(),
+		ContentVersionSvc: nil,
+		CommentRepo:       nil,
+	})
 
 	// Create existing artifact with team_id
 	existingArtifact := &models.Artifact{

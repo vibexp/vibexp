@@ -139,7 +139,7 @@ func TestMemoryHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 }
 
 // TestArtifactHandler_DeletePermissionDeniedIsForbidden guards the silent-500
-// path: logArtifactError writes 500 unconditionally, so the guard is the only
+// path: logHandlerError writes 500 unconditionally, so the guard is the only
 // thing making a denial a 403.
 func TestArtifactHandler_DeletePermissionDeniedIsForbidden(t *testing.T) {
 	art := svcmocks.NewMockArtifactServiceInterface(t)

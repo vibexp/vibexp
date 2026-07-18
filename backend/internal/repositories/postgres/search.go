@@ -108,7 +108,7 @@ func (r *SearchRepository) SearchSimilar(
 	modelID string,
 	entityTypes []string,
 	projectID string,
-	limit, offset int,
+	page repositories.Page,
 ) ([]models.SearchResultRow, int, error) {
 	searchVector := pgvector.NewVector(vec)
 	projectArg := projectFilterArg(projectID)
@@ -121,7 +121,7 @@ func (r *SearchRepository) SearchSimilar(
 		return []models.SearchResultRow{}, 0, nil
 	}
 
-	rows, err := r.queryPage(ctx, teamID, searchVector, modelID, entityTypes, projectArg, limit, offset)
+	rows, err := r.queryPage(ctx, teamID, searchVector, modelID, entityTypes, projectArg, page)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -244,7 +244,7 @@ func (r *SearchRepository) queryPage(
 	modelID string,
 	entityTypes []string,
 	projectArg interface{},
-	limit, offset int,
+	page repositories.Page,
 ) ([]models.SearchResultRow, error) {
 	union, err := buildUnion(entityTypes)
 	if err != nil {
@@ -253,7 +253,7 @@ func (r *SearchRepository) queryPage(
 
 	query := buildDedupPageQuery(union)
 
-	rows, err := r.db.QueryContext(ctx, query, searchVector, teamID, modelID, projectArg, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchVector, teamID, modelID, projectArg, page.Limit, page.Offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run semantic search: %w", err)
 	}
@@ -263,7 +263,7 @@ func (r *SearchRepository) queryPage(
 		}
 	}()
 
-	return scanSearchRows(rows, limit)
+	return scanSearchRows(rows, page.Limit)
 }
 
 func (r *SearchRepository) countSimilar(
@@ -339,12 +339,12 @@ func (r *SearchRepository) SearchKeyword(
 	query string,
 	entityTypes []string,
 	projectID string,
-	limit, offset int,
+	page repositories.Page,
 ) ([]models.SearchResultRow, int, error) {
 	projectArg := projectFilterArg(projectID)
 
 	rows, total, err := r.runKeywordPass(
-		ctx, teamID, query, entityTypes, projectArg, limit, offset, keywordStrictTSQuery)
+		ctx, teamID, query, entityTypes, projectArg, page, keywordStrictTSQuery)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -353,7 +353,7 @@ func (r *SearchRepository) SearchKeyword(
 	}
 
 	rows, total, err = r.runKeywordPass(
-		ctx, teamID, query, entityTypes, projectArg, limit, offset, keywordRelaxedTSQuery)
+		ctx, teamID, query, entityTypes, projectArg, page, keywordRelaxedTSQuery)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -361,7 +361,7 @@ func (r *SearchRepository) SearchKeyword(
 		return rows, total, nil
 	}
 
-	return r.runKeywordTrgmPass(ctx, teamID, query, entityTypes, projectArg, limit, offset)
+	return r.runKeywordTrgmPass(ctx, teamID, query, entityTypes, projectArg, page)
 }
 
 // runKeywordPass executes one full-text pass with the given tsquery expression:
@@ -374,7 +374,7 @@ func (r *SearchRepository) runKeywordPass(
 	query string,
 	entityTypes []string,
 	projectArg interface{},
-	limit, offset int,
+	page repositories.Page,
 	tsquery string,
 ) ([]models.SearchResultRow, int, error) {
 	total, err := r.countKeyword(ctx, teamID, query, entityTypes, projectArg, tsquery)
@@ -385,7 +385,7 @@ func (r *SearchRepository) runKeywordPass(
 		return []models.SearchResultRow{}, 0, nil
 	}
 
-	rows, err := r.queryKeywordPage(ctx, teamID, query, entityTypes, projectArg, limit, offset, tsquery)
+	rows, err := r.queryKeywordPage(ctx, teamID, query, entityTypes, projectArg, page, tsquery)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -551,7 +551,7 @@ func (r *SearchRepository) runKeywordTrgmPass(
 	query string,
 	entityTypes []string,
 	projectArg interface{},
-	limit, offset int,
+	page repositories.Page,
 ) ([]models.SearchResultRow, int, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -576,7 +576,7 @@ func (r *SearchRepository) runKeywordTrgmPass(
 		return []models.SearchResultRow{}, 0, nil
 	}
 
-	rows, err := queryKeywordTrgmPage(ctx, tx, teamID, query, entityTypes, projectArg, limit, offset)
+	rows, err := queryKeywordTrgmPage(ctx, tx, teamID, query, entityTypes, projectArg, page)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -618,7 +618,7 @@ func queryKeywordTrgmPage(
 	teamID, query string,
 	entityTypes []string,
 	projectArg interface{},
-	limit, offset int,
+	page repositories.Page,
 ) ([]models.SearchResultRow, error) {
 	union, err := buildKeywordTrgmUnion(entityTypes)
 	if err != nil {
@@ -634,7 +634,7 @@ func queryKeywordTrgmPage(
 		union,
 	)
 
-	rows, err := tx.QueryContext(ctx, pageSQL, query, teamID, projectArg, limit, offset)
+	rows, err := tx.QueryContext(ctx, pageSQL, query, teamID, projectArg, page.Limit, page.Offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run trgm keyword search: %w", err)
 	}
@@ -644,7 +644,7 @@ func queryKeywordTrgmPage(
 		}
 	}()
 
-	return scanSearchRows(rows, limit)
+	return scanSearchRows(rows, page.Limit)
 }
 
 func (r *SearchRepository) queryKeywordPage(
@@ -653,7 +653,7 @@ func (r *SearchRepository) queryKeywordPage(
 	query string,
 	entityTypes []string,
 	projectArg interface{},
-	limit, offset int,
+	page repositories.Page,
 	tsquery string,
 ) ([]models.SearchResultRow, error) {
 	union, err := buildKeywordUnion(entityTypes, tsquery)
@@ -671,7 +671,7 @@ func (r *SearchRepository) queryKeywordPage(
 		union,
 	)
 
-	rows, err := r.db.QueryContext(ctx, sqlQuery, query, teamID, projectArg, limit, offset)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, query, teamID, projectArg, page.Limit, page.Offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run keyword search: %w", err)
 	}
@@ -681,7 +681,7 @@ func (r *SearchRepository) queryKeywordPage(
 		}
 	}()
 
-	return scanSearchRows(rows, limit)
+	return scanSearchRows(rows, page.Limit)
 }
 
 // scanSearchRows scans the 12-column SearchResultRow projection shared by every

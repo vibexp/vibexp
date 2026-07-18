@@ -77,14 +77,14 @@ func (s *Server) handleMigrateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ar := NewActivityRecorder(s.activityService)
-	ar.RecordResourceActivity(
-		r.Context(), userID,
-		activities.ActivityTypeProjectMigrated,
-		activities.EntityTypeProject,
-		&projectID,
-		fmt.Sprintf("Migrated resources from project %s to project %s",
+	ar.RecordResourceActivity(r.Context(), resourceActivityParams{
+		userID:       userID,
+		activityType: activities.ActivityTypeProjectMigrated,
+		entityType:   activities.EntityTypeProject,
+		entityID:     &projectID,
+		description: fmt.Sprintf("Migrated resources from project %s to project %s",
 			result.SourceProjectName, result.DestinationProjectName),
-		map[string]interface{}{
+		metadata: map[string]interface{}{
 			"source_project_id":      projectID,
 			"destination_project_id": req.DestinationProjectID,
 			"migrated_prompts":       result.Migrated.Prompts,
@@ -93,8 +93,7 @@ func (s *Server) handleMigrateProject(w http.ResponseWriter, r *http.Request) {
 			"migrated_feed_items":    result.Migrated.FeedItems,
 			"conflict_policy":        string(req.ConflictPolicy),
 		},
-		r,
-	)
+	}, r)
 
 	writeOK(w, result, s.logger)
 }

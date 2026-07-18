@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 // resetSearchTables clears every table SearchKeyword reads plus the rows that hang
@@ -91,18 +92,27 @@ func testVector(components map[int]float32) []float32 {
 	return v
 }
 
+// testEmbedding describes one embedding chunk row inserted by insertTestEmbedding.
+type testEmbedding struct {
+	userID     string
+	teamID     string
+	entityType string
+	entityID   string
+	modelID    string
+	content    string
+	vec        []float32
+}
+
 // insertTestEmbedding inserts one embedding chunk for an entity and returns its
 // chunk id. Inserting several chunks under the same entityID models a long
 // document split across multiple embeddings — the case per-entity dedup collapses.
-func insertTestEmbedding(
-	t *testing.T, userID, teamID, entityType, entityID, modelID, content string, vec []float32,
-) string {
+func insertTestEmbedding(t *testing.T, e testEmbedding) string {
 	t.Helper()
 	id := uuid.New().String()
 	_, err := integrationDB.ExecContext(context.Background(),
 		"INSERT INTO embeddings (id, entity_type, entity_id, vector_embeddings, model_id, user_id, content, team_id) "+
 			"VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-		id, entityType, entityID, pgvector.NewVector(vec), modelID, userID, content, teamID)
+		id, e.entityType, e.entityID, pgvector.NewVector(e.vec), e.modelID, e.userID, e.content, e.teamID)
 	require.NoError(t, err)
 	return id
 }
@@ -162,7 +172,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		_ = insertTestArtifact(t, user, team, project,
 			"Frontend", "react components and hooks", "active")
 
-		rows, total, err := repo.SearchKeyword(ctx, team, "postgres", allTypes, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, "postgres", allTypes, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 
 		// Three matches (strong prompt, memory, artifact); the draft is filtered out
@@ -187,7 +197,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 
 		// "index searches" stems to index/search and matches "indexing"/"searching"
 		// on the strict pass (both terms present, so AND semantics still hit).
-		rows, total, err := repo.SearchKeyword(ctx, team, "index searches", []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, "index searches", []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, rows, 1)
@@ -202,12 +212,12 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		_ = insertTestPrompt(t, user, team, projectA, "alpha doc", "shared keyword alpha", "published")
 		_ = insertTestPrompt(t, user, team, projectB, "beta doc", "shared keyword beta", "published")
 
-		all, allTotal, err := repo.SearchKeyword(ctx, team, "shared keyword", []string{"prompt"}, "", 10, 0)
+		all, allTotal, err := repo.SearchKeyword(ctx, team, "shared keyword", []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 2, allTotal)
 		require.Len(t, all, 2)
 
-		scoped, scopedTotal, err := repo.SearchKeyword(ctx, team, "shared keyword", []string{"prompt"}, projectA, 10, 0)
+		scoped, scopedTotal, err := repo.SearchKeyword(ctx, team, "shared keyword", []string{"prompt"}, projectA, repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 1, scopedTotal)
 		require.Len(t, scoped, 1)
@@ -224,7 +234,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		otherUser := insertTestUser(t)
 		otherTeam := insertTestTeam(t, otherUser)
 
-		rows, total, err := repo.SearchKeyword(ctx, otherTeam, "team scoped", []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, otherTeam, "team scoped", []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, rows)
@@ -237,12 +247,12 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		project := insertTestProject(t, user, team)
 		seedPrompts(t, user, team, project, "page item", "pagination keyword content number", 3)
 
-		page1, total, err := repo.SearchKeyword(ctx, team, "pagination keyword", []string{"prompt"}, "", 2, 0)
+		page1, total, err := repo.SearchKeyword(ctx, team, "pagination keyword", []string{"prompt"}, "", repositories.Page{Limit: 2, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 3, total)
 		require.Len(t, page1, 2)
 
-		page2, _, err := repo.SearchKeyword(ctx, team, "pagination keyword", []string{"prompt"}, "", 2, 2)
+		page2, _, err := repo.SearchKeyword(ctx, team, "pagination keyword", []string{"prompt"}, "", repositories.Page{Limit: 2, Offset: 2})
 		require.NoError(t, err)
 		require.Len(t, page2, 1)
 
@@ -264,7 +274,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		project := insertTestProject(t, user, team)
 		_ = insertTestPrompt(t, user, team, project, "doc", "completely unrelated text", "published")
 
-		rows, total, err := repo.SearchKeyword(ctx, team, "nonexistentterm", allTypes, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, "nonexistentterm", allTypes, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, rows)
@@ -281,7 +291,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		// stopwords) on both passes: the relaxed OR-rewrite of an empty tsquery is
 		// still empty, so it matches nothing. The repo must return an empty page, not
 		// error, so the endpoint still answers HTTP 200.
-		rows, total, err := repo.SearchKeyword(ctx, team, "the and of", allTypes, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, "the and of", allTypes, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Empty(t, rows)
@@ -305,7 +315,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		// ("performance", "large", "tables") drive the strict pass to zero; the relaxed
 		// OR pass then matches on the shared postgres/search/document lexemes.
 		q := "how do I tune postgres full text search performance for large tables"
-		rows, total, err := repo.SearchKeyword(ctx, team, q, allTypes, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, q, allTypes, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, rows, 1)
@@ -328,7 +338,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		_ = insertTestPrompt(t, user, team, project,
 			"bravo only", "bravo appears here without the other word", "published")
 
-		rows, total, err := repo.SearchKeyword(ctx, team, "alpha bravo", []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, "alpha bravo", []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, rows, 1)
@@ -348,7 +358,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 			"scattered", "text is processed, then later we do a full rebuild", "published")
 
 		// AC #2: a quoted phrase matches only adjacency (websearch <-> phrase operator).
-		rows, total, err := repo.SearchKeyword(ctx, team, `"full text"`, []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, `"full text"`, []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, rows, 1)
@@ -398,7 +408,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		insertTestPrompt(t, user, team, project,
 			"unrelated topic", "nothing similar here", "published")
 
-		rows, total, err := repo.SearchKeyword(ctx, team, "widgte", []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, "widgte", []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 1, total)
 		require.Len(t, rows, 1)
@@ -420,7 +430,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		typoNeighbour := insertTestPrompt(t, user, team, project,
 			"wodget", "would only match under trigram similarity", "published")
 
-		rows, total, err := repo.SearchKeyword(ctx, team, "widget", []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, "widget", []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 1, total, "only the exact FTS hit should return; the trgm pass must not run")
 		require.Len(t, rows, 1)
@@ -441,7 +451,7 @@ func TestSearchRepository_SearchKeyword_Integration(t *testing.T) {
 		insertTestPrompt(t, user, team, project,
 			"generic reference", "this body mentions the widget component in passing", "published")
 
-		rows, total, err := repo.SearchKeyword(ctx, team, "widgte", []string{"prompt"}, "", 10, 0)
+		rows, total, err := repo.SearchKeyword(ctx, team, "widgte", []string{"prompt"}, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 0, total, "a body-only near match must not surface (title-only trgm scope)")
 		assert.Empty(t, rows)
@@ -555,14 +565,20 @@ func TestSearchRepository_SearchSimilar_Integration(t *testing.T) {
 
 		// A's best chunk sits exactly on the query axis (cosine distance 0); its other
 		// chunk is orthogonal (distance ~1). B's single chunk is slightly off-axis.
-		bestChunkA := insertTestEmbedding(t, user, team, "prompt", promptA, model,
-			"A best chunk", testVector(map[int]float32{0: 1}))
-		_ = insertTestEmbedding(t, user, team, "prompt", promptA, model,
-			"A far chunk", testVector(map[int]float32{1: 1}))
-		_ = insertTestEmbedding(t, user, team, "artifact", artifactB, model,
-			"B only chunk", testVector(map[int]float32{0: 1, 1: 0.2}))
+		bestChunkA := insertTestEmbedding(t, testEmbedding{
+			userID: user, teamID: team, entityType: "prompt", entityID: promptA, modelID: model,
+			content: "A best chunk", vec: testVector(map[int]float32{0: 1}),
+		})
+		_ = insertTestEmbedding(t, testEmbedding{
+			userID: user, teamID: team, entityType: "prompt", entityID: promptA, modelID: model,
+			content: "A far chunk", vec: testVector(map[int]float32{1: 1}),
+		})
+		_ = insertTestEmbedding(t, testEmbedding{
+			userID: user, teamID: team, entityType: "artifact", entityID: artifactB, modelID: model,
+			content: "B only chunk", vec: testVector(map[int]float32{0: 1, 1: 0.2}),
+		})
 
-		rows, total, err := repo.SearchSimilar(ctx, team, query, model, allTypes, "", 10, 0)
+		rows, total, err := repo.SearchSimilar(ctx, team, query, model, allTypes, "", repositories.Page{Limit: 10, Offset: 0})
 		require.NoError(t, err)
 
 		// Three chunks match, but only two distinct entities: A collapses to one row.
@@ -591,15 +607,21 @@ func TestSearchRepository_SearchSimilar_Integration(t *testing.T) {
 		p1 := insertTestPrompt(t, user, team, project, "Tie one", "one", "published")
 		p2 := insertTestPrompt(t, user, team, project, "Tie two", "two", "published")
 		query := testVector(map[int]float32{0: 1})
-		_ = insertTestEmbedding(t, user, team, "prompt", p1, model, "chunk one", testVector(map[int]float32{0: 1}))
-		_ = insertTestEmbedding(t, user, team, "prompt", p2, model, "chunk two", testVector(map[int]float32{0: 1}))
+		_ = insertTestEmbedding(t, testEmbedding{
+			userID: user, teamID: team, entityType: "prompt", entityID: p1, modelID: model,
+			content: "chunk one", vec: testVector(map[int]float32{0: 1}),
+		})
+		_ = insertTestEmbedding(t, testEmbedding{
+			userID: user, teamID: team, entityType: "prompt", entityID: p2, modelID: model,
+			content: "chunk two", vec: testVector(map[int]float32{0: 1}),
+		})
 
-		page1, total, err := repo.SearchSimilar(ctx, team, query, model, []string{"prompt"}, "", 1, 0)
+		page1, total, err := repo.SearchSimilar(ctx, team, query, model, []string{"prompt"}, "", repositories.Page{Limit: 1, Offset: 0})
 		require.NoError(t, err)
 		assert.Equal(t, 2, total)
 		require.Len(t, page1, 1)
 
-		page2, _, err := repo.SearchSimilar(ctx, team, query, model, []string{"prompt"}, "", 1, 1)
+		page2, _, err := repo.SearchSimilar(ctx, team, query, model, []string{"prompt"}, "", repositories.Page{Limit: 1, Offset: 1})
 		require.NoError(t, err)
 		require.Len(t, page2, 1)
 

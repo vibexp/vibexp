@@ -235,20 +235,19 @@ func (s *Server) handleGitHubImportProject(w http.ResponseWriter, r *http.Reques
 	}
 
 	if created {
-		s.recordGitHubImportActivity(
-			r.Context(), userID,
-			activities.ActivityTypeGitHubProjectImported,
-			activities.EntityTypeProject,
-			project.ID,
-			fmt.Sprintf("Imported project from GitHub repository %s", project.Name),
-			map[string]interface{}{
+		s.recordGitHubImportActivity(r.Context(), resourceActivityParams{
+			userID:       userID,
+			activityType: activities.ActivityTypeGitHubProjectImported,
+			entityType:   activities.EntityTypeProject,
+			entityID:     &project.ID,
+			description:  fmt.Sprintf("Imported project from GitHub repository %s", project.Name),
+			metadata: map[string]interface{}{
 				"repo_id":      repoID,
 				"repo_name":    project.Name,
 				"repo_git_url": project.GitURL,
 				"team_id":      teamID,
 			},
-			r,
-		)
+		}, r)
 	}
 
 	s.writeImportProjectResponse(w, project, created, userID, teamID, repoID)
@@ -328,13 +327,15 @@ func (s *Server) handleGitHubImportBlueprints(w http.ResponseWriter, r *http.Req
 	}
 
 	if report.TotalSuccessful > 0 {
-		s.recordGitHubImportActivity(
-			r.Context(), userID,
-			activities.ActivityTypeGitHubBlueprintsImported,
-			activities.EntityTypeBlueprint,
-			"",
-			fmt.Sprintf("Imported %d blueprints from GitHub repository (id: %d)", report.TotalSuccessful, req.RepositoryID),
-			map[string]interface{}{
+		s.recordGitHubImportActivity(r.Context(), resourceActivityParams{
+			userID:       userID,
+			activityType: activities.ActivityTypeGitHubBlueprintsImported,
+			entityType:   activities.EntityTypeBlueprint,
+			// entityID stays nil: the import has no single blueprint entity.
+			description: fmt.Sprintf(
+				"Imported %d blueprints from GitHub repository (id: %d)", report.TotalSuccessful, req.RepositoryID,
+			),
+			metadata: map[string]interface{}{
 				"repo_id":        req.RepositoryID,
 				"team_id":        teamID,
 				"total_scanned":  report.TotalScanned,
@@ -342,8 +343,7 @@ func (s *Server) handleGitHubImportBlueprints(w http.ResponseWriter, r *http.Req
 				"total_skipped":  report.TotalSkipped,
 				"total_failed":   report.TotalFailed,
 			},
-			r,
-		)
+		}, r)
 	}
 
 	writeOK(w, report, s.logger)

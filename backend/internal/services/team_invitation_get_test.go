@@ -31,16 +31,16 @@ func newTestInvitationService() (
 	mockUserRepo := &mocks.MockUserRepository{}
 	mockEmailService := &MockEmailService{}
 
-	svc := NewTeamInvitationService(
-		mockInvitationRepo,
-		mockTeamRepo,
-		mockTeamMemberRepo,
-		mockUserRepo,
-		mockEmailService,
-		NewAuthorizationService(mockTeamMemberRepo, nil),
-		&config.Config{},
-		nil,
-	)
+	svc := NewTeamInvitationService(TeamInvitationServiceDeps{
+		InvitationRepo: mockInvitationRepo,
+		TeamRepo:       mockTeamRepo,
+		TeamMemberRepo: mockTeamMemberRepo,
+		UserRepo:       mockUserRepo,
+		EmailService:   mockEmailService,
+		Authz:          NewAuthorizationService(mockTeamMemberRepo, nil),
+		Cfg:            &config.Config{},
+		Logger:         nil,
+	})
 
 	return svc, mockInvitationRepo, mockTeamRepo, mockUserRepo
 }

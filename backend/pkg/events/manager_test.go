@@ -173,9 +173,17 @@ func testManagerMultipleEventTypes(t *testing.T, logger *slog.Logger) {
 	userEvent := NewUserCreatedEvent("user123", "test@example.com", "Test User", time.Now())
 	assert.NoError(t, manager.Publish(context.Background(), userEvent))
 
-	promptEvent := NewPromptCreatedEvent(
-		"prompt123", "user123", "test@example.com", "project", "slug", "title", "", "Test prompt body", time.Now(),
-	)
+	promptEvent := NewPromptCreatedEvent(PromptCreatedPayload{
+		PromptID:    "prompt123",
+		UserID:      "user123",
+		Email:       "test@example.com",
+		ProjectName: "project",
+		Slug:        "slug",
+		Title:       "title",
+		Description: "",
+		Body:        "Test prompt body",
+		CreatedAt:   time.Now(),
+	})
 	assert.NoError(t, manager.Publish(context.Background(), promptEvent))
 
 	time.Sleep(200 * time.Millisecond)

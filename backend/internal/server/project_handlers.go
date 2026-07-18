@@ -39,8 +39,11 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 
 	var req models.CreateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logProjectError(w, "handleCreateProject", userID, "", err,
-			"Failed to decode request body", "bad_request", "Invalid request body", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleCreateProject", userID: userID, err: err,
+			logMsg: "Failed to decode request body", errCode: "bad_request",
+			errMsg: "Invalid request body", statusCode: http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -197,8 +200,11 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 
 	var req models.UpdateProjectRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		s.logProjectError(w, "handleUpdateProject", userID, decodedSlug, decodeErr,
-			"Failed to decode request body", "bad_request", "Invalid request body", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleUpdateProject", userID: userID, slug: decodedSlug, err: decodeErr,
+			logMsg: "Failed to decode request body", errCode: "bad_request",
+			errMsg: "Invalid request body", statusCode: http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -320,8 +326,11 @@ func (s *Server) validateProjectStringLength(w http.ResponseWriter, value string
 func (s *Server) decodeProjectSlug(w http.ResponseWriter, userID, handler, slug string) (string, bool) {
 	decodedSlug, err := url.PathUnescape(slug)
 	if err != nil {
-		s.logProjectError(w, handler, userID, slug, err,
-			"Failed to decode slug", "bad_request", "Invalid slug encoding", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: handler, userID: userID, slug: slug, err: err,
+			logMsg: "Failed to decode slug", errCode: "bad_request",
+			errMsg: "Invalid slug encoding", statusCode: http.StatusBadRequest,
+		})
 		return "", false
 	}
 	return decodedSlug, true
@@ -516,20 +525,4 @@ func (s *Server) buildProjectFilters(r *http.Request, teamID string) services.Pr
 	}
 
 	return filters
-}
-
-// logProjectError logs a project error and writes error response
-func (s *Server) logProjectError(w http.ResponseWriter, handler, userID, slug string,
-	err error, logMsg, errCode, errMsg string, statusCode int) {
-	fields := []any{
-		"service", serverLogServiceName,
-		"handler", handler,
-		"user_id", userID,
-		"error", fmt.Sprintf("%+v", err),
-	}
-	if slug != "" {
-		fields = append(fields, "slug", slug)
-	}
-	s.logger.With(fields...).Error(logMsg)
-	writeErrorResponse(w, nil, errCode, errMsg, statusCode)
 }

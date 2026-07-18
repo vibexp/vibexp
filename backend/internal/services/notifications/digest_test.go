@@ -42,17 +42,17 @@ func newDigestRunner(
 	emailSvc notifications.DigestEmailSender,
 ) *notifications.DigestRunner {
 	logger := slog.New(slog.DiscardHandler)
-	return notifications.NewDigestRunner(
-		digestRepo,
-		notifRepo,
-		userRepo,
-		teamRepo,
-		prefRepo,
-		emailSvc,
-		notifications.NewTemplateRenderer("https://app.example.com"),
-		nil, // metrics – nil is safe; RecordXxx guards against nil receiver
-		logger,
-	)
+	return notifications.NewDigestRunner(notifications.DigestRunnerDeps{
+		DigestRepo: digestRepo,
+		NotifRepo:  notifRepo,
+		UserRepo:   userRepo,
+		TeamRepo:   teamRepo,
+		PrefRepo:   prefRepo,
+		EmailSvc:   emailSvc,
+		Renderer:   notifications.NewTemplateRenderer("https://app.example.com"),
+		AppMetrics: nil,
+		Logger:     logger,
+	})
 }
 
 // setupAdvisoryLock registers the expected advisory lock acquire + release on the
@@ -664,12 +664,17 @@ func TestDigestRunner_Run_RenderError(t *testing.T) {
 	emailSvc := &mockDigestEmailSender{}
 
 	logger := slog.New(slog.DiscardHandler)
-	runner := notifications.NewDigestRunner(
-		digestRepo, notifRepo, userRepo, teamRepo, prefRepo, emailSvc,
-		notifications.NewTemplateRenderer("https://app.example.com"),
-		nil, // nil metrics
-		logger,
-	)
+	runner := notifications.NewDigestRunner(notifications.DigestRunnerDeps{
+		DigestRepo: digestRepo,
+		NotifRepo:  notifRepo,
+		UserRepo:   userRepo,
+		TeamRepo:   teamRepo,
+		PrefRepo:   prefRepo,
+		EmailSvc:   emailSvc,
+		Renderer:   notifications.NewTemplateRenderer("https://app.example.com"),
+		AppMetrics: nil,
+		Logger:     logger,
+	})
 
 	userID := "u1"
 	pending := []*models.NotificationDigestQueueRow{

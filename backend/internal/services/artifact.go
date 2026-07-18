@@ -27,25 +27,28 @@ type ArtifactService struct {
 // Ensure ArtifactService implements ArtifactServiceInterface
 var _ ArtifactServiceInterface = (*ArtifactService)(nil)
 
-func NewArtifactService(
-	repo repositories.ArtifactRepository,
-	teamService TeamServiceInterface,
-	authzService AuthorizationServiceInterface,
-	eventManager events.EventPublisher,
-	resourceUsageSvc ResourceUsageServiceInterface,
-	logger *slog.Logger,
-	contentVersionSvc ContentVersionServiceInterface,
-	commentRepo repositories.CommentRepository,
-) *ArtifactService {
+// ArtifactServiceDeps groups the dependencies injected into ArtifactService.
+type ArtifactServiceDeps struct {
+	Repo              repositories.ArtifactRepository
+	TeamService       TeamServiceInterface
+	Authz             AuthorizationServiceInterface
+	EventManager      events.EventPublisher
+	ResourceUsageSvc  ResourceUsageServiceInterface
+	Logger            *slog.Logger
+	ContentVersionSvc ContentVersionServiceInterface
+	CommentRepo       repositories.CommentRepository
+}
+
+func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
 	return &ArtifactService{
-		repo:              repo,
-		teamService:       teamService,
-		authz:             authzService,
-		eventManager:      eventManager,
-		resourceUsageSvc:  resourceUsageSvc,
-		contentVersionSvc: contentVersionSvc,
-		commentRepo:       commentRepo,
-		logger:            logger,
+		repo:              deps.Repo,
+		teamService:       deps.TeamService,
+		authz:             deps.Authz,
+		eventManager:      deps.EventManager,
+		resourceUsageSvc:  deps.ResourceUsageSvc,
+		contentVersionSvc: deps.ContentVersionSvc,
+		commentRepo:       deps.CommentRepo,
+		logger:            deps.Logger,
 	}
 }
 
@@ -164,10 +167,17 @@ func (s *ArtifactService) CreateArtifact(
 
 	// Publish artifact created event
 	if s.eventManager != nil {
-		event := events.NewArtifactCreatedEvent(
-			artifact.ID, artifact.UserID, artifact.ProjectID, artifact.Slug,
-			artifact.Title, artifact.Description, artifact.Type, artifact.Content, artifact.CreatedAt,
-		)
+		event := events.NewArtifactCreatedEvent(events.ArtifactCreatedPayload{
+			ArtifactID:  artifact.ID,
+			UserID:      artifact.UserID,
+			ProjectName: artifact.ProjectID,
+			Slug:        artifact.Slug,
+			Title:       artifact.Title,
+			Description: artifact.Description,
+			Type:        artifact.Type,
+			Body:        artifact.Content,
+			CreatedAt:   artifact.CreatedAt,
+		})
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish artifact created event")
 		}
@@ -467,10 +477,17 @@ func (s *ArtifactService) applyAndPersistArtifactUpdate(
 
 	// Publish artifact updated event
 	if s.eventManager != nil {
-		event := events.NewArtifactUpdatedEvent(
-			artifact.ID, artifact.UserID, artifact.ProjectID, artifact.Slug,
-			artifact.Title, artifact.Description, artifact.Type, artifact.Content, artifact.UpdatedAt,
-		)
+		event := events.NewArtifactUpdatedEvent(events.ArtifactUpdatedPayload{
+			ArtifactID:  artifact.ID,
+			UserID:      artifact.UserID,
+			ProjectName: artifact.ProjectID,
+			Slug:        artifact.Slug,
+			Title:       artifact.Title,
+			Description: artifact.Description,
+			Type:        artifact.Type,
+			Body:        artifact.Content,
+			UpdatedAt:   artifact.UpdatedAt,
+		})
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish artifact updated event")
 		}

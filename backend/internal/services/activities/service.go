@@ -28,30 +28,33 @@ type Service struct {
 	retentionDays int
 }
 
+// ServiceDeps groups the dependencies injected into the activity Service.
+type ServiceDeps struct {
+	Repo          repositories.ActivityRepository
+	ProjectRepo   repositories.ProjectRepository
+	PromptRepo    repositories.PromptRepository
+	ArtifactRepo  repositories.ArtifactRepository
+	UserRepo      repositories.UserRepository
+	AgentRepo     repositories.AgentRepository
+	BlueprintRepo repositories.BlueprintRepository
+	APIKeyRepo    repositories.APIKeyRepository
+	MemoryRepo    repositories.MemoryRepository
+	RetentionDays int
+}
+
 // NewService creates a new activity service
-func NewService(
-	repo repositories.ActivityRepository,
-	projectRepo repositories.ProjectRepository,
-	promptRepo repositories.PromptRepository,
-	artifactRepo repositories.ArtifactRepository,
-	userRepo repositories.UserRepository,
-	agentRepo repositories.AgentRepository,
-	blueprintRepo repositories.BlueprintRepository,
-	apiKeyRepo repositories.APIKeyRepository,
-	memoryRepo repositories.MemoryRepository,
-	retentionDays int,
-) *Service {
+func NewService(deps ServiceDeps) *Service {
 	return &Service{
-		repo:          repo,
-		projectRepo:   projectRepo,
-		promptRepo:    promptRepo,
-		artifactRepo:  artifactRepo,
-		userRepo:      userRepo,
-		agentRepo:     agentRepo,
-		blueprintRepo: blueprintRepo,
-		apiKeyRepo:    apiKeyRepo,
-		memoryRepo:    memoryRepo,
-		retentionDays: retentionDays,
+		repo:          deps.Repo,
+		projectRepo:   deps.ProjectRepo,
+		promptRepo:    deps.PromptRepo,
+		artifactRepo:  deps.ArtifactRepo,
+		userRepo:      deps.UserRepo,
+		agentRepo:     deps.AgentRepo,
+		blueprintRepo: deps.BlueprintRepo,
+		apiKeyRepo:    deps.APIKeyRepo,
+		memoryRepo:    deps.MemoryRepo,
+		retentionDays: deps.RetentionDays,
 	}
 }
 

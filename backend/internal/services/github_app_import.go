@@ -285,16 +285,16 @@ func (s *GitHubAppService) publishProjectCreatedEvent(
 	project *models.Project,
 ) {
 	if s.eventManager != nil {
-		event := events.NewProjectCreatedEvent(
-			project.ID,
-			project.UserID,
-			project.Name,
-			project.Slug,
-			project.Description,
-			project.GitURL,
-			project.Homepage,
-			project.CreatedAt,
-		)
+		event := events.NewProjectCreatedEvent(events.ProjectCreatedPayload{
+			ProjectID:   project.ID,
+			UserID:      project.UserID,
+			Name:        project.Name,
+			Slug:        project.Slug,
+			Description: project.Description,
+			GitURL:      project.GitURL,
+			Homepage:    project.Homepage,
+			CreatedAt:   project.CreatedAt,
+		})
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish project created event")
 		}

@@ -77,56 +77,42 @@ func ProvideEventManager(
 	return eventManager
 }
 
+// EventListenerDeps groups everything the event-listener registrations need.
+// Wire fills it via wire.Struct (see the container ProviderSet).
+type EventListenerDeps struct {
+	EventManager       *events.EventManager
+	Cfg                *config.Config
+	Logger             *slog.Logger
+	EmbeddingProcessor events.EmbeddingProcessor
+	TeamService        services.TeamServiceInterface
+	ProjectService     services.ProjectServiceInterface
+	NotifSvc           notificationsvc.NotificationServiceInterface
+	TeamMemberRepo     repositories.TeamMemberRepository
+	UserRepo           repositories.UserRepository
+	FeedItemRepo       repositories.FeedItemRepository
+	AppMetrics         *metrics.Metrics
+}
+
 // ProvideEventSystemDeps creates the complete event system with all listeners,
 // including the in-process embedding worker that generates embeddings off the bus.
 // Embedding delivery is broker-free: there is no Pub/Sub forwarder or sync HTTP
 // listener — the EmbeddingWorker subscribes to entity created/updated events and
 // embeds them asynchronously via the bus's worker pool.
-func ProvideEventSystemDeps(
-	eventManager *events.EventManager,
-	cfg *config.Config,
-	logger *slog.Logger,
-	embeddingProcessor events.EmbeddingProcessor,
-	teamService services.TeamServiceInterface,
-	projectService services.ProjectServiceInterface,
-	notifSvc notificationsvc.NotificationServiceInterface,
-	teamMemberRepo repositories.TeamMemberRepository,
-	userRepo repositories.UserRepository,
-	feedItemRepo repositories.FeedItemRepository,
-	appMetrics *metrics.Metrics,
-) *EventSystemDeps {
-	registerEventListeners(
-		eventManager, cfg, logger, embeddingProcessor, teamService, projectService,
-		notifSvc, teamMemberRepo, userRepo, feedItemRepo, appMetrics,
-	)
+func ProvideEventSystemDeps(deps EventListenerDeps) *EventSystemDeps {
+	registerEventListeners(deps)
 
 	return &EventSystemDeps{
-		EventManager:       eventManager,
-		embeddingProcessor: embeddingProcessor,
+		EventManager:       deps.EventManager,
+		embeddingProcessor: deps.EmbeddingProcessor,
 	}
 }
 
 // registerEventListeners registers all event listeners to the event manager
-func registerEventListeners(
-	eventManager *events.EventManager,
-	cfg *config.Config,
-	logger *slog.Logger,
-	embeddingProcessor events.EmbeddingProcessor,
-	teamService services.TeamServiceInterface,
-	projectService services.ProjectServiceInterface,
-	notifSvc notificationsvc.NotificationServiceInterface,
-	teamMemberRepo repositories.TeamMemberRepository,
-	userRepo repositories.UserRepository,
-	feedItemRepo repositories.FeedItemRepository,
-	appMetrics *metrics.Metrics,
-) {
-	registerUserCreatedListener(eventManager, logger)
-	registerTeamCreationListener(eventManager, teamService, projectService, logger)
-	registerNotificationEventListener(
-		eventManager, notifSvc, teamMemberRepo,
-		userRepo, feedItemRepo, cfg.Frontend.BaseURL, appMetrics, logger,
-	)
-	registerEmbeddingWorker(eventManager, embeddingProcessor, logger)
+func registerEventListeners(deps EventListenerDeps) {
+	registerUserCreatedListener(deps.EventManager, deps.Logger)
+	registerTeamCreationListener(deps.EventManager, deps.TeamService, deps.ProjectService, deps.Logger)
+	registerNotificationEventListener(deps)
+	registerEmbeddingWorker(deps.EventManager, deps.EmbeddingProcessor, deps.Logger)
 }
 
 // registerTeamCreationListener registers the team creation listener for new users
@@ -169,23 +155,23 @@ func registerUserCreatedListener(eventManager *events.EventManager, logger *slog
 }
 
 // registerNotificationEventListener registers the notification event listener
-func registerNotificationEventListener(
-	eventManager *events.EventManager,
-	notifSvc notificationsvc.NotificationServiceInterface,
-	teamMemberRepo repositories.TeamMemberRepository,
-	userRepo repositories.UserRepository,
-	feedItemRepo repositories.FeedItemRepository,
-	frontendBaseURL string,
-	appMetrics *metrics.Metrics,
-	logger *slog.Logger,
-) {
-	resolver := notificationsvc.NewRecipientResolver(teamMemberRepo)
+func registerNotificationEventListener(deps EventListenerDeps) {
+	frontendBaseURL := deps.Cfg.Frontend.BaseURL
+	logger := deps.Logger
+	resolver := notificationsvc.NewRecipientResolver(deps.TeamMemberRepo)
 	renderer := notificationsvc.NewTemplateRenderer(frontendBaseURL)
-	listener := notificationsvc.NewNotificationEventListener(
-		notifSvc, resolver, renderer, userRepo, feedItemRepo, frontendBaseURL, appMetrics, logger,
-	)
+	listener := notificationsvc.NewNotificationEventListener(notificationsvc.NotificationEventListenerDeps{
+		NotifSvc:        deps.NotifSvc,
+		Resolver:        resolver,
+		Renderer:        renderer,
+		UserRepo:        deps.UserRepo,
+		FeedItemRepo:    deps.FeedItemRepo,
+		FrontendBaseURL: frontendBaseURL,
+		AppMetrics:      deps.AppMetrics,
+		Logger:          logger,
+	})
 
-	if err := eventManager.Subscribe(listener); err != nil {
+	if err := deps.EventManager.Subscribe(listener); err != nil {
 		logger.Error(
 			"Failed to subscribe notification event listener",
 			"service", logServiceName,

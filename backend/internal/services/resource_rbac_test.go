@@ -146,7 +146,16 @@ func TestArtifactService_Delete_OwnVsAny(t *testing.T) {
 				repo.EXPECT().Delete(mock.Anything, resRBACCaller, resRBACTeamID, artifactID).Return(nil).Once()
 			}
 
-			svc := NewArtifactService(repo, nil, authzForRole(t, tc.role), nil, nil, logger, nil, nil)
+			svc := NewArtifactService(ArtifactServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             authzForRole(t, tc.role),
+				EventManager:      nil,
+				ResourceUsageSvc:  nil,
+				Logger:            logger,
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			err := svc.DeleteArtifactByProjectIDAndSlug(resRBACCaller, resRBACTeamID, projectID, slug)
 
 			if tc.allowed {
@@ -181,7 +190,16 @@ func TestBlueprintService_Delete_OwnVsAny(t *testing.T) {
 				repo.EXPECT().Delete(mock.Anything, resRBACCaller, resRBACTeamID, blueprintID).Return(nil).Once()
 			}
 
-			svc := NewBlueprintService(repo, nil, authzForRole(t, tc.role), nil, nil, logger, nil, nil)
+			svc := NewBlueprintService(BlueprintServiceDeps{
+				Repo:              repo,
+				TeamService:       nil,
+				Authz:             authzForRole(t, tc.role),
+				EventManager:      nil,
+				ResourceUsageSvc:  nil,
+				Logger:            logger,
+				ContentVersionSvc: nil,
+				CommentRepo:       nil,
+			})
 			err := svc.DeleteBlueprintByProjectIDAndSlug(resRBACCaller, resRBACTeamID, projectID, slug)
 
 			if tc.allowed {

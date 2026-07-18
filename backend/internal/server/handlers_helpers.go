@@ -3,10 +3,42 @@ package server
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/go-playground/validator/v10"
 )
+
+// handlerErrorParams bundles the log and response fields for logHandlerError,
+// the shared error helper behind the artifact/blueprint/project handlers.
+type handlerErrorParams struct {
+	handler    string
+	userID     string
+	projectID  string // included in log fields only when non-empty
+	slug       string // included in log fields only when non-empty
+	err        error
+	logMsg     string
+	errCode    string
+	errMsg     string
+	statusCode int
+}
+
+// logHandlerError logs a handler error with the standard structured fields and
+// writes the error response.
+func (s *Server) logHandlerError(w http.ResponseWriter, p handlerErrorParams) {
+	fields := []any{
+		"service", serverLogServiceName, "handler", p.handler,
+		"user_id", p.userID, "error", fmt.Sprintf("%+v", p.err),
+	}
+	if p.projectID != "" {
+		fields = append(fields, "project_id", p.projectID)
+	}
+	if p.slug != "" {
+		fields = append(fields, "slug", p.slug)
+	}
+	s.logger.With(fields...).Error(p.logMsg)
+	writeErrorResponse(w, nil, p.errCode, p.errMsg, p.statusCode)
+}
 
 // validate is the shared struct validator used across request handlers
 // (support, search, agent, MCP). It lives here, not in any one feature's

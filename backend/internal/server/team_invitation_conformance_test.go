@@ -78,10 +78,16 @@ func (c *invConfContainer) TeamRepository() repositories.TeamRepository { return
 
 func newInvConfServer(m *invConfMocks) *Server {
 	logger := slog.New(slog.DiscardHandler)
-	svc := services.NewTeamInvitationService(
-		m.invRepo, m.teamRepo, m.memberRepo, m.userRepo, m.email, m.authz,
-		&config.Config{}, logger,
-	)
+	svc := services.NewTeamInvitationService(services.TeamInvitationServiceDeps{
+		InvitationRepo: m.invRepo,
+		TeamRepo:       m.teamRepo,
+		TeamMemberRepo: m.memberRepo,
+		UserRepo:       m.userRepo,
+		EmailService:   m.email,
+		Authz:          m.authz,
+		Cfg:            &config.Config{},
+		Logger:         logger,
+	})
 	return &Server{
 		port: "8080",
 		container: &invConfContainer{

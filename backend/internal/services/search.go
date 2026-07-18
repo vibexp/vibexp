@@ -133,10 +133,11 @@ func (s *SearchService) fetchPage(
 	offset := (req.Page - 1) * req.PerPage
 
 	fetch := func(limit, offset int) ([]models.SearchResultRow, int, error) {
+		page := repositories.Page{Limit: limit, Offset: offset}
 		if keyword {
-			return s.repo.SearchKeyword(ctx, teamID, req.Query, entityTypes, req.ProjectID, limit, offset)
+			return s.repo.SearchKeyword(ctx, teamID, req.Query, entityTypes, req.ProjectID, page)
 		}
-		return s.repo.SearchSimilar(ctx, teamID, vector, model, entityTypes, req.ProjectID, limit, offset)
+		return s.repo.SearchSimilar(ctx, teamID, vector, model, entityTypes, req.ProjectID, page)
 	}
 
 	if !s.ranking.Enabled {

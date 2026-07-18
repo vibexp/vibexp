@@ -41,8 +41,11 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	var req models.CreateBlueprintRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.logBlueprintError(w, "handleCreateBlueprint", userID, "", "", err,
-			"Failed to decode request body", "bad_request", "Invalid request body", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleCreateBlueprint", userID: userID, err: err,
+			logMsg: "Failed to decode request body", errCode: "bad_request",
+			errMsg: "Invalid request body", statusCode: http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -65,10 +68,10 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 		s.metrics.RecordBlueprintCreated(r.Context())
 	}
 
-	s.recordBlueprintActivity(
-		r.Context(), userID, activities.ActivityTypeBlueprintCreated, blueprint.ID,
-		req.ProjectID, req.Slug, "Created new blueprint: "+req.Title, r,
-	)
+	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
+		userID: userID, activityType: activities.ActivityTypeBlueprintCreated, blueprintID: blueprint.ID,
+		projectID: req.ProjectID, slug: req.Slug, description: "Created new blueprint: " + req.Title,
+	}, r)
 
 	writeCreated(w, blueprint, s.logger)
 }
@@ -153,8 +156,11 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 
 	decodedProjectID, err := url.PathUnescape(projectID)
 	if err != nil {
-		s.logBlueprintError(w, "handleListBlueprintsByProject", userID, projectID, "", err,
-			"Failed to decode project ID", "bad_request", "Invalid project ID encoding", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleListBlueprintsByProject", userID: userID, projectID: projectID, err: err,
+			logMsg: "Failed to decode project ID", errCode: "bad_request",
+			errMsg: "Invalid project ID encoding", statusCode: http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -228,8 +234,12 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	var req models.UpdateBlueprintRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		s.logBlueprintError(w, "handleUpdateBlueprint", userID, decodedProjectID, decodedSlug, decodeErr,
-			"Failed to decode request body", "bad_request", "Invalid request body", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleUpdateBlueprint", userID: userID,
+			projectID: decodedProjectID, slug: decodedSlug, err: decodeErr,
+			logMsg: "Failed to decode request body", errCode: "bad_request",
+			errMsg: "Invalid request body", statusCode: http.StatusBadRequest,
+		})
 		return
 	}
 
@@ -245,10 +255,10 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.recordBlueprintActivity(
-		r.Context(), userID, activities.ActivityTypeBlueprintUpdated, blueprint.ID,
-		decodedProjectID, decodedSlug, "Updated blueprint: "+blueprint.Title, r,
-	)
+	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
+		userID: userID, activityType: activities.ActivityTypeBlueprintUpdated, blueprintID: blueprint.ID,
+		projectID: decodedProjectID, slug: decodedSlug, description: "Updated blueprint: " + blueprint.Title,
+	}, r)
 
 	writeOK(w, blueprint, s.logger)
 }
@@ -291,7 +301,7 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	err = s.container.BlueprintService().DeleteBlueprintByProjectIDAndSlug(userID, teamID, decodedProjectID, decodedSlug)
 	if err != nil {
-		// Without this branch a denied delete would hit logBlueprintError's
+		// Without this branch a denied delete would hit logHandlerError's
 		// unconditional 500 — it has no branching at all.
 		if errors.Is(err, services.ErrPermissionDenied) {
 			s.logger.With(
@@ -305,18 +315,12 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.logBlueprintError(
-			w,
-			"handleDeleteBlueprint",
-			userID,
-			decodedProjectID,
-			decodedSlug,
-			err,
-			"Failed to delete blueprint",
-			"internal_error",
-			"Failed to delete blueprint",
-			http.StatusInternalServerError,
-		)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: "handleDeleteBlueprint", userID: userID,
+			projectID: decodedProjectID, slug: decodedSlug, err: err,
+			logMsg: "Failed to delete blueprint", errCode: "internal_error",
+			errMsg: "Failed to delete blueprint", statusCode: http.StatusInternalServerError,
+		})
 		return
 	}
 
@@ -327,10 +331,10 @@ func (s *Server) handleDeleteBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	s.deleteBlueprintEmbeddings(userID, blueprint.ID, decodedProjectID, decodedSlug)
 
-	s.recordBlueprintActivity(
-		r.Context(), userID, activities.ActivityTypeBlueprintDeleted, blueprint.ID,
-		decodedProjectID, decodedSlug, "Deleted blueprint: "+decodedSlug, r,
-	)
+	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
+		userID: userID, activityType: activities.ActivityTypeBlueprintDeleted, blueprintID: blueprint.ID,
+		projectID: decodedProjectID, slug: decodedSlug, description: "Deleted blueprint: " + decodedSlug,
+	}, r)
 
 	writeNoContent(w)
 }
@@ -389,9 +393,11 @@ func (s *Server) validateCreateBlueprintRequest(w http.ResponseWriter, req *mode
 	}
 	// Validate type-subtype relationship (handled in validateBlueprintFieldLengths)
 
-	return s.validateBlueprintFieldLengths(
-		w, req.Slug, req.Title, req.Description, &req.Type, req.Subtype, &req.Status, req.Metadata,
-	)
+	return s.validateBlueprintFieldLengths(w, blueprintFieldValues{
+		slug: req.Slug, title: req.Title, description: req.Description,
+		blueprintType: &req.Type, subtype: req.Subtype, status: &req.Status,
+		metadata: req.Metadata,
+	})
 }
 
 // validateUpdateBlueprintRequest validates the update blueprint request
@@ -416,30 +422,43 @@ func (s *Server) validateUpdateBlueprintRequest(w http.ResponseWriter, req *mode
 
 	// Validate type-subtype relationship (handled in validateBlueprintFieldLengths)
 
-	return s.validateBlueprintFieldLengths(
-		w, slug, title, description, req.Type, req.Subtype, req.Status, req.Metadata,
-	)
+	return s.validateBlueprintFieldLengths(w, blueprintFieldValues{
+		slug: slug, title: title, description: description,
+		blueprintType: req.Type, subtype: req.Subtype, status: req.Status,
+		metadata: req.Metadata,
+	})
+}
+
+// blueprintFieldValues carries the blueprint field values checked by
+// validateBlueprintFieldLengths.
+type blueprintFieldValues struct {
+	slug          string
+	title         string
+	description   string
+	blueprintType *string
+	subtype       *string
+	status        *string
+	metadata      map[string]interface{}
 }
 
 // validateBlueprintFieldLengths validates field lengths for blueprints
-func (s *Server) validateBlueprintFieldLengths(w http.ResponseWriter, slug, title, description string,
-	blueprintType, subtype, status *string, metadata map[string]interface{}) bool {
-	if !s.validateBlueprintStringLength(w, slug, 255, "Slug") {
+func (s *Server) validateBlueprintFieldLengths(w http.ResponseWriter, f blueprintFieldValues) bool {
+	if !s.validateBlueprintStringLength(w, f.slug, 255, "Slug") {
 		return false
 	}
-	if !s.validateBlueprintStringLength(w, title, 255, "Title") {
+	if !s.validateBlueprintStringLength(w, f.title, 255, "Title") {
 		return false
 	}
-	if !s.validateBlueprintStringLength(w, description, 500, "Description") {
+	if !s.validateBlueprintStringLength(w, f.description, 500, "Description") {
 		return false
 	}
-	if !s.validateBlueprintType(w, blueprintType) {
+	if !s.validateBlueprintType(w, f.blueprintType) {
 		return false
 	}
-	if !s.validateBlueprintSubtype(w, blueprintType, subtype, metadata) {
+	if !s.validateBlueprintSubtype(w, f.blueprintType, f.subtype, f.metadata) {
 		return false
 	}
-	if !s.validateBlueprintStatus(w, status) {
+	if !s.validateBlueprintStatus(w, f.status) {
 		return false
 	}
 	return true
@@ -639,15 +658,21 @@ func (s *Server) decodeBlueprintURLParams(w http.ResponseWriter, userID, handler
 	string, string, bool) {
 	decodedProjectID, err := url.PathUnescape(projectID)
 	if err != nil {
-		s.logBlueprintError(w, handler, userID, projectID, "", err,
-			"Failed to decode project ID", "bad_request", "Invalid project ID encoding", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: handler, userID: userID, projectID: projectID, err: err,
+			logMsg: "Failed to decode project ID", errCode: "bad_request",
+			errMsg: "Invalid project ID encoding", statusCode: http.StatusBadRequest,
+		})
 		return "", "", false
 	}
 
 	decodedSlug, err := url.PathUnescape(slug)
 	if err != nil {
-		s.logBlueprintError(w, handler, userID, "", slug, err,
-			"Failed to decode slug", "bad_request", "Invalid slug encoding", http.StatusBadRequest)
+		s.logHandlerError(w, handlerErrorParams{
+			handler: handler, userID: userID, slug: slug, err: err,
+			logMsg: "Failed to decode slug", errCode: "bad_request",
+			errMsg: "Invalid slug encoding", statusCode: http.StatusBadRequest,
+		})
 		return "", "", false
 	}
 
@@ -771,37 +796,30 @@ func (s *Server) deleteBlueprintEmbeddings(userID, blueprintID, projectID, slug 
 	}
 }
 
-// logBlueprintError logs a blueprint error and writes error response
-func (s *Server) logBlueprintError(w http.ResponseWriter, handler, userID, projectID, slug string,
-	err error, logMsg, errCode, errMsg string, statusCode int) {
-	fields := []any{
-		"service", serverLogServiceName, "handler", handler,
-		"user_id", userID, "error", fmt.Sprintf("%+v", err),
-	}
-	if projectID != "" {
-		fields = append(fields, "project_id", projectID)
-	}
-	if slug != "" {
-		fields = append(fields, "slug", slug)
-	}
-	s.logger.With(fields...).Error(logMsg)
-	writeErrorResponse(w, nil, errCode, errMsg, statusCode)
+// blueprintActivityParams identifies the blueprint an activity is recorded for.
+type blueprintActivityParams struct {
+	userID       string
+	activityType string
+	blueprintID  string
+	projectID    string
+	slug         string
+	description  string
 }
 
 // recordBlueprintActivity records blueprint-related activities
-func (s *Server) recordBlueprintActivity(
-	ctx context.Context, userID string, activityType string, blueprintID string,
-	projectID string, slug string, description string, r *http.Request,
-) {
+func (s *Server) recordBlueprintActivity(ctx context.Context, p blueprintActivityParams, r *http.Request) {
 	ar := NewActivityRecorder(s.activityService)
-	metadata := map[string]interface{}{
-		"project_id":        projectID,
-		"spec_library_slug": slug,
-	}
-	ar.RecordResourceActivity(
-		ctx, userID, activityType, activities.EntityTypeBlueprint,
-		&blueprintID, description, metadata, r,
-	)
+	ar.RecordResourceActivity(ctx, resourceActivityParams{
+		userID:       p.userID,
+		activityType: p.activityType,
+		entityType:   activities.EntityTypeBlueprint,
+		entityID:     &p.blueprintID,
+		description:  p.description,
+		metadata: map[string]interface{}{
+			"project_id":        p.projectID,
+			"spec_library_slug": p.slug,
+		},
+	}, r)
 }
 
 // handleListBlueprintVersions returns the content-version history (newest-first) for a blueprint.
@@ -928,10 +946,10 @@ func (s *Server) handleRestoreBlueprintVersion(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	s.recordBlueprintActivity(
-		r.Context(), userID, activities.ActivityTypeBlueprintUpdated, blueprint.ID,
-		decodedProjectID, decodedSlug, "Restored blueprint: "+blueprint.Title, r,
-	)
+	s.recordBlueprintActivity(r.Context(), blueprintActivityParams{
+		userID: userID, activityType: activities.ActivityTypeBlueprintUpdated, blueprintID: blueprint.ID,
+		projectID: decodedProjectID, slug: decodedSlug, description: "Restored blueprint: " + blueprint.Title,
+	}, r)
 
 	writeOK(w, blueprint, s.logger)
 }

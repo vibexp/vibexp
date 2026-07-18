@@ -143,16 +143,16 @@ func (s *ProjectService) CreateProject(
 
 	// Publish project created event if event manager is available
 	if s.eventManager != nil {
-		event := events.NewProjectCreatedEvent(
-			project.ID,
-			project.UserID,
-			project.Name,
-			project.Slug,
-			project.Description,
-			project.GitURL,
-			project.Homepage,
-			project.CreatedAt,
-		)
+		event := events.NewProjectCreatedEvent(events.ProjectCreatedPayload{
+			ProjectID:   project.ID,
+			UserID:      project.UserID,
+			Name:        project.Name,
+			Slug:        project.Slug,
+			Description: project.Description,
+			GitURL:      project.GitURL,
+			Homepage:    project.Homepage,
+			CreatedAt:   project.CreatedAt,
+		})
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish project created event")
 		}
@@ -280,16 +280,16 @@ func (s *ProjectService) UpdateProject(
 
 	// Publish project updated event if event manager is available
 	if s.eventManager != nil {
-		event := events.NewProjectUpdatedEvent(
-			existingProject.ID,
-			existingProject.UserID,
-			existingProject.Name,
-			existingProject.Slug,
-			existingProject.Description,
-			existingProject.GitURL,
-			existingProject.Homepage,
-			existingProject.UpdatedAt,
-		)
+		event := events.NewProjectUpdatedEvent(events.ProjectUpdatedPayload{
+			ProjectID:   existingProject.ID,
+			UserID:      existingProject.UserID,
+			Name:        existingProject.Name,
+			Slug:        existingProject.Slug,
+			Description: existingProject.Description,
+			GitURL:      existingProject.GitURL,
+			Homepage:    existingProject.Homepage,
+			UpdatedAt:   existingProject.UpdatedAt,
+		})
 		if err := s.eventManager.Publish(ctx, event); err != nil {
 			s.logger.With("error", err).Warn("Failed to publish project updated event")
 		}

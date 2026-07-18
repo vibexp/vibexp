@@ -38,28 +38,31 @@ type DigestRunner struct {
 	logger     *slog.Logger
 }
 
+// DigestRunnerDeps groups the dependencies injected into DigestRunner.
+type DigestRunnerDeps struct {
+	DigestRepo repositories.NotificationDigestQueueRepository
+	NotifRepo  repositories.NotificationRepository
+	UserRepo   repositories.UserRepository
+	TeamRepo   repositories.TeamRepository
+	PrefRepo   repositories.UserPreferencesRepository
+	EmailSvc   DigestEmailSender
+	Renderer   *TemplateRenderer
+	AppMetrics *metrics.Metrics
+	Logger     *slog.Logger
+}
+
 // NewDigestRunner creates a new DigestRunner.
-func NewDigestRunner(
-	digestRepo repositories.NotificationDigestQueueRepository,
-	notifRepo repositories.NotificationRepository,
-	userRepo repositories.UserRepository,
-	teamRepo repositories.TeamRepository,
-	prefRepo repositories.UserPreferencesRepository,
-	emailSvc DigestEmailSender,
-	renderer *TemplateRenderer,
-	appMetrics *metrics.Metrics,
-	logger *slog.Logger,
-) *DigestRunner {
+func NewDigestRunner(deps DigestRunnerDeps) *DigestRunner {
 	return &DigestRunner{
-		digestRepo: digestRepo,
-		notifRepo:  notifRepo,
-		userRepo:   userRepo,
-		teamRepo:   teamRepo,
-		prefRepo:   prefRepo,
-		emailSvc:   emailSvc,
-		renderer:   renderer,
-		appMetrics: appMetrics,
-		logger:     logger,
+		digestRepo: deps.DigestRepo,
+		notifRepo:  deps.NotifRepo,
+		userRepo:   deps.UserRepo,
+		teamRepo:   deps.TeamRepo,
+		prefRepo:   deps.PrefRepo,
+		emailSvc:   deps.EmailSvc,
+		renderer:   deps.Renderer,
+		appMetrics: deps.AppMetrics,
+		logger:     deps.Logger,
 	}
 }
 

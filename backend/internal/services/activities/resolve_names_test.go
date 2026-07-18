@@ -22,28 +22,29 @@ func setupServiceWithRepos(
 ) (*Service, *mocks.ActivityRepositoryMock) {
 	t.Helper()
 	activityRepo := &mocks.ActivityRepositoryMock{}
-	svc := NewService(activityRepo, projectRepo, promptRepo, artifactRepo, userRepo, nil, nil, nil, nil, 90)
+	svc := NewService(ServiceDeps{
+		Repo:          activityRepo,
+		ProjectRepo:   projectRepo,
+		PromptRepo:    promptRepo,
+		ArtifactRepo:  artifactRepo,
+		UserRepo:      userRepo,
+		AgentRepo:     nil,
+		BlueprintRepo: nil,
+		APIKeyRepo:    nil,
+		MemoryRepo:    nil,
+		RetentionDays: 90,
+	})
 	return svc, activityRepo
 }
 
-// setupServiceWithAllRepos creates a Service wired with all mock repos for name-resolution tests.
-func setupServiceWithAllRepos(
-	t *testing.T,
-	projectRepo *mocks.MockProjectRepository,
-	promptRepo *mocks.MockPromptRepository,
-	artifactRepo *mocks.MockArtifactRepository,
-	userRepo *mocks.MockUserRepository,
-	agentRepo *mocks.MockAgentRepository,
-	blueprintRepo *mocks.MockBlueprintRepository,
-	apiKeyRepo *mocks.MockAPIKeyRepository,
-	memoryRepo *mocks.MockMemoryRepository,
-) (*Service, *mocks.ActivityRepositoryMock) {
+// setupServiceWithAllRepos creates a Service wired with the mock repos carried in
+// deps for name-resolution tests; the activity repo and retention are filled in here.
+func setupServiceWithAllRepos(t *testing.T, deps ServiceDeps) (*Service, *mocks.ActivityRepositoryMock) {
 	t.Helper()
 	activityRepo := &mocks.ActivityRepositoryMock{}
-	svc := NewService(
-		activityRepo, projectRepo, promptRepo, artifactRepo, userRepo,
-		agentRepo, blueprintRepo, apiKeyRepo, memoryRepo, 90,
-	)
+	deps.Repo = activityRepo
+	deps.RetentionDays = 90
+	svc := NewService(deps)
 	return svc, activityRepo
 }
 
@@ -492,10 +493,16 @@ func TestService_GetActivities_ResolvesUserEntityName(t *testing.T) {
 	apiKeyRepo := &mocks.MockAPIKeyRepository{}
 	memoryRepo := &mocks.MockMemoryRepository{}
 
-	svc, activityRepo := setupServiceWithAllRepos(
-		t, projectRepo, promptRepo, artifactRepo, userRepo,
-		agentRepo, blueprintRepo, apiKeyRepo, memoryRepo,
-	)
+	svc, activityRepo := setupServiceWithAllRepos(t, ServiceDeps{
+		ProjectRepo:   projectRepo,
+		PromptRepo:    promptRepo,
+		ArtifactRepo:  artifactRepo,
+		UserRepo:      userRepo,
+		AgentRepo:     agentRepo,
+		BlueprintRepo: blueprintRepo,
+		APIKeyRepo:    apiKeyRepo,
+		MemoryRepo:    memoryRepo,
+	})
 	ctx := context.Background()
 
 	userID := uuid.New().String()
@@ -542,10 +549,16 @@ func TestService_GetActivities_ResolvesAPIKeyEntityName(t *testing.T) {
 	apiKeyRepo := &mocks.MockAPIKeyRepository{}
 	memoryRepo := &mocks.MockMemoryRepository{}
 
-	svc, activityRepo := setupServiceWithAllRepos(
-		t, projectRepo, promptRepo, artifactRepo, userRepo,
-		agentRepo, blueprintRepo, apiKeyRepo, memoryRepo,
-	)
+	svc, activityRepo := setupServiceWithAllRepos(t, ServiceDeps{
+		ProjectRepo:   projectRepo,
+		PromptRepo:    promptRepo,
+		ArtifactRepo:  artifactRepo,
+		UserRepo:      userRepo,
+		AgentRepo:     agentRepo,
+		BlueprintRepo: blueprintRepo,
+		APIKeyRepo:    apiKeyRepo,
+		MemoryRepo:    memoryRepo,
+	})
 	ctx := context.Background()
 
 	userID := uuid.New().String()
@@ -587,10 +600,16 @@ func TestService_GetActivities_ResolvesAgentEntityName(t *testing.T) {
 	apiKeyRepo := &mocks.MockAPIKeyRepository{}
 	memoryRepo := &mocks.MockMemoryRepository{}
 
-	svc, activityRepo := setupServiceWithAllRepos(
-		t, projectRepo, promptRepo, artifactRepo, userRepo,
-		agentRepo, blueprintRepo, apiKeyRepo, memoryRepo,
-	)
+	svc, activityRepo := setupServiceWithAllRepos(t, ServiceDeps{
+		ProjectRepo:   projectRepo,
+		PromptRepo:    promptRepo,
+		ArtifactRepo:  artifactRepo,
+		UserRepo:      userRepo,
+		AgentRepo:     agentRepo,
+		BlueprintRepo: blueprintRepo,
+		APIKeyRepo:    apiKeyRepo,
+		MemoryRepo:    memoryRepo,
+	})
 	ctx := context.Background()
 
 	userID := uuid.New().String()
@@ -632,10 +651,16 @@ func TestService_GetActivities_ResolvesMemoryEntityName(t *testing.T) {
 	apiKeyRepo := &mocks.MockAPIKeyRepository{}
 	memoryRepo := &mocks.MockMemoryRepository{}
 
-	svc, activityRepo := setupServiceWithAllRepos(
-		t, projectRepo, promptRepo, artifactRepo, userRepo,
-		agentRepo, blueprintRepo, apiKeyRepo, memoryRepo,
-	)
+	svc, activityRepo := setupServiceWithAllRepos(t, ServiceDeps{
+		ProjectRepo:   projectRepo,
+		PromptRepo:    promptRepo,
+		ArtifactRepo:  artifactRepo,
+		UserRepo:      userRepo,
+		AgentRepo:     agentRepo,
+		BlueprintRepo: blueprintRepo,
+		APIKeyRepo:    apiKeyRepo,
+		MemoryRepo:    memoryRepo,
+	})
 	ctx := context.Background()
 
 	userID := uuid.New().String()
@@ -677,10 +702,16 @@ func TestService_GetActivities_ResolvesBlueprintEntityName(t *testing.T) {
 	apiKeyRepo := &mocks.MockAPIKeyRepository{}
 	memoryRepo := &mocks.MockMemoryRepository{}
 
-	svc, activityRepo := setupServiceWithAllRepos(
-		t, projectRepo, promptRepo, artifactRepo, userRepo,
-		agentRepo, blueprintRepo, apiKeyRepo, memoryRepo,
-	)
+	svc, activityRepo := setupServiceWithAllRepos(t, ServiceDeps{
+		ProjectRepo:   projectRepo,
+		PromptRepo:    promptRepo,
+		ArtifactRepo:  artifactRepo,
+		UserRepo:      userRepo,
+		AgentRepo:     agentRepo,
+		BlueprintRepo: blueprintRepo,
+		APIKeyRepo:    apiKeyRepo,
+		MemoryRepo:    memoryRepo,
+	})
 	ctx := context.Background()
 
 	userID := uuid.New().String()
@@ -722,10 +753,16 @@ func TestService_GetActivities_FallbackForDeletedEntityNewTypes(t *testing.T) {
 	apiKeyRepo := &mocks.MockAPIKeyRepository{}
 	memoryRepo := &mocks.MockMemoryRepository{}
 
-	svc, activityRepo := setupServiceWithAllRepos(
-		t, projectRepo, promptRepo, artifactRepo, userRepo,
-		agentRepo, blueprintRepo, apiKeyRepo, memoryRepo,
-	)
+	svc, activityRepo := setupServiceWithAllRepos(t, ServiceDeps{
+		ProjectRepo:   projectRepo,
+		PromptRepo:    promptRepo,
+		ArtifactRepo:  artifactRepo,
+		UserRepo:      userRepo,
+		AgentRepo:     agentRepo,
+		BlueprintRepo: blueprintRepo,
+		APIKeyRepo:    apiKeyRepo,
+		MemoryRepo:    memoryRepo,
+	})
 	ctx := context.Background()
 
 	userID := uuid.New().String()

@@ -128,22 +128,9 @@ type PromptCreatedEvent struct {
 }
 
 // NewPromptCreatedEvent creates a new prompt created event
-func NewPromptCreatedEvent(
-	promptID, userID, email, projectName, slug, title, description, body string, createdAt time.Time,
-) Event {
-	payload := &PromptCreatedPayload{
-		PromptID:    promptID,
-		UserID:      userID,
-		Email:       email,
-		ProjectName: projectName,
-		Slug:        slug,
-		Title:       title,
-		Description: description,
-		Body:        body,
-		CreatedAt:   createdAt,
-	}
+func NewPromptCreatedEvent(p PromptCreatedPayload) Event {
 	return &PromptCreatedEvent{
-		BaseEvent: NewBaseEvent(EventTypePromptCreated, payload, userID),
+		BaseEvent: NewBaseEvent(EventTypePromptCreated, &p, p.UserID),
 	}
 }
 
@@ -165,21 +152,9 @@ type PromptUpdatedEvent struct {
 }
 
 // NewPromptUpdatedEvent creates a new prompt updated event
-func NewPromptUpdatedEvent(
-	promptID, userID, projectName, slug, title, description, body string, updatedAt time.Time,
-) Event {
-	payload := &PromptUpdatedPayload{
-		PromptID:    promptID,
-		UserID:      userID,
-		ProjectName: projectName,
-		Slug:        slug,
-		Title:       title,
-		Description: description,
-		Body:        body,
-		UpdatedAt:   updatedAt,
-	}
+func NewPromptUpdatedEvent(p PromptUpdatedPayload) Event {
 	return &PromptUpdatedEvent{
-		BaseEvent: NewBaseEvent(EventTypePromptUpdated, payload, userID),
+		BaseEvent: NewBaseEvent(EventTypePromptUpdated, &p, p.UserID),
 	}
 }
 
@@ -202,22 +177,9 @@ type ArtifactCreatedEvent struct {
 }
 
 // NewArtifactCreatedEvent creates a new artifact created event
-func NewArtifactCreatedEvent(
-	artifactID, userID, projectName, slug, title, description, artifactType, body string, createdAt time.Time,
-) Event {
-	payload := &ArtifactCreatedPayload{
-		ArtifactID:  artifactID,
-		UserID:      userID,
-		ProjectName: projectName,
-		Slug:        slug,
-		Title:       title,
-		Description: description,
-		Type:        artifactType,
-		Body:        body,
-		CreatedAt:   createdAt,
-	}
+func NewArtifactCreatedEvent(p ArtifactCreatedPayload) Event {
 	return &ArtifactCreatedEvent{
-		BaseEvent: NewBaseEvent(EventTypeArtifactCreated, payload, userID),
+		BaseEvent: NewBaseEvent(EventTypeArtifactCreated, &p, p.UserID),
 	}
 }
 
@@ -240,22 +202,9 @@ type ArtifactUpdatedEvent struct {
 }
 
 // NewArtifactUpdatedEvent creates a new artifact updated event
-func NewArtifactUpdatedEvent(
-	artifactID, userID, projectName, slug, title, description, artifactType, body string, updatedAt time.Time,
-) Event {
-	payload := &ArtifactUpdatedPayload{
-		ArtifactID:  artifactID,
-		UserID:      userID,
-		ProjectName: projectName,
-		Slug:        slug,
-		Title:       title,
-		Description: description,
-		Type:        artifactType,
-		Body:        body,
-		UpdatedAt:   updatedAt,
-	}
+func NewArtifactUpdatedEvent(p ArtifactUpdatedPayload) Event {
 	return &ArtifactUpdatedEvent{
-		BaseEvent: NewBaseEvent(EventTypeArtifactUpdated, payload, userID),
+		BaseEvent: NewBaseEvent(EventTypeArtifactUpdated, &p, p.UserID),
 	}
 }
 
@@ -410,22 +359,9 @@ type BlueprintCreatedEvent struct {
 }
 
 // NewBlueprintCreatedEvent creates a new spec library created event
-func NewBlueprintCreatedEvent(
-	blueprintID, userID, projectName, slug, title, description, blueprintType, body string, createdAt time.Time,
-) Event {
-	payload := &BlueprintCreatedPayload{
-		BlueprintID: blueprintID,
-		UserID:      userID,
-		ProjectName: projectName,
-		Slug:        slug,
-		Title:       title,
-		Description: description,
-		Type:        blueprintType,
-		Body:        body,
-		CreatedAt:   createdAt,
-	}
+func NewBlueprintCreatedEvent(p BlueprintCreatedPayload) Event {
 	return &BlueprintCreatedEvent{
-		BaseEvent: NewBaseEvent(EventTypeBlueprintCreated, payload, userID),
+		BaseEvent: NewBaseEvent(EventTypeBlueprintCreated, &p, p.UserID),
 	}
 }
 
@@ -448,22 +384,9 @@ type BlueprintUpdatedEvent struct {
 }
 
 // NewBlueprintUpdatedEvent creates a new spec library updated event
-func NewBlueprintUpdatedEvent(
-	blueprintID, userID, projectName, slug, title, description, blueprintType, body string, updatedAt time.Time,
-) Event {
-	payload := &BlueprintUpdatedPayload{
-		BlueprintID: blueprintID,
-		UserID:      userID,
-		ProjectName: projectName,
-		Slug:        slug,
-		Title:       title,
-		Description: description,
-		Type:        blueprintType,
-		Body:        body,
-		UpdatedAt:   updatedAt,
-	}
+func NewBlueprintUpdatedEvent(p BlueprintUpdatedPayload) Event {
 	return &BlueprintUpdatedEvent{
-		BaseEvent: NewBaseEvent(EventTypeBlueprintUpdated, payload, userID),
+		BaseEvent: NewBaseEvent(EventTypeBlueprintUpdated, &p, p.UserID),
 	}
 }
 
@@ -485,21 +408,9 @@ type ProjectCreatedEvent struct {
 }
 
 // NewProjectCreatedEvent creates a new project created event
-func NewProjectCreatedEvent(
-	projectID, userID, name, slug, description, gitURL, homepage string, createdAt time.Time,
-) Event {
-	payload := &ProjectCreatedPayload{
-		ProjectID:   projectID,
-		UserID:      userID,
-		Name:        name,
-		Slug:        slug,
-		Description: description,
-		GitURL:      gitURL,
-		Homepage:    homepage,
-		CreatedAt:   createdAt,
-	}
+func NewProjectCreatedEvent(p ProjectCreatedPayload) Event {
 	return &ProjectCreatedEvent{
-		BaseEvent: NewBaseEvent(EventTypeProjectCreated, payload, userID),
+		BaseEvent: NewBaseEvent(EventTypeProjectCreated, &p, p.UserID),
 	}
 }
 
@@ -521,21 +432,9 @@ type ProjectUpdatedEvent struct {
 }
 
 // NewProjectUpdatedEvent creates a new project updated event
-func NewProjectUpdatedEvent(
-	projectID, userID, name, slug, description, gitURL, homepage string, updatedAt time.Time,
-) Event {
-	payload := &ProjectUpdatedPayload{
-		ProjectID:   projectID,
-		UserID:      userID,
-		Name:        name,
-		Slug:        slug,
-		Description: description,
-		GitURL:      gitURL,
-		Homepage:    homepage,
-		UpdatedAt:   updatedAt,
-	}
+func NewProjectUpdatedEvent(p ProjectUpdatedPayload) Event {
 	return &ProjectUpdatedEvent{
-		BaseEvent: NewBaseEvent(EventTypeProjectUpdated, payload, userID),
+		BaseEvent: NewBaseEvent(EventTypeProjectUpdated, &p, p.UserID),
 	}
 }
 
@@ -584,23 +483,11 @@ type FeedItemCreatedEvent struct {
 	*BaseEvent
 }
 
-// NewFeedItemCreatedEvent creates a new feed item created event. userID is the
+// NewFeedItemCreatedEvent creates a new feed item created event. UserID is the
 // item's PostedByUserID; it keys both the event and the resulting embedding row.
-func NewFeedItemCreatedEvent(
-	itemID, userID, teamID, feedID, title, content, excerpt string, postedAt time.Time,
-) Event {
-	payload := &FeedItemCreatedPayload{
-		ItemID:   itemID,
-		UserID:   userID,
-		TeamID:   teamID,
-		FeedID:   feedID,
-		Title:    title,
-		Content:  content,
-		Excerpt:  excerpt,
-		PostedAt: postedAt,
-	}
+func NewFeedItemCreatedEvent(p FeedItemCreatedPayload) Event {
 	return &FeedItemCreatedEvent{
-		BaseEvent: NewBaseEvent(EventTypeFeedItemCreated, payload, userID),
+		BaseEvent: NewBaseEvent(EventTypeFeedItemCreated, &p, p.UserID),
 	}
 }
 

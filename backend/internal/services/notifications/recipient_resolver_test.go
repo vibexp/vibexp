@@ -33,7 +33,16 @@ func TestRecipientResolver_ResolveForEvent_FeedItemCreated(t *testing.T) {
 		{UserID: member2, TeamID: teamID, Role: models.TeamMemberRoleOwner},
 	}, nil)
 
-	event := events.NewFeedItemCreatedEvent("item-1", authorID, teamID, "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   authorID,
+		TeamID:   teamID,
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	recipients, gotTeamID, err := resolver.ResolveForEvent(ctx, event)
 
@@ -60,7 +69,16 @@ func TestRecipientResolver_ResolveForEvent_OnlyAuthorInTeam(t *testing.T) {
 		{UserID: authorID, TeamID: teamID},
 	}, nil)
 
-	event := events.NewFeedItemCreatedEvent("item-1", authorID, teamID, "feed-1", "", "", "", time.Now())
+	event := events.NewFeedItemCreatedEvent(events.FeedItemCreatedPayload{
+		ItemID:   "item-1",
+		UserID:   authorID,
+		TeamID:   teamID,
+		FeedID:   "feed-1",
+		Title:    "",
+		Content:  "",
+		Excerpt:  "",
+		PostedAt: time.Now(),
+	})
 
 	recipients, gotTeamID, err := resolver.ResolveForEvent(ctx, event)
 

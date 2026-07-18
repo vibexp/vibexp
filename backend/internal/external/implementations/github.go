@@ -439,7 +439,14 @@ func (c *GitHubAppClient) GetDirectoryContentsRecursive(
 	)
 
 	var allFiles []*external.GitHubFile
-	err = c.fetchDirectoryRecursive(ctx, client, owner, repoName, dirPath, &allFiles, 10, 500)
+	fetch := &directoryFetch{
+		client:   client,
+		owner:    owner,
+		repo:     repoName,
+		allFiles: &allFiles,
+		maxFiles: 500,
+	}
+	err = c.fetchDirectoryRecursive(ctx, fetch, dirPath, 10)
 	if err != nil {
 		return nil, err
 	}
@@ -447,21 +454,32 @@ func (c *GitHubAppClient) GetDirectoryContentsRecursive(
 	return allFiles, nil
 }
 
+// directoryFetch carries the invariant state of one recursive directory fetch:
+// the authenticated client, the repo coordinates, the shared file accumulator
+// and the collection cap. Only the path and remaining depth vary per recursion
+// step, so they stay plain parameters of fetchDirectoryRecursive.
+type directoryFetch struct {
+	client   *github.Client
+	owner    string
+	repo     string
+	allFiles *[]*external.GitHubFile
+	maxFiles int
+}
+
 // fetchDirectoryRecursive is a helper function to recursively fetch directory contents
 //
 //nolint:gocognit // Recursive directory traversal requires sequential safety checks
 func (c *GitHubAppClient) fetchDirectoryRecursive(
 	ctx context.Context,
-	client *github.Client,
-	owner, repo, path string,
-	allFiles *[]*external.GitHubFile,
-	depth, maxFiles int,
+	fetch *directoryFetch,
+	path string,
+	depth int,
 ) error {
 	if depth <= 0 {
 		c.logger.Warn("Maximum directory depth reached, skipping deeper directories", "path", path)
 		return nil
 	}
-	if len(*allFiles) >= maxFiles {
+	if len(*fetch.allFiles) >= fetch.maxFiles {
 		c.logger.Warn("Maximum file count reached, stopping collection")
 		return nil
 	}
@@ -472,7 +490,7 @@ func (c *GitHubAppClient) fetchDirectoryRecursive(
 	default:
 	}
 
-	_, dirContents, _, err := client.Repositories.GetContents(ctx, owner, repo, path, nil)
+	_, dirContents, _, err := fetch.client.Repositories.GetContents(ctx, fetch.owner, fetch.repo, path, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get directory contents for %s: %w", path, err)
 	}
@@ -480,12 +498,9 @@ func (c *GitHubAppClient) fetchDirectoryRecursive(
 	for _, item := range dirContents {
 		switch item.GetType() {
 		case "file":
-			c.fetchFileContent(ctx, client, owner, repo, item, allFiles)
+			c.fetchFileContent(ctx, fetch.client, fetch.owner, fetch.repo, item, fetch.allFiles)
 		case "dir":
-			subErr := c.fetchDirectoryRecursive(
-				ctx, client, owner, repo, item.GetPath(),
-				allFiles, depth-1, maxFiles,
-			)
+			subErr := c.fetchDirectoryRecursive(ctx, fetch, item.GetPath(), depth-1)
 			if subErr != nil {
 				c.logger.Warn(
 					"Failed to fetch subdirectory",

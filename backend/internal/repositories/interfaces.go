@@ -787,13 +787,19 @@ type EmbeddingRepository interface {
 	DeleteByTeam(ctx context.Context, teamID string) (int64, error)
 }
 
+// Page is a limit/offset pagination window.
+type Page struct {
+	Limit  int
+	Offset int
+}
+
 // SearchRepository defines the interface for cross-entity semantic search over embeddings.
 type SearchRepository interface {
 	// SearchSimilar returns the page of embedding chunks (one result per chunk) whose
 	// denormalized team_id matches teamID, ordered by ascending cosine distance to vec,
 	// restricted to the given singular entityTypes and embedding modelID. When
 	// projectID is non-empty, results are further restricted to that project. It also
-	// returns the total number of matching chunks (ignoring limit/offset).
+	// returns the total number of matching chunks (ignoring page's limit/offset).
 	SearchSimilar(
 		ctx context.Context,
 		teamID string,
@@ -801,7 +807,7 @@ type SearchRepository interface {
 		modelID string,
 		entityTypes []string,
 		projectID string,
-		limit, offset int,
+		page Page,
 	) ([]models.SearchResultRow, int, error)
 
 	// SearchKeyword returns the page of source rows (one result per entity) matching
@@ -812,14 +818,14 @@ type SearchRepository interface {
 	// by ts_rank relevance descending; when projectID is non-empty results are further
 	// restricted to that project. The returned SearchResultRow.Distance carries
 	// 1 - ts_rank so callers derive Score identically to SearchSimilar. It also returns
-	// the total number of matching rows (ignoring limit/offset).
+	// the total number of matching rows (ignoring page's limit/offset).
 	SearchKeyword(
 		ctx context.Context,
 		teamID string,
 		query string,
 		entityTypes []string,
 		projectID string,
-		limit, offset int,
+		page Page,
 	) ([]models.SearchResultRow, int, error)
 }
 
