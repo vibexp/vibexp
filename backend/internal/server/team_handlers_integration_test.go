@@ -400,6 +400,7 @@ func TestHandleCreateTeam_Success(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var response models.Team
 	err = json.Unmarshal(w.Body.Bytes(), &response)
@@ -651,6 +652,7 @@ func TestHandleUpdateTeam_Success(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var response models.Team
 	err = json.Unmarshal(w.Body.Bytes(), &response)
@@ -677,6 +679,7 @@ func TestHandleDeleteTeam_Success(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	mockContainer.teamService.AssertExpectations(t)
 }
@@ -720,6 +723,7 @@ func TestHandleGetTeamMembers_Success(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var response models.TeamMembersListResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
@@ -747,6 +751,7 @@ func TestHandleRemoveTeamMember_Success(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	mockContainer.teamService.AssertExpectations(t)
 }
@@ -776,6 +781,7 @@ func TestHandleCreateTeam_ResourceLimitExceeded(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 	assert.Contains(t, w.Body.String(), "RESOURCE_LIMIT_EXCEEDED")
 
 	mockContainer.resourceUsageService.AssertExpectations(t)
@@ -876,6 +882,7 @@ func TestHandleUpdateTeam_Unauthorized(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 	assert.Contains(t, w.Body.String(), "Team not found")
 
 	mockContainer.teamService.AssertExpectations(t)
@@ -1013,6 +1020,7 @@ func TestHandleDeleteTeam_HasMembers(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Equal(t, "application/problem+json", w.Header().Get("Content-Type"))
+	specconformance.AssertConformsToSpec(t, req, w)
 
 	var body struct {
 		Code     string         `json:"code"`
@@ -1066,6 +1074,7 @@ func TestHandleRemoveTeamMember_NotFound(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
 	assert.Contains(t, w.Body.String(), "Team or member not found")
 
 	mockContainer.teamService.AssertExpectations(t)
