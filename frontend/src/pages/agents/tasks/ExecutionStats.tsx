@@ -22,11 +22,11 @@ function StatCard({
   title,
   value,
   icon: Icon,
-}: {
+}: Readonly<{
   title: string
   value: string
   icon: LucideIcon
-}) {
+}>) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -42,7 +42,7 @@ function StatCard({
   )
 }
 
-export function ExecutionStats({ stats }: ExecutionStatsProps) {
+export function ExecutionStats({ stats }: Readonly<ExecutionStatsProps>) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
       <StatCard

@@ -56,7 +56,10 @@ interface ResourceSummaryRowProps {
   count: number
 }
 
-function ResourceSummaryRow({ label, count }: ResourceSummaryRowProps) {
+function ResourceSummaryRow({
+  label,
+  count,
+}: Readonly<ResourceSummaryRowProps>) {
   if (count === 0) return null
   return (
     <div className="flex items-center justify-between text-sm">
@@ -105,7 +108,7 @@ export function SelectDestinationStep({
   onBack,
   onMigrate,
   migrating,
-}: SelectDestinationStepProps) {
+}: Readonly<SelectDestinationStepProps>) {
   const [open, setOpen] = useState(false)
   // The chosen destination may not be in the current search page, so remember
   // it locally to keep the summary populated as the query changes.

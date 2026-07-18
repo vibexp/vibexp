@@ -6,7 +6,10 @@ import { Separator } from '@/components/ui/separator'
 /**
  * A single label/value row used inside the Additional data card.
  */
-function MetaRow({ label, children }: { label: string; children: ReactNode }) {
+function MetaRow({
+  label,
+  children,
+}: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <div className="flex items-start justify-between gap-4 text-xs">
       <span className="text-muted-foreground">{label}</span>
@@ -30,7 +33,7 @@ function formatKey(key: string): string {
  * - null / undefined: rendered as em-dash in muted color
  * - Objects / arrays: rendered as a small JSON code block
  */
-function MetaValue({ value }: { value: unknown }) {
+function MetaValue({ value }: Readonly<{ value: unknown }>) {
   if (value === null || value === undefined) {
     return <span className="text-muted-foreground">—</span>
   }
@@ -65,7 +68,9 @@ interface AdditionalDataCardProps {
  * Renders a Record<string, unknown> as key-value rows in a Card.
  * Returns null when the record is empty.
  */
-export function AdditionalDataCard({ data }: AdditionalDataCardProps) {
+export function AdditionalDataCard({
+  data,
+}: Readonly<AdditionalDataCardProps>) {
   const entries = Object.entries(data)
   if (entries.length === 0) return null
 

@@ -7,7 +7,10 @@ interface Props {
   onSearchInputChange: (value: string) => void
 }
 
-export function ProjectFilters({ searchInput, onSearchInputChange }: Props) {
+export function ProjectFilters({
+  searchInput,
+  onSearchInputChange,
+}: Readonly<Props>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-[240px] max-w-[480px] flex-1">

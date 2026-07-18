@@ -35,7 +35,7 @@ export function ConfirmDialog({
   variant = 'default',
   onConfirm,
   loading,
-}: ConfirmDialogProps) {
+}: Readonly<ConfirmDialogProps>) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>

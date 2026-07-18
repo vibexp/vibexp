@@ -54,7 +54,7 @@ export function ListTable<
   sortDir,
   onSortChange,
   onRowClick,
-}: ListTableProps<T, SortKey>) {
+}: Readonly<ListTableProps<T, SortKey>>) {
   const sortable = new Set<string>(sortableKeys ?? [])
   const sortingEnabled = sortable.size > 0 && onSortChange !== undefined
 

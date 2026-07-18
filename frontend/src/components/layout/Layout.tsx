@@ -19,7 +19,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
  * - Individual pages render content directly with their own vertical
  *   rhythm (e.g. `space-y-6`).
  */
-export function Layout({ children }: { children: ReactNode }) {
+export function Layout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <div className="flex min-h-screen">
       <Sidebar />

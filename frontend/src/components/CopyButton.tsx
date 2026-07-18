@@ -21,7 +21,7 @@ export function CopyButton({
   label,
   className,
   testId,
-}: CopyButtonProps) {
+}: Readonly<CopyButtonProps>) {
   const { copied, copy } = useCopyToClipboard()
 
   const handleCopy = useCallback(() => {

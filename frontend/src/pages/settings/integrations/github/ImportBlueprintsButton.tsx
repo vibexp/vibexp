@@ -19,7 +19,7 @@ interface ImportBlueprintsButtonProps {
 
 export function ImportBlueprintsButton({
   repository,
-}: ImportBlueprintsButtonProps) {
+}: Readonly<ImportBlueprintsButtonProps>) {
   const { currentTeam } = useTeam()
   const { handleError } = useErrorHandler()
   const [isLoading, setIsLoading] = useState(false)

@@ -29,7 +29,7 @@ export function ArtifactFilters({
   onTypeChange,
   status,
   onStatusChange,
-}: Props) {
+}: Readonly<Props>) {
   const { types } = useTypes('artifacts')
   return (
     <div className="flex flex-wrap items-center gap-2">

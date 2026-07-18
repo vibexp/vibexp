@@ -18,7 +18,7 @@ function absTime(value: string) {
   })
 }
 
-function StatusDotPill({ status }: { status: Prompt['status'] }) {
+function StatusDotPill({ status }: Readonly<{ status: Prompt['status'] }>) {
   const dotClass = status === 'published' ? 'bg-success' : 'bg-warning'
   return (
     <span

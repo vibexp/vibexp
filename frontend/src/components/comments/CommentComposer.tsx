@@ -30,7 +30,7 @@ export function CommentComposer({
   placeholder = 'Add a comment…',
   focusOnMount = false,
   initialValue = '',
-}: CommentComposerProps) {
+}: Readonly<CommentComposerProps>) {
   const [value, setValue] = useState(initialValue)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)

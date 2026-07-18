@@ -53,7 +53,7 @@ function formatDate(value: string) {
   })
 }
 
-function IntegrationBadges({ apiKey }: { apiKey: APIKey }) {
+function IntegrationBadges({ apiKey }: Readonly<{ apiKey: APIKey }>) {
   if (apiKey.integrations.length === 0) {
     return (
       <span className="text-muted-foreground text-xs italic">

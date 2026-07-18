@@ -23,7 +23,7 @@ export function GitHubInstallModal({
   onClose,
   onLaunch,
   isLaunching,
-}: GitHubInstallModalProps) {
+}: Readonly<GitHubInstallModalProps>) {
   return (
     <Dialog
       open={isOpen}

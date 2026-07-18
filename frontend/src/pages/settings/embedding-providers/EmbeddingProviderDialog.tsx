@@ -99,9 +99,9 @@ function reembedWillTrigger(
 // Extracted to keep the dialog component under the max-lines-per-function cap.
 function ConcurrencyField({
   control,
-}: {
+}: Readonly<{
   control: Control<EmbeddingProviderFormValues>
-}) {
+}>) {
   return (
     <FormField
       control={control}
@@ -157,9 +157,9 @@ const PREFIX_PRESETS: {
 // instead of a Select because a Radix Select inside a Dialog crashes jsdom.
 function PrefixFields({
   form,
-}: {
+}: Readonly<{
   form: UseFormReturn<EmbeddingProviderFormValues>
-}) {
+}>) {
   return (
     <div className="space-y-3 sm:col-span-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -243,7 +243,7 @@ export function EmbeddingProviderDialog({
   provider,
   submitting,
   onSubmit,
-}: Props) {
+}: Readonly<Props>) {
   const [validating, setValidating] = useState(false)
   const [pendingValues, setPendingValues] =
     useState<EmbeddingProviderFormValues | null>(null)

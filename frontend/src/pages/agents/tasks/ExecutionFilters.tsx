@@ -21,7 +21,7 @@ export function ExecutionFilters({
   onSearchInputChange,
   currentStatusFilter,
   onStatusFilterChange,
-}: ExecutionFiltersProps) {
+}: Readonly<ExecutionFiltersProps>) {
   return (
     <div className="flex flex-col gap-3 lg:flex-row">
       <div className="relative flex-1">

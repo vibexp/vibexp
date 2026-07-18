@@ -65,7 +65,7 @@ export function CreateTypeDialog({
   onOpenChange,
   submitting,
   onSubmit,
-}: CreateTypeDialogProps) {
+}: Readonly<CreateTypeDialogProps>) {
   const slugManuallyEdited = useRef(false)
   const form = useForm<CreateTypeFormValues>({
     resolver: zodResolver(schema),

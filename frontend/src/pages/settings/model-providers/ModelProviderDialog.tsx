@@ -80,7 +80,7 @@ export function ModelProviderDialog({
   provider,
   submitting,
   onSubmit,
-}: Props) {
+}: Readonly<Props>) {
   const [validating, setValidating] = useState(false)
 
   const form = useForm<ModelProviderFormValues>({

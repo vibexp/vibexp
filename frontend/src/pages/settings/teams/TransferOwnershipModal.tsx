@@ -42,7 +42,7 @@ export function TransferOwnershipModal({
   members,
   onClose,
   onSuccess,
-}: TransferOwnershipModalProps) {
+}: Readonly<TransferOwnershipModalProps>) {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [isTransferring, setIsTransferring] = useState(false)
   const [error, setError] = useState<string | null>(null)

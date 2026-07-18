@@ -75,7 +75,7 @@ function TeamActions({
   onTransfer,
   onEdit,
   onInvite,
-}: {
+}: Readonly<{
   isPersonal: boolean
   canDeleteTeam: boolean
   canTransferOwnership: boolean
@@ -85,7 +85,7 @@ function TeamActions({
   onTransfer: () => void
   onEdit: () => void
   onInvite: () => void
-}) {
+}>) {
   if (!canDeleteTeam && !canTransferOwnership && !canUpdateTeam && !canInvite) {
     return null
   }

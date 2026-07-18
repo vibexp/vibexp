@@ -55,7 +55,7 @@ export function ExecutionTable({
   currentPage,
   totalPages,
   onPageChange,
-}: ExecutionTableProps) {
+}: Readonly<ExecutionTableProps>) {
   return (
     <div className="space-y-3">
       <div className="rounded-md border">

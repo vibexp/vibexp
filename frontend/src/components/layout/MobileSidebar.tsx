@@ -17,7 +17,7 @@ interface MobileGroupProps {
   pathname: string
 }
 
-function MobileGroup({ item, pathname }: MobileGroupProps) {
+function MobileGroup({ item, pathname }: Readonly<MobileGroupProps>) {
   const Icon = item.icon
   const children = item.children ?? []
   const isGroupOpen =

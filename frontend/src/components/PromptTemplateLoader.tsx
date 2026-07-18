@@ -19,7 +19,7 @@ export function PromptTemplateLoader({
   onSelectPrompt,
   excludeCurrentPrompt,
   className = '',
-}: PromptTemplateLoaderProps) {
+}: Readonly<PromptTemplateLoaderProps>) {
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
 

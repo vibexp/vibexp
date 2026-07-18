@@ -30,7 +30,7 @@ interface TeamResourceCreationChartProps {
 export function TeamResourceCreationChart({
   teamId,
   range,
-}: TeamResourceCreationChartProps) {
+}: Readonly<TeamResourceCreationChartProps>) {
   const [data, setData] = useState<TeamCreationCountByDate[]>([])
   const [totalCreated, setTotalCreated] = useState<number>(0)
   const [loading, setLoading] = useState(true)

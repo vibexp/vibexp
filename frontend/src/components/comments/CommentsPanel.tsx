@@ -37,7 +37,7 @@ export function CommentsPanel({
   teamId,
   resourceType,
   resourceId,
-}: CommentsPanelProps) {
+}: Readonly<CommentsPanelProps>) {
   const { user } = useAuth()
   const { can, canDeleteResource } = usePermissions()
   const { showError } = useAlerts()

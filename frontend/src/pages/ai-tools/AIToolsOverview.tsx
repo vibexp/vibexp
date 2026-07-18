@@ -149,12 +149,12 @@ function StatCard({
   value,
   icon: Icon,
   loading,
-}: {
+}: Readonly<{
   label: string
   value: number
   icon: typeof Bot
   loading: boolean
-}) {
+}>) {
   return (
     <Card>
       <CardContent className="flex items-center justify-between p-6">
@@ -177,10 +177,10 @@ function StatCard({
 function Row({
   label,
   children,
-}: {
+}: Readonly<{
   label: string
   children: React.ReactNode
-}) {
+}>) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>

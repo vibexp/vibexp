@@ -8,7 +8,7 @@ export function CursorIDEIcon({
   className = '',
   width = 90,
   height = 22,
-}: CursorIDEIconProps) {
+}: Readonly<CursorIDEIconProps>) {
   return (
     <svg
       className={className}

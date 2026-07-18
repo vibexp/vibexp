@@ -25,7 +25,7 @@ export function SegmentedControl({
   onChange,
   size = 'md',
   'aria-label': ariaLabel,
-}: SegmentedControlProps) {
+}: Readonly<SegmentedControlProps>) {
   return (
     <div
       role="tablist"

@@ -49,13 +49,13 @@ function VersionChip({
   otherVersion,
   entries,
   onPick,
-}: {
+}: Readonly<{
   side: 'base' | 'compare'
   entry: VersionTimelineEntry
   otherVersion: number
   entries: VersionTimelineEntry[]
   onPick: (versionNumber: number) => void
-}) {
+}>) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -114,7 +114,7 @@ export function VersionCompareView({
   onSwap,
   onClose,
   onRestore,
-}: VersionCompareViewProps) {
+}: Readonly<VersionCompareViewProps>) {
   const [mode, setMode] = useState<DiffMode>('split')
 
   useEffect(() => {

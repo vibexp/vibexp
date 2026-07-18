@@ -49,7 +49,7 @@ export function InviteTeamMembersModal({
   teamName,
   onClose,
   onSubmit,
-}: InviteTeamMembersModalProps) {
+}: Readonly<InviteTeamMembersModalProps>) {
   const [emailsText, setEmailsText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)

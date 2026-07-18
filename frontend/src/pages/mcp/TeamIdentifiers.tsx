@@ -22,7 +22,10 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase()
 }
 
-function CopyField({ value, label }: { value: string; label: string }) {
+function CopyField({
+  value,
+  label,
+}: Readonly<{ value: string; label: string }>) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
@@ -63,7 +66,7 @@ function CopyField({ value, label }: { value: string; label: string }) {
   )
 }
 
-function FieldLabel({ children }: { children: string }) {
+function FieldLabel({ children }: Readonly<{ children: string }>) {
   return (
     <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
       {children}
@@ -76,7 +79,7 @@ function FieldLabel({ children }: { children: string }) {
  * team-agnostic MCP endpoint, the AI client must pass a team_id (UUID or slug)
  * per tool call, so users need to hand one of these identifiers to their agent.
  */
-export function TeamIdentifiers({ teams }: TeamIdentifiersProps) {
+export function TeamIdentifiers({ teams }: Readonly<TeamIdentifiersProps>) {
   if (teams.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">

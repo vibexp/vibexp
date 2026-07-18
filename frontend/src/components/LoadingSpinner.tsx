@@ -18,7 +18,7 @@ export function LoadingSpinner({
   size = 'md',
   label,
   className,
-}: LoadingSpinnerProps) {
+}: Readonly<LoadingSpinnerProps>) {
   return (
     <div
       className={cn('text-muted-foreground flex items-center gap-2', className)}

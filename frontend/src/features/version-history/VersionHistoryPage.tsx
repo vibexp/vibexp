@@ -35,7 +35,9 @@ interface VersionHistoryPageProps {
 
 // Resource-agnostic version-history experience: dense filterable list + full-page
 // compare + non-destructive restore. Configured for a resource via `source`.
-export function VersionHistoryPage({ source }: VersionHistoryPageProps) {
+export function VersionHistoryPage({
+  source,
+}: Readonly<VersionHistoryPageProps>) {
   const navigate = useNavigate()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()

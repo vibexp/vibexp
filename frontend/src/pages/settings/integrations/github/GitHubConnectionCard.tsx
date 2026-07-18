@@ -34,7 +34,7 @@ export function GitHubConnectionCard({
   status,
   onDisconnect,
   isLoading,
-}: GitHubConnectionCardProps) {
+}: Readonly<GitHubConnectionCardProps>) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   if (isLoading) {

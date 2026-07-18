@@ -71,7 +71,7 @@ export function ProjectPicker({
   // Forwarded onto the trigger so a wrapping <FormControl> can wire
   // aria-invalid / aria-describedby to the field's error message.
   ...ariaProps
-}: ProjectPickerProps) {
+}: Readonly<ProjectPickerProps>) {
   const [open, setOpen] = useState(false)
   const {
     projects,

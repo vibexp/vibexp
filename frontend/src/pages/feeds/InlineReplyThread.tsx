@@ -26,7 +26,7 @@ export function InlineReplyThread({
   itemId,
   initialReplyCount,
   onReplyAdded,
-}: InlineReplyThreadProps) {
+}: Readonly<InlineReplyThreadProps>) {
   const { currentTeam } = useTeam()
   const { handleError } = useErrorHandler()
 
@@ -136,7 +136,7 @@ interface ReplyRowProps {
   member: TeamMember | undefined
 }
 
-function ReplyRow({ reply, member }: ReplyRowProps) {
+function ReplyRow({ reply, member }: Readonly<ReplyRowProps>) {
   const actor = resolveFeedActor(reply, member)
   return (
     <div className="feed-reply">
@@ -180,7 +180,7 @@ function ReplyComposer({
   onSubmit,
   submitting,
   textareaRef,
-}: ReplyComposerProps) {
+}: Readonly<ReplyComposerProps>) {
   const overLimit = draft.length > MAX_REPLY_LENGTH
   const canSubmit = draft.trim() !== '' && !overLimit && !submitting
   return (

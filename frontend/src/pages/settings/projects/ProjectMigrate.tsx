@@ -58,7 +58,7 @@ const STEP_LABELS: Record<WizardStep, string> = {
   4: 'Result',
 }
 
-function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
+function StepIndicator({ currentStep }: Readonly<{ currentStep: WizardStep }>) {
   const steps: WizardStep[] = [1, 2, 3, 4]
   return (
     <div className="flex items-center gap-2" aria-label="Wizard steps">

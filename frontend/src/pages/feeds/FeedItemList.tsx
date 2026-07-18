@@ -46,7 +46,7 @@ export function FeedItemList({
   onPagePrev,
   onPageNext,
   showMcpHint = false,
-}: FeedItemListProps) {
+}: Readonly<FeedItemListProps>) {
   const navigate = useNavigate()
   const { canDeleteFeedContent } = usePermissions()
 

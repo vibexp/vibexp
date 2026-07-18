@@ -15,7 +15,7 @@ interface NotificationDropdownProps {
 export function NotificationDropdown({
   onClose,
   onUnreadChange,
-}: NotificationDropdownProps) {
+}: Readonly<NotificationDropdownProps>) {
   const { notifications, loading, markAsRead, markAllAsRead } =
     useNotifications({ limit: 10 })
   const navigate = useNavigate()

@@ -8,7 +8,7 @@ export function ClaudeCodeIcon({
   className = '',
   width = 112,
   height = 24,
-}: ClaudeCodeIconProps) {
+}: Readonly<ClaudeCodeIconProps>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

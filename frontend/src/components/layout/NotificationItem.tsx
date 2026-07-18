@@ -33,7 +33,7 @@ interface NotificationItemProps {
 export function NotificationItem({
   notification,
   onRead,
-}: NotificationItemProps) {
+}: Readonly<NotificationItemProps>) {
   const isUnread = !notification.read_at
 
   const handleClick = () => {

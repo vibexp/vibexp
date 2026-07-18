@@ -31,7 +31,7 @@ export function GitHubRepositoryList({
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
-}: GitHubRepositoryListProps) {
+}: Readonly<GitHubRepositoryListProps>) {
   const [currentPage, setCurrentPage] = useState(1)
   const [nameFilter, setNameFilter] = useState('')
   const [ownerFilter, setOwnerFilter] = useState('')

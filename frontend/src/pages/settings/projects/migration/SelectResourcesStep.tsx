@@ -45,7 +45,7 @@ function ResourceSection({
   defaultOpen,
   onSelectAll,
   onToggleItem,
-}: ResourceSectionProps) {
+}: Readonly<ResourceSectionProps>) {
   const [open, setOpen] = useState(defaultOpen)
 
   const items = inventory.items ?? []
@@ -154,7 +154,7 @@ export function SelectResourcesStep({
   onResourcesChange,
   onBack,
   onNext,
-}: SelectResourcesStepProps) {
+}: Readonly<SelectResourcesStepProps>) {
   const resourceKeys: ResourceKey[] = [
     'prompts',
     'artifacts',

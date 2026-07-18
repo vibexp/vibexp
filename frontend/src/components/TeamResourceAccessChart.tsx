@@ -27,7 +27,7 @@ interface TeamResourceAccessChartProps {
 export function TeamResourceAccessChart({
   teamId,
   range,
-}: TeamResourceAccessChartProps) {
+}: Readonly<TeamResourceAccessChartProps>) {
   const [data, setData] = useState<AccessCountByDate[]>([])
   const [totalAccesses, setTotalAccesses] = useState<number>(0)
   const [loading, setLoading] = useState(true)

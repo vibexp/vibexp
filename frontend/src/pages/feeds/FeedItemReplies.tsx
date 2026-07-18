@@ -25,7 +25,7 @@ interface ReplyItemProps {
   member?: TeamMember
 }
 
-function ReplyItem({ reply, member }: ReplyItemProps) {
+function ReplyItem({ reply, member }: Readonly<ReplyItemProps>) {
   const actor = resolveFeedActor(reply, member)
 
   return (
@@ -58,7 +58,10 @@ function ReplyItem({ reply, member }: ReplyItemProps) {
   )
 }
 
-export function FeedItemReplies({ teamId, itemId }: FeedItemRepliesProps) {
+export function FeedItemReplies({
+  teamId,
+  itemId,
+}: Readonly<FeedItemRepliesProps>) {
   const { handleError } = useErrorHandler()
 
   const [replies, setReplies] = useState<FeedItemReply[]>([])

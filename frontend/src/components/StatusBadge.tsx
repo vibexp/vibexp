@@ -31,7 +31,7 @@ export function StatusBadge({
   tone = 'default',
   className,
   children,
-}: StatusBadgeProps) {
+}: Readonly<StatusBadgeProps>) {
   if (tone === 'default') {
     return <Badge className={className}>{children}</Badge>
   }

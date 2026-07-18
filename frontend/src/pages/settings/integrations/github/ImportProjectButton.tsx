@@ -15,7 +15,9 @@ interface ImportProjectButtonProps {
   repository: GitHubRepository
 }
 
-export function ImportProjectButton({ repository }: ImportProjectButtonProps) {
+export function ImportProjectButton({
+  repository,
+}: Readonly<ImportProjectButtonProps>) {
   const { currentTeam } = useTeam()
   const { handleError } = useErrorHandler()
   const [isLoading, setIsLoading] = useState(false)

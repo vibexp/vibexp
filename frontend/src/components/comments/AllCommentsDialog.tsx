@@ -51,7 +51,7 @@ export function AllCommentsDialog({
   onAdd,
   onEdit,
   onDelete,
-}: AllCommentsDialogProps) {
+}: Readonly<AllCommentsDialogProps>) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] gap-0 overflow-hidden p-0 sm:max-w-lg">

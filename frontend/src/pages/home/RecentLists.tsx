@@ -71,7 +71,7 @@ function ListCard({
   emptyMessage,
   onViewAll,
   children,
-}: ListCardProps) {
+}: Readonly<ListCardProps>) {
   return (
     <Card className="flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -129,12 +129,12 @@ export function RecentFeedList({
   loading,
   error,
   onViewAll,
-}: {
+}: Readonly<{
   items: FeedItem[]
   loading: boolean
   error: string | null
   onViewAll: () => void
-}) {
+}>) {
   return (
     <ListCard
       title="Recent AI feed"
@@ -190,12 +190,12 @@ export function RecentCommentsList({
   members,
   loading,
   error,
-}: {
+}: Readonly<{
   comments: RecentComment[]
   members: Map<string, TeamMember>
   loading: boolean
   error: string | null
-}) {
+}>) {
   return (
     <ListCard
       title="Recent comments"
@@ -274,12 +274,12 @@ export function RecentActivityList({
   loading,
   error,
   onViewAll,
-}: {
+}: Readonly<{
   activities: ActivityType[]
   loading: boolean
   error: string | null
   onViewAll: () => void
-}) {
+}>) {
   return (
     <ListCard
       title="Recent activity"

@@ -23,7 +23,7 @@ export function AgentFilters({
   onSearchInputChange,
   currentStatusFilter,
   onStatusFilterChange,
-}: AgentFiltersProps) {
+}: Readonly<AgentFiltersProps>) {
   return (
     <div className="flex flex-col gap-3 lg:flex-row">
       <div className="relative flex-1">

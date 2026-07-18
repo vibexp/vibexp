@@ -26,7 +26,7 @@ interface VersionDiffProps {
 
 // Render a line's word segments, highlighting the changed runs. A blank line is
 // rendered as a zero-width space so its grid row still has line-height.
-function LineSegments({ segments }: { segments: WordSegment[] }) {
+function LineSegments({ segments }: Readonly<{ segments: WordSegment[] }>) {
   if (segments.every(s => s.text.length === 0)) {
     return <>{ZWSP}</>
   }
@@ -60,7 +60,7 @@ function SplitDiff({
   newText,
   oldLabel,
   newLabel,
-}: Omit<VersionDiffProps, 'mode'>) {
+}: Readonly<Omit<VersionDiffProps, 'mode'>>) {
   const rows = useMemo(
     () => buildSplitRows(oldText, newText),
     [oldText, newText]
@@ -101,7 +101,7 @@ const UNIFIED_MARK: Record<string, string> = {
 function UnifiedDiff({
   oldText,
   newText,
-}: Omit<VersionDiffProps, 'mode' | 'oldLabel' | 'newLabel'>) {
+}: Readonly<Omit<VersionDiffProps, 'mode' | 'oldLabel' | 'newLabel'>>) {
   const rows = useMemo(
     () => buildUnifiedRows(oldText, newText),
     [oldText, newText]
@@ -140,7 +140,7 @@ export function VersionDiff({
   oldLabel,
   newLabel,
   mode,
-}: VersionDiffProps) {
+}: Readonly<VersionDiffProps>) {
   if (mode === 'unified') {
     return <UnifiedDiff oldText={oldText} newText={newText} />
   }

@@ -22,7 +22,7 @@ export function ImportBlueprintsModal({
   onClose,
   onConfirm,
   isLoading,
-}: ImportBlueprintsModalProps) {
+}: Readonly<ImportBlueprintsModalProps>) {
   return (
     <Dialog
       open={isOpen}

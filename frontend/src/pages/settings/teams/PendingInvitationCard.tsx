@@ -22,7 +22,7 @@ export function PendingInvitationCard({
   invitation,
   onAccept,
   onReject,
-}: PendingInvitationCardProps) {
+}: Readonly<PendingInvitationCardProps>) {
   const [isAccepting, setIsAccepting] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
 

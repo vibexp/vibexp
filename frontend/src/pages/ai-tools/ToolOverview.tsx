@@ -82,7 +82,7 @@ export function ToolOverview({
   setupHref,
   fetchStats,
   fetchActivities,
-}: ToolOverviewProps) {
+}: Readonly<ToolOverviewProps>) {
   const navigate = useNavigate()
   const [stats, setStats] = useState<ToolStats | null>(null)
   const [activities, setActivities] = useState<RecentActivity[]>([])
@@ -269,7 +269,13 @@ interface StatCardProps {
   loading: boolean
 }
 
-function StatCard({ label, value, trend, icon: Icon, loading }: StatCardProps) {
+function StatCard({
+  label,
+  value,
+  trend,
+  icon: Icon,
+  loading,
+}: Readonly<StatCardProps>) {
   return (
     <Card>
       <CardHeader className="pb-2">

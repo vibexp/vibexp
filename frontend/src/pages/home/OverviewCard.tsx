@@ -26,10 +26,10 @@ export interface OverviewStat {
 export function OverviewCard({
   stat,
   loading,
-}: {
+}: Readonly<{
   stat: OverviewStat
   loading: boolean
-}) {
+}>) {
   const Icon = stat.icon
   return (
     <Card>

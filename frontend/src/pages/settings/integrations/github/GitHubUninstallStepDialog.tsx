@@ -23,7 +23,7 @@ export function GitHubUninstallStepDialog({
   installationId,
   onClose,
   accountType,
-}: GitHubUninstallStepDialogProps) {
+}: Readonly<GitHubUninstallStepDialogProps>) {
   const uninstallUrl =
     installationId !== null
       ? `https://github.com/settings/installations/${String(installationId)}`

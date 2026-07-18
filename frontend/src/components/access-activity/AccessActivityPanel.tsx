@@ -36,7 +36,7 @@ export function AccessActivityPanel({
   teamId,
   resourceType,
   resourceId,
-}: AccessActivityPanelProps) {
+}: Readonly<AccessActivityPanelProps>) {
   const [data, setData] = useState<AccessCountByDate[]>([])
   const [totalAccesses, setTotalAccesses] = useState(0)
   const [range, setRange] = useState('30d')

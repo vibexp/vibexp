@@ -38,7 +38,7 @@ export function FeedPostComposer({
   feedId,
   projects,
   onPosted,
-}: FeedPostComposerProps) {
+}: Readonly<FeedPostComposerProps>) {
   const { currentTeam } = useTeam()
   const { user } = useAuth()
   const { handleError } = useErrorHandler()

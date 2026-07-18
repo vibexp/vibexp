@@ -21,11 +21,11 @@ function StatCard({
   title,
   value,
   icon: Icon,
-}: {
+}: Readonly<{
   title: string
   value: string
   icon: LucideIcon
-}) {
+}>) {
   return (
     <div className="bg-muted/50 rounded-lg p-5">
       <div className="flex items-center gap-3">
@@ -41,7 +41,7 @@ function StatCard({
   )
 }
 
-export function AgentStats({ stats }: AgentStatsProps) {
+export function AgentStats({ stats }: Readonly<AgentStatsProps>) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       <StatCard

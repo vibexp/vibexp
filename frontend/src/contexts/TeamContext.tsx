@@ -27,7 +27,7 @@ interface TeamProviderProps {
   children: ReactNode
 }
 
-export function TeamProvider({ children }: TeamProviderProps) {
+export function TeamProvider({ children }: Readonly<TeamProviderProps>) {
   const [currentTeam, setCurrentTeamState] = useState<Team | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [isLoading, setIsLoading] = useState(true)

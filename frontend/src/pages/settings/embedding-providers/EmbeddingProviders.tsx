@@ -155,7 +155,7 @@ interface StatCardProps {
   hint?: string
 }
 
-function StatCard({ label, value, hint }: StatCardProps) {
+function StatCard({ label, value, hint }: Readonly<StatCardProps>) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -173,9 +173,9 @@ function StatCard({ label, value, hint }: StatCardProps) {
 
 function EmbeddingCoverageCards({
   coverage,
-}: {
+}: Readonly<{
   coverage: EmbeddingCoverageResponse
-}) {
+}>) {
   const totals = coverage.coverage.reduce(
     (acc, item) => ({
       total: acc.total + item.total,
@@ -252,7 +252,7 @@ function CoverageSection({
   canClear,
   clearing,
   onClear,
-}: CoverageSectionProps) {
+}: Readonly<CoverageSectionProps>) {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">

@@ -21,7 +21,7 @@ function formatTime(dateString: string): string {
   })
 }
 
-export function ChatMessage({ message, agent }: ChatMessageProps) {
+export function ChatMessage({ message, agent }: Readonly<ChatMessageProps>) {
   const [iconLoadError, setIconLoadError] = useState(false)
   const isUser = message.role === 'user'
   const isStreaming = message.timestamp === STREAMING

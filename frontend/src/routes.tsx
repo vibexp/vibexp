@@ -61,7 +61,7 @@ import { TeamDetailsPage } from '@/pages/settings/teams/TeamDetailsPage'
 import { Teams } from '@/pages/settings/teams/Teams'
 import { Showcase } from '@/pages/Showcase'
 
-function ComingSoon({ title }: { title: string }) {
+function ComingSoon({ title }: Readonly<{ title: string }>) {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader title={title} description="This page is coming soon." />

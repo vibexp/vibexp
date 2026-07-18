@@ -14,7 +14,7 @@ export function PageHeader({
   description,
   actions,
   className,
-}: PageHeaderProps) {
+}: Readonly<PageHeaderProps>) {
   return (
     <div
       className={cn(

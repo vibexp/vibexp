@@ -29,7 +29,7 @@ export function FeedTabs({
   activeCount,
   archivedCount,
   className,
-}: FeedTabsProps) {
+}: Readonly<FeedTabsProps>) {
   const tabs: {
     value: 'active' | 'archived'
     label: string
@@ -103,7 +103,7 @@ export function FeedToolbar({
   feeds,
   feedId,
   onFeedChange,
-}: FeedToolbarProps) {
+}: Readonly<FeedToolbarProps>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-[240px] flex-1">

@@ -22,7 +22,7 @@ export function AgentPreview({
   data,
   error,
   onRetry,
-}: AgentPreviewProps) {
+}: Readonly<AgentPreviewProps>) {
   if (loading) {
     return (
       <Card>

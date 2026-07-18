@@ -35,7 +35,7 @@ export function PromptContentCard({
   placeholderValues,
   updatePlaceholderValue,
   onCopy,
-}: Props) {
+}: Readonly<Props>) {
   const body = renderedBody !== '' ? renderedBody : prompt.body
 
   return (

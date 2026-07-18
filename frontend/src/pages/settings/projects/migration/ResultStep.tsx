@@ -14,7 +14,7 @@ interface CountRowProps {
   value: number
 }
 
-function CountRow({ label, value }: CountRowProps) {
+function CountRow({ label, value }: Readonly<CountRowProps>) {
   return (
     <div className="flex items-center justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>
@@ -44,7 +44,7 @@ function OutcomeSection({
   colorClass,
   count,
   outcomes,
-}: OutcomeSectionProps) {
+}: Readonly<OutcomeSectionProps>) {
   if (count === 0) return null
   return (
     <>
@@ -82,7 +82,7 @@ export function ResultStep({
   destinationProjectSlug,
   destinationProjectName,
   onDone,
-}: ResultStepProps) {
+}: Readonly<ResultStepProps>) {
   const totalMigrated =
     (result.migrated.prompts ?? 0) +
     (result.migrated.artifacts ?? 0) +

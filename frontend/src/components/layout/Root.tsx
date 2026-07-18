@@ -3,7 +3,7 @@ import * as React from 'react'
 import { useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
-export function Root({ children }: { children: React.ReactNode }) {
+export function Root({ children }: Readonly<{ children: React.ReactNode }>) {
   const { resolvedTheme } = useTheme()
 
   return (

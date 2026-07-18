@@ -49,7 +49,7 @@ export function EditorPane({
   renderedBody,
   renderError,
   isRendering,
-}: EditorPaneProps) {
+}: Readonly<EditorPaneProps>) {
   return (
     <div className="flex-1 space-y-4 lg:w-[70%]">
       <Card>

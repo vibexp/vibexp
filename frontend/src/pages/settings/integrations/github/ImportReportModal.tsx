@@ -28,7 +28,7 @@ export function ImportReportModal({
   report,
   repositoryName,
   onClose,
-}: ImportReportModalProps) {
+}: Readonly<ImportReportModalProps>) {
   const [activeTab, setActiveTab] = useState<TabType>('success')
 
   useEffect(() => {

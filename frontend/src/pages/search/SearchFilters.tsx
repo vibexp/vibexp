@@ -52,7 +52,7 @@ export function SearchFilters({
   projects = [],
   selectedProjectId,
   onProjectChange,
-}: Props) {
+}: Readonly<Props>) {
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       event.preventDefault()

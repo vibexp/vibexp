@@ -26,7 +26,7 @@ export function RequirePermission({
   permission,
   children,
   fallback = null,
-}: RequirePermissionProps) {
+}: Readonly<RequirePermissionProps>) {
   const { can } = usePermissions()
 
   return <>{can(permission) ? children : fallback}</>

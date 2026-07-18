@@ -27,7 +27,7 @@ interface TeamFeedCreationChartProps {
 export function TeamFeedCreationChart({
   teamId,
   range,
-}: TeamFeedCreationChartProps) {
+}: Readonly<TeamFeedCreationChartProps>) {
   const [data, setData] = useState<TeamFeedCreationCountByDate[]>([])
   const [totalUpdates, setTotalUpdates] = useState<number>(0)
   const [loading, setLoading] = useState(true)
