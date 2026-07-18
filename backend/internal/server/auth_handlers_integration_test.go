@@ -62,19 +62,11 @@ func (m *MockActivityServiceForAuthHandlers) DeleteActivity(ctx context.Context,
 }
 
 func (m *MockActivityServiceForAuthHandlers) GetActivityTypes() []string {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).([]string)
+	return mockTypedOrZero[[]string](&m.Mock, "GetActivityTypes")
 }
 
 func (m *MockActivityServiceForAuthHandlers) GetEntityTypes() []string {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).([]string)
+	return mockTypedOrZero[[]string](&m.Mock, "GetEntityTypes")
 }
 
 func (m *MockActivityServiceForAuthHandlers) GetAllTypes() *activities.ActivityTypesResponse {

@@ -43,10 +43,7 @@ func (s *AgentStore) Stats() []StatCall {
 }
 
 func (s *AgentStore) Create(_ context.Context, agent *models.Agent) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.agent = agent
-	return nil
+	return s.put(agent)
 }
 
 func (s *AgentStore) GetByID(_ context.Context, _, _, agentID string) (*models.Agent, error) {
@@ -73,6 +70,12 @@ func (s *AgentStore) List(
 }
 
 func (s *AgentStore) Update(_ context.Context, agent *models.Agent) error {
+	return s.put(agent)
+}
+
+// put replaces the single stored agent; the store serves one preset agent, so
+// Create and Update share this behavior by design.
+func (s *AgentStore) put(agent *models.Agent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.agent = agent

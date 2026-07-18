@@ -75,8 +75,7 @@ type MockUserRepository struct {
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user *models.User) error {
-	args := m.Called(ctx, user)
-	return args.Error(0)
+	return mockErr(&m.Mock, "Create", ctx, user)
 }
 
 func (m *MockUserRepository) GetByID(ctx context.Context, id string) (*models.User, error) {
@@ -104,8 +103,7 @@ func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*mod
 }
 
 func (m *MockUserRepository) Update(ctx context.Context, user *models.User) error {
-	args := m.Called(ctx, user)
-	return args.Error(0)
+	return mockErr(&m.Mock, "Update", ctx, user)
 }
 
 func (m *MockUserRepository) Delete(ctx context.Context, id string) error {
@@ -124,19 +122,11 @@ func (m *MockActivityServiceForTeamHandlers) DeleteActivity(ctx context.Context,
 }
 
 func (m *MockActivityServiceForTeamHandlers) GetActivityTypes() []string {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).([]string)
+	return mockTypedOrZero[[]string](&m.Mock, "GetActivityTypes")
 }
 
 func (m *MockActivityServiceForTeamHandlers) GetEntityTypes() []string {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).([]string)
+	return mockTypedOrZero[[]string](&m.Mock, "GetEntityTypes")
 }
 
 func (m *MockActivityServiceForTeamHandlers) GetAllTypes() *activities.ActivityTypesResponse {

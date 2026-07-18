@@ -26,11 +26,7 @@ func (m *MockTeamService) IsUserMemberOfTeam(ctx context.Context, userID, teamID
 }
 
 func (m *MockTeamService) GetUserDefaultTeam(ctx context.Context, userID string) (*models.Team, error) {
-	args := m.Called(ctx, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.Team), args.Error(1)
+	return mockPtrCall[models.Team](&m.Mock, "GetUserDefaultTeam", ctx, userID)
 }
 
 func (m *MockTeamService) CreateTeam(
@@ -77,11 +73,7 @@ func (m *MockTeamService) ListTeams(
 }
 
 func (m *MockTeamService) CreateDefaultTeam(ctx context.Context, userID string) (*models.Team, error) {
-	args := m.Called(ctx, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*models.Team), args.Error(1)
+	return mockPtrCall[models.Team](&m.Mock, "CreateDefaultTeam", ctx, userID)
 }
 
 func (m *MockTeamService) GetTeamByOwnerID(ctx context.Context, ownerID string) (*models.Team, error) {

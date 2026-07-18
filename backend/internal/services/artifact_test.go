@@ -35,15 +35,13 @@ func (m *MockResourceUsageService) CheckResourceLimit(ctx context.Context, userI
 func (m *MockResourceUsageService) TrackResourceCreation(
 	ctx context.Context, userID, resourceType, resourceID string,
 ) error {
-	args := m.Called(ctx, userID, resourceType, resourceID)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "TrackResourceCreation", ctx, userID, resourceType, resourceID)
 }
 
 func (m *MockResourceUsageService) TrackResourceDeletion(
 	ctx context.Context, userID, resourceType, resourceID string,
 ) error {
-	args := m.Called(ctx, userID, resourceType, resourceID)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "TrackResourceDeletion", ctx, userID, resourceType, resourceID)
 }
 
 func (m *MockResourceUsageService) GetResourceUsage(
@@ -88,8 +86,7 @@ func (m *MockArtifactRepository) GetByProjectIDAndSlug(
 func (m *MockArtifactRepository) List(
 	ctx context.Context, userID string, filters repositories.ArtifactFilters,
 ) ([]models.Artifact, int, error) {
-	args := m.Called(ctx, userID, filters)
-	return args.Get(0).([]models.Artifact), args.Int(1), args.Error(2)
+	return mockListCall[models.Artifact](&m.Mock, "List", ctx, userID, filters)
 }
 
 func (m *MockArtifactRepository) Update(ctx context.Context, artifact *models.Artifact) error {
@@ -140,8 +137,7 @@ func (m *MockArtifactRepository) GetByProjectIDAndSlugCrossTeam(
 func (m *MockArtifactRepository) ListCrossTeam(
 	ctx context.Context, userID string, filters repositories.ArtifactFilters,
 ) ([]models.Artifact, int, error) {
-	args := m.Called(ctx, userID, filters)
-	return args.Get(0).([]models.Artifact), args.Int(1), args.Error(2)
+	return mockListCall[models.Artifact](&m.Mock, "ListCrossTeam", ctx, userID, filters)
 }
 
 func (m *MockArtifactRepository) GetNamesByIDsCrossTeam(

@@ -27,8 +27,7 @@ type MockGitHubInstallationRepository struct {
 }
 
 func (m *MockGitHubInstallationRepository) Create(ctx context.Context, installation *models.GitHubInstallation) error {
-	args := m.Called(ctx, installation)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, installation)
 }
 
 func (m *MockGitHubInstallationRepository) GetByTeamID(
@@ -54,8 +53,7 @@ func (m *MockGitHubInstallationRepository) GetByInstallationID(
 }
 
 func (m *MockGitHubInstallationRepository) Update(ctx context.Context, installation *models.GitHubInstallation) error {
-	args := m.Called(ctx, installation)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, installation)
 }
 
 func (m *MockGitHubInstallationRepository) Delete(ctx context.Context, teamID string) error {
@@ -68,8 +66,7 @@ type MockProjectRepository struct {
 }
 
 func (m *MockProjectRepository) Create(ctx context.Context, project *models.Project) error {
-	args := m.Called(ctx, project)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Create", ctx, project)
 }
 
 func (m *MockProjectRepository) GetBySlug(ctx context.Context, teamID, userID, slug string) (*models.Project, error) {
@@ -108,8 +105,7 @@ func (m *MockProjectRepository) List(
 }
 
 func (m *MockProjectRepository) Update(ctx context.Context, project *models.Project) error {
-	args := m.Called(ctx, project)
-	return args.Error(0)
+	return mockErrCall(&m.Mock, "Update", ctx, project)
 }
 
 func (m *MockProjectRepository) Delete(ctx context.Context, teamID, userID, slug string) error {
