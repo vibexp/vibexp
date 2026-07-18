@@ -391,7 +391,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/CurrentUser'
         '401':
           description: Unauthorized - invalid or missing session cookie
           content:
@@ -12445,6 +12445,25 @@ components:
         - created_at
         - updated_at
         - version
+    CurrentUser:
+      description: |
+        The authenticated user as returned by GET /api/v1/auth/me — the full User
+        object plus session-relative flags. `is_instance_admin` lets the SPA gate the
+        Admin Portal menu and /admin routes; it is UI convenience only, as every
+        /api/v1/admin/* call is authorized server-side regardless.
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          required:
+            - is_instance_admin
+          properties:
+            is_instance_admin:
+              type: boolean
+              description: |
+                Whether the authenticated user's email is in the configured
+                auth.instance_admins list (matched case-insensitively). False when the
+                list is empty (feature dormant).
+              example: false
     LoginResponse:
       type: object
       description: Response body returned by GET /api/v1/auth/login containing the authorization URL

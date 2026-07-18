@@ -57,6 +57,16 @@ type User struct {
 	Version                int64      `json:"version" db:"version"`
 }
 
+// CurrentUserResponse is the GET /api/v1/auth/me payload: the authenticated
+// User plus session-relative flags. It embeds *User so every User field is
+// inlined into the JSON, matching the CurrentUser schema (allOf[User, ...]).
+// IsInstanceAdmin is resolved per-request from config (Config.IsInstanceAdmin)
+// rather than stored on the domain model.
+type CurrentUserResponse struct {
+	*User
+	IsInstanceAdmin bool `json:"is_instance_admin"`
+}
+
 type GoogleUserInfo struct {
 	ID            string `json:"id"`
 	Email         string `json:"email"`

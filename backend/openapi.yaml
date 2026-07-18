@@ -145,6 +145,8 @@ components:
     # Import authentication schemas
     User:
       $ref: "./schemas/auth.yaml#/User"
+    CurrentUser:
+      $ref: "./schemas/auth.yaml#/CurrentUser"
     LoginResponse:
       $ref: "./schemas/auth.yaml#/LoginResponse"
     LogoutResponse:
