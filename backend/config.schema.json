@@ -86,6 +86,20 @@
         "access_allowlist": {
           "$ref": "#/$defs/AccessAllowlistConfig"
         },
+        "instance_admins": {
+          "oneOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\$\\{[^}]+\\}$"
+            }
+          ]
+        },
         "google": {
           "$ref": "#/$defs/GoogleAuthConfig"
         },

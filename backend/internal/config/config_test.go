@@ -65,6 +65,9 @@ auth:
     emails:
       - alice@example.com
       - bob@example.com
+  instance_admins:
+    - admin@example.com
+    - root@corp.io
   google:
     client_id: g-id
     client_secret: g-secret
@@ -316,6 +319,7 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.True(t, cfg.Auth.DevLoginEnabled)
 	assert.Equal(t, []string{"example.com", "corp.io"}, []string(cfg.Auth.AccessAllowlist.Domains))
 	assert.Equal(t, []string{"alice@example.com", "bob@example.com"}, []string(cfg.Auth.AccessAllowlist.Emails))
+	assert.Equal(t, []string{"admin@example.com", "root@corp.io"}, []string(cfg.Auth.InstanceAdmins))
 	assert.Equal(t, "g-id", cfg.Auth.Google.ClientID)
 	assert.Equal(t, "g-secret", cfg.Auth.Google.ClientSecret)
 	assert.Equal(t, "https://app.example.com/cb/google", cfg.Auth.Google.RedirectURI)
@@ -680,6 +684,63 @@ func TestValidateDatabaseSSLMode(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateDatabaseSSLMode(&Config{Database: DatabaseConfig{SSLMode: tc.sslmode}})
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestIsInstanceAdmin(t *testing.T) {
+	admins := EnvStringSlice{"Alice@Example.com", "  bob@corp.io  "}
+
+	tests := []struct {
+		name   string
+		admins EnvStringSlice
+		email  string
+		want   bool
+	}{
+		{"empty list is always false", nil, "alice@example.com", false},
+		{"empty email is false", admins, "", false},
+		{"empty email against empty list is false", nil, "", false},
+		{"exact match", admins, "alice@example.com", true},
+		{"case-insensitive match", admins, "ALICE@EXAMPLE.COM", true},
+		{"input whitespace trimmed", admins, "  alice@example.com  ", true},
+		{"configured-entry whitespace trimmed", admins, "bob@corp.io", true},
+		{"non-member is false", admins, "carol@example.com", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{Auth: AuthConfig{InstanceAdmins: tc.admins}}
+			assert.Equal(t, tc.want, cfg.IsInstanceAdmin(tc.email))
+		})
+	}
+}
+
+func TestValidateInstanceAdmins(t *testing.T) {
+	tests := []struct {
+		name    string
+		admins  EnvStringSlice
+		wantErr bool
+	}{
+		{"empty list is valid", nil, false},
+		{"single valid email", EnvStringSlice{"admin@example.com"}, false},
+		{"multiple valid emails", EnvStringSlice{"a@example.com", "b@corp.io"}, false},
+		{"surrounding whitespace is tolerated", EnvStringSlice{"  admin@example.com  "}, false},
+		{"blank entry (trailing comma) is tolerated", EnvStringSlice{"admin@example.com", ""}, false},
+		{"missing @ is rejected", EnvStringSlice{"notanemail"}, true},
+		{"missing domain dot is rejected", EnvStringSlice{"admin@localhost"}, true},
+		{"empty local part is rejected", EnvStringSlice{"@example.com"}, true},
+		{"internal whitespace is rejected", EnvStringSlice{"admin @example.com"}, true},
+		{"one bad entry among good fails", EnvStringSlice{"a@example.com", "bad"}, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateInstanceAdmins(&Config{Auth: AuthConfig{InstanceAdmins: tc.admins}})
 			if tc.wantErr {
 				assert.Error(t, err)
 			} else {

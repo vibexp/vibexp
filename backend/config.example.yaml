@@ -100,6 +100,13 @@ auth:
     domains: []
     emails: []
 
+  # Instance admins: email addresses granted access to instance-level admin
+  # surfaces (resolved case-insensitively). Empty (the default) leaves the
+  # feature dormant — no user is an instance admin. In the combined image this is
+  # a comma-separated ${INSTANCE_ADMIN_EMAILS} env value; here (dev-tuned) it is a
+  # YAML list, e.g. [you@example.com].
+  instance_admins: []
+
   # Google OIDC web-login client (reached directly via accounts.google.com).
   google:
     client_id: ""
