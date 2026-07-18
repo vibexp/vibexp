@@ -99,6 +99,8 @@ describe('MarkdownRenderer', () => {
       await act(async () => {
         render(<MarkdownRenderer content="# Test" />)
       })
+
+      expect(document.querySelector('.markdown-renderer')).toBeInTheDocument()
     })
 
     it('renders mocked content from marked', async () => {
@@ -492,6 +494,10 @@ describe('MarkdownRenderer', () => {
           />
         )
       })
+
+      const renderer = document.querySelector('.markdown-renderer')
+      expect(renderer).toBeInTheDocument()
+      expect(renderer).toHaveClass('test-class', 'theme-dark')
     })
 
     it('works with minimal props', async () => {
@@ -499,6 +505,8 @@ describe('MarkdownRenderer', () => {
       await act(async () => {
         render(<MarkdownRenderer content="# Test" />)
       })
+
+      expect(document.querySelector('.markdown-renderer')).toBeInTheDocument()
     })
   })
 

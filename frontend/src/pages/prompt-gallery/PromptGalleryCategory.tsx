@@ -57,7 +57,7 @@ export function PromptGalleryCategory() {
         data.prompts.forEach(p => {
           p.tags?.forEach(tag => tagsSet.add(tag))
         })
-        setAvailableTags(Array.from(tagsSet).sort())
+        setAvailableTags(Array.from(tagsSet).sort((a, b) => a.localeCompare(b)))
       } catch (error) {
         showAlert({
           type: 'error',

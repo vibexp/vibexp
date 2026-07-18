@@ -69,9 +69,9 @@ export function GitHubRepositoryList({
   }, [sortedRepositories, nameFilter, ownerFilter, visibilityFilter])
 
   const uniqueOwners = useMemo(() => {
-    return Array.from(
-      new Set(repositories.map(repo => repo.owner.login))
-    ).sort()
+    return Array.from(new Set(repositories.map(repo => repo.owner.login))).sort(
+      (a, b) => a.localeCompare(b)
+    )
   }, [repositories])
 
   const totalPages = Math.ceil(filteredRepositories.length / REPOS_PER_PAGE)
