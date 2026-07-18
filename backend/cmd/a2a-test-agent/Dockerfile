@@ -14,7 +14,10 @@ COPY backend/ ./
 RUN CGO_ENABLED=0 go build -o /a2a-test-agent ./cmd/a2a-test-agent
 
 FROM alpine:3.20
+RUN addgroup -S agent && adduser -S -G agent agent
 COPY --from=build /a2a-test-agent /usr/local/bin/a2a-test-agent
+# Drop root: the agent only binds :9001 (unprivileged) and writes nothing.
+USER agent
 EXPOSE 9001
 # --host must be the name other containers reach this service by (set in
 # docker-compose.e2e.yml), since it is baked into the advertised agent-card URL.
