@@ -250,7 +250,6 @@ func (s *Server) handleUpdateTeam(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, team, s.logger)
 }
 
-//nolint:funlen,gocognit // Complex error handling for subscription validation and ownership checks requires length
 func (s *Server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
 	teamID := chi.URLParam(r, "id")
@@ -284,65 +283,72 @@ func (s *Server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to delete team")
 
-		// Handle custom error types with detailed RFC 9457 responses
-		if activeSubErr, ok := err.(*services.ActiveSubscriptionError); ok {
-			writeErrorResponseWithDetails(w, r, "ACTIVE_SUBSCRIPTION_EXISTS",
-				"Active Subscription Exists",
-				activeSubErr.Error(),
-				http.StatusConflict,
-				map[string]any{
-					"subscription_id":    activeSubErr.SubscriptionID,
-					"subscription_tier":  activeSubErr.SubscriptionTier,
-					"billing_portal_url": activeSubErr.BillingPortalURL,
-					"help_text":          activeSubErr.HelpText,
-				})
-			return
-		}
-
-		if cancelingErr, ok := err.(*services.SubscriptionCancelingError); ok {
-			writeErrorResponseWithDetails(w, r, "SUBSCRIPTION_CANCELING",
-				"Subscription Canceling",
-				cancelingErr.Error(),
-				http.StatusConflict,
-				map[string]any{
-					"cancel_at": cancelingErr.CancelAt,
-				})
-			return
-		}
-
-		if membersErr, ok := err.(*services.TeamHasMembersError); ok {
-			writeErrorResponseWithDetails(w, r, "TEAM_HAS_MEMBERS",
-				"Team Has Members",
-				membersErr.Error(),
-				http.StatusConflict,
-				map[string]any{
-					"member_count": strconv.Itoa(membersErr.MemberCount),
-				})
-			return
-		}
-
-		if _, ok := err.(*services.CannotDeletePersonalWorkspaceError); ok {
-			writeErrorResponse(w, nil, "CANNOT_DELETE_PERSONAL_WORKSPACE",
-				"Cannot delete personal workspace", http.StatusForbidden)
-			return
-		}
-
-		// Handle generic error strings
-		if stderrors.Is(err, services.ErrTeamNotFound) || strings.Contains(err.Error(), errNotFoundFragment) {
-			writeErrorResponse(w, nil, "not_found", teamMsgNotFound, http.StatusNotFound)
-			return
-		}
-
-		if strings.Contains(err.Error(), "cannot delete default team") {
-			writeErrorResponse(w, nil, "forbidden", "Cannot delete default team", http.StatusForbidden)
-			return
-		}
-
-		writeErrorResponse(w, nil, "internal_error", "Failed to delete team", http.StatusInternalServerError)
+		writeDeleteTeamError(w, r, err)
 		return
 	}
 
 	writeNoContent(w)
+}
+
+// writeDeleteTeamError maps a DeleteTeam failure (other than permission
+// denied, which the handler responds to before logging at ERROR) to its HTTP
+// response.
+func writeDeleteTeamError(w http.ResponseWriter, r *http.Request, err error) {
+	// Handle custom error types with detailed RFC 9457 responses
+	if activeSubErr, ok := err.(*services.ActiveSubscriptionError); ok {
+		writeErrorResponseWithDetails(w, r, "ACTIVE_SUBSCRIPTION_EXISTS",
+			"Active Subscription Exists",
+			activeSubErr.Error(),
+			http.StatusConflict,
+			map[string]any{
+				"subscription_id":    activeSubErr.SubscriptionID,
+				"subscription_tier":  activeSubErr.SubscriptionTier,
+				"billing_portal_url": activeSubErr.BillingPortalURL,
+				"help_text":          activeSubErr.HelpText,
+			})
+		return
+	}
+
+	if cancelingErr, ok := err.(*services.SubscriptionCancelingError); ok {
+		writeErrorResponseWithDetails(w, r, "SUBSCRIPTION_CANCELING",
+			"Subscription Canceling",
+			cancelingErr.Error(),
+			http.StatusConflict,
+			map[string]any{
+				"cancel_at": cancelingErr.CancelAt,
+			})
+		return
+	}
+
+	if membersErr, ok := err.(*services.TeamHasMembersError); ok {
+		writeErrorResponseWithDetails(w, r, "TEAM_HAS_MEMBERS",
+			"Team Has Members",
+			membersErr.Error(),
+			http.StatusConflict,
+			map[string]any{
+				"member_count": strconv.Itoa(membersErr.MemberCount),
+			})
+		return
+	}
+
+	if _, ok := err.(*services.CannotDeletePersonalWorkspaceError); ok {
+		writeErrorResponse(w, nil, "CANNOT_DELETE_PERSONAL_WORKSPACE",
+			"Cannot delete personal workspace", http.StatusForbidden)
+		return
+	}
+
+	// Handle generic error strings
+	if stderrors.Is(err, services.ErrTeamNotFound) || strings.Contains(err.Error(), errNotFoundFragment) {
+		writeErrorResponse(w, nil, "not_found", teamMsgNotFound, http.StatusNotFound)
+		return
+	}
+
+	if strings.Contains(err.Error(), "cannot delete default team") {
+		writeErrorResponse(w, nil, "forbidden", "Cannot delete default team", http.StatusForbidden)
+		return
+	}
+
+	writeErrorResponse(w, nil, "internal_error", "Failed to delete team", http.StatusInternalServerError)
 }
 
 // validateCreateTeamRequest validates the create team request

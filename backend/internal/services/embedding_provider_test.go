@@ -511,17 +511,46 @@ func TestEmbeddingProviderService_GetEmbeddingProvider(t *testing.T) {
 
 //nolint:funlen // Test function requires comprehensive setup and assertions
 
+// updateEmbeddingProviderCase is one UpdateEmbeddingProvider table case.
+type updateEmbeddingProviderCase struct {
+	name        string
+	userID      string
+	providerID  string
+	request     models.UpdateEmbeddingProviderRequest
+	setup       func(*mocks.MockEmbeddingProviderRepository)
+	expectError bool
+	errorMsg    string
+}
+
+// assertUpdatedEmbeddingProvider verifies one UpdateEmbeddingProvider table
+// case outcome.
+func assertUpdatedEmbeddingProvider(
+	t *testing.T, tt updateEmbeddingProviderCase, provider *models.EmbeddingProvider, err error,
+) {
+	t.Helper()
+	if tt.expectError {
+		assert.Error(t, err)
+		assert.Nil(t, provider)
+		if tt.errorMsg != "" {
+			assert.Contains(t, err.Error(), tt.errorMsg)
+		}
+		return
+	}
+	assert.NoError(t, err)
+	assert.NotNil(t, provider)
+	assert.Equal(t, tt.providerID, provider.ID)
+	assert.Equal(t, tt.userID, provider.UserID)
+	if tt.request.Name != nil {
+		assert.Equal(t, *tt.request.Name, provider.Name)
+	}
+	if tt.request.IsDefault != nil {
+		assert.Equal(t, *tt.request.IsDefault, provider.IsDefault)
+	}
+}
+
 //nolint:funlen // Test function requires comprehensive setup and assertions
 func TestEmbeddingProviderService_UpdateEmbeddingProvider(t *testing.T) {
-	tests := []struct {
-		name        string
-		userID      string
-		providerID  string
-		request     models.UpdateEmbeddingProviderRequest
-		setup       func(*mocks.MockEmbeddingProviderRepository)
-		expectError bool
-		errorMsg    string
-	}{
+	tests := []updateEmbeddingProviderCase{
 		{
 			name:       "Successful update with name only",
 			userID:     "user-123",
@@ -615,29 +644,9 @@ func TestEmbeddingProviderService_UpdateEmbeddingProvider(t *testing.T) {
 
 			provider, err := service.UpdateEmbeddingProvider(context.Background(), tt.userID, tt.providerID, tt.request)
 
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, provider)
-				if tt.errorMsg != "" {
-					assert.Contains(t, err.Error(), tt.errorMsg)
-				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, provider)
-				assert.Equal(t, tt.providerID, provider.ID)
-				assert.Equal(t, tt.userID, provider.UserID)
-				if tt.request.Name != nil {
-					assert.Equal(t, *tt.request.Name, provider.Name)
-				}
-				if tt.request.IsDefault != nil {
-					assert.Equal(t, *tt.request.IsDefault, provider.IsDefault)
-				}
-			}
-			//nolint:funlen // Test function requires comprehensive setup and assertions
+			assertUpdatedEmbeddingProvider(t, tt, provider, err)
 		})
-		//nolint:funlen // Test function requires comprehensive setup and assertions
 	}
-	//nolint:funlen // Test function requires comprehensive setup and assertions
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions

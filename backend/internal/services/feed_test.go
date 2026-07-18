@@ -398,17 +398,48 @@ func TestFeedService_DeleteFeed(t *testing.T) {
 // FeedItemService tests
 // --------------------------------------------------------------------------
 
-//nolint:funlen,gocognit,gocyclo // Table-driven test with multiple cases and complex setup logic
+// createFeedItemCase is one CreateFeedItem table case.
+type createFeedItemCase struct {
+	name         string
+	req          *models.CreateFeedItemRequest
+	isMember     bool
+	memberErr    error
+	repoErr      error
+	wantErr      bool
+	skipTeamCall bool
+}
+
+// setupCreateFeedItemMocks wires the membership, create and publish
+// expectations one CreateFeedItem table case needs; cases rejected by input
+// validation (skipTeamCall) reach none of them.
+func setupCreateFeedItemMocks(
+	tt createFeedItemCase,
+	mockTeam *svcMocks.MockTeamServiceInterface,
+	mockItemRepo *repoMocks.MockFeedItemRepository,
+	mockEvent *eventMocks.MockEventPublisher,
+) {
+	if !tt.skipTeamCall {
+		mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-1", "team-1").
+			Return(tt.isMember, tt.memberErr).Maybe()
+	}
+
+	needsRepo := tt.isMember && tt.memberErr == nil && !tt.skipTeamCall && len(tt.req.Content) <= 204800 &&
+		len([]rune(tt.req.Title)) > 0 && len([]rune(tt.req.Title)) <= 255 &&
+		len([]rune(tt.req.AIAssistantName)) > 0 && len([]rune(tt.req.AIAssistantName)) <= 30
+
+	if needsRepo {
+		mockItemRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.FeedItem")).
+			Return(tt.repoErr).Maybe()
+	}
+
+	if needsRepo && tt.repoErr == nil {
+		mockEvent.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
+	}
+}
+
+//nolint:funlen // Table-driven test with multiple cases
 func TestFeedItemService_CreateFeedItem(t *testing.T) {
-	tests := []struct {
-		name         string
-		req          *models.CreateFeedItemRequest
-		isMember     bool
-		memberErr    error
-		repoErr      error
-		wantErr      bool
-		skipTeamCall bool
-	}{
+	tests := []createFeedItemCase{
 		{
 			name: "success",
 			req: &models.CreateFeedItemRequest{
@@ -512,23 +543,7 @@ func TestFeedItemService_CreateFeedItem(t *testing.T) {
 
 			svc := services.NewFeedItemService(mockItemRepo, nil, mockProjectRepo, mockTeam, permissiveAuthz(t), mockEvent, newTestLogger())
 
-			if !tt.skipTeamCall {
-				mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-1", "team-1").
-					Return(tt.isMember, tt.memberErr).Maybe()
-			}
-
-			needsRepo := tt.isMember && tt.memberErr == nil && !tt.skipTeamCall && len(tt.req.Content) <= 204800 &&
-				len([]rune(tt.req.Title)) > 0 && len([]rune(tt.req.Title)) <= 255 &&
-				len([]rune(tt.req.AIAssistantName)) > 0 && len([]rune(tt.req.AIAssistantName)) <= 30
-
-			if needsRepo {
-				mockItemRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.FeedItem")).
-					Return(tt.repoErr).Maybe()
-			}
-
-			if needsRepo && tt.repoErr == nil {
-				mockEvent.On("Publish", mock.Anything, mock.Anything).Return(nil).Maybe()
-			}
+			setupCreateFeedItemMocks(tt, mockTeam, mockItemRepo, mockEvent)
 
 			got, err := svc.CreateFeedItem(context.Background(), "user-1", "team-1", "feed-1", tt.req)
 			if tt.wantErr {

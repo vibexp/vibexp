@@ -65,8 +65,6 @@ func NewTeamInvitationService(
 }
 
 // InviteMembers invites multiple users to join a team
-//
-//nolint:gocognit,gocyclo,funlen // Complex business logic with multiple validation checks
 func (s *TeamInvitationService) InviteMembers(
 	ctx context.Context,
 	userID string,
@@ -74,6 +72,70 @@ func (s *TeamInvitationService) InviteMembers(
 	emails []string,
 	role models.TeamMemberRole,
 ) ([]*models.TeamInvitation, error) {
+	team, err := s.validateInvitingTeam(ctx, userID, teamID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Open-source build: team membership is unlimited and requires no paid
+	// subscription. Invitations proceed without any subscription or seat-limit
+	// gating.
+
+	// Resolve the inviter's display name once — it's the same for every email
+	// in this batch, and the invitation email must show a human-readable name
+	// (never the raw user UUID). Lookup failures degrade to a fallback string
+	// so a transient DB blip does not block onboarding.
+	inviterName := s.resolveInviterDisplayName(ctx, userID)
+
+	// Create invitations
+	invitations := make([]*models.TeamInvitation, 0, len(emails))
+	duplicateEmails := make([]string, 0)
+	now := time.Now()
+	expiresAt := now.Add(7 * 24 * time.Hour) // 7 days
+
+	for _, email := range emails {
+		alreadyMember, skip := s.classifyInvitee(ctx, teamID, email)
+		if alreadyMember {
+			duplicateEmails = append(duplicateEmails, email)
+			continue
+		}
+		if skip {
+			continue
+		}
+
+		if s.hasPendingInvitationForTeam(ctx, teamID, email) {
+			continue
+		}
+
+		invitation, err := s.createAndSendInvitation(ctx, team, userID, email, role, inviterName, now, expiresAt)
+		if err != nil {
+			return nil, err
+		}
+
+		invitations = append(invitations, invitation)
+
+		s.logger.With(
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
+			"team_id", teamID,
+			"email", email,
+			"invitation_id", invitation.ID,
+		).Info("Team invitation created successfully")
+	}
+
+	// If there are duplicate emails, return an error
+	if len(duplicateEmails) > 0 {
+		return invitations, NewDuplicateMembersError(duplicateEmails)
+	}
+
+	return invitations, nil
+}
+
+// validateInvitingTeam authorizes the inviter (owner/admin role) and loads the team,
+// rejecting invitations to personal workspaces.
+func (s *TeamInvitationService) validateInvitingTeam(
+	ctx context.Context, userID, teamID string,
+) (*models.Team, error) {
 	// Verify user has permission to invite (owner/admin role)
 	if err := s.canManageInvitations(ctx, userID, teamID); err != nil {
 		return nil, err
@@ -96,144 +158,135 @@ func (s *TeamInvitationService) InviteMembers(
 		return nil, NewPersonalWorkspaceError(teamID)
 	}
 
-	// Open-source build: team membership is unlimited and requires no paid
-	// subscription. Invitations proceed without any subscription or seat-limit
-	// gating.
+	return team, nil
+}
 
-	// Resolve the inviter's display name once — it's the same for every email
-	// in this batch, and the invitation email must show a human-readable name
-	// (never the raw user UUID). Lookup failures degrade to a fallback string
-	// so a transient DB blip does not block onboarding.
-	inviterName := s.resolveInviterDisplayName(ctx, userID)
-
-	// Create invitations
-	invitations := make([]*models.TeamInvitation, 0, len(emails))
-	duplicateEmails := make([]string, 0)
-	now := time.Now()
-	expiresAt := now.Add(7 * 24 * time.Hour) // 7 days
-
-	for _, email := range emails {
-		// Check if user is already a member
-		// First get the user by email
-		user, err := s.userRepo.GetByEmail(ctx, email)
-		if err == nil {
-			// User exists, check if they're already a team member
-			_, memberErr := s.teamMemberRepo.GetByTeamAndUser(ctx, teamID, user.ID)
-			if memberErr == nil {
-				s.logger.With(
-					"service", logServiceVibeXPAPI,
-					"component", logComponentTeamInvitation,
-					"team_id", teamID,
-					"email", email,
-					"user_id", user.ID,
-				).Warn("User already a member of team")
-				duplicateEmails = append(duplicateEmails, email)
-				continue
-			}
-		} else if !errors.Is(err, repositories.ErrUserNotFound) {
-			// Database error (not "user not found"), log and skip this email
+// classifyInvitee checks whether the email belongs to an existing team member
+// (alreadyMember) or must be skipped because the existence check failed (skip).
+// A user that does not exist yet is invitable: both results are false.
+func (s *TeamInvitationService) classifyInvitee(
+	ctx context.Context, teamID, email string,
+) (alreadyMember, skip bool) {
+	// Check if user is already a member
+	// First get the user by email
+	user, err := s.userRepo.GetByEmail(ctx, email)
+	if err == nil {
+		// User exists, check if they're already a team member
+		_, memberErr := s.teamMemberRepo.GetByTeamAndUser(ctx, teamID, user.ID)
+		if memberErr == nil {
 			s.logger.With(
 				"service", logServiceVibeXPAPI,
 				"component", logComponentTeamInvitation,
 				"team_id", teamID,
 				"email", email,
-				"error", fmt.Sprintf("%+v", err),
-			).Error("Failed to check if user exists, skipping invitation for this email")
-			continue
+				"user_id", user.ID,
+			).Warn("User already a member of team")
+			return true, false
 		}
-		// If err contains "user not found", user doesn't exist yet, proceed with invitation
-
-		// Check for existing pending invitation
-		pendingInvitations, err := s.invitationRepo.GetPendingByEmail(ctx, email)
-		if err != nil {
-			// Database error when checking pending invitations
-			s.logger.With(
-				"service", logServiceVibeXPAPI,
-				"component", logComponentTeamInvitation,
-				"team_id", teamID,
-				"email", email,
-				"error", fmt.Sprintf("%+v", err),
-			).Error("Failed to check pending invitations, skipping invitation for this email")
-			continue
-		}
-
-		// Check if pending invitation already exists for this team
-		hasPendingForTeam := false
-		for _, pending := range pendingInvitations {
-			if pending.TeamID == teamID {
-				s.logger.With(
-					"service", logServiceVibeXPAPI,
-					"component", logComponentTeamInvitation,
-					"team_id", teamID,
-					"email", email,
-				).Warn("Pending invitation already exists for this email and team")
-				hasPendingForTeam = true
-				break
-			}
-		}
-		if hasPendingForTeam {
-			continue
-		}
-
-		// Generate secure token
-		token, err := s.generateInvitationToken()
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate token: %w", err)
-		}
-
-		invitation := &models.TeamInvitation{
-			TeamID:       teamID,
-			InviterID:    userID,
-			InviteeEmail: email,
-			Role:         role,
-			Token:        token,
-			Status:       models.InvitationStatusPending,
-			ExpiresAt:    expiresAt,
-			CreatedAt:    now,
-			UpdatedAt:    now,
-		}
-
-		if err := s.invitationRepo.Create(ctx, invitation); err != nil {
-			s.logger.With(
-				"service", logServiceVibeXPAPI,
-				"component", logComponentTeamInvitation,
-				"team_id", teamID,
-				"email", email,
-				"error", fmt.Sprintf("%+v", err),
-			).Error("Failed to create invitation")
-			return nil, fmt.Errorf("failed to create invitation: %w", err)
-		}
-
-		// Send invitation email
-		if err := s.emailService.SendTeamInvitation(invitation, team.Name, inviterName); err != nil {
-			s.logger.With(
-				"service", logServiceVibeXPAPI,
-				"component", logComponentTeamInvitation,
-				"team_id", teamID,
-				"email", email,
-				"error", fmt.Sprintf("%+v", err),
-			).Error("Failed to send invitation email")
-
-			// Continue with other invitations even if email fails
-		}
-
-		invitations = append(invitations, invitation)
-
+		return false, false
+	}
+	if !errors.Is(err, repositories.ErrUserNotFound) {
+		// Database error (not "user not found"), log and skip this email
 		s.logger.With(
 			"service", logServiceVibeXPAPI,
 			"component", logComponentTeamInvitation,
 			"team_id", teamID,
 			"email", email,
-			"invitation_id", invitation.ID,
-		).Info("Team invitation created successfully")
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to check if user exists, skipping invitation for this email")
+		return false, true
+	}
+	// If err contains "user not found", user doesn't exist yet, proceed with invitation
+	return false, false
+}
+
+// hasPendingInvitationForTeam reports whether the email must be skipped because a
+// pending invitation for this team already exists — or because the pending-invitation
+// lookup itself failed (both cases are logged).
+func (s *TeamInvitationService) hasPendingInvitationForTeam(ctx context.Context, teamID, email string) bool {
+	// Check for existing pending invitation
+	pendingInvitations, err := s.invitationRepo.GetPendingByEmail(ctx, email)
+	if err != nil {
+		// Database error when checking pending invitations
+		s.logger.With(
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
+			"team_id", teamID,
+			"email", email,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to check pending invitations, skipping invitation for this email")
+		return true
 	}
 
-	// If there are duplicate emails, return an error
-	if len(duplicateEmails) > 0 {
-		return invitations, NewDuplicateMembersError(duplicateEmails)
+	// Check if pending invitation already exists for this team
+	for _, pending := range pendingInvitations {
+		if pending.TeamID == teamID {
+			s.logger.With(
+				"service", logServiceVibeXPAPI,
+				"component", logComponentTeamInvitation,
+				"team_id", teamID,
+				"email", email,
+			).Warn("Pending invitation already exists for this email and team")
+			return true
+		}
+	}
+	return false
+}
+
+// createAndSendInvitation mints a token, persists the invitation, and sends the
+// invitation email (best-effort — a send failure is logged but does not fail the
+// invitation). Token generation and persistence failures abort the whole batch.
+func (s *TeamInvitationService) createAndSendInvitation(
+	ctx context.Context,
+	team *models.Team,
+	inviterID, email string,
+	role models.TeamMemberRole,
+	inviterName string,
+	now, expiresAt time.Time,
+) (*models.TeamInvitation, error) {
+	// Generate secure token
+	token, err := s.generateInvitationToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	return invitations, nil
+	invitation := &models.TeamInvitation{
+		TeamID:       team.ID,
+		InviterID:    inviterID,
+		InviteeEmail: email,
+		Role:         role,
+		Token:        token,
+		Status:       models.InvitationStatusPending,
+		ExpiresAt:    expiresAt,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
+		s.logger.With(
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
+			"team_id", team.ID,
+			"email", email,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to create invitation")
+		return nil, fmt.Errorf("failed to create invitation: %w", err)
+	}
+
+	// Send invitation email
+	if err := s.emailService.SendTeamInvitation(invitation, team.Name, inviterName); err != nil {
+		s.logger.With(
+			"service", logServiceVibeXPAPI,
+			"component", logComponentTeamInvitation,
+			"team_id", team.ID,
+			"email", email,
+			"error", fmt.Sprintf("%+v", err),
+		).Error("Failed to send invitation email")
+
+		// Continue with other invitations even if email fails
+	}
+
+	return invitation, nil
 }
 
 // InvitationDetails carries an invitation enriched with the team name and inviter info,

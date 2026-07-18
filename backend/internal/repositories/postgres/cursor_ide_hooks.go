@@ -413,8 +413,45 @@ func (r *cursorIDEHooksRepository) GetSessionCounts(
 }
 
 // GetOverviewStats retrieves comprehensive overview statistics
-//
-//nolint:gocognit,gocyclo,funlen
+const (
+	cursorIDEOverviewThisWeekQuery = `SELECT COUNT(DISTINCT session_id) FROM cursor_ide_hooks_payload
+		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 day'`
+
+	cursorIDEOverviewLastWeekQuery = `SELECT COUNT(DISTINCT session_id) FROM cursor_ide_hooks_payload
+		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '14 day'
+		AND created_at < CURRENT_DATE - INTERVAL '7 day'`
+
+	cursorIDEOverviewAvgPromptsQuery = `
+		SELECT COALESCE(AVG(prompt_count), 0) as avg_prompts
+		FROM (
+			SELECT session_id, COUNT(*) as prompt_count
+			FROM cursor_ide_hooks_payload
+			WHERE user_id = $1 AND hook_event_name = 'tool:start'
+			GROUP BY session_id
+		) as session_prompts`
+
+	cursorIDEOverviewUniqueToolsQuery = "SELECT COUNT(DISTINCT tool_name) FROM cursor_ide_hooks_payload " +
+		"WHERE user_id = $1 AND tool_name IS NOT NULL"
+
+	cursorIDEOverviewTopToolsQuery = `
+		SELECT tool_name, COUNT(*) as usage_count
+		FROM cursor_ide_hooks_payload
+		WHERE user_id = $1 AND tool_name IS NOT NULL
+		GROUP BY tool_name
+		ORDER BY usage_count DESC
+		LIMIT 3`
+
+	cursorIDEOverviewAvgDurationQuery = `
+		SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (last_seen - first_seen))/60), 0) as avg_duration_minutes
+		FROM (
+			SELECT session_id, MIN(created_at) as first_seen, MAX(created_at) as last_seen
+			FROM cursor_ide_hooks_payload
+			WHERE user_id = $1
+			GROUP BY session_id
+			HAVING MIN(created_at) != MAX(created_at)
+		) as session_durations`
+)
+
 func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID string) (*models.CursorOverviewStats, error) { //nolint:lll
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection is nil")
@@ -430,108 +467,32 @@ func (r *cursorIDEHooksRepository) GetOverviewStats(ctx context.Context, userID 
 	}
 
 	// Get sessions this week (last 7 days)
-	thisWeekQuery := `SELECT COUNT(DISTINCT session_id) FROM cursor_ide_hooks_payload
-		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 day'`
-	err = r.db.QueryRowContext(ctx, thisWeekQuery, userID).Scan(&stats.SessionsThisWeek)
-	if err != nil {
-		slog.Error("Failed to count sessions this week", "error", err)
-		stats.SessionsThisWeek = 0
-	}
+	scanStatOrZero(ctx, r.db, cursorIDEOverviewThisWeekQuery, userID,
+		"Failed to count sessions this week", &stats.SessionsThisWeek)
 
 	// Get sessions last week (8-14 days ago)
-	lastWeekQuery := `SELECT COUNT(DISTINCT session_id) FROM cursor_ide_hooks_payload
-		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '14 day'
-		AND created_at < CURRENT_DATE - INTERVAL '7 day'`
-	err = r.db.QueryRowContext(ctx, lastWeekQuery, userID).Scan(&stats.SessionsLastWeek)
-	if err != nil {
-		slog.Error("Failed to count sessions last week", "error", err)
-		stats.SessionsLastWeek = 0
-	}
+	scanStatOrZero(ctx, r.db, cursorIDEOverviewLastWeekQuery, userID,
+		"Failed to count sessions last week", &stats.SessionsLastWeek)
 
 	// Calculate weekly trend percentage
-	if stats.SessionsLastWeek > 0 {
-		stats.WeeklyTrendPercent = float64(stats.SessionsThisWeek-stats.SessionsLastWeek) /
-			float64(stats.SessionsLastWeek) * 100
-	} else if stats.SessionsThisWeek > 0 {
-		stats.WeeklyTrendPercent = 100.0 // 100% increase from 0
-	}
+	stats.WeeklyTrendPercent = weeklyTrendPercent(stats.SessionsThisWeek, stats.SessionsLastWeek)
 
 	// Get average user prompts per session (assuming tool:start events are prompts)
-	avgPromptsQuery := `
-		SELECT COALESCE(AVG(prompt_count), 0) as avg_prompts
-		FROM (
-			SELECT session_id, COUNT(*) as prompt_count
-			FROM cursor_ide_hooks_payload
-			WHERE user_id = $1 AND hook_event_name = 'tool:start'
-			GROUP BY session_id
-		) as session_prompts`
-	err = r.db.QueryRowContext(ctx, avgPromptsQuery, userID).Scan(&stats.AvgUserPromptsPerSession)
-	if err != nil {
-		slog.Error("Failed to calculate average prompts per session", "error", err)
-		stats.AvgUserPromptsPerSession = 0
-	}
+	scanStatOrZero(ctx, r.db, cursorIDEOverviewAvgPromptsQuery, userID,
+		"Failed to calculate average prompts per session", &stats.AvgUserPromptsPerSession)
 
 	// Get total unique tools
-	uniqueToolsQuery := "SELECT COUNT(DISTINCT tool_name) FROM cursor_ide_hooks_payload " +
-		"WHERE user_id = $1 AND tool_name IS NOT NULL"
-	err = r.db.QueryRowContext(ctx, uniqueToolsQuery, userID).Scan(&stats.TotalUniqueTools)
-	if err != nil {
-		slog.Error("Failed to count unique tools", "error", err)
-		stats.TotalUniqueTools = 0
-	}
+	scanStatOrZero(ctx, r.db, cursorIDEOverviewUniqueToolsQuery, userID,
+		"Failed to count unique tools", &stats.TotalUniqueTools)
 
 	// Get top 3 tools
-	topToolsQuery := `
-		SELECT tool_name, COUNT(*) as usage_count
-		FROM cursor_ide_hooks_payload
-		WHERE user_id = $1 AND tool_name IS NOT NULL
-		GROUP BY tool_name
-		ORDER BY usage_count DESC
-		LIMIT 3`
-	topToolsRows, err := r.db.QueryContext(ctx, topToolsQuery, userID)
-	if err != nil {
-		slog.Error("Failed to query top tools", "error", err)
-		stats.TopTools = []models.ToolUsageCount{}
-	} else {
-		defer func() {
-			if closeErr := topToolsRows.Close(); closeErr != nil {
-				slog.Error("Failed to close rows", "error", closeErr)
-			}
-		}()
-		var topTools []models.ToolUsageCount
-		for topToolsRows.Next() {
-			var tool models.ToolUsageCount
-			scanErr := topToolsRows.Scan(&tool.ToolName, &tool.Count)
-			if scanErr != nil {
-				slog.Error("Failed to scan top tool row", "error", scanErr)
-				continue
-			}
-			topTools = append(topTools, tool)
-		}
-		if topTools == nil {
-			topTools = []models.ToolUsageCount{}
-		}
-		stats.TopTools = topTools
-	}
+	stats.TopTools = queryTopToolUsage(ctx, r.db, cursorIDEOverviewTopToolsQuery, userID)
 
 	// Get average session duration
-	avgDurationQuery := `
-		SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (last_seen - first_seen))/60), 0) as avg_duration_minutes
-		FROM (
-			SELECT session_id, MIN(created_at) as first_seen, MAX(created_at) as last_seen
-			FROM cursor_ide_hooks_payload
-			WHERE user_id = $1
-			GROUP BY session_id
-			HAVING MIN(created_at) != MAX(created_at)
-		) as session_durations`
-	err = r.db.QueryRowContext(ctx, avgDurationQuery, userID).Scan(&stats.AvgSessionDurationMinutes)
-	if err != nil {
-		slog.Error("Failed to calculate average session duration", "error", err)
-		stats.AvgSessionDurationMinutes = 0
-	}
+	scanStatOrZero(ctx, r.db, cursorIDEOverviewAvgDurationQuery, userID,
+		"Failed to calculate average session duration", &stats.AvgSessionDurationMinutes)
 
 	return &stats, nil
-	//nolint:gocognit // Repository code with necessary complexity
 }
 
 // buildCursorRecentActivitiesConditions builds the shared WHERE conditions for

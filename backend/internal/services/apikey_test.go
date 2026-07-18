@@ -15,18 +15,39 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
-//nolint:funlen,gocognit,gocyclo // Test function requires comprehensive setup and assertions
+// generateAPIKeyCase is one GenerateAPIKeyLegacy table case.
+type generateAPIKeyCase struct {
+	name        string
+	userID      string
+	keyName     string
+	usageType   string
+	setupMocks  func(*mocks.MockAPIKeyRepository)
+	expectError bool
+	errorMsg    string
+	validateKey func(*testing.T, *models.APIKey, string)
+}
+
+// assertGeneratedAPIKey verifies one GenerateAPIKeyLegacy table case outcome.
+func assertGeneratedAPIKey(t *testing.T, tt generateAPIKeyCase, apiKey *models.APIKey, fullKey string, err error) {
+	t.Helper()
+	if tt.expectError {
+		assert.Error(t, err)
+		if tt.errorMsg != "" {
+			assert.Contains(t, err.Error(), tt.errorMsg)
+		}
+		assert.Nil(t, apiKey)
+		assert.Empty(t, fullKey)
+		return
+	}
+	assert.NoError(t, err)
+	if tt.validateKey != nil {
+		tt.validateKey(t, apiKey, fullKey)
+	}
+}
+
+//nolint:funlen // Test function requires comprehensive setup and assertions
 func TestAPIKeyService_GenerateAPIKey_New(t *testing.T) {
-	tests := []struct {
-		name        string
-		userID      string
-		keyName     string
-		usageType   string
-		setupMocks  func(*mocks.MockAPIKeyRepository)
-		expectError bool
-		errorMsg    string
-		validateKey func(*testing.T, *models.APIKey, string)
-	}{
+	tests := []generateAPIKeyCase{
 		{
 			name:      "successful generation with everything type",
 			userID:    "user-123",
@@ -166,19 +187,7 @@ func TestAPIKeyService_GenerateAPIKey_New(t *testing.T) {
 			ctx := context.Background()
 			apiKey, fullKey, err := service.GenerateAPIKeyLegacy(ctx, tt.userID, tt.keyName, tt.usageType)
 
-			if tt.expectError {
-				assert.Error(t, err)
-				if tt.errorMsg != "" {
-					assert.Contains(t, err.Error(), tt.errorMsg)
-				}
-				assert.Nil(t, apiKey)
-				assert.Empty(t, fullKey)
-			} else {
-				assert.NoError(t, err)
-				if tt.validateKey != nil {
-					tt.validateKey(t, apiKey, fullKey)
-				}
-			}
+			assertGeneratedAPIKey(t, tt, apiKey, fullKey, err)
 
 			mockRepo.AssertExpectations(t)
 		})

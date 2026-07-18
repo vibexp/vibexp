@@ -39,6 +39,20 @@ func TestRequiredResponseArraysNeverNull(t *testing.T) {
 	}
 
 	// 1. Completeness: every required-array schema is accounted for.
+	assertRequiredArraySchemasAccounted(t, fields)
+
+	// 2. By construction: each registered type marshals its required arrays as [].
+	assertRegistryMarshalsEmptyArrays(t, fields)
+
+	// 3. Keep the allowlist honest: an entry whose schema no longer has a
+	//    required array (or was renamed) must be removed.
+	assertAllowlistEntriesStillRequired(t, fields)
+}
+
+// assertRequiredArraySchemasAccounted checks every required-array schema in the
+// spec is registered (JSONArray-protected), allowlisted, or request-only.
+func assertRequiredArraySchemasAccounted(t *testing.T, fields map[string][]string) {
+	t.Helper()
 	for schema := range fields {
 		if _, ok := requestOnlyRequiredArraySchemas[schema]; ok {
 			continue
@@ -52,8 +66,12 @@ func TestRequiredResponseArraysNeverNull(t *testing.T) {
 				"construction, never null (issue #125).", schema, fields[schema])
 		}
 	}
+}
 
-	// 2. By construction: each registered type marshals its required arrays as [].
+// assertRegistryMarshalsEmptyArrays marshals each registered type's zero value
+// and checks every spec-required array field serializes as [].
+func assertRegistryMarshalsEmptyArrays(t *testing.T, fields map[string][]string) {
+	t.Helper()
 	for schema, proto := range requiredArrayResponseRegistry {
 		want, ok := fields[schema]
 		if !ok {
@@ -71,20 +89,29 @@ func TestRequiredResponseArraysNeverNull(t *testing.T) {
 			continue
 		}
 		for _, field := range want {
-			raw, present := m[field]
-			if !present {
-				t.Errorf("registry %q: required array field %q is absent from the marshaled zero value", schema, field)
-				continue
-			}
-			if string(raw) != "[]" {
-				t.Errorf("registry %q: required array field %q serialized as %s from a zero value; "+
-					"want []. Use models.JSONArray[T] for this field (issue #125).", schema, field, raw)
-			}
+			assertRequiredFieldIsEmptyArray(t, schema, field, m)
 		}
 	}
+}
 
-	// 3. Keep the allowlist honest: an entry whose schema no longer has a
-	//    required array (or was renamed) must be removed.
+// assertRequiredFieldIsEmptyArray checks one required array field marshaled as [].
+func assertRequiredFieldIsEmptyArray(t *testing.T, schema, field string, m map[string]json.RawMessage) {
+	t.Helper()
+	raw, present := m[field]
+	if !present {
+		t.Errorf("registry %q: required array field %q is absent from the marshaled zero value", schema, field)
+		return
+	}
+	if string(raw) != "[]" {
+		t.Errorf("registry %q: required array field %q serialized as %s from a zero value; "+
+			"want []. Use models.JSONArray[T] for this field (issue #125).", schema, field, raw)
+	}
+}
+
+// assertAllowlistEntriesStillRequired fails on allowlist/request-only entries
+// whose schema no longer has a required array in the spec.
+func assertAllowlistEntriesStillRequired(t *testing.T, fields map[string][]string) {
+	t.Helper()
 	for schema := range adHocRequiredArrayAllowlist {
 		if _, ok := fields[schema]; !ok {
 			t.Errorf("allowlist entry %q is no longer a required-array schema in the spec — remove it", schema)

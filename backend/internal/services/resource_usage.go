@@ -260,11 +260,20 @@ func (s *ResourceUsageService) getAIToolSessionCounts(ctx context.Context, userI
 	return claudeCount, cursorCount, nil
 }
 
+// teamQuotaContribution is one team's quota contribution as computed by
+// membershipQuotaContribution; unlimited=true means the user gets unlimited quota.
+type teamQuotaContribution struct {
+	quota        int
+	unlimited    bool
+	planName     string
+	baseQuota    int
+	perSeatBonus int
+	seatCount    int
+}
+
 // getTeamQuotaContribution calculates total quota contribution from all team subscriptions
 // It aggregates base quotas and per-seat bonuses from all active team subscriptions
 // Personal workspaces and inactive subscriptions are excluded
-//
-//nolint:gocognit,gocyclo,funlen // Complex business logic for team quota calculation
 func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, userID, resourceType string) (int, error) {
 	// Get all team memberships for the user
 	memberships, err := s.teamMemberRepo.GetByUserID(ctx, userID)
@@ -276,148 +285,207 @@ func (s *ResourceUsageService) getTeamQuotaContribution(ctx context.Context, use
 
 	// Iterate through each team membership
 	for _, membership := range memberships {
-		// Get team details to check if it's a personal workspace
-		team, err := s.teamRepo.GetByID(ctx, membership.TeamID)
+		contribution, err := s.membershipQuotaContribution(ctx, userID, membership.TeamID, resourceType)
 		if err != nil {
-			s.logger.With("error", err).
-				With(
-					"user_id", userID,
-					"team_id", membership.TeamID,
-				).
-				Warn("Failed to get team details for quota calculation")
+			return 0, err
+		}
+		if contribution == nil {
 			continue
 		}
-
-		// Skip personal workspaces (they don't contribute to team quotas)
-		if team.IsPersonal {
-			continue
-		}
-
-		// Get team subscription
-		teamSub, err := s.teamSubscriptionRepo.GetByTeamID(ctx, membership.TeamID)
-		if err != nil {
-			// Team might not have a subscription yet, skip gracefully
-			s.logger.With(
-				"user_id", userID,
-				"team_id", membership.TeamID,
-			).
-				Debug("Team has no subscription, skipping quota contribution")
-			continue
-		}
-
-		// Only count active subscriptions (active or trialing)
-		if !teamSub.IsActiveForQuotas() {
-			continue
-		}
-
-		// Map team tier to plan constant
-		var planName string
-		switch teamSub.Tier {
-		case models.TeamTierStarter:
-			planName = models.PlanTeamsStarter
-		case models.TeamTierProfessional:
-			planName = models.PlanTeamsProfessional
-		case models.TeamTierEnterprise:
-			planName = models.PlanTeamsEnterprise
-		default:
-			s.logger.With(
-				"user_id", userID,
-				"team_id", membership.TeamID,
-				"tier", teamSub.Tier,
-			).
-				Warn("Unknown team tier, skipping quota contribution")
-			continue
-		}
-
-		// Calculate team quota: base + (per-seat bonus × seats_purchased)
-		// Use shared quota calculation from models.GetTeamResourceQuota
-		baseQuota, perSeatBonus := models.GetTeamResourceQuota(teamSub.Tier, resourceType)
-
-		// HIGH-02: Validate no invalid negative values (except -1 unlimited)
-		if baseQuota < -1 || perSeatBonus < 0 {
-			s.logger.With(
-				"user_id", userID,
-				"team_id", membership.TeamID,
-				"base_quota", baseQuota,
-				"per_seat_bonus", perSeatBonus,
-			).Error("Invalid negative quota values detected")
-			continue
-		}
-
-		// Handle unlimited (-1) quotas before calculation
-		if baseQuota == -1 {
+		if contribution.unlimited {
 			return -1, nil // If any team has unlimited, user gets unlimited
 		}
 
-		// CRITICAL-01: Check for integer overflow in per-seat calculation
-		if teamSub.SeatCount > 0 && perSeatBonus > 0 {
-			// Prevent overflow: check if multiplication would exceed max int
-			const maxInt = int(^uint(0) >> 1)
-			if perSeatBonus > (maxInt / teamSub.SeatCount) {
-				s.logger.With(
-					"user_id", userID,
-					"team_id", membership.TeamID,
-					"per_seat_bonus", perSeatBonus,
-					"seat_count", teamSub.SeatCount,
-				).Error("Integer overflow detected in per-seat quota calculation")
-				return 0, fmt.Errorf("quota calculation would overflow for team %s", membership.TeamID)
-			}
-		}
-
-		teamQuota := baseQuota + (perSeatBonus * teamSub.SeatCount)
-
-		// HIGH-03: Comprehensive unlimited quota detection
-		if teamQuota == -1 {
-			s.logger.With(
-				"user_id", userID,
-				"team_id", membership.TeamID,
-				"team_quota", teamQuota,
-			).
-				Debug("Team has unlimited quota for resource type")
-			return -1, nil
-		}
-
-		// HIGH-02: Validate calculated quota is non-negative
-		if teamQuota < 0 {
-			s.logger.With(
-				"user_id", userID,
-				"team_id", membership.TeamID,
-				"team_quota", teamQuota,
-			).
-				Error("Calculated team quota is negative")
-			continue
-		}
-
 		// CRITICAL-01: Check for overflow when accumulating total
-		if totalTeamQuota > 0 && teamQuota > 0 {
-			const maxInt = int(^uint(0) >> 1)
-			if teamQuota > (maxInt - totalTeamQuota) {
-				s.logger.With(
-					"user_id", userID,
-					"total_team_quota", totalTeamQuota,
-					"new_team_quota", teamQuota,
-				).
-					Error("Integer overflow detected in total team quota accumulation")
-				// Return current total, skip this team to prevent overflow
-				return totalTeamQuota, nil
-			}
+		newTotal, ok := s.accumulateTeamQuota(userID, totalTeamQuota, contribution.quota)
+		if !ok {
+			// Return current total, skip this team to prevent overflow
+			return totalTeamQuota, nil
 		}
-
-		totalTeamQuota += teamQuota
+		totalTeamQuota = newTotal
 
 		s.logger.With(
 			"user_id", userID,
 			"team_id", membership.TeamID,
 			"resource_type", resourceType,
-			"plan", planName,
-			"base_quota", baseQuota,
-			"per_seat_bonus", perSeatBonus,
-			"seat_count", teamSub.SeatCount,
-			"team_quota", teamQuota,
+			"plan", contribution.planName,
+			"base_quota", contribution.baseQuota,
+			"per_seat_bonus", contribution.perSeatBonus,
+			"seat_count", contribution.seatCount,
+			"team_quota", contribution.quota,
 		).Debug("Calculated team quota contribution")
 	}
 
 	return totalTeamQuota, nil
+}
+
+// membershipQuotaContribution computes one team's quota contribution for the user.
+// A nil contribution (with nil error) means the team is skipped: personal workspace,
+// no/inactive subscription, unknown tier, or invalid quota values.
+func (s *ResourceUsageService) membershipQuotaContribution(
+	ctx context.Context, userID, teamID, resourceType string,
+) (*teamQuotaContribution, error) {
+	// Get team details to check if it's a personal workspace
+	team, err := s.teamRepo.GetByID(ctx, teamID)
+	if err != nil {
+		s.logger.With("error", err).
+			With(
+				"user_id", userID,
+				"team_id", teamID,
+			).
+			Warn("Failed to get team details for quota calculation")
+		return nil, nil
+	}
+
+	// Skip personal workspaces (they don't contribute to team quotas)
+	if team.IsPersonal {
+		return nil, nil
+	}
+
+	// Get team subscription
+	teamSub, err := s.teamSubscriptionRepo.GetByTeamID(ctx, teamID)
+	if err != nil {
+		// Team might not have a subscription yet, skip gracefully
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+		).
+			Debug("Team has no subscription, skipping quota contribution")
+		return nil, nil
+	}
+
+	// Only count active subscriptions (active or trialing)
+	if !teamSub.IsActiveForQuotas() {
+		return nil, nil
+	}
+
+	// Map team tier to plan constant
+	planName, ok := teamPlanNameForTier(teamSub.Tier)
+	if !ok {
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"tier", teamSub.Tier,
+		).
+			Warn("Unknown team tier, skipping quota contribution")
+		return nil, nil
+	}
+
+	return s.computeTeamQuota(userID, teamID, resourceType, planName, teamSub)
+}
+
+// computeTeamQuota calculates a team's quota (base + per-seat bonus × seats) with the
+// overflow and validity guards from the original implementation (CRITICAL-01/HIGH-02/HIGH-03).
+func (s *ResourceUsageService) computeTeamQuota(
+	userID, teamID, resourceType, planName string,
+	teamSub *models.TeamSubscription,
+) (*teamQuotaContribution, error) {
+	// Calculate team quota: base + (per-seat bonus × seats_purchased)
+	// Use shared quota calculation from models.GetTeamResourceQuota
+	baseQuota, perSeatBonus := models.GetTeamResourceQuota(teamSub.Tier, resourceType)
+
+	// HIGH-02: Validate no invalid negative values (except -1 unlimited)
+	if baseQuota < -1 || perSeatBonus < 0 {
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"base_quota", baseQuota,
+			"per_seat_bonus", perSeatBonus,
+		).Error("Invalid negative quota values detected")
+		return nil, nil
+	}
+
+	// Handle unlimited (-1) quotas before calculation
+	if baseQuota == -1 {
+		return &teamQuotaContribution{unlimited: true}, nil
+	}
+
+	// CRITICAL-01: Check for integer overflow in per-seat calculation
+	if err := s.checkPerSeatQuotaOverflow(userID, teamID, perSeatBonus, teamSub.SeatCount); err != nil {
+		return nil, err
+	}
+
+	teamQuota := baseQuota + (perSeatBonus * teamSub.SeatCount)
+
+	// HIGH-03: Comprehensive unlimited quota detection
+	if teamQuota == -1 {
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"team_quota", teamQuota,
+		).
+			Debug("Team has unlimited quota for resource type")
+		return &teamQuotaContribution{unlimited: true}, nil
+	}
+
+	// HIGH-02: Validate calculated quota is non-negative
+	if teamQuota < 0 {
+		s.logger.With(
+			"user_id", userID,
+			"team_id", teamID,
+			"team_quota", teamQuota,
+		).
+			Error("Calculated team quota is negative")
+		return nil, nil
+	}
+
+	return &teamQuotaContribution{
+		quota:        teamQuota,
+		planName:     planName,
+		baseQuota:    baseQuota,
+		perSeatBonus: perSeatBonus,
+		seatCount:    teamSub.SeatCount,
+	}, nil
+}
+
+// checkPerSeatQuotaOverflow guards the per-seat multiplication against integer overflow.
+func (s *ResourceUsageService) checkPerSeatQuotaOverflow(userID, teamID string, perSeatBonus, seatCount int) error {
+	if seatCount > 0 && perSeatBonus > 0 {
+		// Prevent overflow: check if multiplication would exceed max int
+		const maxInt = int(^uint(0) >> 1)
+		if perSeatBonus > (maxInt / seatCount) {
+			s.logger.With(
+				"user_id", userID,
+				"team_id", teamID,
+				"per_seat_bonus", perSeatBonus,
+				"seat_count", seatCount,
+			).Error("Integer overflow detected in per-seat quota calculation")
+			return fmt.Errorf("quota calculation would overflow for team %s", teamID)
+		}
+	}
+	return nil
+}
+
+// accumulateTeamQuota adds one team's quota to the running total, returning ok=false
+// (and leaving the total unchanged) when the addition would overflow.
+func (s *ResourceUsageService) accumulateTeamQuota(userID string, totalTeamQuota, teamQuota int) (int, bool) {
+	if totalTeamQuota > 0 && teamQuota > 0 {
+		const maxInt = int(^uint(0) >> 1)
+		if teamQuota > (maxInt - totalTeamQuota) {
+			s.logger.With(
+				"user_id", userID,
+				"total_team_quota", totalTeamQuota,
+				"new_team_quota", teamQuota,
+			).
+				Error("Integer overflow detected in total team quota accumulation")
+			return totalTeamQuota, false
+		}
+	}
+	return totalTeamQuota + teamQuota, true
+}
+
+// teamPlanNameForTier maps a team subscription tier to its plan constant.
+func teamPlanNameForTier(tier string) (string, bool) {
+	switch tier {
+	case models.TeamTierStarter:
+		return models.PlanTeamsStarter, true
+	case models.TeamTierProfessional:
+		return models.PlanTeamsProfessional, true
+	case models.TeamTierEnterprise:
+		return models.PlanTeamsEnterprise, true
+	default:
+		return "", false
+	}
 }
 
 // GetResourceUsage gets resource usage information for a user
