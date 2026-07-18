@@ -29,18 +29,8 @@ const schema = z.object({
     .max(255)
     .regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers, and dashes only'),
   description: z.string().max(500).optional(),
-  git_url: z
-    .string()
-    .trim()
-    .url('Must be a valid URL')
-    .optional()
-    .or(z.literal('')),
-  homepage: z
-    .string()
-    .trim()
-    .url('Must be a valid URL')
-    .optional()
-    .or(z.literal('')),
+  git_url: z.url('Must be a valid URL').trim().optional().or(z.literal('')),
+  homepage: z.url('Must be a valid URL').trim().optional().or(z.literal('')),
 })
 
 export type ProjectFormValues = z.infer<typeof schema>

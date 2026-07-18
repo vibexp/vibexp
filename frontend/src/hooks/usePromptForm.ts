@@ -30,7 +30,7 @@ interface UsePromptFormReturn {
   setErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>
   projects: Project[]
   projectsLoading: boolean
-  handleSubmit: (e: React.FormEvent) => Promise<void>
+  handleSubmit: (e: React.SubmitEvent) => Promise<void>
   handleNameChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   handleAddLabel: () => void
   handleRemoveLabel: (labelToRemove: string) => void
@@ -144,7 +144,7 @@ export function usePromptForm({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+  const handleSubmit = async (e: React.SubmitEvent): Promise<void> => {
     e.preventDefault()
 
     if (!validateForm()) {

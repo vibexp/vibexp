@@ -1,8 +1,8 @@
-import { Github } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { GitHubIcon } from '@/components/icons/GitHubIcon'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
@@ -267,7 +267,7 @@ export function GitHubIntegration() {
         actions={
           !status?.installed && (
             <Button onClick={handleConnect}>
-              <Github className="mr-2 size-4" />
+              <GitHubIcon className="mr-2 size-4" />
               Connect GitHub
             </Button>
           )

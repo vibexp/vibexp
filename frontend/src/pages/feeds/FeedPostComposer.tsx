@@ -105,7 +105,7 @@ export function FeedPostComposer({
     setExpanded(false)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault()
     setTouched(true)
 

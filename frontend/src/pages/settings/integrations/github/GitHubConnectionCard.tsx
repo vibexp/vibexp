@@ -1,6 +1,7 @@
-import { AlertTriangle, ChevronDown, Github } from 'lucide-react'
+import { AlertTriangle, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 
+import { GitHubIcon } from '@/components/icons/GitHubIcon'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -42,7 +43,7 @@ export function GitHubConnectionCard({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Github className="size-5" />
+            <GitHubIcon className="size-5" />
             GitHub Connection
           </CardTitle>
         </CardHeader>
@@ -59,7 +60,7 @@ export function GitHubConnectionCard({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Github className="size-5" />
+            <GitHubIcon className="size-5" />
             GitHub Connection
           </CardTitle>
           <CardDescription>
@@ -93,7 +94,7 @@ export function GitHubConnectionCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Github className="size-5" />
+          <GitHubIcon className="size-5" />
           GitHub Connection
         </CardTitle>
       </CardHeader>

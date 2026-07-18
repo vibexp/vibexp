@@ -5,14 +5,14 @@ import {
   Bot,
   Cpu,
   FolderKanban,
-  Github,
   Key,
-  type LucideIcon,
   Shapes,
   Users,
 } from 'lucide-react'
+import type { ComponentType } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { GitHubIcon } from '@/components/icons/GitHubIcon'
 import { PageHeader } from '@/components/PageHeader'
 import {
   Card,
@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils'
 interface SettingItem {
   title: string
   description: string
-  icon: LucideIcon
+  icon: ComponentType<{ className?: string }>
   href: string
 }
 
@@ -70,7 +70,7 @@ const INTEGRATION: SettingItem[] = [
   {
     title: 'GitHub Integration',
     description: 'Connect GitHub repositories to your team workspace.',
-    icon: Github,
+    icon: GitHubIcon,
     href: '/settings/integrations/github',
   },
 ]
