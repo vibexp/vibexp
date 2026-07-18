@@ -94,6 +94,46 @@ describe('AuthContext (cookie-based auth)', () => {
         expect(mockAuthService.getCurrentUser).toHaveBeenCalledTimes(1)
       })
 
+      it('preserves is_instance_admin when completing onboarding', async () => {
+        // /auth/me returns a CurrentUser (admin, onboarding not yet done)...
+        const adminUser: CurrentUser = {
+          ...mockUser,
+          onboarding_completed: false,
+          is_instance_admin: true,
+        }
+        mockAuthService.getCurrentUser.mockResolvedValue(adminUser)
+        // ...but the onboarding endpoint returns the base `User` (no admin flag).
+        mockAuthService.markOnboardingComplete.mockResolvedValue({
+          id: mockUser.id,
+          google_id: mockUser.google_id,
+          email: mockUser.email,
+          name: mockUser.name,
+          avatar_url: mockUser.avatar_url,
+          created_at: mockUser.created_at,
+          updated_at: mockUser.updated_at,
+          onboarding_completed: true,
+          subscription_status: mockUser.subscription_status,
+          version: mockUser.version,
+        })
+
+        const { result } = renderHook(() => useAuth(), {
+          wrapper: AuthProvider,
+        })
+
+        await waitFor(() => {
+          expect(result.current.isLoading).toBe(false)
+        })
+        expect(result.current.user?.is_instance_admin).toBe(true)
+
+        await act(async () => {
+          await result.current.markOnboardingComplete()
+        })
+
+        // The update lands, and the admin flag survives the merge.
+        expect(result.current.user?.onboarding_completed).toBe(true)
+        expect(result.current.user?.is_instance_admin).toBe(true)
+      })
+
       it('should initialize with authenticated user when session cookie is valid', async () => {
         mockAuthService.getCurrentUser.mockResolvedValue(mockUser)
 
