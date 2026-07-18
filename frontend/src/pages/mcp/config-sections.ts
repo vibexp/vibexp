@@ -17,10 +17,13 @@ export interface ConfigSection {
  * the same client without colliding keys.
  */
 export function buildMcpServerName(teamName: string): string {
+  // The previous replace collapses runs to a single '_', so trimming one
+  // leading/trailing underscore suffices (and avoids a backtracking-prone
+  // `_+$` pattern).
   const slug = teamName
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
+    .replace(/^_|_$/g, '')
   return `vibexp_io_${slug || 'workspace'}`
 }
 

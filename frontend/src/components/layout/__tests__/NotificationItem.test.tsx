@@ -87,20 +87,12 @@ describe('NotificationItem', () => {
     expect(link).toHaveAttribute('href', '/feeds/1')
   })
 
-  it('renders as a button for a javascript: URL (no navigation)', () => {
-    renderItem(makeNotification({ action_url: 'javascript:alert(1)' }))
-    expect(screen.queryByRole('link')).not.toBeInTheDocument()
-    expect(screen.getByRole('button')).toBeInTheDocument()
-  })
-
-  it('renders as a button for a data: URL (no navigation)', () => {
-    renderItem(makeNotification({ action_url: 'data:text/html,<h1>x</h1>' }))
-    expect(screen.queryByRole('link')).not.toBeInTheDocument()
-    expect(screen.getByRole('button')).toBeInTheDocument()
-  })
-
-  it('renders as a button for an empty action_url', () => {
-    renderItem(makeNotification({ action_url: '' }))
+  it.each([
+    ['a javascript: URL', 'javascript:alert(1)'],
+    ['a data: URL', 'data:text/html,<h1>x</h1>'],
+    ['an empty action_url', ''],
+  ])('renders as a button for %s (no navigation)', (_label, actionUrl) => {
+    renderItem(makeNotification({ action_url: actionUrl }))
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
     expect(screen.getByRole('button')).toBeInTheDocument()
   })

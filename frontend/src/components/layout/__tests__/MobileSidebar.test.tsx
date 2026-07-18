@@ -159,63 +159,34 @@ describe('MobileSidebar', () => {
       expect(screen.getByText('Prompts')).toBeInTheDocument()
     })
 
-    it('"Claude Code" child is hidden (data-state=closed) when route is "/"', () => {
-      renderWithRouter(['/'])
-      // Radix Collapsible mounts the content but sets data-state="closed".
-      const el = screen.queryByText('Claude Code')
-      if (el) {
-        const content = el.closest('[data-state]')
-        expect(content).toHaveAttribute('data-state', 'closed')
-      } else {
-        // Not rendered at all is also correct collapsed behaviour.
-        expect(el).toBeNull()
+    it.each(['Claude Code', 'Cursor IDE', 'My Prompts'])(
+      '"%s" child is hidden (data-state=closed) when route is "/"',
+      childLabel => {
+        renderWithRouter(['/'])
+        // Radix Collapsible mounts the content but sets data-state="closed".
+        const el = screen.queryByText(childLabel)
+        if (el) {
+          const content = el.closest('[data-state]')
+          expect(content).toHaveAttribute('data-state', 'closed')
+        } else {
+          // Not rendered at all is also correct collapsed behaviour.
+          expect(el).toBeNull()
+        }
       }
-    })
-
-    it('"Cursor IDE" child is hidden when route is "/"', () => {
-      renderWithRouter(['/'])
-      const el = screen.queryByText('Cursor IDE')
-      if (el) {
-        const content = el.closest('[data-state]')
-        expect(content).toHaveAttribute('data-state', 'closed')
-      } else {
-        expect(el).toBeNull()
-      }
-    })
-
-    it('"My Prompts" child is hidden when route is "/"', () => {
-      renderWithRouter(['/'])
-      const el = screen.queryByText('My Prompts')
-      if (el) {
-        const content = el.closest('[data-state]')
-        expect(content).toHaveAttribute('data-state', 'closed')
-      } else {
-        expect(el).toBeNull()
-      }
-    })
+    )
   })
 
   // -------------------------------------------------------------------------
   // Group is defaultOpen when route matches a child
   // -------------------------------------------------------------------------
   describe('group is defaultOpen when current route matches a child', () => {
-    it('opens "AI Tools" group when route is /ai-tools/claude-code/overview', () => {
-      renderWithRouter(['/ai-tools/claude-code/overview'])
-      const el = screen.getByText('Claude Code')
-      const content = el.closest('[data-state]')
-      expect(content).toHaveAttribute('data-state', 'open')
-    })
-
-    it('opens "AI Tools" group when route is /ai-tools/cursor-ide/overview', () => {
-      renderWithRouter(['/ai-tools/cursor-ide/overview'])
-      const el = screen.getByText('Cursor IDE')
-      const content = el.closest('[data-state]')
-      expect(content).toHaveAttribute('data-state', 'open')
-    })
-
-    it('opens "Prompts" group when route is /prompt-gallery', () => {
-      renderWithRouter(['/prompt-gallery'])
-      const el = screen.getByText('Prompt Gallery')
+    it.each([
+      ['AI Tools', '/ai-tools/claude-code/overview', 'Claude Code'],
+      ['AI Tools', '/ai-tools/cursor-ide/overview', 'Cursor IDE'],
+      ['Prompts', '/prompt-gallery', 'Prompt Gallery'],
+    ])('opens "%s" group when route is %s', (_group, route, childLabel) => {
+      renderWithRouter([route])
+      const el = screen.getByText(childLabel)
       const content = el.closest('[data-state]')
       expect(content).toHaveAttribute('data-state', 'open')
     })

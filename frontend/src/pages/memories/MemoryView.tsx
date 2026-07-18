@@ -48,7 +48,6 @@ function extractTags(meta?: Record<string, unknown>): string[] {
 function extractExtras(meta?: Record<string, unknown>) {
   if (!meta) return {}
   const { tags: _tags, ...rest } = meta
-  void _tags
   return rest
 }
 

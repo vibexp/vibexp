@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react'
-import { createContext, useContext, useEffect, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 
 import { STORAGE_KEYS } from '../constants/storageKeys'
 import type { Team } from '../services/teamService'
@@ -28,12 +35,12 @@ interface TeamProviderProps {
 }
 
 export function TeamProvider({ children }: Readonly<TeamProviderProps>) {
-  const [currentTeam, setCurrentTeamState] = useState<Team | null>(null)
+  const [currentTeam, setCurrentTeam] = useState<Team | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Fetch teams function (extracted for reuse)
-  const fetchTeams = async (): Promise<Team[]> => {
+  // Fetch teams function (extracted for reuse; also serves as `refreshTeams`)
+  const fetchTeams = useCallback(async (): Promise<Team[]> => {
     try {
       setIsLoading(true)
       const fetchedTeams = await teamService.getTeams()
@@ -46,15 +53,15 @@ export function TeamProvider({ children }: Readonly<TeamProviderProps>) {
         // Find the stored team in the fetched teams
         const storedTeam = fetchedTeams.find(t => t.id === storedTeamId)
         if (storedTeam) {
-          setCurrentTeamState(storedTeam)
+          setCurrentTeam(storedTeam)
         } else {
           // Stored team not found (maybe user left the team), default to first
-          setCurrentTeamState(fetchedTeams[0])
+          setCurrentTeam(fetchedTeams[0])
           saveTeamId(fetchedTeams[0].id)
         }
       } else if (fetchedTeams.length > 0) {
         // No stored team, default to first team
-        setCurrentTeamState(fetchedTeams[0])
+        setCurrentTeam(fetchedTeams[0])
         saveTeamId(fetchedTeams[0].id)
       }
       return fetchedTeams
@@ -64,29 +71,26 @@ export function TeamProvider({ children }: Readonly<TeamProviderProps>) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   // Fetch teams on mount
   useEffect(() => {
     void fetchTeams()
-  }, [])
+  }, [fetchTeams])
 
-  const setCurrentTeam = (team: Team) => {
-    setCurrentTeamState(team)
-    saveTeamId(team.id)
-  }
-
-  const refreshTeams = async (): Promise<Team[]> => {
-    return fetchTeams()
-  }
-
-  const value: TeamContextValue = {
-    currentTeam,
-    teams,
-    setCurrentTeam,
-    refreshTeams,
-    isLoading,
-  }
+  const value = useMemo<TeamContextValue>(
+    () => ({
+      currentTeam,
+      teams,
+      setCurrentTeam: (team: Team) => {
+        setCurrentTeam(team)
+        saveTeamId(team.id)
+      },
+      refreshTeams: fetchTeams,
+      isLoading,
+    }),
+    [currentTeam, teams, isLoading, fetchTeams]
+  )
 
   return <TeamContext.Provider value={value}>{children}</TeamContext.Provider>
 }

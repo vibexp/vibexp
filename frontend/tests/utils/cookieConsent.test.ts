@@ -235,49 +235,35 @@ describe('cookieConsent', () => {
       expect(hasCookieConsentDecision()).toBe(true)
     })
 
-    it('should return false for expired declined consent (>= 7 days)', () => {
+    it.each([
+      {
+        scenario: 'expired declined consent (>= 7 days)',
+        daysAgo: 8,
+        expected: false,
+      },
+      {
+        scenario: 'the 7 days boundary (consent expires at 7 days)',
+        daysAgo: 7,
+        expected: false,
+      },
+      {
+        scenario: 'declined consent at 6.99 days',
+        daysAgo: 6.99,
+        expected: true,
+      },
+    ])('should return $expected for $scenario', ({ daysAgo, expected }) => {
       denyCookieConsent()
 
-      // Manually set timestamp to 8 days ago
+      // Manually age the stored consent timestamp
       const store = getInternalStore()
       const consentData = JSON.parse(store[STORAGE_KEYS.COOKIE_CONSENT]!) as {
         status: string
         timestamp: number
       }
-      consentData.timestamp = Date.now() - 8 * 24 * 60 * 60 * 1000 // 8 days ago
+      consentData.timestamp = Date.now() - daysAgo * 24 * 60 * 60 * 1000
       mockSet(STORAGE_KEYS.COOKIE_CONSENT, consentData)
 
-      expect(hasCookieConsentDecision()).toBe(false)
-    })
-
-    it('should return false exactly at 7 days boundary (consent expires at 7 days)', () => {
-      denyCookieConsent()
-
-      // Manually set timestamp to exactly 7 days ago
-      const store = getInternalStore()
-      const consentData = JSON.parse(store[STORAGE_KEYS.COOKIE_CONSENT]!) as {
-        status: string
-        timestamp: number
-      }
-      consentData.timestamp = Date.now() - 7 * 24 * 60 * 60 * 1000 // exactly 7 days
-      mockSet(STORAGE_KEYS.COOKIE_CONSENT, consentData)
-
-      expect(hasCookieConsentDecision()).toBe(false)
-    })
-
-    it('should return true exactly at 6.99 days', () => {
-      denyCookieConsent()
-
-      // Manually set timestamp to 6.99 days ago
-      const store = getInternalStore()
-      const consentData = JSON.parse(store[STORAGE_KEYS.COOKIE_CONSENT]!) as {
-        status: string
-        timestamp: number
-      }
-      consentData.timestamp = Date.now() - 6.99 * 24 * 60 * 60 * 1000
-      mockSet(STORAGE_KEYS.COOKIE_CONSENT, consentData)
-
-      expect(hasCookieConsentDecision()).toBe(true)
+      expect(hasCookieConsentDecision()).toBe(expected)
     })
 
     it('should handle legacy format (plain string)', () => {

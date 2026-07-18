@@ -45,13 +45,15 @@ export function resolveFeedActor(
   }
 }
 
-const SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
+type FeedActorAvatarSize = 'sm' | 'md' | 'lg'
+
+const SIZE_CLASSES: Record<FeedActorAvatarSize, string> = {
   sm: 'h-8 w-8 text-xs',
   md: 'h-10 w-10 text-sm',
   lg: 'h-12 w-12 text-base',
 }
 
-const ICON_SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
+const ICON_SIZE_CLASSES: Record<FeedActorAvatarSize, string> = {
   sm: 'h-5 w-5',
   md: 'h-6 w-6',
   lg: 'h-7 w-7',
@@ -59,7 +61,7 @@ const ICON_SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
 
 interface FeedActorAvatarProps {
   actor: FeedActor
-  size?: 'sm' | 'md' | 'lg'
+  size?: FeedActorAvatarSize
 }
 
 export function FeedActorAvatar({

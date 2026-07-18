@@ -118,29 +118,15 @@ describe('ProjectDetails', () => {
       )
     })
 
-    it('renders project name in page header', async () => {
+    it.each([
+      ['project name in page header', 'My Project'],
+      ['project description', 'A test project description'],
+      ['project slug in code font', 'my-project'],
+    ])('renders %s', async (_label, text) => {
       renderProjectDetails()
 
       await waitFor(() => {
-        expect(screen.getByText('My Project')).toBeInTheDocument()
-      })
-    })
-
-    it('renders project description', async () => {
-      renderProjectDetails()
-
-      await waitFor(() => {
-        expect(
-          screen.getByText('A test project description')
-        ).toBeInTheDocument()
-      })
-    })
-
-    it('renders project slug in code font', async () => {
-      renderProjectDetails()
-
-      await waitFor(() => {
-        expect(screen.getByText('my-project')).toBeInTheDocument()
+        expect(screen.getByText(text)).toBeInTheDocument()
       })
     })
 

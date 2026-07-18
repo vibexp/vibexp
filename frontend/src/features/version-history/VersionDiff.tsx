@@ -14,7 +14,7 @@ export type DiffMode = 'split' | 'unified'
 
 // Zero-width space: keeps a blank line's row at full line-height without adding
 // any visible/selectable content.
-const ZWSP = String.fromCharCode(0x200b)
+const ZWSP = String.fromCodePoint(0x200b)
 
 interface VersionDiffProps {
   oldText: string

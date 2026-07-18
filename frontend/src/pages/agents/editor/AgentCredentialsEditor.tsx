@@ -13,10 +13,10 @@ import { getErrorMessage } from '@/utils/errorHandling'
 // SupportedCredentialTypes). Schemes of any other type (oauth2, openIdConnect,
 // mutualTLS) are declared-but-unsupported: we surface a note instead of an input
 // so a user can never save a credential the backend would reject at chat time.
-const SUPPORTED_CREDENTIAL_TYPES = ['apiKey', 'http']
+const SUPPORTED_CREDENTIAL_TYPES = new Set(['apiKey', 'http'])
 
 function isSupportedCredentialType(type: string): boolean {
-  return SUPPORTED_CREDENTIAL_TYPES.includes(type)
+  return SUPPORTED_CREDENTIAL_TYPES.has(type)
 }
 
 interface Credential {

@@ -14,7 +14,7 @@ interface ChatMessageProps {
 function formatTime(dateString: string): string {
   if (dateString === STREAMING) return ''
   const date = new Date(dateString)
-  if (isNaN(date.getTime())) return ''
+  if (Number.isNaN(date.getTime())) return ''
   return date.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',

@@ -57,6 +57,67 @@ function sortAriaValue(
   return isSortable ? 'none' : undefined
 }
 
+interface ListTableHeadCellProps {
+  isActionsColumn: boolean
+  header: string
+  align: string | undefined
+  isSortable: boolean
+  active: boolean
+  sortDir: SortDir | undefined
+  onSort: (() => void) | undefined
+}
+
+function ListTableHeadCell({
+  isActionsColumn,
+  header,
+  align,
+  isSortable,
+  active,
+  sortDir,
+  onSort,
+}: Readonly<ListTableHeadCellProps>) {
+  const Icon = sortIcon(active, sortDir)
+  return (
+    <TableHead
+      className={cn(
+        'h-9 text-xs font-medium',
+        isActionsColumn && 'text-right',
+        align,
+        isSortable && 'cursor-pointer select-none hover:text-foreground',
+        active && 'text-foreground'
+      )}
+      aria-sort={sortAriaValue(active, isSortable, sortDir)}
+      role={isSortable ? 'button' : undefined}
+      tabIndex={isSortable ? 0 : undefined}
+      onClick={onSort}
+      onKeyDown={
+        isSortable
+          ? e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onSort?.()
+              }
+            }
+          : undefined
+      }
+    >
+      <span
+        className={cn(
+          'inline-flex items-center gap-1',
+          align === 'text-right' && 'justify-end'
+        )}
+      >
+        {header}
+        {isSortable && (
+          <Icon
+            className={cn('size-3', active ? 'opacity-100' : 'opacity-40')}
+          />
+        )}
+      </span>
+    </TableHead>
+  )
+}
+
 export function ListTable<
   T extends { id: string },
   SortKey extends string = string,
@@ -79,63 +140,27 @@ export function ListTable<
           {columns.map(col => {
             const accessorKey = (col as { accessorKey?: string }).accessorKey
             const key = col.id ?? accessorKey
-            const meta: ListTableColumnMeta | undefined = col.meta
-            const align = alignClass(meta)
             const isSortable =
               sortingEnabled &&
               accessorKey !== undefined &&
               sortable.has(accessorKey)
             const active = isSortable && sortKey === accessorKey
-            const Icon = sortIcon(active, sortDir)
             const triggerSort = isSortable
               ? () => {
                   onSortChange(accessorKey as SortKey)
                 }
               : undefined
-            const ariaSort = sortAriaValue(active, isSortable, sortDir)
             return (
-              <TableHead
+              <ListTableHeadCell
                 key={key}
-                className={cn(
-                  'h-9 text-xs font-medium',
-                  col.id === 'actions' && 'text-right',
-                  align,
-                  isSortable &&
-                    'cursor-pointer select-none hover:text-foreground',
-                  active && 'text-foreground'
-                )}
-                aria-sort={ariaSort}
-                role={isSortable ? 'button' : undefined}
-                tabIndex={isSortable ? 0 : undefined}
-                onClick={triggerSort}
-                onKeyDown={
-                  isSortable
-                    ? e => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          triggerSort?.()
-                        }
-                      }
-                    : undefined
-                }
-              >
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-1',
-                    align === 'text-right' && 'justify-end'
-                  )}
-                >
-                  {typeof col.header === 'string' ? col.header : ''}
-                  {isSortable && (
-                    <Icon
-                      className={cn(
-                        'size-3',
-                        active ? 'opacity-100' : 'opacity-40'
-                      )}
-                    />
-                  )}
-                </span>
-              </TableHead>
+                isActionsColumn={col.id === 'actions'}
+                header={typeof col.header === 'string' ? col.header : ''}
+                align={alignClass(col.meta)}
+                isSortable={isSortable}
+                active={active}
+                sortDir={sortDir}
+                onSort={triggerSort}
+              />
             )
           })}
         </TableRow>

@@ -229,14 +229,11 @@ class TeamService {
   }
 
   /**
-   * Remove a member from a team
+   * Remove a member from a team (same endpoint as leaving; the backend
+   * authorizes own-vs-any removal).
    */
   async removeMember(teamId: string, userId: string): Promise<void> {
-    await unwrap(
-      generatedClient.DELETE('/api/v1/teams/{id}/members/{userId}', {
-        params: { path: { id: teamId, userId } },
-      })
-    )
+    await this.leaveTeam(teamId, userId)
   }
 
   /**

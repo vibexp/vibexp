@@ -202,7 +202,7 @@ describe('storage utilities', () => {
         localStorage.setItem(STORAGE_KEYS.CURRENT_TEAM_ID, 'test1')
         localStorage.setItem(STORAGE_KEYS.COOKIE_CONSENT, 'test2')
         storage.clear()
-        expect(localStorage.length).toBe(0)
+        expect(localStorage).toHaveLength(0)
       })
 
       it('handles clear errors gracefully', () => {

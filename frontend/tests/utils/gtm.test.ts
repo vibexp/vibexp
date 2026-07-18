@@ -322,7 +322,7 @@ describe('GTM Utilities (GTM Enabled)', () => {
         expect(pushedData?.stringValue).toBe('test')
         expect(pushedData?.numberValue).toBe(42)
         expect(pushedData?.booleanValue).toBe(true)
-        expect(pushedData?.nullValue).toBe(null)
+        expect(pushedData?.nullValue).toBeNull()
         expect(pushedData?.arrayValue).toEqual([1, 2, 3])
         expect(pushedData?.objectValue).toEqual({ nested: 'value' })
         expect(pushedData?.undefinedValue).toBeUndefined()

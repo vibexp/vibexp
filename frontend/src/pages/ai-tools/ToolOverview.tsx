@@ -62,8 +62,9 @@ function formatToolInput(input: Record<string, unknown> | null | undefined) {
 
 function formatCwd(cwd: string | null | undefined): string {
   if (!cwd) return ''
-  const parts = cwd.split('/')
-  return parts[parts.length - 1] || cwd
+  const last = cwd.split('/').at(-1)
+  // Fall back to the full cwd for a trailing slash (empty last segment).
+  return last !== undefined && last !== '' ? last : cwd
 }
 
 interface ToolOverviewProps {

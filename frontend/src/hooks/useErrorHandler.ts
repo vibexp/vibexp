@@ -13,14 +13,15 @@ function handleApiError(
   shouldShowToast: boolean,
   showAlert: (options: { message: string; type: AlertType }) => void
 ): Record<string, string> {
+  const notify = (message: string, type: AlertType) => {
+    if (shouldShowToast) {
+      showAlert({ message, type })
+    }
+  }
+
   // Handle authentication errors
   if (error.isAuthError()) {
-    if (shouldShowToast) {
-      showAlert({
-        message: 'Authentication required. Please log in again.',
-        type: 'error',
-      })
-    }
+    notify('Authentication required. Please log in again.', 'error')
     // Clear all VibeXP storage and redirect to login
     storageUtils.clearVibeXPData()
     window.location.href = '/login'
@@ -32,28 +33,19 @@ function handleApiError(
     const fieldErrors = extractFieldErrors(error)
     const errorCount = Object.keys(fieldErrors).length
 
-    if (shouldShowToast) {
-      const message =
-        errorCount === 1
-          ? 'Please fix the validation error'
-          : `Please fix ${String(errorCount)} validation errors`
-      showAlert({
-        message,
-        type: 'error',
-      })
-    }
+    notify(
+      errorCount === 1
+        ? 'Please fix the validation error'
+        : `Please fix ${String(errorCount)} validation errors`,
+      'error'
+    )
 
     return fieldErrors
   }
 
   // Handle resource limit errors
   if (error.isResourceLimitError()) {
-    if (shouldShowToast) {
-      showAlert({
-        message: error.getMessage(),
-        type: 'warning',
-      })
-    }
+    notify(error.getMessage(), 'warning')
     return {}
   }
 
@@ -65,22 +57,12 @@ function handleApiError(
   // Deliberately below the auth branch: a forbidden caller is authenticated,
   // so this must never trigger the logout redirect above.
   if (error.isForbidden()) {
-    if (shouldShowToast) {
-      showAlert({
-        message: error.getMessage(),
-        type: 'warning',
-      })
-    }
+    notify(error.getMessage(), 'warning')
     return {}
   }
 
   // Show general error message
-  if (shouldShowToast) {
-    showAlert({
-      message: error.getMessage(),
-      type: 'error',
-    })
-  }
+  notify(error.getMessage(), 'error')
   return {}
 }
 

@@ -57,7 +57,7 @@ export function useProjectSearch(
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
-  const [query, setQueryState] = useState('')
+  const [query, setQuery] = useState('')
 
   // Monotonic request token: a slower earlier fetch must not overwrite the
   // results of a newer one (out-of-order responses while the user types or
@@ -121,10 +121,6 @@ export function useProjectSearch(
   )
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const setQuery = useCallback((next: string) => {
-    setQueryState(next)
-  }, [])
 
   // Load the first page once a team is available, then re-fetch (debounced)
   // whenever the query changes. A query change always restarts at page 1.

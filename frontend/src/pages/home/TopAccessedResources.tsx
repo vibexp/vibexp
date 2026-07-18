@@ -249,7 +249,8 @@ export function TopAccessedResources({
   const byType = useMemo(() => {
     const buckets: Record<string, TopAccessedResource[]> = {}
     for (const item of items) {
-      ;(buckets[item.resource_type] ??= []).push(item)
+      buckets[item.resource_type] ??= []
+      buckets[item.resource_type].push(item)
     }
     return buckets
   }, [items])

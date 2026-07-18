@@ -81,18 +81,12 @@ export function PromptTemplateLoader({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
+      <button
+        type="button"
         className="fixed inset-0 bg-black/20 backdrop-blur-sm"
         onClick={handleClose}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            handleClose()
-          }
-        }}
-        role="button"
-        tabIndex={0}
         aria-label="Close modal"
-      ></div>
+      ></button>
       <div
         className={`relative bg-card rounded-xl shadow-xl w-full max-w-4xl mx-4 max-h-[80vh] overflow-hidden ${className}`}
       >
@@ -103,6 +97,7 @@ export function PromptTemplateLoader({
               Load from Existing Prompt
             </h2>
             <button
+              type="button"
               onClick={handleClose}
               className="text-muted-foreground hover:text-foreground transition-colors"
             >

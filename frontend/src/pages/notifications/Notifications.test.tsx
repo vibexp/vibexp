@@ -264,6 +264,6 @@ describe('Notifications page', () => {
     // All skeleton wrappers should be present; this test ensures no React key
     // warning from bare numeric indexes (checked indirectly via DOM)
     const skeletons = screen.getAllByTestId('skeleton')
-    expect(skeletons.length).toBe(10) // 5 rows × 2 skeletons each
+    expect(skeletons).toHaveLength(10) // 5 rows × 2 skeletons each
   })
 })

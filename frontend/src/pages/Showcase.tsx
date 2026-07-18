@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { ColumnDef } from '@tanstack/react-table'
 import { ArrowUpDown, Inbox, Plus, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -101,6 +101,58 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
+// Module-level so the header/cell renderers are not re-defined per render
+// (they only use module-scope values, never component state).
+const columns: ColumnDef<Row>[] = [
+  {
+    accessorKey: 'name',
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-3"
+        onClick={() => {
+          column.toggleSorting(column.getIsSorted() === 'asc')
+        }}
+      >
+        Name
+        <ArrowUpDown className="ml-2 size-3" />
+      </Button>
+    ),
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ row }) => {
+      const status = row.original.status
+      return <StatusBadge tone={STATUS_TONE[status]}>{status}</StatusBadge>
+    },
+  },
+  { accessorKey: 'owner', header: 'Owner' },
+  { accessorKey: 'updated', header: 'Updated' },
+  {
+    id: 'actions',
+    enableHiding: false,
+    cell: ({ row }) => (
+      <div className="flex justify-end gap-1">
+        <CopyButton value={row.original.id} label="Copy ID" />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Delete row"
+          onClick={() => {
+            toast.info('Pretend delete', {
+              description: `Row: ${row.original.name}`,
+            })
+          }}
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </div>
+    ),
+  },
+]
+
 export function Showcase() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmLoading, setConfirmLoading] = useState(false)
@@ -109,59 +161,6 @@ export function Showcase() {
     resolver: zodResolver(formSchema),
     defaultValues: { title: '', notes: '' },
   })
-
-  const columns = useMemo<ColumnDef<Row>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: ({ column }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3"
-            onClick={() => {
-              column.toggleSorting(column.getIsSorted() === 'asc')
-            }}
-          >
-            Name
-            <ArrowUpDown className="ml-2 size-3" />
-          </Button>
-        ),
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: ({ row }) => {
-          const status = row.original.status
-          return <StatusBadge tone={STATUS_TONE[status]}>{status}</StatusBadge>
-        },
-      },
-      { accessorKey: 'owner', header: 'Owner' },
-      { accessorKey: 'updated', header: 'Updated' },
-      {
-        id: 'actions',
-        enableHiding: false,
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-1">
-            <CopyButton value={row.original.id} label="Copy ID" />
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete row"
-              onClick={() => {
-                toast.info('Pretend delete', {
-                  description: `Row: ${row.original.name}`,
-                })
-              }}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </div>
-        ),
-      },
-    ],
-    []
-  )
 
   const onSubmit = (values: FormValues) => {
     toast.success('Form submitted', { description: JSON.stringify(values) })

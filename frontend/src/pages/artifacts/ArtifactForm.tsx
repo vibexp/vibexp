@@ -47,11 +47,15 @@ const schema = z.object({
 })
 
 function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  return (
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      // The previous replace collapses runs, so at most one leading/trailing
+      // dash remains — no quantifier needed (avoids super-linear backtracking).
+      .replace(/^-|-$/g, '')
+  )
 }
 
 export type ArtifactFormValues = z.infer<typeof schema>

@@ -43,9 +43,12 @@ export function CookieConsentBanner() {
   if (!showBanner) return null
 
   return (
-    <div
-      className="fixed bottom-0 left-0 right-0 z-50 bg-primary text-primary-foreground p-4 shadow-lg"
-      role="dialog"
+    // `m-0 w-full max-w-none border-0` neutralize the UA stylesheet's centered,
+    // fit-content, bordered defaults for <dialog> so the banner keeps its
+    // full-width bottom-bar look.
+    <dialog
+      open
+      className="fixed bottom-0 left-0 right-0 z-50 m-0 w-full max-w-none border-0 bg-primary text-primary-foreground p-4 shadow-lg"
       aria-labelledby="cookie-consent-title"
       aria-describedby="cookie-consent-description"
     >
@@ -65,12 +68,14 @@ export function CookieConsentBanner() {
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:ml-4 w-full sm:w-auto">
           <button
+            type="button"
             onClick={handleDeclineCookies}
             className="px-4 py-2.5 text-sm font-medium text-primary-foreground border border-primary-foreground/30 rounded-md hover:bg-primary-foreground/10 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-primary"
           >
             Decline
           </button>
           <button
+            type="button"
             onClick={handleAcceptCookies}
             className="px-4 py-2.5 text-sm font-semibold text-primary bg-primary-foreground rounded-md hover:bg-primary-foreground/90 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-primary"
           >
@@ -78,6 +83,6 @@ export function CookieConsentBanner() {
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   )
 }

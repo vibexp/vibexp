@@ -1,8 +1,8 @@
 import type {
   CreateMemoryRequest,
   Memory,
-  MemoriesResponse,
   MemoryFilters,
+  MemoryListResponse,
   UpdateMemoryRequest,
 } from '../../src/services/memoryService'
 
@@ -48,7 +48,7 @@ describe('MemoryService', () => {
     version: 1,
   }
 
-  const mockListResponse: MemoriesResponse = {
+  const mockListResponse: MemoryListResponse = {
     memories: [mockMemory],
     page: 1,
     per_page: 50,

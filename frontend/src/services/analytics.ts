@@ -38,7 +38,7 @@ import { GTM_ENABLED, GTM_ID, trackEvent } from '../utils/gtm'
 class EnhancedAnalyticsService implements AnalyticsService {
   private config: AnalyticsConfig
   private userProperties: UserProperties | null = null
-  private sessionId: string | null = null
+  private readonly sessionId: string | null = null
 
   constructor() {
     // `environment` reflects the build target. NODE_ENV is statically replaced
@@ -155,7 +155,8 @@ class EnhancedAnalyticsService implements AnalyticsService {
    * Handle analytics errors gracefully
    */
   private handleError(error: Error, context?: string): void {
-    const message = `Analytics Error${context ? ` in ${context}` : ''}: ${error.message}`
+    const contextSuffix = context ? ` in ${context}` : ''
+    const message = `Analytics Error${contextSuffix}: ${error.message}`
 
     if (this.config.debug) {
       console.error('[Analytics]', message, error)
@@ -431,12 +432,10 @@ class EnhancedAnalyticsService implements AnalyticsService {
             event: 'user_properties_updated',
           })
         }
-      } else {
-        if (this.config.debug) {
-          console.warn(
-            '[Analytics] Cannot update user properties - user not identified'
-          )
-        }
+      } else if (this.config.debug) {
+        console.warn(
+          '[Analytics] Cannot update user properties - user not identified'
+        )
       }
     } catch (error) {
       this.handleError(error as Error, 'setUserProperties')

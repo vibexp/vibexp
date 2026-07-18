@@ -23,10 +23,10 @@ interface DeleteTeamModalProps {
   onSuccess: () => void
 }
 
-const KNOWN_ERROR_CODES = [
+const KNOWN_ERROR_CODES = new Set([
   'TEAM_HAS_MEMBERS',
   'CANNOT_DELETE_PERSONAL_WORKSPACE',
-]
+])
 
 export function DeleteTeamModal({
   isOpen,
@@ -57,7 +57,7 @@ export function DeleteTeamModal({
         setErrorCode(err.code)
         setError(err.getMessage())
 
-        if (!KNOWN_ERROR_CODES.includes(err.code)) {
+        if (!KNOWN_ERROR_CODES.has(err.code)) {
           toast.error(err.getMessage())
         }
       } else {
