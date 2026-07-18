@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
+	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
@@ -178,6 +180,49 @@ func TestGetAdminStats_Success(t *testing.T) {
 
 	specconformance.AssertConformsToSpec(t, req, rr)
 	mockAdmin.AssertExpectations(t)
+}
+
+// TestGetAdminStats_ServiceError verifies a repository/service failure maps to a
+// 500-class *apierrors.APIError returned to the strict response-error handler.
+func TestGetAdminStats_ServiceError(t *testing.T) {
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("GetInstanceCounts", mock.Anything).Return(models.InstanceCounts{}, errors.New("db down"))
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	resp, err := (&adminStrictServer{s: srv}).GetAdminStats(context.Background(), admingen.GetAdminStatsRequestObject{})
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	var apiErr *apierrors.APIError
+	require.True(t, errors.As(err, &apiErr))
+}
+
+// TestAdminResponseErrorHandler verifies APIErrors pass through with their status
+// and other errors map to 500.
+func TestAdminResponseErrorHandler(t *testing.T) {
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{})
+
+	t.Run("api error keeps its status", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
+		srv.adminResponseErrorHandler(rr, req, apierrors.NewBadRequestError("bad"))
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("generic error maps to 500", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
+		srv.adminResponseErrorHandler(rr, req, errors.New("boom"))
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+}
+
+// TestAdminBindErrorHandler verifies binding failures map to 400.
+func TestAdminBindErrorHandler(t *testing.T) {
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{})
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/v1/admin/stats", nil)
+	srv.adminBindErrorHandler(rr, req, errors.New("bad param"))
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 // TestGetAdminStats_VersionFallback verifies the "dev" fallback when the
