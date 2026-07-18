@@ -80,8 +80,8 @@ export function AgentCardDetails({ agent }: Readonly<AgentCardDetailsProps>) {
           <div>
             <h4 className="mb-2 text-sm font-medium">Input modes</h4>
             <div className="flex flex-wrap gap-1.5">
-              {(agent.agent_card.defaultInputModes ?? []).map((mode, idx) => (
-                <Badge key={idx} variant="secondary">
+              {(agent.agent_card.defaultInputModes ?? []).map(mode => (
+                <Badge key={mode} variant="secondary">
                   {mode}
                 </Badge>
               ))}
@@ -90,8 +90,8 @@ export function AgentCardDetails({ agent }: Readonly<AgentCardDetailsProps>) {
           <div>
             <h4 className="mb-2 text-sm font-medium">Output modes</h4>
             <div className="flex flex-wrap gap-1.5">
-              {(agent.agent_card.defaultOutputModes ?? []).map((mode, idx) => (
-                <Badge key={idx} variant="secondary">
+              {(agent.agent_card.defaultOutputModes ?? []).map(mode => (
+                <Badge key={mode} variant="secondary">
                   {mode}
                 </Badge>
               ))}
@@ -107,35 +107,29 @@ export function AgentCardDetails({ agent }: Readonly<AgentCardDetailsProps>) {
                 Skills &amp; capabilities
               </h4>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {(agent.agent_card.skills ?? [])
-                  .slice(0, 6)
-                  .map((skill, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-muted/50 rounded-md border p-3"
-                    >
-                      <div className="font-medium">{skill.name}</div>
-                      {skill.description && (
-                        <p className="text-muted-foreground mt-1 text-sm">
-                          {skill.description}
-                        </p>
-                      )}
-                      {(skill.tags?.length ?? 0) > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {(skill.tags ?? []).slice(0, 3).map((tag, tagIdx) => (
-                            <Badge
-                              key={tagIdx}
-                              variant="outline"
-                              className="gap-1"
-                            >
-                              <Tag className="size-3" />
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                {(agent.agent_card.skills ?? []).slice(0, 6).map(skill => (
+                  <div
+                    key={skill.id ?? skill.name}
+                    className="bg-muted/50 rounded-md border p-3"
+                  >
+                    <div className="font-medium">{skill.name}</div>
+                    {skill.description && (
+                      <p className="text-muted-foreground mt-1 text-sm">
+                        {skill.description}
+                      </p>
+                    )}
+                    {(skill.tags?.length ?? 0) > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {(skill.tags ?? []).slice(0, 3).map(tag => (
+                          <Badge key={tag} variant="outline" className="gap-1">
+                            <Tag className="size-3" />
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
                 {(agent.agent_card.skills?.length ?? 0) > 6 && (
                   <p className="text-muted-foreground py-3 text-center text-sm md:col-span-2">
                     +{(agent.agent_card.skills?.length ?? 0) - 6} more skills

@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom'
 
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 
@@ -95,21 +95,17 @@ describe('MarkdownRenderer', () => {
 
   describe('Component Rendering', () => {
     it('renders without crashing', async () => {
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="# Test" />)
-      })
+      render(<MarkdownRenderer content="# Test" />)
 
-      expect(document.querySelector('.markdown-renderer')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(document.querySelector('.markdown-renderer')).toBeInTheDocument()
+      })
     })
 
     it('renders mocked content from marked', async () => {
       mockMarked.mockResolvedValue('<p>Test Content</p>')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="# Test" />)
-      })
+      render(<MarkdownRenderer content="# Test" />)
 
       await waitFor(() => {
         expect(screen.getByText('Test Content')).toBeInTheDocument()
@@ -117,65 +113,48 @@ describe('MarkdownRenderer', () => {
     })
 
     it('applies custom className', async () => {
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="# Test" className="custom-class" />)
-      })
+      render(<MarkdownRenderer content="# Test" className="custom-class" />)
 
       const container = document.querySelector('.markdown-renderer')
-      expect(container).toHaveClass('custom-class')
+      await waitFor(() => {
+        expect(container).toHaveClass('custom-class')
+      })
     })
 
     it('applies correct theme class based on syntaxTheme prop', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let rerender: any
+      const { rerender } = render(
+        <MarkdownRenderer content="# Test" syntaxTheme="light" />
+      )
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        const result = render(
-          <MarkdownRenderer content="# Test" syntaxTheme="light" />
-        )
-        rerender = result.rerender
+      const container = document.querySelector('.markdown-renderer')
+      await waitFor(() => {
+        expect(container).toHaveClass('theme-light')
       })
 
-      let container = document.querySelector('.markdown-renderer')
-      expect(container).toHaveClass('theme-light')
-
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        rerender(<MarkdownRenderer content="# Test" syntaxTheme="dark" />)
+      rerender(<MarkdownRenderer content="# Test" syntaxTheme="dark" />)
+      await waitFor(() => {
+        expect(container).toHaveClass('theme-dark')
       })
-      container = document.querySelector('.markdown-renderer')
-      expect(container).toHaveClass('theme-dark')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        rerender(<MarkdownRenderer content="# Test" syntaxTheme="auto" />)
+      rerender(<MarkdownRenderer content="# Test" syntaxTheme="auto" />)
+      await waitFor(() => {
+        expect(container).toHaveClass('theme-auto')
       })
-      container = document.querySelector('.markdown-renderer')
-      expect(container).toHaveClass('theme-auto')
     })
 
     it('handles empty content gracefully', async () => {
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="" />)
-      })
+      render(<MarkdownRenderer content="" />)
 
       const container = document.querySelector('.markdown-renderer')
-      expect(container).toBeInTheDocument()
+      await waitFor(() => {
+        expect(container).toBeInTheDocument()
+      })
     })
 
     it('updates content when content prop changes', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let rerender: any
       mockMarked.mockResolvedValue('<p>First Content</p>')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        const result = render(<MarkdownRenderer content="# First" />)
-        rerender = result.rerender
-      })
+      const { rerender } = render(<MarkdownRenderer content="# First" />)
 
       await waitFor(() => {
         expect(screen.getByText('First Content')).toBeInTheDocument()
@@ -183,10 +162,7 @@ describe('MarkdownRenderer', () => {
 
       mockMarked.mockResolvedValue('<p>Second Content</p>')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        rerender(<MarkdownRenderer content="# Second" />)
-      })
+      rerender(<MarkdownRenderer content="# Second" />)
 
       await waitFor(() => {
         expect(screen.getByText('Second Content')).toBeInTheDocument()
@@ -198,10 +174,7 @@ describe('MarkdownRenderer', () => {
     it('calls marked with correct options including a renderer', async () => {
       mockMarked.mockResolvedValue('<p>test</p>')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="# Test" />)
-      })
+      render(<MarkdownRenderer content="# Test" />)
 
       await waitFor(() => {
         expect(marked).toHaveBeenCalledWith(
@@ -220,10 +193,7 @@ describe('MarkdownRenderer', () => {
     it('renders links with target="_blank" and rel="noopener noreferrer" by default', async () => {
       mockMarked.mockResolvedValue('<p>test</p>')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="[link](https://example.com)" />)
-      })
+      render(<MarkdownRenderer content="[link](https://example.com)" />)
 
       await waitFor(() => {
         expect(marked).toHaveBeenCalled()
@@ -245,15 +215,12 @@ describe('MarkdownRenderer', () => {
     it('renders links with target="_blank" when linkTarget="_blank" is explicitly set', async () => {
       mockMarked.mockResolvedValue('<p>test</p>')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(
-          <MarkdownRenderer
-            content="[link](https://example.com)"
-            linkTarget="_blank"
-          />
-        )
-      })
+      render(
+        <MarkdownRenderer
+          content="[link](https://example.com)"
+          linkTarget="_blank"
+        />
+      )
 
       await waitFor(() => {
         expect(marked).toHaveBeenCalled()
@@ -273,15 +240,12 @@ describe('MarkdownRenderer', () => {
     it('renders links without target="_blank" but with rel="noreferrer" when linkTarget="_self"', async () => {
       mockMarked.mockResolvedValue('<p>test</p>')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(
-          <MarkdownRenderer
-            content="[link](https://example.com)"
-            linkTarget="_self"
-          />
-        )
-      })
+      render(
+        <MarkdownRenderer
+          content="[link](https://example.com)"
+          linkTarget="_self"
+        />
+      )
 
       await waitFor(() => {
         expect(marked).toHaveBeenCalled()
@@ -304,10 +268,7 @@ describe('MarkdownRenderer', () => {
     it('includes title attribute in rendered link when title is provided', async () => {
       mockMarked.mockResolvedValue('<p>test</p>')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="[link](https://example.com)" />)
-      })
+      render(<MarkdownRenderer content="[link](https://example.com)" />)
 
       await waitFor(() => {
         expect(marked).toHaveBeenCalled()
@@ -329,10 +290,7 @@ describe('MarkdownRenderer', () => {
       capturedLinkFn = undefined
       mockMarked.mockResolvedValue('<p>test</p>')
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="# Test" />)
-      })
+      render(<MarkdownRenderer content="# Test" />)
 
       await waitFor(() => {
         // Verify the renderer's link property was overridden
@@ -350,10 +308,7 @@ describe('MarkdownRenderer', () => {
 
     beforeEach(async () => {
       mockMarked.mockResolvedValue('<p>test</p>')
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="[link](https://example.com)" />)
-      })
+      render(<MarkdownRenderer content="[link](https://example.com)" />)
       await waitFor(() => {
         expect(marked).toHaveBeenCalled()
       })
@@ -449,10 +404,7 @@ describe('MarkdownRenderer', () => {
 
       mockMarked.mockRejectedValue(new Error('Markdown error'))
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="# Test" onError={mockOnError} />)
-      })
+      render(<MarkdownRenderer content="# Test" onError={mockOnError} />)
 
       await waitFor(() => {
         expect(mockOnError).toHaveBeenCalledWith(
@@ -465,10 +417,7 @@ describe('MarkdownRenderer', () => {
     it('renders error message when markdown rendering fails', async () => {
       mockMarked.mockRejectedValue(new Error('Test error'))
 
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="# Test" />)
-      })
+      render(<MarkdownRenderer content="# Test" />)
 
       await waitFor(() => {
         expect(
@@ -480,33 +429,31 @@ describe('MarkdownRenderer', () => {
 
   describe('Props Validation', () => {
     it('accepts all expected props', async () => {
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(
-          <MarkdownRenderer
-            content="# Test"
-            className="test-class"
-            syntaxTheme="dark"
-            enableMermaid={true}
-            enableCodeCopy={true}
-            linkTarget="_blank"
-            onError={() => {}}
-          />
-        )
-      })
+      render(
+        <MarkdownRenderer
+          content="# Test"
+          className="test-class"
+          syntaxTheme="dark"
+          enableMermaid={true}
+          enableCodeCopy={true}
+          linkTarget="_blank"
+          onError={() => {}}
+        />
+      )
 
       const renderer = document.querySelector('.markdown-renderer')
-      expect(renderer).toBeInTheDocument()
+      await waitFor(() => {
+        expect(renderer).toBeInTheDocument()
+      })
       expect(renderer).toHaveClass('test-class', 'theme-dark')
     })
 
     it('works with minimal props', async () => {
-      // eslint-disable-next-line @typescript-eslint/require-await
-      await act(async () => {
-        render(<MarkdownRenderer content="# Test" />)
-      })
+      render(<MarkdownRenderer content="# Test" />)
 
-      expect(document.querySelector('.markdown-renderer')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(document.querySelector('.markdown-renderer')).toBeInTheDocument()
+      })
     })
   })
 

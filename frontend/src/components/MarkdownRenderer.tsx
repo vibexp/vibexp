@@ -19,6 +19,47 @@ const escHtml = (s: string): string =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 
+/**
+ * Builds the copy-to-clipboard button markup injected into highlighted code
+ * blocks. The code text is stored URI-encoded in a data attribute so a single
+ * delegated click listener can recover it without DOM mutation.
+ */
+function buildCopyButtonHtml(codeContent: string, copyId: string): string {
+  const encodedCode = encodeURIComponent(codeContent.replace(/<[^>]*>/g, ''))
+  return `<button class="copy-button absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-muted-foreground/80 text-background rounded text-xs hover:bg-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" title="Copy code" data-copy-id="${copyId}" data-code="${encodedCode}"><svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2h-1v1a1 1 0 01-1 1H7a1 1 0 01-1-1V3H6z"></path></svg></button>`
+}
+
+/**
+ * Copies code text to the clipboard and toggles the button's "copied" state
+ * for two seconds via the provided state setter.
+ */
+async function copyCodeToClipboard(
+  codeText: string,
+  copyId: string,
+  setCopiedIds: React.Dispatch<React.SetStateAction<Set<string>>>
+): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(codeText)
+
+    // Mark as copied using React state - no DOM mutation needed
+    setCopiedIds(prev => {
+      const next = new Set(prev)
+      next.add(copyId)
+      return next
+    })
+
+    setTimeout(() => {
+      setCopiedIds(prev => {
+        const next = new Set(prev)
+        next.delete(copyId)
+        return next
+      })
+    }, 2000)
+  } catch (error) {
+    console.error('Failed to copy code:', error)
+  }
+}
+
 export interface MarkdownRendererProps {
   content: string
   className?: string
@@ -251,13 +292,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             // Use a stable data-copy-id to allow event delegation without mutating
             // the DOM (avoids the replaceChild conflict with React's virtual DOM).
             const copyButton = enableCodeCopy
-              ? (() => {
-                  const copyId = `copy-${String(copyButtonCounter++)}`
-                  const encodedCode = encodeURIComponent(
-                    codeContent.replace(/<[^>]*>/g, '')
-                  )
-                  return `<button class="copy-button absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-muted-foreground/80 text-background rounded text-xs hover:bg-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" title="Copy code" data-copy-id="${copyId}" data-code="${encodedCode}"><svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"></path><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2h-1v1a1 1 0 01-1 1H7a1 1 0 01-1-1V3H6z"></path></svg></button>`
-                })()
+              ? buildCopyButtonHtml(
+                  codeContent,
+                  `copy-${String(copyButtonCounter++)}`
+                )
               : ''
 
             return `<pre class="relative group overflow-x-auto"><code class="${className}">${highlightedCode}</code>${copyButton}</pre>`
@@ -306,28 +344,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
       const codeText = decodeURIComponent(encodedCode)
 
-      void (async () => {
-        try {
-          await navigator.clipboard.writeText(codeText)
-
-          // Mark as copied using React state - no DOM mutation needed
-          setCopiedIds(prev => {
-            const next = new Set(prev)
-            next.add(copyId)
-            return next
-          })
-
-          setTimeout(() => {
-            setCopiedIds(prev => {
-              const next = new Set(prev)
-              next.delete(copyId)
-              return next
-            })
-          }, 2000)
-        } catch (error) {
-          console.error('Failed to copy code:', error)
-        }
-      })()
+      void copyCodeToClipboard(codeText, copyId, setCopiedIds)
     }
 
     container.addEventListener('click', handleClick)
@@ -368,6 +385,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     // Capture diagrams and onErrorRef value for this effect run
     const diagrams = mermaidDiagrams
     const onErrorFn = onErrorRef.current
+    const handleMermaidError = (error: Error) => {
+      onErrorFn?.(error, 'mermaid-rendering')
+    }
 
     void import('react-dom/client').then(({ createRoot }) => {
       if (!containerRef.current) return
@@ -384,12 +404,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         placeholder.appendChild(mountPoint)
 
         const root = createRoot(mountPoint)
-        root.render(
-          <MermaidDiagram
-            code={code}
-            onError={error => onErrorFn?.(error, 'mermaid-rendering')}
-          />
-        )
+        root.render(<MermaidDiagram code={code} onError={handleMermaidError} />)
       })
     })
   }, [renderedContent, mermaidDiagrams])

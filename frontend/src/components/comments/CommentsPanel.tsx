@@ -189,7 +189,7 @@ export function CommentsPanel({
           className="text-foreground hover:bg-accent border-border flex w-full items-center gap-2 border-t px-5 py-3 text-sm font-medium transition-colors"
           data-testid="comments-see-all"
         >
-          See all comments
+          {'See all comments'}
           <span className="bg-secondary text-secondary-foreground rounded-full px-[7px] py-[3px] font-mono text-xs leading-none">
             {state.totalCount}
           </span>

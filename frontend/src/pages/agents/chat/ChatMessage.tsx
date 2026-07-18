@@ -74,7 +74,7 @@ export function ChatMessage({ message, agent }: Readonly<ChatMessageProps>) {
             {isStreaming && !isUser && (
               <div className="text-muted-foreground mt-1.5 flex items-center gap-2 text-xs">
                 <span className="inline-block size-2 animate-pulse rounded-full bg-current" />
-                Streaming response…
+                {'Streaming response…'}
               </div>
             )}
           </div>

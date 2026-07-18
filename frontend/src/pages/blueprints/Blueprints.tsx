@@ -293,7 +293,7 @@ export function Blueprints() {
             <span className="font-medium">
               {blueprintToDelete?.title ?? 'this blueprint'}
             </span>
-            . This action cannot be undone.
+            {'. This action cannot be undone.'}
           </>
         }
         confirmLabel="Delete"

@@ -336,7 +336,7 @@ export function TeamDetailsPage() {
             <a href="/settings/teams" className="underline hover:no-underline">
               here
             </a>
-            .
+            {'.'}
           </AlertDescription>
         </Alert>
       ) : (

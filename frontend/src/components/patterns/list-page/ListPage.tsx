@@ -111,13 +111,15 @@ function Body({
   if (status === 'loading') {
     return (
       <div className="space-y-3 p-4">
-        {Array.from({ length: loadingRows }).map((_, i) => (
-          <Skeleton
-            key={i}
-            data-testid="list-page-skeleton-row"
-            className="h-10 w-full"
-          />
-        ))}
+        {Array.from({ length: loadingRows }, (_, i) => `row-${String(i)}`).map(
+          slot => (
+            <Skeleton
+              key={slot}
+              data-testid="list-page-skeleton-row"
+              className="h-10 w-full"
+            />
+          )
+        )}
       </div>
     )
   }

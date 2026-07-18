@@ -11,6 +11,12 @@ import { teamService } from '@/services/teamService'
  */
 const COMMENTS_PAGE_SIZE = 5
 
+/** Appends a fetched page to the list, dropping comments already present (dedup by id). */
+function appendPageDeduped(prev: Comment[], incoming: Comment[]): Comment[] {
+  const seen = new Set(prev.map(c => c.id))
+  return [...prev, ...incoming.filter(c => !seen.has(c.id))]
+}
+
 export interface UseCommentsResult {
   comments: Comment[]
   /** user_id → team member, for resolving author name/avatar (feed-reply pattern). */
@@ -113,10 +119,7 @@ export function useComments(
           COMMENTS_PAGE_SIZE
         )
         if (seq !== seqRef.current) return // resource changed mid-flight
-        setComments(prev => {
-          const seen = new Set(prev.map(c => c.id))
-          return [...prev, ...res.comments.filter(c => !seen.has(c.id))]
-        })
+        setComments(prev => appendPageDeduped(prev, res.comments))
         setTotalCount(res.total_count)
         setPage(next)
       } finally {

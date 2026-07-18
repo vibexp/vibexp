@@ -110,8 +110,8 @@ export function AgentPreview({
             <div>
               <p className="mb-2 text-sm font-medium">Input</p>
               <div className="flex flex-wrap gap-1.5">
-                {(data.defaultInputModes ?? []).map((mode, idx) => (
-                  <Badge key={idx} variant="secondary">
+                {(data.defaultInputModes ?? []).map(mode => (
+                  <Badge key={mode} variant="secondary">
                     {mode}
                   </Badge>
                 ))}
@@ -120,8 +120,8 @@ export function AgentPreview({
             <div>
               <p className="mb-2 text-sm font-medium">Output</p>
               <div className="flex flex-wrap gap-1.5">
-                {(data.defaultOutputModes ?? []).map((mode, idx) => (
-                  <Badge key={idx} variant="secondary">
+                {(data.defaultOutputModes ?? []).map(mode => (
+                  <Badge key={mode} variant="secondary">
                     {mode}
                   </Badge>
                 ))}
@@ -138,9 +138,9 @@ export function AgentPreview({
               Skills &amp; capabilities ({data.skills?.length ?? 0})
             </h5>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {(data.skills ?? []).map((skill, idx) => (
+              {(data.skills ?? []).map(skill => (
                 <div
-                  key={idx}
+                  key={skill.id ?? skill.name}
                   className="bg-muted/50 space-y-2 rounded-md border p-3"
                 >
                   <div>
@@ -153,8 +153,8 @@ export function AgentPreview({
                   </div>
                   {(skill.tags?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {(skill.tags ?? []).map((tag, tagIdx) => (
-                        <Badge key={tagIdx} variant="outline">
+                      {(skill.tags ?? []).map(tag => (
+                        <Badge key={tag} variant="outline">
                           {tag}
                         </Badge>
                       ))}
@@ -184,19 +184,20 @@ export function AgentPreview({
           <Card>
             <CardContent className="space-y-3 p-6">
               <h5 className="font-semibold">Security</h5>
-              {data.securityRequirements.map(
-                (sec: Record<string, unknown>, idx: number) => (
-                  <div
-                    key={idx}
-                    className="text-muted-foreground flex items-center gap-2 text-sm"
-                  >
-                    <Shield className="size-4" />
-                    <span>
-                      Authentication required: {Object.keys(sec).join(', ')}
-                    </span>
-                  </div>
-                )
-              )}
+              {/* A security requirement entry is an alternative combination of
+                  scheme names; duplicate combinations are meaningless, so the
+                  joined scheme names identify the entry. */}
+              {data.securityRequirements.map((sec: Record<string, unknown>) => (
+                <div
+                  key={Object.keys(sec).join('+')}
+                  className="text-muted-foreground flex items-center gap-2 text-sm"
+                >
+                  <Shield className="size-4" />
+                  <span>
+                    Authentication required: {Object.keys(sec).join(', ')}
+                  </span>
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}

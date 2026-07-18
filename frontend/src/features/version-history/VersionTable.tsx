@@ -52,7 +52,7 @@ export function VersionTable({
                 onToggleSort('version')
               }}
             >
-              Version
+              {'Version'}
               <span className="vhc-sortic" aria-hidden="true">
                 <ChevronDown />
               </span>
@@ -66,7 +66,7 @@ export function VersionTable({
                 onToggleSort('when')
               }}
             >
-              When
+              {'When'}
               <span className="vhc-sortic" aria-hidden="true">
                 <ChevronDown />
               </span>

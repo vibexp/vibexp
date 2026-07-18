@@ -72,6 +72,11 @@ const QUICK_ACTIONS: QuickAction[] = [
   },
 ]
 
+/** Sums a numeric field across time-series count rows. */
+function sumCountField<T>(counts: readonly T[], key: keyof T): number {
+  return counts.reduce((acc, c) => acc + (Number(c[key]) || 0), 0)
+}
+
 interface WeeklyDeltas {
   prompts: number
   artifacts: number
@@ -156,16 +161,12 @@ export function Home() {
           setTotalAgents(stat.total_agents)
         }
         if (created.status === 'fulfilled') {
-          const sum = (k: keyof (typeof created.value.data.counts)[number]) =>
-            created.value.data.counts.reduce(
-              (acc, c) => acc + (Number(c[k]) || 0),
-              0
-            )
+          const counts = created.value.data.counts
           setWeekly({
-            prompts: sum('prompts'),
-            artifacts: sum('artifacts'),
-            blueprints: sum('blueprints'),
-            memories: sum('memories'),
+            prompts: sumCountField(counts, 'prompts'),
+            artifacts: sumCountField(counts, 'artifacts'),
+            blueprints: sumCountField(counts, 'blueprints'),
+            memories: sumCountField(counts, 'memories'),
             feed:
               feed.status === 'fulfilled'
                 ? feed.value.data.counts.reduce((a, c) => a + c.feed_items, 0)

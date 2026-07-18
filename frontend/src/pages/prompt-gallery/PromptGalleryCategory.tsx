@@ -23,6 +23,15 @@ import { getErrorMessage } from '@/utils/errorHandling'
 
 const PER_PAGE = 10
 
+/** Collects the distinct tags across the fetched prompts, sorted alphabetically. */
+function collectAvailableTags(prompts: PromptGalleryTemplate[]): string[] {
+  const tagsSet = new Set<string>()
+  prompts.forEach(p => {
+    p.tags?.forEach(tag => tagsSet.add(tag))
+  })
+  return Array.from(tagsSet).sort((a, b) => a.localeCompare(b))
+}
+
 export function PromptGalleryCategory() {
   const { category } = useParams<{ category: string }>()
   const navigate = useNavigate()
@@ -53,11 +62,7 @@ export function PromptGalleryCategory() {
         setTotalCount(data.total_count)
         setTotalPages(data.total_pages)
 
-        const tagsSet = new Set<string>()
-        data.prompts.forEach(p => {
-          p.tags?.forEach(tag => tagsSet.add(tag))
-        })
-        setAvailableTags(Array.from(tagsSet).sort((a, b) => a.localeCompare(b)))
+        setAvailableTags(collectAvailableTags(data.prompts))
       } catch (error) {
         showAlert({
           type: 'error',

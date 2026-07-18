@@ -140,7 +140,7 @@ export function Feeds() {
             <span className="font-medium">
               {itemToDelete?.title ?? 'this feed item'}
             </span>
-            . This action cannot be undone.
+            {'. This action cannot be undone.'}
           </>
         }
         confirmLabel="Delete"

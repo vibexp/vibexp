@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Mock preferencesService
@@ -187,9 +187,7 @@ describe('NotificationPreferences', () => {
       name: /enable browser notifications/i,
     })
 
-    await act(async () => {
-      await userEvent.click(toggle)
-    })
+    await userEvent.click(toggle)
 
     expect(mockRequestPermissionAndRegister).toHaveBeenCalledTimes(1)
   })
@@ -216,9 +214,7 @@ describe('NotificationPreferences', () => {
       name: /enable browser notifications/i,
     })
 
-    await act(async () => {
-      await userEvent.click(toggle)
-    })
+    await userEvent.click(toggle)
 
     expect(mockRevokeToken).toHaveBeenCalledTimes(1)
   })
@@ -238,9 +234,7 @@ describe('NotificationPreferences', () => {
       name: /enable browser notifications/i,
     })
 
-    await act(async () => {
-      await userEvent.click(toggle)
-    })
+    await userEvent.click(toggle)
 
     await waitFor(() => {
       expect(screen.getByText('Permission blocked')).toBeInTheDocument()

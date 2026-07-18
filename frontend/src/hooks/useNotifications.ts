@@ -6,6 +6,18 @@ import {
   notificationService,
 } from '@/services/notificationService'
 
+/**
+ * Appends a fetched page, dropping notifications already present: items
+ * arriving between pages shift offsets, so a boundary notification can be
+ * returned twice (newest-first list).
+ */
+function appendNotificationsDeduped(
+  prev: Notification[],
+  incoming: Notification[]
+): Notification[] {
+  return [...prev, ...incoming.filter(n => !prev.some(p => p.id === n.id))]
+}
+
 export interface UseNotificationsParams {
   unread?: boolean
   limit?: number
@@ -50,17 +62,10 @@ export function useNotifications(
         limit: paramsRef.current.limit,
         offset: reset ? 0 : offsetRef.current,
       })
-      // Dedupe on append: items arriving between pages shift offsets, so a
-      // boundary notification can be returned twice (newest-first list).
       setNotifications(prev =>
         reset
           ? response.notifications
-          : [
-              ...prev,
-              ...response.notifications.filter(
-                n => !prev.some(p => p.id === n.id)
-              ),
-            ]
+          : appendNotificationsDeduped(prev, response.notifications)
       )
       offsetRef.current = response.offset + response.count
       // The API reports no global total; a full page means more may exist.
