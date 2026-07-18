@@ -135,16 +135,17 @@ test('specific user test', async ({ page }) => {
 
 Each app area has a focused spec directory under `e2e/features/`:
 
-| Area                            | Spec                                  | Data strategy                                                                     |
-| ------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------- |
-| `prompts`, `artifacts`, `teams` | CRUD + filtering                      | Seeded through the UI                                                             |
-| `blueprints`                    | `blueprints/blueprint-crud.spec.ts`   | Seeded through the UI (project picked from the team's default project)            |
-| `feeds`                         | `feeds/feed-crud.spec.ts`             | Feeds + feed items seeded through the UI (post composer)                          |
-| `showcase`                      | `showcase/showcase.spec.ts`           | Static component gallery — no API data                                            |
-| `agents`                        | `agents/agent-pages.spec.ts`          | **Route mocks** (`mockAgentsApi`) — agents register from live agent-card URLs     |
-| `ai-tools`                      | `ai-tools/ai-tools.spec.ts`           | **Route mocks** (`mockAiToolsApi`) — session data is ingested from real installs  |
-| `mcp-servers`                   | `mcp-servers/mcp-servers.spec.ts`     | Real backend (team context only)                                                  |
-| `notifications`                 | `notifications/notifications.spec.ts` | **Route mocks** (`mockNotificationsApi`, stateful) + real backend for preferences |
+| Area                            | Spec                                   | Data strategy                                                                     |
+| ------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------- |
+| `prompts`, `artifacts`, `teams` | CRUD + filtering                       | Seeded through the UI                                                             |
+| `blueprints`                    | `blueprints/blueprint-crud.spec.ts`    | Seeded through the UI (project picked from the team's default project)            |
+| `feeds`                         | `feeds/feed-crud.spec.ts`              | Feeds + feed items seeded through the UI (post composer)                          |
+| `showcase`                      | `showcase/showcase.spec.ts`            | Static component gallery — no API data                                            |
+| `agents`                        | `agents/agent-pages.spec.ts`           | **Route mocks** (`mockAgentsApi`) — agents register from live agent-card URLs     |
+| `ai-tools`                      | `ai-tools/ai-tools.spec.ts`            | **Route mocks** (`mockAiToolsApi`) — session data is ingested from real installs  |
+| `mcp-servers`                   | `mcp-servers/mcp-servers.spec.ts`      | Real backend (team context only)                                                  |
+| `notifications`                 | `notifications/notifications.spec.ts`  | **Route mocks** (`mockNotificationsApi`, stateful) + real backend for preferences |
+| `admin`                         | `admin/admin-{happy,negative}.spec.ts` | Real backend; `INSTANCE_ADMIN_EMAILS` gates the admin identity (dev-login email)  |
 
 ### API Mocking Conventions (`fixtures/api-mocks.ts`)
 
@@ -203,6 +204,7 @@ The tests are configured to:
 ## Environment Variables
 
 - `PLAYWRIGHT_BASE_URL`: Base URL for the application (default: http://localhost:5173)
+- `INSTANCE_ADMIN_EMAILS`: set on the backend in `docker-compose.e2e.yml` — comma-separated instance-admin emails. The admin suite dev-logs in as `admin-e2e@vibexp.test` (an admin) and `nonadmin-e2e@vibexp.test` (a regular user); keep those in sync with `e2e/features/admin/admin-emails.ts`.
 
 ## Troubleshooting
 
