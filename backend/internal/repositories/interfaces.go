@@ -923,6 +923,15 @@ type BackofficeRepository interface {
 	GetUserActivities(ctx context.Context) ([]models.UserActivityRow, error)
 }
 
+// AdminRepository defines instance-level administrative data access for the
+// /api/v1/admin surface. Reads are instance-wide (unscoped), unlike the
+// team/user-scoped repositories.
+type AdminRepository interface {
+	// GetInstanceCounts returns unscoped COUNT(*) totals for the top-level
+	// entities (users, teams, prompts, artifacts, memories).
+	GetInstanceCounts(ctx context.Context) (models.InstanceCounts, error)
+}
+
 // BlueprintRepository defines the interface for blueprint data access operations
 type BlueprintRepository interface {
 	Create(ctx context.Context, blueprint *models.Blueprint) error

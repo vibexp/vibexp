@@ -5,6 +5,7 @@ filename: "mock_{{.InterfaceName}}.go"
 packages:
   github.com/vibexp/vibexp/internal/services:
     interfaces:
+      AdminServiceInterface:
       AuthServiceInterface:
       APIKeyServiceInterface:
       PromptServiceInterface:
@@ -41,6 +42,7 @@ packages:
       SMTPClient:
   github.com/vibexp/vibexp/internal/repositories:
     interfaces:
+      AdminRepository:
       UserRepository:
       APIKeyRepository:
       TeamRepository:

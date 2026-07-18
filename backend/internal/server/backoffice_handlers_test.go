@@ -71,6 +71,9 @@ type MockContainerForBackoffice struct {
 func (m *MockContainerForBackoffice) BackofficeService() services.BackofficeServiceInterface {
 	return m.backofficeService
 }
+func (m *MockContainerForBackoffice) AdminService() services.AdminServiceInterface {
+	return nil
+}
 
 // Implement all required container.Container interface methods
 func (m *MockContainerForBackoffice) UserRepository() repositories.UserRepository         { return nil }

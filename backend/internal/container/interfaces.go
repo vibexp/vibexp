@@ -81,6 +81,7 @@ type Container interface {
 	EnvironmentService() *services.EnvironmentService
 	ResourceUsageService() services.ResourceUsageServiceInterface
 	BackofficeService() services.BackofficeServiceInterface
+	AdminService() services.AdminServiceInterface
 	EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface
 	EmbeddingStatusService() services.EmbeddingStatusServiceInterface
 	UserPreferencesService() services.UserPreferencesServiceInterface

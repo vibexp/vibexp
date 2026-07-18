@@ -244,6 +244,10 @@ func (b *BaseMockContainer) BackofficeService() services.BackofficeServiceInterf
 	return nil
 }
 
+func (b *BaseMockContainer) AdminService() services.AdminServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) EmbeddingStatusService() services.EmbeddingStatusServiceInterface {
 	return nil
 }

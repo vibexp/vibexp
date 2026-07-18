@@ -743,6 +743,12 @@ components:
     RecentCommentListResponse:
       $ref: "./schemas/comments.yaml#/RecentCommentListResponse"
 
+    # Import admin (instance-level) schemas
+    AdminInstanceCounts:
+      $ref: "./schemas/admin.yaml#/AdminInstanceCounts"
+    AdminStatsResponse:
+      $ref: "./schemas/admin.yaml#/AdminStatsResponse"
+
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
 #   EmbeddingProvider, EmbeddingProviderResponse, CreateEmbeddingProviderRequest,
@@ -1048,6 +1054,8 @@ paths:
     $ref: "./paths/types.yaml#/api-v1-team_id-types"
   /api/v1/{team_id}/types/{id}:
     $ref: "./paths/types.yaml#/api-v1-team_id-types-id"
+  /api/v1/admin/stats:
+    $ref: "./paths/admin.yaml#/api-v1-admin-stats"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:
@@ -1184,6 +1192,8 @@ tags:
     description: Team-customizable resource categories (artifact types, etc.)
   - name: Comments
     description: Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)
+  - name: Admin
+    description: Instance-level administration (instance-admin only; non-admins get 404). REST-only, no MCP.
   - name: User
     description: User account, onboarding, and device registration endpoints
   - name: Team Invitations

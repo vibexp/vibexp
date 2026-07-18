@@ -87,6 +87,7 @@ type WireContainer struct {
 	resourceUsageService     services.ResourceUsageServiceInterface
 	featureFlagService       *feature_flags.FeatureFlagService
 	backofficeService        services.BackofficeServiceInterface
+	adminService             services.AdminServiceInterface
 	embeddingBackfillService services.EmbeddingBackfillServiceInterface
 	embeddingStatusService   services.EmbeddingStatusServiceInterface
 	userPreferencesService   services.UserPreferencesServiceInterface
@@ -184,6 +185,7 @@ func NewWireContainer(
 	resourceUsageService services.ResourceUsageServiceInterface,
 	featureFlagService *feature_flags.FeatureFlagService,
 	backofficeService services.BackofficeServiceInterface,
+	adminService services.AdminServiceInterface,
 	embeddingBackfillService services.EmbeddingBackfillServiceInterface,
 	embeddingStatusService services.EmbeddingStatusServiceInterface,
 	userPreferencesService services.UserPreferencesServiceInterface,
@@ -274,6 +276,7 @@ func NewWireContainer(
 		resourceUsageService:     resourceUsageService,
 		featureFlagService:       featureFlagService,
 		backofficeService:        backofficeService,
+		adminService:             adminService,
 		embeddingBackfillService: embeddingBackfillService,
 		embeddingStatusService:   embeddingStatusService,
 		userPreferencesService:   userPreferencesService,
@@ -538,6 +541,10 @@ func (c *WireContainer) ResourceUsageService() services.ResourceUsageServiceInte
 
 func (c *WireContainer) BackofficeService() services.BackofficeServiceInterface {
 	return c.backofficeService
+}
+
+func (c *WireContainer) AdminService() services.AdminServiceInterface {
+	return c.adminService
 }
 
 // EmbeddingBackfillService returns the embedding backfill service.

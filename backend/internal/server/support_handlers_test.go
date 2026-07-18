@@ -128,6 +128,7 @@ func (m *MockContainerForSupport) ResourceUsageService() services.ResourceUsageS
 	return nil
 }
 func (m *MockContainerForSupport) BackofficeService() services.BackofficeServiceInterface { return nil }
+func (m *MockContainerForSupport) AdminService() services.AdminServiceInterface           { return nil }
 func (m *MockContainerForSupport) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
 	return nil
 }

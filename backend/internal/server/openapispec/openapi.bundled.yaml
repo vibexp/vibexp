@@ -118,6 +118,8 @@ tags:
     description: Team-customizable resource categories (artifact types, etc.)
   - name: Comments
     description: Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)
+  - name: Admin
+    description: Instance-level administration (instance-admin only; non-admins get 404). REST-only, no MCP.
   - name: User
     description: User account, onboarding, and device registration endpoints
   - name: Team Invitations
@@ -9218,6 +9220,39 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Types
+  /api/v1/admin/stats:
+    get:
+      summary: Get instance statistics
+      description: |
+        Returns instance-wide entity counts (users, teams, prompts, artifacts,
+        memories) and the running backend application version. Requires the
+        authenticated user to be a configured instance admin
+        (auth.instance_admins); non-admin and unauthenticated requests receive 404.
+      operationId: getAdminStats
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Instance statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStatsResponse'
+        '404':
+          description: Not found — the caller is not an instance admin (surface not advertised)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/{team_id}/comments:
     get:
       summary: List a resource's comments
@@ -18215,6 +18250,54 @@ components:
       required:
         - comments
         - total_count
+    AdminInstanceCounts:
+      type: object
+      description: Instance-wide totals for the top-level entities (unscoped counts).
+      required:
+        - users
+        - teams
+        - prompts
+        - artifacts
+        - memories
+      properties:
+        users:
+          type: integer
+          format: int64
+          description: Total number of user accounts.
+          example: 42
+        teams:
+          type: integer
+          format: int64
+          description: Total number of teams.
+          example: 12
+        prompts:
+          type: integer
+          format: int64
+          description: Total number of prompts.
+          example: 340
+        artifacts:
+          type: integer
+          format: int64
+          description: Total number of artifacts.
+          example: 128
+        memories:
+          type: integer
+          format: int64
+          description: Total number of memories.
+          example: 512
+    AdminStatsResponse:
+      type: object
+      description: Instance statistics returned by GET /api/v1/admin/stats.
+      required:
+        - counts
+        - version
+      properties:
+        counts:
+          $ref: '#/components/schemas/AdminInstanceCounts'
+        version:
+          type: string
+          description: The running backend application version (config server.service_version; "dev" when unset).
+          example: 1.2.3
     ProjectResponse:
       allOf:
         - $ref: '#/components/schemas/Project'

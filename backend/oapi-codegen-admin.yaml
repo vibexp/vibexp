@@ -1,0 +1,17 @@
+# oapi-codegen configuration for the Admin domain (epic #309), a spec-first
+# strict-server domain. Following the friction-6 convention (see
+# oapi-codegen-types.yaml), it generates into its OWN package under
+# internal/server/gen/admin so its StrictServerInterface mounts independently
+# of the other spec-first domains.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: admingen
+output: internal/server/gen/admin/admin.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - Admin

@@ -162,6 +162,7 @@ func (c *GitHubTestContainer) ResourceUsageService() services.ResourceUsageServi
 	return nil
 }
 func (c *GitHubTestContainer) BackofficeService() services.BackofficeServiceInterface { return nil }
+func (c *GitHubTestContainer) AdminService() services.AdminServiceInterface           { return nil }
 func (c *GitHubTestContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
 	return nil
 }
