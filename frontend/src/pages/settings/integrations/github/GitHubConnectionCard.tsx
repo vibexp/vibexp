@@ -113,7 +113,8 @@ export function GitHubConnectionCard({
               className="size-2 shrink-0 rounded-full bg-success"
               data-testid="status-dot"
             />
-            Connected as <strong>{status.account_login}</strong>
+            {'Connected as '}
+            <strong>{status.account_login}</strong>
           </span>
           <ChevronDown
             className={`text-muted-foreground size-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}

@@ -297,7 +297,7 @@ export function Artifacts() {
             <span className="font-medium">
               {artifactToDelete?.title ?? 'this artifact'}
             </span>
-            . This action cannot be undone.
+            {'. This action cannot be undone.'}
           </>
         }
         confirmLabel="Delete"

@@ -612,7 +612,7 @@ export function EmbeddingProviders() {
             <span className="font-medium">
               {toDelete?.name ?? 'this provider'}
             </span>
-            . Anything using it for embeddings will stop working.
+            {'. Anything using it for embeddings will stop working.'}
           </>
         }
         confirmLabel="Delete"

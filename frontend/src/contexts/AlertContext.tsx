@@ -22,6 +22,14 @@ interface AlertProviderProps {
   children: React.ReactNode
 }
 
+/** Drops non-persistent alerts older than 30 seconds. */
+function pruneExpiredAlerts(alerts: Alert[]): Alert[] {
+  const thirtySecondsAgo = Date.now() - 30000
+  return alerts.filter(
+    alert => alert.createdAt > thirtySecondsAgo || alert.persistent
+  )
+}
+
 export function AlertProvider({ children }: Readonly<AlertProviderProps>) {
   const [alerts, setAlerts] = useState<Alert[]>([])
 
@@ -73,12 +81,7 @@ export function AlertProvider({ children }: Readonly<AlertProviderProps>) {
   // Cleanup old alerts (older than 30 seconds) to prevent memory leaks
   useEffect(() => {
     const interval = setInterval(() => {
-      const thirtySecondsAgo = Date.now() - 30000
-      setAlerts(prev =>
-        prev.filter(
-          alert => alert.createdAt > thirtySecondsAgo || alert.persistent
-        )
-      )
+      setAlerts(pruneExpiredAlerts)
     }, 10000) // Check every 10 seconds
 
     return () => {

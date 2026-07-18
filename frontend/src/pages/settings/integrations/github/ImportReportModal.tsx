@@ -107,9 +107,9 @@ export function ImportReportModal({
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {report.successful_items.map((item, index) => (
+                  {report.successful_items.map(item => (
                     <div
-                      key={index}
+                      key={item.blueprint_id}
                       className="rounded-md border border-success/20 bg-success/5 p-3"
                     >
                       <div className="flex items-start gap-3">
@@ -142,9 +142,9 @@ export function ImportReportModal({
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {report.failed_items.map((item, index) => (
+                  {report.failed_items.map(item => (
                     <div
-                      key={index}
+                      key={item.file_path}
                       className="rounded-md border border-destructive/20 bg-destructive/5 p-3"
                     >
                       <div className="flex items-start gap-3">
@@ -173,9 +173,9 @@ export function ImportReportModal({
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {report.skipped_items.map((item, index) => (
+                  {report.skipped_items.map(item => (
                     <div
-                      key={index}
+                      key={item.file_path}
                       className="rounded-md border border-warning/20 bg-warning/5 p-3"
                     >
                       <div className="flex items-start gap-3">

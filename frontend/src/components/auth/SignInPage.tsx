@@ -386,7 +386,7 @@ export function SignInPage() {
               >
                 Privacy Policy
               </a>
-              .
+              {'.'}
             </p>
           </div>
         </div>

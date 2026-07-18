@@ -497,11 +497,8 @@ describe('usePromptRenderer', () => {
       })
 
       // Create a render function that will be called later
-      let renderFunction: () => Promise<void>
-      act(() => {
-        renderFunction = () =>
-          result.current.renderPrompt('test-slug', 'test-team-id')
-      })
+      const renderFunction = () =>
+        result.current.renderPrompt('test-slug', 'test-team-id')
 
       // Update placeholder values
       act(() => {
@@ -510,7 +507,7 @@ describe('usePromptRenderer', () => {
 
       // Call the render function - should use updated values
       await act(async () => {
-        await renderFunction!()
+        await renderFunction()
       })
 
       expect(mockPromptService.renderPrompt).toHaveBeenCalledWith(

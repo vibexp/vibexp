@@ -61,6 +61,17 @@ const schema = z.object({
 
 export type CreateAPIKeyFormValues = z.infer<typeof schema>
 
+type IntegrationCode = CreateAPIKeyFormValues['integrations'][number]
+
+/** Adds or removes an integration code from the current selection. */
+function toggleIntegration(
+  current: IntegrationCode[],
+  code: IntegrationCode,
+  enabled: boolean
+): IntegrationCode[] {
+  return enabled ? [...current, code] : current.filter(c => c !== code)
+}
+
 interface CreateAPIKeyDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -159,12 +170,12 @@ export function CreateAPIKeyDialog({
                             data-testid={`integration-checkbox-${integration.code}`}
                             checked={checked}
                             onCheckedChange={value => {
-                              const next = value === true
-                              const current = field.value
                               field.onChange(
-                                next
-                                  ? [...current, integration.code]
-                                  : current.filter(c => c !== integration.code)
+                                toggleIntegration(
+                                  field.value,
+                                  integration.code,
+                                  value === true
+                                )
                               )
                             }}
                             className="mt-0.5"

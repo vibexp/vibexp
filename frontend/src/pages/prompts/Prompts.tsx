@@ -311,7 +311,7 @@ export function Prompts() {
             <span className="font-medium">
               {promptToDelete?.name ?? 'this prompt'}
             </span>
-            . This action cannot be undone.
+            {'. This action cannot be undone.'}
           </>
         }
         confirmLabel="Delete"

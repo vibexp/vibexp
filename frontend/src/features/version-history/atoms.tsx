@@ -99,14 +99,17 @@ export function Diffstat({ stat }: Readonly<{ stat: DiffStat | null }>) {
     if (i < nAdd) return 'is-add'
     return i < total ? 'is-del' : ''
   }
-  const squares = Array.from({ length: 5 }, (_, i) => squareClass(i))
+  const squares = Array.from({ length: 5 }, (_, i) => ({
+    slot: `sq-${String(i)}`,
+    cls: squareClass(i),
+  }))
   return (
     <span className="vhp-stat">
       <span className="vhp-stat__add">+{added}</span>
       <span className="vhp-stat__del">−{removed}</span>
       <span className="vhp-stat__bars">
-        {squares.map((c, i) => (
-          <i key={i} className={c} />
+        {squares.map(sq => (
+          <i key={sq.slot} className={sq.cls} />
         ))}
       </span>
     </span>

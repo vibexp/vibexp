@@ -295,7 +295,7 @@ export function ModelProviders() {
             <span className="font-medium">
               {toDelete?.name ?? 'this provider'}
             </span>
-            . Anything using it as a model backend will stop working.
+            {'. Anything using it as a model backend will stop working.'}
           </>
         }
         confirmLabel="Delete"

@@ -60,8 +60,16 @@ export function MessageList({
         </div>
       )}
 
-      {messages.map((message, index) => (
-        <ChatMessage key={index} message={message} agent={agent} />
+      {/* role+timestamp is unique: at most one message carries the 'streaming'
+          sentinel (always the last), and all other timestamps are distinct
+          instants (client-minted ISO or per-execution DB timestamps). Stable
+          across the prepend done by "Load earlier messages". */}
+      {messages.map(message => (
+        <ChatMessage
+          key={`${message.role}-${message.timestamp ?? ''}`}
+          message={message}
+          agent={agent}
+        />
       ))}
 
       {isExecuting && (

@@ -36,7 +36,7 @@ export function RenderTab({
         {allPlaceholders.length > 0 && (
           <div className="bg-muted space-y-3 rounded-md p-4">
             <p className="text-sm font-medium">
-              Fill in placeholder values
+              {'Fill in placeholder values'}
               <span className="text-muted-foreground ml-2 text-xs font-normal">
                 (includes placeholders from referenced prompts)
               </span>

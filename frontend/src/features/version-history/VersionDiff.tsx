@@ -30,17 +30,23 @@ function LineSegments({ segments }: Readonly<{ segments: WordSegment[] }>) {
   if (segments.every(s => s.text.length === 0)) {
     return <>{ZWSP}</>
   }
+  // Key each run by its character offset within the line: segments are a linear
+  // decomposition of the line (diffWords runs are non-empty), so offsets are
+  // strictly increasing and unique.
+  let offset = 0
   return (
     <>
-      {segments.map((segment, i) =>
-        segment.changed ? (
-          <span key={i} className="vcmp-word">
+      {segments.map(segment => {
+        const key = `${String(offset)}-${segment.changed ? 'c' : 'u'}`
+        offset += segment.text.length
+        return segment.changed ? (
+          <span key={key} className="vcmp-word">
             {segment.text}
           </span>
         ) : (
-          <span key={i}>{segment.text}</span>
+          <span key={key}>{segment.text}</span>
         )
-      )}
+      })}
     </>
   )
 }
@@ -74,8 +80,13 @@ function SplitDiff({
         <div>{newLabel}</div>
       </div>
       <div className="vcmp-hunk">{hunk}</div>
-      {rows.map((row, i) => (
-        <div className="vcmp-srow" key={i}>
+      {/* Every row consumes at least one fresh line number on one side, so the
+          left/right number pair is unique per row. */}
+      {rows.map(row => (
+        <div
+          className="vcmp-srow"
+          key={`${String(row.left.num ?? 'x')}-${String(row.right.num ?? 'x')}`}
+        >
           <span className="vcmp-num">{row.left.num ?? ''}</span>
           <span className={cn('vcmp-code', leftClass(row))}>
             {row.left.segments && <LineSegments segments={row.left.segments} />}
@@ -111,14 +122,16 @@ function UnifiedDiff({
   return (
     <div className="vha-diff" data-testid="version-diff-unified">
       <div className="vha-hunk">{hunk}</div>
-      {rows.map((row, i) => (
+      {/* Every row consumes at least one fresh line number on one side, so the
+          left/right number pair is unique per row. */}
+      {rows.map(row => (
         <div
           className={cn(
             'vha-dline',
             row.kind === 'add' && 'is-add',
             row.kind === 'del' && 'is-del'
           )}
-          key={i}
+          key={`${String(row.leftNum ?? 'x')}-${String(row.rightNum ?? 'x')}`}
         >
           <span className="vha-dnum">{row.leftNum ?? ''}</span>
           <span className="vha-dnum">{row.rightNum ?? ''}</span>

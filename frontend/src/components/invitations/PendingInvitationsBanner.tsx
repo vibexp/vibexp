@@ -205,7 +205,7 @@ function MultipleInvitationsBanner({
             <span className="font-medium">
               {count} pending team invitations
             </span>
-            .
+            {'.'}
           </p>
         </div>
         <div className="flex items-center gap-2 self-end sm:self-auto">

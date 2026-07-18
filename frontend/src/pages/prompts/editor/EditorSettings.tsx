@@ -28,6 +28,13 @@ export function EditorSettings({
   onSlugChange,
   onFormDataChange,
 }: Readonly<EditorSettingsProps>) {
+  const removeLabel = (labelToRemove: string) => {
+    onFormDataChange(prev => ({
+      ...prev,
+      labels: prev.labels.filter(l => l !== labelToRemove),
+    }))
+  }
+
   const projectField =
     projects.length === 0 ? (
       <Alert>
@@ -67,7 +74,7 @@ export function EditorSettings({
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="prompt-slug">
-            Slug
+            {'Slug'}
             <span className="text-muted-foreground ml-1 text-xs font-normal">
               (URL-friendly)
             </span>
@@ -119,7 +126,7 @@ export function EditorSettings({
 
         <div className="space-y-1.5">
           <Label htmlFor="prompt-description">
-            Description
+            {'Description'}
             <span className="text-muted-foreground ml-1 text-xs font-normal">
               (max 200)
             </span>
@@ -155,22 +162,19 @@ export function EditorSettings({
 
         <div className="space-y-1.5">
           <Label htmlFor="prompt-labels">
-            Labels
+            {'Labels'}
             <span className="text-muted-foreground ml-1 text-xs font-normal">
               (max 10)
             </span>
           </Label>
           <div className="flex flex-wrap gap-1.5">
-            {formData.labels.map((label, index) => (
-              <Badge key={index} variant="secondary" className="gap-1">
+            {formData.labels.map(label => (
+              <Badge key={label} variant="secondary" className="gap-1">
                 {label}
                 <button
                   type="button"
                   onClick={() => {
-                    onFormDataChange(prev => ({
-                      ...prev,
-                      labels: prev.labels.filter((_, i) => i !== index),
-                    }))
+                    removeLabel(label)
                   }}
                   className="hover:text-foreground"
                   aria-label={`Remove ${label}`}

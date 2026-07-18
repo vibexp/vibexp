@@ -234,8 +234,8 @@ export function Projects() {
             <span className="font-medium">
               {projectToDelete?.name ?? 'this project'}
             </span>
-            . Artifacts and blueprints tied to this project may also be
-            affected. This action cannot be undone.
+            {'. Artifacts and blueprints tied to this project may also be'}
+            {' affected. This action cannot be undone.'}
           </>
         }
         confirmLabel="Delete"

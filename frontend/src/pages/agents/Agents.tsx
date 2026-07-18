@@ -319,7 +319,7 @@ export function Agents() {
             <span className="font-medium">
               {selectedAgent?.name ?? 'this agent'}
             </span>
-            ? This action cannot be undone.
+            {'? This action cannot be undone.'}
           </>
         }
         confirmLabel="Delete"

@@ -162,7 +162,7 @@ export function VibeXPMCP() {
           <span className="bg-primary text-primary-foreground grid size-[38px] place-items-center rounded-md">
             <Plug className="size-[21px]" />
           </span>
-          VibeXP MCP Integration
+          {'VibeXP MCP Integration'}
         </h1>
         <p className="text-muted-foreground mt-2.5 text-base">
           Connect VibeXP to your favorite AI tools over the Model Context

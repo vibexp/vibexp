@@ -359,7 +359,7 @@ export function APIKeys() {
             <span className="font-medium">
               {keyToDelete?.name ?? 'this key'}
             </span>
-            . Any integrations using this key will stop working.
+            {'. Any integrations using this key will stop working.'}
           </>
         }
         confirmLabel="Delete"
