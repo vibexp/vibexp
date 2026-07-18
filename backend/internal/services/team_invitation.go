@@ -107,7 +107,10 @@ func (s *TeamInvitationService) InviteMembers(
 			continue
 		}
 
-		invitation, err := s.createAndSendInvitation(ctx, team, userID, email, role, inviterName, now, expiresAt)
+		invitation, err := s.createAndSendInvitation(ctx, invitationRequest{
+			team: team, inviterID: userID, inviterName: inviterName,
+			email: email, role: role, now: now, expiresAt: expiresAt,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -233,17 +236,26 @@ func (s *TeamInvitationService) hasPendingInvitationForTeam(ctx context.Context,
 	return false
 }
 
+// invitationRequest carries the per-invitee parameters for one invitation in
+// an InviteMembers batch.
+type invitationRequest struct {
+	team        *models.Team
+	inviterID   string
+	inviterName string
+	email       string
+	role        models.TeamMemberRole
+	now         time.Time
+	expiresAt   time.Time
+}
+
 // createAndSendInvitation mints a token, persists the invitation, and sends the
 // invitation email (best-effort — a send failure is logged but does not fail the
 // invitation). Token generation and persistence failures abort the whole batch.
 func (s *TeamInvitationService) createAndSendInvitation(
-	ctx context.Context,
-	team *models.Team,
-	inviterID, email string,
-	role models.TeamMemberRole,
-	inviterName string,
-	now, expiresAt time.Time,
+	ctx context.Context, req invitationRequest,
 ) (*models.TeamInvitation, error) {
+	team, inviterID, email, role := req.team, req.inviterID, req.email, req.role
+	inviterName, now, expiresAt := req.inviterName, req.now, req.expiresAt
 	// Generate secure token
 	token, err := s.generateInvitationToken()
 	if err != nil {

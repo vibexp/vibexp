@@ -76,22 +76,17 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 		SkippedItems:    []models.BlueprintImportSkipped{},
 	}
 
-	// 5. Define paths to scan
-	pathsToScan := []blueprintScanPath{
-		{".claude", true},
-		{".cursor", true},
-		{".codex", true},
-		{".agents", true},
-		{"CLAUDE.md", false},
-		{"CURSOR.md", false},
-		{"AGENTS.md", false},
+	// 5-6. Scan and import each well-known path
+	job := &blueprintImportJob{
+		installationID: installation.InstallationID,
+		userID:         userID,
+		teamID:         teamID,
+		repo:           repo,
+		projectID:      projectID,
+		report:         report,
 	}
-
-	// 6. Scan and import each path
-	for _, scanPath := range pathsToScan {
-		if err := s.scanBlueprintPath(
-			ctx, installation.InstallationID, userID, teamID, repo, scanPath, projectID, report,
-		); err != nil {
+	for _, scanPath := range blueprintScanPaths {
+		if err := s.scanBlueprintPath(ctx, job, scanPath); err != nil {
 			return report, err
 		}
 	}
@@ -99,18 +94,36 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 	return report, nil
 }
 
+// blueprintScanPaths are the well-known AI-config locations scanned during a
+// blueprint import (directories recursively, files directly).
+var blueprintScanPaths = []blueprintScanPath{
+	{".claude", true},
+	{".cursor", true},
+	{".codex", true},
+	{".agents", true},
+	{"CLAUDE.md", false},
+	{"CURSOR.md", false},
+	{"AGENTS.md", false},
+}
+
+// blueprintImportJob carries the fields invariant across one repository's
+// blueprint import, so the per-path scan helpers stay at two parameters.
+type blueprintImportJob struct {
+	installationID int64
+	userID         string
+	teamID         string
+	repo           *models.GitHubRepository
+	projectID      string
+	report         *models.BlueprintImportReport
+}
+
 // scanBlueprintPath scans one repository path (file or directory) and imports every
 // discovered file into the report. It only returns an error on context cancellation;
 // a missing path is logged and skipped.
 func (s *GitHubAppService) scanBlueprintPath(
-	ctx context.Context,
-	installationID int64,
-	userID, teamID string,
-	repo *models.GitHubRepository,
-	scanPath blueprintScanPath,
-	projectID string,
-	report *models.BlueprintImportReport,
+	ctx context.Context, job *blueprintImportJob, scanPath blueprintScanPath,
 ) error {
+	installationID, repo, report := job.installationID, job.repo, job.report
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -118,7 +131,7 @@ func (s *GitHubAppService) scanBlueprintPath(
 	}
 
 	if scanPath.isDir {
-		return s.scanBlueprintDirectory(ctx, installationID, userID, teamID, repo, scanPath.path, projectID, report)
+		return s.scanBlueprintDirectory(ctx, job, scanPath.path)
 	}
 
 	file, err := s.githubClient.GetFileContent(
@@ -133,22 +146,17 @@ func (s *GitHubAppService) scanBlueprintPath(
 	}
 
 	report.TotalScanned++
-	s.logImportProgress(report, repo.ID, teamID)
-	s.importSingleFile(ctx, userID, teamID, repo, file, projectID, report)
+	s.logImportProgress(report, repo.ID, job.teamID)
+	s.importSingleFile(ctx, job.userID, job.teamID, repo, file, job.projectID, report)
 	return nil
 }
 
 // scanBlueprintDirectory recursively lists a repository directory and imports each file.
 // It only returns an error on context cancellation; a missing directory is logged and skipped.
 func (s *GitHubAppService) scanBlueprintDirectory(
-	ctx context.Context,
-	installationID int64,
-	userID, teamID string,
-	repo *models.GitHubRepository,
-	dirPath string,
-	projectID string,
-	report *models.BlueprintImportReport,
+	ctx context.Context, job *blueprintImportJob, dirPath string,
 ) error {
+	installationID, repo, report := job.installationID, job.repo, job.report
 	files, err := s.githubClient.GetDirectoryContentsRecursive(
 		ctx, installationID, repo.Owner.Login, repo.Name, dirPath,
 	)
@@ -168,8 +176,8 @@ func (s *GitHubAppService) scanBlueprintDirectory(
 		}
 
 		report.TotalScanned++
-		s.logImportProgress(report, repo.ID, teamID)
-		s.importSingleFile(ctx, userID, teamID, repo, file, projectID, report)
+		s.logImportProgress(report, repo.ID, job.teamID)
+		s.importSingleFile(ctx, job.userID, job.teamID, repo, file, job.projectID, report)
 	}
 	return nil
 }
