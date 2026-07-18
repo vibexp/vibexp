@@ -104,7 +104,6 @@ var payloadCoverageLedger = map[string]string{
 	"GET /api/v1/ai-tools/cursor-ide/sessions":                        "TODO(#1714): uncovered",
 	"GET /api/v1/api-keys":                                            "TODO(#1714): uncovered",
 	"GET /api/v1/auth/login":                                          "TODO(#1714): uncovered",
-	"GET /api/v1/auth/me":                                             "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/embedding-providers/{id}":                  "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/embedding-providers":                       "TODO(#1714): uncovered",
 	"GET /api/v1/preferences":                                         "TODO(#1714): uncovered",

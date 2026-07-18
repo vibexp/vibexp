@@ -244,7 +244,7 @@ api-v1-auth-me:
         content:
           application/json:
             schema:
-              $ref: '../openapi.yaml#/components/schemas/User'
+              $ref: '../openapi.yaml#/components/schemas/CurrentUser'
       '401':
         description: Unauthorized - invalid or missing session cookie
         content:

@@ -329,7 +329,10 @@ func (s *Server) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeOK(w, user, s.logger)
+	writeOK(w, &models.CurrentUserResponse{
+		User:            user,
+		IsInstanceAdmin: s.config.IsInstanceAdmin(user.Email),
+	}, s.logger)
 }
 
 // DevLoginRequest is the expected body for POST /api/v1/auth/dev/login.
