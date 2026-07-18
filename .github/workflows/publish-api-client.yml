@@ -7,7 +7,7 @@ name: Publish api-client on spec change
 # a short-lived installation token from the "VibeXP Bot" GitHub App (installed on
 # vibexp/api-client-js with Repository -> Actions: read & write) and use it to
 # workflow_dispatch that repo's Publish workflow. The publish itself computes the
-# next npm version (patch bump) and generates the client from vibexp/vibexp@main,
+# next npm version (minor bump) and generates the client from vibexp/vibexp@main,
 # so no version is passed here.
 #
 # Path-filtered to the spec surface only — non-spec backend/** changes never
