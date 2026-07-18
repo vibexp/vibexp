@@ -357,7 +357,7 @@ func (s *Service) migrateSluggedResources(
 		id, slug := row[0], row[1]
 
 		if _, collision := m.dstSlugs[slug]; collision {
-			if migrated := s.migrateWithSlugConflict(ctx, tx, m, id, slug); migrated {
+			if s.migrateWithSlugConflict(ctx, tx, m, id, slug) {
 				*m.count++
 			}
 			continue
