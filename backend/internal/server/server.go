@@ -28,6 +28,7 @@ import (
 	"github.com/vibexp/vibexp/internal/observability/tracing"
 	"github.com/vibexp/vibexp/internal/repositories/postgres"
 	"github.com/vibexp/vibexp/internal/server/gen"
+	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
@@ -475,6 +476,7 @@ func (s *Server) setupRoutes() {
 	s.setupBackofficeRoutes()
 	s.setupAuthRoutes()
 	s.setupProtectedRoutes()
+	s.setupAdminRoutes()
 	s.setupFlexibleAuthRoutes()
 	// The SPA catch-all is registered LAST as the router's NotFound handler so it
 	// can never shadow an API/MCP/OAuth route: chi only falls through to NotFound
@@ -612,6 +614,31 @@ func (s *Server) setupAuthRoutes() {
 	s.router.Group(func(r chi.Router) {
 		r.Use(s.flexibleAuthMiddleware)
 		r.Get("/api/v1/auth/me", s.handleGetMe)
+	})
+}
+
+// setupAdminRoutes mounts the instance-admin surface at /api/v1/admin. It chains
+// optionalAuthMiddleware (populates the user when authenticated, but does NOT
+// 401 when credentials are absent) with instanceAdminMiddleware, so that
+// non-admin AND unauthenticated callers alike receive 404 — the surface is not
+// advertised. The generated router carries the full /api/v1/admin/... paths.
+func (s *Server) setupAdminRoutes() {
+	strict := admingen.NewStrictHandlerWithOptions(
+		&adminStrictServer{s: s},
+		nil,
+		admingen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.adminBindErrorHandler,
+			ResponseErrorHandlerFunc: s.adminResponseErrorHandler,
+		},
+	)
+	s.router.Group(func(r chi.Router) {
+		rateLimitByIP(r, s.config.RateLimit.APIPerMinute)
+		r.Use(s.optionalAuthMiddleware)
+		r.Use(s.instanceAdminMiddleware)
+		admingen.HandlerWithOptions(strict, admingen.ChiServerOptions{
+			BaseRouter:       r,
+			ErrorHandlerFunc: s.adminBindErrorHandler,
+		})
 	})
 }
 

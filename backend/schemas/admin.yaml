@@ -1,0 +1,52 @@
+# Admin (instance-level) schemas for the /api/v1/admin surface. This surface is
+# guarded by instance-admin authorization at the transport layer.
+
+AdminInstanceCounts:
+  type: object
+  description: Instance-wide totals for the top-level entities (unscoped counts).
+  required:
+    - users
+    - teams
+    - prompts
+    - artifacts
+    - memories
+  properties:
+    users:
+      type: integer
+      format: int64
+      description: Total number of user accounts.
+      example: 42
+    teams:
+      type: integer
+      format: int64
+      description: Total number of teams.
+      example: 12
+    prompts:
+      type: integer
+      format: int64
+      description: Total number of prompts.
+      example: 340
+    artifacts:
+      type: integer
+      format: int64
+      description: Total number of artifacts.
+      example: 128
+    memories:
+      type: integer
+      format: int64
+      description: Total number of memories.
+      example: 512
+
+AdminStatsResponse:
+  type: object
+  description: Instance statistics returned by GET /api/v1/admin/stats.
+  required:
+    - counts
+    - version
+  properties:
+    counts:
+      $ref: '#/AdminInstanceCounts'
+    version:
+      type: string
+      description: The running backend application version (config server.service_version; "dev" when unset).
+      example: "1.2.3"

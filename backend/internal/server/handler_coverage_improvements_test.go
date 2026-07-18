@@ -99,6 +99,7 @@ func (c *CoverageTestContainer) ClaudeCodeHooksRepository() repositories.ClaudeC
 
 // Stub implementations for unused services
 func (c *CoverageTestContainer) BackofficeService() services.BackofficeServiceInterface { return nil }
+func (c *CoverageTestContainer) AdminService() services.AdminServiceInterface           { return nil }
 func (c *CoverageTestContainer) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
 	return nil
 }

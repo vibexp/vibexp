@@ -480,6 +480,13 @@ func ProvideBackofficeService(
 	return services.NewBackofficeService(backofficeRepo)
 }
 
+// ProvideAdminService creates a new AdminService
+func ProvideAdminService(
+	adminRepo repositories.AdminRepository,
+) services.AdminServiceInterface {
+	return services.NewAdminService(adminRepo)
+}
+
 // ProvideEmbeddingBackfillService creates a new EmbeddingBackfillService that
 // republishes `.created` events to regenerate embeddings after a model swap.
 func ProvideEmbeddingBackfillService(

@@ -79,6 +79,9 @@ func (m *MockContainerForHandlers) ResourceUsageService() services.ResourceUsage
 func (m *MockContainerForHandlers) BackofficeService() services.BackofficeServiceInterface {
 	return nil
 }
+func (m *MockContainerForHandlers) AdminService() services.AdminServiceInterface {
+	return nil
+}
 func (m *MockContainerForHandlers) EmbeddingBackfillService() services.EmbeddingBackfillServiceInterface {
 	return nil
 }

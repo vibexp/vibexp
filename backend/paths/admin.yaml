@@ -1,0 +1,38 @@
+# Admin (instance-level) API paths for the /api/v1/admin surface. Every
+# operation is guarded by instance-admin authorization: non-admin and
+# unauthenticated callers receive 404 (Not Found) rather than 401/403, so the
+# surface is not advertised to non-admins.
+
+api-v1-admin-stats:
+  get:
+    summary: Get instance statistics
+    description: |
+      Returns instance-wide entity counts (users, teams, prompts, artifacts,
+      memories) and the running backend application version. Requires the
+      authenticated user to be a configured instance admin
+      (auth.instance_admins); non-admin and unauthenticated requests receive 404.
+    operationId: getAdminStats
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Instance statistics retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminStatsResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

@@ -146,6 +146,11 @@ func ProvideBackofficeRepository(db *database.DB) repositories.BackofficeReposit
 	return postgres.NewBackofficeRepository(db)
 }
 
+// ProvideAdminRepository creates a new AdminRepository
+func ProvideAdminRepository(db *database.DB) repositories.AdminRepository {
+	return postgres.NewAdminRepository(db)
+}
+
 // ProvideUserPreferencesRepository creates a new UserPreferencesRepository
 func ProvideUserPreferencesRepository(db *database.DB) repositories.UserPreferencesRepository {
 	return postgres.NewUserPreferencesRepository(db)

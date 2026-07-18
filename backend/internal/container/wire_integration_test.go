@@ -158,6 +158,7 @@ func TestInitializeContainer_AllServicesNonNil(t *testing.T) {
 	assert.NotNil(t, c.EnvironmentService(), "EnvironmentService should not be nil")
 	assert.NotNil(t, c.ResourceUsageService(), "ResourceUsageService should not be nil")
 	assert.NotNil(t, c.BackofficeService(), "BackofficeService should not be nil")
+	assert.NotNil(t, c.AdminService(), "AdminService should not be nil")
 	assert.NotNil(t, c.FeedService(), "FeedService should not be nil")
 	assert.NotNil(t, c.FeedItemService(), "FeedItemService should not be nil")
 }
