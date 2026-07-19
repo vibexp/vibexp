@@ -1,4 +1,19 @@
--- Revert the RBAC foundation migration (issue #221).
+-- Revert the consolidated post-v0.6.0 migration.
+--
+-- Undoes the merged migrations in reverse order: comments (007) first, then the
+-- RBAC foundation (006).
+
+-- ---------------------------------------------------------------------------
+-- Revert resource comments (issue #273).
+--
+-- Dropping the table removes its two indexes with it. resource_id had no FK, so
+-- there is nothing else to unwind; team_id/user_id FKs are dropped with the table.
+-- ---------------------------------------------------------------------------
+DROP TABLE IF EXISTS comments;
+
+-- ---------------------------------------------------------------------------
+-- Revert the RBAC foundation (issue #221).
+-- ---------------------------------------------------------------------------
 
 -- Revert the invitation-role CHECK (issue #221).
 ALTER TABLE team_invitations
@@ -8,7 +23,7 @@ ALTER TABLE team_invitations
 --
 -- The invitation-role pre-clean rewrote any role outside ('member','admin') to
 -- 'member'. The original value is not recorded anywhere, so there is nothing to
--- restore it from. Those rows were only reachable because the CHECK this
+-- restore it from. Those rows were only reachable because the CHECK the up
 -- migration adds was missing; dropping the CHECK again permits such values but
 -- does not resurrect the old ones.
 --
