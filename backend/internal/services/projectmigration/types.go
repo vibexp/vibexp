@@ -1,14 +1,20 @@
 package projectmigration
 
-// ConflictPolicy defines how slug collisions are handled during migration.
+// ConflictPolicy defines how slug collisions in the destination project would be
+// handled during migration. It is accepted and validated on the request, but is
+// currently inert: artifact and blueprint slugs are team-unique and migration is
+// same-team-only, so a destination project can never already contain a colliding
+// slug. The field (and these constants) are retained as published API surface and
+// forward-compatibility for a possible future cross-team migration, where a real
+// collision could occur.
 type ConflictPolicy string
 
 const (
-	// ConflictPolicySkip excludes colliding resources from the migration.
+	// ConflictPolicySkip would exclude colliding resources from the migration.
 	ConflictPolicySkip ConflictPolicy = "skip"
-	// ConflictPolicyRename appends a "-moved" suffix to the source slug before moving.
+	// ConflictPolicyRename would append a "-moved" suffix to the source slug before moving.
 	ConflictPolicyRename ConflictPolicy = "rename"
-	// ConflictPolicyOverwrite deletes the destination resource and moves the source in its place.
+	// ConflictPolicyOverwrite would delete the destination resource and move the source in its place.
 	ConflictPolicyOverwrite ConflictPolicy = "overwrite"
 )
 

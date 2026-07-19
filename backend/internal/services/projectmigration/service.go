@@ -247,105 +247,38 @@ func (s *Service) migratePrompts(
 	return nil
 }
 
-// sluggedMigration carries the per-table context shared by migrateSluggedResources
-// and migrateWithSlugConflict: the source/destination projects, the conflict policy,
-// the table with its selection/queries, and the result sinks to record outcomes
-// into. dstSlugs is populated by migrateSluggedResources before the row loop runs.
+// sluggedMigration carries the per-table context shared by migrateSluggedResources:
+// the source/destination projects, the table with its selection/queries, and the
+// result sinks to record outcomes into.
 type sluggedMigration struct {
 	srcProjectID  string
 	destProjectID string
-	policy        ConflictPolicy
 	table         string
 	sel           ResourceSelection
 	allQuery      string
-	dstSlugs      map[string]struct{}
 	failed        *[]ResourceOutcome
-	skipped       *[]ResourceOutcome
 	count         *int
 }
 
-// migrateWithSlugConflict resolves a single row's slug collision according to m.policy.
-// It returns migrated=false when the row was skipped or failed, in which case the
-// caller must not increment the migrated counter.
-func (s *Service) migrateWithSlugConflict(
-	ctx context.Context,
-	tx *sql.Tx,
-	m *sluggedMigration,
-	id, slug string,
-) (migrated bool) {
-	switch m.policy {
-	case ConflictPolicySkip:
-		*m.skipped = append(*m.skipped, ResourceOutcome{ID: id, Reason: "slug conflict: " + slug})
-		return false
-
-	case ConflictPolicyRename:
-		newSlug := s.uniqueSlug(slug+"-moved", m.dstSlugs)
-		// #nosec G201 - table is a hardcoded string literal from callers, never user input
-		q := fmt.Sprintf(
-			`UPDATE %s SET project_id = $1, slug = $2, version = version + 1, `+
-				`updated_at = NOW() WHERE id = $3 AND project_id = $4`,
-			m.table,
-		)
-		res, execErr := tx.ExecContext(ctx, q, m.destProjectID, newSlug, id, m.srcProjectID)
-		if execErr != nil {
-			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: execErr.Error()})
-			return false
-		}
-		if n, rowErr := res.RowsAffected(); rowErr == nil && n == 0 {
-			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "concurrent_modification"})
-			return false
-		}
-		m.dstSlugs[newSlug] = struct{}{}
-		return true
-
-	case ConflictPolicyOverwrite:
-		// #nosec G201 - table is a hardcoded string literal from callers, never user input
-		dq := fmt.Sprintf(`DELETE FROM %s WHERE project_id = $1 AND slug = $2`, m.table)
-		if _, execErr := tx.ExecContext(ctx, dq, m.destProjectID, slug); execErr != nil {
-			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "overwrite delete failed: " + execErr.Error()})
-			return false
-		}
-		// #nosec G201 - table is a hardcoded string literal from callers, never user input
-		uq := fmt.Sprintf(
-			`UPDATE %s SET project_id = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND project_id = $3`,
-			m.table,
-		)
-		res, execErr := tx.ExecContext(ctx, uq, m.destProjectID, id, m.srcProjectID)
-		if execErr != nil {
-			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "overwrite move failed: " + execErr.Error()})
-			return false
-		}
-		if n, rowErr := res.RowsAffected(); rowErr == nil && n == 0 {
-			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "concurrent_modification"})
-			return false
-		}
-		return true
-
-	default:
-		*m.skipped = append(*m.skipped, ResourceOutcome{ID: id, Reason: "unknown conflict policy"})
-		return false
-	}
-}
-
-// migrateSluggedResources is the shared loop for artifacts and blueprints.
+// migrateSluggedResources is the shared move loop for artifacts and blueprints.
+//
+// There is no destination slug-collision path: artifact and blueprint slugs are
+// team-unique (artifacts_slug_team_id_key / blueprints_slug_team_id_key) and
+// migration is same-team-only (enforced in validateMigrationProjects), so a source
+// row's slug is already the sole holder of that slug team-wide and a same-team
+// destination can never already contain a colliding slug. Every selected row is
+// therefore reparented directly.
 func (s *Service) migrateSluggedResources(
 	ctx context.Context,
 	tx *sql.Tx,
 	m *sluggedMigration,
 ) error {
-	rows, err := s.querySlugRows(ctx, tx, m.srcProjectID, m.sel, m.allQuery)
+	ids, err := s.resolveIDs(ctx, tx, m.srcProjectID, m.sel, m.allQuery)
 	if err != nil {
 		return err
 	}
-	if len(rows) == 0 {
+	if len(ids) == 0 {
 		return nil
-	}
-
-	// #nosec G201 - table is a hardcoded string literal from callers ("artifacts"/"blueprints"), never user input
-	slugQuery := fmt.Sprintf(`SELECT slug FROM %s WHERE project_id = $1`, m.table)
-	m.dstSlugs, err = s.existingSlugs(ctx, tx, m.destProjectID, slugQuery)
-	if err != nil {
-		return err
 	}
 
 	// #nosec G201 - table is a hardcoded string literal from callers, never user input
@@ -353,16 +286,7 @@ func (s *Service) migrateSluggedResources(
 		`UPDATE %s SET project_id = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND project_id = $3`,
 		m.table,
 	)
-	for _, row := range rows {
-		id, slug := row[0], row[1]
-
-		if _, collision := m.dstSlugs[slug]; collision {
-			if s.migrateWithSlugConflict(ctx, tx, m, id, slug) {
-				*m.count++
-			}
-			continue
-		}
-
+	for _, id := range ids {
 		execRes, execErr := tx.ExecContext(ctx, updateQ, m.destProjectID, id, m.srcProjectID)
 		if execErr != nil {
 			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: execErr.Error()})
@@ -372,13 +296,12 @@ func (s *Service) migrateSluggedResources(
 			*m.failed = append(*m.failed, ResourceOutcome{ID: id, Reason: "concurrent_modification"})
 			continue
 		}
-		m.dstSlugs[slug] = struct{}{}
 		*m.count++
 	}
 	return nil
 }
 
-// migrateArtifacts moves selected artifacts to the destination project, applying the conflict policy.
+// migrateArtifacts moves selected artifacts to the destination project.
 func (s *Service) migrateArtifacts(
 	ctx context.Context,
 	tx *sql.Tx,
@@ -389,12 +312,10 @@ func (s *Service) migrateArtifacts(
 	return s.migrateSluggedResources(ctx, tx, &sluggedMigration{
 		srcProjectID:  sourceProjectID,
 		destProjectID: req.DestinationProjectID,
-		policy:        req.ConflictPolicy,
 		table:         "artifacts",
 		sel:           req.Resources.Artifacts,
-		allQuery:      `SELECT id, slug FROM artifacts WHERE project_id = $1`,
+		allQuery:      `SELECT id FROM artifacts WHERE project_id = $1`,
 		failed:        &result.Failed.Artifacts,
-		skipped:       &result.Skipped.Artifacts,
 		count:         &result.Migrated.Artifacts,
 	})
 }
@@ -410,12 +331,10 @@ func (s *Service) migrateBlueprints(
 	return s.migrateSluggedResources(ctx, tx, &sluggedMigration{
 		srcProjectID:  sourceProjectID,
 		destProjectID: req.DestinationProjectID,
-		policy:        req.ConflictPolicy,
 		table:         "blueprints",
 		sel:           req.Resources.Blueprints,
-		allQuery:      `SELECT id, slug FROM blueprints WHERE project_id = $1`,
+		allQuery:      `SELECT id FROM blueprints WHERE project_id = $1`,
 		failed:        &result.Failed.Blueprints,
-		skipped:       &result.Skipped.Blueprints,
 		count:         &result.Migrated.Blueprints,
 	})
 }
@@ -500,81 +419,6 @@ func (s *Service) resolveIDs(
 	return s.queryIDsFromTxArgs(ctx, tx, query, args...)
 }
 
-// querySlugRows returns [][]string{{id, slug}, ...} for the selected resources.
-func (s *Service) querySlugRows(
-	ctx context.Context,
-	tx *sql.Tx,
-	sourceProjectID string,
-	sel ResourceSelection,
-	allQuery string,
-) ([][2]string, error) {
-	if sel.All {
-		return s.queryIDSlugsFromTx(ctx, tx, allQuery, sourceProjectID)
-	}
-	if len(sel.IDs) == 0 {
-		return nil, nil
-	}
-
-	table := extractTableName(allQuery)
-	if table == "" {
-		return nil, fmt.Errorf("could not extract table name from query: %s", allQuery)
-	}
-
-	placeholders := make([]string, len(sel.IDs))
-	args := make([]interface{}, len(sel.IDs)+1)
-	args[0] = sourceProjectID
-	for i, id := range sel.IDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+2)
-		args[i+1] = id
-	}
-
-	query := fmt.Sprintf(
-		`SELECT id, slug FROM %s WHERE project_id = $1 AND id IN (%s)`,
-		table, strings.Join(placeholders, ","),
-	)
-	return s.queryIDSlugsFromTxArgs(ctx, tx, query, args...)
-}
-
-// existingSlugs returns a set of slug strings present in destProjectID for a given table query.
-func (s *Service) existingSlugs(
-	ctx context.Context, tx *sql.Tx, destProjectID, query string,
-) (map[string]struct{}, error) {
-	rows, err := tx.QueryContext(ctx, query, destProjectID)
-	if err != nil {
-		return nil, fmt.Errorf("existingSlugs query failed: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.logger.With("error", closeErr).Warn("failed to close rows in existingSlugs")
-		}
-	}()
-
-	slugs := make(map[string]struct{})
-	for rows.Next() {
-		var slug string
-		if err := rows.Scan(&slug); err != nil {
-			return nil, fmt.Errorf("existingSlugs scan: %w", err)
-		}
-		slugs[slug] = struct{}{}
-	}
-	return slugs, rows.Err()
-}
-
-// uniqueSlug returns a slug that does not exist in the existing set.
-// It appends a numeric suffix if needed: "foo-moved", "foo-moved-2", "foo-moved-3", ...
-func (s *Service) uniqueSlug(base string, existing map[string]struct{}) string {
-	candidate := base
-	if _, ok := existing[candidate]; !ok {
-		return candidate
-	}
-	for i := 2; ; i++ {
-		candidate = fmt.Sprintf("%s-%d", base, i)
-		if _, ok := existing[candidate]; !ok {
-			return candidate
-		}
-	}
-}
-
 // queryIDsFromTx runs a single-$1 query inside a transaction and collects ids.
 func (s *Service) queryIDsFromTx(ctx context.Context, tx *sql.Tx, query, arg string) ([]string, error) {
 	return s.queryIDsFromTxArgs(ctx, tx, query, arg)
@@ -602,36 +446,6 @@ func (s *Service) queryIDsFromTxArgs(
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
-}
-
-func (s *Service) queryIDSlugsFromTx(
-	ctx context.Context, tx *sql.Tx, query, arg string,
-) ([][2]string, error) {
-	return s.queryIDSlugsFromTxArgs(ctx, tx, query, arg)
-}
-
-func (s *Service) queryIDSlugsFromTxArgs(
-	ctx context.Context, tx *sql.Tx, query string, args ...interface{},
-) ([][2]string, error) {
-	rows, err := tx.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("queryIDSlugsFromTxArgs: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.logger.With("error", closeErr).Warn("failed to close rows in queryIDSlugsFromTxArgs")
-		}
-	}()
-
-	var result [][2]string
-	for rows.Next() {
-		var id, slug string
-		if err := rows.Scan(&id, &slug); err != nil {
-			return nil, fmt.Errorf("scan id+slug: %w", err)
-		}
-		result = append(result, [2]string{id, slug})
-	}
-	return result, rows.Err()
 }
 
 // extractTableName parses the table name from a simple "SELECT ... FROM <table> ..." query.

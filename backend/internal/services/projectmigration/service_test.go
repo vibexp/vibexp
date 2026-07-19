@@ -56,53 +56,6 @@ func TestExtractTableName(t *testing.T) {
 	}
 }
 
-func TestUniqueSlug(t *testing.T) {
-	t.Parallel()
-
-	svc := &Service{}
-
-	tests := []struct {
-		name     string
-		base     string
-		existing map[string]struct{}
-		expected string
-	}{
-		{
-			name:     "no collision",
-			base:     "my-slug-moved",
-			existing: map[string]struct{}{},
-			expected: "my-slug-moved",
-		},
-		{
-			name:     "first collision",
-			base:     "my-slug-moved",
-			existing: map[string]struct{}{"my-slug-moved": {}},
-			expected: "my-slug-moved-2",
-		},
-		{
-			name:     "two collisions",
-			base:     "my-slug-moved",
-			existing: map[string]struct{}{"my-slug-moved": {}, "my-slug-moved-2": {}},
-			expected: "my-slug-moved-3",
-		},
-		{
-			name:     "many collisions",
-			base:     "s",
-			existing: map[string]struct{}{"s": {}, "s-2": {}, "s-3": {}, "s-4": {}},
-			expected: "s-5",
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := svc.uniqueSlug(tc.base, tc.existing)
-			assert.Equal(t, tc.expected, got)
-		})
-	}
-}
-
 func TestValidateMigrationRequest_ConflictPolicies(t *testing.T) {
 	t.Parallel()
 
