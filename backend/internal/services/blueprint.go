@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"path/filepath"
 	"time"
 
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/blueprintpath"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/utils"
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
@@ -35,11 +37,20 @@ func blueprintSubtype(bp *models.Blueprint) string {
 	return ""
 }
 
-// resolveBlueprintPath sets bp.Path/PathDerived from an optional explicit path.
-// An explicit path is traversal-validated and freezes the path (PathDerived
-// false); otherwise a default is derived from (type, subtype, slug), falling
+// deriveDefaultPath returns the canonical default path for a blueprint, falling
 // back to "<slug>.md" for a (type, subtype) with no canonical default — matching
-// the migration's ELSE branch. The full rename-recompute lifecycle is #340.
+// the migration's ELSE branch.
+func deriveDefaultPath(bp *models.Blueprint) string {
+	p, err := blueprintpath.DefaultPath(bp.Type, blueprintSubtype(bp), bp.Slug)
+	if err != nil {
+		return bp.Slug + ".md"
+	}
+	return p
+}
+
+// resolveBlueprintPath sets bp.Path/PathDerived from an optional explicit path on
+// CREATE. An explicit path is traversal-validated and freezes the path
+// (PathDerived false); otherwise a default is derived (PathDerived true).
 func resolveBlueprintPath(bp *models.Blueprint, explicit *string) error {
 	if explicit != nil && *explicit != "" {
 		if err := blueprintpath.ValidateRelativePath(*explicit); err != nil {
@@ -49,13 +60,68 @@ func resolveBlueprintPath(bp *models.Blueprint, explicit *string) error {
 		bp.PathDerived = false
 		return nil
 	}
-	p, err := blueprintpath.DefaultPath(bp.Type, blueprintSubtype(bp), bp.Slug)
-	if err != nil {
-		p = bp.Slug + ".md"
-	}
-	bp.Path = p
+	bp.Path = deriveDefaultPath(bp)
 	bp.PathDerived = true
 	return nil
+}
+
+// applyUpdatePath resolves the path on UPDATE. An explicit path is validated and
+// freezes the path (PathDerived false). With no explicit path, a still-derived
+// path is recomputed from the (possibly renamed) slug/type/subtype — idempotent
+// when nothing changed — while a frozen path (imported or previously overridden)
+// is left untouched.
+func applyUpdatePath(bp *models.Blueprint, explicit *string) error {
+	if explicit != nil && *explicit != "" {
+		if err := blueprintpath.ValidateRelativePath(*explicit); err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidBlueprintPath, err)
+		}
+		bp.Path = *explicit
+		bp.PathDerived = false
+		return nil
+	}
+	if bp.PathDerived {
+		bp.Path = deriveDefaultPath(bp)
+	}
+	return nil
+}
+
+// isSkillBlueprint reports whether bp is a claude-code/skills blueprint, whose
+// Agent-Skill frontmatter name must match its directory name.
+func isSkillBlueprint(bp *models.Blueprint) bool {
+	return bp.Type == blueprintpath.TypeClaudeCode && blueprintSubtype(bp) == "skills"
+}
+
+// syncSkillName silently forces a claude-code/skills blueprint's Title (the
+// Agent-Skill "name") to its path's directory name, so VibeXP can never produce
+// a spec-invalid skill (epic #334 decision 6). No-op for other types. Call after
+// the path is resolved.
+func syncSkillName(bp *models.Blueprint) {
+	if isSkillBlueprint(bp) {
+		bp.Title = filepath.Base(filepath.Dir(bp.Path))
+	}
+}
+
+// regenerateRaw deterministically rebuilds a blueprint's raw_content from its
+// parsed parts (metadata + body), forcing the Agent-Skill "name" for skills, and
+// returns the raw plus its SHA-256. A metadata-less blueprint regenerates to its
+// body verbatim (no spurious frontmatter block). Deterministic + stable: a no-op
+// edit reproduces byte-identical raw (guaranteed by #336's serializer
+// idempotency), so content_sha stays a reliable "edited in VibeXP" signal.
+func (s *BlueprintService) regenerateRaw(bp *models.Blueprint) (string, string) {
+	meta := make(map[string]any, len(bp.Metadata)+1)
+	for k, v := range bp.Metadata {
+		meta[k] = v
+	}
+	if isSkillBlueprint(bp) {
+		meta["name"] = bp.Title // = directory name after syncSkillName
+	}
+	var raw string
+	if len(meta) == 0 {
+		raw = bp.Content
+	} else {
+		raw = utils.SerializeFrontMatter(meta, bp.Content)
+	}
+	return raw, computeContentSHA(raw)
 }
 
 type BlueprintService struct {
@@ -166,11 +232,10 @@ func (s *BlueprintService) CreateBlueprint(
 	if err := resolveBlueprintPath(blueprint, req.Path); err != nil {
 		return nil, err
 	}
-	// Baseline raw_content + content_sha. Deterministic raw regeneration from
-	// frontmatter on edits is #340; here raw mirrors the parsed content, as the
-	// migration backfill does for legacy rows.
-	blueprint.RawContent = blueprint.Content
-	blueprint.ContentSHA = computeContentSHA(blueprint.RawContent)
+	// Skills force their frontmatter name to the directory name, then raw_content
+	// is regenerated deterministically from the parsed parts.
+	syncSkillName(blueprint)
+	blueprint.RawContent, blueprint.ContentSHA = s.regenerateRaw(blueprint)
 
 	// Validate business rules before creating
 	err := validateBlueprintBusinessRules(blueprint)
@@ -398,7 +463,7 @@ func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlug(
 		return nil, err
 	}
 
-	return s.applyAndPersistBlueprintUpdate(userID, blueprint, req, models.ActorTypeHuman, nil)
+	return s.applyAndPersistBlueprintUpdate(userID, blueprint, req, models.ActorTypeHuman, nil, nil)
 }
 
 // UpdateBlueprintByProjectIDAndSlugInTeam updates a blueprint scoped to a single team the
@@ -414,7 +479,7 @@ func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlugInTeam(
 		return nil, err
 	}
 
-	return s.applyAndPersistBlueprintUpdate(userID, blueprint, req, models.ActorTypeHuman, nil)
+	return s.applyAndPersistBlueprintUpdate(userID, blueprint, req, models.ActorTypeHuman, nil, nil)
 }
 
 // applyAndPersistBlueprintUpdate applies the update request to an already-loaded blueprint,
@@ -429,7 +494,7 @@ func (s *BlueprintService) UpdateBlueprintByProjectIDAndSlugInTeam(
 // update (mirrors event publishing).
 func (s *BlueprintService) snapshotBlueprintContent(
 	ctx context.Context, userID string, blueprint *models.Blueprint,
-	oldContent, actorType string, changeSummary *string,
+	oldContent, oldRawContent, actorType string, changeSummary *string,
 ) {
 	if s.contentVersionSvc == nil || oldContent == blueprint.Content {
 		return
@@ -441,6 +506,7 @@ func (s *BlueprintService) snapshotBlueprintContent(
 		UserID:        userID,
 		OldContent:    oldContent,
 		NewContent:    blueprint.Content,
+		OldRawContent: oldRawContent,
 		ChangeSummary: changeSummary,
 		ActorType:     actorType,
 	}); err != nil {
@@ -450,7 +516,7 @@ func (s *BlueprintService) snapshotBlueprintContent(
 
 func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	userID string, blueprint *models.Blueprint, req *models.UpdateBlueprintRequest,
-	actorType string, changeSummary *string,
+	actorType string, changeSummary *string, rawOverride *string,
 ) (*models.Blueprint, error) {
 	// Any member may update any blueprint, including another member's (epic #220
 	// decision D1). Gated in the shared helper so the entry point and version
@@ -466,30 +532,38 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 	// Note: team_id cannot be changed via update (removed from UpdateBlueprintRequest)
 	// Team reassignment is forbidden to prevent cross-team resource moves
 
-	// Snapshot the prior content before the update mutates it, so a version
-	// history is built whenever the content actually changes.
+	// Snapshot the prior content + raw before the update mutates them, so a
+	// version history is built whenever the content actually changes.
 	oldContent := blueprint.Content
+	oldRawContent := blueprint.RawContent
 
 	// Apply updates
 	applyBlueprintUpdates(blueprint, req)
 
-	// An explicit path in the request freezes it (validated); when omitted the
-	// existing path is preserved. Rename-driven recomputation of derived paths
-	// is #340.
-	if req.Path != nil && *req.Path != "" {
-		if err := blueprintpath.ValidateRelativePath(*req.Path); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrInvalidBlueprintPath, err)
-		}
-		blueprint.Path = *req.Path
-		blueprint.PathDerived = false
+	// Resolve the path: explicit override freezes it; a still-derived path
+	// recomputes from a renamed slug/type/subtype; a frozen path is untouched.
+	if err := applyUpdatePath(blueprint, req.Path); err != nil {
+		return nil, err
 	}
+	// Skills force their frontmatter name to the (possibly recomputed) directory.
+	syncSkillName(blueprint)
 
 	// Validate final merged state
 	if err := validateBlueprintBusinessRules(blueprint); err != nil {
 		return nil, err
 	}
 
-	s.snapshotBlueprintContent(ctx, userID, blueprint, oldContent, actorType, changeSummary)
+	// Regenerate raw_content deterministically from the edited parts, unless a
+	// raw override is supplied (version restore reinstates the snapshotted raw
+	// exactly rather than regenerating it).
+	if rawOverride != nil {
+		blueprint.RawContent = *rawOverride
+		blueprint.ContentSHA = computeContentSHA(*rawOverride)
+	} else {
+		blueprint.RawContent, blueprint.ContentSHA = s.regenerateRaw(blueprint)
+	}
+
+	s.snapshotBlueprintContent(ctx, userID, blueprint, oldContent, oldRawContent, actorType, changeSummary)
 
 	if err := s.repo.Update(ctx, blueprint); err != nil {
 		s.logger.With(
@@ -502,25 +576,31 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 		return nil, err
 	}
 
-	// Publish blueprint updated event
-	if s.eventManager != nil {
-		event := events.NewBlueprintUpdatedEvent(events.BlueprintUpdatedPayload{
-			BlueprintID: blueprint.ID,
-			UserID:      blueprint.UserID,
-			ProjectName: blueprint.ProjectID,
-			Slug:        blueprint.Slug,
-			Title:       blueprint.Title,
-			Description: blueprint.Description,
-			Type:        blueprint.Type,
-			Body:        blueprint.Content,
-			UpdatedAt:   blueprint.UpdatedAt,
-		})
-		if err := s.eventManager.Publish(ctx, event); err != nil {
-			s.logger.With("error", err).Warn("Failed to publish blueprint updated event")
-		}
-	}
+	s.publishBlueprintUpdatedEvent(ctx, blueprint)
 
 	return blueprint, nil
+}
+
+// publishBlueprintUpdatedEvent emits the blueprint-updated event (best-effort;
+// a publish failure is logged, never fatal).
+func (s *BlueprintService) publishBlueprintUpdatedEvent(ctx context.Context, blueprint *models.Blueprint) {
+	if s.eventManager == nil {
+		return
+	}
+	event := events.NewBlueprintUpdatedEvent(events.BlueprintUpdatedPayload{
+		BlueprintID: blueprint.ID,
+		UserID:      blueprint.UserID,
+		ProjectName: blueprint.ProjectID,
+		Slug:        blueprint.Slug,
+		Title:       blueprint.Title,
+		Description: blueprint.Description,
+		Type:        blueprint.Type,
+		Body:        blueprint.Content,
+		UpdatedAt:   blueprint.UpdatedAt,
+	})
+	if err := s.eventManager.Publish(ctx, event); err != nil {
+		s.logger.With("error", err).Warn("Failed to publish blueprint updated event")
+	}
 }
 
 // ListBlueprintVersions returns the content-version history for a blueprint, newest-first.
@@ -563,7 +643,10 @@ func (s *BlueprintService) RestoreBlueprintVersionInTeam(
 		return nil, err
 	}
 
-	target, err := s.contentVersionSvc.Restore(
+	// Fetch the full target version so its snapshotted raw_content can be
+	// reinstated exactly (the normal update path regenerates raw; restore must
+	// reproduce the old raw byte-for-byte).
+	target, err := s.contentVersionSvc.GetVersion(
 		context.Background(), blueprint.TeamID, "blueprint", blueprint.ID, versionNumber,
 	)
 	if err != nil {
@@ -573,9 +656,10 @@ func (s *BlueprintService) RestoreBlueprintVersionInTeam(
 	// A restore is a system-authored edit: the pre-restore content is snapshotted with a
 	// default "Restored Version N" summary so the timeline reads clearly.
 	restoreSummary := fmt.Sprintf("Restored Version %d", versionNumber)
+	rawOverride := target.RawContent
 	return s.applyAndPersistBlueprintUpdate(
-		userID, blueprint, &models.UpdateBlueprintRequest{Content: &target},
-		models.ActorTypeSystem, &restoreSummary,
+		userID, blueprint, &models.UpdateBlueprintRequest{Content: &target.Content},
+		models.ActorTypeSystem, &restoreSummary, &rawOverride,
 	)
 }
 
