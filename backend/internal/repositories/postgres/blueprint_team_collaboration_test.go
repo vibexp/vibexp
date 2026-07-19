@@ -117,7 +117,7 @@ func TestBlueprintRepository_TeamMember_CanGetOtherMembersSpecs(t *testing.T) {
 	getQuery := `SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, s\.title, s\.description, ` +
 		`s\.content, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, s\.version,\s+` +
 		`s\.path, s\.path_derived, s\.raw_content, s\.content_sha, s\.source_repo, s\.source_commit_sha, ` +
-		`s\.source_blob_sha, s\.imported_at\s+` +
+		`s\.source_blob_sha, s\.source_content_sha, s\.imported_at\s+` +
 		`FROM blueprints s\s+WHERE.*`
 	mock.ExpectQuery(getQuery).
 		WithArgs(aliceSpecID, teamID, bobUserID).
@@ -125,12 +125,12 @@ func TestBlueprintRepository_TeamMember_CanGetOtherMembersSpecs(t *testing.T) {
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 			"path", "path_derived", "raw_content", "content_sha",
-			"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
+			"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 		}).AddRow(
 			aliceSpecID, "project-123", "api-spec", aliceUserID, teamID,
 			"API Specification", "REST API spec", "OpenAPI content",
 			"active", "api", "openapi", []byte("{}"), now, now, 1,
-			"api-spec.md", true, nil, nil, nil, nil, nil, nil,
+			"api-spec.md", true, nil, nil, nil, nil, nil, nil, nil,
 		))
 
 	// Bob gets Alice's spec

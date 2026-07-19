@@ -13,58 +13,57 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 )
 
-// TestGitBlobSHA pins the Git blob hashing against a known reference
-// (`printf 'hello' | git hash-object --stdin`).
-func TestGitBlobSHA(t *testing.T) {
-	assert.Equal(t, "b6fc4c620b67d95f953a5c1c1230aaab5db5a1b0", gitBlobSHA("hello"))
-	// Empty blob SHA is the well-known git constant.
-	assert.Equal(t, "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", gitBlobSHA(""))
-}
-
-// TestReimportOutcome covers the update/up-to-date/conflict decision matrix.
+// TestReimportOutcome covers the update/up-to-date/conflict decision matrix. The
+// unedited test compares content_sha (current) to source_content_sha (imported).
 func TestReimportOutcome(t *testing.T) {
-	rawAtImport := "---\nname: X\n---\nbody"
-	blob := gitBlobSHA(rawAtImport)
+	importedSHA := "sha-at-import"
 
 	tests := []struct {
-		name        string
-		existingRaw string
-		source      *models.BlueprintSource
-		fileBlobSHA string
-		want        reimportDecision
+		name             string
+		contentSHA       string
+		sourceContentSHA string
+		source           *models.BlueprintSource
+		fileBlobSHA      string
+		want             reimportDecision
 	}{
 		{
-			name:        "repo file unchanged -> up-to-date",
-			existingRaw: rawAtImport,
-			source:      &models.BlueprintSource{BlobSHA: blob},
-			fileBlobSHA: blob, // same blob as stored
-			want:        reimportUpToDate,
+			name:             "repo file unchanged -> up-to-date",
+			contentSHA:       importedSHA,
+			sourceContentSHA: importedSHA,
+			source:           &models.BlueprintSource{BlobSHA: "blob-1"},
+			fileBlobSHA:      "blob-1", // same blob as stored
+			want:             reimportUpToDate,
 		},
 		{
-			name:        "repo changed + blueprint unedited -> update",
-			existingRaw: rawAtImport, // still byte-identical to the imported bytes
-			source:      &models.BlueprintSource{BlobSHA: blob},
-			fileBlobSHA: "newblobsha",
-			want:        reimportUpdate,
+			name:             "repo changed + blueprint unedited -> update",
+			contentSHA:       importedSHA, // still equals the import-time content_sha
+			sourceContentSHA: importedSHA,
+			source:           &models.BlueprintSource{BlobSHA: "blob-1"},
+			fileBlobSHA:      "blob-2",
+			want:             reimportUpdate,
 		},
 		{
-			name:        "repo changed + blueprint edited in VibeXP -> conflict",
-			existingRaw: "---\nname: X\n---\nEDITED", // raw diverged from import
-			source:      &models.BlueprintSource{BlobSHA: blob},
-			fileBlobSHA: "newblobsha",
-			want:        reimportConflict,
+			name:             "repo changed + blueprint edited in VibeXP -> conflict",
+			contentSHA:       "sha-after-edit", // content_sha diverged from import
+			sourceContentSHA: importedSHA,
+			source:           &models.BlueprintSource{BlobSHA: "blob-1"},
+			fileBlobSHA:      "blob-2",
+			want:             reimportConflict,
 		},
 		{
-			name:        "no provenance -> conflict (cannot confirm unedited)",
-			existingRaw: rawAtImport,
-			source:      nil,
-			fileBlobSHA: "newblobsha",
-			want:        reimportConflict,
+			name:             "no imported fingerprint -> conflict (cannot confirm unedited)",
+			contentSHA:       importedSHA,
+			sourceContentSHA: "",
+			source:           nil,
+			fileBlobSHA:      "blob-2",
+			want:             reimportConflict,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			existing := &models.Blueprint{RawContent: tc.existingRaw, Source: tc.source}
+			existing := &models.Blueprint{
+				ContentSHA: tc.contentSHA, SourceContentSHA: tc.sourceContentSHA, Source: tc.source,
+			}
 			got := reimportOutcome(existing, &external.GitHubFile{BlobSHA: tc.fileBlobSHA})
 			assert.Equal(t, tc.want, got)
 		})
@@ -90,6 +89,7 @@ func TestBuildImportedBlueprint_Provenance(t *testing.T) {
 	assert.False(t, bp.PathDerived)
 	assert.Equal(t, "# body", bp.RawContent)
 	assert.Equal(t, computeContentSHA("# body"), bp.ContentSHA)
+	assert.Equal(t, bp.ContentSHA, bp.SourceContentSHA, "imported fingerprint == content_sha at import")
 	require.NotNil(t, bp.Source)
 	assert.Equal(t, "https://github.com/o/r", bp.Source.Repo)
 	assert.Equal(t, "commit-abc", bp.Source.CommitSHA)
@@ -102,10 +102,10 @@ func TestBuildImportedBlueprint_Provenance(t *testing.T) {
 func TestReconcileReimport_Update(t *testing.T) {
 	svc, repo := newSanitizeTestService()
 	report := &models.BlueprintImportReport{}
-	rawAtImport := "old raw"
 	existing := &models.Blueprint{
-		ID: "bp-1", Slug: "s", RawContent: rawAtImport,
-		Source: &models.BlueprintSource{BlobSHA: gitBlobSHA(rawAtImport)},
+		ID: "bp-1", Slug: "s", RawContent: "old raw",
+		ContentSHA: "imported-sha", SourceContentSHA: "imported-sha", // unedited
+		Source: &models.BlueprintSource{BlobSHA: "old-blob"},
 	}
 	imported := &models.Blueprint{
 		Content: "new content", RawContent: "new raw", ContentSHA: "new-sha",
@@ -153,7 +153,8 @@ func TestReconcileReimport_Conflict(t *testing.T) {
 	report := &models.BlueprintImportReport{}
 	existing := &models.Blueprint{
 		ID: "bp-1", RawContent: "edited in vibexp",
-		Source: &models.BlueprintSource{BlobSHA: gitBlobSHA("original raw")},
+		ContentSHA: "sha-after-edit", SourceContentSHA: "imported-sha", // edited: differ
+		Source: &models.BlueprintSource{BlobSHA: "old-blob"},
 	}
 	job := &blueprintImportJob{teamID: "t", report: report}
 

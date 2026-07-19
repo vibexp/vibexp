@@ -35,6 +35,11 @@ type Blueprint struct {
 	RawContent string `json:"raw_content,omitempty" db:"raw_content"`
 	// ContentSHA is the SHA-256 (lowercase hex) of RawContent.
 	ContentSHA string `json:"content_sha,omitempty" db:"content_sha"`
+	// SourceContentSHA is the SHA-256 of the raw bytes AS IMPORTED, captured once
+	// at import and never regenerated. Update-aware re-import (#341) treats the
+	// blueprint as unedited iff ContentSHA still equals SourceContentSHA. Internal
+	// edit-detection signal, not part of the API. Empty for VibeXP-authored rows.
+	SourceContentSHA string `json:"-" db:"source_content_sha"`
 	// Source is import provenance, server-set only; nil for VibeXP-authored
 	// blueprints. Assembled from the nullable source_* / imported_at columns.
 	Source *BlueprintSource `json:"source,omitempty"`

@@ -2,8 +2,6 @@ package services
 
 import (
 	"context"
-	"crypto/sha1" // #nosec G505 -- git blob SHAs are sha1 by definition; not used for security.
-	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -370,6 +368,9 @@ func (s *GitHubAppService) buildImportedBlueprint(
 		PathDerived: false,
 		RawContent:  file.Content,
 		ContentSHA:  computeContentSHA(file.Content),
+		// Immutable fingerprint of the imported bytes (== ContentSHA at import),
+		// preserved across VibeXP edits so re-import can detect them (#341).
+		SourceContentSHA: computeContentSHA(file.Content),
 		Source: &models.BlueprintSource{
 			Repo:       repo.HTMLURL,
 			CommitSHA:  job.sourceCommitSHA,
@@ -398,10 +399,16 @@ const (
 // reimportOutcome decides how to reconcile a re-imported file with an existing
 // blueprint:
 //   - repo file unchanged (its blob SHA equals the stored source_blob_sha) -> up-to-date;
-//   - repo file changed AND the blueprint is still byte-identical to what was
-//     imported (git blob SHA of its raw_content equals source_blob_sha) -> update;
+//   - repo file changed AND the blueprint is still unedited (its current
+//     content_sha still equals the content_sha captured at import,
+//     source_content_sha) -> update;
 //   - otherwise (edited in VibeXP, or provenance is unknown so we cannot confirm
 //     it is unedited) -> conflict, never overwriting local changes.
+//
+// The unedited test uses SHA-256 fingerprints only: source_content_sha is the
+// import-time content_sha, immutable across edits, while content_sha is
+// regenerated on every VibeXP edit (#340), so equality means "raw unchanged
+// since import".
 func reimportOutcome(existing *models.Blueprint, file *external.GitHubFile) reimportDecision {
 	importedBlob := ""
 	if existing.Source != nil {
@@ -410,24 +417,10 @@ func reimportOutcome(existing *models.Blueprint, file *external.GitHubFile) reim
 	if file.BlobSHA != "" && importedBlob != "" && file.BlobSHA == importedBlob {
 		return reimportUpToDate
 	}
-	if importedBlob != "" && gitBlobSHA(existing.RawContent) == importedBlob {
+	if existing.SourceContentSHA != "" && existing.ContentSHA == existing.SourceContentSHA {
 		return reimportUpdate
 	}
 	return reimportConflict
-}
-
-// gitBlobSHA returns the Git blob SHA-1 of content ("blob <len>\0<content>"), so
-// it can be compared against the source_blob_sha captured at import to tell an
-// unedited blueprint (raw byte-identical to the source file) from a VibeXP-edited
-// one. sha1 is git's blob-hash algorithm, not a security primitive here.
-func gitBlobSHA(content string) string {
-	data := append([]byte(fmt.Sprintf("blob %d\x00", len(content))), content...)
-	// SHA-1 is git's content-addressing algorithm by definition: the result is
-	// compared only against the git blob SHAs GitHub itself provides
-	// (source_blob_sha), never used as a security primitive. Suppressed for both
-	// gosec (#nosec G401) and SonarCloud (S4790 weak-hash) accordingly.
-	sum := sha1.Sum(data) // #nosec G401 // NOSONAR: git blob hashing, not a security context
-	return hex.EncodeToString(sum[:])
 }
 
 // applyReimportUpdate refreshes the existing blueprint in place from a re-imported
@@ -437,6 +430,7 @@ func applyReimportUpdate(existing, imported *models.Blueprint) {
 	existing.Content = imported.Content
 	existing.RawContent = imported.RawContent
 	existing.ContentSHA = imported.ContentSHA
+	existing.SourceContentSHA = imported.SourceContentSHA
 	existing.Metadata = imported.Metadata
 	existing.Title = imported.Title
 	existing.Description = imported.Description
