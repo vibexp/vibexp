@@ -1,10 +1,10 @@
 /**
- * Tests for the Memories list page and its supporting modules.
+ * Unit tests for the Memories list page's supporting modules
+ * (memoriesColumns helpers) in isolation.
  *
- * Note: Full rendering of Memories.tsx is memory-intensive in Jest/JSDOM
- * because of the transitive Radix UI Select imports. Tests here focus on
- * the memoriesColumns helper and the MemoryFilters component in isolation,
- * plus service-call behaviour via mocks.
+ * The Memories.tsx page component itself is rendered and tested in
+ * MemoriesPage.test.tsx, which stubs the Radix UI Select (it can loop in
+ * Jest/JSDOM) with a lightweight interactive mock.
  */
 
 import type { Memory } from '@/services/memoryService'
