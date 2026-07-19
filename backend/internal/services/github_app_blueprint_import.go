@@ -9,18 +9,15 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/vibexp/vibexp/internal/blueprintpath"
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/utils"
 )
 
-const (
-	// msgSkippedBlueprintFile is the log message emitted for each repository file skipped during blueprint import.
-	msgSkippedBlueprintFile = "Skipped file during blueprint import"
-	// blueprintTypeClaudeCode is the blueprint type assigned to files under .claude/.
-	blueprintTypeClaudeCode = "claude-code"
-)
+// msgSkippedBlueprintFile is the log message emitted for each repository file skipped during blueprint import.
+const msgSkippedBlueprintFile = "Skipped file during blueprint import"
 
 // blueprintScanPath is a repository location scanned for importable blueprint files.
 type blueprintScanPath struct {
@@ -452,52 +449,13 @@ func blueprintMetadataFromFrontMatter(fm utils.FrontMatterResult) map[string]int
 	return metadata
 }
 
-// blueprintPathType maps a repository path prefix to a blueprint type and subtype.
-type blueprintPathType struct {
-	prefix  string
-	typ     string
-	subtype string
-}
-
-// blueprintExactPathTypes maps exact root-level file paths to blueprint types.
-var blueprintExactPathTypes = map[string]blueprintPathType{
-	"CLAUDE.md": {typ: "claude", subtype: "claude-md"},
-	"CURSOR.md": {typ: "cursor", subtype: "cursor-md"},
-	"AGENTS.md": {typ: "codex", subtype: "agents-md"},
-}
-
-// blueprintPrefixPathTypes maps path prefixes to blueprint types, most specific first
-// (order matters: e.g. ".claude/agents/" must match before ".claude/").
-var blueprintPrefixPathTypes = []blueprintPathType{
-	{prefix: ".claude/agents/", typ: blueprintTypeClaudeCode, subtype: "sub-agents"},
-	{prefix: ".claude/skills/", typ: blueprintTypeClaudeCode, subtype: "skills"},
-	{prefix: ".claude/commands/", typ: blueprintTypeClaudeCode, subtype: "slash-commands"},
-	{prefix: ".claude/", typ: blueprintTypeClaudeCode, subtype: "others"},
-	{prefix: ".cursor/skills/", typ: "cursor", subtype: "skills"},
-	{prefix: ".cursor/agents/", typ: "cursor", subtype: "agents"},
-	{prefix: ".cursor/commands/", typ: "cursor", subtype: "commands"},
-	{prefix: ".cursor/rules/", typ: "cursor", subtype: "rules"},
-	{prefix: ".cursor/", typ: "cursor", subtype: "cursor-md"},
-	{prefix: ".codex/rules/", typ: "codex", subtype: "rules"},
-	{prefix: ".codex/skills/", typ: "codex", subtype: "skills"},
-	{prefix: ".codex/", typ: "codex", subtype: "others"},
-	{prefix: ".agents/skills/", typ: "codex", subtype: "skills"},
-	{prefix: ".agents/", typ: "codex", subtype: "others"},
-}
-
-// determineTypeFromPath determines blueprint type and subtype from file path
+// determineTypeFromPath determines blueprint type and subtype from a file path.
+// The mapping now lives in the shared, bidirectional blueprintpath package so
+// import and the future export/materializer can never drift; unmapped paths
+// fall back to ("general", ""), which triggers the warning log in the caller.
 func (s *GitHubAppService) determineTypeFromPath(path string) (string, string) {
-	if match, ok := blueprintExactPathTypes[path]; ok {
-		return match.typ, match.subtype
-	}
-	for _, match := range blueprintPrefixPathTypes {
-		if strings.HasPrefix(path, match.prefix) {
-			return match.typ, match.subtype
-		}
-	}
-
-	// Default fallback (will trigger warning log in caller)
-	return "general", ""
+	typ, subtype, _ := blueprintpath.FromPath(path)
+	return typ, subtype
 }
 
 // generateBlueprintSlug generates a URL-friendly slug from file path and repo name
