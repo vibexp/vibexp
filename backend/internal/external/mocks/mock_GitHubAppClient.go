@@ -59,6 +59,66 @@ func (_c *MockGitHubAppClient_EvictCachedClient_Call) RunAndReturn(run func(int6
 	return _c
 }
 
+// GetBranchHeadSHA provides a mock function with given fields: ctx, installationID, owner, repoName, branch
+func (_m *MockGitHubAppClient) GetBranchHeadSHA(ctx context.Context, installationID int64, owner string, repoName string, branch string) (string, error) {
+	ret := _m.Called(ctx, installationID, owner, repoName, branch)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetBranchHeadSHA")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string, string, string) (string, error)); ok {
+		return rf(ctx, installationID, owner, repoName, branch)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string, string, string) string); ok {
+		r0 = rf(ctx, installationID, owner, repoName, branch)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64, string, string, string) error); ok {
+		r1 = rf(ctx, installationID, owner, repoName, branch)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockGitHubAppClient_GetBranchHeadSHA_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBranchHeadSHA'
+type MockGitHubAppClient_GetBranchHeadSHA_Call struct {
+	*mock.Call
+}
+
+// GetBranchHeadSHA is a helper method to define mock.On call
+//   - ctx context.Context
+//   - installationID int64
+//   - owner string
+//   - repoName string
+//   - branch string
+func (_e *MockGitHubAppClient_Expecter) GetBranchHeadSHA(ctx interface{}, installationID interface{}, owner interface{}, repoName interface{}, branch interface{}) *MockGitHubAppClient_GetBranchHeadSHA_Call {
+	return &MockGitHubAppClient_GetBranchHeadSHA_Call{Call: _e.mock.On("GetBranchHeadSHA", ctx, installationID, owner, repoName, branch)}
+}
+
+func (_c *MockGitHubAppClient_GetBranchHeadSHA_Call) Run(run func(ctx context.Context, installationID int64, owner string, repoName string, branch string)) *MockGitHubAppClient_GetBranchHeadSHA_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockGitHubAppClient_GetBranchHeadSHA_Call) Return(_a0 string, _a1 error) *MockGitHubAppClient_GetBranchHeadSHA_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockGitHubAppClient_GetBranchHeadSHA_Call) RunAndReturn(run func(context.Context, int64, string, string, string) (string, error)) *MockGitHubAppClient_GetBranchHeadSHA_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetDirectoryContentsRecursive provides a mock function with given fields: ctx, installationID, owner, repoName, dirPath
 func (_m *MockGitHubAppClient) GetDirectoryContentsRecursive(ctx context.Context, installationID int64, owner string, repoName string, dirPath string) ([]*external.GitHubFile, error) {
 	ret := _m.Called(ctx, installationID, owner, repoName, dirPath)

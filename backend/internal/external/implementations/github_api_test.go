@@ -375,7 +375,7 @@ func TestGetInstallation_NotFound(t *testing.T) {
 
 func TestGetFileContent(t *testing.T) {
 	fileJSON := fmt.Sprintf(
-		`{"type":"file","name":"readme.md","path":"docs/readme.md","encoding":"base64","content":%q}`,
+		`{"type":"file","name":"readme.md","path":"docs/readme.md","sha":"blobsha123","encoding":"base64","content":%q}`,
 		b64("hello vibexp\n"))
 
 	tests := []struct {
@@ -383,13 +383,15 @@ func TestGetFileContent(t *testing.T) {
 		status      int
 		body        string
 		wantContent string
+		wantSHA     string
 		wantErr     string
 	}{
 		{
-			name:        "base64 file content is decoded",
+			name:        "base64 file content is decoded and blob SHA captured",
 			status:      http.StatusOK,
 			body:        fileJSON,
 			wantContent: "hello vibexp\n",
+			wantSHA:     "blobsha123",
 		},
 		{
 			name:    "not found",
@@ -430,8 +432,38 @@ func TestGetFileContent(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "docs/readme.md", file.Path)
 			assert.Equal(t, tt.wantContent, file.Content)
+			assert.Equal(t, tt.wantSHA, file.BlobSHA)
 		})
 	}
+}
+
+func TestGetBranchHeadSHA(t *testing.T) {
+	t.Run("resolves head commit SHA", func(t *testing.T) {
+		mux, c := newGitHubAPITestClient(t)
+		grantInstallationToken(t, mux, 71)
+		mux.HandleFunc("GET /api/v3/repos/o/r/git/ref/heads/main",
+			func(w http.ResponseWriter, _ *http.Request) {
+				writeBody(t, w, `{"ref":"refs/heads/main","object":{"type":"commit","sha":"commitsha789"}}`)
+			})
+
+		sha, err := c.GetBranchHeadSHA(context.Background(), 71, "o", "r", "main")
+		require.NoError(t, err)
+		assert.Equal(t, "commitsha789", sha)
+	})
+
+	t.Run("API error is surfaced", func(t *testing.T) {
+		mux, c := newGitHubAPITestClient(t)
+		grantInstallationToken(t, mux, 72)
+		mux.HandleFunc("GET /api/v3/repos/o/r/git/ref/heads/main",
+			func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				writeBody(t, w, `{"message":"Not Found"}`)
+			})
+
+		_, err := c.GetBranchHeadSHA(context.Background(), 72, "o", "r", "main")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to resolve branch head SHA")
+	})
 }
 
 func TestGetDirectoryContentsRecursive_NestedDirectories(t *testing.T) {
@@ -446,14 +478,14 @@ func TestGetDirectoryContentsRecursive_NestedDirectories(t *testing.T) {
 	})
 	mux.HandleFunc("GET /api/v3/repos/o/r/contents/.claude/a.md", func(w http.ResponseWriter, _ *http.Request) {
 		writeBody(t, w, fmt.Sprintf(
-			`{"type":"file","path":".claude/a.md","encoding":"base64","content":%q}`, b64("alpha")))
+			`{"type":"file","path":".claude/a.md","sha":"sha-a","encoding":"base64","content":%q}`, b64("alpha")))
 	})
 	mux.HandleFunc("GET /api/v3/repos/o/r/contents/.claude/sub", func(w http.ResponseWriter, _ *http.Request) {
 		writeBody(t, w, `[{"type":"file","name":"b.md","path":".claude/sub/b.md"}]`)
 	})
 	mux.HandleFunc("GET /api/v3/repos/o/r/contents/.claude/sub/b.md", func(w http.ResponseWriter, _ *http.Request) {
 		writeBody(t, w, fmt.Sprintf(
-			`{"type":"file","path":".claude/sub/b.md","encoding":"base64","content":%q}`, b64("beta")))
+			`{"type":"file","path":".claude/sub/b.md","sha":"sha-b","encoding":"base64","content":%q}`, b64("beta")))
 	})
 
 	files, err := c.GetDirectoryContentsRecursive(context.Background(), 61, "o", "r", ".claude")
@@ -461,8 +493,10 @@ func TestGetDirectoryContentsRecursive_NestedDirectories(t *testing.T) {
 	require.Len(t, files, 2)
 	assert.Equal(t, ".claude/a.md", files[0].Path)
 	assert.Equal(t, "alpha", files[0].Content)
+	assert.Equal(t, "sha-a", files[0].BlobSHA)
 	assert.Equal(t, ".claude/sub/b.md", files[1].Path)
 	assert.Equal(t, "beta", files[1].Content)
+	assert.Equal(t, "sha-b", files[1].BlobSHA)
 }
 
 func TestGetDirectoryContentsRecursive_SkipsFailingEntries(t *testing.T) {
