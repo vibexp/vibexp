@@ -101,6 +101,62 @@ func TestGetByProjectIDAndSlug_NilMetadata(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+// blueprintDetailRow builds a full detail row (with the #339 sync columns) for
+// the cross-team read tests.
+func blueprintDetailRow() *sqlmock.Rows {
+	return sqlmock.NewRows([]string{
+		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
+		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
+		"path", "path_derived", "raw_content", "content_sha",
+		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
+	}).AddRow(
+		"bp-1", "proj-1", "slug", "user-1", "team-1", "T", "D",
+		"body", "active", "general", nil, nil, time.Now(), time.Now(), 1,
+		"slug.md", true, "raw", "sha", nil, nil, nil, nil,
+	)
+}
+
+// TestGetByIDCrossTeam_ReadsSyncColumns covers the cross-team detail read's new
+// column scan (#339).
+func TestGetByIDCrossTeam_ReadsSyncColumns(t *testing.T) {
+	db, mock, repo := setupMockDB(t)
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close db: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery("SELECT (.+) FROM blueprints").
+		WithArgs("bp-1", "user-1").WillReturnRows(blueprintDetailRow())
+
+	bp, err := repo.GetByIDCrossTeam(context.Background(), "user-1", "bp-1")
+	assert.NoError(t, err)
+	assert.Equal(t, "slug.md", bp.Path)
+	assert.Equal(t, "raw", bp.RawContent)
+	assert.Nil(t, bp.Source)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestGetByProjectIDAndSlugCrossTeam_ReadsSyncColumns covers the other cross-team
+// detail read's new column scan (#339).
+func TestGetByProjectIDAndSlugCrossTeam_ReadsSyncColumns(t *testing.T) {
+	db, mock, repo := setupMockDB(t)
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close db: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery("SELECT (.+) FROM blueprints").
+		WithArgs("proj-1", "slug", "user-1").WillReturnRows(blueprintDetailRow())
+
+	bp, err := repo.GetByProjectIDAndSlugCrossTeam(context.Background(), "user-1", "proj-1", "slug")
+	assert.NoError(t, err)
+	assert.Equal(t, "slug.md", bp.Path)
+	assert.True(t, bp.PathDerived)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 // TestList_InvalidMetadataKey tests SQL injection protection
 //
 //nolint:funlen // Test function with comprehensive test cases

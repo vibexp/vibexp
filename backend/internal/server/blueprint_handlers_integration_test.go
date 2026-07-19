@@ -1054,6 +1054,44 @@ func TestHandleUpdateBlueprint_NotFound(t *testing.T) {
 	mockBlueprintService.AssertExpectations(t)
 }
 
+// TestHandleUpdateBlueprint_InvalidPath maps a traversal-invalid path service
+// error to 400 (#339).
+func TestHandleUpdateBlueprint_InvalidPath(t *testing.T) {
+	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
+	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
+	mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
+	mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
+
+	mockAPIKeyService.On("ValidateAPIKey", mock.Anything, "vxk_test_fake_key_for_testing").
+		Return(&models.APIKey{ID: "api-key-123", UserID: "user-123"}, nil)
+	mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", mock.AnythingOfType("string")).
+		Return(true, nil).Maybe()
+	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
+		Return(true, nil)
+	mockBlueprintService.On("UpdateBlueprintByProjectIDAndSlugInTeam",
+		"user-123", "550e8400-e29b-41d4-a716-446655440000",
+		"550e8400-e29b-41d4-a716-446655440000", "s",
+		mock.Anything).Return((*models.Blueprint)(nil), services.ErrInvalidBlueprintPath)
+
+	srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
+	srv.container = &MockBlueprintContainer{
+		BlueprintServiceMock:     mockBlueprintService,
+		ResourceUsageServiceMock: mockResourceService,
+		TeamServiceMock:          mockTeamService,
+		APIKeyServiceMock:        mockAPIKeyService,
+	}
+
+	req := createBlueprintAuthenticatedRequest(
+		"PUT",
+		"/api/v1/550e8400-e29b-41d4-a716-446655440000/blueprints/550e8400-e29b-41d4-a716-446655440000/s",
+		`{"path":"../escape.md"}`, "user-123")
+	rr := httptest.NewRecorder()
+	srv.router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+	mockBlueprintService.AssertExpectations(t)
+}
+
 // TestHandleUpdateBlueprint_ValidationError tests update validation errors
 //
 //nolint:funlen // Comprehensive table-driven test
