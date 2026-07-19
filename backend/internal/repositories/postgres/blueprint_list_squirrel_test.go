@@ -15,11 +15,13 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// blueprintListColumnsTest mirrors the 13 columns scanned by List (content
-// excluded from list operations).
+// blueprintListColumnsTest mirrors the columns scanned by List (content and
+// raw_content excluded from list operations; path + sync columns included).
 var blueprintListColumnsTest = []string{
 	"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 	"status", "type", "subtype", "metadata", "created_at", "updated_at",
+	"path", "path_derived", "content_sha",
+	"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
 }
 
 // setupBlueprintListTest builds a BlueprintRepository backed by a sqlmock
@@ -45,6 +47,7 @@ func blueprintListOneRow(now time.Time) *sqlmock.Rows {
 		"blueprint-1", "project-1", "slug-1", "user-123", "team-123",
 		"Title", "Description", "active", "general", "openapi",
 		[]byte(`{"env":"prod"}`), now, now,
+		"slug-1.md", true, nil, nil, nil, nil, nil, // path, path_derived, sync/provenance NULL
 	)
 }
 
@@ -235,9 +238,9 @@ func TestBlueprintRepository_ListSquirrel(t *testing.T) {
 	}
 }
 
-// TestBlueprintRepository_List_ExplicitProjection pins the full 13-column
-// projection (content excluded) for the List path. A `.+` matcher would not
-// catch column drift, so the projection is asserted verbatim.
+// TestBlueprintRepository_List_ExplicitProjection pins the full List projection
+// (content and raw_content excluded; path + sync columns included). A `.+`
+// matcher would not catch column drift, so the projection is asserted verbatim.
 func TestBlueprintRepository_List_ExplicitProjection(t *testing.T) {
 	repo, mock, mockDB := setupBlueprintListTest(t)
 	defer func() {
@@ -257,7 +260,9 @@ func TestBlueprintRepository_List_ExplicitProjection(t *testing.T) {
 	mock.ExpectQuery(
 		`SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, ` +
 			`s\.title, s\.description, s\.status, s\.type, s\.subtype, s\.metadata, ` +
-			`s\.created_at, s\.updated_at FROM blueprints s WHERE`,
+			`s\.created_at, s\.updated_at, s\.path, s\.path_derived, s\.content_sha, ` +
+			`s\.source_repo, s\.source_commit_sha, s\.source_blob_sha, s\.imported_at ` +
+			`FROM blueprints s WHERE`,
 	).
 		WithArgs(blueprintListBaseArgs()...).
 		WillReturnRows(blueprintListOneRow(now))
@@ -340,6 +345,7 @@ func TestBlueprintRepository_List_EmptyMetadataInitializesMap(t *testing.T) {
 			"blueprint-1", "project-1", "slug-1", "user-123", "team-123",
 			"Title", "Description", "active", "general", nil,
 			nil, now, now, // NULL metadata
+			"slug-1.md", true, nil, nil, nil, nil, nil, // path, path_derived, sync/provenance NULL
 		))
 
 	blueprints, total, err := repo.List(ctx, "user-123", filters)
@@ -406,6 +412,7 @@ func TestBlueprintRepository_ListSquirrel_ErrorPaths(t *testing.T) {
 						"blueprint-1", "project-1", "slug-1", "user-123", "team-123",
 						"Title", "Description", "active", "general", "openapi",
 						[]byte(`{not valid json`), now, now,
+						"slug-1.md", true, nil, nil, nil, nil, nil,
 					))
 			},
 			wantErr: "failed to unmarshal metadata",

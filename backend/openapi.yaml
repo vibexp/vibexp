@@ -389,6 +389,10 @@ components:
     # Import spec library schemas
     Blueprint:
       $ref: "./schemas/blueprints.yaml#/Blueprint"
+    BlueprintSource:
+      $ref: "./schemas/blueprints.yaml#/BlueprintSource"
+    BlueprintDetail:
+      $ref: "./schemas/blueprints.yaml#/BlueprintDetail"
     CreateBlueprintRequest:
       $ref: "./schemas/blueprints.yaml#/CreateBlueprintRequest"
     UpdateBlueprintRequest:

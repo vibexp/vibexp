@@ -152,13 +152,15 @@ func TestBlueprintRepository_OptimisticLocking(t *testing.T) {
 
 	// Simulate version mismatch (UPDATE fails because version doesn't match)
 	// Args order: id, project_id, slug, title, description, content, status, type, subtype,
-	// metadata, team_id, updated_at, team_id, version
+	// metadata, team_id, updated_at, path, path_derived, raw_content, content_sha, team_id, version
 	mock.ExpectQuery("UPDATE blueprints.*WHERE.*").
 		WithArgs(
 			specLibrary.ID, specLibrary.ProjectID, specLibrary.Slug,
 			specLibrary.Title, specLibrary.Description, specLibrary.Content,
 			specLibrary.Status, specLibrary.Type, specLibrary.Subtype, sqlmock.AnyArg(),
-			specLibrary.TeamID, sqlmock.AnyArg(), specLibrary.TeamID, specLibrary.Version,
+			specLibrary.TeamID, sqlmock.AnyArg(),
+			specLibrary.Path, specLibrary.PathDerived, sqlmock.AnyArg(), sqlmock.AnyArg(),
+			specLibrary.TeamID, specLibrary.Version,
 		).
 		WillReturnError(sql.ErrNoRows)
 

@@ -58,17 +58,22 @@ func TestBlueprintRepository_TeamMember_CanListOtherMembersSpecs(t *testing.T) {
 
 	// Mock list query - no DISTINCT or JOINs needed with EXISTS subqueries
 	listQuery := `SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, s\.title, ` +
-		`s\.description, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at ` +
+		`s\.description, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, ` +
+		`s\.path, s\.path_derived, s\.content_sha, s\.source_repo, s\.source_commit_sha, ` +
+		`s\.source_blob_sha, s\.imported_at ` +
 		`FROM blueprints s WHERE`
 	mock.ExpectQuery(listQuery).
 		WithArgs(teamID, teamID, bobUserID, teamID, bobUserID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"status", "type", "subtype", "metadata", "created_at", "updated_at",
+			"path", "path_derived", "content_sha",
+			"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
 		}).AddRow(
 			aliceSpecID, "project-123", "api-spec", aliceUserID, teamID,
 			"API Specification", "REST API spec",
 			"active", "api", "openapi", []byte("{}"), now, now,
+			"api-spec.md", true, nil, nil, nil, nil, nil,
 		))
 
 	// Bob lists specs
@@ -110,17 +115,22 @@ func TestBlueprintRepository_TeamMember_CanGetOtherMembersSpecs(t *testing.T) {
 
 	// Mock get query with EXISTS subqueries (no JOINs) - note alias is 's'
 	getQuery := `SELECT s\.id, s\.project_id, s\.slug, s\.user_id, s\.team_id, s\.title, s\.description, ` +
-		`s\.content, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, s\.version\s+` +
+		`s\.content, s\.status, s\.type, s\.subtype, s\.metadata, s\.created_at, s\.updated_at, s\.version,\s+` +
+		`s\.path, s\.path_derived, s\.raw_content, s\.content_sha, s\.source_repo, s\.source_commit_sha, ` +
+		`s\.source_blob_sha, s\.imported_at\s+` +
 		`FROM blueprints s\s+WHERE.*`
 	mock.ExpectQuery(getQuery).
 		WithArgs(aliceSpecID, teamID, bobUserID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 			"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
+			"path", "path_derived", "raw_content", "content_sha",
+			"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
 		}).AddRow(
 			aliceSpecID, "project-123", "api-spec", aliceUserID, teamID,
 			"API Specification", "REST API spec", "OpenAPI content",
 			"active", "api", "openapi", []byte("{}"), now, now, 1,
+			"api-spec.md", true, nil, nil, nil, nil, nil, nil,
 		))
 
 	// Bob gets Alice's spec
@@ -188,7 +198,9 @@ func TestBlueprintRepository_TeamMember_CanUpdateOtherMembersSpecs(t *testing.T)
 		WithArgs(
 			aliceSpecID, "project-123", "api-spec",
 			"API Specification - Updated by Bob", "Updated description", "Updated OpenAPI content",
-			"active", "api", "openapi", sqlmock.AnyArg(), teamID, now, teamID, 1,
+			"active", "api", "openapi", sqlmock.AnyArg(), teamID, now,
+			spec.Path, spec.PathDerived, sqlmock.AnyArg(), sqlmock.AnyArg(),
+			teamID, 1,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
 

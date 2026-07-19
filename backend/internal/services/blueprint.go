@@ -2,16 +2,61 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"math"
 	"time"
 
 	"github.com/vibexp/vibexp/internal/authz"
+	"github.com/vibexp/vibexp/internal/blueprintpath"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
 )
+
+// ErrInvalidBlueprintPath is returned when a create/update supplies a path that
+// fails traversal validation. Handlers map it to a 400.
+var ErrInvalidBlueprintPath = fmt.Errorf("invalid blueprint path")
+
+// computeContentSHA returns the lowercase-hex SHA-256 of raw, matching the
+// migration backfill (encode(digest(...,'sha256'),'hex')).
+func computeContentSHA(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+// blueprintSubtype returns the blueprint's subtype string ("" when unset).
+func blueprintSubtype(bp *models.Blueprint) string {
+	if bp.Subtype != nil {
+		return *bp.Subtype
+	}
+	return ""
+}
+
+// resolveBlueprintPath sets bp.Path/PathDerived from an optional explicit path.
+// An explicit path is traversal-validated and freezes the path (PathDerived
+// false); otherwise a default is derived from (type, subtype, slug), falling
+// back to "<slug>.md" for a (type, subtype) with no canonical default — matching
+// the migration's ELSE branch. The full rename-recompute lifecycle is #340.
+func resolveBlueprintPath(bp *models.Blueprint, explicit *string) error {
+	if explicit != nil && *explicit != "" {
+		if err := blueprintpath.ValidateRelativePath(*explicit); err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidBlueprintPath, err)
+		}
+		bp.Path = *explicit
+		bp.PathDerived = false
+		return nil
+	}
+	p, err := blueprintpath.DefaultPath(bp.Type, blueprintSubtype(bp), bp.Slug)
+	if err != nil {
+		p = bp.Slug + ".md"
+	}
+	bp.Path = p
+	bp.PathDerived = true
+	return nil
+}
 
 type BlueprintService struct {
 	repo              repositories.BlueprintRepository
@@ -115,6 +160,17 @@ func (s *BlueprintService) CreateBlueprint(
 	}
 
 	blueprint := buildBlueprintFromRequest(userID, finalTeamID, req)
+
+	// Resolve the canonical path (epic #334): explicit path is validated and
+	// frozen; otherwise a default is derived from (type, subtype, slug).
+	if err := resolveBlueprintPath(blueprint, req.Path); err != nil {
+		return nil, err
+	}
+	// Baseline raw_content + content_sha. Deterministic raw regeneration from
+	// frontmatter on edits is #340; here raw mirrors the parsed content, as the
+	// migration backfill does for legacy rows.
+	blueprint.RawContent = blueprint.Content
+	blueprint.ContentSHA = computeContentSHA(blueprint.RawContent)
 
 	// Validate business rules before creating
 	err := validateBlueprintBusinessRules(blueprint)
@@ -416,6 +472,17 @@ func (s *BlueprintService) applyAndPersistBlueprintUpdate(
 
 	// Apply updates
 	applyBlueprintUpdates(blueprint, req)
+
+	// An explicit path in the request freezes it (validated); when omitted the
+	// existing path is preserved. Rename-driven recomputation of derived paths
+	// is #340.
+	if req.Path != nil && *req.Path != "" {
+		if err := blueprintpath.ValidateRelativePath(*req.Path); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrInvalidBlueprintPath, err)
+		}
+		blueprint.Path = *req.Path
+		blueprint.PathDerived = false
+	}
 
 	// Validate final merged state
 	if err := validateBlueprintBusinessRules(blueprint); err != nil {

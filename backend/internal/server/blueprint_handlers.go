@@ -623,6 +623,11 @@ func (s *Server) handleCreateBlueprintError(w http.ResponseWriter, userID string
 		return
 	}
 
+	if errors.Is(err, services.ErrInvalidBlueprintPath) {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	s.logger.With(
 		"service", serverLogServiceName,
 		"handler", "handleCreateBlueprint",
@@ -707,6 +712,11 @@ func (s *Server) handleUpdateBlueprintError(w http.ResponseWriter, userID, proje
 		s.logger.With("service", serverLogServiceName, "handler", "handleUpdateBlueprint", "user_id", userID).
 			Warn("Forbidden blueprint write attempt")
 		writeErrorResponse(w, nil, "forbidden", "You do not have permission to update this blueprint", http.StatusForbidden)
+		return
+	}
+
+	if errors.Is(err, services.ErrInvalidBlueprintPath) {
+		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
 		return
 	}
 

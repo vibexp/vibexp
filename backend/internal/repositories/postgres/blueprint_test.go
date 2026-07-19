@@ -39,11 +39,14 @@ func TestGetByID_NilMetadata(t *testing.T) {
 	rows := sqlmock.NewRows([]string{
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
+		"path", "path_derived", "raw_content", "content_sha",
+		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
 	}).AddRow(
 		blueprintID, "550e8400-e29b-41d4-a716-446655440000", "test-slug",
 		userID, "team-123", "Test Title", "Test Description",
 		"Test Content", "active", "general", nil, nil, // NULL subtype and metadata
 		time.Now(), time.Now(), 1,
+		"test.md", true, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync/provenance
 	)
 
 	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
@@ -75,10 +78,13 @@ func TestGetByProjectIDAndSlug_NilMetadata(t *testing.T) {
 	rows := sqlmock.NewRows([]string{
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
+		"path", "path_derived", "raw_content", "content_sha",
+		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
 	}).AddRow(
 		"spec-lib-456", projectID, slug, userID, "team-123", "Test Title", "Test Description",
 		"Test Content", "active", "general", nil, nil, // NULL subtype and metadata
 		time.Now(), time.Now(), 1,
+		"test.md", true, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync/provenance
 	)
 
 	query := "SELECT (.+) FROM blueprints s.*"
@@ -235,6 +241,8 @@ func TestList_EmptyMetadataFilter(t *testing.T) {
 	dataRows := sqlmock.NewRows([]string{
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"status", "type", "subtype", "metadata", "created_at", "updated_at",
+		"path", "path_derived", "content_sha",
+		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
 	})
 	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
 		WillReturnRows(dataRows)
@@ -281,6 +289,8 @@ func TestList_MetadataKeyBoundAsParameter(t *testing.T) {
 	dataRows := sqlmock.NewRows([]string{
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"status", "type", "subtype", "metadata", "created_at", "updated_at",
+		"path", "path_derived", "content_sha",
+		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
 	})
 	mock.ExpectQuery(`SELECT (.+) FROM blueprints s.*metadata->>\$\d+ = \$\d+`).
 		WillReturnRows(dataRows)

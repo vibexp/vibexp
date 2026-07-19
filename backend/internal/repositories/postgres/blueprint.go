@@ -37,6 +37,16 @@ func blueprintSlugConflictError(pqErr *pq.Error, slug string) error {
 	}
 }
 
+// blueprintUniqueConflictError names the constraint that actually fired: the new
+// (project_id, path) uniqueness (#339) gets a path-specific message, everything
+// else falls through to the slug-scoped messages.
+func blueprintUniqueConflictError(pqErr *pq.Error, bp *models.Blueprint) error {
+	if pqErr.Constraint == "blueprints_project_id_path_unique" {
+		return fmt.Errorf("blueprint with path '%s' already exists in this project", bp.Path)
+	}
+	return blueprintSlugConflictError(pqErr, bp.Slug)
+}
+
 // BlueprintRepository implements the repositories.BlueprintRepository interface for PostgreSQL
 type BlueprintRepository struct {
 	db *database.DB
@@ -63,6 +73,65 @@ func NewBlueprintRepository(db *database.DB) repositories.BlueprintRepository {
 	}
 }
 
+// blueprintSyncScan holds the nullable sync columns (epic #334) while scanning a
+// blueprint row, before they are applied onto the model.
+type blueprintSyncScan struct {
+	rawContent   sql.NullString
+	contentSHA   sql.NullString
+	sourceRepo   sql.NullString
+	sourceCommit sql.NullString
+	sourceBlob   sql.NullString
+	importedAt   sql.NullTime
+}
+
+// apply copies the scanned nullable sync columns onto the blueprint, assembling
+// the provenance Source object (nil when no provenance is set).
+func (s blueprintSyncScan) apply(bp *models.Blueprint) {
+	bp.RawContent = s.rawContent.String
+	bp.ContentSHA = s.contentSHA.String
+	bp.Source = assembleBlueprintSource(s.sourceRepo, s.sourceCommit, s.sourceBlob, s.importedAt)
+}
+
+// assembleBlueprintSource builds the read-only provenance object, or nil when no
+// provenance column is set (a VibeXP-authored blueprint).
+func assembleBlueprintSource(repo, commit, blob sql.NullString, importedAt sql.NullTime) *models.BlueprintSource {
+	if !repo.Valid && !commit.Valid && !blob.Valid && !importedAt.Valid {
+		return nil
+	}
+	src := &models.BlueprintSource{
+		Repo:      repo.String,
+		CommitSHA: commit.String,
+		BlobSHA:   blob.String,
+	}
+	if importedAt.Valid {
+		t := importedAt.Time
+		src.ImportedAt = &t
+	}
+	return src
+}
+
+// nullableString maps "" to a NULL parameter, any other value to itself, so an
+// empty provenance/hash column is stored as NULL rather than an empty string.
+func nullableString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// blueprintSourceInsertValues extracts the four provenance parameters (NULL when
+// unset) for INSERT.
+func blueprintSourceInsertValues(src *models.BlueprintSource) (repo, commit, blob, importedAt any) {
+	if src == nil {
+		return nil, nil, nil, nil
+	}
+	var at any
+	if src.ImportedAt != nil {
+		at = *src.ImportedAt
+	}
+	return nullableString(src.Repo), nullableString(src.CommitSHA), nullableString(src.BlobSHA), at
+}
+
 // Create creates a new blueprint entry
 func (r *BlueprintRepository) Create(ctx context.Context, blueprint *models.Blueprint) error {
 	metadataJSON, err := json.Marshal(blueprint.Metadata)
@@ -70,11 +139,16 @@ func (r *BlueprintRepository) Create(ctx context.Context, blueprint *models.Blue
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
+	srcRepo, srcCommit, srcBlob, importedAt := blueprintSourceInsertValues(blueprint.Source)
+
 	query := `
 		INSERT INTO blueprints
 		(project_id, slug, user_id, team_id, title, description, content,
-		status, type, subtype, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		status, type, subtype, metadata, created_at, updated_at,
+		path, path_derived, raw_content, content_sha,
+		source_repo, source_commit_sha, source_blob_sha, imported_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+		$14, $15, $16, $17, $18, $19, $20, $21)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -83,11 +157,13 @@ func (r *BlueprintRepository) Create(ctx context.Context, blueprint *models.Blue
 		blueprint.Title, blueprint.Description, blueprint.Content,
 		blueprint.Status, blueprint.Type, blueprint.Subtype, metadataJSON,
 		blueprint.CreatedAt, blueprint.UpdatedAt,
+		blueprint.Path, blueprint.PathDerived, nullableString(blueprint.RawContent), nullableString(blueprint.ContentSHA),
+		srcRepo, srcCommit, srcBlob, importedAt,
 	).Scan(&blueprint.ID, &blueprint.CreatedAt, &blueprint.UpdatedAt)
 
 	if err != nil {
 		if pqErr := uniqueViolation(err); pqErr != nil {
-			return blueprintSlugConflictError(pqErr, blueprint.Slug)
+			return blueprintUniqueConflictError(pqErr, blueprint)
 		}
 		if isFKViolation(err) {
 			return fmt.Errorf("project not found or does not belong to user")
@@ -105,7 +181,9 @@ func (r *BlueprintRepository) GetByID(
 ) (*models.Blueprint, error) {
 	query := `
 		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
-		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version
+		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
+		s.path, s.path_derived, s.raw_content, s.content_sha,
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.imported_at
 		FROM blueprints s
 		WHERE s.id = $1
 			AND s.team_id = $2
@@ -117,16 +195,20 @@ func (r *BlueprintRepository) GetByID(
 
 	var blueprint models.Blueprint
 	var metadataJSON []byte
+	var sync blueprintSyncScan
 	err := r.db.QueryRowContext(ctx, query, blueprintID, teamID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
 		&blueprint.Content, &blueprint.Status, &blueprint.Type,
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
+		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
 	)
 
 	if err != nil {
 		return nil, mapNoRows(fmt.Errorf("failed to get blueprint by ID: %w", err), repositories.ErrBlueprintNotFound)
 	}
+	sync.apply(&blueprint)
 
 	// Initialize metadata if JSON is nil or empty
 	if len(metadataJSON) == 0 {
@@ -147,7 +229,9 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 ) (*models.Blueprint, error) {
 	query := `
 		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
-		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version
+		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
+		s.path, s.path_derived, s.raw_content, s.content_sha,
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.imported_at
 		FROM blueprints s
 		WHERE s.project_id = $1
 			AND s.slug = $2
@@ -160,11 +244,14 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 
 	var blueprint models.Blueprint
 	var metadataJSON []byte
+	var sync blueprintSyncScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, teamID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
 		&blueprint.Content, &blueprint.Status, &blueprint.Type,
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
+		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
 	)
 
 	if err != nil {
@@ -173,6 +260,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 			repositories.ErrBlueprintNotFound,
 		)
 	}
+	sync.apply(&blueprint)
 
 	// Initialize metadata if JSON is nil or empty
 	if len(metadataJSON) == 0 {
@@ -192,18 +280,23 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 ) (*models.Blueprint, error) {
 	query := `
 		SELECT id, project_id, slug, user_id, team_id, title, description, content, status,
-		type, subtype, metadata, created_at, updated_at, version
+		type, subtype, metadata, created_at, updated_at, version,
+		path, path_derived, raw_content, content_sha,
+		source_repo, source_commit_sha, source_blob_sha, imported_at
 		FROM blueprints
 		WHERE id = $1 AND user_id = $2
 	`
 
 	var blueprint models.Blueprint
 	var metadataJSON []byte
+	var sync blueprintSyncScan
 	err := r.db.QueryRowContext(ctx, query, blueprintID, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
 		&blueprint.Content, &blueprint.Status, &blueprint.Type,
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
+		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
 	)
 
 	if err != nil {
@@ -212,6 +305,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 			repositories.ErrBlueprintNotFound,
 		)
 	}
+	sync.apply(&blueprint)
 
 	// Initialize metadata if JSON is nil or empty
 	if len(metadataJSON) == 0 {
@@ -231,18 +325,23 @@ func (r *BlueprintRepository) GetByProjectIDAndSlugCrossTeam(
 ) (*models.Blueprint, error) {
 	query := `
 		SELECT id, project_id, slug, user_id, team_id, title, description, content, status,
-		type, subtype, metadata, created_at, updated_at, version
+		type, subtype, metadata, created_at, updated_at, version,
+		path, path_derived, raw_content, content_sha,
+		source_repo, source_commit_sha, source_blob_sha, imported_at
 		FROM blueprints
 		WHERE project_id = $1 AND slug = $2 AND user_id = $3
 	`
 
 	var blueprint models.Blueprint
 	var metadataJSON []byte
+	var sync blueprintSyncScan
 	err := r.db.QueryRowContext(ctx, query, projectID, slug, userID).Scan(
 		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
 		&blueprint.Content, &blueprint.Status, &blueprint.Type,
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
+		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
 	)
 
 	if err != nil {
@@ -251,6 +350,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlugCrossTeam(
 			repositories.ErrBlueprintNotFound,
 		)
 	}
+	sync.apply(&blueprint)
 
 	// Initialize metadata if JSON is nil or empty
 	if len(metadataJSON) == 0 {
@@ -264,12 +364,16 @@ func (r *BlueprintRepository) GetByProjectIDAndSlugCrossTeam(
 	return &blueprint, nil
 }
 
-// blueprintListColumns is the 13-column projection used by List. The content
-// column is deliberately excluded from list operations to keep payloads small.
+// blueprintListColumns is the projection used by List. The content and
+// raw_content columns are deliberately excluded from list operations to keep
+// payloads small (raw_content is returned only on the detail GET). path is
+// required on the Blueprint response, so it is included.
 var blueprintListColumns = []string{
 	"s.id", "s.project_id", "s.slug", "s.user_id", "s.team_id",
 	"s.title", "s.description", "s.status", "s.type", "s.subtype",
 	"s.metadata", "s.created_at", "s.updated_at",
+	"s.path", "s.path_derived", "s.content_sha",
+	"s.source_repo", "s.source_commit_sha", "s.source_blob_sha", "s.imported_at",
 }
 
 // buildBlueprintListOrderByClause builds the ORDER BY clause for the blueprint
@@ -448,19 +552,23 @@ func (r *BlueprintRepository) queryList(
 	return blueprints, nil
 }
 
-// scanBlueprintListRows scans the 13-column blueprint projection used by List
-// (content excluded). An empty/NULL metadata column initializes an empty map
-// without unmarshalling; a non-empty malformed payload returns an error.
+// scanBlueprintListRows scans the blueprint list projection (content and
+// raw_content excluded; see blueprintListColumns). An empty/NULL metadata column
+// initializes an empty map without unmarshalling; a non-empty malformed payload
+// returns an error.
 func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 	blueprints := make([]models.Blueprint, 0)
 	for rows.Next() {
 		var blueprint models.Blueprint
 		var metadataJSON []byte
+		var sync blueprintSyncScan
 		scanErr := rows.Scan(
 			&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
 			&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
 			&blueprint.Status, &blueprint.Type, &blueprint.Subtype,
 			&metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt,
+			&blueprint.Path, &blueprint.PathDerived, &sync.contentSHA,
+			&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
 		)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan blueprint: %w", scanErr)
@@ -475,6 +583,9 @@ func scanBlueprintListRows(rows *sql.Rows) ([]models.Blueprint, error) {
 			}
 		}
 
+		// raw_content is not selected by List; apply the rest (content_sha,
+		// provenance). rawContent stays empty and is omitted from the response.
+		sync.apply(&blueprint)
 		blueprints = append(blueprints, blueprint)
 	}
 
@@ -508,14 +619,18 @@ func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blue
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	// Use EXISTS subqueries to avoid Cartesian product with multi-member teams
+	// Provenance columns (source_*/imported_at) are intentionally NOT in the SET
+	// list: they are server-set on import and must survive a VibeXP edit — a
+	// changed content_sha (below) is the "edited in VibeXP" signal (#341), while
+	// source_blob_sha stays the imported reference.
 	query := `
 		UPDATE blueprints
 		SET project_id = $2, slug = $3, title = $4, description = $5, content = $6,
-		status = $7, type = $8, subtype = $9, metadata = $10, team_id = $11, updated_at = $12, version = version + 1
+		status = $7, type = $8, subtype = $9, metadata = $10, team_id = $11, updated_at = $12,
+		path = $13, path_derived = $14, raw_content = $15, content_sha = $16, version = version + 1
 		WHERE id = $1
-			AND team_id = $13
-			AND version = $14
+			AND team_id = $17
+			AND version = $18
 		RETURNING updated_at, version
 	`
 
@@ -523,12 +638,14 @@ func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blue
 		blueprint.ID, blueprint.ProjectID, blueprint.Slug,
 		blueprint.Title, blueprint.Description, blueprint.Content,
 		blueprint.Status, blueprint.Type, blueprint.Subtype, metadataJSON,
-		blueprint.TeamID, blueprint.UpdatedAt, blueprint.TeamID, blueprint.Version,
+		blueprint.TeamID, blueprint.UpdatedAt,
+		blueprint.Path, blueprint.PathDerived, nullableString(blueprint.RawContent), nullableString(blueprint.ContentSHA),
+		blueprint.TeamID, blueprint.Version,
 	).Scan(&blueprint.UpdatedAt, &blueprint.Version)
 
 	if err != nil {
 		if pqErr := uniqueViolation(err); pqErr != nil {
-			return blueprintSlugConflictError(pqErr, blueprint.Slug)
+			return blueprintUniqueConflictError(pqErr, blueprint)
 		}
 		if isFKViolation(err) {
 			return fmt.Errorf("project not found or does not belong to user")
