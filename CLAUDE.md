@@ -34,7 +34,7 @@ frontend/  SPA: src/ (pages, components, features, hooks, services, lib, utils);
            embedded into the backend for release (no standalone image / nginx anymore)
 Makefile   all dev/CI tasks (backend-*, frontend-*); build-combined = frontend build -> embed -> backend build
 docker-compose.yml  runs the PUBLISHED ghcr.io/vibexp/vibexp combined image + Postgres (self-host, NOT for dev)
-.github/workflows/  ci-backend, ci-frontend, release (single combined image)
+.github/workflows/  ci (consolidated backend+frontend+sonar, #390), ci-e2e, release (single combined image)
 ```
 
 ## Local development: use `make`
@@ -43,7 +43,7 @@ The root `docker-compose.yml` runs the published images (self-host), not for dev
 
 - Backend: `make backend-run-dev` (Postgres + air hot-reload), plus `backend-test`, `backend-lint`, `backend-check`, `backend-generate-openapi-server`, `backend-wire-gen`, `backend-mock-generate`.
 - Frontend: `make frontend-run-dev` (Vite, http://localhost:5173), plus `frontend-install`, `frontend-lint`, `frontend-type-check`, `frontend-test`, `frontend-build`.
-- Go toolchain is pinned: the Makefile sets `GOTOOLCHAIN=go1.25.11`. Keep `GO_VERSION` in sync with `go-version` in `ci-backend.yml`.
+- Go toolchain is pinned: the Makefile sets `GOTOOLCHAIN=go1.25.11`. Keep `GO_VERSION` in sync with `go-version` in `ci.yml`.
 
 ## Pre-commit hooks are MANDATORY
 

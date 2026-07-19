@@ -25,13 +25,16 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories/postgres"
 )
 
-// defaultTestDSN targets the same dedicated test database the
-// internal/repositories/postgres integration suite uses (see its
-// main_integration_test.go). It deliberately does NOT point at the vibexp_io
-// development database: the harness truncates tables between tests, which
-// would destroy local development data. The database is created on first run
-// if missing.
-const defaultTestDSN = "postgres://vibexp_app:local_password@localhost:5432/vibexp_io_test?sslmode=disable"
+// defaultTestDSN targets a dedicated test database OWNED BY THIS PACKAGE.
+// It must NOT share vibexp_io_test with the internal/repositories/postgres
+// suite: `go test -tags=integration ./...` runs packages in parallel, and two
+// TestMains truncating tables in the same database race each other (#390).
+// It also deliberately does NOT point at the vibexp_io development database:
+// the harness truncates tables between tests, which would destroy local
+// development data. The database is created on first run if missing (via the
+// /postgres maintenance DB). Overriding POSTGRES_TEST_DSN reintroduces
+// sharing — only do that when running a single package.
+const defaultTestDSN = "postgres://vibexp_app:local_password@localhost:5432/vibexp_io_test_projectmigration?sslmode=disable"
 
 // integrationDB is shared by every integration test in this package.
 // Migrations run once per test binary (TestMain); tests isolate themselves
