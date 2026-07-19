@@ -464,6 +464,20 @@ func (m *mockSpecLibraryRepo) ListProjects(
 	return args.Get(0).([]repositories.ProjectInfo), args.Int(1), args.Error(2)
 }
 
+func (m *mockSpecLibraryRepo) GetByProjectIDAndPath(
+	ctx context.Context, userID, teamID, projectID, path string,
+) (*models.Blueprint, error) {
+	args := m.Called(ctx, userID, teamID, projectID, path)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Blueprint), args.Error(1)
+}
+
+func (m *mockSpecLibraryRepo) UpdateOnReimport(ctx context.Context, specLibrary *models.Blueprint) error {
+	return mockErrCall(&m.Mock, "UpdateOnReimport", ctx, specLibrary)
+}
+
 func (m *mockSpecLibraryRepo) Update(ctx context.Context, specLibrary *models.Blueprint) error {
 	return mockErrCall(&m.Mock, "Update", ctx, specLibrary)
 }

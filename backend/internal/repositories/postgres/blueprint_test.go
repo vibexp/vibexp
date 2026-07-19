@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/database"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
@@ -40,13 +41,13 @@ func TestGetByID_NilMetadata(t *testing.T) {
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
-		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
+		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 	}).AddRow(
 		blueprintID, "550e8400-e29b-41d4-a716-446655440000", "test-slug",
 		userID, "team-123", "Test Title", "Test Description",
 		"Test Content", "active", "general", nil, nil, // NULL subtype and metadata
 		time.Now(), time.Now(), 1,
-		"test.md", true, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync/provenance
+		"test.md", true, nil, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync+source_content_sha/provenance
 	)
 
 	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*").
@@ -79,12 +80,12 @@ func TestGetByProjectIDAndSlug_NilMetadata(t *testing.T) {
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
-		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
+		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 	}).AddRow(
 		"spec-lib-456", projectID, slug, userID, "team-123", "Test Title", "Test Description",
 		"Test Content", "active", "general", nil, nil, // NULL subtype and metadata
 		time.Now(), time.Now(), 1,
-		"test.md", true, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync/provenance
+		"test.md", true, nil, nil, nil, nil, nil, nil, nil, // path, path_derived, NULL sync+source_content_sha/provenance
 	)
 
 	query := "SELECT (.+) FROM blueprints s.*"
@@ -108,11 +109,11 @@ func blueprintDetailRow() *sqlmock.Rows {
 		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
 		"content", "status", "type", "subtype", "metadata", "created_at", "updated_at", "version",
 		"path", "path_derived", "raw_content", "content_sha",
-		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
+		"source_repo", "source_commit_sha", "source_blob_sha", "source_content_sha", "imported_at",
 	}).AddRow(
 		"bp-1", "proj-1", "slug", "user-1", "team-1", "T", "D",
 		"body", "active", "general", nil, nil, time.Now(), time.Now(), 1,
-		"slug.md", true, "raw", "sha", nil, nil, nil, nil,
+		"slug.md", true, "raw", "sha", nil, nil, nil, nil, nil,
 	)
 }
 
@@ -154,6 +155,57 @@ func TestGetByProjectIDAndSlugCrossTeam_ReadsSyncColumns(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "slug.md", bp.Path)
 	assert.True(t, bp.PathDerived)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestGetByProjectIDAndPath_ReadsRow covers the path-first re-import lookup (#341).
+func TestGetByProjectIDAndPath_ReadsRow(t *testing.T) {
+	db, mock, repo := setupMockDB(t)
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close db: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery("SELECT (.+) FROM blueprints s.*s.path = ").
+		WithArgs("proj-1", "CLAUDE.md", "team-1", "user-1").WillReturnRows(blueprintDetailRow())
+
+	bp, err := repo.GetByProjectIDAndPath(context.Background(), "user-1", "team-1", "proj-1", "CLAUDE.md")
+	assert.NoError(t, err)
+	assert.Equal(t, "slug.md", bp.Path)
+	assert.NotNil(t, bp.Metadata)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestUpdateOnReimport_WritesProvenance covers the re-import update path that
+// rewrites content/raw AND provenance columns (#341).
+func TestUpdateOnReimport_WritesProvenance(t *testing.T) {
+	db, mock, repo := setupMockDB(t)
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close db: %v", closeErr)
+		}
+	}()
+
+	now := time.Now()
+	bp := &models.Blueprint{
+		ID: "bp-1", TeamID: "team-1", Title: "T", Description: "D", Content: "c",
+		Type: "claude-code", Path: ".claude/x.md", RawContent: "raw", ContentSHA: "sha",
+		UpdatedAt: now,
+		Source:    &models.BlueprintSource{Repo: "https://github.com/o/r", CommitSHA: "commit-1", BlobSHA: "blob-1", ImportedAt: &now},
+	}
+	mock.ExpectQuery("UPDATE blueprints").
+		WithArgs(
+			"bp-1", "T", "D", "c", "claude-code", sqlmock.AnyArg(), sqlmock.AnyArg(),
+			".claude/x.md", false, "raw", "sha",
+			"https://github.com/o/r", "commit-1", "blob-1", nil, now,
+			now, "team-1",
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"updated_at", "version"}).AddRow(now, 2))
+
+	err := repo.UpdateOnReimport(context.Background(), bp)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), bp.Version)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

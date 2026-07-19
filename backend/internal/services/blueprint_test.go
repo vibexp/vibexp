@@ -51,6 +51,21 @@ func (m *MockBlueprintRepository) GetByProjectIDAndSlug(
 	return args.Get(0).(*models.Blueprint), args.Error(1)
 }
 
+func (m *MockBlueprintRepository) GetByProjectIDAndPath(
+	ctx context.Context, userID, teamID, projectID, path string,
+) (*models.Blueprint, error) {
+	args := m.Called(ctx, userID, teamID, projectID, path)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Blueprint), args.Error(1)
+}
+
+func (m *MockBlueprintRepository) UpdateOnReimport(ctx context.Context, blueprint *models.Blueprint) error {
+	args := m.Called(ctx, blueprint)
+	return args.Error(0)
+}
+
 func (m *MockBlueprintRepository) List(
 	ctx context.Context, userID string, filters repositories.BlueprintFilters,
 ) ([]models.Blueprint, int, error) {

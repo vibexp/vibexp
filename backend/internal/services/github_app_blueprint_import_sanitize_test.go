@@ -58,12 +58,18 @@ func TestImportSingleFile_ErrorSanitization(t *testing.T) {
 	repo, file, report := newSanitizeTestFixtures()
 
 	rawDBError := errors.New(`ERROR: value too long for type character varying(255) (SQLSTATE 22001)`)
+	blueprintRepo.On("GetByProjectIDAndPath",
+		mock.Anything, "user-1", "team-1", "project-1", mock.Anything,
+	).Return(nil, errors.New("not found"))
 	blueprintRepo.On("GetByProjectIDAndSlug",
 		mock.Anything, "user-1", "team-1", "project-1", mock.Anything,
 	).Return(nil, errors.New("not found"))
 	blueprintRepo.On("Create", mock.Anything, mock.Anything).Return(rawDBError)
 
-	service.importSingleFile(context.Background(), "user-1", "team-1", repo, file, "project-1", report)
+	job := &blueprintImportJob{
+		userID: "user-1", teamID: "team-1", projectID: "project-1", repo: repo, report: report,
+	}
+	service.importSingleFile(context.Background(), job, file)
 
 	assert.Equal(t, 1, report.TotalFailed, "expected exactly one failure")
 	assert.Equal(t, 0, report.TotalSuccessful)
@@ -84,12 +90,18 @@ func TestImportSingleFile_SuccessNotSanitized(t *testing.T) {
 	service, blueprintRepo := newSanitizeTestService()
 	repo, file, report := newSanitizeTestFixtures()
 
+	blueprintRepo.On("GetByProjectIDAndPath",
+		mock.Anything, "user-1", "team-1", "project-1", mock.Anything,
+	).Return(nil, errors.New("not found"))
 	blueprintRepo.On("GetByProjectIDAndSlug",
 		mock.Anything, "user-1", "team-1", "project-1", mock.Anything,
 	).Return(nil, errors.New("not found"))
 	blueprintRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
 
-	service.importSingleFile(context.Background(), "user-1", "team-1", repo, file, "project-1", report)
+	job := &blueprintImportJob{
+		userID: "user-1", teamID: "team-1", projectID: "project-1", repo: repo, report: report,
+	}
+	service.importSingleFile(context.Background(), job, file)
 
 	assert.Equal(t, 1, report.TotalSuccessful)
 	assert.Equal(t, 0, report.TotalFailed)

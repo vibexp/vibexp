@@ -76,19 +76,22 @@ func NewBlueprintRepository(db *database.DB) repositories.BlueprintRepository {
 // blueprintSyncScan holds the nullable sync columns (epic #334) while scanning a
 // blueprint row, before they are applied onto the model.
 type blueprintSyncScan struct {
-	rawContent   sql.NullString
-	contentSHA   sql.NullString
-	sourceRepo   sql.NullString
-	sourceCommit sql.NullString
-	sourceBlob   sql.NullString
-	importedAt   sql.NullTime
+	rawContent       sql.NullString
+	contentSHA       sql.NullString
+	sourceRepo       sql.NullString
+	sourceCommit     sql.NullString
+	sourceBlob       sql.NullString
+	sourceContentSHA sql.NullString
+	importedAt       sql.NullTime
 }
 
 // apply copies the scanned nullable sync columns onto the blueprint, assembling
-// the provenance Source object (nil when no provenance is set).
+// the provenance Source object (nil when no provenance is set). The list read
+// leaves rawContent/sourceContentSHA unscanned; those stay empty.
 func (s blueprintSyncScan) apply(bp *models.Blueprint) {
 	bp.RawContent = s.rawContent.String
 	bp.ContentSHA = s.contentSHA.String
+	bp.SourceContentSHA = s.sourceContentSHA.String
 	bp.Source = assembleBlueprintSource(s.sourceRepo, s.sourceCommit, s.sourceBlob, s.importedAt)
 }
 
@@ -146,9 +149,9 @@ func (r *BlueprintRepository) Create(ctx context.Context, blueprint *models.Blue
 		(project_id, slug, user_id, team_id, title, description, content,
 		status, type, subtype, metadata, created_at, updated_at,
 		path, path_derived, raw_content, content_sha,
-		source_repo, source_commit_sha, source_blob_sha, imported_at)
+		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-		$14, $15, $16, $17, $18, $19, $20, $21)
+		$14, $15, $16, $17, $18, $19, $20, $21, $22)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -158,7 +161,7 @@ func (r *BlueprintRepository) Create(ctx context.Context, blueprint *models.Blue
 		blueprint.Status, blueprint.Type, blueprint.Subtype, metadataJSON,
 		blueprint.CreatedAt, blueprint.UpdatedAt,
 		blueprint.Path, blueprint.PathDerived, nullableString(blueprint.RawContent), nullableString(blueprint.ContentSHA),
-		srcRepo, srcCommit, srcBlob, importedAt,
+		srcRepo, srcCommit, srcBlob, nullableString(blueprint.SourceContentSHA), importedAt,
 	).Scan(&blueprint.ID, &blueprint.CreatedAt, &blueprint.UpdatedAt)
 
 	if err != nil {
@@ -183,7 +186,7 @@ func (r *BlueprintRepository) GetByID(
 		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
 		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
 		s.path, s.path_derived, s.raw_content, s.content_sha,
-		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.imported_at
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at
 		FROM blueprints s
 		WHERE s.id = $1
 			AND s.team_id = $2
@@ -202,7 +205,7 @@ func (r *BlueprintRepository) GetByID(
 		&blueprint.Content, &blueprint.Status, &blueprint.Type,
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
-		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 	)
 
 	if err != nil {
@@ -222,6 +225,53 @@ func (r *BlueprintRepository) GetByID(
 	return &blueprint, nil
 }
 
+// GetByProjectIDAndPath retrieves a blueprint by project ID and canonical path,
+// team-scoped by membership (mirrors GetByProjectIDAndSlug). Used by #341's
+// path-first re-import matching.
+func (r *BlueprintRepository) GetByProjectIDAndPath(
+	ctx context.Context, userID, teamID, projectID, path string,
+) (*models.Blueprint, error) {
+	query := `
+		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
+		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
+		s.path, s.path_derived, s.raw_content, s.content_sha,
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at
+		FROM blueprints s
+		WHERE s.project_id = $1
+			AND s.path = $2
+			AND s.team_id = $3
+			AND (
+				EXISTS (SELECT 1 FROM teams WHERE id = $3 AND owner_id = $4)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $3 AND user_id = $4)
+			)
+	`
+
+	var blueprint models.Blueprint
+	var metadataJSON []byte
+	var sync blueprintSyncScan
+	err := r.db.QueryRowContext(ctx, query, projectID, path, teamID, userID).Scan(
+		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
+		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
+		&blueprint.Content, &blueprint.Status, &blueprint.Type,
+		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
+		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
+	)
+	if err != nil {
+		return nil, mapNoRows(
+			fmt.Errorf("failed to get blueprint by project and path: %w", err),
+			repositories.ErrBlueprintNotFound,
+		)
+	}
+	sync.apply(&blueprint)
+	if len(metadataJSON) == 0 {
+		blueprint.Metadata = make(map[string]interface{})
+	} else if err := json.Unmarshal(metadataJSON, &blueprint.Metadata); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+	}
+	return &blueprint, nil
+}
+
 // GetByProjectIDAndSlug retrieves a blueprint entry by project ID and slug
 // Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
 func (r *BlueprintRepository) GetByProjectIDAndSlug(
@@ -231,7 +281,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
 		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
 		s.path, s.path_derived, s.raw_content, s.content_sha,
-		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.imported_at
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.source_content_sha, s.imported_at
 		FROM blueprints s
 		WHERE s.project_id = $1
 			AND s.slug = $2
@@ -251,7 +301,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlug(
 		&blueprint.Content, &blueprint.Status, &blueprint.Type,
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
-		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 	)
 
 	if err != nil {
@@ -282,7 +332,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 		SELECT id, project_id, slug, user_id, team_id, title, description, content, status,
 		type, subtype, metadata, created_at, updated_at, version,
 		path, path_derived, raw_content, content_sha,
-		source_repo, source_commit_sha, source_blob_sha, imported_at
+		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at
 		FROM blueprints
 		WHERE id = $1 AND user_id = $2
 	`
@@ -296,7 +346,7 @@ func (r *BlueprintRepository) GetByIDCrossTeam(
 		&blueprint.Content, &blueprint.Status, &blueprint.Type,
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
-		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 	)
 
 	if err != nil {
@@ -327,7 +377,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlugCrossTeam(
 		SELECT id, project_id, slug, user_id, team_id, title, description, content, status,
 		type, subtype, metadata, created_at, updated_at, version,
 		path, path_derived, raw_content, content_sha,
-		source_repo, source_commit_sha, source_blob_sha, imported_at
+		source_repo, source_commit_sha, source_blob_sha, source_content_sha, imported_at
 		FROM blueprints
 		WHERE project_id = $1 AND slug = $2 AND user_id = $3
 	`
@@ -341,7 +391,7 @@ func (r *BlueprintRepository) GetByProjectIDAndSlugCrossTeam(
 		&blueprint.Content, &blueprint.Status, &blueprint.Type,
 		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
 		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
-		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.sourceContentSHA, &sync.importedAt,
 	)
 
 	if err != nil {
@@ -656,6 +706,46 @@ func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blue
 		)
 	}
 
+	return nil
+}
+
+// UpdateOnReimport refreshes an existing blueprint from a changed repo file. It
+// rewrites the parsed + raw content, the frozen source path, AND the provenance
+// columns (unlike Update, which preserves provenance). Import is server-
+// authoritative, so it does not take an optimistic-lock version — it matches by
+// (id, team_id) and bumps the version.
+func (r *BlueprintRepository) UpdateOnReimport(ctx context.Context, blueprint *models.Blueprint) error {
+	metadataJSON, err := json.Marshal(blueprint.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+	srcRepo, srcCommit, srcBlob, importedAt := blueprintSourceInsertValues(blueprint.Source)
+
+	query := `
+		UPDATE blueprints
+		SET title = $2, description = $3, content = $4, type = $5, subtype = $6, metadata = $7,
+		path = $8, path_derived = $9, raw_content = $10, content_sha = $11,
+		source_repo = $12, source_commit_sha = $13, source_blob_sha = $14, source_content_sha = $15,
+		imported_at = $16, updated_at = $17, version = version + 1
+		WHERE id = $1 AND team_id = $18
+		RETURNING updated_at, version
+	`
+	err = r.db.QueryRowContext(ctx, query,
+		blueprint.ID, blueprint.Title, blueprint.Description, blueprint.Content,
+		blueprint.Type, blueprint.Subtype, metadataJSON,
+		blueprint.Path, blueprint.PathDerived, nullableString(blueprint.RawContent), nullableString(blueprint.ContentSHA),
+		srcRepo, srcCommit, srcBlob, nullableString(blueprint.SourceContentSHA), importedAt,
+		blueprint.UpdatedAt, blueprint.TeamID,
+	).Scan(&blueprint.UpdatedAt, &blueprint.Version)
+	if err != nil {
+		if pqErr := uniqueViolation(err); pqErr != nil {
+			return blueprintUniqueConflictError(pqErr, blueprint)
+		}
+		return mapNoRows(
+			fmt.Errorf("failed to re-import blueprint: %w", err),
+			repositories.ErrBlueprintNotFound,
+		)
+	}
 	return nil
 }
 

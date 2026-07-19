@@ -423,6 +423,12 @@ components:
       $ref: "./schemas/github.yaml#/BlueprintImportSkipped"
     BlueprintImportReport:
       $ref: "./schemas/github.yaml#/BlueprintImportReport"
+    BlueprintImportUpdated:
+      $ref: "./schemas/github.yaml#/BlueprintImportUpdated"
+    BlueprintImportConflict:
+      $ref: "./schemas/github.yaml#/BlueprintImportConflict"
+    BlueprintImportUpToDate:
+      $ref: "./schemas/github.yaml#/BlueprintImportUpToDate"
 
     # Back office schemas
     UsageMetricsRow:
