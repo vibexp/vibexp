@@ -193,12 +193,13 @@ func (c *GitHubAppClient) convertToModelRepository(repo *github.Repository) *mod
 	}
 
 	return &models.GitHubRepository{
-		ID:          repo.GetID(),
-		Name:        repo.GetName(),
-		FullName:    repo.GetFullName(),
-		Description: repo.Description,
-		Private:     repo.GetPrivate(),
-		HTMLURL:     repo.GetHTMLURL(),
+		ID:            repo.GetID(),
+		Name:          repo.GetName(),
+		FullName:      repo.GetFullName(),
+		Description:   repo.Description,
+		Private:       repo.GetPrivate(),
+		HTMLURL:       repo.GetHTMLURL(),
+		DefaultBranch: repo.GetDefaultBranch(),
 		Owner: models.GitHubRepositoryOwner{
 			Login: owner.GetLogin(),
 			Type:  owner.GetType(),
@@ -459,7 +460,52 @@ func (c *GitHubAppClient) GetFileContent(
 	return &external.GitHubFile{
 		Path:    path,
 		Content: content,
+		BlobSHA: fileContent.GetSHA(),
 	}, nil
+}
+
+// GetBranchHeadSHA resolves the head commit SHA of a branch in one API call
+// (Git.GetRef on refs/heads/<branch>). Blueprint import calls it once per run to
+// record provenance (#341).
+func (c *GitHubAppClient) GetBranchHeadSHA(
+	ctx context.Context,
+	installationID int64,
+	owner, repoName, branch string,
+) (string, error) {
+	ctx, span := githubTracer.Start(ctx, "github.get_branch_head_sha",
+		trace.WithAttributes(
+			attribute.Int64(attrInstallationID, installationID),
+		),
+	)
+	defer span.End()
+
+	ctx, cancel := context.WithTimeout(ctx, githubAPIFastTimeout)
+	defer cancel()
+
+	client, err := c.createInstallationTransport(installationID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return "", err
+	}
+
+	ref, resp, err := client.Git.GetRef(ctx, owner, repoName, "refs/heads/"+branch)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		c.logger.Error(
+			"GitHub API error when resolving branch head SHA",
+			"error", err.Error(),
+			"installation_id", installationID,
+			"owner", owner,
+			"repo", repoName,
+			"branch", branch,
+			"status_code", respStatusCode(resp),
+		)
+		return "", fmt.Errorf("failed to resolve branch head SHA: %w", err)
+	}
+
+	return ref.GetObject().GetSHA(), nil
 }
 
 // GetDirectoryContentsRecursive recursively fetches all files in a directory
@@ -592,6 +638,7 @@ func (c *GitHubAppClient) fetchFileContent(
 	*allFiles = append(*allFiles, &external.GitHubFile{
 		Path:    item.GetPath(),
 		Content: content,
+		BlobSHA: fileContent.GetSHA(),
 	})
 }
 
@@ -673,6 +720,14 @@ func (s *stubGitHubAppClient) GetDirectoryContentsRecursive(
 	owner, repoName, dirPath string,
 ) ([]*external.GitHubFile, error) {
 	return nil, fmt.Errorf("GitHub App not configured")
+}
+
+func (s *stubGitHubAppClient) GetBranchHeadSHA(
+	ctx context.Context,
+	installationID int64,
+	owner, repoName, branch string,
+) (string, error) {
+	return "", fmt.Errorf("GitHub App not configured")
 }
 
 func (s *stubGitHubAppClient) EvictCachedClient(_ int64) {

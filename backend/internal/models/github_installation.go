@@ -21,13 +21,16 @@ type GitHubInstallation struct {
 
 // GitHubRepository represents a repository accessible through the installation
 type GitHubRepository struct {
-	ID          int64                 `json:"id"`
-	Name        string                `json:"name"`
-	FullName    string                `json:"full_name"`
-	Description *string               `json:"description"`
-	Private     bool                  `json:"private"`
-	HTMLURL     string                `json:"html_url"`
-	Owner       GitHubRepositoryOwner `json:"owner"`
+	ID          int64   `json:"id"`
+	Name        string  `json:"name"`
+	FullName    string  `json:"full_name"`
+	Description *string `json:"description"`
+	Private     bool    `json:"private"`
+	HTMLURL     string  `json:"html_url"`
+	// DefaultBranch is the repository's default branch (e.g. "main"), used to
+	// resolve the head commit SHA once per blueprint import run (#337).
+	DefaultBranch string                `json:"default_branch,omitempty"`
+	Owner         GitHubRepositoryOwner `json:"owner"`
 	// ImportedProjectSlug is the slug of an existing VibeXP project whose git_url
 	// matches this repo's HTMLURL within the same team. It is populated by the
 	// repositories list endpoint so the UI can link to the project instead of

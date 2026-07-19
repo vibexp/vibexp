@@ -73,22 +73,67 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 		SkippedItems:    []models.BlueprintImportSkipped{},
 	}
 
-	// 5-6. Scan and import each well-known path
+	// 5. Resolve the branch head commit SHA once per run for import provenance.
+	sourceCommitSHA := s.resolveSourceCommitSHA(ctx, installation.InstallationID, repo, teamID)
+
+	// 6-7. Scan and import each well-known path
 	job := &blueprintImportJob{
-		installationID: installation.InstallationID,
-		userID:         userID,
-		teamID:         teamID,
-		repo:           repo,
-		projectID:      projectID,
-		report:         report,
+		installationID:  installation.InstallationID,
+		userID:          userID,
+		teamID:          teamID,
+		repo:            repo,
+		projectID:       projectID,
+		report:          report,
+		sourceCommitSHA: sourceCommitSHA,
 	}
-	for _, scanPath := range blueprintScanPaths {
-		if err := s.scanBlueprintPath(ctx, job, scanPath); err != nil {
-			return report, err
-		}
+	if err := s.runBlueprintScan(ctx, job); err != nil {
+		return report, err
 	}
 
 	return report, nil
+}
+
+// runBlueprintScan scans every well-known AI-config path for the job and imports
+// each discovered file into the job's report. It returns early only on context
+// cancellation surfaced by a scan.
+func (s *GitHubAppService) runBlueprintScan(ctx context.Context, job *blueprintImportJob) error {
+	s.logger.With(
+		"project_id", job.projectID,
+		"repo_id", job.repo.ID,
+		"source_commit_sha", job.sourceCommitSHA,
+		"team_id", job.teamID,
+	).Info("Starting blueprint import run")
+	for _, scanPath := range blueprintScanPaths {
+		if err := s.scanBlueprintPath(ctx, job, scanPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// resolveSourceCommitSHA resolves the repo's default-branch head commit SHA once
+// per import run for provenance (#341). A failure must never fail the import —
+// the commit SHA is treated as unknown (empty), exactly as an absent blob SHA is
+// treated. Returns "" when the default branch is unknown or resolution fails.
+func (s *GitHubAppService) resolveSourceCommitSHA(
+	ctx context.Context, installationID int64, repo *models.GitHubRepository, teamID string,
+) string {
+	if repo.DefaultBranch == "" {
+		return ""
+	}
+	sha, err := s.githubClient.GetBranchHeadSHA(
+		ctx, installationID, repo.Owner.Login, repo.Name, repo.DefaultBranch,
+	)
+	if err != nil {
+		s.logger.With(
+			"error", err,
+			"repo_id", repo.ID,
+			"default_branch", repo.DefaultBranch,
+			"team_id", teamID,
+		).Warn("Failed to resolve branch head commit SHA; import provenance commit SHA will be empty")
+		return ""
+	}
+	return sha
 }
 
 // blueprintScanPaths are the well-known AI-config locations scanned during a
@@ -112,6 +157,9 @@ type blueprintImportJob struct {
 	repo           *models.GitHubRepository
 	projectID      string
 	report         *models.BlueprintImportReport
+	// sourceCommitSHA is the default-branch head commit SHA resolved once per
+	// run; #341 persists it as blueprint provenance (source_commit_sha).
+	sourceCommitSHA string
 }
 
 // scanBlueprintPath scans one repository path (file or directory) and imports every

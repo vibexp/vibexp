@@ -57,6 +57,11 @@ type GitHubInstallationInfo struct {
 type GitHubFile struct {
 	Path    string
 	Content string
+	// BlobSHA is the Git blob SHA of the file as reported by the Contents API.
+	// It uniquely identifies the file's bytes and is used for cheap
+	// change-detection on re-import (#341). Empty when GitHub omits it — callers
+	// must treat an empty value as "unknown", never fail the fetch.
+	BlobSHA string
 }
 
 // GitHubAppClient defines the interface for GitHub App operations
@@ -73,6 +78,13 @@ type GitHubAppClient interface {
 	GetDirectoryContentsRecursive(
 		ctx context.Context, installationID int64, owner, repoName, dirPath string,
 	) ([]*GitHubFile, error)
+	// GetBranchHeadSHA resolves the head commit SHA of a branch in one API call.
+	// Blueprint import calls it once per run to record provenance
+	// (source_commit_sha, #341). branch is the plain branch name (e.g. the
+	// repository's default branch).
+	GetBranchHeadSHA(
+		ctx context.Context, installationID int64, owner, repoName, branch string,
+	) (string, error)
 	// EvictCachedClient removes the cached GitHub client for the given installationID.
 	// Call this when an installation is disconnected to prevent stale entries.
 	EvictCachedClient(installationID int64)

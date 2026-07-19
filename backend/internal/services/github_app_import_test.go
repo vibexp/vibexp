@@ -197,6 +197,15 @@ func (m *MockGitHubAppClient) GetRepository(
 	return args.Get(0).(*models.GitHubRepository), args.Error(1)
 }
 
+func (m *MockGitHubAppClient) GetBranchHeadSHA(
+	ctx context.Context,
+	installationID int64,
+	owner, repoName, branch string,
+) (string, error) {
+	args := m.Called(ctx, installationID, owner, repoName, branch)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockGitHubAppClient) EvictCachedClient(_ int64) {}
 
 type MockEventPublisher struct {
@@ -1457,6 +1466,63 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 			githubClient.AssertExpectations(t)
 		})
 	}
+}
+
+// TestGitHubAppService_ImportResolvesHeadSHAOncePerRun verifies the import
+// resolves the default-branch head commit SHA exactly once per run when a
+// default branch is known, and that a resolution error is tolerated (the import
+// still succeeds — provenance commit SHA is simply left unknown).
+func TestGitHubAppService_ImportResolvesHeadSHAOncePerRun(t *testing.T) {
+	newService := func(gh *MockGitHubAppClient) GitHubAppServiceInterface {
+		installationRepo := new(MockGitHubInstallationRepository)
+		projectRepo := new(MockProjectRepository)
+		installationRepo.On("GetByTeamID", mock.Anything, "team-456").
+			Return(&models.GitHubInstallation{ID: "i1", TeamID: "team-456", InstallationID: 12345}, nil)
+		repo := &models.GitHubRepository{
+			ID: 789, Name: "test-repo", FullName: "owner/test-repo",
+			HTMLURL:       "https://github.com/owner/test-repo",
+			DefaultBranch: "main",
+			Owner:         models.GitHubRepositoryOwner{Login: "owner", Type: "User"},
+		}
+		gh.On("GetRepository", mock.Anything, int64(12345), int64(789)).Return(repo, nil)
+		projectRepo.On("GetByGitURL", mock.Anything, "team-456", "user-123",
+			"https://github.com/owner/test-repo").
+			Return(&models.Project{ID: "p1", TeamID: "team-456"}, nil)
+		// Nothing importable — scan finds no dirs/files.
+		for _, dir := range []string{".claude", ".cursor", ".codex", ".agents"} {
+			gh.On("GetDirectoryContentsRecursive", mock.Anything, int64(12345), "owner", "test-repo", dir).
+				Return(nil, errors.New("not found"))
+		}
+		for _, f := range []string{"CLAUDE.md", "CURSOR.md", "AGENTS.md"} {
+			gh.On("GetFileContent", mock.Anything, int64(12345), "owner", "test-repo", f).
+				Return(nil, errors.New("not found"))
+		}
+		return setupTestService(installationRepo, projectRepo, gh, new(MockEventPublisher))
+	}
+
+	t.Run("resolves once on success", func(t *testing.T) {
+		gh := new(MockGitHubAppClient)
+		gh.On("GetBranchHeadSHA", mock.Anything, int64(12345), "owner", "test-repo", "main").
+			Return("commit-abc", nil).Once()
+		svc := newService(gh)
+
+		report, err := svc.ImportBlueprintsFromRepository(context.Background(), "user-123", "team-456", 789)
+		require.NoError(t, err)
+		require.NotNil(t, report)
+		gh.AssertExpectations(t) // asserts GetBranchHeadSHA called exactly once
+	})
+
+	t.Run("resolution error is tolerated", func(t *testing.T) {
+		gh := new(MockGitHubAppClient)
+		gh.On("GetBranchHeadSHA", mock.Anything, int64(12345), "owner", "test-repo", "main").
+			Return("", errors.New("ref lookup failed")).Once()
+		svc := newService(gh)
+
+		report, err := svc.ImportBlueprintsFromRepository(context.Background(), "user-123", "team-456", 789)
+		require.NoError(t, err, "head-SHA resolution failure must not fail the import")
+		require.NotNil(t, report)
+		gh.AssertExpectations(t)
+	})
 }
 
 // setupCommonImportMocks sets up installation, repository, project, and directory mocks
