@@ -394,15 +394,26 @@ func recordSkippedImportFile(report *models.BlueprintImportReport, filePath, rea
 	})
 }
 
+// frontMatterString returns the frontmatter value for key when it is a string,
+// otherwise "". Frontmatter values are now typed (map[string]any), so the
+// name/title/description lifting only applies when the author wrote a scalar
+// string — a nested/typed value for one of these keys is ignored, as before.
+func frontMatterString(fm utils.FrontMatterResult, key string) string {
+	if v, ok := fm.Metadata[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
 // blueprintTitleFromFrontMatter derives the blueprint title, preferring the
 // frontmatter "name" then "title" over the default, truncated to maxTitleLen runes.
 func (s *GitHubAppService) blueprintTitleFromFrontMatter(
 	fm utils.FrontMatterResult, filePath, filename, repoName string,
 ) string {
 	title := fmt.Sprintf("%s from %s", filename, repoName)
-	if v, ok := fm.Metadata["name"]; ok && v != "" {
+	if v := frontMatterString(fm, "name"); v != "" {
 		title = v
-	} else if v, ok := fm.Metadata["title"]; ok && v != "" {
+	} else if v := frontMatterString(fm, "title"); v != "" {
 		title = v
 	}
 	if titleRunes := []rune(title); len(titleRunes) > maxTitleLen {
@@ -423,7 +434,7 @@ func (s *GitHubAppService) blueprintDescriptionFromFrontMatter(
 	fm utils.FrontMatterResult, filePath, repoFullName string,
 ) string {
 	description := fmt.Sprintf("Imported from %s", repoFullName)
-	if v, ok := fm.Metadata["description"]; ok && v != "" {
+	if v := frontMatterString(fm, "description"); v != "" {
 		if descRunes := []rune(v); len(descRunes) > maxDescriptionLen {
 			s.logger.With(
 				"file_path", filePath,
