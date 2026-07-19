@@ -479,6 +479,15 @@ api-v1-team_id-artifacts-project_id-slug-attachments:
                 type: string
                 format: binary
                 description: The file to attach
+              relative_path:
+                type: string
+                maxLength: 1024
+                description: >-
+                  Optional path relative to the owner's directory (e.g.
+                  "scripts/helper.py"). Must be relative — no leading "/", no
+                  "..", no backslashes. Unique per owner. file_name stays the
+                  basename.
+                example: "scripts/helper.py"
             required:
               - file
     responses:

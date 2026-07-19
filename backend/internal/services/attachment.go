@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/vibexp/vibexp/internal/blueprintpath"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/storage"
@@ -47,6 +48,9 @@ var (
 	ErrAttachmentDisallowedType = errors.New("file type is not allowed")
 	// ErrAttachmentEmpty is returned when an uploaded file has no content.
 	ErrAttachmentEmpty = errors.New("file is empty")
+	// ErrInvalidAttachmentRelativePath is returned when relative_path fails
+	// traversal validation (#338). Handlers/MCP map it to a client error.
+	ErrInvalidAttachmentRelativePath = errors.New("invalid attachment relative_path")
 )
 
 // allowedAttachmentType pairs the canonical stored content type for an
@@ -88,11 +92,15 @@ var allowedAttachmentTypes = map[string]allowedAttachmentType{
 // owner. File must support Seek so the service can sniff the content type and
 // then rewind for the upload.
 type UploadAttachmentParams struct {
-	TeamID       string
-	UserID       string
-	OwnerType    string
-	OwnerID      string
-	FileName     string
+	TeamID    string
+	UserID    string
+	OwnerType string
+	OwnerID   string
+	FileName  string
+	// RelativePath is an optional, traversal-validated path relative to the
+	// owner's directory (e.g. "scripts/helper.py"). Empty for a plain
+	// attachment. Stored verbatim; FileName stays the basename (#338).
+	RelativePath string
 	DeclaredSize int64 // best-effort size from the multipart header for pre-checks
 	File         io.ReadSeeker
 }
@@ -136,6 +144,15 @@ func (s *AttachmentService) Upload(
 		return nil, ErrAttachmentStorageNotConfigured
 	}
 
+	// A relative_path, when supplied, must be a safe repo-relative path. Uses the
+	// shared validator (blueprintpath) so blueprint paths and attachment
+	// companion paths share one traversal rule set.
+	if params.RelativePath != "" {
+		if pathErr := blueprintpath.ValidateRelativePath(params.RelativePath); pathErr != nil {
+			return nil, fmt.Errorf("%w: %w", ErrInvalidAttachmentRelativePath, pathErr)
+		}
+	}
+
 	contentType, err := s.validateFileType(params.FileName, params.File)
 	if err != nil {
 		return nil, err
@@ -172,6 +189,7 @@ func (s *AttachmentService) Upload(
 		OwnerType:    params.OwnerType,
 		OwnerID:      params.OwnerID,
 		FileName:     filepath.Base(params.FileName),
+		RelativePath: params.RelativePath,
 		ContentType:  contentType,
 		SizeBytes:    counter.n,
 		GCSObjectKey: objectKey,

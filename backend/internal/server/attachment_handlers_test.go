@@ -138,6 +138,47 @@ func TestHandleUploadArtifactAttachment_Success(t *testing.T) {
 	specconformance.AssertConformsToSpec(t, req, rr)
 }
 
+// TestHandleUploadArtifactAttachment_RelativePath verifies the optional
+// relative_path multipart field is threaded to the service and exposed in the
+// (spec-conformant) response (#338).
+func TestHandleUploadArtifactAttachment_RelativePath(t *testing.T) {
+	att := sampleAttachment()
+	att.RelativePath = "scripts/helper.txt"
+	mockAttachment := servicesmocks.NewMockAttachmentServiceInterface(t)
+	mockAttachment.On("Upload", mock.Anything, mock.MatchedBy(func(p services.UploadAttachmentParams) bool {
+		return p.RelativePath == "scripts/helper.txt"
+	})).Return(att, nil)
+
+	srv := newAttachmentTestServer(&MockAttachmentContainer{
+		ArtifactServiceMock:   mockArtifactResolver(t),
+		AttachmentServiceMock: mockAttachment,
+	})
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "helper.txt")
+	assert.NoError(t, err)
+	_, err = part.Write([]byte("print('hi')"))
+	assert.NoError(t, err)
+	assert.NoError(t, writer.WriteField("relative_path", "scripts/helper.txt"))
+	assert.NoError(t, writer.Close())
+
+	url := "/api/v1/" + testAttachmentTeamID + "/artifacts/" + testAttachmentProjectID +
+		"/" + testAttachmentSlug + "/attachments"
+	req := httptest.NewRequest(http.MethodPost, url, body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, testAttachmentUser))
+	req = attachmentURLParams(req, false)
+
+	rr := httptest.NewRecorder()
+	srv.handleUploadArtifactAttachment(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"relative_path":"scripts/helper.txt"`)
+	specconformance.AssertConformsToSpec(t, req, rr)
+	mockAttachment.AssertExpectations(t)
+}
+
 func TestHandleListArtifactAttachments_Success(t *testing.T) {
 	mockAttachment := servicesmocks.NewMockAttachmentServiceInterface(t)
 	mockAttachment.On("List", mock.Anything, ownerTypeArtifact, testAttachmentArtifact).

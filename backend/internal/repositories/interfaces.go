@@ -101,6 +101,11 @@ var (
 	// when no attachment row matches the given identifier for the owner.
 	ErrAttachmentNotFound = errors.New("attachment not found")
 
+	// ErrAttachmentRelativePathConflict is returned by AttachmentRepository.Create
+	// when the (owner_type, owner_id, relative_path) partial-unique index is
+	// violated — the owner already has an attachment at that relative path (#338).
+	ErrAttachmentRelativePathConflict = errors.New("attachment relative_path already exists for this owner")
+
 	// ErrCommentNotFound is returned by CommentRepository lookups/updates/deletes
 	// when no comment row matches the given identifier for the team.
 	ErrCommentNotFound = errors.New("comment not found")

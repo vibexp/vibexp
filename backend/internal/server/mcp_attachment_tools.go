@@ -44,6 +44,7 @@ type UploadAttachmentParams struct {
 	OwnerID           string `json:"owner_id" jsonschema:"UUID of the owning resource (e.g. the artifact id) the file is attached to."`
 	FileName          string `json:"file_name" jsonschema:"File name including extension, e.g. \"report.pdf\". The extension must be in the allowlist (png, jpg, jpeg, gif, webp, pdf, txt, md, csv, json, docx, xlsx, zip)."`
 	FileContentBase64 string `json:"file_content_base64" jsonschema:"The file content as a standard base64-encoded string. Decoded size must not exceed 5 MB per file (10 MB total per owner)."`
+	RelativePath      string `json:"relative_path,omitempty" jsonschema:"Optional path relative to the owner's directory, e.g. \"scripts/helper.py\" for a multi-file skill companion. Must be relative: no leading \"/\", no \"..\", no backslashes. Unique per owner. file_name stays the basename."`
 }
 
 // ListAttachmentsParams defines the parameters for the list_attachments tool.
@@ -65,10 +66,11 @@ type DeleteAttachmentParams struct {
 
 // attachmentUploadResponse is the slim response returned by the upload tool.
 type attachmentUploadResponse struct {
-	ID          string `json:"id"`
-	FileName    string `json:"file_name"`
-	ContentType string `json:"content_type"`
-	SizeBytes   int64  `json:"size_bytes"`
+	ID           string `json:"id"`
+	FileName     string `json:"file_name"`
+	RelativePath string `json:"relative_path,omitempty"`
+	ContentType  string `json:"content_type"`
+	SizeBytes    int64  `json:"size_bytes"`
 	// DownloadURL is a root-relative API path (GET) the caller resolves against
 	// the API origin it is already authenticated to. It is relative rather than
 	// absolute because the MCP and API origins differ and there is no configured
@@ -78,12 +80,13 @@ type attachmentUploadResponse struct {
 
 // attachmentListItem is the per-item shape returned by the list tool.
 type attachmentListItem struct {
-	ID          string `json:"id"`
-	FileName    string `json:"file_name"`
-	ContentType string `json:"content_type"`
-	SizeBytes   int64  `json:"size_bytes"`
-	CreatedAt   string `json:"created_at"`
-	DownloadURL string `json:"download_url"`
+	ID           string `json:"id"`
+	FileName     string `json:"file_name"`
+	RelativePath string `json:"relative_path,omitempty"`
+	ContentType  string `json:"content_type"`
+	SizeBytes    int64  `json:"size_bytes"`
+	CreatedAt    string `json:"created_at"`
+	DownloadURL  string `json:"download_url"`
 }
 
 // attachmentListResponse is the list shape returned by the list tool.
@@ -149,6 +152,9 @@ func mcpAttachmentUploadError(err error) *mcp.CallToolResult {
 		return mcpTextError("File type is not allowed")
 	case errors.Is(err, services.ErrAttachmentEmpty):
 		return mcpTextError("File is empty")
+	case errors.Is(err, services.ErrInvalidAttachmentRelativePath),
+		errors.Is(err, repositories.ErrAttachmentRelativePathConflict):
+		return mcpTextError(err.Error())
 	default:
 		return mcpTextError("Failed to upload attachment")
 	}
@@ -221,6 +227,7 @@ func (s *Server) uploadAttachment(
 		OwnerType:    ownerType,
 		OwnerID:      ownerID,
 		FileName:     fileName,
+		RelativePath: params.RelativePath,
 		DeclaredSize: int64(len(decoded)),
 		File:         bytes.NewReader(decoded),
 	})
@@ -237,11 +244,12 @@ func (s *Server) uploadAttachment(
 	}
 
 	return mcpJSONResult(&attachmentUploadResponse{
-		ID:          att.ID,
-		FileName:    att.FileName,
-		ContentType: att.ContentType,
-		SizeBytes:   att.SizeBytes,
-		DownloadURL: attachmentDownloadURL(teamID, att.ID),
+		ID:           att.ID,
+		FileName:     att.FileName,
+		RelativePath: att.RelativePath,
+		ContentType:  att.ContentType,
+		SizeBytes:    att.SizeBytes,
+		DownloadURL:  attachmentDownloadURL(teamID, att.ID),
 	})
 }
 
@@ -287,12 +295,13 @@ func (s *Server) listAttachments(
 	for i := range resp.Attachments {
 		a := resp.Attachments[i]
 		items = append(items, attachmentListItem{
-			ID:          a.ID,
-			FileName:    a.FileName,
-			ContentType: a.ContentType,
-			SizeBytes:   a.SizeBytes,
-			CreatedAt:   a.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-			DownloadURL: attachmentDownloadURL(teamID, a.ID),
+			ID:           a.ID,
+			FileName:     a.FileName,
+			RelativePath: a.RelativePath,
+			ContentType:  a.ContentType,
+			SizeBytes:    a.SizeBytes,
+			CreatedAt:    a.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+			DownloadURL:  attachmentDownloadURL(teamID, a.ID),
 		})
 	}
 

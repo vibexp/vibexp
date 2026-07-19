@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
@@ -95,6 +96,41 @@ func TestAttachmentService_Upload_Success(t *testing.T) {
 	assert.Equal(t, "notes.txt", att.FileName)
 	assert.True(t, strings.HasPrefix(att.GCSObjectKey, svcTeamID+"/"+svcOwnerType+"/"+svcOwnerID+"/"))
 	assert.Len(t, store.objects, 1)
+}
+
+// TestAttachmentService_Upload_RelativePath covers the #338 validation matrix: a
+// valid relative_path is stored verbatim (file_name stays the basename); a
+// traversal-invalid path is rejected before any storage/DB work.
+func TestAttachmentService_Upload_RelativePath(t *testing.T) {
+	t.Run("valid path stored; file_name stays basename", func(t *testing.T) {
+		repo := repomocks.NewMockAttachmentRepository(t)
+		repo.On("SumSizeByOwner", mock.Anything, svcOwnerType, svcOwnerID).Return(int64(0), nil)
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(a *models.Attachment) bool {
+			return a.RelativePath == "scripts/helper.txt" && a.FileName == "helper.txt"
+		})).Return(nil)
+		svc := NewAttachmentService(repo, newFakeObjectStore(), newTestLogger())
+
+		params := uploadParams("helper.txt", []byte("print('hi')"))
+		params.RelativePath = "scripts/helper.txt"
+		att, err := svc.Upload(context.Background(), params)
+		require.NoError(t, err)
+		assert.Equal(t, "scripts/helper.txt", att.RelativePath)
+		assert.Equal(t, "helper.txt", att.FileName)
+	})
+
+	invalid := []string{"../escape.txt", "/abs.txt", "a\\b.txt", "./lead.txt", "dir/../../x.txt"}
+	for _, p := range invalid {
+		t.Run("rejects "+p, func(t *testing.T) {
+			// No repo/store expectations: validation must fail before either is used.
+			repo := repomocks.NewMockAttachmentRepository(t)
+			svc := NewAttachmentService(repo, newFakeObjectStore(), newTestLogger())
+
+			params := uploadParams("helper.txt", []byte("x"))
+			params.RelativePath = p
+			_, err := svc.Upload(context.Background(), params)
+			assert.ErrorIs(t, err, ErrInvalidAttachmentRelativePath)
+		})
+	}
 }
 
 func TestAttachmentService_Upload_DisallowedExtension(t *testing.T) {

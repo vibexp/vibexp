@@ -14,6 +14,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/services"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
@@ -80,6 +81,43 @@ func TestHandleUploadAttachment_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, rr.Code)
 	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
+// TestHandleUploadAttachment_RelativePath verifies the universal upload endpoint
+// (used by blueprints/prompts/memories) threads the relative_path form field to
+// the service (#338).
+func TestHandleUploadAttachment_RelativePath(t *testing.T) {
+	att := sampleAttachment()
+	att.RelativePath = "scripts/helper.txt"
+	mockAttachment := servicesmocks.NewMockAttachmentServiceInterface(t)
+	mockAttachment.On("Upload", mock.Anything, mock.MatchedBy(func(p services.UploadAttachmentParams) bool {
+		return p.RelativePath == "scripts/helper.txt"
+	})).Return(att, nil)
+
+	srv := newAttachmentTestServer(&MockAttachmentContainer{
+		ArtifactServiceMock:   mockOwnerAuthorizer(t),
+		AttachmentServiceMock: mockAttachment,
+	})
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	assert.NoError(t, writer.WriteField("owner_type", ownerTypeArtifact))
+	assert.NoError(t, writer.WriteField("owner_id", testAttachmentArtifact))
+	assert.NoError(t, writer.WriteField("relative_path", "scripts/helper.txt"))
+	part, err := writer.CreateFormFile("file", "helper.txt")
+	assert.NoError(t, err)
+	_, err = part.Write([]byte("hi"))
+	assert.NoError(t, err)
+	assert.NoError(t, writer.Close())
+
+	req := newUniversalReq(t, http.MethodPost, universalAttachmentsURL, body, false)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	srv.handleUploadAttachment(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"relative_path":"scripts/helper.txt"`)
+	mockAttachment.AssertExpectations(t)
 }
 
 func TestHandleUploadAttachment_UnknownOwnerType(t *testing.T) {

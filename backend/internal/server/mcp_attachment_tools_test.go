@@ -102,6 +102,34 @@ func TestUploadAttachment_Success(t *testing.T) {
 	assert.Equal(t, *resp, fromText)
 }
 
+// TestUploadAttachment_RelativePath verifies the MCP tool threads relative_path
+// to the service and echoes it in the response (#338).
+func TestUploadAttachment_RelativePath(t *testing.T) {
+	srv, m := newAttachmentMCPTestServer(t)
+	stubArtifactOwnerAllowed(m.artifact)
+	att := sampleAttachment()
+	att.RelativePath = "scripts/helper.txt"
+	m.attachment.On("Upload", mock.Anything, mock.MatchedBy(func(p services.UploadAttachmentParams) bool {
+		return p.RelativePath == "scripts/helper.txt"
+	})).Return(att, nil)
+
+	params := &UploadAttachmentParams{
+		TeamID:            testTeamSlug,
+		OwnerType:         ownerTypeArtifact,
+		OwnerID:           testAttachmentArtifact,
+		FileName:          "helper.txt",
+		FileContentBase64: helloBase64,
+		RelativePath:      "scripts/helper.txt",
+	}
+	res, structured, err := srv.uploadAttachment(context.Background(), nil, params, testMemberUserID)
+	require.NoError(t, err)
+	require.False(t, res.IsError, "expected success, got %s", extractText(t, res))
+	resp, ok := structured.(*attachmentUploadResponse)
+	require.True(t, ok)
+	assert.Equal(t, "scripts/helper.txt", resp.RelativePath)
+	m.attachment.AssertExpectations(t)
+}
+
 func TestUploadAttachment_InvalidBase64(t *testing.T) {
 	srv, m := newAttachmentMCPTestServer(t)
 	stubArtifactOwnerAllowed(m.artifact)
