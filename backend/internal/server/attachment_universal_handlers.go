@@ -99,6 +99,7 @@ func (s *Server) handleUploadAttachment(w http.ResponseWriter, r *http.Request) 
 		OwnerType:    ownerType,
 		OwnerID:      ownerID,
 		FileName:     header.Filename,
+		RelativePath: multipartValue(r, "relative_path"),
 		DeclaredSize: header.Size,
 		File:         file,
 	})

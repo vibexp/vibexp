@@ -1146,6 +1146,11 @@ paths:
                   type: string
                   format: binary
                   description: The file to attach
+                relative_path:
+                  type: string
+                  maxLength: 1024
+                  description: Optional path relative to the owner's directory (e.g. "scripts/helper.py"). Must be relative — no leading "/", no "..", no backslashes. Unique per owner. file_name stays the basename.
+                  example: scripts/helper.py
               required:
                 - owner_type
                 - owner_id
@@ -1373,6 +1378,11 @@ paths:
                   type: string
                   format: binary
                   description: The file to attach
+                relative_path:
+                  type: string
+                  maxLength: 1024
+                  description: Optional path relative to the owner's directory (e.g. "scripts/helper.py"). Must be relative — no leading "/", no "..", no backslashes. Unique per owner. file_name stays the basename.
+                  example: scripts/helper.py
               required:
                 - file
       responses:
@@ -15099,8 +15109,12 @@ components:
           example: 01234567-89ab-cdef-0123-456789abcdef
         file_name:
           type: string
-          description: Original file name
+          description: Original file name (basename only)
           example: design-spec.pdf
+        relative_path:
+          type: string
+          description: Optional path relative to the owner's directory (e.g. "scripts/helper.py" for a multi-file skill companion). Absent for a plain attachment. Unique per owner.
+          example: scripts/helper.py
         content_type:
           type: string
           description: Canonical content type of the file

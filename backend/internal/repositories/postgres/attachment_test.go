@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,9 +26,9 @@ func setupAttachmentTest(t *testing.T) (*AttachmentRepository, sqlmock.Sqlmock, 
 func attachmentRows(now time.Time, userID interface{}) *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
 		"id", "team_id", "user_id", "owner_type", "owner_id",
-		"file_name", "content_type", "size_bytes", "gcs_object_key", "created_at",
+		"file_name", "content_type", "size_bytes", "gcs_object_key", "created_at", "relative_path",
 	}).AddRow("att-1", "team-1", userID, "artifact", "owner-1",
-		"notes.txt", "text/plain", int64(12), "team-1/artifact/owner-1/uuid-notes.txt", now)
+		"notes.txt", "text/plain", int64(12), "team-1/artifact/owner-1/uuid-notes.txt", now, nil)
 }
 
 func TestAttachmentRepository_Create(t *testing.T) {
@@ -52,12 +53,57 @@ func TestAttachmentRepository_Create(t *testing.T) {
 
 	mock.ExpectQuery("INSERT INTO attachments").
 		WithArgs("team-1", "user-1", "artifact", "owner-1", "notes.txt", "text/plain", int64(12),
-			"team-1/artifact/owner-1/uuid-notes.txt").
+			"team-1/artifact/owner-1/uuid-notes.txt", nil).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow("att-1", now))
 
 	err := repo.Create(context.Background(), att)
 	require.NoError(t, err)
 	assert.Equal(t, "att-1", att.ID)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAttachmentRepository_Create_WithRelativePath verifies a non-empty
+// relative_path is inserted verbatim (#338).
+func TestAttachmentRepository_Create_WithRelativePath(t *testing.T) {
+	repo, mock, mockDB := setupAttachmentTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery("INSERT INTO attachments").
+		WithArgs("team-1", "user-1", "artifact", "owner-1", "helper.py", "text/x-python", int64(5),
+			"k", "scripts/helper.py").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow("att-1", time.Now()))
+
+	err := repo.Create(context.Background(), &models.Attachment{
+		TeamID: "team-1", UserID: "user-1", OwnerType: "artifact", OwnerID: "owner-1",
+		FileName: "helper.py", RelativePath: "scripts/helper.py",
+		ContentType: "text/x-python", SizeBytes: 5, GCSObjectKey: "k",
+	})
+	require.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAttachmentRepository_Create_RelativePathConflict maps the partial-unique
+// index violation to ErrAttachmentRelativePathConflict (#338).
+func TestAttachmentRepository_Create_RelativePathConflict(t *testing.T) {
+	repo, mock, mockDB := setupAttachmentTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery("INSERT INTO attachments").
+		WillReturnError(&pq.Error{Code: "23505", Constraint: "attachments_owner_relative_path_unique"})
+
+	err := repo.Create(context.Background(), &models.Attachment{
+		TeamID: "team-1", OwnerType: "artifact", OwnerID: "owner-1",
+		FileName: "helper.py", RelativePath: "scripts/helper.py", GCSObjectKey: "k",
+	})
+	require.ErrorIs(t, err, repositories.ErrAttachmentRelativePathConflict)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -74,7 +120,7 @@ func TestAttachmentRepository_Create_NullUser(t *testing.T) {
 
 	// Empty UserID must bind SQL NULL, not "".
 	mock.ExpectQuery("INSERT INTO attachments").
-		WithArgs("team-1", nil, "artifact", "owner-1", "n.txt", "text/plain", int64(1), "k").
+		WithArgs("team-1", nil, "artifact", "owner-1", "n.txt", "text/plain", int64(1), "k", nil).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow("att-2", time.Now()))
 
 	require.NoError(t, repo.Create(context.Background(), att))
@@ -183,10 +229,10 @@ func TestAttachmentRepository_ListByOwner(t *testing.T) {
 	now := time.Now()
 	rows := sqlmock.NewRows([]string{
 		"id", "team_id", "user_id", "owner_type", "owner_id",
-		"file_name", "content_type", "size_bytes", "gcs_object_key", "created_at",
+		"file_name", "content_type", "size_bytes", "gcs_object_key", "created_at", "relative_path",
 	}).
-		AddRow("a1", "team-1", "user-1", "artifact", "owner-1", "a.txt", "text/plain", int64(10), "k1", now).
-		AddRow("a2", "team-1", nil, "artifact", "owner-1", "b.txt", "text/plain", int64(20), "k2", now)
+		AddRow("a1", "team-1", "user-1", "artifact", "owner-1", "a.txt", "text/plain", int64(10), "k1", now, "scripts/a.txt").
+		AddRow("a2", "team-1", nil, "artifact", "owner-1", "b.txt", "text/plain", int64(20), "k2", now, nil)
 
 	mock.ExpectQuery("SELECT (.+) FROM attachments").
 		WithArgs("artifact", "owner-1").WillReturnRows(rows)
@@ -259,10 +305,10 @@ func TestAttachmentRepository_DeleteByOwner(t *testing.T) {
 	now := time.Now()
 	rows := sqlmock.NewRows([]string{
 		"id", "team_id", "user_id", "owner_type", "owner_id",
-		"file_name", "content_type", "size_bytes", "gcs_object_key", "created_at",
+		"file_name", "content_type", "size_bytes", "gcs_object_key", "created_at", "relative_path",
 	}).
-		AddRow("a1", "team-1", "user-1", "artifact", "owner-1", "a.txt", "text/plain", int64(10), "k1", now).
-		AddRow("a2", "team-1", "user-1", "artifact", "owner-1", "b.txt", "text/plain", int64(20), "k2", now)
+		AddRow("a1", "team-1", "user-1", "artifact", "owner-1", "a.txt", "text/plain", int64(10), "k1", now, nil).
+		AddRow("a2", "team-1", "user-1", "artifact", "owner-1", "b.txt", "text/plain", int64(20), "k2", now, nil)
 
 	mock.ExpectQuery("DELETE FROM attachments (.+) RETURNING").
 		WithArgs("artifact", "owner-1").WillReturnRows(rows)

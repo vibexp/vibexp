@@ -83,11 +83,14 @@ func (s *Server) handleUploadArtifactAttachment(w http.ResponseWriter, r *http.R
 	}()
 
 	att, err := s.container.AttachmentService().Upload(r.Context(), services.UploadAttachmentParams{
-		TeamID:       artifact.TeamID,
-		UserID:       userID,
-		OwnerType:    ownerTypeArtifact,
-		OwnerID:      artifact.ID,
-		FileName:     header.Filename,
+		TeamID:    artifact.TeamID,
+		UserID:    userID,
+		OwnerType: ownerTypeArtifact,
+		OwnerID:   artifact.ID,
+		FileName:  header.Filename,
+		// Read from the already-parsed multipart form (FormFile parsed it above)
+		// rather than r.FormValue, which would re-trigger unbounded form parsing.
+		RelativePath: multipartValue(r, "relative_path"),
 		DeclaredSize: header.Size,
 		File:         file,
 	})
@@ -211,6 +214,10 @@ func (s *Server) handleAttachmentUploadError(w http.ResponseWriter, userID, arti
 		writeErrorResponse(w, nil, "bad_request", "File type is not allowed", http.StatusBadRequest)
 	case errors.Is(err, services.ErrAttachmentEmpty):
 		writeErrorResponse(w, nil, "bad_request", "File is empty", http.StatusBadRequest)
+	case errors.Is(err, services.ErrInvalidAttachmentRelativePath):
+		writeErrorResponse(w, nil, "bad_request", err.Error(), http.StatusBadRequest)
+	case errors.Is(err, repositories.ErrAttachmentRelativePathConflict):
+		writeErrorResponse(w, nil, "conflict", err.Error(), http.StatusConflict)
 	default:
 		writeErrorResponse(w, nil, "internal_error", "Failed to upload attachment", http.StatusInternalServerError)
 	}

@@ -23,9 +23,10 @@ func NewAttachmentRepository(db *database.DB) repositories.AttachmentRepository 
 	return &AttachmentRepository{db: db}
 }
 
-// attachmentColumns is the shared SELECT column list, ordered to match scanAttachment.
+// attachmentColumns is the shared SELECT column list, ordered to match the scan
+// order in every read below.
 const attachmentColumns = "id, team_id, user_id, owner_type, owner_id, " +
-	"file_name, content_type, size_bytes, gcs_object_key, created_at"
+	"file_name, content_type, size_bytes, gcs_object_key, created_at, relative_path"
 
 // attachmentSelectBase is the shared "SELECT <columns> FROM attachments" prefix
 // of every attachment read query.
@@ -37,18 +38,31 @@ func (r *AttachmentRepository) Create(ctx context.Context, attachment *models.At
 	if attachment.UserID != "" {
 		userID = attachment.UserID
 	}
+	// relative_path is nullable; store NULL for a plain (path-less) attachment so
+	// the partial unique index only constrains attachments that carry a path.
+	var relativePath interface{}
+	if attachment.RelativePath != "" {
+		relativePath = attachment.RelativePath
+	}
 
 	query := `
 		INSERT INTO attachments
-		(team_id, user_id, owner_type, owner_id, file_name, content_type, size_bytes, gcs_object_key)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		(team_id, user_id, owner_type, owner_id, file_name, content_type, size_bytes, gcs_object_key, relative_path)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at
 	`
 	err := r.db.QueryRowContext(ctx, query,
 		attachment.TeamID, userID, attachment.OwnerType, attachment.OwnerID,
-		attachment.FileName, attachment.ContentType, attachment.SizeBytes, attachment.GCSObjectKey,
+		attachment.FileName, attachment.ContentType, attachment.SizeBytes, attachment.GCSObjectKey, relativePath,
 	).Scan(&attachment.ID, &attachment.CreatedAt)
 	if err != nil {
+		if pqErr := uniqueViolation(err); pqErr != nil &&
+			pqErr.Constraint == "attachments_owner_relative_path_unique" {
+			return fmt.Errorf(
+				"%w: relative_path %q already exists for this owner",
+				repositories.ErrAttachmentRelativePathConflict, attachment.RelativePath,
+			)
+		}
 		if isFKViolation(err) {
 			return fmt.Errorf("team not found for attachment: %w", err)
 		}
@@ -64,12 +78,13 @@ func (r *AttachmentRepository) GetByID(
 		"WHERE id = $1 AND owner_type = $2 AND owner_id = $3"
 
 	var (
-		att    models.Attachment
-		userID sql.NullString
+		att          models.Attachment
+		userID       sql.NullString
+		relativePath sql.NullString
 	)
 	err := r.db.QueryRowContext(ctx, query, id, ownerType, ownerID).Scan(
 		&att.ID, &att.TeamID, &userID, &att.OwnerType, &att.OwnerID,
-		&att.FileName, &att.ContentType, &att.SizeBytes, &att.GCSObjectKey, &att.CreatedAt,
+		&att.FileName, &att.ContentType, &att.SizeBytes, &att.GCSObjectKey, &att.CreatedAt, &relativePath,
 	)
 	if err != nil {
 		return nil, mapNoRows(
@@ -78,6 +93,7 @@ func (r *AttachmentRepository) GetByID(
 		)
 	}
 	att.UserID = userID.String
+	att.RelativePath = relativePath.String
 	return &att, nil
 }
 
@@ -88,12 +104,13 @@ func (r *AttachmentRepository) GetByIDInTeam(
 		"WHERE id = $1 AND team_id = $2"
 
 	var (
-		att    models.Attachment
-		userID sql.NullString
+		att          models.Attachment
+		userID       sql.NullString
+		relativePath sql.NullString
 	)
 	err := r.db.QueryRowContext(ctx, query, id, teamID).Scan(
 		&att.ID, &att.TeamID, &userID, &att.OwnerType, &att.OwnerID,
-		&att.FileName, &att.ContentType, &att.SizeBytes, &att.GCSObjectKey, &att.CreatedAt,
+		&att.FileName, &att.ContentType, &att.SizeBytes, &att.GCSObjectKey, &att.CreatedAt, &relativePath,
 	)
 	if err != nil {
 		return nil, mapNoRows(
@@ -102,6 +119,7 @@ func (r *AttachmentRepository) GetByIDInTeam(
 		)
 	}
 	att.UserID = userID.String
+	att.RelativePath = relativePath.String
 	return &att, nil
 }
 
@@ -124,16 +142,18 @@ func (r *AttachmentRepository) ListByOwner(
 	attachments := make([]models.Attachment, 0)
 	for rows.Next() {
 		var (
-			att    models.Attachment
-			userID sql.NullString
+			att          models.Attachment
+			userID       sql.NullString
+			relativePath sql.NullString
 		)
 		if scanErr := rows.Scan(
 			&att.ID, &att.TeamID, &userID, &att.OwnerType, &att.OwnerID,
-			&att.FileName, &att.ContentType, &att.SizeBytes, &att.GCSObjectKey, &att.CreatedAt,
+			&att.FileName, &att.ContentType, &att.SizeBytes, &att.GCSObjectKey, &att.CreatedAt, &relativePath,
 		); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan attachment: %w", scanErr)
 		}
 		att.UserID = userID.String
+		att.RelativePath = relativePath.String
 		attachments = append(attachments, att)
 	}
 	if err := rows.Err(); err != nil {
@@ -190,12 +210,13 @@ func (r *AttachmentRepository) DeleteByOwner(
 	deleted := make([]models.Attachment, 0)
 	for rows.Next() {
 		var (
-			att    models.Attachment
-			userID sql.NullString
+			att          models.Attachment
+			userID       sql.NullString
+			relativePath sql.NullString
 		)
 		if scanErr := rows.Scan(
 			&att.ID, &att.TeamID, &userID, &att.OwnerType, &att.OwnerID,
-			&att.FileName, &att.ContentType, &att.SizeBytes, &att.GCSObjectKey, &att.CreatedAt,
+			&att.FileName, &att.ContentType, &att.SizeBytes, &att.GCSObjectKey, &att.CreatedAt, &relativePath,
 		); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan deleted attachment: %w", scanErr)
 		}
