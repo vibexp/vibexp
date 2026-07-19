@@ -60,10 +60,11 @@ func TestContentVersionRepository_Create_Success(t *testing.T) {
 		CreatedBy:    &createdBy,
 	}
 
-	// Args: team_id, resource_type, resource_id, content, change_summary, actor_type, created_by.
-	// actor_type defaults to "human" when unset; the nullable change_summary/created_by are AnyArg.
+	// Args: team_id, resource_type, resource_id, content, raw_content, change_summary, actor_type, created_by.
+	// actor_type defaults to "human" when unset; nullable raw_content/change_summary/created_by are AnyArg.
 	dbMock.ExpectQuery(`INSERT INTO content_versions`).
-		WithArgs(v.TeamID, v.ResourceType, v.ResourceID, v.Content, sqlmock.AnyArg(), "human", sqlmock.AnyArg()).
+		WithArgs(v.TeamID, v.ResourceType, v.ResourceID, v.Content,
+			sqlmock.AnyArg(), sqlmock.AnyArg(), "human", sqlmock.AnyArg()).
 		WillReturnRows(
 			sqlmock.NewRows([]string{"id", "version_number", "created_at"}).AddRow("gen-id", 3, now),
 		)
@@ -91,12 +92,12 @@ func TestContentVersionRepository_ListByResource_Success(t *testing.T) {
 	now := time.Now().UTC()
 	rows := sqlmock.NewRows(
 		[]string{
-			"id", "team_id", "resource_type", "resource_id", "version_number", "content",
+			"id", "team_id", "resource_type", "resource_id", "version_number", "content", "raw_content",
 			"change_summary", "actor_type", "created_by", "created_at",
 		},
 	).
-		AddRow("v2", "team-1", "artifact", "res-1", 2, "content-2", "Tightened wording", "human", "user-1", now).
-		AddRow("v1", "team-1", "artifact", "res-1", 1, "content-1", nil, "system", nil, now)
+		AddRow("v2", "team-1", "artifact", "res-1", 2, "content-2", nil, "Tightened wording", "human", "user-1", now).
+		AddRow("v1", "team-1", "artifact", "res-1", 1, "content-1", nil, nil, "system", nil, now)
 
 	dbMock.ExpectQuery(`SELECT .* FROM content_versions`).
 		WithArgs("team-1", "artifact", "res-1").
@@ -154,10 +155,10 @@ func TestContentVersionRepository_GetByVersionNumber_Success(t *testing.T) {
 		WithArgs("team-1", "artifact", "res-1", 2).
 		WillReturnRows(sqlmock.NewRows(
 			[]string{
-				"id", "team_id", "resource_type", "resource_id", "version_number", "content",
+				"id", "team_id", "resource_type", "resource_id", "version_number", "content", "raw_content",
 				"change_summary", "actor_type", "created_by", "created_at",
 			},
-		).AddRow("v2", "team-1", "artifact", "res-1", 2, "content-2", "Tightened wording", "human", "user-1", now))
+		).AddRow("v2", "team-1", "artifact", "res-1", 2, "content-2", "raw-2", "Tightened wording", "human", "user-1", now))
 
 	v, err := repo.GetByVersionNumber(context.Background(), "team-1", "artifact", "res-1", 2)
 

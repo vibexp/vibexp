@@ -44,14 +44,22 @@ func (r *contentVersionRepository) Create(ctx context.Context, v *models.Content
 		actorType = models.ActorTypeHuman
 	}
 
+	// raw_content is nullable; store NULL for resources that carry no raw
+	// representation (artifacts/memories/prompts), non-NULL for blueprints (#334).
+	var rawContent sql.NullString
+	if v.RawContent != "" {
+		rawContent = sql.NullString{String: v.RawContent, Valid: true}
+	}
+
 	query := `
 		INSERT INTO content_versions
-			(team_id, resource_type, resource_id, version_number, content, change_summary, actor_type, created_by)
+			(team_id, resource_type, resource_id, version_number, content, raw_content,
+			change_summary, actor_type, created_by)
 		VALUES (
 			$1, $2, $3,
 			(SELECT COALESCE(MAX(version_number), 0) + 1 FROM content_versions
 				WHERE resource_type = $2 AND resource_id = $3),
-			$4, $5, $6, $7
+			$4, $5, $6, $7, $8
 		)
 		RETURNING id, version_number, created_at`
 
@@ -60,6 +68,7 @@ func (r *contentVersionRepository) Create(ctx context.Context, v *models.Content
 		v.ResourceType,
 		v.ResourceID,
 		v.Content,
+		rawContent,
 		changeSummary,
 		actorType,
 		createdBy,
@@ -83,7 +92,7 @@ func (r *contentVersionRepository) ListByResource(
 	}
 
 	query := `
-		SELECT id, team_id, resource_type, resource_id, version_number, content,
+		SELECT id, team_id, resource_type, resource_id, version_number, content, raw_content,
 			change_summary, actor_type, created_by, created_at
 		FROM content_versions
 		WHERE team_id = $1 AND resource_type = $2 AND resource_id = $3
@@ -127,7 +136,7 @@ func (r *contentVersionRepository) GetByVersionNumber(
 	}
 
 	query := `
-		SELECT id, team_id, resource_type, resource_id, version_number, content,
+		SELECT id, team_id, resource_type, resource_id, version_number, content, raw_content,
 			change_summary, actor_type, created_by, created_at
 		FROM content_versions
 		WHERE team_id = $1 AND resource_type = $2 AND resource_id = $3 AND version_number = $4`
@@ -172,7 +181,7 @@ func (r *contentVersionRepository) PruneToCap(
 // created_by into the model's *string.
 func scanContentVersion(s rowScanner) (*models.ContentVersion, error) {
 	var v models.ContentVersion
-	var createdBy, changeSummary sql.NullString
+	var createdBy, changeSummary, rawContent sql.NullString
 	if err := s.Scan(
 		&v.ID,
 		&v.TeamID,
@@ -180,6 +189,7 @@ func scanContentVersion(s rowScanner) (*models.ContentVersion, error) {
 		&v.ResourceID,
 		&v.VersionNumber,
 		&v.Content,
+		&rawContent,
 		&changeSummary,
 		&v.ActorType,
 		&createdBy,
@@ -187,6 +197,7 @@ func scanContentVersion(s rowScanner) (*models.ContentVersion, error) {
 	); err != nil {
 		return nil, err
 	}
+	v.RawContent = rawContent.String
 	if changeSummary.Valid {
 		v.ChangeSummary = &changeSummary.String
 	}

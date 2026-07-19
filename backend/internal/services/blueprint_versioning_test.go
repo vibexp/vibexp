@@ -117,8 +117,8 @@ func TestBlueprintService_RestoreSnapshotsAsSystem(t *testing.T) {
 		Return(existing, nil).
 		Once()
 	cvs.EXPECT().
-		Restore(mock.Anything, teamID, "blueprint", "bp-1", 2).
-		Return("v2-content", nil).
+		GetVersion(mock.Anything, teamID, "blueprint", "bp-1", 2).
+		Return(&models.ContentVersion{Content: "v2-content", RawContent: "v2-raw"}, nil).
 		Once()
 	cvs.EXPECT().
 		SnapshotIfChanged(

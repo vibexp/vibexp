@@ -33,6 +33,10 @@ type ContentVersion struct {
 	ResourceID    string `json:"resource_id" db:"resource_id"`
 	VersionNumber int    `json:"version_number" db:"version_number"`
 	Content       string `json:"content" db:"content"`
+	// RawContent is the resource's original raw bytes at this version, threaded
+	// through by resources that keep a raw representation (blueprints, epic #334).
+	// Empty for resources that do not (artifacts/memories/prompts).
+	RawContent string `json:"raw_content,omitempty" db:"raw_content"`
 	// ChangeSummary is an optional human-readable description of the change captured
 	// at this version. It is the "commit message" rendered in the version history.
 	ChangeSummary *string `json:"change_summary" db:"change_summary"`

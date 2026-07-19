@@ -35,6 +35,9 @@ type SnapshotRequest struct {
 	UserID       string
 	OldContent   string
 	NewContent   string
+	// OldRawContent is the prior raw representation captured alongside OldContent,
+	// for resources that keep one (blueprints, epic #334). Empty otherwise.
+	OldRawContent string
 	// ChangeSummary is the optional human-readable description of this change.
 	ChangeSummary *string
 	// ActorType is ActorTypeHuman or ActorTypeSystem; empty defaults to human.
@@ -130,6 +133,7 @@ func (s *ContentVersionService) SnapshotIfChanged(ctx context.Context, req Snaps
 		ResourceType:  req.ResourceType,
 		ResourceID:    req.ResourceID,
 		Content:       req.OldContent,
+		RawContent:    req.OldRawContent,
 		ChangeSummary: req.ChangeSummary,
 		ActorType:     actorType,
 		CreatedBy:     createdBy,
