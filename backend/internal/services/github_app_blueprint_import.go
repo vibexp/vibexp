@@ -422,7 +422,11 @@ func reimportOutcome(existing *models.Blueprint, file *external.GitHubFile) reim
 // one. sha1 is git's blob-hash algorithm, not a security primitive here.
 func gitBlobSHA(content string) string {
 	data := append([]byte(fmt.Sprintf("blob %d\x00", len(content))), content...)
-	sum := sha1.Sum(data) // #nosec G401 -- git blob hashing is sha1 by definition; not for security.
+	// SHA-1 is git's content-addressing algorithm by definition: the result is
+	// compared only against the git blob SHAs GitHub itself provides
+	// (source_blob_sha), never used as a security primitive. Suppressed for both
+	// gosec (#nosec G401) and SonarCloud (S4790 weak-hash) accordingly.
+	sum := sha1.Sum(data) // #nosec G401 // NOSONAR: git blob hashing, not a security context
 	return hex.EncodeToString(sum[:])
 }
 
