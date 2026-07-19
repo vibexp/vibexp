@@ -1,11 +1,11 @@
-.PHONY: backend-test backend-test-coverage backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
+.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
 # ============================================
 
 # Pin the Go toolchain so local development uses the exact same version as CI
-# (.github/workflows/ci-backend.yml). GOTOOLCHAIN forces this version even when
+# (.github/workflows/ci.yml). GOTOOLCHAIN forces this version even when
 # the system Go is newer — the go.mod `toolchain` directive only upgrades, never
 # downgrades — which keeps govulncheck, staticcheck and the analyzers
 # reproducible everywhere. Go downloads the toolchain on demand if missing.
@@ -42,6 +42,14 @@ backend-test:
 backend-test-coverage:
 	cd backend && go test -race -coverprofile=coverage.out ./... -timeout=60s
 	cd backend && go tool cover -html=coverage.out -o coverage.html
+
+# Single-execution full suite (unit + integration-tagged) with coverage — used
+# by CI's Build & Test job (#390) so integration-covered code counts in Sonar.
+# Needs a reachable Postgres (docker-compose locally, service container in CI);
+# override the target database with POSTGRES_TEST_DSN. The longer timeout
+# covers the integration harness's one-time migration bootstrap.
+backend-test-coverage-integration:
+	cd backend && go test -race -tags=integration -coverprofile=coverage.out ./... -timeout=300s
 
 # Run repository integration tests against real Postgres (docker-compose
 # locally, service container in CI). Override the target database with
