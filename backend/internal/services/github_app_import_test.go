@@ -17,6 +17,7 @@ import (
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/internal/utils"
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
@@ -943,6 +944,78 @@ func TestGitHubAppService_DetermineTypeFromPath(t *testing.T) {
 			assert.Equal(t, tt.expectedSubtype, gotSubtype)
 		})
 	}
+}
+
+// TestGitHubAppService_BuildImportedBlueprint_NestedFrontMatter verifies that an
+// imported file with nested/typed frontmatter keeps its structure end to end:
+// name/description are lifted to dedicated fields, and the remaining metadata
+// (nested map, list, typed scalars) is stored verbatim rather than flattened.
+func TestGitHubAppService_BuildImportedBlueprint_NestedFrontMatter(t *testing.T) {
+	service := &GitHubAppService{
+		logger: slog.New(slog.DiscardHandler),
+	}
+	repo := &models.GitHubRepository{
+		Name:     "myrepo",
+		FullName: "owner/myrepo",
+	}
+	content := "---\n" +
+		"name: Deploy Skill\n" +
+		"description: Ships the app\n" +
+		"allowed-tools:\n  - Bash\n  - Read\n" +
+		"config:\n  retries: 3\n  verbose: true\n" +
+		"---\n" +
+		"Skill body here"
+	file := &external.GitHubFile{
+		Path:    ".claude/skills/deploy/SKILL.md",
+		Content: content,
+	}
+
+	bp := service.buildImportedBlueprint("user-1", "team-1", "proj-1", repo, file, "claude-code", "skills")
+
+	assert.Equal(t, "Deploy Skill", bp.Title, "name should be lifted to Title")
+	assert.Equal(t, "Ships the app", bp.Description, "description should be lifted")
+	assert.Equal(t, "Skill body here", bp.Content, "body should exclude frontmatter")
+
+	// name/description are lifted out; the rest keeps nested structure + types.
+	assert.NotContains(t, bp.Metadata, "name")
+	assert.NotContains(t, bp.Metadata, "description")
+	assert.Equal(t, []any{"Bash", "Read"}, bp.Metadata["allowed-tools"])
+	assert.Equal(t, map[string]any{"retries": 3, "verbose": true}, bp.Metadata["config"])
+}
+
+// TestBlueprintMetadataFromFrontMatter_PreservesNested verifies the metadata copy
+// helper keeps non-string values and drops the lifted keys.
+func TestBlueprintMetadataFromFrontMatter_PreservesNested(t *testing.T) {
+	fm := utils.FrontMatterResult{
+		HasFrontMatter: true,
+		Metadata: map[string]any{
+			"name":        "X",
+			"title":       "Y",
+			"description": "Z",
+			"version":     2,
+			"enabled":     true,
+			"tags":        []any{"a", "b"},
+			"nested":      map[string]any{"k": "v"},
+		},
+	}
+	got := blueprintMetadataFromFrontMatter(fm)
+	assert.Equal(t, map[string]any{
+		"version": 2,
+		"enabled": true,
+		"tags":    []any{"a", "b"},
+		"nested":  map[string]any{"k": "v"},
+	}, got)
+}
+
+// TestFrontMatterString covers the typed-value lifting guard: only string
+// scalars are lifted; a non-string value for name/title/description is ignored.
+func TestFrontMatterString(t *testing.T) {
+	fm := utils.FrontMatterResult{
+		Metadata: map[string]any{"name": "Agent", "count": 5, "flag": true},
+	}
+	assert.Equal(t, "Agent", frontMatterString(fm, "name"))
+	assert.Equal(t, "", frontMatterString(fm, "count"), "non-string value must not be lifted")
+	assert.Equal(t, "", frontMatterString(fm, "missing"))
 }
 
 // Test generateBlueprintSlug
