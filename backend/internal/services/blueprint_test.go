@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 	"github.com/vibexp/vibexp/internal/models"
@@ -251,6 +252,125 @@ func TestBlueprintService_CreateBlueprint(t *testing.T) {
 			repo.AssertExpectations(t)
 		})
 	}
+}
+
+// TestBlueprintService_CreateBlueprint_PathLifecycle covers the #339 create-time
+// path resolution: derived default when omitted, frozen when explicit, and a
+// traversal-invalid path rejected. It also checks content_sha is computed.
+func TestBlueprintService_CreateBlueprint_PathLifecycle(t *testing.T) {
+	newSvc := func(repo *MockBlueprintRepository) *BlueprintService {
+		return NewBlueprintService(BlueprintServiceDeps{
+			Repo:             repo,
+			Authz:            allowAllAuthz{},
+			ResourceUsageSvc: &MockResourceUsageService{},
+			Logger:           func() *slog.Logger { l, _ := logtest.New(); return l }(),
+		})
+	}
+	strptr := func(s string) *string { return &s }
+
+	t.Run("derives default path when omitted", func(t *testing.T) {
+		repo := &MockBlueprintRepository{}
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
+			return bp.Path == ".claude/skills/deploy/SKILL.md" && bp.PathDerived && bp.ContentSHA != ""
+		})).Return(nil)
+		bp, err := newSvc(repo).CreateBlueprint("u1", "team-123", &models.CreateBlueprintRequest{
+			ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "deploy",
+			Title: "Deploy", Content: "body", Type: "claude-code", Subtype: strptr("skills"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, ".claude/skills/deploy/SKILL.md", bp.Path)
+		assert.True(t, bp.PathDerived)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("explicit path freezes it", func(t *testing.T) {
+		repo := &MockBlueprintRepository{}
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
+			return bp.Path == "custom/dir/file.md" && !bp.PathDerived
+		})).Return(nil)
+		bp, err := newSvc(repo).CreateBlueprint("u1", "team-123", &models.CreateBlueprintRequest{
+			ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "deploy",
+			Title: "Deploy", Content: "body", Path: strptr("custom/dir/file.md"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "custom/dir/file.md", bp.Path)
+		assert.False(t, bp.PathDerived)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("no canonical default falls back to slug.md", func(t *testing.T) {
+		// cursor with no subtype has no reverse default -> resolveBlueprintPath
+		// falls back to "<slug>.md" (matching the migration ELSE branch).
+		repo := &MockBlueprintRepository{}
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
+			return bp.Path == "loose.md" && bp.PathDerived
+		})).Return(nil)
+		bp, err := newSvc(repo).CreateBlueprint("u1", "team-123", &models.CreateBlueprintRequest{
+			ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "loose",
+			Title: "Loose", Content: "body", Type: "cursor",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "loose.md", bp.Path)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("traversal-invalid path is rejected", func(t *testing.T) {
+		repo := &MockBlueprintRepository{}
+		bp, err := newSvc(repo).CreateBlueprint("u1", "team-123", &models.CreateBlueprintRequest{
+			ProjectID: "550e8400-e29b-41d4-a716-446655440000", Slug: "deploy",
+			Title: "Deploy", Content: "body", Path: strptr("../escape.md"),
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBlueprintPath)
+		assert.Nil(t, bp)
+		repo.AssertNotCalled(t, "Create")
+	})
+}
+
+// TestBlueprintService_UpdateBlueprint_PathLifecycle covers the #339 update-time
+// path handling: an explicit path freezes it (path_derived=false); a
+// traversal-invalid path is rejected.
+func TestBlueprintService_UpdateBlueprint_PathLifecycle(t *testing.T) {
+	newSvc := func(repo *MockBlueprintRepository) *BlueprintService {
+		return NewBlueprintService(BlueprintServiceDeps{
+			Repo:   repo,
+			Authz:  allowAllAuthz{},
+			Logger: func() *slog.Logger { l, _ := logtest.New(); return l }(),
+		})
+	}
+	existing := func() *models.Blueprint {
+		return &models.Blueprint{
+			ID: "bp-1", ProjectID: "p1", Slug: "s", UserID: "u1", TeamID: "t1",
+			Title: "T", Content: "C", Status: "active", Type: "general",
+			Path: "s.md", PathDerived: true,
+		}
+	}
+	strptr := func(s string) *string { return &s }
+
+	t.Run("explicit path freezes it", func(t *testing.T) {
+		repo := &MockBlueprintRepository{}
+		repo.On("GetByProjectIDAndSlugCrossTeam", mock.Anything, "u1", "p1", "s").Return(existing(), nil)
+		repo.On("Update", mock.Anything, mock.MatchedBy(func(bp *models.Blueprint) bool {
+			return bp.Path == "moved/here.md" && !bp.PathDerived
+		})).Return(nil)
+		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlug("u1", "p1", "s",
+			&models.UpdateBlueprintRequest{Path: strptr("moved/here.md")})
+		require.NoError(t, err)
+		assert.Equal(t, "moved/here.md", bp.Path)
+		assert.False(t, bp.PathDerived)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("traversal-invalid path is rejected", func(t *testing.T) {
+		repo := &MockBlueprintRepository{}
+		repo.On("GetByProjectIDAndSlugCrossTeam", mock.Anything, "u1", "p1", "s").Return(existing(), nil)
+		bp, err := newSvc(repo).UpdateBlueprintByProjectIDAndSlug("u1", "p1", "s",
+			&models.UpdateBlueprintRequest{Path: strptr("../escape.md")})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBlueprintPath)
+		assert.Nil(t, bp)
+		repo.AssertNotCalled(t, "Update")
+	})
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions

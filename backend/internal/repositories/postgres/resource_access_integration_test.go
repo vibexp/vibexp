@@ -106,9 +106,9 @@ func insertAccessBlueprint(t *testing.T, at accessTeam, creatorID, slug string) 
 	t.Helper()
 	id := uuid.New().String()
 	_, err := integrationDB.ExecContext(context.Background(),
-		`INSERT INTO blueprints (id, slug, user_id, team_id, project_id, content, title)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		id, slug, creatorID, at.teamID, at.projectID, "blueprint-content", "Blueprint Title")
+		`INSERT INTO blueprints (id, slug, user_id, team_id, project_id, content, title, path)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		id, slug, creatorID, at.teamID, at.projectID, "blueprint-content", "Blueprint Title", slug+".md")
 	require.NoError(t, err)
 	return id
 }

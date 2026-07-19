@@ -334,6 +334,13 @@ func (s *GitHubAppService) buildImportedBlueprint(
 		Version:     1,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
+		// Imported blueprints carry the verbatim source path (frozen) and the
+		// raw file bytes; full provenance (source_*) and update-aware re-import
+		// are #341. Path is required (NOT NULL) from migration 007 on.
+		Path:        file.Path,
+		PathDerived: false,
+		RawContent:  file.Content,
+		ContentSHA:  computeContentSHA(file.Content),
 	}
 
 	if subtype != "" {

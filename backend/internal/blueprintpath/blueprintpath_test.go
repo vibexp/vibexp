@@ -160,6 +160,34 @@ func TestDefaultPath_Values(t *testing.T) {
 	}
 }
 
+// TestValidateRelativePath covers the traversal-validation matrix shared by
+// blueprint paths (#339) and attachment relative paths (#338).
+func TestValidateRelativePath(t *testing.T) {
+	valid := []string{
+		"CLAUDE.md", ".claude/skills/deploy/SKILL.md", "scripts/helper.py",
+		".cursor/rules/x.mdc", "a/b/c/d.txt",
+	}
+	for _, p := range valid {
+		if err := ValidateRelativePath(p); err != nil {
+			t.Errorf("ValidateRelativePath(%q) = %v, want nil", p, err)
+		}
+	}
+	invalid := []string{
+		"",             // empty
+		"/abs/path.md", // absolute
+		"a\\b.md",      // backslash
+		"./rel.md",     // leading ./
+		"../escape.md", // parent traversal
+		"a/../../b.md", // traversal segment
+		"foo/..",       // trailing traversal
+	}
+	for _, p := range invalid {
+		if err := ValidateRelativePath(p); err == nil {
+			t.Errorf("ValidateRelativePath(%q) = nil, want error", p)
+		}
+	}
+}
+
 // TestDefaultPath_Errors covers unknown pairs and the empty-slug guard.
 func TestDefaultPath_Errors(t *testing.T) {
 	if _, err := DefaultPath("nope", "nope", "x"); err == nil {

@@ -389,7 +389,7 @@ api-v1-team_id-blueprints-project_id-slug:
         content:
           application/json:
             schema:
-              $ref: '../openapi.yaml#/components/schemas/Blueprint'
+              $ref: '../openapi.yaml#/components/schemas/BlueprintDetail'
       '400':
         description: Invalid parameter encoding
         content:

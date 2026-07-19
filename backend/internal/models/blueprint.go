@@ -20,6 +20,33 @@ type Blueprint struct {
 	Subtype     *string                `json:"subtype,omitempty" db:"subtype"`
 	Metadata    map[string]interface{} `json:"metadata" db:"metadata"`
 	Version     int64                  `json:"version" db:"version"`
+
+	// Sync-ready fields (epic #334).
+	//
+	// Path is the canonical repo-relative path this blueprint materializes to.
+	// PathDerived is true when Path was derived from (type, subtype, slug) and
+	// should recompute on rename; false once imported or explicitly overridden
+	// (frozen). PathDerived is internal lifecycle state, not part of the API.
+	Path        string `json:"path" db:"path"`
+	PathDerived bool   `json:"-" db:"path_derived"`
+	// RawContent is the original raw bytes (frontmatter + body). It is returned
+	// only on the detail GET (omitted from list responses for payload size) —
+	// the List repository query does not select it, leaving it empty.
+	RawContent string `json:"raw_content,omitempty" db:"raw_content"`
+	// ContentSHA is the SHA-256 (lowercase hex) of RawContent.
+	ContentSHA string `json:"content_sha,omitempty" db:"content_sha"`
+	// Source is import provenance, server-set only; nil for VibeXP-authored
+	// blueprints. Assembled from the nullable source_* / imported_at columns.
+	Source *BlueprintSource `json:"source,omitempty"`
+}
+
+// BlueprintSource is the read-only import provenance exposed as the spec's
+// `source` object.
+type BlueprintSource struct {
+	Repo       string     `json:"repo,omitempty"`
+	CommitSHA  string     `json:"commit_sha,omitempty"`
+	BlobSHA    string     `json:"blob_sha,omitempty"`
+	ImportedAt *time.Time `json:"imported_at,omitempty"`
 }
 
 type CreateBlueprintRequest struct {
@@ -32,6 +59,9 @@ type CreateBlueprintRequest struct {
 	Subtype     *string                `json:"subtype,omitempty"`
 	Status      string                 `json:"status" validate:"omitempty,oneof=active expired"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	// Path optionally freezes the blueprint's repo-relative path; when omitted a
+	// default is derived from (type, subtype, slug). Traversal-validated.
+	Path *string `json:"path,omitempty" validate:"omitempty,max=1024"`
 }
 
 type UpdateBlueprintRequest struct {
@@ -44,6 +74,9 @@ type UpdateBlueprintRequest struct {
 	Subtype     *string                `json:"subtype,omitempty"`
 	Status      *string                `json:"status,omitempty" validate:"omitempty,oneof=active expired"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	// Path optionally overrides (freezes) the blueprint's repo-relative path.
+	// Traversal-validated.
+	Path *string `json:"path,omitempty" validate:"omitempty,max=1024"`
 }
 
 type BlueprintListResponse struct {

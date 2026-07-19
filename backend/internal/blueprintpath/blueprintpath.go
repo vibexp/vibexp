@@ -159,6 +159,33 @@ func FromPath(path string) (typ, subtype string, ok bool) {
 	return TypeGeneral, "", false
 }
 
+// ValidateRelativePath rejects a repo-relative path that is unsafe to
+// materialize into a working tree: empty, absolute (leading "/"), containing a
+// backslash, starting with "./", or containing a ".." path segment. It is the
+// single validation used for both blueprint paths (#339) and attachment
+// relative paths (#338). A valid path uses forward slashes and stays within the
+// tree.
+func ValidateRelativePath(p string) error {
+	if p == "" {
+		return fmt.Errorf("path must not be empty")
+	}
+	if strings.Contains(p, "\\") {
+		return fmt.Errorf("path must not contain backslashes")
+	}
+	if strings.HasPrefix(p, "/") {
+		return fmt.Errorf("path must be relative (no leading %q)", "/")
+	}
+	if strings.HasPrefix(p, "./") {
+		return fmt.Errorf("path must not start with %q", "./")
+	}
+	for _, seg := range strings.Split(p, "/") {
+		if seg == ".." {
+			return fmt.Errorf("path must not contain %q segments", "..")
+		}
+	}
+	return nil
+}
+
 // DefaultPath returns the canonical repo-relative path for a VibeXP-authored
 // blueprint of the given (type, subtype) and slug. It errors when the pair has
 // no reverse default. slug must be non-empty. By construction

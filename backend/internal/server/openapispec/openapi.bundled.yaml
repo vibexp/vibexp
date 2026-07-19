@@ -2924,7 +2924,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Blueprint'
+                $ref: '#/components/schemas/BlueprintDetail'
         '400':
           description: Invalid parameter encoding
           content:
@@ -16070,6 +16070,16 @@ components:
               - api
               - rest
               - specification
+        path:
+          type: string
+          description: Canonical repo-relative path this blueprint materializes to. Derived from (type, subtype, slug) for VibeXP-authored blueprints, or the verbatim source path for imported ones.
+          example: .claude/skills/deploy/SKILL.md
+        content_sha:
+          type: string
+          description: SHA-256 (lowercase hex) of the raw content.
+          example: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        source:
+          $ref: '#/components/schemas/BlueprintSource'
       required:
         - id
         - project_id
@@ -16081,6 +16091,41 @@ components:
         - status
         - title
         - type
+        - path
+    BlueprintSource:
+      type: object
+      description: Read-only import provenance; present only for imported blueprints.
+      properties:
+        repo:
+          type: string
+          description: Source repository URL the blueprint was imported from.
+          example: https://github.com/vibexp/vibexp
+        commit_sha:
+          type: string
+          description: Head commit SHA of the branch at import time.
+          example: 6706920221608...
+        blob_sha:
+          type: string
+          description: Git blob SHA of the source file at import time.
+          example: blobsha123...
+        imported_at:
+          type: string
+          format: date-time
+          description: Timestamp when the blueprint was imported.
+          example: '2024-01-15T10:30:00Z'
+    BlueprintDetail:
+      allOf:
+        - $ref: '#/components/schemas/Blueprint'
+        - type: object
+          properties:
+            raw_content:
+              type: string
+              description: Original raw bytes of the blueprint (frontmatter + body). Returned only on the detail GET, never in list responses.
+              example: |-
+                ---
+                name: Deploy
+                ---
+                Body
     CreateBlueprintRequest:
       type: object
       properties:
@@ -16160,6 +16205,11 @@ components:
               - api
               - rest
               - specification
+        path:
+          type: string
+          maxLength: 1024
+          description: Optional repo-relative path to freeze for this blueprint. When omitted a default is derived from (type, subtype, slug). Must be relative — no leading "/", no "..", no backslashes.
+          example: .claude/skills/deploy/SKILL.md
       required:
         - slug
         - content
@@ -16241,6 +16291,11 @@ components:
               - rest
               - specification
               - updated
+        path:
+          type: string
+          maxLength: 1024
+          description: Optional repo-relative path override; freezes the blueprint's path. Must be relative — no leading "/", no "..", no backslashes.
+          example: .claude/skills/deploy/SKILL.md
     BlueprintListResponse:
       type: object
       properties:
