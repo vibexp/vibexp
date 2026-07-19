@@ -979,7 +979,8 @@ func TestGitHubAppService_BuildImportedBlueprint_NestedFrontMatter(t *testing.T)
 		Content: content,
 	}
 
-	bp := service.buildImportedBlueprint("user-1", "team-1", "proj-1", repo, file, "claude-code", "skills")
+	job := &blueprintImportJob{userID: "user-1", teamID: "team-1", projectID: "proj-1", repo: repo}
+	bp := service.buildImportedBlueprint(job, file, "claude-code", "skills")
 
 	assert.Equal(t, "Deploy Skill", bp.Title, "name should be lifted to Title")
 	assert.Equal(t, "Ships the app", bp.Description, "description should be lifted")
@@ -1211,7 +1212,11 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 				githubClient.On("GetFileContent", mock.Anything, int64(12345), "owner", "test-repo", "AGENTS.md").
 					Return(nil, errors.New("file not found"))
 
-				// Mock GetByProjectIDAndSlug to return nil (no existing blueprint)
+				// No existing blueprint by path or slug (new import).
+				blueprintRepo.On(
+					"GetByProjectIDAndPath",
+					mock.Anything, "user-123", "team-456", "project-123", mock.Anything,
+				).Return(nil, errors.New("not found"))
 				blueprintRepo.On(
 					"GetByProjectIDAndSlug",
 					mock.Anything,
@@ -1650,7 +1655,9 @@ func TestGitHubAppService_ImportSingleFile_FrontMatter(t *testing.T) {
 			githubClient.On("GetFileContent", mock.Anything, int64(12345), "owner", "test-repo", "CLAUDE.md").
 				Return(&external.GitHubFile{Path: "CLAUDE.md", Content: tt.fileContent}, nil)
 
-			// No existing blueprint
+			// No existing blueprint (neither by path nor slug)
+			blueprintRepo.On("GetByProjectIDAndPath", mock.Anything, "user-123", "team-456", project.ID, mock.Anything).
+				Return(nil, errors.New("not found"))
 			blueprintRepo.On("GetByProjectIDAndSlug", mock.Anything, "user-123", "team-456", project.ID, mock.Anything).
 				Return(nil, errors.New("not found"))
 

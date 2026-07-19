@@ -24760,6 +24760,42 @@
               "$ref": "#/components/schemas/BlueprintImportSkipped"
             },
             "description": "Details of files that were skipped"
+          },
+          "total_updated": {
+            "type": "integer",
+            "description": "Number of blueprints refreshed from a changed repo file (unedited in VibeXP)",
+            "example": 1
+          },
+          "total_conflicts": {
+            "type": "integer",
+            "description": "Number of blueprints left untouched because they were edited in VibeXP",
+            "example": 1
+          },
+          "total_up_to_date": {
+            "type": "integer",
+            "description": "Number of blueprints whose repo file was unchanged (no-op)",
+            "example": 3
+          },
+          "updated_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlueprintImportUpdated"
+            },
+            "description": "Details of blueprints refreshed from a changed repo file"
+          },
+          "conflict_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlueprintImportConflict"
+            },
+            "description": "Details of blueprints left untouched due to a VibeXP edit"
+          },
+          "up_to_date_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlueprintImportUpToDate"
+            },
+            "description": "Details of blueprints whose repo file was unchanged"
           }
         },
         "required": [
@@ -24769,7 +24805,86 @@
           "total_skipped",
           "failed_items",
           "successful_items",
-          "skipped_items"
+          "skipped_items",
+          "total_updated",
+          "total_conflicts",
+          "total_up_to_date",
+          "updated_items",
+          "conflict_items",
+          "up_to_date_items"
+        ]
+      },
+      "BlueprintImportUpdated": {
+        "type": "object",
+        "description": "A blueprint refreshed from a changed repo file during re-import",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "example": ".claude/agents/reviewer.md"
+          },
+          "blueprint_id": {
+            "type": "string",
+            "example": "01234567-89ab-cdef-0123-456789abcdef"
+          },
+          "title": {
+            "type": "string",
+            "example": "Reviewer"
+          },
+          "type": {
+            "type": "string",
+            "example": "claude-code"
+          },
+          "subtype": {
+            "type": "string",
+            "example": "sub-agents"
+          }
+        },
+        "required": [
+          "file_path",
+          "blueprint_id",
+          "title",
+          "type"
+        ]
+      },
+      "BlueprintImportConflict": {
+        "type": "object",
+        "description": "A blueprint left untouched during re-import because it was edited in VibeXP",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "example": ".claude/agents/reviewer.md"
+          },
+          "blueprint_id": {
+            "type": "string",
+            "example": "01234567-89ab-cdef-0123-456789abcdef"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Blueprint was edited in VibeXP; re-import skipped to avoid overwriting local changes"
+          }
+        },
+        "required": [
+          "file_path",
+          "blueprint_id",
+          "reason"
+        ]
+      },
+      "BlueprintImportUpToDate": {
+        "type": "object",
+        "description": "A blueprint whose repo file was unchanged since import (re-import no-op)",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "example": ".claude/agents/reviewer.md"
+          },
+          "blueprint_id": {
+            "type": "string",
+            "example": "01234567-89ab-cdef-0123-456789abcdef"
+          }
+        },
+        "required": [
+          "file_path",
+          "blueprint_id"
         ]
       },
       "UsageMetricsRow": {

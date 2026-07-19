@@ -241,6 +241,68 @@ func (_c *MockBlueprintRepository_GetByIDCrossTeam_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// GetByProjectIDAndPath provides a mock function with given fields: ctx, userID, teamID, projectID, path
+func (_m *MockBlueprintRepository) GetByProjectIDAndPath(ctx context.Context, userID string, teamID string, projectID string, path string) (*models.Blueprint, error) {
+	ret := _m.Called(ctx, userID, teamID, projectID, path)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByProjectIDAndPath")
+	}
+
+	var r0 *models.Blueprint
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) (*models.Blueprint, error)); ok {
+		return rf(ctx, userID, teamID, projectID, path)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) *models.Blueprint); ok {
+		r0 = rf(ctx, userID, teamID, projectID, path)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Blueprint)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string) error); ok {
+		r1 = rf(ctx, userID, teamID, projectID, path)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockBlueprintRepository_GetByProjectIDAndPath_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByProjectIDAndPath'
+type MockBlueprintRepository_GetByProjectIDAndPath_Call struct {
+	*mock.Call
+}
+
+// GetByProjectIDAndPath is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - teamID string
+//   - projectID string
+//   - path string
+func (_e *MockBlueprintRepository_Expecter) GetByProjectIDAndPath(ctx interface{}, userID interface{}, teamID interface{}, projectID interface{}, path interface{}) *MockBlueprintRepository_GetByProjectIDAndPath_Call {
+	return &MockBlueprintRepository_GetByProjectIDAndPath_Call{Call: _e.mock.On("GetByProjectIDAndPath", ctx, userID, teamID, projectID, path)}
+}
+
+func (_c *MockBlueprintRepository_GetByProjectIDAndPath_Call) Run(run func(ctx context.Context, userID string, teamID string, projectID string, path string)) *MockBlueprintRepository_GetByProjectIDAndPath_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockBlueprintRepository_GetByProjectIDAndPath_Call) Return(_a0 *models.Blueprint, _a1 error) *MockBlueprintRepository_GetByProjectIDAndPath_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockBlueprintRepository_GetByProjectIDAndPath_Call) RunAndReturn(run func(context.Context, string, string, string, string) (*models.Blueprint, error)) *MockBlueprintRepository_GetByProjectIDAndPath_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByProjectIDAndSlug provides a mock function with given fields: ctx, userID, teamID, projectID, slug
 func (_m *MockBlueprintRepository) GetByProjectIDAndSlug(ctx context.Context, userID string, teamID string, projectID string, slug string) (*models.Blueprint, error) {
 	ret := _m.Called(ctx, userID, teamID, projectID, slug)
@@ -593,6 +655,53 @@ func (_c *MockBlueprintRepository_Update_Call) Return(_a0 error) *MockBlueprintR
 }
 
 func (_c *MockBlueprintRepository_Update_Call) RunAndReturn(run func(context.Context, *models.Blueprint) error) *MockBlueprintRepository_Update_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateOnReimport provides a mock function with given fields: ctx, blueprint
+func (_m *MockBlueprintRepository) UpdateOnReimport(ctx context.Context, blueprint *models.Blueprint) error {
+	ret := _m.Called(ctx, blueprint)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateOnReimport")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Blueprint) error); ok {
+		r0 = rf(ctx, blueprint)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockBlueprintRepository_UpdateOnReimport_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateOnReimport'
+type MockBlueprintRepository_UpdateOnReimport_Call struct {
+	*mock.Call
+}
+
+// UpdateOnReimport is a helper method to define mock.On call
+//   - ctx context.Context
+//   - blueprint *models.Blueprint
+func (_e *MockBlueprintRepository_Expecter) UpdateOnReimport(ctx interface{}, blueprint interface{}) *MockBlueprintRepository_UpdateOnReimport_Call {
+	return &MockBlueprintRepository_UpdateOnReimport_Call{Call: _e.mock.On("UpdateOnReimport", ctx, blueprint)}
+}
+
+func (_c *MockBlueprintRepository_UpdateOnReimport_Call) Run(run func(ctx context.Context, blueprint *models.Blueprint)) *MockBlueprintRepository_UpdateOnReimport_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*models.Blueprint))
+	})
+	return _c
+}
+
+func (_c *MockBlueprintRepository_UpdateOnReimport_Call) Return(_a0 error) *MockBlueprintRepository_UpdateOnReimport_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockBlueprintRepository_UpdateOnReimport_Call) RunAndReturn(run func(context.Context, *models.Blueprint) error) *MockBlueprintRepository_UpdateOnReimport_Call {
 	_c.Call.Return(run)
 	return _c
 }

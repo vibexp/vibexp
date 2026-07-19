@@ -81,6 +81,41 @@ type BlueprintImportReport struct {
 	SuccessfulItems JSONArray[BlueprintImportSuccess] `json:"successful_items"`
 	FailedItems     JSONArray[BlueprintImportFailed]  `json:"failed_items"`
 	SkippedItems    JSONArray[BlueprintImportSkipped] `json:"skipped_items"`
+	// Update-aware re-import outcomes (#341): TotalUpdated re-imports whose repo
+	// file changed while the blueprint was unedited in VibeXP; TotalConflicts
+	// VibeXP-edited blueprints left untouched; TotalUpToDate unchanged repo files.
+	TotalUpdated   int                                `json:"total_updated"`
+	TotalConflicts int                                `json:"total_conflicts"`
+	TotalUpToDate  int                                `json:"total_up_to_date"`
+	UpdatedItems   JSONArray[BlueprintImportUpdated]  `json:"updated_items"`
+	ConflictItems  JSONArray[BlueprintImportConflict] `json:"conflict_items"`
+	UpToDateItems  JSONArray[BlueprintImportUpToDate] `json:"up_to_date_items"`
+}
+
+// BlueprintImportUpdated represents a blueprint refreshed from a changed repo
+// file during re-import (the blueprint was unedited in VibeXP).
+type BlueprintImportUpdated struct {
+	FilePath    string `json:"file_path"`
+	BlueprintID string `json:"blueprint_id"`
+	Title       string `json:"title"`
+	Type        string `json:"type"`
+	Subtype     string `json:"subtype,omitempty"`
+}
+
+// BlueprintImportConflict represents a re-import skipped because the blueprint was
+// edited in VibeXP (its raw no longer matches the imported bytes); resolving the
+// conflict is out of scope (report-only, PRD 2).
+type BlueprintImportConflict struct {
+	FilePath    string `json:"file_path"`
+	BlueprintID string `json:"blueprint_id"`
+	Reason      string `json:"reason"`
+}
+
+// BlueprintImportUpToDate represents a re-import no-op: the repo file is unchanged
+// since it was imported, so nothing was mutated.
+type BlueprintImportUpToDate struct {
+	FilePath    string `json:"file_path"`
+	BlueprintID string `json:"blueprint_id"`
 }
 
 // BlueprintImportSuccess represents a successfully imported blueprint

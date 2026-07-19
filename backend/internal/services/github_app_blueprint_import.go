@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha1" // #nosec G505 -- git blob SHAs are sha1 by definition; not used for security.
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -71,6 +73,9 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 		SuccessfulItems: []models.BlueprintImportSuccess{},
 		FailedItems:     []models.BlueprintImportFailed{},
 		SkippedItems:    []models.BlueprintImportSkipped{},
+		UpdatedItems:    []models.BlueprintImportUpdated{},
+		ConflictItems:   []models.BlueprintImportConflict{},
+		UpToDateItems:   []models.BlueprintImportUpToDate{},
 	}
 
 	// 5. Resolve the branch head commit SHA once per run for import provenance.
@@ -192,7 +197,7 @@ func (s *GitHubAppService) scanBlueprintPath(
 
 	report.TotalScanned++
 	s.logImportProgress(report, repo.ID, job.teamID)
-	s.importSingleFile(ctx, job.userID, job.teamID, repo, file, job.projectID, report)
+	s.importSingleFile(ctx, job, file)
 	return nil
 }
 
@@ -222,7 +227,7 @@ func (s *GitHubAppService) scanBlueprintDirectory(
 
 		report.TotalScanned++
 		s.logImportProgress(report, repo.ID, job.teamID)
-		s.importSingleFile(ctx, job.userID, job.teamID, repo, file, job.projectID, report)
+		s.importSingleFile(ctx, job, file)
 	}
 	return nil
 }
@@ -242,21 +247,17 @@ func (s *GitHubAppService) logImportProgress(report *models.BlueprintImportRepor
 	}
 }
 
-// importSingleFile imports a single file as a blueprint
+// importSingleFile imports a single repository file as a blueprint, or reconciles
+// it against an existing blueprint (update-aware re-import, #341).
 func (s *GitHubAppService) importSingleFile(
-	ctx context.Context,
-	userID, teamID string,
-	repo *models.GitHubRepository,
-	file *external.GitHubFile,
-	projectID string,
-	report *models.BlueprintImportReport,
+	ctx context.Context, job *blueprintImportJob, file *external.GitHubFile,
 ) {
+	userID, teamID, projectID, repo, report := job.userID, job.teamID, job.projectID, job.repo, job.report
 	if s.shouldSkipImportFile(file, repo, teamID, report) {
 		return
 	}
 
 	blueprintType, subtype := s.determineTypeFromPath(file.Path)
-
 	if blueprintType == "general" {
 		s.logger.With(
 			"file_path", file.Path,
@@ -265,46 +266,74 @@ func (s *GitHubAppService) importSingleFile(
 		).Warn("Unmapped file path pattern encountered during blueprint import - consider adding support for this pattern")
 	}
 
-	blueprint := s.buildImportedBlueprint(userID, teamID, projectID, repo, file, blueprintType, subtype)
+	blueprint := s.buildImportedBlueprint(job, file, blueprintType, subtype)
 
-	existingBlueprint, checkErr := s.blueprintRepo.GetByProjectIDAndSlug(ctx, userID, teamID, projectID, blueprint.Slug)
-	if checkErr == nil && existingBlueprint != nil {
-		s.logger.With(
-			"service", logServiceGitHubApp,
-			"file_path", file.Path,
-			"slug", blueprint.Slug,
-			"repo_id", repo.ID,
-			"team_id", teamID,
-			"reason", "existing_slug",
-		).Info(msgSkippedBlueprintFile)
-		recordSkippedImportFile(report, file.Path, "Blueprint already exists with slug: "+blueprint.Slug)
+	// Match an existing blueprint by (project_id, path) first, then slug.
+	existing := s.findExistingForReimport(ctx, userID, teamID, projectID, file.Path, blueprint.Slug)
+	if existing == nil {
+		s.createImportedBlueprint(ctx, job, file, blueprint)
 		return
 	}
+	s.reconcileReimport(ctx, job, file, existing, blueprint)
+}
 
+// findExistingForReimport returns the blueprint an imported file maps to, matching
+// by canonical (project_id, path) first and slug second, or nil when neither
+// matches.
+func (s *GitHubAppService) findExistingForReimport(
+	ctx context.Context, userID, teamID, projectID, path, slug string,
+) *models.Blueprint {
+	if bp, err := s.blueprintRepo.GetByProjectIDAndPath(ctx, userID, teamID, projectID, path); err == nil && bp != nil {
+		return bp
+	}
+	if bp, err := s.blueprintRepo.GetByProjectIDAndSlug(ctx, userID, teamID, projectID, slug); err == nil && bp != nil {
+		return bp
+	}
+	return nil
+}
+
+// createImportedBlueprint persists a brand-new imported blueprint.
+func (s *GitHubAppService) createImportedBlueprint(
+	ctx context.Context, job *blueprintImportJob, file *external.GitHubFile, blueprint *models.Blueprint,
+) {
 	if err := s.blueprintRepo.Create(ctx, blueprint); err != nil {
-		s.logger.With("error", err).With(
-			"file_path", file.Path,
-			"slug", blueprint.Slug,
-		).Error("Failed to create blueprint")
-		report.TotalFailed++
-		report.FailedItems = append(report.FailedItems, models.BlueprintImportFailed{
-			FilePath: file.Path,
-			Error:    "failed to import blueprint",
-		})
+		s.recordFailedImport(job.report, file.Path, blueprint.Slug, err)
 		return
 	}
+	s.recordImportedBlueprint(file, job.repo, job.teamID, blueprint, job.report)
+}
 
-	s.recordImportedBlueprint(file, repo, teamID, blueprint, report)
+// reconcileReimport applies the update-aware re-import outcome for an existing
+// blueprint: unchanged repo file -> up-to-date (no-op); changed file with a
+// VibeXP-edited blueprint -> conflict (untouched); changed file with an unedited
+// blueprint -> update raw + parsed content + provenance.
+func (s *GitHubAppService) reconcileReimport(
+	ctx context.Context, job *blueprintImportJob,
+	file *external.GitHubFile, existing, imported *models.Blueprint,
+) {
+	switch reimportOutcome(existing, file) {
+	case reimportUpToDate:
+		s.recordUpToDate(job.report, file.Path, existing)
+	case reimportConflict:
+		s.recordConflict(job.report, file.Path, existing)
+	default: // reimportUpdate
+		applyReimportUpdate(existing, imported)
+		if err := s.blueprintRepo.UpdateOnReimport(ctx, existing); err != nil {
+			s.recordFailedImport(job.report, file.Path, existing.Slug, err)
+			return
+		}
+		s.recordUpdated(file, job.teamID, existing, job.report)
+	}
 }
 
 // buildImportedBlueprint assembles the blueprint model for an imported repository
-// file, deriving slug, title, description, content, and metadata from the file.
+// file, deriving slug, title, description, content, and metadata from the file,
+// and recording full provenance (verbatim frozen path, raw bytes, content_sha,
+// source repo/commit/blob SHAs, imported-at).
 func (s *GitHubAppService) buildImportedBlueprint(
-	userID, teamID, projectID string,
-	repo *models.GitHubRepository,
-	file *external.GitHubFile,
-	blueprintType, subtype string,
+	job *blueprintImportJob, file *external.GitHubFile, blueprintType, subtype string,
 ) *models.Blueprint {
+	repo := job.repo
 	slug := s.generateBlueprintSlug(file.Path, repo.Name)
 
 	filename := file.Path
@@ -319,12 +348,13 @@ func (s *GitHubAppService) buildImportedBlueprint(
 		content = fm.Body
 	}
 
+	now := time.Now()
 	blueprint := &models.Blueprint{
 		ID:          uuid.New().String(),
-		ProjectID:   projectID,
+		ProjectID:   job.projectID,
 		Slug:        slug,
-		UserID:      userID,
-		TeamID:      teamID,
+		UserID:      job.userID,
+		TeamID:      job.teamID,
 		Content:     content,
 		Title:       s.blueprintTitleFromFrontMatter(fm, file.Path, filename, repo.Name),
 		Description: s.blueprintDescriptionFromFrontMatter(fm, file.Path, repo.FullName),
@@ -332,15 +362,20 @@ func (s *GitHubAppService) buildImportedBlueprint(
 		Status:      "active",
 		Metadata:    blueprintMetadataFromFrontMatter(fm),
 		Version:     1,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		// Imported blueprints carry the verbatim source path (frozen) and the
-		// raw file bytes; full provenance (source_*) and update-aware re-import
-		// are #341. Path is required (NOT NULL) from migration 007 on.
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		// Imported blueprints carry the verbatim source path (frozen), the raw
+		// file bytes + its SHA, and full import provenance (#341).
 		Path:        file.Path,
 		PathDerived: false,
 		RawContent:  file.Content,
 		ContentSHA:  computeContentSHA(file.Content),
+		Source: &models.BlueprintSource{
+			Repo:       repo.HTMLURL,
+			CommitSHA:  job.sourceCommitSHA,
+			BlobSHA:    file.BlobSHA,
+			ImportedAt: &now,
+		},
 	}
 
 	if subtype != "" {
@@ -348,6 +383,65 @@ func (s *GitHubAppService) buildImportedBlueprint(
 	}
 
 	return blueprint
+}
+
+// reimportDecision is the outcome of reconciling a re-imported file with an
+// existing blueprint.
+type reimportDecision int
+
+const (
+	reimportUpdate   reimportDecision = iota // repo file changed, blueprint unedited -> refresh
+	reimportUpToDate                         // repo file unchanged -> no-op
+	reimportConflict                         // blueprint edited in VibeXP -> leave untouched
+)
+
+// reimportOutcome decides how to reconcile a re-imported file with an existing
+// blueprint:
+//   - repo file unchanged (its blob SHA equals the stored source_blob_sha) -> up-to-date;
+//   - repo file changed AND the blueprint is still byte-identical to what was
+//     imported (git blob SHA of its raw_content equals source_blob_sha) -> update;
+//   - otherwise (edited in VibeXP, or provenance is unknown so we cannot confirm
+//     it is unedited) -> conflict, never overwriting local changes.
+func reimportOutcome(existing *models.Blueprint, file *external.GitHubFile) reimportDecision {
+	importedBlob := ""
+	if existing.Source != nil {
+		importedBlob = existing.Source.BlobSHA
+	}
+	if file.BlobSHA != "" && importedBlob != "" && file.BlobSHA == importedBlob {
+		return reimportUpToDate
+	}
+	if importedBlob != "" && gitBlobSHA(existing.RawContent) == importedBlob {
+		return reimportUpdate
+	}
+	return reimportConflict
+}
+
+// gitBlobSHA returns the Git blob SHA-1 of content ("blob <len>\0<content>"), so
+// it can be compared against the source_blob_sha captured at import to tell an
+// unedited blueprint (raw byte-identical to the source file) from a VibeXP-edited
+// one. sha1 is git's blob-hash algorithm, not a security primitive here.
+func gitBlobSHA(content string) string {
+	data := append([]byte(fmt.Sprintf("blob %d\x00", len(content))), content...)
+	sum := sha1.Sum(data) // #nosec G401 -- git blob hashing is sha1 by definition; not for security.
+	return hex.EncodeToString(sum[:])
+}
+
+// applyReimportUpdate refreshes the existing blueprint in place from a re-imported
+// file: parsed + raw content, lifted title/description, type/subtype, the frozen
+// verbatim path, and fresh provenance. Identity (id/slug/created_at) is preserved.
+func applyReimportUpdate(existing, imported *models.Blueprint) {
+	existing.Content = imported.Content
+	existing.RawContent = imported.RawContent
+	existing.ContentSHA = imported.ContentSHA
+	existing.Metadata = imported.Metadata
+	existing.Title = imported.Title
+	existing.Description = imported.Description
+	existing.Type = imported.Type
+	existing.Subtype = imported.Subtype
+	existing.Path = imported.Path
+	existing.PathDerived = false
+	existing.Source = imported.Source
+	existing.UpdatedAt = time.Now()
 }
 
 // recordImportedBlueprint records a successful import in the report and logs it.
@@ -381,6 +475,66 @@ func (s *GitHubAppService) recordImportedBlueprint(
 		"repo_id", repo.ID,
 		"team_id", teamID,
 	).Info("Successfully imported blueprint from GitHub")
+}
+
+// recordFailedImport records a create/update failure in the report.
+func (s *GitHubAppService) recordFailedImport(
+	report *models.BlueprintImportReport, filePath, slug string, err error,
+) {
+	s.logger.With("error", err).With("file_path", filePath, "slug", slug).Error("Failed to import blueprint")
+	report.TotalFailed++
+	report.FailedItems = append(report.FailedItems, models.BlueprintImportFailed{
+		FilePath: filePath,
+		Error:    "failed to import blueprint",
+	})
+}
+
+// recordUpToDate records a re-import no-op (repo file unchanged).
+func (s *GitHubAppService) recordUpToDate(
+	report *models.BlueprintImportReport, filePath string, bp *models.Blueprint,
+) {
+	report.TotalUpToDate++
+	report.UpToDateItems = append(report.UpToDateItems, models.BlueprintImportUpToDate{
+		FilePath:    filePath,
+		BlueprintID: bp.ID,
+	})
+}
+
+// recordConflict records a re-import left untouched because the blueprint was
+// edited in VibeXP.
+func (s *GitHubAppService) recordConflict(
+	report *models.BlueprintImportReport, filePath string, bp *models.Blueprint,
+) {
+	report.TotalConflicts++
+	report.ConflictItems = append(report.ConflictItems, models.BlueprintImportConflict{
+		FilePath:    filePath,
+		BlueprintID: bp.ID,
+		Reason:      "Blueprint was edited in VibeXP; re-import skipped to avoid overwriting local changes",
+	})
+}
+
+// recordUpdated records a blueprint refreshed from a changed repo file.
+func (s *GitHubAppService) recordUpdated(
+	file *external.GitHubFile, teamID string, bp *models.Blueprint, report *models.BlueprintImportReport,
+) {
+	report.TotalUpdated++
+	subtypeStr := ""
+	if bp.Subtype != nil {
+		subtypeStr = *bp.Subtype
+	}
+	report.UpdatedItems = append(report.UpdatedItems, models.BlueprintImportUpdated{
+		FilePath:    file.Path,
+		BlueprintID: bp.ID,
+		Title:       bp.Title,
+		Type:        bp.Type,
+		Subtype:     subtypeStr,
+	})
+	s.logger.With(
+		"service", logServiceGitHubApp,
+		"file_path", file.Path,
+		"blueprint_id", bp.ID,
+		"team_id", teamID,
+	).Info("Refreshed blueprint from changed repo file during re-import")
 }
 
 // shouldSkipImportFile checks the import guards (markdown-only, non-empty, size cap)

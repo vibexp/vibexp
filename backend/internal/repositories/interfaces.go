@@ -962,10 +962,19 @@ type BlueprintRepository interface {
 	// GetByIDCrossTeam searches for a blueprint across all user's teams
 	GetByIDCrossTeam(ctx context.Context, userID, blueprintID string) (*models.Blueprint, error)
 	GetByProjectIDAndSlug(ctx context.Context, userID, teamID, projectID, slug string) (*models.Blueprint, error)
+	// GetByProjectIDAndPath resolves a blueprint by its canonical (project_id, path),
+	// team-scoped by membership. Used by update-aware re-import (#341) to match a
+	// source file to an existing blueprint before falling back to slug.
+	GetByProjectIDAndPath(ctx context.Context, userID, teamID, projectID, path string) (*models.Blueprint, error)
 	// GetByProjectIDAndSlugCrossTeam searches for a blueprint across all user's teams
 	GetByProjectIDAndSlugCrossTeam(ctx context.Context, userID, projectID, slug string) (*models.Blueprint, error)
 	List(ctx context.Context, userID string, filters BlueprintFilters) ([]models.Blueprint, int, error)
 	Update(ctx context.Context, blueprint *models.Blueprint) error
+	// UpdateOnReimport refreshes an existing blueprint from a changed repo file:
+	// content/raw/content_sha/metadata/title/description/path AND provenance
+	// (source_*/imported_at). Unlike Update (which preserves provenance across a
+	// user edit), re-import intentionally rewrites it (#341).
+	UpdateOnReimport(ctx context.Context, blueprint *models.Blueprint) error
 	Delete(ctx context.Context, userID, teamID, blueprintID string) error
 	// GetStats returns a zero-valued response — not an error — when the user has no data.
 	GetStats(ctx context.Context, userID string) (*models.BlueprintStatsResponse, error)

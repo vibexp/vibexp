@@ -550,6 +550,49 @@ func TestHandleGitHubImportBlueprints_Success_RecordsActivity(t *testing.T) {
 	assert.Equal(t, 1, recorded.metadata["total_failed"])
 }
 
+// TestHandleGitHubImportBlueprints_ReimportOutcomes conformance-checks the
+// extended report shape carrying updated/conflict/up-to-date outcomes (#341).
+func TestHandleGitHubImportBlueprints_ReimportOutcomes(t *testing.T) {
+	container, _ := newGitHubTestContainer(t)
+	srv := createGitHubTestServer(container)
+
+	report := &models.BlueprintImportReport{
+		TotalScanned:    3,
+		TotalUpdated:    1,
+		TotalConflicts:  1,
+		TotalUpToDate:   1,
+		SuccessfulItems: []models.BlueprintImportSuccess{},
+		FailedItems:     []models.BlueprintImportFailed{},
+		SkippedItems:    []models.BlueprintImportSkipped{},
+		UpdatedItems: []models.BlueprintImportUpdated{
+			{FilePath: ".claude/agents/a.md", BlueprintID: "bp-1", Title: "A", Type: "claude-code", Subtype: "sub-agents"},
+		},
+		ConflictItems: []models.BlueprintImportConflict{
+			{FilePath: ".claude/agents/b.md", BlueprintID: "bp-2", Reason: "edited in VibeXP"},
+		},
+		UpToDateItems: []models.BlueprintImportUpToDate{
+			{FilePath: ".claude/agents/c.md", BlueprintID: "bp-3"},
+		},
+	}
+	container.gitHubAppService.On(
+		"ImportBlueprintsFromRepository",
+		mock.Anything, githubTestUserID, githubTestTeamID, int64(42),
+	).Return(report, nil)
+
+	req := makeGitHubPOSTAuthRequest(
+		"/api/v1/"+githubTestTeamID+"/integrations/github/import-blueprints",
+		map[string]interface{}{"repository_id": 42})
+	req = addGitHubChiParams(req, map[string]string{"team_id": githubTestTeamID})
+	rr := httptest.NewRecorder()
+
+	srv.handleGitHubImportBlueprints(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"total_updated":1`)
+	assert.Contains(t, rr.Body.String(), `"conflict_items"`)
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
 func TestHandleGitHubImportBlueprints_ServiceError_NoActivityRecorded(t *testing.T) {
 	container, trackingSvc := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)

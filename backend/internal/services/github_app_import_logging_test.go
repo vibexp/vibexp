@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
@@ -115,6 +116,8 @@ func TestImportSingleFile_SuccessLog(t *testing.T) {
 	githubClient.On("GetFileContent", mock.Anything, int64(99999), "owner", "log-repo", "CLAUDE.md").
 		Return(&external.GitHubFile{Path: "CLAUDE.md", Content: "# Agent config"}, nil)
 
+	blueprintRepo.On("GetByProjectIDAndPath", mock.Anything, "user-log", "team-log", project.ID, mock.Anything).
+		Return(nil, errors.New("not found"))
 	blueprintRepo.On("GetByProjectIDAndSlug", mock.Anything, "user-log", "team-log", project.ID, mock.Anything).
 		Return(nil, errors.New("not found"))
 	blueprintRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Blueprint")).Return(nil)
@@ -231,10 +234,12 @@ func TestImportSingleFile_SkipTooLargeLog(t *testing.T) {
 	assert.Contains(t, logOutput, "CLAUDE.md")
 }
 
-// TestImportSingleFile_SkipExistingSlugLog verifies that files matching an existing
-// blueprint slug emit an Info log with reason=existing_slug.
-func TestImportSingleFile_SkipExistingSlugLog(t *testing.T) {
-	logger, buf := newTestLoggerWithBuffer()
+// TestImportSingleFile_ReimportConflict verifies that a re-import of a file
+// matching an existing blueprint whose provenance cannot confirm it is unedited
+// is reported as a conflict (never overwritten), replacing the old blanket
+// skip-on-slug behavior (#341).
+func TestImportSingleFile_ReimportConflict(t *testing.T) {
+	logger, _ := newTestLoggerWithBuffer()
 
 	installationRepo := new(MockGitHubInstallationRepository)
 	projectRepo := new(MockProjectRepository)
@@ -248,12 +253,15 @@ func TestImportSingleFile_SkipExistingSlugLog(t *testing.T) {
 	githubClient.On("GetFileContent", mock.Anything, int64(99999), "owner", "log-repo", "CLAUDE.md").
 		Return(&external.GitHubFile{Path: "CLAUDE.md", Content: "# existing"}, nil)
 
-	// Simulate an existing blueprint with the same slug
+	// Simulate an existing blueprint with the same path but no provenance we can
+	// confirm as unedited -> re-import must treat it as a conflict.
 	existingBlueprint := &models.Blueprint{
-		ID:   "existing-bp-1",
-		Slug: "claude-from-log-repo",
+		ID:         "existing-bp-1",
+		Slug:       "claude-from-log-repo",
+		Path:       "CLAUDE.md",
+		RawContent: "# edited in vibexp",
 	}
-	blueprintRepo.On("GetByProjectIDAndSlug", mock.Anything, "user-log", "team-log", project.ID, mock.Anything).
+	blueprintRepo.On("GetByProjectIDAndPath", mock.Anything, "user-log", "team-log", project.ID, "CLAUDE.md").
 		Return(existingBlueprint, nil)
 
 	svc := newImportLoggingService(installationRepo, projectRepo, blueprintRepo, githubClient, logger)
@@ -262,12 +270,11 @@ func TestImportSingleFile_SkipExistingSlugLog(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, report)
-	assert.Equal(t, 1, report.TotalSkipped)
-
-	logOutput := buf.String()
-	assert.Contains(t, logOutput, "Skipped file during blueprint import")
-	assert.Contains(t, logOutput, "existing_slug")
-	assert.Contains(t, logOutput, "CLAUDE.md")
+	assert.Equal(t, 1, report.TotalConflicts)
+	assert.Equal(t, 0, report.TotalSuccessful)
+	require.Len(t, report.ConflictItems, 1)
+	assert.Equal(t, "existing-bp-1", report.ConflictItems[0].BlueprintID)
+	assert.Equal(t, "CLAUDE.md", report.ConflictItems[0].FilePath)
 }
 
 // TestImportProgress_LogEvery10Files verifies that a progress log message is
@@ -297,6 +304,8 @@ func TestImportProgress_LogEvery10Files(t *testing.T) {
 	githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(99999), "owner", "log-repo", ".claude").
 		Return(files, nil)
 
+	blueprintRepo.On("GetByProjectIDAndPath", mock.Anything, "user-log", "team-log", project.ID, mock.Anything).
+		Return(nil, errors.New("not found"))
 	blueprintRepo.On("GetByProjectIDAndSlug", mock.Anything, "user-log", "team-log", project.ID, mock.Anything).
 		Return(nil, errors.New("not found"))
 	blueprintRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Blueprint")).Return(nil)
@@ -339,6 +348,8 @@ func TestImportProgress_NoLogBelow10Files(t *testing.T) {
 	githubClient.On("GetDirectoryContentsRecursive", mock.Anything, int64(99999), "owner", "log-repo", ".claude").
 		Return(files, nil)
 
+	blueprintRepo.On("GetByProjectIDAndPath", mock.Anything, "user-log", "team-log", project.ID, mock.Anything).
+		Return(nil, errors.New("not found"))
 	blueprintRepo.On("GetByProjectIDAndSlug", mock.Anything, "user-log", "team-log", project.ID, mock.Anything).
 		Return(nil, errors.New("not found"))
 	blueprintRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Blueprint")).Return(nil)

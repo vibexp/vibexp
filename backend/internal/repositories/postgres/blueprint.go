@@ -222,6 +222,53 @@ func (r *BlueprintRepository) GetByID(
 	return &blueprint, nil
 }
 
+// GetByProjectIDAndPath retrieves a blueprint by project ID and canonical path,
+// team-scoped by membership (mirrors GetByProjectIDAndSlug). Used by #341's
+// path-first re-import matching.
+func (r *BlueprintRepository) GetByProjectIDAndPath(
+	ctx context.Context, userID, teamID, projectID, path string,
+) (*models.Blueprint, error) {
+	query := `
+		SELECT s.id, s.project_id, s.slug, s.user_id, s.team_id, s.title, s.description, s.content, s.status,
+		s.type, s.subtype, s.metadata, s.created_at, s.updated_at, s.version,
+		s.path, s.path_derived, s.raw_content, s.content_sha,
+		s.source_repo, s.source_commit_sha, s.source_blob_sha, s.imported_at
+		FROM blueprints s
+		WHERE s.project_id = $1
+			AND s.path = $2
+			AND s.team_id = $3
+			AND (
+				EXISTS (SELECT 1 FROM teams WHERE id = $3 AND owner_id = $4)
+				OR EXISTS (SELECT 1 FROM team_members WHERE team_id = $3 AND user_id = $4)
+			)
+	`
+
+	var blueprint models.Blueprint
+	var metadataJSON []byte
+	var sync blueprintSyncScan
+	err := r.db.QueryRowContext(ctx, query, projectID, path, teamID, userID).Scan(
+		&blueprint.ID, &blueprint.ProjectID, &blueprint.Slug,
+		&blueprint.UserID, &blueprint.TeamID, &blueprint.Title, &blueprint.Description,
+		&blueprint.Content, &blueprint.Status, &blueprint.Type,
+		&blueprint.Subtype, &metadataJSON, &blueprint.CreatedAt, &blueprint.UpdatedAt, &blueprint.Version,
+		&blueprint.Path, &blueprint.PathDerived, &sync.rawContent, &sync.contentSHA,
+		&sync.sourceRepo, &sync.sourceCommit, &sync.sourceBlob, &sync.importedAt,
+	)
+	if err != nil {
+		return nil, mapNoRows(
+			fmt.Errorf("failed to get blueprint by project and path: %w", err),
+			repositories.ErrBlueprintNotFound,
+		)
+	}
+	sync.apply(&blueprint)
+	if len(metadataJSON) == 0 {
+		blueprint.Metadata = make(map[string]interface{})
+	} else if err := json.Unmarshal(metadataJSON, &blueprint.Metadata); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+	}
+	return &blueprint, nil
+}
+
 // GetByProjectIDAndSlug retrieves a blueprint entry by project ID and slug
 // Uses EXISTS subqueries to avoid Cartesian product with multi-member teams
 func (r *BlueprintRepository) GetByProjectIDAndSlug(
@@ -656,6 +703,46 @@ func (r *BlueprintRepository) Update(ctx context.Context, blueprint *models.Blue
 		)
 	}
 
+	return nil
+}
+
+// UpdateOnReimport refreshes an existing blueprint from a changed repo file. It
+// rewrites the parsed + raw content, the frozen source path, AND the provenance
+// columns (unlike Update, which preserves provenance). Import is server-
+// authoritative, so it does not take an optimistic-lock version — it matches by
+// (id, team_id) and bumps the version.
+func (r *BlueprintRepository) UpdateOnReimport(ctx context.Context, blueprint *models.Blueprint) error {
+	metadataJSON, err := json.Marshal(blueprint.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+	srcRepo, srcCommit, srcBlob, importedAt := blueprintSourceInsertValues(blueprint.Source)
+
+	query := `
+		UPDATE blueprints
+		SET title = $2, description = $3, content = $4, type = $5, subtype = $6, metadata = $7,
+		path = $8, path_derived = $9, raw_content = $10, content_sha = $11,
+		source_repo = $12, source_commit_sha = $13, source_blob_sha = $14, imported_at = $15,
+		updated_at = $16, version = version + 1
+		WHERE id = $1 AND team_id = $17
+		RETURNING updated_at, version
+	`
+	err = r.db.QueryRowContext(ctx, query,
+		blueprint.ID, blueprint.Title, blueprint.Description, blueprint.Content,
+		blueprint.Type, blueprint.Subtype, metadataJSON,
+		blueprint.Path, blueprint.PathDerived, nullableString(blueprint.RawContent), nullableString(blueprint.ContentSHA),
+		srcRepo, srcCommit, srcBlob, importedAt,
+		blueprint.UpdatedAt, blueprint.TeamID,
+	).Scan(&blueprint.UpdatedAt, &blueprint.Version)
+	if err != nil {
+		if pqErr := uniqueViolation(err); pqErr != nil {
+			return blueprintUniqueConflictError(pqErr, blueprint)
+		}
+		return mapNoRows(
+			fmt.Errorf("failed to re-import blueprint: %w", err),
+			repositories.ErrBlueprintNotFound,
+		)
+	}
 	return nil
 }
 
