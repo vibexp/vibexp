@@ -137,6 +137,15 @@ func ProvideRelationService(
 	return services.NewRelationService(repo, teamService, authzService, logger)
 }
 
+// ProvideRelationSeedService creates a new RelationSeedService.
+func ProvideRelationSeedService(
+	repo repositories.RelationRepository,
+	relationService services.RelationServiceInterface,
+	logger *slog.Logger,
+) services.RelationSeedServiceInterface {
+	return services.NewRelationSeedService(repo, relationService, logger)
+}
+
 // ProvideAttachmentService creates a new AttachmentService. The object store
 // may be nil (storage disabled); the service degrades to 503 in that case.
 func ProvideAttachmentService(

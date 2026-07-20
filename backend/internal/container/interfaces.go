@@ -66,6 +66,7 @@ type Container interface {
 	AttachmentService() services.AttachmentServiceInterface
 	CommentService() services.CommentServiceInterface
 	RelationService() services.RelationServiceInterface
+	RelationSeedService() services.RelationSeedServiceInterface
 	TypeService() services.TypeServiceInterface
 	BlueprintService() services.BlueprintServiceInterface
 	EmbeddingProviderService() services.EmbeddingProviderServiceInterface

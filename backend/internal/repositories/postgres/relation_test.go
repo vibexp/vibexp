@@ -453,3 +453,49 @@ func TestRelationRepository_ResourceProjectID_DriverError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve resource project")
 }
+
+func TestRelationRepository_FindSeedCandidates(t *testing.T) {
+	seedCols := []string{
+		"from_type", "from_id", "to_type", "to_id", "distance", "from_updated_at", "to_updated_at",
+	}
+
+	t.Run("happy path scans candidate pairs", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(`FROM embeddings e1`).
+			WithArgs("team-1", 0.35, 2000).
+			WillReturnRows(sqlmock.NewRows(seedCols).
+				AddRow("artifact", "a1", "blueprint", "b1", 0.12, relTestNow, relTestNow).
+				AddRow("artifact", "a2", "artifact", "a1", 0.05, relTestNow, relTestNow))
+
+		got, err := repo.FindSeedCandidates(context.Background(), "team-1", 0.35, 2000)
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+		assert.Equal(t, "artifact", got[0].FromType)
+		assert.Equal(t, "blueprint", got[0].ToType)
+		assert.InDelta(t, 0.12, got[0].Distance, 1e-9)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("query error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectQuery(`FROM embeddings e1`).WillReturnError(sql.ErrConnDone)
+
+		_, err := repo.FindSeedCandidates(context.Background(), "team-1", 0.35, 2000)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to find seed candidates")
+	})
+
+	t.Run("scan error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectQuery(`FROM embeddings e1`).WillReturnRows(
+			sqlmock.NewRows(seedCols).AddRow("artifact", "a1", "blueprint", "b1", "not-a-float", relTestNow, relTestNow))
+
+		_, err := repo.FindSeedCandidates(context.Background(), "team-1", 0.35, 2000)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to scan seed candidate")
+	})
+}

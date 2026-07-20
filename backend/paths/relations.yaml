@@ -291,3 +291,47 @@ api-v1-team_id-relations-relation_id:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
       - Relations
+
+api-v1-team_id-relations-seed:
+  post:
+    summary: Seed suggested relations from embedding similarity
+    description: >
+      Triggers a one-shot, per-team embedding-similarity backfill that proposes
+      typed relations (origin=ai, status=suggested) between similar resources.
+      Runs in the background and coalesces concurrent triggers; returns 202
+      immediately. Requires permission to create resources in the team.
+    operationId: seedRelations
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Team identifier
+    responses:
+      '202':
+        description: Seed backfill accepted and running in the background (no content)
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller may not create relations in the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to trigger the relation seed backfill
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Relations

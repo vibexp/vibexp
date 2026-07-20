@@ -1322,6 +1322,14 @@ type RelationRepository interface {
 	ResourceProjectID(
 		ctx context.Context, teamID, resourceType, resourceID string,
 	) (projectID string, exists bool, err error)
+	// FindSeedCandidates returns similar (entity, entity) pairs within teamID —
+	// a cosine self-join over the embeddings table (same model, distinct
+	// entities, both of a relatable type) with distance below maxDistance,
+	// nearest first, capped at limit. Used by the one-shot relation seed
+	// backfill (#426); the service types each pair via the constraint matrix.
+	FindSeedCandidates(
+		ctx context.Context, teamID string, maxDistance float64, limit int,
+	) ([]models.RelationSeedCandidate, error)
 }
 
 // TypeRepository persists the resource-type-agnostic, team-customizable type

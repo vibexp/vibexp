@@ -256,6 +256,67 @@ func (_c *MockRelationRepository_DeleteByResource_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// FindSeedCandidates provides a mock function with given fields: ctx, teamID, maxDistance, limit
+func (_m *MockRelationRepository) FindSeedCandidates(ctx context.Context, teamID string, maxDistance float64, limit int) ([]models.RelationSeedCandidate, error) {
+	ret := _m.Called(ctx, teamID, maxDistance, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindSeedCandidates")
+	}
+
+	var r0 []models.RelationSeedCandidate
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, float64, int) ([]models.RelationSeedCandidate, error)); ok {
+		return rf(ctx, teamID, maxDistance, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, float64, int) []models.RelationSeedCandidate); ok {
+		r0 = rf(ctx, teamID, maxDistance, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.RelationSeedCandidate)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, float64, int) error); ok {
+		r1 = rf(ctx, teamID, maxDistance, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockRelationRepository_FindSeedCandidates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindSeedCandidates'
+type MockRelationRepository_FindSeedCandidates_Call struct {
+	*mock.Call
+}
+
+// FindSeedCandidates is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - maxDistance float64
+//   - limit int
+func (_e *MockRelationRepository_Expecter) FindSeedCandidates(ctx interface{}, teamID interface{}, maxDistance interface{}, limit interface{}) *MockRelationRepository_FindSeedCandidates_Call {
+	return &MockRelationRepository_FindSeedCandidates_Call{Call: _e.mock.On("FindSeedCandidates", ctx, teamID, maxDistance, limit)}
+}
+
+func (_c *MockRelationRepository_FindSeedCandidates_Call) Run(run func(ctx context.Context, teamID string, maxDistance float64, limit int)) *MockRelationRepository_FindSeedCandidates_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(float64), args[3].(int))
+	})
+	return _c
+}
+
+func (_c *MockRelationRepository_FindSeedCandidates_Call) Return(_a0 []models.RelationSeedCandidate, _a1 error) *MockRelationRepository_FindSeedCandidates_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockRelationRepository_FindSeedCandidates_Call) RunAndReturn(run func(context.Context, string, float64, int) ([]models.RelationSeedCandidate, error)) *MockRelationRepository_FindSeedCandidates_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByID provides a mock function with given fields: ctx, teamID, id
 func (_m *MockRelationRepository) GetByID(ctx context.Context, teamID string, id string) (*models.Relation, error) {
 	ret := _m.Called(ctx, teamID, id)

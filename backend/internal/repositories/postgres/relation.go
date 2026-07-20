@@ -282,3 +282,57 @@ func (r *RelationRepository) ResourceProjectID(
 	}
 	return projectID, true, nil
 }
+
+// seedCandidateQuery finds similar (entity, entity) pairs within a team for the
+// relation seed backfill (#426): a cosine self-join over the embeddings table,
+// restricted to the same embedding model, distinct entities, both of a
+// relatable resource type, with distance below the caller's threshold, nearest
+// first. Distance is column-vs-column (`<=>`), so it is an O(n^2) scan per team
+// (the HNSW index only accelerates query-vs-column) — acceptable for the
+// one-shot, guarded, per-team backfill with a conservative threshold + LIMIT.
+const seedCandidateQuery = `
+	SELECT e1.entity_type, e1.entity_id, e2.entity_type, e2.entity_id,
+		(e1.vector_embeddings <=> e2.vector_embeddings) AS distance,
+		e1.updated_at, e2.updated_at
+	FROM embeddings e1
+	JOIN embeddings e2
+		ON e2.team_id = e1.team_id
+		AND e2.model_id = e1.model_id
+		AND e1.entity_id <> e2.entity_id
+	WHERE e1.team_id = $1
+		AND e1.entity_type IN ('artifact', 'memory', 'prompt', 'blueprint')
+		AND e2.entity_type IN ('artifact', 'memory', 'prompt', 'blueprint')
+		AND (e1.vector_embeddings <=> e2.vector_embeddings) < $2
+	ORDER BY distance ASC, e1.entity_id, e2.entity_id
+	LIMIT $3
+`
+
+func (r *RelationRepository) FindSeedCandidates(
+	ctx context.Context, teamID string, maxDistance float64, limit int,
+) ([]models.RelationSeedCandidate, error) {
+	rows, err := r.db.QueryContext(ctx, seedCandidateQuery, teamID, maxDistance, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find seed candidates: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close seed candidate rows", "error", closeErr)
+		}
+	}()
+
+	candidates := make([]models.RelationSeedCandidate, 0)
+	for rows.Next() {
+		var c models.RelationSeedCandidate
+		if scanErr := rows.Scan(
+			&c.FromType, &c.FromID, &c.ToType, &c.ToID,
+			&c.Distance, &c.FromUpdatedAt, &c.ToUpdatedAt,
+		); scanErr != nil {
+			return nil, fmt.Errorf("failed to scan seed candidate: %w", scanErr)
+		}
+		candidates = append(candidates, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate seed candidates: %w", err)
+	}
+	return candidates, nil
+}

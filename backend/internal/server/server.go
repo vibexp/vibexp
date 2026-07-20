@@ -154,6 +154,10 @@ type Server struct {
 	// the same team. Keyed by team_id; the value is present while a run is live
 	// (see enqueueTeamReembed). Its zero value is ready to use.
 	reembedInFlight sync.Map // map[string]struct{} keyed by team_id
+	// relationSeedInFlight guards the one-shot per-team relation seed backfill so
+	// concurrent trigger requests coalesce into a single run (issue #426). Keyed
+	// by team_id (see enqueueTeamRelationSeed). Its zero value is ready to use.
+	relationSeedInFlight sync.Map // map[string]struct{} keyed by team_id
 	// spaFS is the embedded frontend build (contents of frontend/dist), served by
 	// the SPA catch-all (handleSPA). It is nil in the default dev/CI build (the
 	// frontend is NOT embedded, so the backend compiles and runs without a built
