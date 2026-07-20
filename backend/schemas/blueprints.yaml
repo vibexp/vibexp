@@ -82,6 +82,14 @@ Blueprint:
       example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     source:
       $ref: '#/BlueprintSource'
+    related:
+      type: array
+      description: >-
+        Depth-1 typed neighborhood of this resource — the relations touching it
+        in both directions, newest first, capped at 20. Typed summaries only,
+        never bodies. Populated on the detail GET; empty in list responses.
+      items:
+        $ref: './relations.yaml#/RelatedResource'
   required:
     - id
     - project_id
@@ -94,6 +102,7 @@ Blueprint:
     - title
     - type
     - path
+    - related
 
 # Read-only import provenance for a blueprint (server-set on import; absent for
 # VibeXP-authored blueprints).

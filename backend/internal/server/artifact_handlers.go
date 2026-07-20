@@ -113,6 +113,10 @@ func (s *Server) handleGetArtifact(w http.ResponseWriter, r *http.Request) {
 
 	contextkeys.SetAccessedResourceID(r.Context(), artifact.ID)
 
+	artifact.Related = s.relatedForResource(
+		r.Context(), userID, teamID, models.RelationResourceTypeArtifact, artifact.ID,
+	)
+
 	writeOK(w, artifact, s.logger)
 }
 

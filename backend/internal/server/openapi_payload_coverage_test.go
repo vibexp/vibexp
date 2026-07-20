@@ -100,7 +100,6 @@ var payloadCoverageLedger = map[string]string{
 	"GET /api/v1/{team_id}/settings/embedding-providers/{id}":         "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/settings/embedding-providers":              "TODO(#1714): uncovered",
 	"GET /api/v1/shared/prompts/{token}":                              "TODO(#1714): uncovered",
-	"GET /api/v1/{team_id}/artifacts/{project_id}/{slug}":             "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/artifacts/stats":                           "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/artifacts":                                 "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/feed-items/{item_id}/replies":              "TODO(#1714): uncovered",

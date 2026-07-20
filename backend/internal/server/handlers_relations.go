@@ -32,6 +32,38 @@ type relationsStrictServer struct {
 
 var _ relationsgen.StrictServerInterface = (*relationsStrictServer)(nil)
 
+// relatedOnReadCap bounds the depth-1 typed neighborhood surfaced on a resource
+// detail GET (issue #424).
+const relatedOnReadCap = 20
+
+// relatedForResource loads a resource's depth-1 typed neighborhood for the
+// `related` field on its detail GET: both directions, newest first, capped at
+// relatedOnReadCap. Best-effort — a relations-load failure is logged and yields
+// an empty list (never null) rather than failing the resource read; `related`
+// is supplementary to the resource itself.
+func (s *Server) relatedForResource(
+	ctx context.Context, userID, teamID, resourceType, resourceID string,
+) models.JSONArray[models.RelatedResource] {
+	svc := s.container.RelationService()
+	if svc == nil {
+		return nil
+	}
+	resp, err := svc.ListByResource(
+		ctx, userID, teamID, resourceType, resourceID, 1, relatedOnReadCap,
+	)
+	if err != nil {
+		s.logger.With(
+			"handler", "relatedForResource",
+			"team_id", teamID,
+			"resource_type", resourceType,
+			"resource_id", resourceID,
+			"error", err.Error(),
+		).Warn("Failed to load related resources for detail GET")
+		return nil
+	}
+	return resp.Related
+}
+
 // ListRelations handles GET /api/v1/{team_id}/relations
 func (rs *relationsStrictServer) ListRelations(
 	ctx context.Context, request relationsgen.ListRelationsRequestObject,

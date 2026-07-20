@@ -52,6 +52,14 @@ Memory:
       format: int64
       description: "Version number for optimistic concurrency control"
       example: 1
+    related:
+      type: array
+      description: >-
+        Depth-1 typed neighborhood of this resource — the relations touching it
+        in both directions, newest first, capped at 20. Typed summaries only,
+        never bodies. Populated on the detail GET; empty in list responses.
+      items:
+        $ref: './relations.yaml#/RelatedResource'
   required:
     - id
     - user_id
@@ -62,6 +70,7 @@ Memory:
     - created_at
     - updated_at
     - version
+    - related
 
 # Request model for creating memories
 CreateMemoryRequest:
