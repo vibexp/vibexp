@@ -213,7 +213,7 @@ class BlueprintService {
       console.error('Failed to fetch blueprint stats:', error)
       return {
         total_projects: 0,
-        total_spec_libraries: 0,
+        total_blueprints: 0,
         added_this_week: 0,
         total_by_type: {},
         total_by_status: {},

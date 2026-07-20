@@ -44,6 +44,7 @@ const mockBlueprint: Blueprint = {
   id: 'blueprint-1',
   project_id: 'my-project',
   slug: 'my-blueprint',
+  path: 'my-blueprint.md',
   user_id: 'user-1',
   content: 'Blueprint content here',
   created_at: '2024-01-01T00:00:00Z',

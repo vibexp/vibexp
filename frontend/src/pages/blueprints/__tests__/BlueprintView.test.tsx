@@ -67,6 +67,7 @@ const mockBlueprint: Blueprint = {
   id: 'blueprint-1',
   project_id: 'my-project',
   slug: 'my-blueprint',
+  path: '.claude/commands/my-blueprint.md',
   user_id: 'user-1',
   content: '# Blueprint content',
   created_at: '2024-01-01T00:00:00Z',
@@ -155,6 +156,61 @@ describe('BlueprintView', () => {
           'blueprint-1'
         )
       })
+    })
+
+    it('shows the canonical path and no provenance when source is absent (#345)', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: jest.fn(),
+        refreshTeams: jest.fn() as () => Promise<void>,
+      })
+      ;(blueprintService.getBlueprint as jest.Mock).mockResolvedValue(
+        mockBlueprint
+      )
+
+      renderBlueprintView()
+
+      await waitFor(() => {
+        expect(screen.getByText('My Blueprint Title')).toBeInTheDocument()
+      })
+      // Canonical path is surfaced for every blueprint...
+      expect(
+        screen.getByText('.claude/commands/my-blueprint.md')
+      ).toBeInTheDocument()
+      // ...but a VibeXP-authored blueprint (no source) shows no provenance.
+      expect(screen.queryByText('Source')).not.toBeInTheDocument()
+      expect(screen.queryByText('Imported')).not.toBeInTheDocument()
+    })
+
+    it('shows provenance (repo, short commit, imported) for an imported blueprint (#345)', async () => {
+      mockUseTeam.mockReturnValue({
+        currentTeam: { id: 'team-1', name: 'Test Team' },
+        teams: [{ id: 'team-1', name: 'Test Team' }],
+        isLoading: false,
+        setCurrentTeam: jest.fn(),
+        refreshTeams: jest.fn() as () => Promise<void>,
+      })
+      ;(blueprintService.getBlueprint as jest.Mock).mockResolvedValue({
+        ...mockBlueprint,
+        source: {
+          repo: 'https://github.com/vibexp/vibexp',
+          commit_sha: '6706920221608abcdef',
+          blob_sha: 'blob123',
+          imported_at: '2026-07-19T12:00:00Z',
+        },
+      })
+
+      renderBlueprintView()
+
+      await waitFor(() => {
+        expect(screen.getByText('My Blueprint Title')).toBeInTheDocument()
+      })
+      // Repo link (protocol stripped for brevity), 7-char commit, imported row.
+      expect(screen.getByText('github.com/vibexp/vibexp')).toBeInTheDocument()
+      expect(screen.getByText('6706920')).toBeInTheDocument()
+      expect(screen.getByText('Imported')).toBeInTheDocument()
     })
 
     it('shows loading spinner while fetch is in flight', () => {

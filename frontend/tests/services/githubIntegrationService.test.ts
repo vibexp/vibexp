@@ -201,6 +201,16 @@ describe('GitHubIntegrationService', () => {
         successful_items: [],
         failed_items: [],
         skipped_items: [],
+        total_updated: 0,
+        total_conflicts: 0,
+        total_up_to_date: 0,
+        updated_items: [],
+        conflict_items: [],
+        up_to_date_items: [],
+        total_companions_imported: 0,
+        total_companions_removed: 0,
+        total_companions_skipped: 0,
+        companion_items: [],
       }
       mockGeneratedClient.POST.mockReturnValue(success(report))
 

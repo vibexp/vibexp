@@ -40,6 +40,7 @@ describe('BlueprintService', () => {
     id: 'spec-123',
     project_id: 'my-project',
     slug: 'api-spec',
+    path: 'api-spec.md',
     user_id: 'user-123',
     title: 'API Specification',
     type: 'general',
@@ -234,7 +235,7 @@ describe('BlueprintService', () => {
     it('fetches blueprint stats', async () => {
       const mockStats: BlueprintStatsResponse = {
         total_projects: 5,
-        total_spec_libraries: 15,
+        total_blueprints: 15,
         added_this_week: 3,
         total_by_type: { general: 10, 'claude-code': 5 },
         total_by_status: { active: 12, expired: 3 },
@@ -271,7 +272,7 @@ describe('BlueprintService', () => {
 
       expect(result).toEqual({
         total_projects: 0,
-        total_spec_libraries: 0,
+        total_blueprints: 0,
         added_this_week: 0,
         total_by_type: {},
         total_by_status: {},
