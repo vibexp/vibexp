@@ -132,6 +132,8 @@ backend-generate-openapi-server: backend-bundle-openapi
 	@cd backend && mkdir -p internal/server/gen/teamroles && go tool oapi-codegen -config oapi-codegen-teamroles.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Comments)..."
 	@cd backend && mkdir -p internal/server/gen/comments && go tool oapi-codegen -config oapi-codegen-comments.yaml dist/openapi.bundled.yaml
+	@echo "🧬 Generating OpenAPI strict-server code (Relations)..."
+	@cd backend && mkdir -p internal/server/gen/relations && go tool oapi-codegen -config oapi-codegen-relations.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Admin)..."
 	@cd backend && mkdir -p internal/server/gen/admin && go tool oapi-codegen -config oapi-codegen-admin.yaml dist/openapi.bundled.yaml
 

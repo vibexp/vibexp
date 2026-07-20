@@ -39,19 +39,21 @@ func TestIntegrationRelation_CreateIsIdempotent(t *testing.T) {
 	repo := NewRelationRepository(integrationDB)
 	ctx := context.Background()
 
-	first, err := repo.Create(ctx, newRelation(at, at.ownerID,
+	first, created, err := repo.Create(ctx, newRelation(at, at.ownerID,
 		models.RelationResourceTypeArtifact, artifactID, models.RelationResourceTypeBlueprint, blueprintID,
 		models.RelationTypeGovernedBy, models.RelationOriginHuman, models.RelationStatusConfirmed))
 	require.NoError(t, err)
+	assert.True(t, created, "the first insert reports created=true")
 	require.NotEmpty(t, first.ID)
 	require.False(t, first.CreatedAt.IsZero())
 
 	// Same endpoint tuple, different origin/status: the unique index makes this a
 	// no-op that returns the PRE-EXISTING row unchanged.
-	second, err := repo.Create(ctx, newRelation(at, at.memberID,
+	second, created, err := repo.Create(ctx, newRelation(at, at.memberID,
 		models.RelationResourceTypeArtifact, artifactID, models.RelationResourceTypeBlueprint, blueprintID,
 		models.RelationTypeGovernedBy, models.RelationOriginAI, models.RelationStatusSuggested))
 	require.NoError(t, err)
+	assert.False(t, created, "the duplicate reports created=false")
 	assert.Equal(t, first.ID, second.ID, "duplicate create must return the existing row")
 	assert.Equal(t, models.RelationStatusConfirmed, second.Status, "existing status is preserved")
 	assert.Equal(t, models.RelationOriginHuman, second.Origin)
@@ -67,13 +69,13 @@ func TestIntegrationRelation_ListBothDirectionsAndDeleteEitherSide(t *testing.T)
 	ctx := context.Background()
 
 	// Outgoing: main --governed-by--> blueprint.
-	_, err := repo.Create(ctx, newRelation(at, at.ownerID,
+	_, _, err := repo.Create(ctx, newRelation(at, at.ownerID,
 		models.RelationResourceTypeArtifact, mainID, models.RelationResourceTypeBlueprint, blueprintID,
 		models.RelationTypeGovernedBy, models.RelationOriginHuman, models.RelationStatusConfirmed))
 	require.NoError(t, err)
 
 	// Incoming: successor --supersedes--> main.
-	_, err = repo.Create(ctx, newRelation(at, at.ownerID,
+	_, _, err = repo.Create(ctx, newRelation(at, at.ownerID,
 		models.RelationResourceTypeArtifact, otherArtifactID, models.RelationResourceTypeArtifact, mainID,
 		models.RelationTypeSupersedes, models.RelationOriginHuman, models.RelationStatusConfirmed))
 	require.NoError(t, err)
@@ -113,10 +115,11 @@ func TestIntegrationRelation_ConfirmFlipsOnce(t *testing.T) {
 	repo := NewRelationRepository(integrationDB)
 	ctx := context.Background()
 
-	created, err := repo.Create(ctx, newRelation(at, at.ownerID,
+	created, wasCreated, err := repo.Create(ctx, newRelation(at, at.ownerID,
 		models.RelationResourceTypeArtifact, artifactID, models.RelationResourceTypeBlueprint, blueprintID,
 		models.RelationTypeGovernedBy, models.RelationOriginAI, models.RelationStatusSuggested))
 	require.NoError(t, err)
+	require.True(t, wasCreated)
 	require.Equal(t, models.RelationStatusSuggested, created.Status)
 
 	confirmed, err := repo.Confirm(ctx, at.teamID, created.ID, at.adminID)

@@ -755,6 +755,16 @@ components:
     RecentCommentListResponse:
       $ref: "./schemas/comments.yaml#/RecentCommentListResponse"
 
+    # Import typed-resource-relations schemas (epic #421)
+    Relation:
+      $ref: "./schemas/relations.yaml#/Relation"
+    CreateRelationRequest:
+      $ref: "./schemas/relations.yaml#/CreateRelationRequest"
+    RelatedResource:
+      $ref: "./schemas/relations.yaml#/RelatedResource"
+    RelationListResponse:
+      $ref: "./schemas/relations.yaml#/RelationListResponse"
+
     # Import admin (instance-level) schemas
     AdminInstanceCounts:
       $ref: "./schemas/admin.yaml#/AdminInstanceCounts"
@@ -1100,6 +1110,12 @@ paths:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments-recent"
   /api/v1/{team_id}/comments/{comment_id}:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments-comment_id"
+  /api/v1/{team_id}/relations:
+    $ref: "./paths/relations.yaml#/api-v1-team_id-relations"
+  /api/v1/{team_id}/relations/{relation_id}/confirm:
+    $ref: "./paths/relations.yaml#/api-v1-team_id-relations-relation_id-confirm"
+  /api/v1/{team_id}/relations/{relation_id}:
+    $ref: "./paths/relations.yaml#/api-v1-team_id-relations-relation_id"
   /api/v1/{team_id}/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers"
   /api/v1/{team_id}/embedding-providers/coverage:
@@ -1230,6 +1246,8 @@ tags:
     description: Team-customizable resource categories (artifact types, etc.)
   - name: Comments
     description: Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)
+  - name: Relations
+    description: Typed, directed edges between artifacts, memories, prompts, and blueprints
   - name: Admin
     description: Instance-level administration (instance-admin only; non-admins get 404). REST-only, no MCP.
   - name: User

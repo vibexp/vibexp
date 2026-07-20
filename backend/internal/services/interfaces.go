@@ -506,11 +506,13 @@ type RelationServiceInterface interface {
 	// endpoint types against the relation-type matrix, rejecting self-links and
 	// cross-project links, checking the caller may create resources in the team,
 	// and confirming both endpoints exist. Creation is idempotent: a duplicate
-	// edge returns the existing row. The edge's initial status follows the
-	// tiered-trust rule (see models.InitialRelationStatus).
+	// edge returns the existing row. The bool reports whether a new edge was
+	// created (true) or an existing one was returned (false), so the REST layer
+	// can answer 201 vs 200. The edge's initial status follows the tiered-trust
+	// rule (see models.InitialRelationStatus).
 	Create(
 		ctx context.Context, userID, teamID string, req *models.CreateRelationRequest,
-	) (*models.Relation, error)
+	) (*models.Relation, bool, error)
 	// Confirm flips a suggested edge to confirmed (recording the caller), after
 	// checking the caller may update any resource. Confirming an already-confirmed
 	// edge returns ErrRelationAlreadyConfirmed.

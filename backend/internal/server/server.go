@@ -30,6 +30,7 @@ import (
 	"github.com/vibexp/vibexp/internal/server/gen"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
+	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
 	"github.com/vibexp/vibexp/internal/services"
@@ -675,6 +676,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupAttachmentsRoutes(r)
 		s.setupTypesRoutes(r)
 		s.setupCommentsRoutes(r)
+		s.setupRelationsRoutes(r)
 		s.setupBlueprintRoutes(r)
 		s.setupMemoriesRoutes(r)
 		s.setupProjectsRoutes(r)
@@ -901,6 +903,26 @@ func (s *Server) setupCommentsRoutes(r chi.Router) {
 		commentsgen.HandlerWithOptions(strict, commentsgen.ChiServerOptions{
 			BaseRouter:       gr,
 			ErrorHandlerFunc: s.commentsBindErrorHandler,
+		})
+	})
+}
+
+// setupRelationsRoutes mounts the generated Relations strict-server handler
+// under a team-validated group (epic #421), mirroring setupCommentsRoutes.
+func (s *Server) setupRelationsRoutes(r chi.Router) {
+	strict := relationsgen.NewStrictHandlerWithOptions(
+		&relationsStrictServer{s: s},
+		nil,
+		relationsgen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.relationsBindErrorHandler,
+			ResponseErrorHandlerFunc: s.relationsResponseErrorHandler,
+		},
+	)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		relationsgen.HandlerWithOptions(strict, relationsgen.ChiServerOptions{
+			BaseRouter:       gr,
+			ErrorHandlerFunc: s.relationsBindErrorHandler,
 		})
 	})
 }
