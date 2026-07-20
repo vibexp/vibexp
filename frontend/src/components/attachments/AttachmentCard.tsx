@@ -161,6 +161,10 @@ export function AttachmentCard({
         {attachments.map(attachment => {
           const { Icon, kind } = fileMeta(attachment.content_type)
           const isDeleting = deletingId === attachment.id
+          // Prefer the skill-relative subpath (e.g. "scripts/helper.py") over the
+          // basename so multi-file skill companions read as their in-repo path
+          // (#345); plain attachments keep their file name.
+          const label = attachment.relative_path ?? attachment.file_name
           return (
             <li
               key={attachment.id}
@@ -173,9 +177,9 @@ export function AttachmentCard({
               <div className="min-w-0 flex-1">
                 <span
                   className="text-foreground block truncate text-sm font-medium"
-                  title={attachment.file_name}
+                  title={label}
                 >
-                  {attachment.file_name}
+                  {label}
                 </span>
                 <span className="text-muted-foreground mt-0.5 block text-xs tabular-nums">
                   {kind} · {formatFileSize(attachment.size_bytes)}

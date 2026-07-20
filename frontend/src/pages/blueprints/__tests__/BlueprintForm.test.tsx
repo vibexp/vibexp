@@ -20,6 +20,7 @@ const baseBlueprint: Blueprint = {
   id: 'bp-1',
   project_id: 'p1',
   slug: 'my-blueprint',
+  path: 'my-blueprint.md',
   user_id: 'user-1',
   content: 'Some blueprint content',
   created_at: '2024-01-01T00:00:00Z',

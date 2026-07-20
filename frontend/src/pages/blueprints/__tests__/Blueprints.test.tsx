@@ -132,6 +132,7 @@ function buildBlueprint(overrides: Partial<Blueprint> = {}): Blueprint {
     id: 'blueprint-1',
     project_id: 'proj-1',
     slug: 'api-spec',
+    path: 'api-spec.md',
     user_id: 'user-1',
     content: '# Blueprint content',
     created_at: '2026-01-01T00:00:00Z',

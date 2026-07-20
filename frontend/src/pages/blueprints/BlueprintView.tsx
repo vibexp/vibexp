@@ -25,6 +25,7 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
+import { formatDate } from '@/lib/time'
 import type { Blueprint, BlueprintVersion } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
@@ -267,6 +268,45 @@ export function BlueprintView() {
               </StatusBadge>
             </MetaRow>
             <MetaSlugRow value={blueprint.slug} />
+            <MetaRow label="Path">
+              <code
+                className="text-foreground/90 min-w-0 truncate font-mono text-xs"
+                title={blueprint.path}
+              >
+                {blueprint.path}
+              </code>
+            </MetaRow>
+            {blueprint.source && (
+              <>
+                {blueprint.source.repo && (
+                  <MetaRow label="Source">
+                    <a
+                      href={blueprint.source.repo}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary min-w-0 truncate text-sm hover:underline"
+                      title={blueprint.source.repo}
+                    >
+                      {blueprint.source.repo.replace(/^https?:\/\//, '')}
+                    </a>
+                  </MetaRow>
+                )}
+                {blueprint.source.commit_sha && (
+                  <MetaRow label="Commit">
+                    <code className="text-muted-foreground font-mono text-xs">
+                      {blueprint.source.commit_sha.slice(0, 7)}
+                    </code>
+                  </MetaRow>
+                )}
+                {blueprint.source.imported_at && (
+                  <MetaRow label="Imported">
+                    <span className="text-muted-foreground text-sm">
+                      {formatDate(blueprint.source.imported_at)}
+                    </span>
+                  </MetaRow>
+                )}
+              </>
+            )}
           </MetadataPanel>
 
           <AdditionalDataCard data={blueprint.metadata ?? {}} />

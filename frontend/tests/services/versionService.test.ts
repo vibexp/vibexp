@@ -53,6 +53,7 @@ describe('createBlueprintVersionSource', () => {
     id: 'bp-1',
     project_id: projectId,
     slug,
+    path: 'my-blueprint.md',
     user_id: 'user-123',
     title: 'My Blueprint',
     type: 'general',

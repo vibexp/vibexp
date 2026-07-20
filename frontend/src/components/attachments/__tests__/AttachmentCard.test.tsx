@@ -73,6 +73,22 @@ describe('AttachmentCard', () => {
     expect(onDownload).toHaveBeenCalledTimes(1)
   })
 
+  it('labels a skill companion by its relative subpath (#345)', () => {
+    renderCard({
+      attachments: [
+        makeAttachment({
+          file_name: 'helper.txt',
+          relative_path: 'scripts/helper.txt',
+        }),
+      ],
+    })
+    // The skill-relative subpath is the visible label...
+    expect(screen.getByText('scripts/helper.txt')).toBeInTheDocument()
+    expect(screen.queryByText('helper.txt')).not.toBeInTheDocument()
+    // ...while row actions still key off the basename file_name.
+    expect(screen.getByLabelText('Download helper.txt')).toBeInTheDocument()
+  })
+
   it('deletes an attachment', async () => {
     const { onDelete } = renderCard({
       attachments: [makeAttachment({ file_name: 'notes.txt' })],
