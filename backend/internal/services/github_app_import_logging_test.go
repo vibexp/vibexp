@@ -94,6 +94,7 @@ func newImportLoggingService(
 		blueprintRepo,
 		githubClient,
 		encryptionSvc,
+		nil, // attachmentSvc not needed
 		eventManager,
 		logger,
 	).(*GitHubAppService)

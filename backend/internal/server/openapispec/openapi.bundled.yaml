@@ -16640,6 +16640,23 @@ components:
           items:
             $ref: '#/components/schemas/BlueprintImportUpToDate'
           description: Details of blueprints whose repo file was unchanged
+        total_companions_imported:
+          type: integer
+          description: Number of Agent Skill companion files stored as attachments (newly imported or replaced on re-import)
+          example: 2
+        total_companions_removed:
+          type: integer
+          description: Number of companion files deleted during re-import reconciliation (absent from the re-imported skill)
+          example: 1
+        total_companions_skipped:
+          type: integer
+          description: Number of companion files rejected by the attachment service (oversized, over the per-owner budget, disallowed type, or storage unconfigured)
+          example: 1
+        companion_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlueprintImportCompanion'
+          description: Per-file outcomes for Agent Skill companion files, distinct from the blueprint (SKILL.md) outcomes
       required:
         - total_scanned
         - total_successful
@@ -16654,6 +16671,10 @@ components:
         - updated_items
         - conflict_items
         - up_to_date_items
+        - total_companions_imported
+        - total_companions_removed
+        - total_companions_skipped
+        - companion_items
     BlueprintImportUpdated:
       type: object
       description: A blueprint refreshed from a changed repo file during re-import
@@ -16708,6 +16729,35 @@ components:
       required:
         - file_path
         - blueprint_id
+    BlueprintImportCompanion:
+      type: object
+      description: Per-file outcome of importing one Agent Skill companion file (a sibling of a SKILL.md) as a blueprint-owned attachment.
+      properties:
+        blueprint_id:
+          type: string
+          description: ID of the blueprint (imported SKILL.md) that owns this companion
+          example: 01234567-89ab-cdef-0123-456789abcdef
+        relative_path:
+          type: string
+          description: Path of the companion file relative to the skill directory
+          example: scripts/helper.txt
+        outcome:
+          type: string
+          description: What happened to the companion file during import
+          enum:
+            - imported
+            - updated
+            - removed
+            - skipped
+          example: imported
+        reason:
+          type: string
+          description: Why the companion was skipped (present only when outcome is "skipped")
+          example: File type is not allowed
+      required:
+        - blueprint_id
+        - relative_path
+        - outcome
     UsageMetricsRow:
       type: object
       description: Weekly usage metrics for a single week

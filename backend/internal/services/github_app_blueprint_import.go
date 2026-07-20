@@ -2,8 +2,11 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,6 +21,11 @@ import (
 
 // msgSkippedBlueprintFile is the log message emitted for each repository file skipped during blueprint import.
 const msgSkippedBlueprintFile = "Skipped file during blueprint import"
+
+// attachmentOwnerTypeBlueprint is the attachment owner_type under which Agent
+// Skill companion files are stored (matches the server's ownerTypeBlueprint and
+// the registered blueprint attachment authorizer).
+const attachmentOwnerTypeBlueprint = "blueprint"
 
 // blueprintScanPath is a repository location scanned for importable blueprint files.
 type blueprintScanPath struct {
@@ -74,6 +82,7 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 		UpdatedItems:    []models.BlueprintImportUpdated{},
 		ConflictItems:   []models.BlueprintImportConflict{},
 		UpToDateItems:   []models.BlueprintImportUpToDate{},
+		CompanionItems:  []models.BlueprintImportCompanion{},
 	}
 
 	// 5. Resolve the branch head commit SHA once per run for import provenance.
@@ -199,8 +208,12 @@ func (s *GitHubAppService) scanBlueprintPath(
 	return nil
 }
 
-// scanBlueprintDirectory recursively lists a repository directory and imports each file.
-// It only returns an error on context cancellation; a missing directory is logged and skipped.
+// scanBlueprintDirectory recursively lists a repository directory and imports its
+// files. Agent Skill directories (a dir directly containing SKILL.md under a
+// skills-mapped prefix) import whole: the SKILL.md as a blueprint and every
+// sibling as a blueprint-owned attachment (#342). Every other file imports
+// individually, still markdown-only. It only returns an error on context
+// cancellation; a missing directory is logged and skipped.
 func (s *GitHubAppService) scanBlueprintDirectory(
 	ctx context.Context, job *blueprintImportJob, dirPath string,
 ) error {
@@ -216,18 +229,110 @@ func (s *GitHubAppService) scanBlueprintDirectory(
 		return nil
 	}
 
-	for _, file := range files {
+	// Every listed file counts as scanned, including skill companions.
+	for range files {
+		report.TotalScanned++
+		s.logImportProgress(report, repo.ID, job.teamID)
+	}
+
+	units, standalone := groupSkillUnits(files)
+
+	for _, file := range standalone {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
-
-		report.TotalScanned++
-		s.logImportProgress(report, repo.ID, job.teamID)
 		s.importSingleFile(ctx, job, file)
 	}
+
+	for _, unit := range units {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		s.importSkillUnit(ctx, job, unit)
+	}
 	return nil
+}
+
+// skillUnit is one Agent Skill directory grouped for whole-directory import: its
+// SKILL.md anchor plus every companion file beneath the directory.
+type skillUnit struct {
+	skillDir   string
+	anchor     *external.GitHubFile
+	companions []*external.GitHubFile
+}
+
+// isSkillAnchor reports whether a repository path is the SKILL.md of an Agent
+// Skill directory: its base name is SKILL.md and its path classifies to a
+// "skills" subtype under a skills-mapped prefix (per the shared blueprintpath
+// table). This is what makes ".claude/skills/foo/SKILL.md" a skill unit while a
+// stray SKILL.md elsewhere stays an ordinary markdown file.
+func isSkillAnchor(p string) bool {
+	if path.Base(p) != "SKILL.md" {
+		return false
+	}
+	_, subtype, ok := blueprintpath.FromPath(p)
+	return ok && subtype == "skills"
+}
+
+// groupSkillUnits partitions a directory listing into Agent Skill units and
+// standalone files. A file is a companion of the deepest skill directory that
+// contains it (nested skills are not a real Agent Skills shape, but deepest-match
+// keeps grouping unambiguous). Units are returned in the order their SKILL.md
+// appears in the listing; standalone files keep their listing order.
+func groupSkillUnits(files []*external.GitHubFile) (units []*skillUnit, standalone []*external.GitHubFile) {
+	unitByDir := make(map[string]*skillUnit)
+	var skillDirs []string
+	for _, f := range files {
+		if isSkillAnchor(f.Path) {
+			dir := path.Dir(f.Path)
+			unitByDir[dir] = &skillUnit{skillDir: dir, anchor: f}
+			skillDirs = append(skillDirs, dir)
+			units = append(units, unitByDir[dir])
+		}
+	}
+	// Match a companion to the deepest (longest) skill dir that is its ancestor.
+	ordered := append([]string(nil), skillDirs...)
+	sort.Slice(ordered, func(i, j int) bool { return len(ordered[i]) > len(ordered[j]) })
+
+	for _, f := range files {
+		if isSkillAnchor(f.Path) {
+			continue
+		}
+		owner := ""
+		for _, dir := range ordered {
+			if strings.HasPrefix(f.Path, dir+"/") {
+				owner = dir
+				break
+			}
+		}
+		if owner == "" {
+			standalone = append(standalone, f)
+			continue
+		}
+		unitByDir[owner].companions = append(unitByDir[owner].companions, f)
+	}
+	return units, standalone
+}
+
+// importSkillUnit imports one Agent Skill directory: its SKILL.md as a blueprint,
+// then (only when the blueprint was created or refreshed from an unedited skill)
+// its companion files as blueprint-owned attachments, reconciled by
+// relative_path. A skipped/failed SKILL.md, an up-to-date skill, or a
+// VibeXP-edited (conflict) skill leaves companions untouched.
+func (s *GitHubAppService) importSkillUnit(ctx context.Context, job *blueprintImportJob, unit *skillUnit) {
+	blueprint, outcome := s.importSingleFileWithOutcome(ctx, job, unit.anchor)
+	if blueprint == nil {
+		return // skipped or failed — never touch companions
+	}
+	switch outcome {
+	case outcomeCreated, outcomeUpdated:
+		s.reconcileCompanions(ctx, job, blueprint.ID, unit)
+	default: // outcomeUpToDate, outcomeConflict — leave companions untouched
+	}
 }
 
 // logImportProgress logs import progress every importProgressInterval files scanned.
@@ -245,14 +350,37 @@ func (s *GitHubAppService) logImportProgress(report *models.BlueprintImportRepor
 	}
 }
 
+// importOutcome is the result of importing one blueprint file, so a skill unit
+// can decide whether to touch companions (only for a created or unedited-refresh
+// SKILL.md).
+type importOutcome int
+
+const (
+	outcomeSkipped  importOutcome = iota // guard rejected the file (non-.md, empty, too large)
+	outcomeFailed                        // create/update persistence failed
+	outcomeCreated                       // a brand-new blueprint was persisted
+	outcomeUpdated                       // an unedited blueprint was refreshed from a changed repo file
+	outcomeUpToDate                      // repo file unchanged since import (no-op)
+	outcomeConflict                      // blueprint edited in VibeXP (left untouched)
+)
+
 // importSingleFile imports a single repository file as a blueprint, or reconciles
 // it against an existing blueprint (update-aware re-import, #341).
 func (s *GitHubAppService) importSingleFile(
 	ctx context.Context, job *blueprintImportJob, file *external.GitHubFile,
 ) {
+	s.importSingleFileWithOutcome(ctx, job, file)
+}
+
+// importSingleFileWithOutcome imports one repository file as a blueprint and
+// reports both the resulting blueprint (nil when skipped or failed) and the
+// outcome, so multi-file skill import can gate companion handling on it (#342).
+func (s *GitHubAppService) importSingleFileWithOutcome(
+	ctx context.Context, job *blueprintImportJob, file *external.GitHubFile,
+) (*models.Blueprint, importOutcome) {
 	userID, teamID, projectID, repo, report := job.userID, job.teamID, job.projectID, job.repo, job.report
 	if s.shouldSkipImportFile(file, repo, teamID, report) {
-		return
+		return nil, outcomeSkipped
 	}
 
 	blueprintType, subtype := s.determineTypeFromPath(file.Path)
@@ -269,10 +397,14 @@ func (s *GitHubAppService) importSingleFile(
 	// Match an existing blueprint by (project_id, path) first, then slug.
 	existing := s.findExistingForReimport(ctx, userID, teamID, projectID, file.Path, blueprint.Slug)
 	if existing == nil {
-		s.createImportedBlueprint(ctx, job, file, blueprint)
-		return
+		if err := s.blueprintRepo.Create(ctx, blueprint); err != nil {
+			s.recordFailedImport(job.report, file.Path, blueprint.Slug, err)
+			return nil, outcomeFailed
+		}
+		s.recordImportedBlueprint(file, job.repo, job.teamID, blueprint, job.report)
+		return blueprint, outcomeCreated
 	}
-	s.reconcileReimport(ctx, job, file, existing, blueprint)
+	return s.reconcileReimport(ctx, job, file, existing, blueprint)
 }
 
 // findExistingForReimport returns the blueprint an imported file maps to, matching
@@ -290,37 +422,31 @@ func (s *GitHubAppService) findExistingForReimport(
 	return nil
 }
 
-// createImportedBlueprint persists a brand-new imported blueprint.
-func (s *GitHubAppService) createImportedBlueprint(
-	ctx context.Context, job *blueprintImportJob, file *external.GitHubFile, blueprint *models.Blueprint,
-) {
-	if err := s.blueprintRepo.Create(ctx, blueprint); err != nil {
-		s.recordFailedImport(job.report, file.Path, blueprint.Slug, err)
-		return
-	}
-	s.recordImportedBlueprint(file, job.repo, job.teamID, blueprint, job.report)
-}
-
 // reconcileReimport applies the update-aware re-import outcome for an existing
 // blueprint: unchanged repo file -> up-to-date (no-op); changed file with a
 // VibeXP-edited blueprint -> conflict (untouched); changed file with an unedited
-// blueprint -> update raw + parsed content + provenance.
+// blueprint -> update raw + parsed content + provenance. It returns the existing
+// blueprint and the mapped import outcome so callers (e.g. skill-unit import)
+// can decide follow-up work.
 func (s *GitHubAppService) reconcileReimport(
 	ctx context.Context, job *blueprintImportJob,
 	file *external.GitHubFile, existing, imported *models.Blueprint,
-) {
+) (*models.Blueprint, importOutcome) {
 	switch reimportOutcome(existing, file) {
 	case reimportUpToDate:
 		s.recordUpToDate(job.report, file.Path, existing)
+		return existing, outcomeUpToDate
 	case reimportConflict:
 		s.recordConflict(job.report, file.Path, existing)
+		return existing, outcomeConflict
 	default: // reimportUpdate
 		applyReimportUpdate(existing, imported)
 		if err := s.blueprintRepo.UpdateOnReimport(ctx, existing); err != nil {
 			s.recordFailedImport(job.report, file.Path, existing.Slug, err)
-			return
+			return nil, outcomeFailed
 		}
 		s.recordUpdated(file, job.teamID, existing, job.report)
+		return existing, outcomeUpdated
 	}
 }
 
@@ -598,6 +724,204 @@ func recordSkippedImportFile(report *models.BlueprintImportReport, filePath, rea
 	report.SkippedItems = append(report.SkippedItems, models.BlueprintImportSkipped{
 		FilePath: filePath,
 		Reason:   reason,
+	})
+}
+
+// Companion outcome labels for the import report (models.BlueprintImportCompanion.Outcome).
+const (
+	companionImported = "imported"
+	companionUpdated  = "updated"
+	companionRemoved  = "removed"
+	companionSkipped  = "skipped"
+)
+
+// reconcileCompanions stores an Agent Skill's companion files as blueprint-owned
+// attachments and reconciles them by relative_path against what is already
+// stored (#342): a companion new to the skill is added, one whose bytes changed
+// replaces the stored copy, and one absent from the re-imported skill is
+// removed. The attachment service is the authority on per-file/per-owner size
+// limits, the safe-type allowlist, and storage-unconfigured degradation — each
+// of its rejections becomes a per-companion skip in the report, and the SKILL.md
+// blueprint (already imported) is never affected.
+func (s *GitHubAppService) reconcileCompanions(
+	ctx context.Context, job *blueprintImportJob, blueprintID string, unit *skillUnit,
+) {
+	existing := s.listCompanions(ctx, blueprintID)
+	seen := make(map[string]struct{}, len(unit.companions))
+
+	for _, file := range unit.companions {
+		relPath := strings.TrimPrefix(file.Path, unit.skillDir+"/")
+		seen[relPath] = struct{}{}
+		s.storeCompanion(ctx, job, blueprintID, relPath, file, existing[relPath])
+	}
+
+	// Remove companions that are no longer part of the re-imported skill.
+	relPaths := make([]string, 0, len(existing))
+	for relPath := range existing {
+		relPaths = append(relPaths, relPath)
+	}
+	sort.Strings(relPaths)
+	for _, relPath := range relPaths {
+		if _, kept := seen[relPath]; kept {
+			continue
+		}
+		att := existing[relPath]
+		if err := s.attachmentSvc.Delete(ctx, attachmentOwnerTypeBlueprint, blueprintID, att.ID); err != nil {
+			s.logger.With("error", err, "blueprint_id", blueprintID, "relative_path", relPath).
+				Warn("Failed to remove stale skill companion during re-import")
+			continue
+		}
+		s.recordCompanion(job.report, blueprintID, relPath, companionRemoved, "")
+	}
+}
+
+// listCompanions returns the blueprint's currently stored companions keyed by
+// relative_path. A companion stored without a relative_path (not produced by
+// skill import) is ignored so reconciliation only ever touches skill companions.
+// A listing error (e.g. storage unconfigured) degrades to an empty set so a
+// fresh import still proceeds.
+func (s *GitHubAppService) listCompanions(ctx context.Context, blueprintID string) map[string]models.Attachment {
+	byPath := make(map[string]models.Attachment)
+	list, err := s.attachmentSvc.List(ctx, attachmentOwnerTypeBlueprint, blueprintID)
+	if err != nil || list == nil {
+		return byPath
+	}
+	for i := range list.Attachments {
+		att := list.Attachments[i]
+		if att.RelativePath == "" {
+			continue
+		}
+		byPath[att.RelativePath] = att
+	}
+	return byPath
+}
+
+// storeCompanion uploads one companion file, replacing a stored copy at the same
+// relative_path when present. Size/type/budget enforcement and the
+// storage-unconfigured case are delegated to the attachment service; any
+// rejection is recorded as a per-companion skip and never disturbs the already
+// stored copy (the new bytes are validated by Upload before the old copy is
+// removed).
+func (s *GitHubAppService) storeCompanion(
+	ctx context.Context, job *blueprintImportJob,
+	blueprintID, relPath string, file *external.GitHubFile, existing models.Attachment,
+) {
+	oldAtt, hasExisting := existingAttachment(existing)
+
+	// A companion whose byte length matches the stored copy is treated as
+	// unchanged and left in place, so a re-import does not churn every companion.
+	// Change-detection is size-based because attachments carry no content hash; a
+	// same-size edit is therefore not detected — an accepted v1 limitation
+	// (companion files are not version-tracked). Companion change-detection is
+	// also keyed off the SKILL.md: a companion edit under an unchanged SKILL.md is
+	// only reconciled on the next import that also changes the SKILL.md.
+	if hasExisting && oldAtt.SizeBytes == int64(len(file.Content)) {
+		return
+	}
+
+	// Replacing a changed companion: the partial-unique (owner_type, owner_id,
+	// relative_path) index forbids two rows at the same path, so the stored copy
+	// must be removed before the replacement is uploaded. Pre-validate size first
+	// so an oversized replacement never destroys the good stored copy (a same-path
+	// replacement of an already-allowed file can only newly fail on size).
+	if hasExisting {
+		if reason, skip := companionPreflightSkip(file); skip {
+			s.recordCompanion(job.report, blueprintID, relPath, companionSkipped, reason)
+			return
+		}
+		if delErr := s.attachmentSvc.Delete(ctx, attachmentOwnerTypeBlueprint, blueprintID, oldAtt.ID); delErr != nil {
+			s.logger.With("error", delErr, "blueprint_id", blueprintID, "relative_path", relPath).
+				Warn("Failed to remove superseded skill companion before re-upload during re-import")
+		}
+	}
+
+	if _, err := s.attachmentSvc.Upload(ctx, UploadAttachmentParams{
+		TeamID:       job.teamID,
+		UserID:       job.userID,
+		OwnerType:    attachmentOwnerTypeBlueprint,
+		OwnerID:      blueprintID,
+		FileName:     path.Base(relPath),
+		RelativePath: relPath,
+		DeclaredSize: int64(len(file.Content)),
+		File:         strings.NewReader(file.Content),
+	}); err != nil {
+		s.logger.With(
+			"error", err,
+			"blueprint_id", blueprintID,
+			"relative_path", relPath,
+			"repo_id", job.repo.ID,
+			"team_id", job.teamID,
+		).Info("Skipped skill companion during blueprint import")
+		s.recordCompanion(job.report, blueprintID, relPath, companionSkipped, companionSkipReason(err))
+		return
+	}
+
+	outcome := companionImported
+	if hasExisting {
+		outcome = companionUpdated
+	}
+	s.recordCompanion(job.report, blueprintID, relPath, outcome, "")
+}
+
+// companionPreflightSkip reports the reason a companion cannot be stored at all
+// (empty or over the per-file limit), used to protect a stored copy before it is
+// deleted for replacement. Other rejections are left to the attachment service.
+func companionPreflightSkip(file *external.GitHubFile) (string, bool) {
+	switch {
+	case len(file.Content) == 0:
+		return "Empty file", true
+	case int64(len(file.Content)) > MaxAttachmentFileSize:
+		return "File exceeds the 5 MB per-file limit", true
+	default:
+		return "", false
+	}
+}
+
+// existingAttachment reports whether a companion lookup found a stored row (its
+// zero value has an empty ID).
+func existingAttachment(att models.Attachment) (models.Attachment, bool) {
+	return att, att.ID != ""
+}
+
+// companionSkipReason maps an attachment-service error to a human-readable skip
+// reason for the import report.
+func companionSkipReason(err error) string {
+	switch {
+	case errors.Is(err, ErrAttachmentStorageNotConfigured):
+		return "Attachment storage is not configured"
+	case errors.Is(err, ErrAttachmentTooLarge):
+		return "File exceeds the 5 MB per-file limit"
+	case errors.Is(err, ErrAttachmentTotalSizeExceeded):
+		return "Companions exceed the 10 MB total limit for this skill"
+	case errors.Is(err, ErrAttachmentDisallowedType):
+		return "File type is not allowed"
+	case errors.Is(err, ErrAttachmentEmpty):
+		return "Empty file"
+	case errors.Is(err, ErrInvalidAttachmentRelativePath):
+		return "Invalid companion path"
+	default:
+		return "Failed to store companion file"
+	}
+}
+
+// recordCompanion appends a companion outcome to the import report and bumps the
+// matching counter.
+func (s *GitHubAppService) recordCompanion(
+	report *models.BlueprintImportReport, blueprintID, relPath, outcome, reason string,
+) {
+	switch outcome {
+	case companionImported, companionUpdated:
+		report.TotalCompanionsImported++
+	case companionRemoved:
+		report.TotalCompanionsRemoved++
+	case companionSkipped:
+		report.TotalCompanionsSkipped++
+	}
+	report.CompanionItems = append(report.CompanionItems, models.BlueprintImportCompanion{
+		BlueprintID:  blueprintID,
+		RelativePath: relPath,
+		Outcome:      outcome,
+		Reason:       reason,
 	})
 }
 

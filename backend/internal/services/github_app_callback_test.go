@@ -32,6 +32,7 @@ func newCallbackTestService(
 		blueprintRepo,
 		githubClient,
 		encryptionSvc,
+		nil, // attachmentSvc not needed
 		eventManager,
 		logger,
 	)

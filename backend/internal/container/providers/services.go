@@ -655,6 +655,7 @@ func ProvideGitHubAppService(
 	blueprintRepo repositories.BlueprintRepository,
 	githubClient external.GitHubAppClient,
 	encryptionSvc services.EncryptionServiceInterface,
+	attachmentSvc services.AttachmentServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) services.GitHubAppServiceInterface {
@@ -664,6 +665,7 @@ func ProvideGitHubAppService(
 		blueprintRepo,
 		githubClient,
 		encryptionSvc,
+		attachmentSvc,
 		eventManager,
 		logger,
 	)

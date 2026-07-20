@@ -30,8 +30,14 @@ type GitHubAppService struct {
 	blueprintRepo    repositories.BlueprintRepository
 	githubClient     external.GitHubAppClient
 	encryptionSvc    EncryptionServiceInterface
-	eventManager     events.EventPublisher
-	logger           *slog.Logger
+	// attachmentSvc stores Agent Skill companion files as blueprint-owned
+	// attachments during multi-file skill import (#342). It is the authority on
+	// per-file/per-owner size limits, the safe-type allowlist, and
+	// storage-unconfigured degradation — the importer treats its errors as
+	// per-companion skips.
+	attachmentSvc AttachmentServiceInterface
+	eventManager  events.EventPublisher
+	logger        *slog.Logger
 }
 
 // NewGitHubAppService creates a new GitHub App service
@@ -41,6 +47,7 @@ func NewGitHubAppService(
 	blueprintRepo repositories.BlueprintRepository,
 	githubClient external.GitHubAppClient,
 	encryptionSvc EncryptionServiceInterface,
+	attachmentSvc AttachmentServiceInterface,
 	eventManager events.EventPublisher,
 	logger *slog.Logger,
 ) GitHubAppServiceInterface {
@@ -50,6 +57,7 @@ func NewGitHubAppService(
 		blueprintRepo:    blueprintRepo,
 		githubClient:     githubClient,
 		encryptionSvc:    encryptionSvc,
+		attachmentSvc:    attachmentSvc,
 		eventManager:     eventManager,
 		logger:           logger,
 	}

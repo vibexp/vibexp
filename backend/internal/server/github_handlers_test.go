@@ -593,6 +593,46 @@ func TestHandleGitHubImportBlueprints_ReimportOutcomes(t *testing.T) {
 	specconformance.AssertConformsToSpec(t, req, rr)
 }
 
+// TestHandleGitHubImportBlueprints_CompanionOutcomes conformance-checks the
+// report shape carrying multi-file skill companion outcomes (#342).
+func TestHandleGitHubImportBlueprints_CompanionOutcomes(t *testing.T) {
+	container, _ := newGitHubTestContainer(t)
+	srv := createGitHubTestServer(container)
+
+	report := &models.BlueprintImportReport{
+		TotalScanned:            3,
+		TotalSuccessful:         1,
+		TotalCompanionsImported: 1,
+		TotalCompanionsSkipped:  1,
+		SuccessfulItems: []models.BlueprintImportSuccess{
+			{FilePath: ".claude/skills/deploy/SKILL.md", BlueprintID: "bp-1", Title: "Deploy", Type: "claude-code", Subtype: "skills"},
+		},
+		FailedItems:  []models.BlueprintImportFailed{},
+		SkippedItems: []models.BlueprintImportSkipped{},
+		CompanionItems: []models.BlueprintImportCompanion{
+			{BlueprintID: "bp-1", RelativePath: "reference/data.json", Outcome: "imported"},
+			{BlueprintID: "bp-1", RelativePath: "scripts/helper.py", Outcome: "skipped", Reason: "File type is not allowed"},
+		},
+	}
+	container.gitHubAppService.On(
+		"ImportBlueprintsFromRepository",
+		mock.Anything, githubTestUserID, githubTestTeamID, int64(42),
+	).Return(report, nil)
+
+	req := makeGitHubPOSTAuthRequest(
+		"/api/v1/"+githubTestTeamID+"/integrations/github/import-blueprints",
+		map[string]interface{}{"repository_id": 42})
+	req = addGitHubChiParams(req, map[string]string{"team_id": githubTestTeamID})
+	rr := httptest.NewRecorder()
+
+	srv.handleGitHubImportBlueprints(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"total_companions_imported":1`)
+	assert.Contains(t, rr.Body.String(), `"companion_items"`)
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
 func TestHandleGitHubImportBlueprints_ServiceError_NoActivityRecorded(t *testing.T) {
 	container, trackingSvc := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
