@@ -82,7 +82,7 @@ func TestMemoryService_DeleteMemory_OwnVsAny(t *testing.T) {
 				repo.EXPECT().Delete(mock.Anything, resRBACCaller, resRBACTeamID, memoryID).Return(nil).Once()
 			}
 
-			svc := NewMemoryService(repo, nil, authzForRole(t, tc.role), nil, logger, nil, nil)
+			svc := NewMemoryService(repo, nil, authzForRole(t, tc.role), nil, logger, nil, nil, nil)
 			err := svc.DeleteMemory(resRBACCaller, resRBACTeamID, memoryID)
 
 			if tc.allowed {
@@ -99,7 +99,7 @@ func TestMemoryService_CreateMemory_NonMemberDenied(t *testing.T) {
 	repo := mocks.NewMockMemoryRepository(t)
 	logger, _ := logtest.New()
 
-	svc := NewMemoryService(repo, nil, authzForRole(t, ""), nil, logger, nil, nil)
+	svc := NewMemoryService(repo, nil, authzForRole(t, ""), nil, logger, nil, nil, nil)
 	_, err := svc.CreateMemory(resRBACCaller, resRBACTeamID, &models.CreateMemoryRequest{Text: "t"})
 
 	assert.ErrorIs(t, err, ErrPermissionDenied)
@@ -118,7 +118,7 @@ func TestMemoryService_UpdateMemory_AnyMemberMayUpdateAnothers(t *testing.T) {
 	repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 
 	text := "edited by a plain member"
-	svc := NewMemoryService(repo, nil, authzForRole(t, models.TeamMemberRoleMember), nil, logger, nil, nil)
+	svc := NewMemoryService(repo, nil, authzForRole(t, models.TeamMemberRoleMember), nil, logger, nil, nil, nil)
 	_, err := svc.UpdateMemory(resRBACCaller, resRBACTeamID, memoryID, &models.UpdateMemoryRequest{Text: &text})
 
 	assert.NoError(t, err)

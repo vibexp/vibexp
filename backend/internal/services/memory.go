@@ -20,6 +20,7 @@ type MemoryService struct {
 	eventManager      events.EventPublisher
 	contentVersionSvc ContentVersionServiceInterface
 	commentRepo       repositories.CommentRepository
+	relationRepo      repositories.RelationRepository
 	logger            *slog.Logger
 }
 
@@ -34,6 +35,7 @@ func NewMemoryService(
 	logger *slog.Logger,
 	contentVersionSvc ContentVersionServiceInterface,
 	commentRepo repositories.CommentRepository,
+	relationRepo repositories.RelationRepository,
 ) *MemoryService {
 	return &MemoryService{
 		repo:              repo,
@@ -42,6 +44,7 @@ func NewMemoryService(
 		eventManager:      eventManager,
 		contentVersionSvc: contentVersionSvc,
 		commentRepo:       commentRepo,
+		relationRepo:      relationRepo,
 		logger:            logger,
 	}
 }
@@ -326,6 +329,7 @@ func (s *MemoryService) DeleteMemory(userID, teamID, memoryID string) error {
 	}
 
 	s.deleteMemoryComments(ctx, teamID, memoryID)
+	s.deleteMemoryRelations(ctx, teamID, memoryID)
 
 	return nil
 }
@@ -345,6 +349,24 @@ func (s *MemoryService) deleteMemoryComments(ctx context.Context, teamID, memory
 			"memory_id", memoryID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete comments for deleted memory")
+	}
+}
+
+// deleteMemoryRelations removes every relation the memory appears on (either
+// endpoint) after it is deleted. Best-effort, like the comment cascade.
+func (s *MemoryService) deleteMemoryRelations(ctx context.Context, teamID, memoryID string) {
+	if s.relationRepo == nil {
+		return
+	}
+	if _, err := s.relationRepo.DeleteByResource(
+		ctx, teamID, models.RelationResourceTypeMemory, memoryID,
+	); err != nil {
+		s.logger.With(
+			"service", "memory",
+			"team_id", teamID,
+			"memory_id", memoryID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete relations for deleted memory")
 	}
 }
 

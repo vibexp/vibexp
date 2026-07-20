@@ -71,7 +71,7 @@ func TestMemoryService_UpdateSnapshotsOldContent(t *testing.T) {
 					Once()
 			}
 
-			svc := services.NewMemoryService(repo, nil, permissiveAuthz(t), nil, logger, cvs, nil)
+			svc := services.NewMemoryService(repo, nil, permissiveAuthz(t), nil, logger, cvs, nil, nil)
 
 			text := tt.newContent
 			_, err := svc.UpdateMemory(userID, teamID, memoryID, &models.UpdateMemoryRequest{Text: &text})
@@ -119,7 +119,7 @@ func TestMemoryService_RestoreSnapshotsAsSystem(t *testing.T) {
 		Once()
 	repo.EXPECT().Update(mock.Anything, mock.Anything).Return(nil).Once()
 
-	svc := services.NewMemoryService(repo, nil, permissiveAuthz(t), nil, logger, cvs, nil)
+	svc := services.NewMemoryService(repo, nil, permissiveAuthz(t), nil, logger, cvs, nil, nil)
 	restored, err := svc.RestoreMemoryVersion(userID, teamID, memoryID, 2)
 	require.NoError(t, err)
 	require.Equal(t, "v2-content", restored.Text)
@@ -145,7 +145,7 @@ func TestMemoryService_ListAndGetVersionsScopeByTeam(t *testing.T) {
 		want := []*models.ContentVersion{{VersionNumber: 1}}
 		cvs.EXPECT().ListVersions(mock.Anything, teamID, "memory", memoryID).Return(want, nil).Once()
 
-		svc := services.NewMemoryService(repo, nil, permissiveAuthz(t), nil, logger, cvs, nil)
+		svc := services.NewMemoryService(repo, nil, permissiveAuthz(t), nil, logger, cvs, nil, nil)
 		got, err := svc.ListMemoryVersions(userID, teamID, memoryID)
 		require.NoError(t, err)
 		require.Equal(t, want, got)
@@ -161,7 +161,7 @@ func TestMemoryService_ListAndGetVersionsScopeByTeam(t *testing.T) {
 		want := &models.ContentVersion{VersionNumber: 3}
 		cvs.EXPECT().GetVersion(mock.Anything, teamID, "memory", memoryID, 3).Return(want, nil).Once()
 
-		svc := services.NewMemoryService(repo, nil, permissiveAuthz(t), nil, logger, cvs, nil)
+		svc := services.NewMemoryService(repo, nil, permissiveAuthz(t), nil, logger, cvs, nil, nil)
 		got, err := svc.GetMemoryVersion(userID, teamID, memoryID, 3)
 		require.NoError(t, err)
 		require.Equal(t, want, got)
@@ -195,7 +195,7 @@ func TestRestoreMemoryVersion_IsGated(t *testing.T) {
 		Return(services.ErrPermissionDenied).Once()
 
 	logger, _ := logtest.New()
-	svc := services.NewMemoryService(repo, nil, authzMock, nil, logger, cvs, nil)
+	svc := services.NewMemoryService(repo, nil, authzMock, nil, logger, cvs, nil, nil)
 
 	_, err := svc.RestoreMemoryVersion(userID, teamID, memoryID, 2)
 

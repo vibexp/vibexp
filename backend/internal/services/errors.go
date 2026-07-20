@@ -36,6 +36,29 @@ var ErrAlreadyTeamOwner = errors.New("user already owns this team")
 // too low" to a caller.
 var ErrPermissionDenied = errors.New("permission denied")
 
+// Relation Errors
+
+// ErrRelationInvalidType is returned when a relation's object (to) type does
+// not satisfy the type its relation_type requires (RelationTypeMatrix): e.g. a
+// governed-by whose object is not a blueprint, or a supersedes across types.
+var ErrRelationInvalidType = errors.New("relation object type not allowed for this relation type")
+
+// ErrRelationSelfLink is returned when a relation's two endpoints are the same
+// resource (same type and id); a resource cannot relate to itself.
+var ErrRelationSelfLink = errors.New("a resource cannot relate to itself")
+
+// ErrRelationCrossProject is returned when a relation's two endpoints live in
+// different projects; relations are within a single project.
+var ErrRelationCrossProject = errors.New("relation endpoints must be in the same project")
+
+// ErrRelationResourceNotFound is returned when a relation endpoint does not
+// exist in the team (missing or foreign resource).
+var ErrRelationResourceNotFound = errors.New("relation resource not found")
+
+// ErrRelationAlreadyConfirmed is returned when confirming a relation that is
+// already in the confirmed state.
+var ErrRelationAlreadyConfirmed = errors.New("relation is already confirmed")
+
 // Embedding Provider Errors
 
 // ErrProviderNotFound is returned when an embedding provider is not found
