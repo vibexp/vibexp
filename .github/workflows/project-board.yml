@@ -32,7 +32,10 @@ permissions:
   issues: read
 
 concurrency:
-  group: project-board
+  # Per-issue for opened events (never cancel another issue's add) and per-run
+  # for sweeps (never cancel a scheduled sweep). A single shared group would let
+  # GitHub cancel superseded *pending* runs, silently dropping some board adds.
+  group: project-board-${{ github.event.issue.number || github.run_id }}
   cancel-in-progress: false
 
 env:
