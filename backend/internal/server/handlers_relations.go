@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -35,6 +36,31 @@ var _ relationsgen.StrictServerInterface = (*relationsStrictServer)(nil)
 // relatedOnReadCap bounds the depth-1 typed neighborhood surfaced on a resource
 // detail GET (issue #424).
 const relatedOnReadCap = 20
+
+// enqueueTeamRelationSeed fires the one-shot embedding-similarity relation seed
+// backfill for a team in the background (issue #426), coalescing concurrent
+// triggers via a per-team in-flight guard so a repeated click never stacks
+// duplicate runs. userID (the authorized trigger caller) is recorded as the
+// created_by / confirmer of the seeded edges; every seeded edge is origin=ai.
+func (s *Server) enqueueTeamRelationSeed(teamID, userID string) {
+	logger := s.logger.With(
+		"service", serverLogServiceName,
+		"component", "relation-seed",
+		"team_id", teamID,
+	)
+
+	if _, inFlight := s.relationSeedInFlight.LoadOrStore(teamID, struct{}{}); inFlight {
+		logger.Info("Team relation seed already in flight; skipping duplicate trigger")
+		return
+	}
+
+	go func() {
+		defer s.relationSeedInFlight.Delete(teamID)
+		if _, err := s.container.RelationSeedService().Backfill(context.Background(), userID, teamID); err != nil {
+			logger.With("error", fmt.Sprintf("%+v", err)).Error("Background relation seed backfill failed")
+		}
+	}()
+}
 
 // relatedForResource loads a resource's depth-1 typed neighborhood for the
 // `related` field on its detail GET: both directions, newest first, capped at
@@ -164,6 +190,26 @@ func (rs *relationsStrictServer) DeleteRelation(
 		return nil, rs.relationError(ctx, "DeleteRelation", teamID, delErr)
 	}
 	return relationsgen.DeleteRelation204Response{}, nil
+}
+
+// SeedRelations handles POST /api/v1/{team_id}/relations/seed. It authorizes the
+// caller synchronously (resource.create) and then fires the one-shot seed
+// backfill in the background, returning 202 immediately.
+func (rs *relationsStrictServer) SeedRelations(
+	ctx context.Context, request relationsgen.SeedRelationsRequestObject,
+) (relationsgen.SeedRelationsResponseObject, error) {
+	teamID := request.TeamId.String()
+	userID, err := authedUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if authzErr := rs.s.container.AuthorizationService().Can(ctx, userID, teamID, authz.ResourceCreate); authzErr != nil {
+		return nil, rs.relationError(ctx, "SeedRelations", teamID, authzErr)
+	}
+
+	rs.s.enqueueTeamRelationSeed(teamID, userID)
+	return relationsgen.SeedRelations202Response{}, nil
 }
 
 // relationError maps a RelationService error to an RFC 9457 APIError. Recognized

@@ -17,6 +17,7 @@ packages:
       AttachmentServiceInterface:
       CommentServiceInterface:
       RelationServiceInterface:
+      RelationSeedServiceInterface:
       TypeServiceInterface:
       BlueprintServiceInterface:
       EmbeddingProviderServiceInterface:

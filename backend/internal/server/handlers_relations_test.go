@@ -33,14 +33,25 @@ const (
 	testRelationsProjectID  = "aa0e8400-e29b-41d4-a716-446655440005"
 )
 
-// MockRelationsContainer overrides only the relation service on the base container.
+// MockRelationsContainer overrides the relation, relation-seed, and
+// authorization services on the base container.
 type MockRelationsContainer struct {
 	BaseMockContainer
-	relationService services.RelationServiceInterface
+	relationService     services.RelationServiceInterface
+	relationSeedService services.RelationSeedServiceInterface
+	authzService        services.AuthorizationServiceInterface
 }
 
 func (c *MockRelationsContainer) RelationService() services.RelationServiceInterface {
 	return c.relationService
+}
+
+func (c *MockRelationsContainer) RelationSeedService() services.RelationSeedServiceInterface {
+	return c.relationSeedService
+}
+
+func (c *MockRelationsContainer) AuthorizationService() services.AuthorizationServiceInterface {
+	return c.authzService
 }
 
 func createTestRelationsServer(svc services.RelationServiceInterface) *Server {

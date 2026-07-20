@@ -486,6 +486,9 @@ type ServerInterface interface {
 	// Create a relation
 	// (POST /api/v1/{team_id}/relations)
 	CreateRelation(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
+	// Seed suggested relations from embedding similarity
+	// (POST /api/v1/{team_id}/relations/seed)
+	SeedRelations(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
 	// Delete a relation
 	// (DELETE /api/v1/{team_id}/relations/{relation_id})
 	DeleteRelation(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, relationId openapi_types.UUID)
@@ -507,6 +510,12 @@ func (_ Unimplemented) ListRelations(w http.ResponseWriter, r *http.Request, tea
 // Create a relation
 // (POST /api/v1/{team_id}/relations)
 func (_ Unimplemented) CreateRelation(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Seed suggested relations from embedding similarity
+// (POST /api/v1/{team_id}/relations/seed)
+func (_ Unimplemented) SeedRelations(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -645,6 +654,40 @@ func (siw *ServerInterfaceWrapper) CreateRelation(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateRelation(w, r, teamId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SeedRelations operation middleware
+func (siw *ServerInterfaceWrapper) SeedRelations(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "team_id" -------------
+	var teamId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "team_id", chi.URLParam(r, "team_id"), &teamId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SeedRelations(w, r, teamId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -860,6 +903,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/{team_id}/relations", wrapper.CreateRelation)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/{team_id}/relations/seed", wrapper.SeedRelations)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/{team_id}/relations/{relation_id}", wrapper.DeleteRelation)
 	})
 	r.Group(func(r chi.Router) {
@@ -1044,6 +1090,64 @@ func (response CreateRelation404ApplicationProblemPlusJSONResponse) VisitCreateR
 type CreateRelation500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response CreateRelation500ApplicationProblemPlusJSONResponse) VisitCreateRelationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SeedRelationsRequestObject struct {
+	TeamId openapi_types.UUID `json:"team_id"`
+}
+
+type SeedRelationsResponseObject interface {
+	VisitSeedRelationsResponse(w http.ResponseWriter) error
+}
+
+type SeedRelations202Response struct {
+}
+
+func (response SeedRelations202Response) VisitSeedRelationsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(202)
+	return nil
+}
+
+type SeedRelations401ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response SeedRelations401ApplicationProblemPlusJSONResponse) VisitSeedRelationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SeedRelations403ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response SeedRelations403ApplicationProblemPlusJSONResponse) VisitSeedRelationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SeedRelations500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response SeedRelations500ApplicationProblemPlusJSONResponse) VisitSeedRelationsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1257,6 +1361,9 @@ type StrictServerInterface interface {
 	// Create a relation
 	// (POST /api/v1/{team_id}/relations)
 	CreateRelation(ctx context.Context, request CreateRelationRequestObject) (CreateRelationResponseObject, error)
+	// Seed suggested relations from embedding similarity
+	// (POST /api/v1/{team_id}/relations/seed)
+	SeedRelations(ctx context.Context, request SeedRelationsRequestObject) (SeedRelationsResponseObject, error)
 	// Delete a relation
 	// (DELETE /api/v1/{team_id}/relations/{relation_id})
 	DeleteRelation(ctx context.Context, request DeleteRelationRequestObject) (DeleteRelationResponseObject, error)
@@ -1347,6 +1454,32 @@ func (sh *strictHandler) CreateRelation(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateRelationResponseObject); ok {
 		if err := validResponse.VisitCreateRelationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SeedRelations operation middleware
+func (sh *strictHandler) SeedRelations(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
+	var request SeedRelationsRequestObject
+
+	request.TeamId = teamId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SeedRelations(ctx, request.(SeedRelationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SeedRelations")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SeedRelationsResponseObject); ok {
+		if err := validResponse.VisitSeedRelationsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

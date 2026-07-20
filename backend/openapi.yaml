@@ -1116,6 +1116,8 @@ paths:
     $ref: "./paths/relations.yaml#/api-v1-team_id-relations-relation_id-confirm"
   /api/v1/{team_id}/relations/{relation_id}:
     $ref: "./paths/relations.yaml#/api-v1-team_id-relations-relation_id"
+  /api/v1/{team_id}/relations/seed:
+    $ref: "./paths/relations.yaml#/api-v1-team_id-relations-seed"
   /api/v1/{team_id}/embedding-providers:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers"
   /api/v1/{team_id}/embedding-providers/coverage:
