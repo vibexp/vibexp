@@ -126,10 +126,11 @@ services:
       # with ADMIN_EMAIL in e2e/features/admin/*.spec.ts.
       INSTANCE_ADMIN_EMAILS: 'admin-e2e@vibexp.test'
 
-      # The whole suite logs in from a single IP; keep the per-IP limiters far
-      # above what one runner can hit so dev-login never returns 429. Test-only.
-      AUTH_RATE_LIMIT_PER_MINUTE: '100000'
-      API_RATE_LIMIT_PER_MINUTE: '100000'
+      # The whole suite drives many fresh-user + resource-create requests from a
+      # single source IP, which the per-IP rate limiter would read as abuse (429s
+      # → chronic e2e flakiness, #299). The limiter is bypassed in local
+      # development (FRONTEND_BASE_URL localhost above → IsLocalDevelopment()), so
+      # no rate-limit override is needed here.
 
       # Attachments via the fake-gcs emulator (no real GCS / no credentials).
       STORAGE_EMULATOR_HOST: 'http://gcs:4443'
