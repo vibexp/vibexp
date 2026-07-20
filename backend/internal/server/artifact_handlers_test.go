@@ -596,10 +596,17 @@ type MockArtifactContainer struct {
 	AuthServiceMock          services.AuthServiceInterface
 	TeamServiceMock          services.TeamServiceInterface
 	TypeServiceMock          services.TypeServiceInterface
+	RelationServiceMock      services.RelationServiceInterface
 }
 
 func (m *MockArtifactContainer) ArtifactService() services.ArtifactServiceInterface {
 	return m.ArtifactServiceMock
+}
+
+// RelationService returns the configured relation-service mock (nil by default,
+// which the detail-GET `related` population treats as an empty neighborhood).
+func (m *MockArtifactContainer) RelationService() services.RelationServiceInterface {
+	return m.RelationServiceMock
 }
 
 // TypeService returns the configured type-service mock, or a permissive stub

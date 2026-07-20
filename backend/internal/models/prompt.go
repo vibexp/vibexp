@@ -22,6 +22,10 @@ type Prompt struct {
 	CreatedAt   time.Time      `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at" db:"updated_at"`
 	Version     int64          `json:"version" db:"version"`
+	// Related is the depth-1 typed neighborhood, populated on the detail GET
+	// (issue #424). JSONArray so it always serializes as [] (never null); not a
+	// DB column (db:"-").
+	Related JSONArray[RelatedResource] `json:"related" db:"-"`
 }
 
 type CreatePromptRequest struct {

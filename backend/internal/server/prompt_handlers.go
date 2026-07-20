@@ -264,6 +264,10 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 
 	contextkeys.SetAccessedResourceID(r.Context(), prompt.ID)
 
+	prompt.Related = s.relatedForResource(
+		r.Context(), userID, teamID, models.RelationResourceTypePrompt, prompt.ID,
+	)
+
 	writeOK(w, prompt, s.logger)
 }
 

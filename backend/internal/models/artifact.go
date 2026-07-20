@@ -29,6 +29,10 @@ type Artifact struct {
 	Type        string                 `json:"type" db:"type"`
 	Metadata    map[string]interface{} `json:"metadata" db:"metadata"`
 	Version     int64                  `json:"version,omitempty" db:"version"`
+	// Related is the depth-1 typed neighborhood, populated on the detail GET
+	// (issue #424). JSONArray so it always serializes as [] (never null) for the
+	// required response field; not a DB column (db:"-").
+	Related JSONArray[RelatedResource] `json:"related" db:"-"`
 }
 
 type CreateArtifactRequest struct {

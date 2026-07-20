@@ -47,6 +47,10 @@ type Blueprint struct {
 	// Source is import provenance, server-set only; nil for VibeXP-authored
 	// blueprints. Assembled from the nullable source_* / imported_at columns.
 	Source *BlueprintSource `json:"source,omitempty"`
+	// Related is the depth-1 typed neighborhood, populated on the detail GET
+	// (issue #424). JSONArray so it always serializes as [] (never null); not a
+	// DB column (db:"-").
+	Related JSONArray[RelatedResource] `json:"related" db:"-"`
 }
 
 // BlueprintSource is the read-only import provenance exposed as the spec's

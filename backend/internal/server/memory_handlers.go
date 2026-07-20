@@ -270,6 +270,10 @@ func (s *Server) handleGetMemory(w http.ResponseWriter, r *http.Request) {
 
 	contextkeys.SetAccessedResourceID(r.Context(), memory.ID)
 
+	memory.Related = s.relatedForResource(
+		r.Context(), userID, teamID, models.RelationResourceTypeMemory, memory.ID,
+	)
+
 	writeOK(w, memory, s.logger)
 }
 

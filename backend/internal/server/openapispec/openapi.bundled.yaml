@@ -13230,6 +13230,11 @@ components:
           format: int64
           description: Version number for optimistic concurrency control
           example: 1
+        related:
+          type: array
+          description: Depth-1 typed neighborhood of this resource — the relations touching it in both directions, newest first, capped at 20. Typed summaries only, never bodies. Populated on the detail GET; empty in list responses.
+          items:
+            $ref: '#/components/schemas/RelatedResource'
       required:
         - id
         - name
@@ -13245,6 +13250,7 @@ components:
         - created_at
         - updated_at
         - version
+        - related
     CreatePromptRequest:
       type: object
       properties:
@@ -15167,6 +15173,11 @@ components:
               - documentation
               - api
             priority: high
+        related:
+          type: array
+          description: Depth-1 typed neighborhood of this resource — the relations touching it in both directions, newest first, capped at 20. Typed summaries only, never bodies. Populated on the detail GET; empty in list responses.
+          items:
+            $ref: '#/components/schemas/RelatedResource'
       required:
         - id
         - project_id
@@ -15177,6 +15188,7 @@ components:
         - status
         - title
         - type
+        - related
     CreateArtifactRequest:
       type: object
       properties:
@@ -16024,6 +16036,11 @@ components:
           format: int64
           description: Version number for optimistic concurrency control
           example: 1
+        related:
+          type: array
+          description: Depth-1 typed neighborhood of this resource — the relations touching it in both directions, newest first, capped at 20. Typed summaries only, never bodies. Populated on the detail GET; empty in list responses.
+          items:
+            $ref: '#/components/schemas/RelatedResource'
       required:
         - id
         - user_id
@@ -16034,6 +16051,7 @@ components:
         - created_at
         - updated_at
         - version
+        - related
     CreateMemoryRequest:
       type: object
       properties:
@@ -16371,6 +16389,11 @@ components:
           example: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
         source:
           $ref: '#/components/schemas/BlueprintSource'
+        related:
+          type: array
+          description: Depth-1 typed neighborhood of this resource — the relations touching it in both directions, newest first, capped at 20. Typed summaries only, never bodies. Populated on the detail GET; empty in list responses.
+          items:
+            $ref: '#/components/schemas/RelatedResource'
       required:
         - id
         - project_id
@@ -16383,6 +16406,7 @@ components:
         - title
         - type
         - path
+        - related
     BlueprintSource:
       type: object
       description: Read-only import provenance; present only for imported blueprints.

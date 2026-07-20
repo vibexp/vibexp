@@ -113,6 +113,10 @@ func (s *Server) handleGetBlueprint(w http.ResponseWriter, r *http.Request) {
 
 	contextkeys.SetAccessedResourceID(r.Context(), blueprint.ID)
 
+	blueprint.Related = s.relatedForResource(
+		r.Context(), userID, teamID, models.RelationResourceTypeBlueprint, blueprint.ID,
+	)
+
 	writeOK(w, blueprint, s.logger)
 }
 

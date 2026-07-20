@@ -65,6 +65,14 @@ Artifact:
       example:
         tags: ["documentation", "api"]
         priority: "high"
+    related:
+      type: array
+      description: >-
+        Depth-1 typed neighborhood of this resource — the relations touching it
+        in both directions, newest first, capped at 20. Typed summaries only,
+        never bodies. Populated on the detail GET; empty in list responses.
+      items:
+        $ref: './relations.yaml#/RelatedResource'
   required:
     - id
     - project_id
@@ -75,6 +83,7 @@ Artifact:
     - status
     - title
     - type
+    - related
 
 # Request model for creating artifacts
 CreateArtifactRequest:
