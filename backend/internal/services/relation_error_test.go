@@ -27,7 +27,7 @@ func TestRelationService_Create_EndpointLookupErrorPropagates(t *testing.T) {
 		Return("", false, errRelBoom).Once()
 	svc := newRelationService(t, repo, nil, allowAllAuthz{})
 
-	_, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
+	_, _, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
 
 	assert.ErrorIs(t, err, errRelBoom)
 	repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
@@ -39,10 +39,10 @@ func TestRelationService_Create_RepoErrorPropagates(t *testing.T) {
 		Return(relProject, true, nil).Once()
 	repo.EXPECT().ResourceProjectID(mock.Anything, relTeamID, models.RelationResourceTypeBlueprint, relToID).
 		Return(relProject, true, nil).Once()
-	repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil, errRelBoom).Once()
+	repo.EXPECT().Create(mock.Anything, mock.Anything).Return(nil, false, errRelBoom).Once()
 	svc := newRelationService(t, repo, nil, allowAllAuthz{})
 
-	_, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
+	_, _, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
 
 	assert.ErrorIs(t, err, errRelBoom)
 }

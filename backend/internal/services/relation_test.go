@@ -79,7 +79,7 @@ func TestRelationService_Create_RejectsBeforeRepo(t *testing.T) {
 
 			req := validRelationReq()
 			tc.mutate(req)
-			_, err := svc.Create(context.Background(), relCaller, relTeamID, req)
+			_, _, err := svc.Create(context.Background(), relCaller, relTeamID, req)
 
 			require.Error(t, err)
 			if tc.wantIs != nil {
@@ -95,7 +95,7 @@ func TestRelationService_Create_NonMemberDenied(t *testing.T) {
 	repo := mocks.NewMockRelationRepository(t)
 	svc := newRelationService(t, repo, nil, authzForRole(t, ""))
 
-	_, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
+	_, _, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
 
 	assert.ErrorIs(t, err, ErrPermissionDenied)
 	repo.AssertNotCalled(t, "ResourceProjectID", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -109,7 +109,7 @@ func TestRelationService_Create_EndpointExistenceAndProject(t *testing.T) {
 			Return("", false, nil).Once()
 		svc := newRelationService(t, repo, nil, allowAllAuthz{})
 
-		_, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
+		_, _, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
 
 		assert.ErrorIs(t, err, ErrRelationResourceNotFound)
 		repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
@@ -123,7 +123,7 @@ func TestRelationService_Create_EndpointExistenceAndProject(t *testing.T) {
 			Return("", false, nil).Once()
 		svc := newRelationService(t, repo, nil, allowAllAuthz{})
 
-		_, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
+		_, _, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
 
 		assert.ErrorIs(t, err, ErrRelationResourceNotFound)
 		repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
@@ -137,7 +137,7 @@ func TestRelationService_Create_EndpointExistenceAndProject(t *testing.T) {
 			Return("project-2", true, nil).Once()
 		svc := newRelationService(t, repo, nil, allowAllAuthz{})
 
-		_, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
+		_, _, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
 
 		assert.ErrorIs(t, err, ErrRelationCrossProject)
 		repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
@@ -176,18 +176,19 @@ func TestRelationService_Create_TieredStatusAndPersistedFields(t *testing.T) {
 				return r.TeamID == relTeamID && r.ProjectID == relProject &&
 					r.Status == tc.wantStatus && r.Origin == tc.origin &&
 					r.CreatedBy != nil && *r.CreatedBy == relCaller
-			})).RunAndReturn(func(_ context.Context, r *models.Relation) (*models.Relation, error) {
+			})).RunAndReturn(func(_ context.Context, r *models.Relation) (*models.Relation, bool, error) {
 				r.ID = relRelationID
-				return r, nil
+				return r, true, nil
 			}).Once()
 			svc := newRelationService(t, repo, nil, allowAllAuthz{})
 
-			out, err := svc.Create(context.Background(), relCaller, relTeamID, &models.CreateRelationRequest{
+			out, created, err := svc.Create(context.Background(), relCaller, relTeamID, &models.CreateRelationRequest{
 				FromType: tc.fromType, FromID: relFromID, ToType: tc.toType, ToID: relToID,
 				RelationType: tc.relationType, Origin: tc.origin,
 			})
 
 			require.NoError(t, err)
+			assert.True(t, created)
 			assert.Equal(t, relRelationID, out.ID)
 			assert.Equal(t, tc.wantStatus, out.Status)
 		})
@@ -203,12 +204,14 @@ func TestRelationService_Create_ReturnsExistingOnDuplicate(t *testing.T) {
 		Return(relProject, true, nil).Once()
 	repo.EXPECT().ResourceProjectID(mock.Anything, relTeamID, models.RelationResourceTypeBlueprint, relToID).
 		Return(relProject, true, nil).Once()
-	repo.EXPECT().Create(mock.Anything, mock.Anything).Return(existing, nil).Once()
+	// The repo reports created=false for a duplicate; the service echoes it.
+	repo.EXPECT().Create(mock.Anything, mock.Anything).Return(existing, false, nil).Once()
 	svc := newRelationService(t, repo, nil, allowAllAuthz{})
 
-	out, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
+	out, created, err := svc.Create(context.Background(), relCaller, relTeamID, validRelationReq())
 
 	require.NoError(t, err)
+	assert.False(t, created)
 	assert.Equal(t, "pre-existing", out.ID)
 }
 

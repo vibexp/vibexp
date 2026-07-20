@@ -1,0 +1,237 @@
+# Typed resource relations schemas (epic #421). Directed, typed edges between
+# two of the four resource types (artifact | memory | prompt | blueprint) within
+# one project. Created via REST here; also surfaced read-only on resource GETs
+# (#424) and over MCP (#425).
+
+Relation:
+  type: object
+  description: A directed, typed edge between two resources within a project.
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Unique relation identifier
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    team_id:
+      type: string
+      format: uuid
+      description: Owning team
+      example: "660e8400-e29b-41d4-a716-446655440001"
+    project_id:
+      type: string
+      format: uuid
+      description: Project both endpoints belong to
+      example: "990e8400-e29b-41d4-a716-446655440004"
+    from_type:
+      type: string
+      description: Subject resource type (artifact, memory, prompt, or blueprint)
+      example: "artifact"
+    from_id:
+      type: string
+      format: uuid
+      description: Subject resource identifier
+      example: "770e8400-e29b-41d4-a716-446655440002"
+    to_type:
+      type: string
+      description: Object resource type (artifact, memory, prompt, or blueprint)
+      example: "blueprint"
+    to_id:
+      type: string
+      format: uuid
+      description: Object resource identifier
+      example: "880e8400-e29b-41d4-a716-446655440003"
+    relation_type:
+      type: string
+      description: The edge's intent
+      enum: [governed-by, supersedes, built-from, explained-by]
+      example: "governed-by"
+    origin:
+      type: string
+      description: Whether a human or the AI proposed the edge
+      enum: [ai, human]
+      example: "human"
+    status:
+      type: string
+      description: Tiered-trust lifecycle state
+      enum: [suggested, confirmed]
+      example: "confirmed"
+    created_by:
+      type: string
+      format: uuid
+      description: User who created the edge (absent if that user was deleted)
+      example: "aa0e8400-e29b-41d4-a716-446655440005"
+    confirmed_by:
+      type: string
+      format: uuid
+      description: User who confirmed the edge (absent while suggested or if that user was deleted)
+      example: "bb0e8400-e29b-41d4-a716-446655440006"
+    created_at:
+      type: string
+      format: date-time
+      description: When the edge was created
+      example: "2026-07-21T09:00:00Z"
+    updated_at:
+      type: string
+      format: date-time
+      description: When the edge was last updated (e.g. confirmed)
+      example: "2026-07-21T09:00:00Z"
+  required:
+    - id
+    - team_id
+    - project_id
+    - from_type
+    - from_id
+    - to_type
+    - to_id
+    - relation_type
+    - origin
+    - status
+    - created_at
+    - updated_at
+
+CreateRelationRequest:
+  type: object
+  description: Request body for creating a typed relation between two resources.
+  properties:
+    from_type:
+      type: string
+      description: Subject resource type (artifact, memory, prompt, or blueprint)
+      enum: [artifact, memory, prompt, blueprint]
+      example: "artifact"
+    from_id:
+      type: string
+      format: uuid
+      description: Subject resource identifier
+      example: "770e8400-e29b-41d4-a716-446655440002"
+    to_type:
+      type: string
+      description: Object resource type (artifact, memory, prompt, or blueprint)
+      enum: [artifact, memory, prompt, blueprint]
+      example: "blueprint"
+    to_id:
+      type: string
+      format: uuid
+      description: Object resource identifier
+      example: "880e8400-e29b-41d4-a716-446655440003"
+    relation_type:
+      type: string
+      description: >
+        The edge's intent. The object type is constrained per relation type:
+        governed-by -> blueprint, built-from -> prompt, explained-by -> memory,
+        supersedes -> same type as the subject.
+      enum: [governed-by, supersedes, built-from, explained-by]
+      example: "governed-by"
+    origin:
+      type: string
+      description: Whether a human or the AI proposed the edge
+      enum: [ai, human]
+      example: "human"
+  required:
+    - from_type
+    - from_id
+    - to_type
+    - to_id
+    - relation_type
+    - origin
+
+RelatedResource:
+  type: object
+  description: >
+    One endpoint of a relation as seen from the other endpoint, enriched with the
+    related resource's resolved title and link fields. project_id is present for
+    every type; slug is present for artifact/blueprint/prompt and absent for memory.
+  properties:
+    relation_id:
+      type: string
+      format: uuid
+      description: The relation this entry came from
+      example: "550e8400-e29b-41d4-a716-446655440000"
+    relation_type:
+      type: string
+      description: The edge's intent
+      enum: [governed-by, supersedes, built-from, explained-by]
+      example: "governed-by"
+    direction:
+      type: string
+      description: Whether the queried resource is the subject (outgoing) or object (incoming) of the edge
+      enum: [outgoing, incoming]
+      example: "outgoing"
+    origin:
+      type: string
+      description: Whether a human or the AI proposed the edge
+      enum: [ai, human]
+      example: "human"
+    status:
+      type: string
+      description: Tiered-trust lifecycle state
+      enum: [suggested, confirmed]
+      example: "confirmed"
+    resource_type:
+      type: string
+      description: Type of the related (other) resource
+      example: "blueprint"
+    resource_id:
+      type: string
+      format: uuid
+      description: Identifier of the related (other) resource
+      example: "880e8400-e29b-41d4-a716-446655440003"
+    title:
+      type: string
+      description: Resolved display title of the related resource
+      example: "Go coding standards"
+    project_id:
+      type: string
+      format: uuid
+      description: Project the related resource belongs to
+      example: "990e8400-e29b-41d4-a716-446655440004"
+    slug:
+      type: string
+      description: Related resource slug for the detail link (absent for memories)
+      example: "go-coding-standards"
+    created_at:
+      type: string
+      format: date-time
+      description: When the edge was created
+      example: "2026-07-21T09:00:00Z"
+  required:
+    - relation_id
+    - relation_type
+    - direction
+    - origin
+    - status
+    - resource_type
+    - resource_id
+    - title
+    - created_at
+
+RelationListResponse:
+  type: object
+  description: A page of the relations touching a resource (both directions), newest first.
+  properties:
+    relations:
+      type: array
+      description: Relations touching the resource, newest first
+      items:
+        $ref: '#/RelatedResource'
+    total_count:
+      type: integer
+      description: Total number of relations touching the resource
+      example: 3
+    page:
+      type: integer
+      description: Current page number
+      example: 1
+    per_page:
+      type: integer
+      description: Number of items per page
+      example: 20
+    total_pages:
+      type: integer
+      description: Total number of pages
+      example: 1
+  required:
+    - relations
+    - total_count
+    - page
+    - per_page
+    - total_pages

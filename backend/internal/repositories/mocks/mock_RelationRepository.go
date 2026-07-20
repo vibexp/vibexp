@@ -84,7 +84,7 @@ func (_c *MockRelationRepository_Confirm_Call) RunAndReturn(run func(context.Con
 }
 
 // Create provides a mock function with given fields: ctx, relation
-func (_m *MockRelationRepository) Create(ctx context.Context, relation *models.Relation) (*models.Relation, error) {
+func (_m *MockRelationRepository) Create(ctx context.Context, relation *models.Relation) (*models.Relation, bool, error) {
 	ret := _m.Called(ctx, relation)
 
 	if len(ret) == 0 {
@@ -92,8 +92,9 @@ func (_m *MockRelationRepository) Create(ctx context.Context, relation *models.R
 	}
 
 	var r0 *models.Relation
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *models.Relation) (*models.Relation, error)); ok {
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.Relation) (*models.Relation, bool, error)); ok {
 		return rf(ctx, relation)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, *models.Relation) *models.Relation); ok {
@@ -104,13 +105,19 @@ func (_m *MockRelationRepository) Create(ctx context.Context, relation *models.R
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *models.Relation) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *models.Relation) bool); ok {
 		r1 = rf(ctx, relation)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(bool)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, *models.Relation) error); ok {
+		r2 = rf(ctx, relation)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // MockRelationRepository_Create_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Create'
@@ -132,12 +139,12 @@ func (_c *MockRelationRepository_Create_Call) Run(run func(ctx context.Context, 
 	return _c
 }
 
-func (_c *MockRelationRepository_Create_Call) Return(_a0 *models.Relation, _a1 error) *MockRelationRepository_Create_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *MockRelationRepository_Create_Call) Return(_a0 *models.Relation, _a1 bool, _a2 error) *MockRelationRepository_Create_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *MockRelationRepository_Create_Call) RunAndReturn(run func(context.Context, *models.Relation) (*models.Relation, error)) *MockRelationRepository_Create_Call {
+func (_c *MockRelationRepository_Create_Call) RunAndReturn(run func(context.Context, *models.Relation) (*models.Relation, bool, error)) *MockRelationRepository_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }

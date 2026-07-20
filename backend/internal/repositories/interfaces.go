@@ -1288,8 +1288,10 @@ type RelationRepository interface {
 	// Create inserts an edge idempotently: on a duplicate of the unique
 	// (team_id, from_type, from_id, relation_type, to_type, to_id) tuple it is a
 	// no-op that returns the pre-existing row. The returned Relation is always
-	// the persisted row (new or existing), with ID/timestamps populated.
-	Create(ctx context.Context, relation *models.Relation) (*models.Relation, error)
+	// the persisted row (new or existing), with ID/timestamps populated; the
+	// bool reports whether a new row was inserted (true) or the edge already
+	// existed (false) — the REST layer maps it to 201 vs 200.
+	Create(ctx context.Context, relation *models.Relation) (*models.Relation, bool, error)
 	// GetByID returns the relation with the given id scoped to teamID; it returns
 	// ErrRelationNotFound when no such row exists in the team.
 	GetByID(ctx context.Context, teamID, id string) (*models.Relation, error)

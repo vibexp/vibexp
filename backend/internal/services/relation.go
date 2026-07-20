@@ -74,21 +74,21 @@ func (s *RelationService) checkMembership(ctx context.Context, userID, teamID st
 // and applies the tiered-trust initial status. Creation is idempotent.
 func (s *RelationService) Create(
 	ctx context.Context, userID, teamID string, req *models.CreateRelationRequest,
-) (*models.Relation, error) {
+) (*models.Relation, bool, error) {
 	if err := validateCreateRelationRequest(req); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Creating a relation is open to any team member (epic #220), but the caller
 	// must still BE one — Can proves the role grants the action.
 	if authzErr := s.authz.Can(ctx, userID, teamID, authz.ResourceCreate); authzErr != nil {
-		return nil, authzErr
+		return nil, false, authzErr
 	}
 
 	// Both endpoints must exist in the team and share a project.
 	projectID, err := s.resolveRelationProject(ctx, userID, teamID, req)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	created := userID
@@ -104,7 +104,7 @@ func (s *RelationService) Create(
 		Status:       models.InitialRelationStatus(req.Origin, req.RelationType),
 		CreatedBy:    &created,
 	}
-	out, err := s.repo.Create(ctx, relation)
+	out, wasCreated, err := s.repo.Create(ctx, relation)
 	if err != nil {
 		s.logger.With(
 			"user_id", userID,
@@ -112,9 +112,9 @@ func (s *RelationService) Create(
 			"relation_type", req.RelationType,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to create relation")
-		return nil, err
+		return nil, false, err
 	}
-	return out, nil
+	return out, wasCreated, nil
 }
 
 // validateCreateRelationRequest checks the enums, rejects self-links, and

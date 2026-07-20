@@ -84,7 +84,7 @@ func (_c *MockRelationServiceInterface_Confirm_Call) RunAndReturn(run func(conte
 }
 
 // Create provides a mock function with given fields: ctx, userID, teamID, req
-func (_m *MockRelationServiceInterface) Create(ctx context.Context, userID string, teamID string, req *models.CreateRelationRequest) (*models.Relation, error) {
+func (_m *MockRelationServiceInterface) Create(ctx context.Context, userID string, teamID string, req *models.CreateRelationRequest) (*models.Relation, bool, error) {
 	ret := _m.Called(ctx, userID, teamID, req)
 
 	if len(ret) == 0 {
@@ -92,8 +92,9 @@ func (_m *MockRelationServiceInterface) Create(ctx context.Context, userID strin
 	}
 
 	var r0 *models.Relation
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateRelationRequest) (*models.Relation, error)); ok {
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateRelationRequest) (*models.Relation, bool, error)); ok {
 		return rf(ctx, userID, teamID, req)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.CreateRelationRequest) *models.Relation); ok {
@@ -104,13 +105,19 @@ func (_m *MockRelationServiceInterface) Create(ctx context.Context, userID strin
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, *models.CreateRelationRequest) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, *models.CreateRelationRequest) bool); ok {
 		r1 = rf(ctx, userID, teamID, req)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(bool)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, *models.CreateRelationRequest) error); ok {
+		r2 = rf(ctx, userID, teamID, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // MockRelationServiceInterface_Create_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Create'
@@ -134,12 +141,12 @@ func (_c *MockRelationServiceInterface_Create_Call) Run(run func(ctx context.Con
 	return _c
 }
 
-func (_c *MockRelationServiceInterface_Create_Call) Return(_a0 *models.Relation, _a1 error) *MockRelationServiceInterface_Create_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *MockRelationServiceInterface_Create_Call) Return(_a0 *models.Relation, _a1 bool, _a2 error) *MockRelationServiceInterface_Create_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *MockRelationServiceInterface_Create_Call) RunAndReturn(run func(context.Context, string, string, *models.CreateRelationRequest) (*models.Relation, error)) *MockRelationServiceInterface_Create_Call {
+func (_c *MockRelationServiceInterface_Create_Call) RunAndReturn(run func(context.Context, string, string, *models.CreateRelationRequest) (*models.Relation, bool, error)) *MockRelationServiceInterface_Create_Call {
 	_c.Call.Return(run)
 	return _c
 }

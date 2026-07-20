@@ -52,7 +52,7 @@ func scanRelation(row interface{ Scan(...interface{}) error }, r *models.Relatio
 // (RETURNING yields no row) the pre-existing edge is fetched and returned, so
 // concurrent creators both observe the same row without a unique-violation
 // error surfacing.
-func (r *RelationRepository) Create(ctx context.Context, relation *models.Relation) (*models.Relation, error) {
+func (r *RelationRepository) Create(ctx context.Context, relation *models.Relation) (*models.Relation, bool, error) {
 	query := `
 		INSERT INTO resource_relations
 			(team_id, project_id, from_type, from_id, to_type, to_id, relation_type, origin, status, created_by)
@@ -68,15 +68,16 @@ func (r *RelationRepository) Create(ctx context.Context, relation *models.Relati
 	), &out)
 	if errors.Is(err, sql.ErrNoRows) {
 		// The edge already exists (conflict suppressed the insert): return it.
-		return r.getByEndpoints(ctx, relation)
+		existing, fetchErr := r.getByEndpoints(ctx, relation)
+		return existing, false, fetchErr
 	}
 	if err != nil {
 		if isFKViolation(err) {
-			return nil, fmt.Errorf("team or project not found for relation: %w", err)
+			return nil, false, fmt.Errorf("team or project not found for relation: %w", err)
 		}
-		return nil, fmt.Errorf("failed to create relation: %w", err)
+		return nil, false, fmt.Errorf("failed to create relation: %w", err)
 	}
-	return &out, nil
+	return &out, true, nil
 }
 
 // getByEndpoints fetches the edge matching the unique endpoint tuple of rel.

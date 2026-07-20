@@ -1,0 +1,17 @@
+# oapi-codegen configuration for the Relations domain (epic #421), a spec-first
+# strict-server domain. Following the friction-6 convention (see
+# oapi-codegen-comments.yaml), it generates into its OWN package under
+# internal/server/gen/relations so its StrictServerInterface mounts independently
+# of the other spec-first domains.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: relationsgen
+output: internal/server/gen/relations/relations.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - Relations

@@ -77,8 +77,9 @@ func TestRelationRepository_Create(t *testing.T) {
 				"governed-by", "human", "confirmed", "user-1").
 			WillReturnRows(relFixtureRow())
 
-		got, err := repo.Create(context.Background(), newRelationFixture())
+		got, created, err := repo.Create(context.Background(), newRelationFixture())
 		require.NoError(t, err)
+		assert.True(t, created, "a fresh insert reports created=true")
 		assertHappyRelation(t, got)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -93,8 +94,9 @@ func TestRelationRepository_Create(t *testing.T) {
 			WithArgs("team-1", "artifact", "art-1", "governed-by", "blueprint", "bp-1").
 			WillReturnRows(relFixtureRow())
 
-		got, err := repo.Create(context.Background(), newRelationFixture())
+		got, created, err := repo.Create(context.Background(), newRelationFixture())
 		require.NoError(t, err)
+		assert.False(t, created, "a suppressed insert (conflict) reports created=false")
 		assertHappyRelation(t, got)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
@@ -106,7 +108,7 @@ func TestRelationRepository_Create(t *testing.T) {
 		mock.ExpectQuery(`INSERT INTO resource_relations`).
 			WillReturnError(&pq.Error{Code: fkViolationCode})
 
-		_, err := repo.Create(context.Background(), newRelationFixture())
+		_, _, err := repo.Create(context.Background(), newRelationFixture())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "team or project not found for relation")
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -314,7 +316,7 @@ func TestRelationRepository_Create_ErrorBranches(t *testing.T) {
 
 		mock.ExpectQuery(`INSERT INTO resource_relations`).WillReturnError(sql.ErrConnDone)
 
-		_, err := repo.Create(context.Background(), newRelationFixture())
+		_, _, err := repo.Create(context.Background(), newRelationFixture())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create relation")
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -328,7 +330,7 @@ func TestRelationRepository_Create_ErrorBranches(t *testing.T) {
 		mock.ExpectQuery(`FROM resource_relations WHERE team_id = \$1 AND from_type`).
 			WillReturnError(sql.ErrNoRows)
 
-		_, err := repo.Create(context.Background(), newRelationFixture())
+		_, _, err := repo.Create(context.Background(), newRelationFixture())
 		assert.ErrorIs(t, err, repositories.ErrRelationNotFound)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
