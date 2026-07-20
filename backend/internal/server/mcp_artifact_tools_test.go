@@ -667,6 +667,13 @@ type TestContainer struct {
 	ResourceAccessServiceMock resourceaccess.ResourceAccessService
 	AttachmentServiceMock     services.AttachmentServiceInterface
 	EmbeddingServiceMock      services.EmbeddingServiceInterface
+	RelationServiceMock       services.RelationServiceInterface
+}
+
+// RelationService returns the configured relation-service mock (nil by default,
+// which the MCP get_resource `related` population treats as an empty neighborhood).
+func (tc *TestContainer) RelationService() services.RelationServiceInterface {
+	return tc.RelationServiceMock
 }
 
 func (tc *TestContainer) ResourceAccessService() resourceaccess.ResourceAccessService {

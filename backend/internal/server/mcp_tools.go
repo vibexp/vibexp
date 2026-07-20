@@ -18,7 +18,9 @@ const mcpServerInstructions = "VibeXP MCP server. Most tools are team-scoped and
 	"parameter — a team UUID or slug. If you do not have a team_id, call vibexp_io_list_teams first to " +
 	"discover the teams you belong to, then pass one you are a member of (each call resolves and " +
 	"membership-checks the team). The only user-scoped tools that take no team_id are vibexp_io_get_user " +
-	"(your identity) and vibexp_io_list_teams (team discovery)."
+	"(your identity) and vibexp_io_list_teams (team discovery). As you work, record how resources relate " +
+	"with vibexp_io_link_resources (governed-by, supersedes, built-from, explained-by); every " +
+	"vibexp_io_get_resource returns the resource's typed neighborhood in its `related` array."
 
 // MCPToolsManager manages all MCP tools and provides better organization
 type MCPToolsManager struct {
@@ -49,6 +51,7 @@ func (m *MCPToolsManager) AddAllTools(mcpServer *mcp.Server, userID string) {
 	m.addSearchTools(mcpServer, userID)
 	m.addReadTools(mcpServer, userID)
 	m.addAttachmentTools(mcpServer, userID)
+	m.addLinkTools(mcpServer, userID)
 	m.addDeleteTools(mcpServer, userID)
 
 	slog.With(

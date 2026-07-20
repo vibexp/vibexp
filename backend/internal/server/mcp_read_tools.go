@@ -145,6 +145,7 @@ func (s *Server) getMemoryResource(
 	}
 
 	s.recordMCPResourceAccess(ctx, teamID, userID, resourceTypeMemory, memory.ID)
+	memory.Related = s.relatedForResource(ctx, userID, teamID, models.RelationResourceTypeMemory, memory.ID)
 	return mcpJSONResult(memory)
 }
 
@@ -173,6 +174,7 @@ func (s *Server) getArtifactResource(
 	}
 
 	s.recordMCPResourceAccess(ctx, teamID, userID, resourceTypeArtifact, artifact.ID)
+	artifact.Related = s.relatedForResource(ctx, userID, teamID, models.RelationResourceTypeArtifact, artifact.ID)
 	return mcpJSONResult(artifact)
 }
 
@@ -196,6 +198,7 @@ func (s *Server) getBlueprintResource(
 	}
 
 	s.recordMCPResourceAccess(ctx, teamID, userID, resourceTypeBlueprint, blueprint.ID)
+	blueprint.Related = s.relatedForResource(ctx, userID, teamID, models.RelationResourceTypeBlueprint, blueprint.ID)
 	return mcpJSONResult(blueprint)
 }
 
