@@ -77,5 +77,6 @@ The root `docker-compose.yml` runs the published images (self-host), not for dev
 ## Working agreement
 
 - Branch off `main`, match existing style, run the relevant `make ...-lint` / `...-test` / build targets before committing, open a PR, let CI pass.
+- **Branch naming:** `feature|patch|minor/{GITHUB_ISSUE}-{slug}` — prefix is one of `feature` (new functionality), `minor` (small improvements), `patch` (fixes/docs/chores); `{GITHUB_ISSUE}` is the number of the open issue the PR is linked to (every PR must link one); `{slug}` is a short kebab-case description. Example: `feature/416-stale-issue-automation`.
 - Pre-commit hooks are mandatory (see above); never use `--no-verify`.
 - Don't commit secrets or gitignored generated artifacts.
