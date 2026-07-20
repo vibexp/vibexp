@@ -2,6 +2,14 @@
 
 Guidance for AI agents working in this repo.
 
+## The concept (know this before making product decisions)
+
+**The core concept:** VibeXP is "one shared brain" for a team's AI tools. Four resource types — **prompts** (reusable, composable with `{{variables}}` and references), **blueprints** (per-tool rules: Claude Code, Cursor, Codex), **memory** (what the AI learns), and **artifacts** (versioned AI output) — all live in a team workspace that every MCP-compatible tool connects to.
+
+**The differentiator is the loop, not the storage.** What separates VibeXP from a prompt folder or a notes app: the AI *reads* context before a task, *writes back* lessons/memory/artifacts as it works, and every session compounds for the whole team. Read → work → write back → richer next session. Plus AI Feeds for steering autonomous agents, semantic search across everything, and GitHub import for bootstrapping. Free, open-source, self-hostable, works solo first, compounds with a team.
+
+Judge features against this: anything that depends on humans hand-maintaining context fights the differentiator; anything that strengthens the automatic read/write-back loop reinforces it. (Marketing source of truth: the website repo's `/how-it-works` page.)
+
 ## What this is
 
 **VibeXP**: open-source, self-hostable AI command center (prompts, memories, artifacts, agents, MCP integrations for Claude Code, Cursor, VS Code, etc.). Monorepo shipped as a **single combined Docker image** (issue #61): the Go backend embeds the built frontend SPA and serves it *and* the API from one port — `docker run ghcr.io/vibexp/vibexp`. Two source components, one deployable artifact:
