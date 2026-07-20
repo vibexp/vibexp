@@ -1,0 +1,158 @@
+name: Stale issue lifecycle
+
+# Daily stale-issue automation (issue #416). Lifecycle, all measured in days of
+# inactivity, driven off the `Stale` label event:
+#
+#    7 days idle -> add `Stale` label + one warning comment
+#   14 days idle -> one second reminder comment (7 days after the label)
+#   21 days idle -> close with a final comment (14 days after the label)
+#
+# Any genuine (non-bot) activity removes the `Stale` label and resets the clock.
+# Issues only -- pull requests are never touched.
+#
+# WHY the split between actions/stale and the github-script step:
+# `actions/stale` decides both closing AND un-staling from the issue's
+# `updated_at`, and *any* injected comment (including our required 14-day
+# reminder) bumps `updated_at`. Letting the action own the 21-day close would
+# therefore (a) un-stale every issue the day after the reminder is posted and
+# (b) permanently reset the close window. So `actions/stale` owns ONLY the
+# 7-day marking (`days-before-close: -1`, `remove-stale-when-updated: false`),
+# and the github-script step owns the reminder, the close, and un-staling --
+# all keyed off the `Stale`-label event, which no comment can move.
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # daily at 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: stale
+  cancel-in-progress: false
+
+jobs:
+  stale:
+    name: Mark, remind & close stale issues
+    runs-on: ubuntu-latest
+    steps:
+      # Stage 1 -- mark issues inactive for 7 days as Stale (issues only).
+      # Closing and un-staling are handled in stage 2 (see header comment).
+      - name: Mark stale issues (7 days inactive)
+        uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9.1.0
+        with:
+          days-before-stale: 7
+          days-before-close: -1 # never close from here; stage 2 owns the 21d close
+          days-before-pr-stale: -1 # pull requests are exempt from staling
+          remove-stale-when-updated: false # stage 2 owns un-staling (updated_at is unreliable here)
+          stale-issue-label: Stale
+          exempt-issue-labels: pinned,epic,security
+          stale-issue-message: >
+            This issue has had no activity for 7 days and is now marked
+            **Stale**. It will receive one reminder at 14 days and be closed
+            after 21 days of inactivity. Any comment or update removes the
+            `Stale` label and resets the clock.
+
+      # Stage 2 -- reminder (14d), close (21d) and un-stale-on-activity, keyed
+      # off the Stale-label event so the reminder comment's own updated_at bump
+      # cannot corrupt the lifecycle.
+      - name: Remind, close, and un-stale
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const MARK = '<!-- stale-14d-reminder -->';
+            const DAY = 24 * 60 * 60 * 1000;
+            const REMIND_AFTER_LABEL_DAYS = 7; // 7d after label == 14d total inactivity
+            const CLOSE_AFTER_LABEL_DAYS = 14; // 14d after label == 21d total inactivity
+            const now = Date.now();
+            const { owner, repo } = context.repo;
+
+            // Events that represent a human touching the issue (used to reset the clock).
+            const ACTIVITY_EVENTS = new Set([
+              'commented', 'reopened', 'renamed', 'assigned', 'unassigned',
+              'labeled', 'unlabeled', 'cross-referenced', 'referenced',
+              'milestoned', 'demilestoned', 'converted_note_to_issue',
+            ]);
+            const isBot = (actor) =>
+              !actor || actor.type === 'Bot' || /\[bot\]$/.test(actor.login || '');
+
+            const staleIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: 'Stale', per_page: 100,
+            });
+
+            for (const issue of staleIssues) {
+              if (issue.pull_request) continue; // issues only
+              const tag = `#${issue.number}`;
+
+              // Timeline gives us both the authoritative Stale-label moment and
+              // every subsequent activity event in one paginated call.
+              const timeline = await github.paginate(github.rest.issues.listEventsForTimeline, {
+                owner, repo, issue_number: issue.number, per_page: 100,
+              });
+
+              let staleSince = null;
+              for (const ev of timeline) {
+                if (ev.event === 'labeled' && ev.label && ev.label.name === 'Stale') {
+                  const t = new Date(ev.created_at).getTime();
+                  if (staleSince === null || t > staleSince) staleSince = t;
+                }
+              }
+              if (staleSince === null) {
+                core.info(`${tag}: has Stale label but no label event; skipping`);
+                continue;
+              }
+
+              // Genuine activity after the label -> un-stale and reset the clock.
+              const hasUserActivity = timeline.some((ev) => {
+                if (!ACTIVITY_EVENTS.has(ev.event)) return false;
+                if (!ev.created_at || new Date(ev.created_at).getTime() <= staleSince) return false;
+                if ((ev.event === 'labeled' || ev.event === 'unlabeled')
+                    && ev.label && ev.label.name === 'Stale') return false;
+                return !isBot(ev.actor || ev.user);
+              });
+              if (hasUserActivity) {
+                core.info(`${tag}: activity since stale -> removing Stale label`);
+                await github.rest.issues.removeLabel({
+                  owner, repo, issue_number: issue.number, name: 'Stale',
+                }).catch((e) => { if (e.status !== 404) throw e; });
+                continue;
+              }
+
+              const ageDays = (now - staleSince) / DAY;
+
+              // 21 days total inactivity -> close with a final comment.
+              if (ageDays >= CLOSE_AFTER_LABEL_DAYS) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issue.number,
+                  body: 'Closing this issue after 21 days of inactivity (14 days after it '
+                    + 'was marked **Stale**). If it is still relevant, please reopen it or '
+                    + 'open a new issue with fresh context.',
+                });
+                await github.rest.issues.update({
+                  owner, repo, issue_number: issue.number,
+                  state: 'closed', state_reason: 'not_planned',
+                });
+                core.info(`${tag}: closed (stale ${ageDays.toFixed(1)}d)`);
+                continue;
+              }
+
+              // 14 days total inactivity -> one reminder comment (deduped by marker).
+              if (ageDays >= REMIND_AFTER_LABEL_DAYS) {
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner, repo, issue_number: issue.number, per_page: 100,
+                });
+                if (comments.some((c) => (c.body || '').includes(MARK))) {
+                  core.info(`${tag}: reminder already posted; skipping`);
+                  continue;
+                }
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issue.number,
+                  body: `${MARK}\n⏰ Second reminder: this issue has been **Stale** with no `
+                    + 'activity for 14 days and will be closed automatically after 21 days '
+                    + 'of inactivity (7 more days) unless it is updated.',
+                });
+                core.info(`${tag}: posted 14-day reminder`);
+              }
+            }

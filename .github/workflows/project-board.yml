@@ -1,0 +1,231 @@
+name: Project board hygiene
+
+# Keeps the VibeXP org project board (vibexp/#3, node PVT_kwDOEZ4IFs4BbTG0)
+# truthful (#416). Two behaviours:
+#
+#   1. Auto-add issues to the board in Backlog (on open + a daily sweep for
+#      stragglers/transfers). Status is set to Backlog ONLY when it is empty --
+#      an existing status is never overwritten.
+#   2. No OPEN issue may sit in a past iteration: a daily sweep moves any open
+#      issue whose Iteration is a completed one into the current iteration.
+#      Current/future iterations and Done/closed items are left untouched.
+#
+# TOKEN MODEL: the default GITHUB_TOKEN cannot write org-level Projects V2, so
+# the Projects GraphQL calls use an installation token minted from the existing
+# "VibeXP Bot" GitHub App (same pattern as publish-api-client.yml). Reads of the
+# repo's issues use the default GITHUB_TOKEN. The app token is applied per-call
+# via a request `authorization` header override.
+#
+# OPERATOR PREREQUISITE: the VibeXP Bot app must be granted
+# "Organization permissions -> Projects: Read and write". Until then these jobs
+# fail fast with a clear remediation message (they do not silently no-op).
+
+on:
+  issues:
+    types: [opened]
+  schedule:
+    - cron: '30 3 * * *' # daily at 03:30 UTC (staggered from stale.yml)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: project-board
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: PVT_kwDOEZ4IFs4BbTG0
+  STATUS_FIELD_ID: PVTSSF_lADOEZ4IFs4BbTG0zhWEjJ0
+  STATUS_BACKLOG_OPTION_ID: f75ad846
+  ITERATION_FIELD_ID: PVTIF_lADOEZ4IFs4BbTG0zhWEjQc
+
+jobs:
+  add-to-backlog:
+    name: Add issues to the board (Backlog)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint VibeXP Bot app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.VIBEXP_BOT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.VIBEXP_BOT_APP_PRIVATE_KEY }}
+          owner: vibexp
+
+      - name: Add issue(s) and set Status=Backlog when unset
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          script: |
+            const PROJECT_ID = process.env.PROJECT_ID;
+            const STATUS_FIELD_ID = process.env.STATUS_FIELD_ID;
+            const BACKLOG = process.env.STATUS_BACKLOG_OPTION_ID;
+            const { owner, repo } = context.repo;
+            // App token drives all Projects V2 GraphQL; default token reads issues.
+            const proj = (query, vars) =>
+              github.graphql(query, { ...vars, headers: { authorization: `Bearer ${process.env.APP_TOKEN}` } });
+
+            // Fail fast (not silently) if the app lacks org Projects access.
+            try {
+              await proj(`query($id:ID!){ node(id:$id){ ... on ProjectV2 { id title } } }`, { id: PROJECT_ID });
+            } catch (e) {
+              core.setFailed(
+                `Cannot access org project ${PROJECT_ID}. The VibeXP Bot GitHub App likely lacks ` +
+                '"Organization permissions -> Projects: Read and write" -- an org admin must grant it ' +
+                `(Org Settings -> GitHub Apps -> VibeXP Bot). Original error: ${e.message}`);
+              return;
+            }
+
+            async function statusIsSet(itemId) {
+              const res = await proj(
+                `query($item:ID!){ node(id:$item){ ... on ProjectV2Item {
+                   fieldValues(first: 50){ nodes {
+                     ... on ProjectV2ItemFieldSingleSelectValue {
+                       optionId field { ... on ProjectV2SingleSelectField { id } }
+                     } } } } } }`,
+                { item: itemId });
+              const vals = res.node.fieldValues.nodes || [];
+              return vals.some((v) => v && v.field && v.field.id === STATUS_FIELD_ID && v.optionId);
+            }
+
+            async function addAndBacklog(contentId) {
+              // Idempotent: returns the existing item if already on the board.
+              const add = await proj(
+                `mutation($p:ID!, $c:ID!){ addProjectV2ItemById(input:{projectId:$p, contentId:$c}){ item { id } } }`,
+                { p: PROJECT_ID, c: contentId });
+              const itemId = add.addProjectV2ItemById.item.id;
+              if (await statusIsSet(itemId)) return false; // never overwrite an existing status
+              await proj(
+                `mutation($p:ID!, $i:ID!, $f:ID!, $o:String!){
+                   updateProjectV2ItemFieldValue(input:{ projectId:$p, itemId:$i, fieldId:$f,
+                     value:{ singleSelectOptionId:$o } }){ projectV2Item { id } } }`,
+                { p: PROJECT_ID, i: itemId, f: STATUS_FIELD_ID, o: BACKLOG });
+              return true;
+            }
+
+            // Decide which issue node IDs to process.
+            let targets = [];
+            if (context.eventName === 'issues' && context.payload.issue) {
+              targets = [context.payload.issue.node_id];
+            } else {
+              // Daily sweep: add OPEN issues not already on the board.
+              const onBoard = new Set();
+              let cursor = null;
+              do {
+                const res = await proj(
+                  `query($p:ID!, $c:String){ node(id:$p){ ... on ProjectV2 {
+                     items(first:100, after:$c){ pageInfo { hasNextPage endCursor }
+                       nodes { content { __typename ... on Issue { id } } } } } } }`,
+                  { p: PROJECT_ID, c: cursor });
+                const conn = res.node.items;
+                for (const it of conn.nodes) {
+                  if (it.content && it.content.__typename === 'Issue') onBoard.add(it.content.id);
+                }
+                cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
+              } while (cursor);
+
+              const open = await github.paginate(github.rest.issues.listForRepo, {
+                owner, repo, state: 'open', per_page: 100,
+              });
+              targets = open.filter((i) => !i.pull_request && !onBoard.has(i.node_id)).map((i) => i.node_id);
+            }
+
+            let backlogged = 0;
+            for (const cid of targets) {
+              try {
+                if (await addAndBacklog(cid)) backlogged++;
+              } catch (e) {
+                core.warning(`Failed to add/backlog ${cid}: ${e.message}`);
+              }
+            }
+            core.info(`Processed ${targets.length} issue(s); set Backlog on ${backlogged}.`);
+
+  iteration-sweep:
+    name: Move open issues out of past iterations
+    if: github.event_name != 'issues' # sweep only runs on schedule / manual dispatch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint VibeXP Bot app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.VIBEXP_BOT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.VIBEXP_BOT_APP_PRIVATE_KEY }}
+          owner: vibexp
+
+      - name: Bump backdated open issues to the current iteration
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          script: |
+            const PROJECT_ID = process.env.PROJECT_ID;
+            const ITERATION_FIELD_ID = process.env.ITERATION_FIELD_ID;
+            const proj = (query, vars) =>
+              github.graphql(query, { ...vars, headers: { authorization: `Bearer ${process.env.APP_TOKEN}` } });
+
+            try {
+              await proj(`query($id:ID!){ node(id:$id){ ... on ProjectV2 { id } } }`, { id: PROJECT_ID });
+            } catch (e) {
+              core.setFailed(
+                `Cannot access org project ${PROJECT_ID}. The VibeXP Bot GitHub App likely lacks ` +
+                '"Organization permissions -> Projects: Read and write" -- an org admin must grant it ' +
+                `(Org Settings -> GitHub Apps -> VibeXP Bot). Original error: ${e.message}`);
+              return;
+            }
+
+            // Resolve current + completed iterations live -- iteration ids rotate,
+            // so only the field id is pinned. iterations[0] is the current one.
+            const cfg = await proj(
+              `query($f:ID!){ node(id:$f){ ... on ProjectV2IterationField {
+                 configuration {
+                   iterations { id title }
+                   completedIterations { id }
+                 } } } }`,
+              { f: ITERATION_FIELD_ID });
+            const iterations = cfg.node.configuration.iterations || [];
+            const completed = cfg.node.configuration.completedIterations || [];
+            if (iterations.length === 0) {
+              core.info('No current/future iteration configured; nothing to bump into.');
+              return;
+            }
+            const current = iterations[0];
+            const pastIds = new Set(completed.map((it) => it.id));
+
+            let cursor = null, scanned = 0, moved = 0;
+            do {
+              const res = await proj(
+                `query($p:ID!, $c:String){ node(id:$p){ ... on ProjectV2 {
+                   items(first:50, after:$c){ pageInfo { hasNextPage endCursor }
+                     nodes {
+                       id
+                       content { __typename ... on Issue { number state } }
+                       fieldValues(first: 50){ nodes {
+                         ... on ProjectV2ItemFieldIterationValue {
+                           iterationId field { ... on ProjectV2IterationField { id } }
+                         } } }
+                     } } } } }`,
+                { p: PROJECT_ID, c: cursor });
+              const conn = res.node.items;
+              for (const item of conn.nodes) {
+                scanned++;
+                const c = item.content;
+                if (!c || c.__typename !== 'Issue' || c.state !== 'OPEN') continue;
+                const iv = (item.fieldValues.nodes || []).find(
+                  (v) => v && v.field && v.field.id === ITERATION_FIELD_ID && v.iterationId);
+                if (!iv) continue; // no iteration set -> skip
+                if (!pastIds.has(iv.iterationId)) continue; // current/future -> skip
+                await proj(
+                  `mutation($p:ID!, $i:ID!, $f:ID!, $it:String!){
+                     updateProjectV2ItemFieldValue(input:{ projectId:$p, itemId:$i, fieldId:$f,
+                       value:{ iterationId:$it } }){ projectV2Item { id } } }`,
+                  { p: PROJECT_ID, i: item.id, f: ITERATION_FIELD_ID, it: current.id });
+                moved++;
+                core.info(`Moved issue #${c.number} from a past iteration -> ${current.title}`);
+              }
+              cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
+            } while (cursor);
+            core.info(`Iteration sweep: scanned ${scanned} item(s), moved ${moved}.`);
