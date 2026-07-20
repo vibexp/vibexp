@@ -82,6 +82,16 @@ The root `docker-compose.yml` runs the published images (self-host), not for dev
 - CI runs the same `make` targets, so run them locally first. Backend: download-deps -> format -> build -> test, plus lint and OpenAPI validation. Frontend: install -> lint -> type-check -> test -> build. (Backend CI's `make backend-build` is the default no-embed build, which also guards "the backend builds with no `frontend/dist`".)
 - **One artifact, one workflow.** A GitHub Release `vX.Y.Z` (workflow `release.yml`) builds the single combined image `ghcr.io/vibexp/vibexp:X.Y.Z` (+ `:latest`, which docker-compose tracks) — the Dockerfile (`backend/Dockerfile`, built from the repo root) builds the frontend, embeds `dist`, and builds the Go binary with `-tags embedfrontend`. There is no separate frontend image.
 
+## Repository automations
+
+Three `.github/workflows/*` keep the tracker and the VibeXP board (`vibexp/#3`) truthful with zero manual triage (issue #416). They are repo/board hygiene, not build/test:
+
+- **`stale.yml`** (daily) — **issues only** (`days-before-pr-stale: -1`). No activity for **7 days** → `Stale` label + a warning comment; **14 days** → one reminder comment (deduped by a `<!-- stale-14d-reminder -->` marker); **21 days** → close with a final comment. Any genuine (non-bot) activity removes `Stale` and resets the clock. Issues labeled `pinned`, `epic`, or `security` are exempt. `actions/stale` owns only the 7-day marking; the later stages run in a `github-script` step keyed off the **`Stale`-label event** (not `updated_at`, which the reminder comment itself would bump — corrupting both the close window and un-staling).
+- **`pr-linked-issue.yml`** (on `pull_request`) — **every PR must link an open issue.** Fails unless the PR has ≥1 linked **open** issue via `closingIssuesReferences` — add `Fixes #N` / `Closes #N` to the PR body or link it from the **Development** sidebar. A failing PR carries one explanatory bot comment. The `no-issue-needed` label is the escape hatch for trivial PRs. (It reports a status only; making it a *required* check needs a branch ruleset — a separate admin decision.)
+- **`project-board.yml`** (on `issues: opened` + daily) — auto-adds issues to `vibexp/#3` and sets **Status=Backlog only when Status is empty** (never overwrites); a daily sweep also moves any **open** issue sitting in a **past iteration** into the current one (current/future iterations and Done/closed items untouched; iteration ids are resolved live — never hardcoded). Projects V2 writes use a **VibeXP Bot app** installation token (the default `GITHUB_TOKEN` can't write org Projects), so the app needs **Organization → Projects: Read & write** granted by an org admin; until then the workflow fails fast with a remediation message.
+
+Third-party actions are SHA-pinned (matching `publish-api-client.yml`). Labels `Stale`, `no-issue-needed`, and `pinned` back these automations.
+
 ## Working agreement
 
 - Branch off `main`, match existing style, run the relevant `make ...-lint` / `...-test` / build targets before committing, open a PR, let CI pass.

@@ -1,0 +1,110 @@
+name: PR must link an open issue
+
+# Every pull request must be traceable to an open issue (#416). The check fails
+# unless the PR has at least one linked issue in the OPEN state, resolved via
+# GraphQL `closingIssuesReferences` (populated by closing keywords like
+# `Fixes #123` in the PR body or by the "Development" sidebar).
+#
+# We implement this with actions/github-script rather than a third-party action
+# because the requirement is specifically an *open*-state check plus a
+# `no-issue-needed` escape hatch and a single deduped failure comment -- more
+# than the popular link-check actions guarantee.
+#
+# NOTE: this only reports a status; making it a *required* check needs a branch
+# ruleset, which is a separate admin decision (see #416, out of scope here).
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: pr-linked-issue-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check linked open issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify the PR links an open issue
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const MARK = '<!-- pr-linked-issue-check -->';
+            const SKIP_LABEL = 'no-issue-needed';
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+            const number = pr.number;
+
+            async function findMarker() {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: number, per_page: 100,
+              });
+              return comments.find((c) => (c.body || '').includes(MARK));
+            }
+            async function upsertComment(body) {
+              const existing = await findMarker();
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number: number, body });
+              }
+            }
+            async function markResolved() {
+              const existing = await findMarker();
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner, repo, comment_id: existing.id,
+                  body: `${MARK}\n✅ This PR is linked to an open issue (or carries \`${SKIP_LABEL}\`). Thanks!`,
+                });
+              }
+            }
+
+            // Escape hatch for trivial PRs.
+            const labels = (pr.labels || []).map((l) => l.name);
+            if (labels.includes(SKIP_LABEL)) {
+              core.info(`PR #${number} carries '${SKIP_LABEL}'; skipping the linked-issue check.`);
+              await markResolved();
+              return;
+            }
+
+            // closingIssuesReferences = issues linked via closing keywords or the
+            // Development sidebar. Require at least one that is currently OPEN.
+            const data = await github.graphql(
+              `query($owner:String!, $repo:String!, $number:Int!) {
+                repository(owner:$owner, name:$repo) {
+                  pullRequest(number:$number) {
+                    closingIssuesReferences(first: 20) { nodes { number state } }
+                  }
+                }
+              }`,
+              { owner, repo, number },
+            );
+            const linked = data.repository.pullRequest.closingIssuesReferences.nodes || [];
+            const openLinked = linked.filter((n) => n.state === 'OPEN');
+
+            if (openLinked.length > 0) {
+              core.info(`PR #${number} links open issue(s): ${openLinked.map((n) => '#' + n.number).join(', ')}`);
+              await markResolved();
+              return;
+            }
+
+            const body = [
+              MARK,
+              "### ❌ This PR isn't linked to an open issue",
+              '',
+              'Every pull request must be traceable to an open issue. Please do one of:',
+              '',
+              '- Add a closing keyword to the PR description, e.g. `Fixes #123` or `Closes #123`.',
+              '- Or link an issue from the **Development** section of the PR sidebar.',
+              '- Or, for a change that genuinely needs no issue, add the `' + SKIP_LABEL + '` label.',
+              '',
+              'This check re-runs automatically when you edit the description, push a commit, or change labels.',
+            ].join('\n');
+            await upsertComment(body);
+            core.setFailed('No linked open issue found for this pull request.');
