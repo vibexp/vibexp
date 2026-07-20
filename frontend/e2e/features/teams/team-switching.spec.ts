@@ -4,7 +4,17 @@ import { getCurrentTeam } from '../../fixtures/auth'
 /**
  * Feature Tests: Team Context Switching
  * Tests switching between teams and verifying resource scoping
+ *
+ * Hardened for first-attempt stability (#299): fixed `waitForTimeout` settles
+ * were replaced with web-first waits. Dropdown interactions wait for the menu
+ * (or its options) to actually render before acting; create/save flows rely on
+ * the auto-waiting `toHaveURL` instead of a blind sleep, with generous explicit
+ * timeouts for the parallel combined-stack CI run.
  */
+
+// A prompt detail URL — anything but the /prompts/new create route.
+const PROMPT_DETAIL_URL = /\/prompts\/(?!new$)[^/]+$/
+
 test.describe('Team Context Switching', () => {
   test.describe('Team Switcher Display', () => {
     test('should display current team in header dropdown', async ({
@@ -43,16 +53,20 @@ test.describe('Team Context Switching', () => {
 
       if (await teamSwitcher.isVisible().catch(() => false)) {
         await teamSwitcher.click()
-        await authenticatedPage.waitForTimeout(500)
 
-        // Verify dropdown opened with teams
+        // Verify dropdown opened with teams — wait for the menu to render
+        // rather than sleeping a fixed interval.
         const teamList = authenticatedPage.locator(
           '[role="menu"], [role="listbox"]'
         )
-        const hasTeamList = await teamList.isVisible().catch(() => false)
+        const hasTeamList = await teamList
+          .first()
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .then(() => true)
+          .catch(() => false)
 
         if (hasTeamList) {
-          await expect(teamList).toBeVisible()
+          await expect(teamList.first()).toBeVisible()
         }
       }
     })
@@ -76,18 +90,24 @@ test.describe('Team Context Switching', () => {
 
         if (await teamSwitcher.isVisible().catch(() => false)) {
           await teamSwitcher.click()
-          await authenticatedPage.waitForTimeout(1000)
 
           // Try to select a different team if available
           const teamOptions = authenticatedPage.locator(
             '[role="menuitem"], [role="option"]'
           )
+          await teamOptions
+            .first()
+            .waitFor({ state: 'visible', timeout: 5000 })
+            .catch(() => {})
           const count = await teamOptions.count()
 
           if (count > 1) {
             // Click on second team (index 1)
             await teamOptions.nth(1).click()
-            await authenticatedPage.waitForTimeout(1000)
+            // The switch settled once the menu closed.
+            await expect(teamOptions.first())
+              .toBeHidden({ timeout: 5000 })
+              .catch(() => {})
           }
         }
       }
@@ -109,20 +129,23 @@ test.describe('Team Context Switching', () => {
 
       if (await teamSwitcher.isVisible().catch(() => false)) {
         await teamSwitcher.click()
-        await authenticatedPage.waitForTimeout(500)
 
         const teamOptions = authenticatedPage.locator(
           '[role="menuitem"], [role="option"]'
         )
+        await teamOptions
+          .first()
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .catch(() => {})
         const count = await teamOptions.count()
 
         if (count > 1) {
           await teamOptions.nth(1).click()
-          await authenticatedPage.waitForTimeout(1500)
 
           // Verify context updated
-          const newTeam = await getCurrentTeam(authenticatedPage)
-          expect(newTeam).toBeTruthy()
+          await expect
+            .poll(() => getCurrentTeam(authenticatedPage), { timeout: 10000 })
+            .toBeTruthy()
         }
       }
     })
@@ -157,8 +180,7 @@ test.describe('Team Context Switching', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
+      await expect(authenticatedPage).toHaveURL(PROMPT_DETAIL_URL, {
         timeout: 10000,
       })
     })
@@ -275,15 +297,15 @@ test.describe('Team Context Switching', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
+      // A successful save navigates to the new prompt's detail page.
+      await expect(authenticatedPage).toHaveURL(PROMPT_DETAIL_URL, {
         timeout: 10000,
       })
 
       // Verify prompt was created
       await expect(
         authenticatedPage.locator(`text=${promptName}`).first()
-      ).toBeVisible({ timeout: 5000 })
+      ).toBeVisible({ timeout: 10000 })
 
       // Go to prompts list and verify it appears
       await authenticatedPage.goto('/prompts')
@@ -291,7 +313,7 @@ test.describe('Team Context Switching', () => {
 
       await expect(
         authenticatedPage.locator(`text=${promptName}`).first()
-      ).toBeVisible({ timeout: 5000 })
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should switch back to Private Workspace', async ({
@@ -306,20 +328,25 @@ test.describe('Team Context Switching', () => {
 
       if (await teamSwitcher.isVisible().catch(() => false)) {
         await teamSwitcher.click()
-        await authenticatedPage.waitForTimeout(500)
 
         // Look for Private Workspace option
         const privateWorkspaceOption = authenticatedPage.locator(
           'text=/Private Workspace/i'
         )
 
-        if (await privateWorkspaceOption.isVisible().catch(() => false)) {
-          await privateWorkspaceOption.click()
-          await authenticatedPage.waitForTimeout(1000)
+        if (
+          await privateWorkspaceOption
+            .first()
+            .waitFor({ state: 'visible', timeout: 5000 })
+            .then(() => true)
+            .catch(() => false)
+        ) {
+          await privateWorkspaceOption.first().click()
 
           // Verify switched
-          const currentTeam = await getCurrentTeam(authenticatedPage)
-          expect(currentTeam).toBeTruthy()
+          await expect
+            .poll(() => getCurrentTeam(authenticatedPage), { timeout: 10000 })
+            .toBeTruthy()
         }
       }
 

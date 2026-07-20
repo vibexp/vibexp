@@ -16,6 +16,12 @@ import { test, expect } from '../fixtures/auth'
  * 6. Share resources within team
  * 7. Manage team members
  * 8. Leave or delete team
+ *
+ * Hardened for first-attempt stability (#299): fixed `waitForTimeout` settles
+ * were replaced with web-first waits. Dialog opens are gated on their fields
+ * becoming actionable, team creation is confirmed by the new team appearing,
+ * and a team switch is confirmed via the current-team indicator before any
+ * full-page navigation re-hydrates the team context from storage.
  */
 test.describe('Journey 7: Team Collaboration Workflow', () => {
   test.describe('Teams Navigation', () => {
@@ -65,9 +71,11 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     test('should create new team', async ({ authenticatedPage }) => {
       await authenticatedPage.goto('/settings/teams')
 
-      // Click Create Team
+      // Click Create Team and wait for the dialog's name field to be actionable.
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible({ timeout: 10000 })
 
       // Fill team details
       await authenticatedPage.fill(
@@ -82,18 +90,19 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
 
       // Submit
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
-      await authenticatedPage.waitForTimeout(2000)
 
-      // Should see the new team
+      // Should see the new team once creation lands.
       await expect(
         authenticatedPage.getByText('E2E Collaboration Team')
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should auto-generate team slug', async ({ authenticatedPage }) => {
       await authenticatedPage.goto('/settings/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible({ timeout: 10000 })
 
       const teamName = 'My New Team With Spaces'
       await authenticatedPage.fill('[data-testid="team-name-input"]', teamName)
@@ -104,7 +113,8 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       )
 
       if ((await slugInput.count()) > 0) {
-        await authenticatedPage.waitForTimeout(500)
+        // Wait for the slug to be derived from the name rather than sleeping.
+        await expect(slugInput.first()).not.toHaveValue('', { timeout: 5000 })
         const slugValue = await slugInput.first().inputValue()
         expect(slugValue.toLowerCase()).toContain('team')
       }
@@ -113,7 +123,9 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     test('should require team name', async ({ authenticatedPage }) => {
       await authenticatedPage.goto('/settings/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="submit-create-team-button"]')
+      ).toBeVisible({ timeout: 10000 })
 
       // Try to create without name
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
@@ -130,22 +142,22 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // Create a team first
       await authenticatedPage.goto('/settings/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible({ timeout: 10000 })
       await authenticatedPage.fill(
         '[data-testid="team-name-input"]',
         'Details View Team'
       )
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
-      await authenticatedPage.waitForTimeout(2000)
 
-      // Click on the team
+      // Click on the team once it appears in the list.
       await authenticatedPage.click('text=Details View Team')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Should show team details
       await expect(
         authenticatedPage.getByRole('heading', { name: /details view team/i })
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should display team member count', async ({ authenticatedPage }) => {
@@ -170,23 +182,23 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // Create team and navigate to details
       await authenticatedPage.goto('/settings/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible({ timeout: 10000 })
       await authenticatedPage.fill(
         '[data-testid="team-name-input"]',
         'Invitation Test Team'
       )
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
-      await authenticatedPage.waitForTimeout(2000)
 
       await authenticatedPage.click('text=Invitation Test Team')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Should see invite button
       await expect(
         authenticatedPage.getByRole('button', {
           name: /invite|add member/i,
         })
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should open invite dialog', async ({ authenticatedPage }) => {
@@ -226,17 +238,19 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
 
       if ((await firstTeam.count()) > 0) {
         await firstTeam.click()
-        await authenticatedPage.waitForTimeout(1000)
 
         const inviteButton = authenticatedPage.locator(
           'button:has-text("Invite")'
         )
+        await inviteButton
+          .first()
+          .waitFor({ state: 'visible', timeout: 10000 })
+          .catch(() => {})
 
         if ((await inviteButton.count()) > 0) {
           await inviteButton.first().click()
-          await authenticatedPage.waitForTimeout(1000)
 
-          // Enter invalid email
+          // Enter invalid email (fill auto-waits for the field to render)
           await authenticatedPage.fill(
             'input[placeholder*="email"]',
             'invalid-email'
@@ -284,24 +298,27 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // Create a second team
       await authenticatedPage.goto('/settings/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible({ timeout: 10000 })
       await authenticatedPage.fill(
         '[data-testid="team-name-input"]',
         'Switch Target Team'
       )
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
-      await authenticatedPage.waitForTimeout(2000)
+      await expect(
+        authenticatedPage.getByText('Switch Target Team')
+      ).toBeVisible({ timeout: 10000 })
 
       // Go to home and switch teams
       await authenticatedPage.goto('/')
       await authenticatedPage.click('[data-testid="team-switcher"]')
       await authenticatedPage.click('text=Switch Target Team')
-      await authenticatedPage.waitForTimeout(1000)
 
       // The team switcher should now show the newly selected team as current.
       await expect(
         authenticatedPage.locator('[data-testid="current-team-name"]')
-      ).toHaveText(/switch target team/i)
+      ).toHaveText(/switch target team/i, { timeout: 10000 })
     })
 
     test('should persist team context across navigation', async ({
@@ -309,19 +326,28 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     }) => {
       await authenticatedPage.goto('/settings/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible({ timeout: 10000 })
       await authenticatedPage.fill(
         '[data-testid="team-name-input"]',
         'Persistence Test Team'
       )
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
-      await authenticatedPage.waitForTimeout(2000)
+      await expect(
+        authenticatedPage.getByText('Persistence Test Team')
+      ).toBeVisible({ timeout: 10000 })
 
       // Switch to this team
       await authenticatedPage.goto('/')
       await authenticatedPage.click('[data-testid="team-switcher"]')
       await authenticatedPage.click('text=Persistence Test Team')
-      await authenticatedPage.waitForTimeout(1000)
+
+      // Confirm the switch committed before navigating (the switcher reflects
+      // the new team, which is also persisted to storage for re-hydration).
+      await expect(
+        authenticatedPage.locator('[data-testid="current-team-name"]')
+      ).toHaveText(/persistence test team/i, { timeout: 10000 })
 
       // Navigate to different pages
       await authenticatedPage.goto('/prompts')
@@ -330,7 +356,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // Team context should persist
       await expect(
         authenticatedPage.getByText(/persistence test team/i)
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 10000 })
     })
   })
 
@@ -341,13 +367,17 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // Create team, switch to it, create a prompt
       await authenticatedPage.goto('/settings/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible({ timeout: 10000 })
       await authenticatedPage.fill(
         '[data-testid="team-name-input"]',
         'Resource Sharing Team'
       )
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
-      await authenticatedPage.waitForTimeout(2000)
+      await expect(
+        authenticatedPage.getByText('Resource Sharing Team')
+      ).toBeVisible({ timeout: 10000 })
 
       // Switch to team
       await authenticatedPage.goto('/')
@@ -358,14 +388,14 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // full-page navigation re-hydrates the team context from storage.
       await expect(
         authenticatedPage.locator('[data-testid="current-team-name"]')
-      ).toHaveText(/resource sharing team/i)
+      ).toHaveText(/resource sharing team/i, { timeout: 10000 })
 
       // Create a prompt in team context. Confirm the editor page hydrated the
       // switched team before creating, so the prompt is scoped to it.
       await authenticatedPage.goto('/prompts/new')
       await expect(
         authenticatedPage.locator('[data-testid="current-team-name"]')
-      ).toHaveText(/resource sharing team/i)
+      ).toHaveText(/resource sharing team/i, { timeout: 10000 })
       await authenticatedPage.fill(
         'input[placeholder*="Enter prompt name"]',
         'Team Shared Prompt'
@@ -398,10 +428,16 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       await authenticatedPage.goto('/')
       await authenticatedPage.click('[data-testid="team-switcher"]')
       await authenticatedPage.click('text=Private Workspace')
-      await authenticatedPage.waitForTimeout(1000)
+
+      // Confirm the switch to the personal workspace committed before
+      // navigating, so the list request is scoped to it (not the prior team).
+      await expect(
+        authenticatedPage.locator('[data-testid="current-team-name"]')
+      ).toHaveText(/private workspace/i, { timeout: 10000 })
 
       // Navigate to prompts
       await authenticatedPage.goto('/prompts')
+      await authenticatedPage.waitForLoadState('networkidle')
 
       // Team prompt should not be visible
       await expect(
@@ -420,12 +456,11 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
 
       if ((await firstTeam.count()) > 0) {
         await firstTeam.click()
-        await authenticatedPage.waitForTimeout(1000)
 
         // Should see members section
         await expect(
           authenticatedPage.getByText(/members|team members/i)
-        ).toBeVisible()
+        ).toBeVisible({ timeout: 10000 })
 
         // Should see at least owner (current user)
         await expect(authenticatedPage.getByText(/owner|you/i)).toBeVisible()
@@ -441,12 +476,11 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
 
       if ((await firstTeam.count()) > 0) {
         await firstTeam.click()
-        await authenticatedPage.waitForTimeout(1000)
 
         // Should show role badges (Owner, Admin, Member)
         await expect(
           authenticatedPage.getByText(/owner|admin|member/i)
-        ).toBeVisible()
+        ).toBeVisible({ timeout: 10000 })
       }
     })
   })
@@ -458,22 +492,25 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // Create a team to delete
       await authenticatedPage.goto('/settings/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible({ timeout: 10000 })
       await authenticatedPage.fill(
         '[data-testid="team-name-input"]',
         'Team to Delete'
       )
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
-      await authenticatedPage.waitForTimeout(2000)
+      await expect(authenticatedPage.getByText('Team to Delete')).toBeVisible({
+        timeout: 10000,
+      })
 
       // Click on the team
       await authenticatedPage.click('text=Team to Delete')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Should see delete option
       await expect(
         authenticatedPage.getByRole('button', { name: /delete team/i })
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should confirm before deleting team', async ({
@@ -481,32 +518,38 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     }) => {
       await authenticatedPage.goto('/settings/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
-      await authenticatedPage.waitForTimeout(1000)
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible({ timeout: 10000 })
       await authenticatedPage.fill(
         '[data-testid="team-name-input"]',
         'Confirm Delete Team'
       )
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
-      await authenticatedPage.waitForTimeout(2000)
+      await expect(
+        authenticatedPage.getByText('Confirm Delete Team')
+      ).toBeVisible({ timeout: 10000 })
 
       await authenticatedPage.click('text=Confirm Delete Team')
-      await authenticatedPage.waitForTimeout(1000)
 
       // Click delete
       const deleteButton = authenticatedPage.locator(
         'button:has-text("Delete Team")'
       )
+      await deleteButton
+        .first()
+        .waitFor({ state: 'visible', timeout: 10000 })
+        .catch(() => {})
 
       if ((await deleteButton.count()) > 0) {
         await deleteButton.click()
-        await authenticatedPage.waitForTimeout(500)
 
         // Should see confirmation dialog
         await expect(
           authenticatedPage
             .getByText(/are you sure|confirm|permanently/i)
             .first()
-        ).toBeVisible()
+        ).toBeVisible({ timeout: 10000 })
       }
     })
   })
