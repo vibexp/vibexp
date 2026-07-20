@@ -9,6 +9,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -301,4 +302,152 @@ func TestRelationRepository_ListByResource(t *testing.T) {
 		assert.Empty(t, related)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+// These pin the error-wrapping branches (driver failures, scan/iterate errors,
+// rows-affected failures) that the happy-path suite skips.
+
+func TestRelationRepository_Create_ErrorBranches(t *testing.T) {
+	t.Run("generic driver error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(`INSERT INTO resource_relations`).WillReturnError(sql.ErrConnDone)
+
+		_, err := repo.Create(context.Background(), newRelationFixture())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create relation")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("conflict then missing existing row maps to not-found", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(`INSERT INTO resource_relations`).WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(`FROM resource_relations WHERE team_id = \$1 AND from_type`).
+			WillReturnError(sql.ErrNoRows)
+
+		_, err := repo.Create(context.Background(), newRelationFixture())
+		assert.ErrorIs(t, err, repositories.ErrRelationNotFound)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestRelationRepository_ListByResource_ErrorBranches(t *testing.T) {
+	countPattern := `SELECT COUNT\(\*\) FROM resource_relations`
+	listCols := []string{"id", "relation_type", "direction", "origin", "status",
+		"other_type", "other_id", "created_at", "title", "project_id", "slug"}
+
+	t.Run("count error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectQuery(countPattern).WithArgs("team-1", "artifact", "art-1").
+			WillReturnError(sql.ErrConnDone)
+
+		_, _, err := repo.ListByResource(context.Background(), "team-1", "artifact", "art-1", 1, 10)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to count relations")
+	})
+
+	t.Run("list query error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectQuery(countPattern).WithArgs("team-1", "artifact", "art-1").
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(`FROM edges e`).WillReturnError(sql.ErrConnDone)
+
+		_, _, err := repo.ListByResource(context.Background(), "team-1", "artifact", "art-1", 1, 10)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to list relations")
+	})
+
+	t.Run("scan error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectQuery(countPattern).WithArgs("team-1", "artifact", "art-1").
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(`FROM edges e`).WillReturnRows(sqlmock.NewRows(listCols).AddRow(
+			"rel-1", "governed-by", "outgoing", "human", "confirmed",
+			"blueprint", "bp-1", "not-a-time", "Title", "proj-1", "slug"))
+
+		_, _, err := repo.ListByResource(context.Background(), "team-1", "artifact", "art-1", 1, 10)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to scan related resource")
+	})
+
+	t.Run("row iteration error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectQuery(countPattern).WithArgs("team-1", "artifact", "art-1").
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+		mock.ExpectQuery(`FROM edges e`).WillReturnRows(sqlmock.NewRows(listCols).AddRow(
+			"rel-1", "governed-by", "outgoing", "human", "confirmed",
+			"blueprint", "bp-1", relTestNow, "Title", "proj-1", "slug").
+			RowError(0, sql.ErrConnDone))
+
+		_, _, err := repo.ListByResource(context.Background(), "team-1", "artifact", "art-1", 1, 10)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to iterate relations")
+	})
+}
+
+func TestRelationRepository_Delete_ErrorBranches(t *testing.T) {
+	t.Run("exec error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectExec(`DELETE FROM resource_relations WHERE id = \$1 AND team_id = \$2`).
+			WillReturnError(sql.ErrConnDone)
+
+		err := repo.Delete(context.Background(), "team-1", "rel-1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to delete relation")
+	})
+
+	t.Run("rows-affected error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectExec(`DELETE FROM resource_relations WHERE id = \$1 AND team_id = \$2`).
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("boom")))
+
+		err := repo.Delete(context.Background(), "team-1", "rel-1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read delete result")
+	})
+}
+
+func TestRelationRepository_DeleteByResource_ErrorBranches(t *testing.T) {
+	deletePattern := `DELETE FROM resource_relations WHERE team_id = \$1`
+
+	t.Run("exec error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectExec(deletePattern).WillReturnError(sql.ErrConnDone)
+
+		_, err := repo.DeleteByResource(context.Background(), "team-1", "artifact", "art-1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to delete relations for resource")
+	})
+
+	t.Run("rows-affected error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := newRelationMockRepo(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectExec(deletePattern).
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("boom")))
+
+		_, err := repo.DeleteByResource(context.Background(), "team-1", "artifact", "art-1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read delete result")
+	})
+}
+
+func TestRelationRepository_ResourceProjectID_DriverError(t *testing.T) {
+	repo, mock, mockDB := newRelationMockRepo(t)
+	defer closeMockDB(t, mockDB)
+	mock.ExpectQuery(`SELECT project_id FROM memories WHERE id = \$1 AND team_id = \$2`).
+		WithArgs("m-1", "team-1").WillReturnError(sql.ErrConnDone)
+
+	_, _, err := repo.ResourceProjectID(context.Background(), "team-1", "memory", "m-1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve resource project")
 }
