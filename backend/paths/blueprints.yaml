@@ -231,7 +231,7 @@ api-v1-team_id-blueprints-stats:
               $ref: '../openapi.yaml#/components/schemas/BlueprintStatsResponse'
             example:
               total_projects: 3
-              total_spec_libraries: 12
+              total_blueprints: 12
               added_this_week: 2
               total_by_type:
                 general: 12

@@ -2765,7 +2765,7 @@ paths:
                 $ref: '#/components/schemas/BlueprintStatsResponse'
               example:
                 total_projects: 3
-                total_spec_libraries: 12
+                total_blueprints: 12
                 added_this_week: 2
                 total_by_type:
                   general: 12
@@ -16347,9 +16347,9 @@ components:
           type: integer
           description: Total number of projects with spec libraries
           example: 5
-        total_spec_libraries:
+        total_blueprints:
           type: integer
-          description: Total number of spec libraries
+          description: Total number of blueprints
           example: 42
         added_this_week:
           type: integer
@@ -16372,7 +16372,7 @@ components:
             expired: 7
       required:
         - total_projects
-        - total_spec_libraries
+        - total_blueprints
         - added_this_week
         - total_by_type
         - total_by_status

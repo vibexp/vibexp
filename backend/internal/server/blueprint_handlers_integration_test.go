@@ -200,6 +200,7 @@ func TestHandleCreateBlueprint_Success(t *testing.T) {
 	assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", response.Slug)
 	assert.Equal(t, "New Blueprint", response.Title)
 
+	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
 	mockResourceService.AssertExpectations(t)
 }
@@ -634,6 +635,7 @@ func TestHandleGetBlueprint_Success(t *testing.T) {
 	assert.Equal(t, "Test Blueprint", response.Title)
 	assert.Equal(t, "Test Spec Content", response.Content)
 
+	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
 }
 
@@ -995,6 +997,7 @@ func TestHandleUpdateBlueprint_Success(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "Updated Title", response.Title)
+	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
 	mockResourceService.AssertExpectations(t)
 }
@@ -1240,6 +1243,7 @@ func TestHandleDeleteBlueprint_Success(t *testing.T) {
 	srv.router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusNoContent, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
 }
 
@@ -1432,6 +1436,7 @@ func TestHandleGetBlueprintStats_Success(t *testing.T) {
 	assert.Equal(t, 25, response.TotalByType["general"])
 	assert.Equal(t, 20, response.TotalByStatus["active"])
 
+	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
 }
 
@@ -1634,6 +1639,7 @@ func TestHandleListBlueprintsByProject_Success(t *testing.T) {
 	assert.Equal(t, 1, response.TotalCount)
 	assert.Len(t, response.Blueprints, 1)
 	assert.Equal(t, "spec-1", response.Blueprints[0].ID)
+	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
 }
 

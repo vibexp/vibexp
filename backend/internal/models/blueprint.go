@@ -5,21 +5,25 @@ import (
 )
 
 type Blueprint struct {
-	ID          string                 `json:"id" db:"id"`
-	ProjectID   string                 `json:"project_id" db:"project_id"`
-	Slug        string                 `json:"slug" db:"slug"`
-	UserID      string                 `json:"user_id" db:"user_id"`
-	TeamID      string                 `json:"team_id" db:"team_id"`
-	Content     string                 `json:"content" db:"content"`
-	CreatedAt   time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at" db:"updated_at"`
-	Status      string                 `json:"status" db:"status"`
-	Title       string                 `json:"title" db:"title"`
-	Description string                 `json:"description" db:"description"`
-	Type        string                 `json:"type" db:"type"`
-	Subtype     *string                `json:"subtype,omitempty" db:"subtype"`
-	Metadata    map[string]interface{} `json:"metadata" db:"metadata"`
-	Version     int64                  `json:"version" db:"version"`
+	ID          string    `json:"id" db:"id"`
+	ProjectID   string    `json:"project_id" db:"project_id"`
+	Slug        string    `json:"slug" db:"slug"`
+	UserID      string    `json:"user_id" db:"user_id"`
+	TeamID      string    `json:"team_id" db:"team_id"`
+	Content     string    `json:"content" db:"content"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	Status      string    `json:"status" db:"status"`
+	Title       string    `json:"title" db:"title"`
+	Description string    `json:"description" db:"description"`
+	Type        string    `json:"type" db:"type"`
+	Subtype     *string   `json:"subtype,omitempty" db:"subtype"`
+	// Metadata is optional per the spec (type object, not required). Use
+	// omitempty so a nil/empty map serializes as absent rather than JSON null —
+	// a null would violate the schema's `type: object` (drift caught by the #122
+	// response-conformance assertions).
+	Metadata map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
+	Version  int64                  `json:"version" db:"version"`
 
 	// Sync-ready fields (epic #334).
 	//
