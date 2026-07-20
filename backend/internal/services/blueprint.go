@@ -132,6 +132,7 @@ type BlueprintService struct {
 	resourceUsageSvc  ResourceUsageServiceInterface
 	contentVersionSvc ContentVersionServiceInterface
 	commentRepo       repositories.CommentRepository
+	relationRepo      repositories.RelationRepository
 	logger            *slog.Logger
 }
 
@@ -148,6 +149,7 @@ type BlueprintServiceDeps struct {
 	Logger            *slog.Logger
 	ContentVersionSvc ContentVersionServiceInterface
 	CommentRepo       repositories.CommentRepository
+	RelationRepo      repositories.RelationRepository
 }
 
 func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
@@ -159,6 +161,7 @@ func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
 		resourceUsageSvc:  deps.ResourceUsageSvc,
 		contentVersionSvc: deps.ContentVersionSvc,
 		commentRepo:       deps.CommentRepo,
+		relationRepo:      deps.RelationRepo,
 		logger:            deps.Logger,
 	}
 }
@@ -696,6 +699,7 @@ func (s *BlueprintService) DeleteBlueprintByProjectIDAndSlug(userID, teamID, pro
 	}
 
 	s.deleteBlueprintComments(ctx, blueprint.TeamID, blueprint.ID)
+	s.deleteBlueprintRelations(ctx, blueprint.TeamID, blueprint.ID)
 
 	return nil
 }
@@ -715,6 +719,24 @@ func (s *BlueprintService) deleteBlueprintComments(ctx context.Context, teamID, 
 			"blueprint_id", blueprintID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete comments for deleted blueprint")
+	}
+}
+
+// deleteBlueprintRelations removes every relation the blueprint appears on
+// (either endpoint) after it is deleted. Best-effort, like the comment cascade.
+func (s *BlueprintService) deleteBlueprintRelations(ctx context.Context, teamID, blueprintID string) {
+	if s.relationRepo == nil {
+		return
+	}
+	if _, err := s.relationRepo.DeleteByResource(
+		ctx, teamID, models.RelationResourceTypeBlueprint, blueprintID,
+	); err != nil {
+		s.logger.With(
+			"service", "blueprint",
+			"team_id", teamID,
+			"blueprint_id", blueprintID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete relations for deleted blueprint")
 	}
 }
 

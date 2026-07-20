@@ -101,6 +101,7 @@ type WireContainer struct {
 	feedItemService          services.FeedItemServiceInterface
 	feedItemReplyService     services.FeedItemReplyServiceInterface
 	commentService           services.CommentServiceInterface
+	relationService          services.RelationServiceInterface
 	notificationService      notifications.NotificationServiceInterface
 	digestRunner             *notifications.DigestRunner
 
@@ -418,6 +419,10 @@ func (c *WireContainer) FeedItemReplyService() services.FeedItemReplyServiceInte
 
 func (c *WireContainer) CommentService() services.CommentServiceInterface {
 	return c.commentService
+}
+
+func (c *WireContainer) RelationService() services.RelationServiceInterface {
+	return c.relationService
 }
 
 // External dependencies

@@ -21,6 +21,7 @@ type ArtifactService struct {
 	resourceUsageSvc  ResourceUsageServiceInterface
 	contentVersionSvc ContentVersionServiceInterface
 	commentRepo       repositories.CommentRepository
+	relationRepo      repositories.RelationRepository
 	logger            *slog.Logger
 }
 
@@ -37,6 +38,7 @@ type ArtifactServiceDeps struct {
 	Logger            *slog.Logger
 	ContentVersionSvc ContentVersionServiceInterface
 	CommentRepo       repositories.CommentRepository
+	RelationRepo      repositories.RelationRepository
 }
 
 func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
@@ -48,6 +50,7 @@ func NewArtifactService(deps ArtifactServiceDeps) *ArtifactService {
 		resourceUsageSvc:  deps.ResourceUsageSvc,
 		contentVersionSvc: deps.ContentVersionSvc,
 		commentRepo:       deps.CommentRepo,
+		relationRepo:      deps.RelationRepo,
 		logger:            deps.Logger,
 	}
 }
@@ -529,6 +532,7 @@ func (s *ArtifactService) DeleteArtifactByProjectIDAndSlug(userID, teamID, proje
 	}
 
 	s.deleteArtifactComments(ctx, artifact.TeamID, artifact.ID)
+	s.deleteArtifactRelations(ctx, artifact.TeamID, artifact.ID)
 
 	return nil
 }
@@ -549,6 +553,24 @@ func (s *ArtifactService) deleteArtifactComments(ctx context.Context, teamID, ar
 			"artifact_id", artifactID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete comments for deleted artifact")
+	}
+}
+
+// deleteArtifactRelations removes every relation the artifact appears on (either
+// endpoint) after it is deleted. Best-effort, like the comment cascade.
+func (s *ArtifactService) deleteArtifactRelations(ctx context.Context, teamID, artifactID string) {
+	if s.relationRepo == nil {
+		return
+	}
+	if _, err := s.relationRepo.DeleteByResource(
+		ctx, teamID, models.RelationResourceTypeArtifact, artifactID,
+	); err != nil {
+		s.logger.With(
+			"service", "artifact",
+			"team_id", teamID,
+			"artifact_id", artifactID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete relations for deleted artifact")
 	}
 }
 

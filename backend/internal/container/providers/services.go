@@ -127,6 +127,16 @@ func ProvideCommentService(
 	return services.NewCommentService(repo, teamService, authzService, logger)
 }
 
+// ProvideRelationService creates a new RelationService.
+func ProvideRelationService(
+	repo repositories.RelationRepository,
+	teamService services.TeamServiceInterface,
+	authzService services.AuthorizationServiceInterface,
+	logger *slog.Logger,
+) services.RelationServiceInterface {
+	return services.NewRelationService(repo, teamService, authzService, logger)
+}
+
 // ProvideAttachmentService creates a new AttachmentService. The object store
 // may be nil (storage disabled); the service degrades to 503 in that case.
 func ProvideAttachmentService(
@@ -314,9 +324,10 @@ func ProvideMemoryService(
 	logger *slog.Logger,
 	contentVersionSvc services.ContentVersionServiceInterface,
 	commentRepo repositories.CommentRepository,
+	relationRepo repositories.RelationRepository,
 ) services.MemoryServiceInterface {
 	return services.NewMemoryService(
-		repo, teamService, authzService, eventManager, logger, contentVersionSvc, commentRepo,
+		repo, teamService, authzService, eventManager, logger, contentVersionSvc, commentRepo, relationRepo,
 	)
 }
 

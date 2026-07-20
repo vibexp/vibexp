@@ -497,6 +497,34 @@ type CommentServiceInterface interface {
 	) ([]models.CommentActivity, error)
 }
 
+// RelationServiceInterface is the typed-resource-relations service: it creates,
+// confirms, deletes, and lists directed edges between the four resource types,
+// authorizing every mutation through the AuthorizationService and validating
+// endpoint types, self-links, and same-project constraints.
+type RelationServiceInterface interface {
+	// Create adds a typed edge between two resources, after validating the
+	// endpoint types against the relation-type matrix, rejecting self-links and
+	// cross-project links, checking the caller may create resources in the team,
+	// and confirming both endpoints exist. Creation is idempotent: a duplicate
+	// edge returns the existing row. The edge's initial status follows the
+	// tiered-trust rule (see models.InitialRelationStatus).
+	Create(
+		ctx context.Context, userID, teamID string, req *models.CreateRelationRequest,
+	) (*models.Relation, error)
+	// Confirm flips a suggested edge to confirmed (recording the caller), after
+	// checking the caller may update any resource. Confirming an already-confirmed
+	// edge returns ErrRelationAlreadyConfirmed.
+	Confirm(ctx context.Context, userID, teamID, relationID string) (*models.Relation, error)
+	// Delete removes an edge: the creator may delete their own; Admin/Owner may
+	// delete any edge in the team (own-vs-any).
+	Delete(ctx context.Context, userID, teamID, relationID string) error
+	// ListByResource returns a page of the relations touching a resource (both
+	// directions), newest-first, for a team member.
+	ListByResource(
+		ctx context.Context, userID, teamID, resourceType, resourceID string, page, limit int,
+	) (*models.RelationListResponse, error)
+}
+
 // FeedFilters represents filters for feed service queries
 type FeedFilters struct {
 	TeamID string

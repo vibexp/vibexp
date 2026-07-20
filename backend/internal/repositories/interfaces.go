@@ -110,6 +110,10 @@ var (
 	// when no comment row matches the given identifier for the team.
 	ErrCommentNotFound = errors.New("comment not found")
 
+	// ErrRelationNotFound is returned by RelationRepository lookups/confirms/deletes
+	// when no relation row matches the given identifier for the team.
+	ErrRelationNotFound = errors.New("relation not found")
+
 	// ErrBlueprintNotFound is returned by BlueprintRepository lookups/deletes when no
 	// blueprint row matches the given identifier for the user/team.
 	ErrBlueprintNotFound = errors.New("blueprint not found")
@@ -1271,6 +1275,51 @@ type CommentRepository interface {
 	// ResourceExists reports whether a resource of resourceType with resourceID
 	// exists in teamID, used to reject a comment on a non-existent/foreign resource.
 	ResourceExists(ctx context.Context, teamID, resourceType, resourceID string) (bool, error)
+}
+
+// RelationRepository persists typed, directed edges between the four resource
+// types, keyed by the polymorphic (from_type, from_id) and (to_type, to_id)
+// endpoints. Neither *_id carries a DB foreign key (each spans four resource
+// tables), so a resource's edges are removed in app code (DeleteByResource)
+// when it is deleted. Every query is scoped by team_id (tenancy only, no role
+// predicates — decision D3); the own-vs-any and confirm decisions live in the
+// service layer.
+type RelationRepository interface {
+	// Create inserts an edge idempotently: on a duplicate of the unique
+	// (team_id, from_type, from_id, relation_type, to_type, to_id) tuple it is a
+	// no-op that returns the pre-existing row. The returned Relation is always
+	// the persisted row (new or existing), with ID/timestamps populated.
+	Create(ctx context.Context, relation *models.Relation) (*models.Relation, error)
+	// GetByID returns the relation with the given id scoped to teamID; it returns
+	// ErrRelationNotFound when no such row exists in the team.
+	GetByID(ctx context.Context, teamID, id string) (*models.Relation, error)
+	// ListByResource returns a page of the relations touching (resourceType,
+	// resourceID) in teamID — both directions (the resource as subject or as
+	// object) — newest-first, each enriched with the OTHER endpoint's resolved
+	// title/link fields, together with the total count.
+	ListByResource(
+		ctx context.Context, teamID, resourceType, resourceID string, page, limit int,
+	) ([]models.RelatedResource, int, error)
+	// Confirm flips a suggested edge to confirmed and records confirmedBy,
+	// returning the updated row. It only affects a row still in the suggested
+	// state; it returns ErrRelationNotFound when no such suggested row exists
+	// (already confirmed rows are left untouched — the service pre-checks to give
+	// a distinct already-confirmed error).
+	Confirm(ctx context.Context, teamID, id, confirmedBy string) (*models.Relation, error)
+	// Delete removes the relation with the given id scoped to teamID; it returns
+	// ErrRelationNotFound when no row was deleted.
+	Delete(ctx context.Context, teamID, id string) error
+	// DeleteByResource removes every edge in teamID where (resourceType,
+	// resourceID) appears on EITHER endpoint. Used by the resource-delete
+	// cascade; a zero count is not an error.
+	DeleteByResource(ctx context.Context, teamID, resourceType, resourceID string) (int64, error)
+	// ResourceProjectID returns the project_id of the resource of resourceType
+	// with resourceID in teamID, and whether it exists. It doubles as the
+	// endpoint existence check and the same-project comparand for relation
+	// creation.
+	ResourceProjectID(
+		ctx context.Context, teamID, resourceType, resourceID string,
+	) (projectID string, exists bool, err error)
 }
 
 // TypeRepository persists the resource-type-agnostic, team-customizable type

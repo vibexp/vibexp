@@ -180,6 +180,10 @@ func (b *BaseMockContainer) CommentService() services.CommentServiceInterface {
 	return nil
 }
 
+func (b *BaseMockContainer) RelationService() services.RelationServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) TypeService() services.TypeServiceInterface {
 	return nil
 }

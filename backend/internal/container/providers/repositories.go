@@ -53,6 +53,11 @@ func ProvideCommentRepository(db *database.DB) repositories.CommentRepository {
 	return postgres.NewCommentRepository(db)
 }
 
+// ProvideRelationRepository creates a new RelationRepository
+func ProvideRelationRepository(db *database.DB) repositories.RelationRepository {
+	return postgres.NewRelationRepository(db)
+}
+
 // ProvideTypeRepository creates a new TypeRepository
 func ProvideTypeRepository(db *database.DB) repositories.TypeRepository {
 	return postgres.NewTypeRepository(db)

@@ -33,6 +33,7 @@ type PromptService struct {
 	eventManager      events.EventPublisher
 	contentVersionSvc ContentVersionServiceInterface
 	commentRepo       repositories.CommentRepository
+	relationRepo      repositories.RelationRepository
 	logger            *slog.Logger
 }
 
@@ -51,6 +52,7 @@ type PromptServiceDeps struct {
 	Logger            *slog.Logger
 	ContentVersionSvc ContentVersionServiceInterface
 	CommentRepo       repositories.CommentRepository
+	RelationRepo      repositories.RelationRepository
 }
 
 func NewPromptService(deps PromptServiceDeps) *PromptService {
@@ -64,6 +66,7 @@ func NewPromptService(deps PromptServiceDeps) *PromptService {
 		eventManager:      deps.EventManager,
 		contentVersionSvc: deps.ContentVersionSvc,
 		commentRepo:       deps.CommentRepo,
+		relationRepo:      deps.RelationRepo,
 		logger:            deps.Logger,
 	}
 }
@@ -618,6 +621,7 @@ func (s *PromptService) deleteFetchedPrompt(
 	}
 
 	s.deletePromptComments(ctx, teamID, promptID)
+	s.deletePromptRelations(ctx, teamID, promptID)
 
 	s.logger.With(
 		"prompt_id", promptID,
@@ -643,6 +647,24 @@ func (s *PromptService) deletePromptComments(ctx context.Context, teamID, prompt
 			"prompt_id", promptID,
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete comments for deleted prompt")
+	}
+}
+
+// deletePromptRelations removes every relation the prompt appears on (either
+// endpoint) after it is deleted. Best-effort, like the comment cascade.
+func (s *PromptService) deletePromptRelations(ctx context.Context, teamID, promptID string) {
+	if s.relationRepo == nil {
+		return
+	}
+	if _, err := s.relationRepo.DeleteByResource(
+		ctx, teamID, models.RelationResourceTypePrompt, promptID,
+	); err != nil {
+		s.logger.With(
+			"service", "prompt",
+			"team_id", teamID,
+			"prompt_id", promptID,
+			"error", fmt.Sprintf("%+v", err),
+		).Warn("Failed to delete relations for deleted prompt")
 	}
 }
 
