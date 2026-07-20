@@ -429,6 +429,8 @@ components:
       $ref: "./schemas/github.yaml#/BlueprintImportConflict"
     BlueprintImportUpToDate:
       $ref: "./schemas/github.yaml#/BlueprintImportUpToDate"
+    BlueprintImportCompanion:
+      $ref: "./schemas/github.yaml#/BlueprintImportCompanion"
 
     # Back office schemas
     UsageMetricsRow:

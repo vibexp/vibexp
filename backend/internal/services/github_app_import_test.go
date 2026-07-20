@@ -507,6 +507,7 @@ func setupTestService(
 		blueprintRepo,
 		githubClient,
 		encryptionSvc,
+		nil, // attachmentSvc not needed
 		eventManager,
 		logger,
 	)
@@ -1440,6 +1441,7 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 				blueprintRepo,
 				githubClient,
 				encryptionSvc,
+				nil, // attachmentSvc not needed
 				eventManager,
 				logger,
 			)
@@ -1677,6 +1679,7 @@ func TestGitHubAppService_ImportSingleFile_FrontMatter(t *testing.T) {
 				blueprintRepo,
 				githubClient,
 				encryptionSvc,
+				nil, // attachmentSvc not needed
 				eventManager,
 				logger,
 			)

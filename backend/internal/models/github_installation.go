@@ -90,6 +90,31 @@ type BlueprintImportReport struct {
 	UpdatedItems   JSONArray[BlueprintImportUpdated]  `json:"updated_items"`
 	ConflictItems  JSONArray[BlueprintImportConflict] `json:"conflict_items"`
 	UpToDateItems  JSONArray[BlueprintImportUpToDate] `json:"up_to_date_items"`
+	// Multi-file Agent Skill companion outcomes (#342), reported separately from
+	// blueprint (SKILL.md) outcomes above. A skill directory imports its SKILL.md
+	// as a blueprint and every sibling file as a blueprint-owned attachment;
+	// TotalCompanionsImported counts companions stored (new or replaced),
+	// TotalCompanionsRemoved counts companions deleted during re-import
+	// reconciliation, and TotalCompanionsSkipped counts companions the attachment
+	// service rejected (oversized, over the per-owner budget, disallowed type, or
+	// storage unconfigured) — the SKILL.md still imports regardless.
+	TotalCompanionsImported int                                 `json:"total_companions_imported"`
+	TotalCompanionsRemoved  int                                 `json:"total_companions_removed"`
+	TotalCompanionsSkipped  int                                 `json:"total_companions_skipped"`
+	CompanionItems          JSONArray[BlueprintImportCompanion] `json:"companion_items"`
+}
+
+// BlueprintImportCompanion is the per-file outcome of importing one Agent Skill
+// companion file (a sibling of a SKILL.md) as a blueprint-owned attachment
+// (#342). Outcome is one of "imported" (newly stored), "updated" (replaced an
+// existing companion at the same relative_path during re-import), "removed"
+// (deleted because it is absent from the re-imported skill), or "skipped"
+// (rejected by the attachment service — Reason carries why).
+type BlueprintImportCompanion struct {
+	BlueprintID  string `json:"blueprint_id"`
+	RelativePath string `json:"relative_path"`
+	Outcome      string `json:"outcome"`
+	Reason       string `json:"reason,omitempty"`
 }
 
 // BlueprintImportUpdated represents a blueprint refreshed from a changed repo
