@@ -460,6 +460,21 @@ func TestMaterializer_EditRestoreRoundTrip(t *testing.T) {
 	assertFileTreeEqual(t, fixtureBytes(), afterRestore)
 }
 
+// TestMaterializer_PathCollisionIsError asserts the materializer treats two
+// sources writing the same repo path as a hard error rather than silently
+// dropping one — the deterministic-map contract.
+func TestMaterializer_PathCollisionIsError(t *testing.T) {
+	attSvc := NewAttachmentService(newFakeAttachmentRepo(), newFakeObjectStore(), newTestLogger())
+	blueprints := []*models.Blueprint{
+		{ID: "a", ProjectID: mzProjectID, Path: "dup.md", RawContent: "one"},
+		{ID: "b", ProjectID: mzProjectID, Path: "dup.md", RawContent: "two"},
+	}
+	_, err := materialize(context.Background(), blueprints, attSvc)
+	var collision *materializeCollision
+	require.ErrorAs(t, err, &collision)
+	assert.Equal(t, "dup.md", collision.path)
+}
+
 func blueprintAtPath(t *testing.T, repo *inMemoryBlueprintRepo, p string) *models.Blueprint {
 	t.Helper()
 	for _, bp := range repo.forProject() {
