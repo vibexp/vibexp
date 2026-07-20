@@ -3,7 +3,19 @@ import { test, expect } from '../../fixtures/auth'
 /**
  * Feature Tests: Prompt CRUD Operations
  * Tests basic Create, Read, Update, Delete functionality for prompts
+ *
+ * Hardened for first-attempt stability (#299): fixed `waitForTimeout` settles
+ * were replaced with web-first, auto-waiting assertions. A create/save no longer
+ * sleeps before checking the URL — `expect(...).toHaveURL(...)` /
+ * `waitForURL(...)` already poll until the navigation lands, and generous
+ * explicit timeouts absorb the extra latency of the parallel combined-stack CI
+ * run. Negative (validation/duplicate) cases wait on the real error signal
+ * (inline field error / error toast) instead of a blind sleep.
  */
+
+// A detail URL is /prompts/<slug> — anything but the /prompts/new create route.
+const DETAIL_URL = /\/prompts\/(?!new$)[^/]+$/
+
 test.describe('Prompt CRUD Operations', () => {
   test.describe('Prompt Creation', () => {
     test('should display prompts page with navigation', async ({
@@ -53,10 +65,8 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      // A successful save navigates to the new prompt's detail page.
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
       await expect(
         authenticatedPage.locator(`text=${promptName}`).first()
       ).toBeVisible({ timeout: 10000 })
@@ -77,10 +87,11 @@ test.describe('Prompt CRUD Operations', () => {
       )
       await saveButton.click()
 
-      // Wait a bit to see if validation triggers
-      await authenticatedPage.waitForTimeout(1000)
-
-      // Should still be on the create page (validation failed)
+      // The inline required-field error is the deterministic signal that
+      // validation blocked the submit (no navigation).
+      await expect(authenticatedPage.getByText('Name is required')).toBeVisible(
+        { timeout: 10000 }
+      )
       await expect(authenticatedPage).toHaveURL(/prompts\/new/)
     })
 
@@ -140,13 +151,10 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-
-      // Verify URL contains custom slug
-      const currentUrl = authenticatedPage.url()
-      if (customSlug) {
-        expect(currentUrl).toContain(customSlug)
-      }
+      // The detail URL carries the custom slug.
+      await expect(authenticatedPage).toHaveURL(new RegExp(customSlug), {
+        timeout: 10000,
+      })
     })
 
     test('should validate slug format (no spaces, special chars)', async ({
@@ -177,9 +185,12 @@ test.describe('Prompt CRUD Operations', () => {
           .locator('[data-testid="prompt-save-button"]')
           .click()
 
-        // Should show validation error or prevent submission
-        await authenticatedPage.waitForTimeout(1000)
-        // Still on create page indicates validation worked
+        // The inline slug-format error blocks submission (still on create page).
+        await expect(
+          authenticatedPage.getByText(
+            'Slug must contain only lowercase letters, numbers, and hyphens'
+          )
+        ).toBeVisible({ timeout: 10000 })
         await expect(authenticatedPage).toHaveURL(/prompts\/new/)
       }
     })
@@ -211,10 +222,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
     })
 
     test('should set prompt status (active/draft)', async ({
@@ -246,10 +254,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
     })
 
     test('should display prompt in list after creation', async ({
@@ -273,10 +278,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Go to prompts list
       await authenticatedPage.goto('/prompts')
@@ -285,7 +287,7 @@ test.describe('Prompt CRUD Operations', () => {
       // Verify prompt appears in list
       await expect(
         authenticatedPage.locator(`text=${promptName}`).first()
-      ).toBeVisible({ timeout: 5000 })
+      ).toBeVisible({ timeout: 10000 })
     })
   })
 
@@ -311,15 +313,12 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // We should be on detail view after creation
       await expect(
         authenticatedPage.locator(`text=${promptName}`).first()
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should view prompt details with all metadata', async ({
@@ -344,18 +343,15 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Verify name and content are visible
       await expect(
         authenticatedPage.locator(`text=${promptName}`).first()
-      ).toBeVisible()
-      await expect(
-        authenticatedPage.locator(`text=${promptBody}`)
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 10000 })
+      await expect(authenticatedPage.locator(`text=${promptBody}`)).toBeVisible(
+        { timeout: 10000 }
+      )
     })
   })
 
@@ -379,8 +375,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/\/prompts\/(?!new$)[^/]+$/)
+      await authenticatedPage.waitForURL(DETAIL_URL, { timeout: 10000 })
 
       // Navigate to edit
       await authenticatedPage
@@ -405,15 +400,12 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await authenticatedPage.waitForURL(DETAIL_URL, { timeout: 10000 })
 
       // Verify updated content
       await expect(
         authenticatedPage.locator('text=Updated content')
-      ).toBeVisible({ timeout: 5000 })
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should edit prompt metadata (name, tags, status)', async ({
@@ -436,8 +428,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/\/prompts\/(?!new$)[^/]+$/)
+      await authenticatedPage.waitForURL(DETAIL_URL, { timeout: 10000 })
 
       // Navigate to edit
       await authenticatedPage
@@ -463,15 +454,12 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await authenticatedPage.waitForURL(DETAIL_URL, { timeout: 10000 })
 
       // Verify updated name
       await expect(
         authenticatedPage.locator(`text=${updatedName}`).first()
-      ).toBeVisible({ timeout: 5000 })
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should preserve prompt data after edit', async ({
@@ -496,8 +484,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/\/prompts\/(?!new$)[^/]+$/)
+      await authenticatedPage.waitForURL(DETAIL_URL, { timeout: 10000 })
 
       // Navigate to edit and back without changing
       await authenticatedPage
@@ -548,10 +535,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Go to prompts list
       await authenticatedPage.goto('/prompts')
@@ -565,7 +549,7 @@ test.describe('Prompt CRUD Operations', () => {
 
       // Wait for confirmation dialog
       const confirmDialog = authenticatedPage.locator('[role="alertdialog"]')
-      await expect(confirmDialog).toBeVisible({ timeout: 5000 })
+      await expect(confirmDialog).toBeVisible({ timeout: 10000 })
 
       // Verify dialog content
       await expect(confirmDialog).toContainText(/delete/i)
@@ -592,10 +576,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Go to list
       await authenticatedPage.goto('/prompts')
@@ -609,7 +590,7 @@ test.describe('Prompt CRUD Operations', () => {
 
       // Wait for dialog
       const confirmDialog = authenticatedPage.locator('[role="alertdialog"]')
-      await expect(confirmDialog).toBeVisible({ timeout: 5000 })
+      await expect(confirmDialog).toBeVisible({ timeout: 10000 })
 
       // Click cancel
       const cancelButton = confirmDialog.locator(
@@ -620,12 +601,12 @@ test.describe('Prompt CRUD Operations', () => {
       }
 
       // Dialog should close
-      await expect(confirmDialog).not.toBeVisible({ timeout: 5000 })
+      await expect(confirmDialog).not.toBeVisible({ timeout: 10000 })
 
       // Prompt should still be in list
       await expect(
         authenticatedPage.locator(`text=${promptName}`).first()
-      ).toBeVisible({ timeout: 5000 })
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should delete prompt and remove from list', async ({
@@ -649,10 +630,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Go to list
       await authenticatedPage.goto('/prompts')
@@ -673,20 +651,20 @@ test.describe('Prompt CRUD Operations', () => {
 
       // Confirm deletion
       const confirmDialog = authenticatedPage.locator('[role="alertdialog"]')
-      await expect(confirmDialog).toBeVisible({ timeout: 5000 })
+      await expect(confirmDialog).toBeVisible({ timeout: 10000 })
 
       const confirmButton = confirmDialog.locator('button:has-text("Delete")')
       await confirmButton.click()
 
       // Wait for dialog to close
-      await expect(confirmDialog).not.toBeVisible({ timeout: 5000 })
+      await expect(confirmDialog).not.toBeVisible({ timeout: 10000 })
 
       // Wait for list to refresh
       await authenticatedPage.waitForLoadState('networkidle')
 
       // Prompt should be removed from list
       await expect(authenticatedPage.locator(`text=${promptText}`).first())
-        .not.toBeVisible({ timeout: 5000 })
+        .not.toBeVisible({ timeout: 10000 })
         .catch(() => {
           // It's okay if the element doesn't exist at all
           return Promise.resolve()
@@ -724,10 +702,7 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/\/prompts\/(?!new$)[^/]+$/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Try to create second prompt with same slug
       await authenticatedPage.goto('/prompts/new')
@@ -752,17 +727,12 @@ test.describe('Prompt CRUD Operations', () => {
         .locator('[data-testid="prompt-save-button"]')
         .click()
 
-      // Should show error or stay on create page
-      await authenticatedPage.waitForTimeout(2000)
-
-      // Check if we're still on create page (indicates error handling)
-      const currentUrl = authenticatedPage.url()
-      const isStillOnCreate = currentUrl.includes('/prompts/new')
-
-      if (isStillOnCreate) {
-        // Error was handled correctly
-        expect(isStillOnCreate).toBeTruthy()
-      }
+      // The duplicate slug is rejected server-side: an error toast appears and
+      // the form stays on the create route (no navigation to a detail page).
+      await expect(
+        authenticatedPage.locator('[data-sonner-toast][data-type="error"]')
+      ).toBeVisible({ timeout: 10000 })
+      await expect(authenticatedPage).toHaveURL(/prompts\/new/)
     })
   })
 })

@@ -62,6 +62,29 @@ func TestRateLimit_Disabled_WhenLimitZero(t *testing.T) {
 	}
 }
 
+// TestRateLimit_Disabled_WhenLocalDevelopment confirms a positive limit is bypassed
+// when the deployment is local development (localhost frontend.base_url), so the
+// single-source-IP burst traffic of local/dev/e2e is never throttled (#299) while a
+// positive limit alone (empty base_url ⇒ not local) still enforces — see
+// TestRateLimit_AuthRoute_Returns429AfterThreshold.
+func TestRateLimit_Disabled_WhenLocalDevelopment(t *testing.T) {
+	const limit = 3
+	srv := testServerWithConfig(&config.Config{
+		RateLimit: config.RateLimitConfig{AuthPerMinute: limit, APIPerMinute: limit},
+		Frontend:  config.FrontendConfig{BaseURL: "http://localhost:8080"},
+	})
+	require.True(t, srv.config.IsLocalDevelopment(),
+		"precondition: localhost base_url must be detected as local development")
+
+	for i := 0; i < limit+5; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/providers", nil)
+		rr := httptest.NewRecorder()
+		srv.ServeHTTP(rr, req)
+		require.NotEqual(t, http.StatusTooManyRequests, rr.Code,
+			"limiter must be bypassed in local development regardless of a positive limit")
+	}
+}
+
 // TestServerTimeouts_Constants locks in the hardened server timeout values so a
 // regression that loosens them is caught.
 func TestServerTimeouts_Constants(t *testing.T) {

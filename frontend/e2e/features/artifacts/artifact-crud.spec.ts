@@ -4,7 +4,20 @@ import { selectFirstProject } from '../../helpers/artifacts'
 /**
  * Feature Tests: Artifact CRUD Operations
  * Tests basic Create, Read, Update, Delete functionality for artifacts
+ *
+ * Hardened for first-attempt stability (#299): fixed `waitForTimeout` settles
+ * were replaced with web-first, auto-waiting assertions. A create/save no longer
+ * sleeps before checking the URL — `expect(...).toHaveURL(...)` /
+ * `waitForURL(...)` poll until the navigation lands, with generous explicit
+ * timeouts for the parallel combined-stack CI run. Negative (validation /
+ * duplicate) cases wait on the real error signal (inline field error / error
+ * toast) instead of a blind sleep.
  */
+
+// Detail URL is /artifacts/<projectId>/<slug>.
+const DETAIL_URL = /artifacts\/[^/]+\/[^/]+/
+const DETAIL_URL_END = /artifacts\/[^/]+\/[^/]+$/
+
 test.describe('Artifact CRUD Operations', () => {
   test.describe('Artifact Creation', () => {
     test('should display artifacts page with navigation', async ({
@@ -59,10 +72,7 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
       await expect(
         authenticatedPage.locator(`text=${artifactTitle}`).first()
       ).toBeVisible({ timeout: 10000 })
@@ -83,10 +93,11 @@ test.describe('Artifact CRUD Operations', () => {
       )
       await createButton.click()
 
-      // Wait to see if validation triggers
-      await authenticatedPage.waitForTimeout(1000)
-
-      // Should still be on create page
+      // The inline required-field error is the deterministic signal that
+      // validation blocked the submit (no navigation).
+      await expect(
+        authenticatedPage.getByText('Title is required')
+      ).toBeVisible({ timeout: 10000 })
       await expect(authenticatedPage).toHaveURL(/artifacts\/new/)
     })
 
@@ -108,6 +119,7 @@ test.describe('Artifact CRUD Operations', () => {
       const slugInput = authenticatedPage.locator(
         '[data-testid="artifact-slug-input"]'
       )
+      await expect(slugInput).not.toHaveValue('', { timeout: 10000 })
       const slugValue = await slugInput.inputValue()
       expect(slugValue.length).toBeGreaterThan(0)
       expect(slugValue).toMatch(/^[a-z0-9-]+$/)
@@ -139,8 +151,12 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      // Should show validation error or stay on page
-      await authenticatedPage.waitForTimeout(1000)
+      // The inline slug-format error blocks submission (still on create page).
+      await expect(
+        authenticatedPage.getByText(
+          'Lowercase letters, numbers, and dashes only'
+        )
+      ).toBeVisible({ timeout: 10000 })
       await expect(authenticatedPage).toHaveURL(/artifacts\/new/)
     })
 
@@ -180,10 +196,7 @@ test.describe('Artifact CRUD Operations', () => {
       await authenticatedPage
         .locator('button:has-text("Create Artifact")')
         .click()
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
     })
 
     test('should set artifact status (active, draft, archived)', async ({
@@ -222,10 +235,7 @@ test.describe('Artifact CRUD Operations', () => {
       await authenticatedPage
         .locator('button:has-text("Create Artifact")')
         .click()
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
     })
 
     test('should add description and metadata', async ({
@@ -260,10 +270,7 @@ test.describe('Artifact CRUD Operations', () => {
       await authenticatedPage
         .locator('button:has-text("Create Artifact")')
         .click()
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
     })
 
     test('should display artifact in list after creation', async ({
@@ -293,10 +300,7 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Go to list
       await authenticatedPage.goto('/artifacts')
@@ -305,7 +309,7 @@ test.describe('Artifact CRUD Operations', () => {
       // Verify artifact in list
       await expect(
         authenticatedPage.locator(`text=${artifactTitle}`).first()
-      ).toBeVisible({ timeout: 5000 })
+      ).toBeVisible({ timeout: 10000 })
     })
   })
 
@@ -337,13 +341,10 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
       await expect(
         authenticatedPage.locator(`text=${artifactTitle}`).first()
-      ).toBeVisible()
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should view artifact with full metadata', async ({
@@ -373,16 +374,15 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Verify title and content visible
       await expect(
         authenticatedPage.locator(`text=${artifactTitle}`).first()
-      ).toBeVisible()
-      await expect(authenticatedPage.locator(`text=${content}`)).toBeVisible()
+      ).toBeVisible({ timeout: 10000 })
+      await expect(authenticatedPage.locator(`text=${content}`)).toBeVisible({
+        timeout: 10000,
+      })
     })
   })
 
@@ -412,8 +412,7 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/artifacts\/[^/]+\/[^/]+$/)
+      await authenticatedPage.waitForURL(DETAIL_URL_END, { timeout: 10000 })
 
       // Navigate to edit
       await authenticatedPage.locator('button:has-text("Edit")').first().click()
@@ -435,13 +434,10 @@ test.describe('Artifact CRUD Operations', () => {
         .first()
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/artifacts\/[^/]+\/[^/]+$/, {
-        timeout: 10000,
-      })
+      await authenticatedPage.waitForURL(DETAIL_URL_END, { timeout: 10000 })
       await expect(
         authenticatedPage.locator('text=Updated content')
-      ).toBeVisible({ timeout: 5000 })
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should edit artifact metadata', async ({ authenticatedPage }) => {
@@ -468,8 +464,7 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/artifacts\/[^/]+\/[^/]+$/)
+      await authenticatedPage.waitForURL(DETAIL_URL_END, { timeout: 10000 })
 
       // Edit
       await authenticatedPage.locator('button:has-text("Edit")').first().click()
@@ -494,10 +489,7 @@ test.describe('Artifact CRUD Operations', () => {
         .first()
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/artifacts\/[^/]+\/[^/]+$/, {
-        timeout: 10000,
-      })
+      await authenticatedPage.waitForURL(DETAIL_URL_END, { timeout: 10000 })
       await expect(
         authenticatedPage.locator(`text=${updatedTitle}`).first()
       ).toBeVisible({ timeout: 10000 })
@@ -528,8 +520,7 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await authenticatedPage.waitForURL(/artifacts\/[^/]+\/[^/]+$/)
+      await authenticatedPage.waitForURL(DETAIL_URL_END, { timeout: 10000 })
 
       // Edit and change type
       await authenticatedPage.locator('button:has-text("Edit")').first().click()
@@ -554,8 +545,7 @@ test.describe('Artifact CRUD Operations', () => {
         .first()
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+$/, {
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL_END, {
         timeout: 10000,
       })
     })
@@ -589,10 +579,7 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Go to list
       await authenticatedPage.goto('/artifacts')
@@ -606,19 +593,19 @@ test.describe('Artifact CRUD Operations', () => {
 
       // Confirm deletion
       const confirmDialog = authenticatedPage.locator('[role="alertdialog"]')
-      await expect(confirmDialog).toBeVisible({ timeout: 5000 })
+      await expect(confirmDialog).toBeVisible({ timeout: 10000 })
       await expect(confirmDialog).toContainText(/delete/i)
 
       const confirmButton = confirmDialog.locator('button:has-text("Delete")')
       await confirmButton.click()
 
       // Wait for deletion
-      await expect(confirmDialog).not.toBeVisible({ timeout: 5000 })
+      await expect(confirmDialog).not.toBeVisible({ timeout: 10000 })
       await authenticatedPage.waitForLoadState('networkidle')
 
       // Verify removed from list
       await expect(authenticatedPage.locator(`text=${artifactTitle}`).first())
-        .not.toBeVisible({ timeout: 5000 })
+        .not.toBeVisible({ timeout: 10000 })
         .catch(() => Promise.resolve())
     })
 
@@ -648,10 +635,7 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      await authenticatedPage.waitForTimeout(2000)
-      await expect(authenticatedPage).toHaveURL(/artifacts\/[^/]+\/[^/]+/, {
-        timeout: 10000,
-      })
+      await expect(authenticatedPage).toHaveURL(DETAIL_URL, { timeout: 10000 })
 
       // Try to create second with same slug
       await authenticatedPage.goto('/artifacts/new')
@@ -674,14 +658,13 @@ test.describe('Artifact CRUD Operations', () => {
         .locator('button:has-text("Create Artifact")')
         .click()
 
-      // Should show error or stay on create page
-      await authenticatedPage.waitForTimeout(2000)
-      const currentUrl = authenticatedPage.url()
-      const isStillOnCreate = currentUrl.includes('/artifacts/new')
-
-      if (isStillOnCreate) {
-        expect(isStillOnCreate).toBeTruthy()
-      }
+      // The duplicate slug is rejected server-side: the create page surfaces an
+      // error alert (AlertContainer, role="alert") and stays on the create
+      // route (no navigation to a detail page).
+      await expect(authenticatedPage.getByRole('alert').first()).toBeVisible({
+        timeout: 10000,
+      })
+      await expect(authenticatedPage).toHaveURL(/artifacts\/new/)
     })
   })
 })

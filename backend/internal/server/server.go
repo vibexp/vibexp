@@ -74,15 +74,22 @@ const (
 	serverIdleTimeout       = 120 * time.Second
 )
 
-// rateLimitByIP applies a per-IP httprate limiter to r only when limit is positive.
+// rateLimitByIP applies a per-IP httprate limiter to r only when limit is positive
+// AND the deployment is not local development.
 // Production config (config.Load) validates every limit to be >= 1, so the limiter is
 // always active in production. A non-positive limit (an uninitialized zero-value Config,
 // as used in most handler unit tests) disables the limiter so shared-IP test traffic is
-// not throttled. middleware.RealIP runs earlier in the chain, so the limiter keys on the
-// true client IP. Limits are applied per route group, never globally, so internal Pub/Sub
-// job routes, Stripe/GitHub webhooks, and the /ping & /health probes are never throttled.
-func rateLimitByIP(r chi.Router, limit int) {
-	if limit < 1 {
+// not throttled. localDev also disables it: local/dev/e2e traffic all originates from a
+// single source IP and drives many fresh-user + resource-create requests in short bursts,
+// which the per-IP limiter would (correctly, for production) read as abuse — producing 429s
+// that made the Playwright e2e suite chronically flaky (#299). The bypass is gated on
+// Config.IsLocalDevelopment() (localhost frontend.base_url — the same switch that enables
+// the dev-login bypass), so any internet-facing deployment keeps the limiter on.
+// middleware.RealIP runs earlier in the chain, so the limiter keys on the true client IP.
+// Limits are applied per route group, never globally, so internal Pub/Sub job routes,
+// Stripe/GitHub webhooks, and the /ping & /health probes are never throttled.
+func rateLimitByIP(r chi.Router, limit int, localDev bool) {
+	if limit < 1 || localDev {
 		return
 	}
 	r.Use(httprate.LimitByIP(limit, time.Minute))
@@ -571,7 +578,7 @@ func (s *Server) setupOAuthASRoutes() {
 	s.router.With(httpsOnly).Get(oauthserver.MetadataPath, s.oauthAS.Metadata)
 	s.router.Group(func(r chi.Router) {
 		r.Use(httpsOnly)
-		rateLimitByIP(r, s.config.RateLimit.AuthPerMinute)
+		rateLimitByIP(r, s.config.RateLimit.AuthPerMinute, s.config.IsLocalDevelopment())
 		r.Get(oauthserver.AuthorizePath, s.oauthAS.Authorize)
 		r.Get(oauthserver.ConsentAPIPath, s.oauthAS.ConsentDetails)
 		r.Post(oauthserver.ConsentAPIPath, s.oauthAS.ConsentDecision)
@@ -600,7 +607,7 @@ func (s *Server) setupTestRoutes() {
 func (s *Server) setupAuthRoutes() {
 	s.router.Route("/api/v1/auth", func(r chi.Router) {
 		// Strict per-IP rate limit: these are unauthenticated, abuse-prone endpoints.
-		rateLimitByIP(r, s.config.RateLimit.AuthPerMinute)
+		rateLimitByIP(r, s.config.RateLimit.AuthPerMinute, s.config.IsLocalDevelopment())
 
 		// Identity-provider OAuth login routes
 		r.Get("/providers", s.handleListProviders)
@@ -634,7 +641,7 @@ func (s *Server) setupAdminRoutes() {
 		},
 	)
 	s.router.Group(func(r chi.Router) {
-		rateLimitByIP(r, s.config.RateLimit.APIPerMinute)
+		rateLimitByIP(r, s.config.RateLimit.APIPerMinute, s.config.IsLocalDevelopment())
 		r.Use(s.optionalAuthMiddleware)
 		r.Use(s.instanceAdminMiddleware)
 		admingen.HandlerWithOptions(strict, admingen.ChiServerOptions{
@@ -650,7 +657,7 @@ func (s *Server) setupProtectedRoutes() {
 		// Moderate per-IP rate limit on the authenticated API surface. Applied here
 		// (not globally) so webhooks, Pub/Sub job routes, and health/ping probes in
 		// setupPublicRoutes are never throttled.
-		rateLimitByIP(r, s.config.RateLimit.APIPerMinute)
+		rateLimitByIP(r, s.config.RateLimit.APIPerMinute, s.config.IsLocalDevelopment())
 		r.Use(s.flexibleAuthMiddleware)
 		s.setupAPIKeysRoutes(r)
 		s.setupUserRoutes(r)
