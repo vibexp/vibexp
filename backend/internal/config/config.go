@@ -224,6 +224,12 @@ type OAuthASConfig struct {
 // /api/v1/* accepts AuthKit bearer JWTs (native OAuth clients) alongside
 // session cookies and API keys; empty disables the JWT branch. Audiences
 // optionally pins the JWT aud claim to an allow-list.
+//
+// When the embedded Authorization Server is enabled and Issuer is left empty,
+// applyAPIOAuthDefaults auto-wires this to the AS out-of-the-box (Issuer = the
+// AS issuer, Audiences = the resource the AS binds tokens to) so a native-CLI
+// browser-login token is honored on /api/v1 with no manual config. An explicit
+// Issuer/Audiences (external IdP) always wins.
 type APIOAuthConfig struct {
 	Issuer    string   `koanf:"issuer"`
 	Audiences []string `koanf:"audiences"`
@@ -704,6 +710,28 @@ func applyMCPIssuerDefault(cfg *Config) {
 	}
 }
 
+// applyAPIOAuthDefaults makes /api/v1 accept the embedded Authorization Server's
+// bearer JWTs out-of-the-box. When the AS is enabled (auth.oauth_as.issuer_url
+// set) and no explicit auth.api_oauth.issuer is configured, it trusts the AS as
+// the API-surface issuer and pins the audience to mcp.resource_uri — the RFC
+// 8707 resource the AS binds every token to. Without this the default API
+// audience policy (AllowAnyAudienceExcept(mcp.resource_uri)) rejects exactly the
+// token `vibexp auth login` obtains, so a self-hosted native CLI login dead-ends
+// on REST unless the operator manually mirrors this wiring.
+//
+// An explicit api_oauth.issuer (external IdP) always wins and is left untouched;
+// likewise a caller-set api_oauth.audiences is never overwritten. Must run after
+// applyMCPIssuerDefault so cfg.MCP.ResourceURI is already resolved.
+func applyAPIOAuthDefaults(cfg *Config) {
+	if cfg.Auth.OAuthAS.IssuerURL == "" || cfg.Auth.APIAuth.Issuer != "" {
+		return
+	}
+	cfg.Auth.APIAuth.Issuer = cfg.Auth.OAuthAS.IssuerURL
+	if len(cfg.Auth.APIAuth.Audiences) == 0 && cfg.MCP.ResourceURI != "" {
+		cfg.Auth.APIAuth.Audiences = []string{cfg.MCP.ResourceURI}
+	}
+}
+
 // validateOAuthASConfig validates the embedded Authorization Server settings.
 // The AS is opt-in: when auth.oauth_as.issuer_url is empty it is disabled and no
 // other field is checked. When enabled, a usable MCP resource URI (the token
@@ -1015,6 +1043,9 @@ func Load(path string) (*Config, error) {
 	// in production and whenever the values are set explicitly.
 	applyDevOAuthASDefaults(cfg)
 	applyMCPIssuerDefault(cfg)
+	// Auto-wire /api/v1 JWT acceptance to the embedded AS. Runs after the MCP
+	// issuer default so mcp.resource_uri (the pinned audience) is resolved.
+	applyAPIOAuthDefaults(cfg)
 
 	if err := validateAll(cfg); err != nil {
 		return nil, err
