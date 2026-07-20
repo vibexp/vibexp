@@ -98,6 +98,12 @@ auth:
   oauth_as:
     issuer_url: "${OAUTH_AS_ISSUER_URL:-}"
 
+  # /api/v1 bearer-JWT path. Left empty, it is AUTO-WIRED to the embedded AS above
+  # (accepts the AS's tokens on /api/v1 so `vibexp auth login` works out of the
+  # box). Set API_OAUTH_ISSUER only to point /api/v1 at an external IdP instead.
+  api_oauth:
+    issuer: "${API_OAUTH_ISSUER:-}"
+
 # MCP OAuth 2.1 resource server (/mcp/v1/common). Auto-derived from the embedded
 # AS in local development; in production set these to your AS issuer and the
 # public MCP URL (the required token audience, RFC 8707).

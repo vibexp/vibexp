@@ -813,6 +813,76 @@ mcp:
 	assert.Equal(t, "https://external-idp.example", cfg.MCP.OAuthIssuer)
 }
 
+// --- /api/v1 OAuth auto-wiring to the embedded AS (issue #412) ------------
+
+// TestLoad_APIOAuth_AutoWiredToEmbeddedAS: with the AS enabled and api_oauth
+// left empty, /api/v1 JWT acceptance is auto-wired to the AS — issuer = the AS
+// issuer, audiences pinned to mcp.resource_uri (the resource the AS binds tokens
+// to) — so a native-CLI browser-login token is honored on REST out-of-the-box.
+func TestLoad_APIOAuth_AutoWiredToEmbeddedAS(t *testing.T) {
+	cfg, err := loadYAML(t, asYAML(""))
+	require.NoError(t, err)
+	assert.Equal(t, "https://connect.vibexp.io", cfg.Auth.APIAuth.Issuer,
+		"api_oauth.issuer must default to the embedded AS issuer")
+	assert.Equal(t, []string{"https://connect.vibexp.io/mcp/v1/common"}, cfg.Auth.APIAuth.Audiences,
+		"api_oauth.audiences must be pinned to mcp.resource_uri")
+}
+
+// TestLoad_APIOAuth_ExplicitConfigPreserved: an explicit api_oauth.issuer /
+// audiences (external IdP) always wins and is left untouched, even with the AS
+// enabled.
+func TestLoad_APIOAuth_ExplicitConfigPreserved(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+frontend:
+  base_url: https://app.example.com
+auth:
+  oauth_as:
+    issuer_url: https://connect.vibexp.io
+  api_oauth:
+    issuer: https://external-idp.example
+    audiences: "a,b"
+mcp:
+  resource_uri: https://connect.vibexp.io/mcp/v1/common
+`)
+	require.NoError(t, err)
+	assert.Equal(t, "https://external-idp.example", cfg.Auth.APIAuth.Issuer)
+	assert.Equal(t, []string{"a", "b"}, cfg.Auth.APIAuth.Audiences)
+}
+
+// TestLoad_APIOAuth_ExplicitIssuerLeavesAudiencesUnpinned: setting only
+// api_oauth.issuer skips the whole auto-wire, so audiences stay empty (the API
+// audience policy remains AllowAnyAudienceExcept) rather than being pinned.
+func TestLoad_APIOAuth_ExplicitIssuerLeavesAudiencesUnpinned(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+frontend:
+  base_url: https://app.example.com
+auth:
+  oauth_as:
+    issuer_url: https://connect.vibexp.io
+  api_oauth:
+    issuer: https://external-idp.example
+mcp:
+  resource_uri: https://connect.vibexp.io/mcp/v1/common
+`)
+	require.NoError(t, err)
+	assert.Equal(t, "https://external-idp.example", cfg.Auth.APIAuth.Issuer)
+	assert.Empty(t, cfg.Auth.APIAuth.Audiences)
+}
+
+// TestLoad_APIOAuth_NotWiredWhenASDisabled: with the AS disabled (production
+// frontend so the dev derivation never fires), api_oauth stays empty and the
+// /api/v1 JWT branch stays off — preserving pre-change behavior.
+func TestLoad_APIOAuth_NotWiredWhenASDisabled(t *testing.T) {
+	cfg, err := loadYAML(t, baseValidYAML+`
+frontend:
+  base_url: https://app.example.com
+`)
+	require.NoError(t, err)
+	assert.Empty(t, cfg.Auth.APIAuth.Issuer,
+		"api_oauth.issuer must stay empty when the embedded AS is disabled")
+	assert.Empty(t, cfg.Auth.APIAuth.Audiences)
+}
+
 func TestLoad_OAuthAS_RefreshTTLNotAboveAccessTTL_ReturnsError(t *testing.T) {
 	cfg, err := loadYAML(t, baseValidYAML+`
 frontend:

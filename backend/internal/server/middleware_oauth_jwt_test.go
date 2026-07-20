@@ -388,6 +388,15 @@ func TestAPIAudiencePolicy(t *testing.T) {
 		assert.NoError(t, p(jwt.ClaimStrings{"client_123"}),
 			"API_OAUTH_AUDIENCES=\"a, b\" style input must match after trimming")
 	})
+
+	// Issue #412: the embedded-AS auto-wire pins audiences to mcp.resource_uri,
+	// which flips the default's rejection (see "no audiences" case above) into
+	// acceptance — so a native-CLI browser-login token (aud = mcp.resource_uri)
+	// is honored on /api/v1.
+	t.Run("audiences pinned to the MCP resource accept the AS-minted CLI token", func(t *testing.T) {
+		p := apiAudiencePolicy([]string{mcpResource}, mcpResource)
+		assert.NoError(t, p(jwt.ClaimStrings{mcpResource}))
+	})
 }
 
 // TestNewAPITokenVerifier_Activation pins that the verifier is nil (feature

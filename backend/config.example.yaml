@@ -142,6 +142,10 @@ auth:
 
   # /api/v1 bearer-JWT path (AuthKit tokens alongside sessions and API keys).
   # When issuer is set, /api/v1/* accepts those JWTs; empty disables the branch.
+  # AUTO-WIRED: when the embedded AS above is enabled and issuer is left empty,
+  # /api/v1 automatically accepts the AS's tokens (issuer = the AS issuer,
+  # audiences pinned to mcp.resource_uri) so `vibexp auth login` works out of the
+  # box. Set issuer/audiences explicitly only to point /api/v1 at an external IdP.
   api_oauth:
     issuer: ""
     audiences: []
