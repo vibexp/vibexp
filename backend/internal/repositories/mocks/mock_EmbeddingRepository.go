@@ -236,6 +236,68 @@ func (_c *MockEmbeddingRepository_FindSimilar_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// FindSimilarInTeam provides a mock function with given fields: ctx, teamID, entityType, entityID, limit
+func (_m *MockEmbeddingRepository) FindSimilarInTeam(ctx context.Context, teamID string, entityType string, entityID string, limit int) ([]models.SimilarResource, error) {
+	ret := _m.Called(ctx, teamID, entityType, entityID, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindSimilarInTeam")
+	}
+
+	var r0 []models.SimilarResource
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, int) ([]models.SimilarResource, error)); ok {
+		return rf(ctx, teamID, entityType, entityID, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, int) []models.SimilarResource); ok {
+		r0 = rf(ctx, teamID, entityType, entityID, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.SimilarResource)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, int) error); ok {
+		r1 = rf(ctx, teamID, entityType, entityID, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockEmbeddingRepository_FindSimilarInTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindSimilarInTeam'
+type MockEmbeddingRepository_FindSimilarInTeam_Call struct {
+	*mock.Call
+}
+
+// FindSimilarInTeam is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
+//   - entityType string
+//   - entityID string
+//   - limit int
+func (_e *MockEmbeddingRepository_Expecter) FindSimilarInTeam(ctx interface{}, teamID interface{}, entityType interface{}, entityID interface{}, limit interface{}) *MockEmbeddingRepository_FindSimilarInTeam_Call {
+	return &MockEmbeddingRepository_FindSimilarInTeam_Call{Call: _e.mock.On("FindSimilarInTeam", ctx, teamID, entityType, entityID, limit)}
+}
+
+func (_c *MockEmbeddingRepository_FindSimilarInTeam_Call) Run(run func(ctx context.Context, teamID string, entityType string, entityID string, limit int)) *MockEmbeddingRepository_FindSimilarInTeam_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(int))
+	})
+	return _c
+}
+
+func (_c *MockEmbeddingRepository_FindSimilarInTeam_Call) Return(_a0 []models.SimilarResource, _a1 error) *MockEmbeddingRepository_FindSimilarInTeam_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockEmbeddingRepository_FindSimilarInTeam_Call) RunAndReturn(run func(context.Context, string, string, string, int) ([]models.SimilarResource, error)) *MockEmbeddingRepository_FindSimilarInTeam_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByEntity provides a mock function with given fields: ctx, userID, entityType, entityID
 func (_m *MockEmbeddingRepository) GetByEntity(ctx context.Context, userID string, entityType string, entityID string) ([]models.Embedding, error) {
 	ret := _m.Called(ctx, userID, entityType, entityID)

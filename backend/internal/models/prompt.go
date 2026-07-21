@@ -26,6 +26,10 @@ type Prompt struct {
 	// (issue #424). JSONArray so it always serializes as [] (never null); not a
 	// DB column (db:"-").
 	Related JSONArray[RelatedResource] `json:"related" db:"-"`
+	// Similar is the computed embedding-similarity neighborhood, populated on the
+	// detail read (issue #427). Distinct from Related (stored typed edges); never
+	// persisted. JSONArray so it always serializes as [] (never null); db:"-".
+	Similar JSONArray[SimilarResource] `json:"similar" db:"-"`
 }
 
 type CreatePromptRequest struct {

@@ -267,6 +267,7 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	prompt.Related = s.relatedForResource(
 		r.Context(), userID, teamID, models.RelationResourceTypePrompt, prompt.ID,
 	)
+	prompt.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypePrompt, prompt.ID)
 
 	writeOK(w, prompt, s.logger)
 }

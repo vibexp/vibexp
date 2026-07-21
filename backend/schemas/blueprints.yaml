@@ -90,6 +90,14 @@ Blueprint:
         never bodies. Populated on the detail GET; empty in list responses.
       items:
         $ref: './relations.yaml#/RelatedResource'
+    similar:
+      type: array
+      description: >-
+        Computed embedding-similarity neighborhood of this resource (up to 5),
+        derived live at read time from vector similarity — NOT stored edges and
+        distinct from `related`. Populated on the detail GET; empty otherwise.
+      items:
+        $ref: './relations.yaml#/SimilarResource'
   required:
     - id
     - project_id

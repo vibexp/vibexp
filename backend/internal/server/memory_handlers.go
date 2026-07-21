@@ -273,6 +273,7 @@ func (s *Server) handleGetMemory(w http.ResponseWriter, r *http.Request) {
 	memory.Related = s.relatedForResource(
 		r.Context(), userID, teamID, models.RelationResourceTypeMemory, memory.ID,
 	)
+	memory.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypeMemory, memory.ID)
 
 	writeOK(w, memory, s.logger)
 }

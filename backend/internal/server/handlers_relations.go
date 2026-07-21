@@ -37,6 +37,36 @@ var _ relationsgen.StrictServerInterface = (*relationsStrictServer)(nil)
 // detail GET (issue #424).
 const relatedOnReadCap = 20
 
+// similarOnReadCap bounds the computed embedding-similarity neighborhood
+// surfaced on a resource detail read (issue #427).
+const similarOnReadCap = 5
+
+// similarForResource computes a resource's embedding-similarity neighborhood for
+// the `similar` field on its detail read: nearest cross-type neighbors in the
+// team, capped at similarOnReadCap. Best-effort and nil-safe — a missing
+// embedding or a similarity-load failure yields [] (never null), never fails the
+// read; `similar` is a supplementary, computed signal.
+func (s *Server) similarForResource(
+	ctx context.Context, teamID, entityType, entityID string,
+) models.JSONArray[models.SimilarResource] {
+	repo := s.container.EmbeddingRepository()
+	if repo == nil {
+		return nil
+	}
+	similar, err := repo.FindSimilarInTeam(ctx, teamID, entityType, entityID, similarOnReadCap)
+	if err != nil {
+		s.logger.With(
+			"handler", "similarForResource",
+			"team_id", teamID,
+			"entity_type", entityType,
+			"entity_id", entityID,
+			"error", err.Error(),
+		).Warn("Failed to load similar resources for detail read")
+		return nil
+	}
+	return similar
+}
+
 // enqueueTeamRelationSeed fires the one-shot embedding-similarity relation seed
 // backfill for a team in the background (issue #426), coalescing concurrent
 // triggers via a per-team in-flight guard so a repeated click never stacks

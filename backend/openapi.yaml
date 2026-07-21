@@ -762,6 +762,8 @@ components:
       $ref: "./schemas/relations.yaml#/CreateRelationRequest"
     RelatedResource:
       $ref: "./schemas/relations.yaml#/RelatedResource"
+    SimilarResource:
+      $ref: "./schemas/relations.yaml#/SimilarResource"
     RelationListResponse:
       $ref: "./schemas/relations.yaml#/RelationListResponse"
 

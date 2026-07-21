@@ -116,6 +116,7 @@ func (s *Server) handleGetBlueprint(w http.ResponseWriter, r *http.Request) {
 	blueprint.Related = s.relatedForResource(
 		r.Context(), userID, teamID, models.RelationResourceTypeBlueprint, blueprint.ID,
 	)
+	blueprint.Similar = s.similarForResource(r.Context(), teamID, models.RelationResourceTypeBlueprint, blueprint.ID)
 
 	writeOK(w, blueprint, s.logger)
 }
