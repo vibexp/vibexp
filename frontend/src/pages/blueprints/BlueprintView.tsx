@@ -16,6 +16,7 @@ import {
 } from '@/components/metadata/MetadataPanel'
 import { AdditionalDataCard } from '@/components/MetadataCard'
 import { PageHeader } from '@/components/PageHeader'
+import { RelationsPanel } from '@/components/relations/RelationsPanel'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -329,6 +330,14 @@ export function BlueprintView() {
 
           {currentTeam && (
             <CommentsPanel
+              teamId={currentTeam.id}
+              resourceType="blueprint"
+              resourceId={blueprint.id}
+            />
+          )}
+
+          {currentTeam && (
+            <RelationsPanel
               teamId={currentTeam.id}
               resourceType="blueprint"
               resourceId={blueprint.id}
