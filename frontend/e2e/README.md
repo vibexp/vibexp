@@ -135,17 +135,18 @@ test('specific user test', async ({ page }) => {
 
 Each app area has a focused spec directory under `e2e/features/`:
 
-| Area                            | Spec                                   | Data strategy                                                                     |
-| ------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------- |
-| `prompts`, `artifacts`, `teams` | CRUD + filtering                       | Seeded through the UI                                                             |
-| `blueprints`                    | `blueprints/blueprint-crud.spec.ts`    | Seeded through the UI (project picked from the team's default project)            |
-| `feeds`                         | `feeds/feed-crud.spec.ts`              | Feeds + feed items seeded through the UI (post composer)                          |
-| `showcase`                      | `showcase/showcase.spec.ts`            | Static component gallery — no API data                                            |
-| `agents`                        | `agents/agent-pages.spec.ts`           | **Route mocks** (`mockAgentsApi`) — agents register from live agent-card URLs     |
-| `ai-tools`                      | `ai-tools/ai-tools.spec.ts`            | **Route mocks** (`mockAiToolsApi`) — session data is ingested from real installs  |
-| `mcp-servers`                   | `mcp-servers/mcp-servers.spec.ts`      | Real backend (team context only)                                                  |
-| `notifications`                 | `notifications/notifications.spec.ts`  | **Route mocks** (`mockNotificationsApi`, stateful) + real backend for preferences |
-| `admin`                         | `admin/admin-{happy,negative}.spec.ts` | Real backend; `INSTANCE_ADMIN_EMAILS` gates the admin identity (dev-login email)  |
+| Area                            | Spec                                   | Data strategy                                                                                                                                                                                    |
+| ------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prompts`, `artifacts`, `teams` | CRUD + filtering                       | Seeded through the UI                                                                                                                                                                            |
+| `blueprints`                    | `blueprints/blueprint-crud.spec.ts`    | Seeded through the UI (project picked from the team's default project)                                                                                                                           |
+| `feeds`                         | `feeds/feed-crud.spec.ts`              | Feeds + feed items seeded through the UI (post composer)                                                                                                                                         |
+| `showcase`                      | `showcase/showcase.spec.ts`            | Static component gallery — no API data                                                                                                                                                           |
+| `agents`                        | `agents/agent-pages.spec.ts`           | **Route mocks** (`mockAgentsApi`) — agents register from live agent-card URLs                                                                                                                    |
+| `ai-tools`                      | `ai-tools/ai-tools.spec.ts`            | **Route mocks** (`mockAiToolsApi`) — session data is ingested from real installs                                                                                                                 |
+| `mcp-servers`                   | `mcp-servers/mcp-servers.spec.ts`      | Real backend (team context only)                                                                                                                                                                 |
+| `notifications`                 | `notifications/notifications.spec.ts`  | **Route mocks** (`mockNotificationsApi`, stateful) + real backend for preferences                                                                                                                |
+| `admin`                         | `admin/admin-{happy,negative}.spec.ts` | Real backend; `INSTANCE_ADMIN_EMAILS` gates the admin identity (dev-login email)                                                                                                                 |
+| `relations`                     | `relations/relations.spec.ts`          | Real backend; single owner; resources + typed edges seeded via authenticated REST (`origin=ai`+`governed-by` → suggested); panel render, composer add, inverse view, accept/dismiss, empty state |
 
 ### API Mocking Conventions (`fixtures/api-mocks.ts`)
 
