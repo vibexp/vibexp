@@ -21,6 +21,7 @@ describe('getToolKind', () => {
     expect(getToolKind(makeTool('vibexp_io_update_memory'))).toBe('write')
     expect(getToolKind(makeTool('vibexp_io_post_to_feed'))).toBe('write')
     expect(getToolKind(makeTool('vibexp_io_reply_to_feed_item'))).toBe('write')
+    expect(getToolKind(makeTool('vibexp_io_link_resources'))).toBe('write')
   })
 
   it('classifies search/get/list tools as reads', () => {
@@ -71,6 +72,17 @@ describe('groupTools', () => {
     const memories = groups.find(g => g.id === 'memories')
     expect(artifacts?.tools.every(t => t.name.includes('_artifact'))).toBe(true)
     expect(memories?.tools.every(t => t.name.includes('_memor'))).toBe(true)
+  })
+
+  it('routes the link_resources write tool to the resources group', () => {
+    const groups = groupTools(mcpTools)
+    const resources = groups.find(g => g.id === 'resources')
+    const names = resources?.tools.map(t => t.name) ?? []
+    expect(names).toContain('vibexp_io_link_resources')
+    // It must not be claimed by an earlier group.
+    expect(groups.find(g => g.id === 'artifacts')?.tools).not.toContain(
+      'vibexp_io_link_resources'
+    )
   })
 
   it('omits groups with no matching tools', () => {

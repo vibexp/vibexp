@@ -281,6 +281,57 @@ export const mcpTools: MCPTool[] = [
     },
   },
   {
+    name: 'vibexp_io_link_resources',
+    description:
+      "Record a typed relation between two resources in a project, so a resource's neighborhood compounds for the whole team. After creating or updating a resource, record how it relates to existing resources: 'governed-by' a blueprint it must obey, 'supersedes' the version it replaces, 'built-from' the prompt that produced it, 'explained-by' the memory that holds the why. Re-linking an existing edge is a safe no-op (idempotent). Type rules: governed-by → the object (to) must be a blueprint; built-from → the object must be a prompt; explained-by → the object must be a memory; supersedes → both ends must be the same type. Self-links and cross-project links are rejected. from_type/to_type are one of artifact|memory|prompt|blueprint. Edges you propose are recorded as AI-suggested; the higher-stakes governed-by/supersedes await a human confirm.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        team_id: {
+          type: 'string',
+          description: TEAM_ID_DESCRIPTION,
+        },
+        project_id: {
+          type: 'string',
+          description: 'Project UUID; both resources must belong to it.',
+        },
+        from_type: {
+          type: 'string',
+          description:
+            'Subject resource type: one of "artifact", "memory", "prompt", or "blueprint".',
+        },
+        from_id: {
+          type: 'string',
+          description: 'Subject resource UUID.',
+        },
+        relation_type: {
+          type: 'string',
+          description:
+            'The edge type: one of "governed-by", "supersedes", "built-from", or "explained-by".',
+        },
+        to_type: {
+          type: 'string',
+          description:
+            'Object resource type; constrained by relation_type (see the type rules in the tool description).',
+        },
+        to_id: {
+          type: 'string',
+          description: 'Object resource UUID.',
+        },
+      },
+      required: [
+        'team_id',
+        'project_id',
+        'from_type',
+        'from_id',
+        'relation_type',
+        'to_type',
+        'to_id',
+      ],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'vibexp_io_list_projects',
     description:
       'List projects available in the current VibeXP team with filtering and pagination support.',

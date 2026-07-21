@@ -21,6 +21,7 @@ const WRITE_TOOLS = new Set([
   'vibexp_io_update_artifact',
   'vibexp_io_create_memory',
   'vibexp_io_update_memory',
+  'vibexp_io_link_resources',
   'vibexp_io_post_to_feed',
   'vibexp_io_reply_to_feed_item',
 ])

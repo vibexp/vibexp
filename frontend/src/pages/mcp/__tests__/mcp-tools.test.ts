@@ -7,6 +7,7 @@ const EXPECTED_TOOL_NAMES = new Set([
   'vibexp_io_update_memory',
   'vibexp_io_get_resource',
   'vibexp_io_list_resources',
+  'vibexp_io_link_resources',
   'vibexp_io_list_projects',
   'vibexp_io_list_feeds',
   'vibexp_io_list_feed_items',
@@ -19,7 +20,7 @@ const EXPECTED_TOOL_NAMES = new Set([
 ])
 
 describe('mcpTools catalog', () => {
-  it('contains exactly the 15 expected tool names', () => {
+  it('contains exactly the 16 expected tool names', () => {
     const actualNames = new Set(mcpTools.map(t => t.name))
     expect(actualNames).toEqual(EXPECTED_TOOL_NAMES)
   })
