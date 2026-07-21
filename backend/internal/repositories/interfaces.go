@@ -789,6 +789,14 @@ type EmbeddingRepository interface {
 	GetByEntity(ctx context.Context, userID, entityType, entityID string) ([]models.Embedding, error)
 	FindSimilar(ctx context.Context, userID, entityType string, vector []float32, limit int,
 	) ([]models.EmbeddingSimilarity, error)
+	// FindSimilarInTeam returns up to limit nearest cross-type neighbors of the
+	// resource (entityType, entityID) within teamID — the computed `similar`
+	// read payload (#427). It excludes the resource itself and any embedding
+	// whose source row has been deleted, and returns an empty slice (no error)
+	// when the resource has no stored embedding yet (embedding-worker lag).
+	FindSimilarInTeam(
+		ctx context.Context, teamID, entityType, entityID string, limit int,
+	) ([]models.SimilarResource, error)
 	DeleteByEntity(ctx context.Context, entityType, entityID string) error
 	// DeleteByTeam removes every embedding owned by a team, returning the number of
 	// rows deleted. Used to wipe a team's vectors before re-embedding when its

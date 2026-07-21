@@ -20533,6 +20533,13 @@
             "items": {
               "$ref": "#/components/schemas/RelatedResource"
             }
+          },
+          "similar": {
+            "type": "array",
+            "description": "Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.",
+            "items": {
+              "$ref": "#/components/schemas/SimilarResource"
+            }
           }
         },
         "required": [
@@ -23131,6 +23138,13 @@
             "items": {
               "$ref": "#/components/schemas/RelatedResource"
             }
+          },
+          "similar": {
+            "type": "array",
+            "description": "Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.",
+            "items": {
+              "$ref": "#/components/schemas/SimilarResource"
+            }
           }
         },
         "required": [
@@ -24208,6 +24222,13 @@
             "items": {
               "$ref": "#/components/schemas/RelatedResource"
             }
+          },
+          "similar": {
+            "type": "array",
+            "description": "Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.",
+            "items": {
+              "$ref": "#/components/schemas/SimilarResource"
+            }
           }
         },
         "required": [
@@ -24647,6 +24668,13 @@
             "description": "Depth-1 typed neighborhood of this resource — the relations touching it in both directions, newest first, capped at 20. Typed summaries only, never bodies. Populated on the detail GET; empty in list responses.",
             "items": {
               "$ref": "#/components/schemas/RelatedResource"
+            }
+          },
+          "similar": {
+            "type": "array",
+            "description": "Computed embedding-similarity neighborhood of this resource (up to 5), derived live at read time from vector similarity — NOT stored edges and distinct from `related`. Populated on the detail GET; empty otherwise.",
+            "items": {
+              "$ref": "#/components/schemas/SimilarResource"
             }
           }
         },
@@ -28238,6 +28266,40 @@
           "resource_id",
           "title",
           "created_at"
+        ]
+      },
+      "SimilarResource": {
+        "type": "object",
+        "description": "An embedding-similarity neighbor of a resource, COMPUTED live at read time from vector similarity — never a stored edge, and kept strictly distinct from the typed `related` edges. Score is 1 - cosine_distance (higher is closer).\n",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of the similar resource",
+            "example": "880e8400-e29b-41d4-a716-446655440003"
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of the similar resource (artifact, memory, prompt, or blueprint)",
+            "example": "memory"
+          },
+          "title": {
+            "type": "string",
+            "description": "Resolved display title of the similar resource",
+            "example": "Why we chose pgvector"
+          },
+          "score": {
+            "type": "number",
+            "format": "double",
+            "description": "Similarity score, 1 - cosine_distance (higher is closer)",
+            "example": 0.82
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "score"
         ]
       },
       "RelationListResponse": {

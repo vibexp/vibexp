@@ -18,6 +18,7 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
@@ -597,6 +598,7 @@ type MockArtifactContainer struct {
 	TeamServiceMock          services.TeamServiceInterface
 	TypeServiceMock          services.TypeServiceInterface
 	RelationServiceMock      services.RelationServiceInterface
+	EmbeddingRepositoryMock  repositories.EmbeddingRepository
 }
 
 func (m *MockArtifactContainer) ArtifactService() services.ArtifactServiceInterface {
@@ -607,6 +609,10 @@ func (m *MockArtifactContainer) ArtifactService() services.ArtifactServiceInterf
 // which the detail-GET `related` population treats as an empty neighborhood).
 func (m *MockArtifactContainer) RelationService() services.RelationServiceInterface {
 	return m.RelationServiceMock
+}
+
+func (m *MockArtifactContainer) EmbeddingRepository() repositories.EmbeddingRepository {
+	return m.EmbeddingRepositoryMock
 }
 
 // TypeService returns the configured type-service mock, or a permissive stub

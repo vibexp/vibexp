@@ -404,3 +404,76 @@ func TestEmbeddingRepository_DeleteByEntity(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
+func TestEmbeddingRepository_FindSimilarInTeam(t *testing.T) {
+	vec := pgvector.NewVector([]float32{0.1, 0.2, 0.3})
+	vectorLookup := `SELECT vector_embeddings, model_id FROM embeddings`
+	simCols := []string{"entity_type", "entity_id", "title", "score"}
+
+	t.Run("happy: fetches the vector then ranks neighbors", func(t *testing.T) {
+		repo, mock, mockDB := setupEmbeddingTest(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(vectorLookup).WithArgs("team-1", "artifact", "a1").
+			WillReturnRows(sqlmock.NewRows([]string{"vector_embeddings", "model_id"}).AddRow(vec, "model-1"))
+		mock.ExpectQuery(`FROM embeddings e`).
+			WillReturnRows(sqlmock.NewRows(simCols).
+				AddRow("blueprint", "b1", "Go standards", 0.82).
+				AddRow("memory", "m1", "Why pgvector", 0.71))
+
+		got, err := repo.FindSimilarInTeam(context.Background(), "team-1", "artifact", "a1", 5)
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+		assert.Equal(t, "blueprint", got[0].Type)
+		assert.Equal(t, "b1", got[0].ID)
+		assert.InDelta(t, 0.82, got[0].Score, 1e-9)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("no stored embedding -> empty slice, no error", func(t *testing.T) {
+		repo, mock, mockDB := setupEmbeddingTest(t)
+		defer closeMockDB(t, mockDB)
+
+		mock.ExpectQuery(vectorLookup).WillReturnError(sql.ErrNoRows)
+
+		got, err := repo.FindSimilarInTeam(context.Background(), "team-1", "artifact", "a1", 5)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+
+	t.Run("vector lookup error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := setupEmbeddingTest(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectQuery(vectorLookup).WillReturnError(sql.ErrConnDone)
+
+		_, err := repo.FindSimilarInTeam(context.Background(), "team-1", "artifact", "a1", 5)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load resource embedding")
+	})
+
+	t.Run("similarity query error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := setupEmbeddingTest(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectQuery(vectorLookup).
+			WillReturnRows(sqlmock.NewRows([]string{"vector_embeddings", "model_id"}).AddRow(vec, "model-1"))
+		mock.ExpectQuery(`FROM embeddings e`).WillReturnError(sql.ErrConnDone)
+
+		_, err := repo.FindSimilarInTeam(context.Background(), "team-1", "artifact", "a1", 5)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to find similar resources")
+	})
+
+	t.Run("scan error is wrapped", func(t *testing.T) {
+		repo, mock, mockDB := setupEmbeddingTest(t)
+		defer closeMockDB(t, mockDB)
+		mock.ExpectQuery(vectorLookup).
+			WillReturnRows(sqlmock.NewRows([]string{"vector_embeddings", "model_id"}).AddRow(vec, "model-1"))
+		mock.ExpectQuery(`FROM embeddings e`).
+			WillReturnRows(sqlmock.NewRows(simCols).AddRow("blueprint", "b1", "T", "not-a-float"))
+
+		_, err := repo.FindSimilarInTeam(context.Background(), "team-1", "artifact", "a1", 5)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to scan similar resource")
+	})
+}
