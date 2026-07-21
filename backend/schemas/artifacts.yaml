@@ -91,7 +91,6 @@ Artifact:
     - status
     - title
     - type
-    - related
 
 # Request model for creating artifacts
 CreateArtifactRequest:

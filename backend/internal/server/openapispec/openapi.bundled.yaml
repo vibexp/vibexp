@@ -13295,7 +13295,6 @@ components:
         - created_at
         - updated_at
         - version
-        - related
     CreatePromptRequest:
       type: object
       properties:
@@ -15238,7 +15237,6 @@ components:
         - status
         - title
         - type
-        - related
     CreateArtifactRequest:
       type: object
       properties:
@@ -16106,7 +16104,6 @@ components:
         - created_at
         - updated_at
         - version
-        - related
     CreateMemoryRequest:
       type: object
       properties:
@@ -16466,7 +16463,6 @@ components:
         - title
         - type
         - path
-        - related
     BlueprintSource:
       type: object
       description: Read-only import provenance; present only for imported blueprints.

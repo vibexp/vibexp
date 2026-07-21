@@ -92,7 +92,6 @@ Prompt:
     - created_at
     - updated_at
     - version
-    - related
 
 CreatePromptRequest:
   type: object

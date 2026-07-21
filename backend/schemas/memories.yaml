@@ -78,7 +78,6 @@ Memory:
     - created_at
     - updated_at
     - version
-    - related
 
 # Request model for creating memories
 CreateMemoryRequest:

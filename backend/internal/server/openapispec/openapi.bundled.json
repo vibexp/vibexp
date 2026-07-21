@@ -20556,8 +20556,7 @@
           "is_shared",
           "created_at",
           "updated_at",
-          "version",
-          "related"
+          "version"
         ]
       },
       "CreatePromptRequest": {
@@ -23156,8 +23155,7 @@
           "updated_at",
           "status",
           "title",
-          "type",
-          "related"
+          "type"
         ]
       },
       "CreateArtifactRequest": {
@@ -24240,8 +24238,7 @@
           "status",
           "created_at",
           "updated_at",
-          "version",
-          "related"
+          "version"
         ]
       },
       "CreateMemoryRequest": {
@@ -24689,8 +24686,7 @@
           "status",
           "title",
           "type",
-          "path",
-          "related"
+          "path"
         ]
       },
       "BlueprintSource": {
