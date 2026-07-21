@@ -19,6 +19,7 @@ import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { MetadataPanel, MetaRow } from '@/components/metadata/MetadataPanel'
 import { AdditionalDataCard } from '@/components/MetadataCard'
 import { PageHeader } from '@/components/PageHeader'
+import { RelationsPanel } from '@/components/relations/RelationsPanel'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -337,6 +338,14 @@ export function MemoryView() {
 
           {currentTeam && (
             <CommentsPanel
+              teamId={currentTeam.id}
+              resourceType="memory"
+              resourceId={memory.id}
+            />
+          )}
+
+          {currentTeam && (
+            <RelationsPanel
               teamId={currentTeam.id}
               resourceType="memory"
               resourceId={memory.id}

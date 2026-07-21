@@ -7,6 +7,7 @@ import {
   MetaRow,
   type VersionHistoryMeta,
 } from '@/components/metadata/MetadataPanel'
+import { RelationsPanel } from '@/components/relations/RelationsPanel'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type {
@@ -89,6 +90,14 @@ export function PromptDetailSidebar({
 
       {teamId && (
         <CommentsPanel
+          teamId={teamId}
+          resourceType="prompt"
+          resourceId={prompt.id}
+        />
+      )}
+
+      {teamId && (
+        <RelationsPanel
           teamId={teamId}
           resourceType="prompt"
           resourceId={prompt.id}
