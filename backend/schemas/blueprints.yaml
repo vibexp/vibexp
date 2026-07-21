@@ -110,7 +110,6 @@ Blueprint:
     - title
     - type
     - path
-    - related
 
 # Read-only import provenance for a blueprint (server-set on import; absent for
 # VibeXP-authored blueprints).
