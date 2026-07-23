@@ -473,6 +473,14 @@ func buildFeedItemListWhereClause(userID string, filters repositories.FeedItemFi
 		where = append(where, squirrel.Eq{"fi.ai_assistant_name": *filters.AIAssistantName})
 	}
 
+	if filters.Search != "" {
+		searchTerm := "%" + filters.Search + "%"
+		where = append(where, squirrel.Expr(
+			"(fi.title ILIKE ? OR fi.content ILIKE ?)",
+			searchTerm, searchTerm,
+		))
+	}
+
 	// Archived filter: nil or false = active only, true = archived only
 	if filters.Archived == nil || !*filters.Archived {
 		where = append(where, squirrel.Expr("fi.archived_at IS NULL"))

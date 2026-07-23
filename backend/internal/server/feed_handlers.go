@@ -654,6 +654,8 @@ func (s *Server) buildFeedItemFilters(
 		filters.AIAssistantName = &aname
 	}
 
+	filters.Search = r.URL.Query().Get("search")
+
 	archived, err := parseFeedItemArchivedParam(r.URL.Query().Get("archived"))
 	if err != nil {
 		return services.FeedItemFilters{}, err

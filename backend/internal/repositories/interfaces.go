@@ -1131,6 +1131,7 @@ type FeedItemFilters struct {
 	ProjectID       *string
 	AIAssistantName *string
 	Archived        *bool // nil = default (active only), true = archived only, false = active only
+	Search          string
 	Page            int
 	Limit           int
 }

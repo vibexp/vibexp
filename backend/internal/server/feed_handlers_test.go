@@ -813,6 +813,7 @@ func TestHandleListFeedItems_AllFilters(t *testing.T) {
 				fi.FeedID != nil && *fi.FeedID == feedTestFeedID &&
 				fi.ProjectID != nil && *fi.ProjectID == projID &&
 				fi.AIAssistantName != nil && *fi.AIAssistantName == assistantName &&
+				fi.Search == "alpha" &&
 				fi.Archived != nil && *fi.Archived == true
 		}),
 	).Return(expected, nil)
@@ -826,6 +827,7 @@ func TestHandleListFeedItems_AllFilters(t *testing.T) {
 	url := "/api/v1/" + feedTestTeamID + "/feed-items?feed_id=" + feedTestFeedID +
 		"&project_id=" + projID +
 		"&ai_assistant_name=" + assistantName +
+		"&search=alpha" +
 		"&archived=true&page=1&limit=10"
 	req := authenticatedFeedRequest("GET", url, "", feedTestUserID)
 	req = addFeedURLParams(req, map[string]string{"team_id": feedTestTeamID})
@@ -856,6 +858,32 @@ func TestHandleListFeedItems_ArchivedAll(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	srv.handleListFeedItems(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestHandleListFeedItemsByFeed_SearchParam(t *testing.T) {
+	mockItemSvc := servicesmocks.NewMockFeedItemServiceInterface(t)
+
+	expected := &models.FeedItemListResponse{Items: []models.FeedItem{}, TotalCount: 0, Page: 1, PerPage: 20}
+	mockItemSvc.On("ListFeedItems", mock.Anything, feedTestUserID,
+		mock.MatchedBy(func(fi services.FeedItemFilters) bool {
+			return fi.TeamID == feedTestTeamID &&
+				fi.FeedID != nil && *fi.FeedID == feedTestFeedID &&
+				fi.Search == "alpha"
+		}),
+	).Return(expected, nil)
+	mockItemSvc.On("EnrichWithReplyCounts", mock.Anything, feedTestTeamID, []models.FeedItem(expected.Items)).
+		Return([]models.FeedItem(expected.Items), nil)
+
+	fc := &MockFeedContainer{FeedItemServiceMock: mockItemSvc}
+	srv := newFeedTestServer(t, fc)
+
+	req := authenticatedFeedRequest("GET",
+		"/api/v1/"+feedTestTeamID+"/feeds/"+feedTestFeedID+"/items?search=alpha", "", feedTestUserID)
+	req = addFeedURLParams(req, map[string]string{"team_id": feedTestTeamID, "feed_id": feedTestFeedID})
+	rr := httptest.NewRecorder()
+
+	srv.handleListFeedItemsByFeed(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 

@@ -561,6 +561,7 @@ func (s *FeedItemService) ListFeedItems(
 		ProjectID:       filters.ProjectID,
 		AIAssistantName: filters.AIAssistantName,
 		Archived:        filters.Archived,
+		Search:          filters.Search,
 		Page:            filters.Page,
 		Limit:           filters.Limit,
 	}
