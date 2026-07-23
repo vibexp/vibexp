@@ -8121,6 +8121,14 @@
             }
           },
           {
+            "name": "search",
+            "in": "query",
+            "description": "Search in feed item title and content (case-insensitive substring)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "archived",
             "in": "query",
             "description": "Filter by archived status: 'true' (archived only), 'false' (active only, default), 'all'",
@@ -8249,6 +8257,14 @@
             "name": "ai_assistant_name",
             "in": "query",
             "description": "Filter by AI assistant name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search in feed item title and content (case-insensitive substring)",
             "schema": {
               "type": "string"
             }

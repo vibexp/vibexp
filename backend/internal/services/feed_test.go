@@ -938,6 +938,15 @@ func TestFeedItemService_ListFeedItems(t *testing.T) {
 			repoErr:         errors.New("db error"),
 			wantErr:         true,
 		},
+		{
+			name:            "search passed through to repo filters",
+			filters:         services.FeedItemFilters{TeamID: "team-1", Search: "alpha", Page: 1, Limit: 20},
+			expectedFilters: repositories.FeedItemFilters{TeamID: "team-1", Search: "alpha", Page: 1, Limit: 20},
+			repoItems:       items,
+			repoTotal:       1,
+			wantPage:        1,
+			wantPerPage:     20,
+		},
 		// H4: pagination clamping
 		{
 			name:            "page=0 clamped to 1",

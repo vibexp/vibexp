@@ -542,6 +542,7 @@ type FeedItemFilters struct {
 	ProjectID       *string
 	AIAssistantName *string
 	Archived        *bool
+	Search          string
 	Page            int
 	Limit           int
 }

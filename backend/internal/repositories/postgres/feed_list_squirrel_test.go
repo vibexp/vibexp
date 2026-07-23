@@ -563,6 +563,23 @@ func TestFeedItemRepository_ListSquirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
+			name: "search binds ILIKE term twice after base args",
+			filters: repositories.FeedItemFilters{
+				TeamID: "team-123", Search: "alpha", Page: 1, Limit: 10,
+			},
+			setupMock: func(mock sqlmock.Sqlmock) {
+				args := append(feedListBaseArgs(), "%alpha%", "%alpha%")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM feed_items fi .*fi\.title ILIKE .* OR fi\.content ILIKE`).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM feed_items fi .*fi\.title ILIKE .* OR fi\.content ILIKE`).
+					WithArgs(args...).
+					WillReturnRows(feedItemListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
 			name: "combined filters bind in deterministic order then archived predicate",
 			filters: repositories.FeedItemFilters{
 				TeamID: "team-123", FeedID: &feedID, ProjectID: &projectID,
@@ -576,6 +593,26 @@ func TestFeedItemRepository_ListSquirrel(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM feed_items fi .*fi\.feed_id = .*fi\.project_id = ` +
 					`.*fi\.ai_assistant_name = .*fi\.archived_at IS NOT NULL`).
+					WithArgs(args...).
+					WillReturnRows(feedItemListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name: "combined filters with search bind search args after equality filters",
+			filters: repositories.FeedItemFilters{
+				TeamID: "team-123", FeedID: &feedID, ProjectID: &projectID,
+				AIAssistantName: &assistant, Search: "alpha", Archived: boolPtr(true), Page: 1, Limit: 10,
+			},
+			setupMock: func(mock sqlmock.Sqlmock) {
+				args := append(feedListBaseArgs(), "feed-x", "project-x", "claude", "%alpha%", "%alpha%")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM feed_items fi .*fi\.feed_id = .*fi\.project_id = ` +
+					`.*fi\.ai_assistant_name = .*fi\.title ILIKE .* OR fi\.content ILIKE .*fi\.archived_at IS NOT NULL`).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM feed_items fi .*fi\.feed_id = .*fi\.project_id = ` +
+					`.*fi\.ai_assistant_name = .*fi\.title ILIKE .* OR fi\.content ILIKE .*fi\.archived_at IS NOT NULL`).
 					WithArgs(args...).
 					WillReturnRows(feedItemListOneRow(now))
 			},
