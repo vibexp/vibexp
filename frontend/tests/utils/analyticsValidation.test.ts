@@ -10,6 +10,7 @@ import {
   type ValidationResult,
 } from '../../src/utils/analyticsValidation'
 import type { AnalyticsEvent, UserProperties } from '../../src/types/analytics'
+import { AUTH_EVENT_TYPES } from '../../src/types/analytics'
 
 describe('analyticsValidation', () => {
   describe('validateUserProperties', () => {
@@ -333,6 +334,16 @@ describe('analyticsValidation', () => {
       expect(result.isValid).toBe(true)
     })
 
+    // Exhaustiveness guard: every member of the TrackAuthParams union must
+    // pass the validator, so the allowlist can never drift from the type
+    // again (#388 — signed_in_first_time was silently dropped in dev).
+    it.each(AUTH_EVENT_TYPES)('returns valid for %s', eventType => {
+      const result = validateTrackAuthParams({ eventType })
+
+      expect(result.isValid).toBe(true)
+      expect(result.errors).toHaveLength(0)
+    })
+
     it('returns error for invalid event type', () => {
       const params = { eventType: 'invalid_type' as 'signin_page_view' }
 
@@ -340,7 +351,7 @@ describe('analyticsValidation', () => {
 
       expect(result.isValid).toBe(false)
       expect(result.errors).toContain(
-        'eventType must be one of: signin_page_view, signed_in, logged_out'
+        'eventType must be one of: signin_page_view, signed_in, signed_in_first_time, logged_out'
       )
     })
 

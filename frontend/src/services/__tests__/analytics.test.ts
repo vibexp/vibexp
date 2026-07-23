@@ -416,14 +416,27 @@ describe('analyticsService', () => {
       expect(gtmTrack).not.toHaveBeenCalled()
     })
 
+    it('dispatches signed_in_first_time in dev (validator allowlist matches the type)', () => {
+      const gtmTrack = jest.fn()
+      const svc = loadService({ gtmEnabled: true, dev: true, gtmTrack })
+
+      svc.trackAuth({ eventType: 'signed_in_first_time' })
+
+      expect(consoleError).not.toHaveBeenCalledWith(
+        '[Analytics] Invalid trackAuth parameters:',
+        expect.any(Array)
+      )
+      expect(gtmTrack).toHaveBeenCalledWith(
+        'user_signed_in_first_time',
+        expect.objectContaining({ event: 'user_signed_in_first_time' })
+      )
+    })
+
     it('drops trackAuth calls the dev validator rejects', () => {
       const gtmTrack = jest.fn()
       const svc = loadService({ gtmEnabled: true, dev: true, gtmTrack })
 
-      // Note: the validator's allowlist does not include
-      // 'signed_in_first_time' even though the type accepts it, so in dev
-      // this event is dropped (current behavior).
-      svc.trackAuth({ eventType: 'signed_in_first_time' })
+      svc.trackAuth({ eventType: 'bogus' } as unknown as TrackAuthParams)
 
       expect(consoleError).toHaveBeenCalledWith(
         '[Analytics] Invalid trackAuth parameters:',

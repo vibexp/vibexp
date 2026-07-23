@@ -20,7 +20,7 @@ import type {
   TrackPageParams,
   UserProperties,
 } from '../types/analytics'
-import { ANALYTICS_EVENTS } from '../types/analytics'
+import { ANALYTICS_EVENTS, AUTH_EVENT_TYPES } from '../types/analytics'
 
 export interface ValidationResult {
   isValid: boolean
@@ -227,10 +227,11 @@ export function validateTrackAuthParams(
   const errors: string[] = []
   const warnings: string[] = []
 
-  const validEventTypes = ['signin_page_view', 'signed_in', 'logged_out']
+  // Derived from AUTH_EVENT_TYPES so the allowlist can never drift from the
+  // TrackAuthParams union again (#388).
   const eventType: string | undefined = params.eventType
-  if (!eventType || !validEventTypes.includes(eventType)) {
-    errors.push(`eventType must be one of: ${validEventTypes.join(', ')}`)
+  if (!eventType || !AUTH_EVENT_TYPES.some(valid => valid === eventType)) {
+    errors.push(`eventType must be one of: ${AUTH_EVENT_TYPES.join(', ')}`)
   }
 
   if (params.userProperties) {
