@@ -234,13 +234,21 @@ export interface TrackPageParams {
   userProperties?: UserProperties
 }
 
+// Authentication event types — single source of truth for both the
+// TrackAuthParams union and the dev-build validator allowlist, so the two
+// cannot silently drift (#388).
+export const AUTH_EVENT_TYPES = [
+  'signin_page_view',
+  'signed_in',
+  'signed_in_first_time',
+  'logged_out',
+] as const
+
+export type AuthEventType = (typeof AUTH_EVENT_TYPES)[number]
+
 // Authentication tracking parameters
 export interface TrackAuthParams {
-  eventType:
-    | 'signin_page_view'
-    | 'signed_in'
-    | 'signed_in_first_time'
-    | 'logged_out'
+  eventType: AuthEventType
   userProperties?: UserProperties
 }
 
