@@ -207,3 +207,15 @@ func TestReactivateUser_UnknownTarget(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, got)
 }
+
+// TestSuspendGuardErrorMessages pins the two guard messages: they are surfaced
+// verbatim as the 409 detail an operator reads, so they must say WHY the action
+// was refused rather than just failing.
+func TestSuspendGuardErrorMessages(t *testing.T) {
+	selfErr := &ErrAdminSuspendSelf{}
+	assert.Contains(t, selfErr.Error(), "cannot suspend their own account")
+
+	adminErr := &ErrAdminSuspendInstanceAdmin{Email: "root@example.com"}
+	assert.Contains(t, adminErr.Error(), "root@example.com")
+	assert.Contains(t, adminErr.Error(), "configured instance admin")
+}

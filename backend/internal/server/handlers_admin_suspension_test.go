@@ -18,6 +18,7 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/activities"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
@@ -223,4 +224,128 @@ func TestSuspendAdminUser_PassesActingAdminAndPredicate(t *testing.T) {
 	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
+}
+
+// TestAdminSuspension_RecordsActivity is the audit acceptance criterion: both
+// transitions must write an activities row whose user_id is the ACTING ADMIN and
+// whose entity_id is the AFFECTED account, so "who did this to whom" is
+// answerable afterwards. Getting those two round the wrong way would still pass
+// a mere "an activity was recorded" assertion, so both are asserted explicitly.
+func TestAdminSuspension_RecordsActivity(t *testing.T) {
+	tests := []struct {
+		name       string
+		action     string
+		wantType   string
+		wantStatus string
+		expectSvc  func(*servicesmocks.MockAdminServiceInterface, string)
+	}{
+		{
+			name:       "suspend",
+			action:     "suspend",
+			wantType:   activities.ActivityTypeAdminUserSuspended,
+			wantStatus: models.UserStatusSuspended,
+			expectSvc: func(m *servicesmocks.MockAdminServiceInterface, id string) {
+				m.On("SuspendUser", mock.Anything, mock.Anything, id, mock.Anything).
+					Return(adminUserDetailWithStatus(id, models.UserStatusSuspended), nil)
+			},
+		},
+		{
+			name:       "reactivate",
+			action:     "reactivate",
+			wantType:   activities.ActivityTypeAdminUserReactivated,
+			wantStatus: models.UserStatusActive,
+			expectSvc: func(m *servicesmocks.MockAdminServiceInterface, id string) {
+				m.On("ReactivateUser", mock.Anything, id).
+					Return(adminUserDetailWithStatus(id, models.UserStatusActive), nil)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			targetID := uuid.NewString()
+			actingID := uuid.NewString()
+
+			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+			tc.expectSvc(mockAdmin, targetID)
+
+			activitySvc := &MockActivityService{}
+			activitySvc.On("RecordResourceActivity",
+				mock.Anything,
+				actingID, // the ACTING ADMIN is the activity's user_id
+				tc.wantType,
+				activities.EntityTypeUser,
+				mock.MatchedBy(func(entityID *string) bool {
+					// the AFFECTED account is the entity_id
+					return entityID != nil && *entityID == targetID
+				}),
+				mock.Anything,
+				mock.MatchedBy(func(md map[string]interface{}) bool {
+					return md["target_user_id"] == targetID &&
+						md["target_email"] == "target@example.com" &&
+						md["new_status"] == tc.wantStatus
+				}),
+			).Return(nil).Once()
+
+			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
+				adminService:    mockAdmin,
+				activityService: activitySvc,
+			})
+
+			req := httptest.NewRequest("POST", "/api/v1/admin/users/"+targetID+"/"+tc.action, nil)
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, actingID))
+			rr := httptest.NewRecorder()
+			mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusOK, rr.Code)
+			activitySvc.AssertExpectations(t)
+		})
+	}
+}
+
+// TestAdminSuspension_ActivityFailureDoesNotFailTheTransition: the status change
+// is already committed by the time the audit row is written, so a recording
+// failure must be logged and dropped rather than turning a successful
+// suspension into a 500 the caller would retry.
+func TestAdminSuspension_ActivityFailureDoesNotFailTheTransition(t *testing.T) {
+	targetID := uuid.NewString()
+
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("SuspendUser", mock.Anything, mock.Anything, targetID, mock.Anything).
+		Return(adminUserDetailWithStatus(targetID, models.UserStatusSuspended), nil)
+
+	activitySvc := &MockActivityService{}
+	activitySvc.On("RecordResourceActivity",
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything,
+		mock.Anything, mock.Anything, mock.Anything,
+	).Return(errors.New("activities table is full"))
+
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{
+		adminService:    mockAdmin,
+		activityService: activitySvc,
+	})
+
+	req := httptest.NewRequest("POST", "/api/v1/admin/users/"+targetID+"/suspend", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "a failed audit write must not undo a committed suspension")
+}
+
+// TestAdminSuspension_ConversionErrorReturns500 covers the defensive path where
+// the store hands back a non-UUID id: that is a server bug, not a client error,
+// so it must be a logged 500 rather than a malformed 200.
+func TestAdminSuspension_ConversionErrorReturns500(t *testing.T) {
+	id := uuid.NewString()
+	bad := adminUserDetailWithStatus("not-a-uuid", models.UserStatusSuspended)
+
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("SuspendUser", mock.Anything, mock.Anything, id, mock.Anything).Return(bad, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("POST", "/api/v1/admin/users/"+id+"/suspend", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
 }

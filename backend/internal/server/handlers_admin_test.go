@@ -22,6 +22,7 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/activities"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
@@ -30,12 +31,22 @@ import (
 // by the admin middleware + handler.
 type adminMockContainer struct {
 	BaseMockContainer
-	authService  services.AuthServiceInterface
-	adminService services.AdminServiceInterface
+	authService     services.AuthServiceInterface
+	adminService    services.AdminServiceInterface
+	activityService activities.ActivityService
 }
 
 func (c *adminMockContainer) AuthService() services.AuthServiceInterface   { return c.authService }
 func (c *adminMockContainer) AdminService() services.AdminServiceInterface { return c.adminService }
+
+// ActivityService backs the audit rows the suspension handlers write (#454). A
+// nil service is a supported no-op, so tests that do not care simply omit it.
+func (c *adminMockContainer) ActivityService() activities.ActivityService {
+	if c.activityService == nil {
+		return nil
+	}
+	return c.activityService
+}
 
 func newAdminTestServer(cfg *config.Config, container *adminMockContainer) *Server {
 	srv := New("8080", nil, "test-api-key", cfg, slog.New(slog.DiscardHandler))
