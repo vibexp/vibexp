@@ -26,6 +26,65 @@ func (_m *MockAdminServiceInterface) EXPECT() *MockAdminServiceInterface_Expecte
 	return &MockAdminServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// DeleteUser provides a mock function with given fields: ctx, actingAdminID, targetID, isInstanceAdmin
+func (_m *MockAdminServiceInterface) DeleteUser(ctx context.Context, actingAdminID string, targetID string, isInstanceAdmin services.InstanceAdminPredicate) (bool, error) {
+	ret := _m.Called(ctx, actingAdminID, targetID, isInstanceAdmin)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteUser")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.InstanceAdminPredicate) (bool, error)); ok {
+		return rf(ctx, actingAdminID, targetID, isInstanceAdmin)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.InstanceAdminPredicate) bool); ok {
+		r0 = rf(ctx, actingAdminID, targetID, isInstanceAdmin)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, services.InstanceAdminPredicate) error); ok {
+		r1 = rf(ctx, actingAdminID, targetID, isInstanceAdmin)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_DeleteUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteUser'
+type MockAdminServiceInterface_DeleteUser_Call struct {
+	*mock.Call
+}
+
+// DeleteUser is a helper method to define mock.On call
+//   - ctx context.Context
+//   - actingAdminID string
+//   - targetID string
+//   - isInstanceAdmin services.InstanceAdminPredicate
+func (_e *MockAdminServiceInterface_Expecter) DeleteUser(ctx interface{}, actingAdminID interface{}, targetID interface{}, isInstanceAdmin interface{}) *MockAdminServiceInterface_DeleteUser_Call {
+	return &MockAdminServiceInterface_DeleteUser_Call{Call: _e.mock.On("DeleteUser", ctx, actingAdminID, targetID, isInstanceAdmin)}
+}
+
+func (_c *MockAdminServiceInterface_DeleteUser_Call) Run(run func(ctx context.Context, actingAdminID string, targetID string, isInstanceAdmin services.InstanceAdminPredicate)) *MockAdminServiceInterface_DeleteUser_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(services.InstanceAdminPredicate))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_DeleteUser_Call) Return(_a0 bool, _a1 error) *MockAdminServiceInterface_DeleteUser_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_DeleteUser_Call) RunAndReturn(run func(context.Context, string, string, services.InstanceAdminPredicate) (bool, error)) *MockAdminServiceInterface_DeleteUser_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetDashboardOverview provides a mock function with given fields: ctx, version
 func (_m *MockAdminServiceInterface) GetDashboardOverview(ctx context.Context, version string) (models.AdminDashboardOverview, error) {
 	ret := _m.Called(ctx, version)
@@ -545,6 +604,66 @@ func (_c *MockAdminServiceInterface_SuspendUser_Call) Return(_a0 *models.AdminUs
 }
 
 func (_c *MockAdminServiceInterface_SuspendUser_Call) RunAndReturn(run func(context.Context, string, string, services.InstanceAdminPredicate) (*models.AdminUserDetail, error)) *MockAdminServiceInterface_SuspendUser_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateUserName provides a mock function with given fields: ctx, targetID, name
+func (_m *MockAdminServiceInterface) UpdateUserName(ctx context.Context, targetID string, name string) (*models.AdminUserDetail, error) {
+	ret := _m.Called(ctx, targetID, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserName")
+	}
+
+	var r0 *models.AdminUserDetail
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*models.AdminUserDetail, error)); ok {
+		return rf(ctx, targetID, name)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *models.AdminUserDetail); ok {
+		r0 = rf(ctx, targetID, name)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminUserDetail)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, targetID, name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_UpdateUserName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateUserName'
+type MockAdminServiceInterface_UpdateUserName_Call struct {
+	*mock.Call
+}
+
+// UpdateUserName is a helper method to define mock.On call
+//   - ctx context.Context
+//   - targetID string
+//   - name string
+func (_e *MockAdminServiceInterface_Expecter) UpdateUserName(ctx interface{}, targetID interface{}, name interface{}) *MockAdminServiceInterface_UpdateUserName_Call {
+	return &MockAdminServiceInterface_UpdateUserName_Call{Call: _e.mock.On("UpdateUserName", ctx, targetID, name)}
+}
+
+func (_c *MockAdminServiceInterface_UpdateUserName_Call) Run(run func(ctx context.Context, targetID string, name string)) *MockAdminServiceInterface_UpdateUserName_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_UpdateUserName_Call) Return(_a0 *models.AdminUserDetail, _a1 error) *MockAdminServiceInterface_UpdateUserName_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_UpdateUserName_Call) RunAndReturn(run func(context.Context, string, string) (*models.AdminUserDetail, error)) *MockAdminServiceInterface_UpdateUserName_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -412,6 +412,16 @@ func (s *Server) adminBindErrorHandler(w http.ResponseWriter, r *http.Request, e
 // implementations. *apierrors.APIError carries the intended RFC 9457 error;
 // anything else is defensive and maps to a generic 500.
 func (s *Server) adminResponseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	// A blocked hard delete is a documented 409 payload, not a problem document:
+	// the SPA renders the blocker list so the admin knows which teams to transfer
+	// (#455). It travels as an error because the strict server's handler
+	// signature only carries a response object OR an error.
+	var blockedErr *adminDeleteBlockedError
+	if errors.As(err, &blockedErr) {
+		writeJSON(w, http.StatusConflict, toGenDeleteBlockedResponse(blockedErr), s.logger)
+		return
+	}
+
 	var apiErr *apierrors.APIError
 	if errors.As(err, &apiErr) {
 		apierrors.WriteJSONError(w, r, apiErr)

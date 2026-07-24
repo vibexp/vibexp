@@ -1026,6 +1026,18 @@ type AdminRepository interface {
 	// UpdateUserStatus sets a user's lifecycle status, reporting false when no
 	// user with that id exists so the caller can 404 without a second query.
 	UpdateUserStatus(ctx context.Context, id, status string) (bool, error)
+	// UpdateUserName updates the only admin-editable user field. Reports false
+	// when no user with that id exists. Identity fields are IdP-owned and are
+	// deliberately not representable here.
+	UpdateUserName(ctx context.Context, id, name string) (bool, error)
+	// DeleteUserIfUnblocked hard-deletes a user, but ONLY after confirming in the
+	// same transaction that they own no shared team with other members — deleting
+	// such a user would cascade that team away and take its members' data with it.
+	// Returns (blockers, true, nil) when refused (nothing deleted),
+	// (nil, true, nil) when deleted, and (nil, false, nil) for an unknown id.
+	DeleteUserIfUnblocked(
+		ctx context.Context, id string,
+	) ([]models.AdminDeleteBlocker, bool, error)
 }
 
 // BlueprintRepository defines the interface for blueprint data access operations
