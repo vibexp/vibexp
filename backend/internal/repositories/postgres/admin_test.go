@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -201,30 +200,30 @@ func TestAdminRepository_ListUsers_Sorting(t *testing.T) {
 		name      string
 		sortBy    string
 		sortOrder string
-		wantOrder string
+		want      string
 	}{
-		{"default", "", "", "ORDER BY u.created_at DESC, u.id"},
-		{"email asc", "email", "asc", "ORDER BY u.email ASC, u.id"},
-		{"name desc", "name", "desc", "ORDER BY u.name DESC, u.id"},
-		{"created_at asc", "created_at", "asc", "ORDER BY u.created_at ASC, u.id"},
-		{"team_count uses the aggregate", "team_count", "desc", "ORDER BY COUNT(tm.team_id) DESC, u.id"},
-		{"unknown sort_by falls back", "totally_unknown", "asc", "ORDER BY u.created_at ASC, u.id"},
+		{"default", "", "", "u.created_at DESC, u.id"},
+		{"email asc", "email", "asc", "u.email ASC, u.id"},
+		{"name desc", "name", "desc", "u.name DESC, u.id"},
+		{"created_at asc", "created_at", "asc", "u.created_at ASC, u.id"},
+		{"team_count uses the aggregate", "team_count", "desc", "COUNT(tm.team_id) DESC, u.id"},
+		{"unknown sort_by falls back", "totally_unknown", "asc", "u.created_at ASC, u.id"},
 		{
 			name:      "injection-shaped sort_by never reaches SQL",
 			sortBy:    "u.id; DROP TABLE users--",
 			sortOrder: "asc",
-			wantOrder: "ORDER BY u.created_at ASC, u.id",
+			want:      "u.created_at ASC, u.id",
 		},
-		{"unknown sort_order defaults to DESC", "email", "sideways", "ORDER BY u.email DESC, u.id"},
+		{"unknown sort_order defaults to DESC", "email", "sideways", "u.email DESC, u.id"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			filters := repositories.AdminUserFilters{
+			got := buildAdminUserOrderBy(repositories.AdminUserFilters{
 				SortBy: tc.sortBy, SortOrder: tc.sortOrder, Page: 1, Limit: 20,
-			}
-			assert.Equal(t, strings.TrimPrefix(tc.wantOrder, "ORDER BY "), buildAdminUserOrderBy(filters))
-			assert.NotContains(t, buildAdminUserOrderBy(filters), "DROP TABLE")
+			})
+			assert.Equal(t, tc.want, got)
+			assert.NotContains(t, got, "DROP TABLE")
 		})
 	}
 }

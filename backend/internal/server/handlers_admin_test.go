@@ -439,8 +439,14 @@ func TestListAdminTeams(t *testing.T) {
 	owner := models.AdminTeamOwner{ID: uuid.NewString(), Email: "owner@example.com", Name: "Owner"}
 	populated := models.AdminTeamList{
 		Teams: []models.AdminTeamListItem{
-			{ID: uuid.NewString(), Name: "Acme", Owner: owner, MemberCount: 3, CreatedAt: time.Now()},
-			{ID: uuid.NewString(), Name: "Beta", Owner: owner, MemberCount: 0, CreatedAt: time.Now()},
+			{
+				ID: uuid.NewString(), Name: "Acme", Slug: "acme", IsPersonal: false,
+				Owner: owner, MemberCount: 3, CreatedAt: time.Now(),
+			},
+			{
+				ID: uuid.NewString(), Name: "Beta", Slug: "beta", IsPersonal: true,
+				Owner: owner, MemberCount: 0, CreatedAt: time.Now(),
+			},
 		},
 		TotalCount: 2, Page: 1, PerPage: 20, TotalPages: 1,
 	}
@@ -469,6 +475,15 @@ func TestListAdminTeams(t *testing.T) {
 			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 			assert.Len(t, resp.Teams, tc.wantTeams)
 			assert.NotContains(t, rr.Body.String(), `"teams":null`)
+			// #452's additive required fields. Spec conformance alone cannot catch a
+			// dropped mapping — the zero values ("" / false) are valid string/boolean —
+			// so assert the values actually round-trip.
+			if tc.wantTeams > 0 {
+				assert.Equal(t, "acme", resp.Teams[0].Slug)
+				assert.False(t, resp.Teams[0].IsPersonal)
+				assert.Equal(t, "beta", resp.Teams[1].Slug)
+				assert.True(t, resp.Teams[1].IsPersonal)
+			}
 			specconformance.AssertConformsToSpec(t, req, rr)
 		})
 	}
@@ -584,7 +599,7 @@ func TestGetAdminTeam_Found(t *testing.T) {
 	id := uuid.NewString()
 	owner := models.AdminTeamOwner{ID: uuid.NewString(), Email: "owner@example.com", Name: "Owner"}
 	detail := &models.AdminTeamDetail{
-		ID: id, Name: "Acme", Owner: owner, CreatedAt: time.Now(),
+		ID: id, Name: "Acme", Slug: "acme", IsPersonal: true, Owner: owner, CreatedAt: time.Now(),
 		Members: []models.AdminTeamMember{
 			{UserID: uuid.NewString(), Email: "m@example.com", Name: "M", Role: "member", JoinedAt: time.Now()},
 		},
@@ -602,6 +617,10 @@ func TestGetAdminTeam_Found(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.Equal(t, id, resp.Id.String())
 	assert.Equal(t, "Owner", resp.Owner.Name)
+	// #452's additive required fields — asserted explicitly because their zero
+	// values would still satisfy the spec (see TestListAdminTeams).
+	assert.Equal(t, "acme", resp.Slug)
+	assert.True(t, resp.IsPersonal)
 	require.Len(t, resp.Members, 1)
 	assert.Equal(t, "member", resp.Members[0].Role)
 	specconformance.AssertConformsToSpec(t, req, rr)
