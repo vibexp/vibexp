@@ -790,6 +790,29 @@ components:
       $ref: "./schemas/admin.yaml#/AdminTeamMember"
     AdminTeamDetail:
       $ref: "./schemas/admin.yaml#/AdminTeamDetail"
+    # Dashboard metrics (#451)
+    AdminExtendedCounts:
+      $ref: "./schemas/admin.yaml#/AdminExtendedCounts"
+    AdminBreakdownBucket:
+      $ref: "./schemas/admin.yaml#/AdminBreakdownBucket"
+    AdminEntityBreakdown:
+      $ref: "./schemas/admin.yaml#/AdminEntityBreakdown"
+    AdminTableStat:
+      $ref: "./schemas/admin.yaml#/AdminTableStat"
+    AdminSystemHealth:
+      $ref: "./schemas/admin.yaml#/AdminSystemHealth"
+    AdminDashboardOverview:
+      $ref: "./schemas/admin.yaml#/AdminDashboardOverview"
+    AdminGrowthPoint:
+      $ref: "./schemas/admin.yaml#/AdminGrowthPoint"
+    AdminCountPoint:
+      $ref: "./schemas/admin.yaml#/AdminCountPoint"
+    AdminSourcePoint:
+      $ref: "./schemas/admin.yaml#/AdminSourcePoint"
+    AdminDataWindow:
+      $ref: "./schemas/admin.yaml#/AdminDataWindow"
+    AdminTimeseriesResponse:
+      $ref: "./schemas/admin.yaml#/AdminTimeseriesResponse"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1106,6 +1129,10 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-teams"
   /api/v1/admin/teams/{id}:
     $ref: "./paths/admin.yaml#/api-v1-admin-teams-id"
+  /api/v1/admin/dashboard/overview:
+    $ref: "./paths/admin.yaml#/api-v1-admin-dashboard-overview"
+  /api/v1/admin/dashboard/timeseries:
+    $ref: "./paths/admin.yaml#/api-v1-admin-dashboard-timeseries"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:

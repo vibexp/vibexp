@@ -35,6 +35,15 @@ type AdminServiceInterface interface {
 	// GetTeamDetail returns one team with owner and member list, or (nil, nil)
 	// when no team with that id exists (the handler maps that to 404).
 	GetTeamDetail(ctx context.Context, id string) (*models.AdminTeamDetail, error)
+	// GetDashboardOverview returns instance-wide totals, status/type breakdowns
+	// and system health, stamped with the supplied app version.
+	GetDashboardOverview(ctx context.Context, version string) (models.AdminDashboardOverview, error)
+	// GetDashboardTimeseries returns gap-filled growth, sign-in and
+	// access-by-source series for the requested range. An invalid range or
+	// granularity yields *ErrAdminTimeseriesRange, which the handler maps to 400.
+	GetDashboardTimeseries(
+		ctx context.Context, q AdminTimeseriesQuery, window models.AdminDataWindow,
+	) (models.AdminTimeseries, error)
 }
 
 // AdminService implements AdminServiceInterface.

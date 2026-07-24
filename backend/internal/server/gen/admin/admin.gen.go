@@ -22,6 +22,48 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
 
+// Defines values for AdminTimeseriesResponseGranularity.
+const (
+	AdminTimeseriesResponseGranularityDay   AdminTimeseriesResponseGranularity = "day"
+	AdminTimeseriesResponseGranularityMonth AdminTimeseriesResponseGranularity = "month"
+	AdminTimeseriesResponseGranularityWeek  AdminTimeseriesResponseGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the AdminTimeseriesResponseGranularity enum.
+func (e AdminTimeseriesResponseGranularity) Valid() bool {
+	switch e {
+	case AdminTimeseriesResponseGranularityDay:
+		return true
+	case AdminTimeseriesResponseGranularityMonth:
+		return true
+	case AdminTimeseriesResponseGranularityWeek:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminDashboardTimeseriesParamsGranularity.
+const (
+	GetAdminDashboardTimeseriesParamsGranularityDay   GetAdminDashboardTimeseriesParamsGranularity = "day"
+	GetAdminDashboardTimeseriesParamsGranularityMonth GetAdminDashboardTimeseriesParamsGranularity = "month"
+	GetAdminDashboardTimeseriesParamsGranularityWeek  GetAdminDashboardTimeseriesParamsGranularity = "week"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminDashboardTimeseriesParamsGranularity enum.
+func (e GetAdminDashboardTimeseriesParamsGranularity) Valid() bool {
+	switch e {
+	case GetAdminDashboardTimeseriesParamsGranularityDay:
+		return true
+	case GetAdminDashboardTimeseriesParamsGranularityMonth:
+		return true
+	case GetAdminDashboardTimeseriesParamsGranularityWeek:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAdminTeamsParamsSortBy.
 const (
 	ListAdminTeamsParamsSortByCreatedAt   ListAdminTeamsParamsSortBy = "created_at"
@@ -103,6 +145,89 @@ func (e ListAdminUsersParamsSortOrder) Valid() bool {
 	}
 }
 
+// AdminBreakdownBucket One value of a grouped column plus how many rows carry it.
+type AdminBreakdownBucket struct {
+	Count int64 `json:"count"`
+
+	// Value The column value. NULL values are reported as an empty string.
+	Value string `json:"value"`
+}
+
+// AdminCountPoint A single count within one time bucket.
+type AdminCountPoint struct {
+	// Bucket Start of the bucket, in UTC.
+	Bucket time.Time `json:"bucket"`
+	Count  int64     `json:"count"`
+}
+
+// AdminDashboardOverview Totals, breakdowns and system health (GET /api/v1/admin/dashboard/overview).
+type AdminDashboardOverview struct {
+	// Breakdowns One entry per entity/column pair that has a status or type column.
+	Breakdowns []AdminEntityBreakdown `json:"breakdowns"`
+
+	// Counts Instance-wide totals for every top-level entity. A superset of
+	// AdminInstanceCounts, which stays as-is for the legacy stats endpoint.
+	Counts AdminExtendedCounts `json:"counts"`
+
+	// SystemHealth Instance storage health.
+	SystemHealth AdminSystemHealth `json:"system_health"`
+
+	// Version The running backend application version ("dev" when unset).
+	Version string `json:"version"`
+}
+
+// AdminDataWindow Earliest instant for which event data still exists. Both source tables are
+// TTL-pruned (config retention.activity_days / retention.access_event_days),
+// so a chart asking for a range older than these values will legitimately show
+// zeros rather than missing data.
+type AdminDataWindow struct {
+	// AccessBySourceEarliestRetainedAt now() - retention.access_event_days.
+	AccessBySourceEarliestRetainedAt time.Time `json:"access_by_source_earliest_retained_at"`
+
+	// SignInsEarliestRetainedAt now() - retention.activity_days.
+	SignInsEarliestRetainedAt time.Time `json:"sign_ins_earliest_retained_at"`
+}
+
+// AdminEntityBreakdown A GROUP BY over one status/type column of one entity table.
+type AdminEntityBreakdown struct {
+	// Buckets One entry per distinct value, most frequent first.
+	Buckets []AdminBreakdownBucket `json:"buckets"`
+
+	// Entity The entity table the breakdown covers.
+	Entity string `json:"entity"`
+
+	// Field The grouped column.
+	Field string `json:"field"`
+}
+
+// AdminExtendedCounts Instance-wide totals for every top-level entity. A superset of
+// AdminInstanceCounts, which stays as-is for the legacy stats endpoint.
+type AdminExtendedCounts struct {
+	Agents     int64 `json:"agents"`
+	ApiKeys    int64 `json:"api_keys"`
+	Artifacts  int64 `json:"artifacts"`
+	Blueprints int64 `json:"blueprints"`
+	Feeds      int64 `json:"feeds"`
+	Memories   int64 `json:"memories"`
+	Projects   int64 `json:"projects"`
+	Prompts    int64 `json:"prompts"`
+	Teams      int64 `json:"teams"`
+	Users      int64 `json:"users"`
+}
+
+// AdminGrowthPoint New rows created per entity within one time bucket.
+type AdminGrowthPoint struct {
+	Artifacts int64 `json:"artifacts"`
+
+	// Bucket Start of the bucket, in UTC.
+	Bucket   time.Time `json:"bucket"`
+	Memories int64     `json:"memories"`
+	Projects int64     `json:"projects"`
+	Prompts  int64     `json:"prompts"`
+	Teams    int64     `json:"teams"`
+	Users    int64     `json:"users"`
+}
+
 // AdminInstanceCounts Instance-wide totals for the top-level entities (unscoped counts).
 type AdminInstanceCounts struct {
 	// Artifacts Total number of artifacts.
@@ -121,6 +246,16 @@ type AdminInstanceCounts struct {
 	Users int64 `json:"users"`
 }
 
+// AdminSourcePoint A count for one access source within one time bucket.
+type AdminSourcePoint struct {
+	// Bucket Start of the bucket, in UTC.
+	Bucket time.Time `json:"bucket"`
+	Count  int64     `json:"count"`
+
+	// Source Access source (e.g. "web", "cli", "mcp").
+	Source string `json:"source"`
+}
+
 // AdminStatsResponse Instance statistics returned by GET /api/v1/admin/stats.
 type AdminStatsResponse struct {
 	// Counts Instance-wide totals for the top-level entities (unscoped counts).
@@ -128,6 +263,24 @@ type AdminStatsResponse struct {
 
 	// Version The running backend application version (config server.service_version; "dev" when unset).
 	Version string `json:"version"`
+}
+
+// AdminSystemHealth Instance storage health.
+type AdminSystemHealth struct {
+	// DatabaseSizeBytes pg_database_size(current_database()).
+	DatabaseSizeBytes int64 `json:"database_size_bytes"`
+
+	// Tables Per-table estimated row counts, largest first.
+	Tables []AdminTableStat `json:"tables"`
+}
+
+// AdminTableStat Approximate row count for one table.
+type AdminTableStat struct {
+	// EstimatedRows ESTIMATE from pg_stat_user_tables.n_live_tup, not an exact COUNT(*) —
+	// an exact per-table count does not scale and this figure is only meant
+	// for relative sizing. Freshness depends on autovacuum/ANALYZE.
+	EstimatedRows int64  `json:"estimated_rows"`
+	Table         string `json:"table"`
 }
 
 // AdminTeamDetail A single team with its owner and member list (GET /api/v1/admin/teams/{id}).
@@ -206,6 +359,40 @@ type AdminTeamOwner struct {
 	Id    openapi_types.UUID  `json:"id"`
 	Name  string              `json:"name"`
 }
+
+// AdminTimeseriesResponse Bucketed metrics over a time range (GET /api/v1/admin/dashboard/timeseries).
+// Every bucket in the requested range is present in every series with an
+// explicit 0 — the series are gap-filled, never sparse.
+type AdminTimeseriesResponse struct {
+	// AccessBySource Resource accesses per bucket per source, ascending by bucket then source.
+	// Only sources actually observed in the range appear; a source with no
+	// events in a bucket is gap-filled to 0 for the sources that do appear.
+	AccessBySource []AdminSourcePoint `json:"access_by_source"`
+
+	// DataWindow Earliest instant for which event data still exists. Both source tables are
+	// TTL-pruned (config retention.activity_days / retention.access_event_days),
+	// so a chart asking for a range older than these values will legitimately show
+	// zeros rather than missing data.
+	DataWindow AdminDataWindow `json:"data_window"`
+
+	// From Inclusive start of the range actually used (after defaulting).
+	From time.Time `json:"from"`
+
+	// Granularity Bucket size actually used.
+	Granularity AdminTimeseriesResponseGranularity `json:"granularity"`
+
+	// Growth New entities per bucket, ascending by bucket.
+	Growth []AdminGrowthPoint `json:"growth"`
+
+	// SignIns Successful sign-ins per bucket (activities.auth_login), ascending.
+	SignIns []AdminCountPoint `json:"sign_ins"`
+
+	// To Exclusive end of the range actually used (after defaulting).
+	To time.Time `json:"to"`
+}
+
+// AdminTimeseriesResponseGranularity Bucket size actually used.
+type AdminTimeseriesResponseGranularity string
 
 // AdminUserDetail A single user with their team memberships (GET /api/v1/admin/users/{id}).
 type AdminUserDetail struct {
@@ -310,6 +497,21 @@ type bearerAuthContextKey string
 // cookieAuthContextKey is the context key for CookieAuth security scheme
 type cookieAuthContextKey string
 
+// GetAdminDashboardTimeseriesParams defines parameters for GetAdminDashboardTimeseries.
+type GetAdminDashboardTimeseriesParams struct {
+	// From Inclusive start of the range. Defaults to 30 days before `to`.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Exclusive end of the range. Defaults to now.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Granularity Bucket size.
+	Granularity *GetAdminDashboardTimeseriesParamsGranularity `form:"granularity,omitempty" json:"granularity,omitempty"`
+}
+
+// GetAdminDashboardTimeseriesParamsGranularity defines parameters for GetAdminDashboardTimeseries.
+type GetAdminDashboardTimeseriesParamsGranularity string
+
 // ListAdminTeamsParams defines parameters for ListAdminTeams.
 type ListAdminTeamsParams struct {
 	// Page 1-based page number
@@ -378,6 +580,12 @@ type ListAdminUsersParamsSortOrder string
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Get admin dashboard overview
+	// (GET /api/v1/admin/dashboard/overview)
+	GetAdminDashboardOverview(w http.ResponseWriter, r *http.Request)
+	// Get admin dashboard time series
+	// (GET /api/v1/admin/dashboard/timeseries)
+	GetAdminDashboardTimeseries(w http.ResponseWriter, r *http.Request, params GetAdminDashboardTimeseriesParams)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(w http.ResponseWriter, r *http.Request)
@@ -398,6 +606,18 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// Get admin dashboard overview
+// (GET /api/v1/admin/dashboard/overview)
+func (_ Unimplemented) GetAdminDashboardOverview(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get admin dashboard time series
+// (GET /api/v1/admin/dashboard/timeseries)
+func (_ Unimplemented) GetAdminDashboardTimeseries(w http.ResponseWriter, r *http.Request, params GetAdminDashboardTimeseriesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Get instance statistics
 // (GET /api/v1/admin/stats)
@@ -437,6 +657,95 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAdminDashboardOverview operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminDashboardOverview(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminDashboardOverview(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminDashboardTimeseries operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminDashboardTimeseries(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminDashboardTimeseriesParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "granularity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "granularity", r.URL.Query(), &params.Granularity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "granularity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "granularity", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminDashboardTimeseries(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetAdminStats operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminStats(w http.ResponseWriter, r *http.Request) {
@@ -906,6 +1215,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/dashboard/overview", wrapper.GetAdminDashboardOverview)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/dashboard/timeseries", wrapper.GetAdminDashboardTimeseries)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/stats", wrapper.GetAdminStats)
 	})
 	r.Group(func(r chi.Router) {
@@ -922,6 +1237,119 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 
 	return r
+}
+
+type GetAdminDashboardOverviewRequestObject struct {
+}
+
+type GetAdminDashboardOverviewResponseObject interface {
+	VisitGetAdminDashboardOverviewResponse(w http.ResponseWriter) error
+}
+
+type GetAdminDashboardOverview200JSONResponse AdminDashboardOverview
+
+func (response GetAdminDashboardOverview200JSONResponse) VisitGetAdminDashboardOverviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminDashboardOverview404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminDashboardOverview404ApplicationProblemPlusJSONResponse) VisitGetAdminDashboardOverviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminDashboardOverview500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminDashboardOverview500ApplicationProblemPlusJSONResponse) VisitGetAdminDashboardOverviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminDashboardTimeseriesRequestObject struct {
+	Params GetAdminDashboardTimeseriesParams
+}
+
+type GetAdminDashboardTimeseriesResponseObject interface {
+	VisitGetAdminDashboardTimeseriesResponse(w http.ResponseWriter) error
+}
+
+type GetAdminDashboardTimeseries200JSONResponse AdminTimeseriesResponse
+
+func (response GetAdminDashboardTimeseries200JSONResponse) VisitGetAdminDashboardTimeseriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminDashboardTimeseries400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminDashboardTimeseries400ApplicationProblemPlusJSONResponse) VisitGetAdminDashboardTimeseriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminDashboardTimeseries404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminDashboardTimeseries404ApplicationProblemPlusJSONResponse) VisitGetAdminDashboardTimeseriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminDashboardTimeseries500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminDashboardTimeseries500ApplicationProblemPlusJSONResponse) VisitGetAdminDashboardTimeseriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetAdminStatsRequestObject struct {
@@ -1203,6 +1631,12 @@ func (response GetAdminUser500ApplicationProblemPlusJSONResponse) VisitGetAdminU
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// Get admin dashboard overview
+	// (GET /api/v1/admin/dashboard/overview)
+	GetAdminDashboardOverview(ctx context.Context, request GetAdminDashboardOverviewRequestObject) (GetAdminDashboardOverviewResponseObject, error)
+	// Get admin dashboard time series
+	// (GET /api/v1/admin/dashboard/timeseries)
+	GetAdminDashboardTimeseries(ctx context.Context, request GetAdminDashboardTimeseriesRequestObject) (GetAdminDashboardTimeseriesResponseObject, error)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(ctx context.Context, request GetAdminStatsRequestObject) (GetAdminStatsResponseObject, error)
@@ -1247,6 +1681,56 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAdminDashboardOverview operation middleware
+func (sh *strictHandler) GetAdminDashboardOverview(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminDashboardOverviewRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminDashboardOverview(ctx, request.(GetAdminDashboardOverviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminDashboardOverview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminDashboardOverviewResponseObject); ok {
+		if err := validResponse.VisitGetAdminDashboardOverviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminDashboardTimeseries operation middleware
+func (sh *strictHandler) GetAdminDashboardTimeseries(w http.ResponseWriter, r *http.Request, params GetAdminDashboardTimeseriesParams) {
+	var request GetAdminDashboardTimeseriesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminDashboardTimeseries(ctx, request.(GetAdminDashboardTimeseriesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminDashboardTimeseries")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminDashboardTimeseriesResponseObject); ok {
+		if err := validResponse.VisitGetAdminDashboardTimeseriesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetAdminStats operation middleware
