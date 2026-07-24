@@ -182,3 +182,47 @@ func TestModelProviderHandlers_PermissionDeniedIsForbidden(t *testing.T) {
 		})
 	}
 }
+
+// TestEmbeddingMaintenance_DeniedForMember covers the two destructive endpoints
+// that do not pass through a provider service, so they are gated in the handler:
+// reprocess (spends the team's provider budget on a full re-embed) and
+// clear-embeddings (deletes the team's entire embedding index). Both were
+// reachable by any team member before #464.
+func TestEmbeddingMaintenance_DeniedForMember(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{
+			name:   "reprocess",
+			method: http.MethodPost,
+			path:   "/api/v1/team-123/embedding-providers/provider-1/reprocess",
+		},
+		{
+			name:   "clear embeddings",
+			method: http.MethodDelete,
+			path:   "/api/v1/team-123/settings/embedding-providers/embeddings",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			container := newMockEmbeddingProviderContainer(t)
+			// Override the permissive default with an explicit denial.
+			container.authzService.ExpectedCalls = nil
+			container.authzService.On("Can",
+				mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+				Return(services.ErrPermissionDenied)
+
+			srv := createTestEmbeddingProviderServer(container)
+			req := makeAuthenticatedEmbeddingProviderRequest(tt.method, tt.path, nil, authzTestUserID)
+
+			assertProviderForbidden(t, srv, req)
+
+			// The destructive work must not have started.
+			container.embeddingRepository.AssertNotCalled(t, "DeleteByTeam")
+			container.embeddingProviderService.AssertNotCalled(t, "GetEmbeddingProvider")
+		})
+	}
+}

@@ -4,6 +4,7 @@ import (
 	stderrors "errors"
 	"net/http"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/services"
 )
@@ -24,5 +25,26 @@ func writeIfPermissionDenied(w http.ResponseWriter, r *http.Request, err error) 
 		return false
 	}
 	errors.WriteJSONError(w, r, errors.NewForbiddenError(providerPermissionMessage))
+	return true
+}
+
+// requireProviderManagePermission gates the embedding maintenance actions that
+// do NOT pass through a provider service and so cannot be authorized there:
+// reprocess (enqueues a team-wide re-embed, spending the team's provider
+// budget) and clear-embeddings (deletes every embedding the team has). Both are
+// destructive and were reachable by any team member (#464).
+//
+// Handler-level authorization is the established pattern for this case — see
+// handlers_relations.go — since there is no team-scoped service method to hang
+// the check on.
+func (s *Server) requireProviderManagePermission(
+	w http.ResponseWriter, r *http.Request, userID, teamID string,
+) bool {
+	if err := s.container.AuthorizationService().Can(
+		r.Context(), userID, teamID, authz.TeamUpdate,
+	); err != nil {
+		errors.WriteJSONError(w, r, errors.NewForbiddenError(providerPermissionMessage))
+		return false
+	}
 	return true
 }

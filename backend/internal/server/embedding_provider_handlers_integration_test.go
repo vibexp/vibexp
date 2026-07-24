@@ -34,6 +34,14 @@ type MockEmbeddingProviderContainer struct {
 	embeddingRepository      *repomocks.MockEmbeddingRepository
 	embeddingBackfillService *svcmocks.MockEmbeddingBackfiller
 	embeddingStatusService   *svcmocks.MockEmbeddingCoverageGetter
+	// authzService backs the handler-level gate on reprocess / clear-embeddings
+	// (#464). BaseMockContainer returns nil, which would panic the moment a
+	// handler consults it, so it is always wired here.
+	authzService *svcmocks.MockAuthorizationServiceInterface
+}
+
+func (m *MockEmbeddingProviderContainer) AuthorizationService() services.AuthorizationServiceInterface {
+	return m.authzService
 }
 
 func (m *MockEmbeddingProviderContainer) EmbeddingProviderService() services.EmbeddingProviderServiceInterface {
@@ -53,12 +61,20 @@ func (m *MockEmbeddingProviderContainer) EmbeddingBackfillService() services.Emb
 }
 
 func newMockEmbeddingProviderContainer(t *testing.T) *MockEmbeddingProviderContainer {
-	return &MockEmbeddingProviderContainer{
+	c := &MockEmbeddingProviderContainer{
 		embeddingProviderService: svcmocks.NewMockEmbeddingProviderServiceInterface(t),
 		embeddingRepository:      repomocks.NewMockEmbeddingRepository(t),
 		embeddingBackfillService: svcmocks.NewMockEmbeddingBackfiller(t),
 		embeddingStatusService:   svcmocks.NewMockEmbeddingCoverageGetter(t),
+		authzService:             svcmocks.NewMockAuthorizationServiceInterface(t),
 	}
+	// Default the handler-level gate (reprocess / clear-embeddings, #464) to
+	// permitted, so tests about provider mechanics need not restate it. The gate
+	// itself is asserted in provider_authz_handlers_test.go with an explicit
+	// denying expectation.
+	c.authzService.On("Can", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil).Maybe()
+	return c
 }
 
 func createTestEmbeddingProviderServer(container *MockEmbeddingProviderContainer) *Server {

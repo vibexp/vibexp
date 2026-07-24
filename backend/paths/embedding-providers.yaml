@@ -323,6 +323,13 @@ api-v1-embedding-providers-id-reprocess:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
         content:
@@ -716,6 +723,13 @@ api-v1-settings-embedding-providers-id-reprocess:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
         content:
@@ -911,6 +925,13 @@ api-v1-settings-embedding-providers-embeddings:
               $ref: '../openapi.yaml#/components/schemas/ClearEmbeddingsResponse'
       '401':
         description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
         content:
           application/problem+json:
             schema:

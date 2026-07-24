@@ -565,6 +565,12 @@ func (s *Server) handleReprocessEmbeddingProvider(w http.ResponseWriter, r *http
 		"provider_id", providerID,
 	).Info("Embedding provider reprocess request received")
 
+	// A team-wide re-embed spends the team's provider budget, so it is gated
+	// like the settings that cause it (#464).
+	if !s.requireProviderManagePermission(w, r, userID, teamID) {
+		return
+	}
+
 	if providerID == "" {
 		apiErr := errors.NewProviderValidationError(
 			msgProviderIDRequiredInPath,
@@ -617,6 +623,11 @@ func (s *Server) handleClearEmbeddings(w http.ResponseWriter, r *http.Request) {
 		"user_id", userID,
 		"team_id", teamID,
 	).Info("Clear embeddings request received")
+
+	// Destructive: this deletes every embedding the team has. Owner/admin only (#464).
+	if !s.requireProviderManagePermission(w, r, userID, teamID) {
+		return
+	}
 
 	deleted, err := s.container.EmbeddingRepository().DeleteByTeam(r.Context(), teamID)
 	if err != nil {
