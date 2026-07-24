@@ -489,3 +489,129 @@ func (r *AdminRepository) UpdateUserStatus(ctx context.Context, id, status strin
 	}
 	return affected > 0, nil
 }
+
+// adminUserDeleteBlockersQuery lists the SHARED teams a user owns that still
+// have another member. These are the teams that make a hard delete unsafe.
+//
+// Why this exists at all: teams_owner_id_fkey is ON DELETE CASCADE
+// (migrations/001_baseline.up.sql:4068), and 19 further constraints cascade FROM
+// teams. So deleting a user does not merely remove their own rows — it destroys
+// every team they own, and with each shared team, all of its OTHER members'
+// data. This query is the guard that makes the endpoint safe rather than a
+// data-loss bug with an HTTP interface.
+//
+// Personal teams are excluded deliberately: they are the user's own workspace
+// and are meant to cascade away with them. A shared team the user owns ALONE is
+// also fine to cascade — there is nobody else's data in it.
+//
+// Ownership/count predicate only; no role predicate (decision D3).
+const adminUserDeleteBlockersQuery = `
+SELECT t.id, t.name, member_counts.count
+FROM teams t
+JOIN LATERAL (
+	SELECT COUNT(*) AS count FROM team_members tm WHERE tm.team_id = t.id
+) AS member_counts ON TRUE
+WHERE t.owner_id = $1
+  AND t.is_personal = false
+  AND member_counts.count > 1
+ORDER BY t.name, t.id
+`
+
+// DeleteUserIfUnblocked runs the blocker check and the delete inside ONE
+// SERIALIZABLE transaction, returning the blockers when the delete was refused.
+//
+// The two halves cannot be separate calls. If a member joined one of the user's
+// shared teams between an earlier check and this delete, the cascade would
+// destroy that member's data — which is precisely the outcome the guard exists
+// to prevent. SERIALIZABLE makes Postgres abort one of the two transactions
+// instead; a serialization failure surfaces as an error and the admin retries,
+// which is the correct outcome for a rare, irreversible, admin-initiated action.
+//
+// Returns:
+//   - (blockers, true, nil)  — refused; blockers is non-empty and NOTHING was deleted
+//   - (nil, true, nil)       — deleted
+//   - (nil, false, nil)      — no such user (the caller maps this to 404)
+func (r *AdminRepository) DeleteUserIfUnblocked(
+	ctx context.Context, id string,
+) ([]models.AdminDeleteBlocker, bool, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to begin delete transaction: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			slog.Error("Failed to roll back admin user delete transaction", "error", rollbackErr)
+		}
+	}()
+
+	blockers, err := scanDeleteBlockers(ctx, tx, id)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(blockers) > 0 {
+		// Refuse and let the deferred rollback undo the (read-only) transaction.
+		return blockers, true, nil
+	}
+
+	result, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = $1", id)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to delete user: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to read affected rows for user delete: %w", err)
+	}
+	if affected == 0 {
+		return nil, false, nil
+	}
+
+	if commitErr := tx.Commit(); commitErr != nil {
+		return nil, false, fmt.Errorf("failed to commit user delete: %w", commitErr)
+	}
+	return nil, true, nil
+}
+
+// scanDeleteBlockers runs the blocker query on the supplied executor.
+func scanDeleteBlockers(
+	ctx context.Context, tx *sql.Tx, userID string,
+) ([]models.AdminDeleteBlocker, error) {
+	rows, err := tx.QueryContext(ctx, adminUserDeleteBlockersQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query delete blockers: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("Failed to close delete blocker rows", "error", closeErr)
+		}
+	}()
+
+	blockers := make([]models.AdminDeleteBlocker, 0)
+	for rows.Next() {
+		var b models.AdminDeleteBlocker
+		if scanErr := rows.Scan(&b.TeamID, &b.TeamName, &b.MemberCount); scanErr != nil {
+			return nil, fmt.Errorf("failed to scan delete blocker: %w", scanErr)
+		}
+		blockers = append(blockers, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate delete blockers: %w", err)
+	}
+	return blockers, nil
+}
+
+// UpdateUserName updates the only user field an instance admin may edit. The
+// signature is deliberately narrow: email and the IdP identity fields are owned
+// by the identity provider, so making them unrepresentable here is stronger than
+// rejecting them at the edge. Reports false when no user with that id exists.
+func (r *AdminRepository) UpdateUserName(ctx context.Context, id, name string) (bool, error) {
+	result, err := r.db.ExecContext(ctx,
+		"UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2", name, id)
+	if err != nil {
+		return false, fmt.Errorf("failed to update user name: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to read affected rows for user name update: %w", err)
+	}
+	return affected > 0, nil
+}

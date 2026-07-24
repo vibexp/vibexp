@@ -262,6 +262,10 @@ func mountAdminStrictRouter(srv *Server) *chi.Mux {
 		},
 	)
 	router := chi.NewRouter()
+	// Mirror setupAdminRoutes' middleware chain (minus auth, which these tests
+	// bypass deliberately) so the body guard is exercised here too — otherwise
+	// the unknown-field rejection would be untested against the real routing.
+	router.Use(srv.rejectUnknownAdminBodyFields)
 	admingen.HandlerWithOptions(strict, admingen.ChiServerOptions{
 		BaseRouter:       router,
 		ErrorHandlerFunc: srv.adminBindErrorHandler,

@@ -649,6 +649,11 @@ func (s *Server) setupAdminRoutes() {
 		rateLimitByIP(r, s.config.RateLimit.APIPerMinute, s.config.IsLocalDevelopment())
 		r.Use(s.optionalAuthMiddleware)
 		r.Use(s.instanceAdminMiddleware)
+		// Rejects request bodies carrying fields the operation's schema does not
+		// declare — oapi-codegen ignores additionalProperties:false, so without
+		// this an admin editing a user would silently drop the fields they
+		// believe they changed (#455).
+		r.Use(s.rejectUnknownAdminBodyFields)
 		admingen.HandlerWithOptions(strict, admingen.ChiServerOptions{
 			BaseRouter:       r,
 			ErrorHandlerFunc: s.adminBindErrorHandler,

@@ -14632,6 +14632,159 @@
       }
     },
     "/api/v1/admin/users/{id}": {
+      "patch": {
+        "summary": "Update an instance user",
+        "description": "Updates the display name of a user. This is the ONLY field an instance\nadmin may change: `email`, `idp_provider` and `idp_subject` are owned by the\nupstream identity provider, and a body containing any unknown or\nnon-editable field is rejected with 400 rather than silently ignored.\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "updateAdminUser",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — malformed id, or a body carrying an unknown or non-editable field",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown user id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an instance user",
+        "description": "**Permanently and irreversibly** deletes a user. This cascades: the user's\npersonal team and everything they own (prompts, artifacts, memories,\nprojects, agents, feeds, API keys, …) are destroyed with them. Rows in\n`attachments`, `content_versions`, `resource_access_events` and `types`\nsurvive with a null user reference so audit and analytics history is kept.\n\n**Suspension (`POST /admin/users/{id}/suspend`) is the reversible\nalternative** and should be preferred unless the data genuinely must go.\n\nThe delete is REFUSED with 409 when the user owns any shared (non-personal)\nteam that still has other members, because removing them would cascade that\nteam away and destroy its other members' data. The response lists every\nblocking team; transfer ownership first. Nothing is deleted in that case.\n\nAlso refused with 409 when the acting admin targets themselves, or when the\ntarget's email is listed in the `auth.instance_admins` config allowlist.\n\nInstance-admin only; non-admin and unauthenticated requests receive 404.\n",
+        "operationId": "deleteAdminUser",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User id (UUID)",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The user was deleted"
+          },
+          "400": {
+            "description": "Bad request — malformed user id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — unknown user id, or the caller is not an instance admin",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — the delete was refused and NOTHING was deleted. Either the\nuser owns shared teams with other members (see `blockers`), or the\ntarget is the acting admin or a config-listed instance admin.\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDeleteBlockedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "summary": "Get an instance user",
         "description": "Returns one user with their team memberships (team name + the user's role\nin each team). Instance-admin only; non-admin and unauthenticated requests\nreceive 404, as does an unknown user id.\n",
@@ -29617,6 +29770,70 @@
           },
           "data_window": {
             "$ref": "#/components/schemas/AdminDataWindow"
+          }
+        }
+      },
+      "AdminUserUpdateRequest": {
+        "type": "object",
+        "description": "Fields an instance admin may change on a user. Deliberately minimal: email\nand the identity-provider fields (idp_provider, idp_subject) are owned by the\nupstream IdP and are not editable here — sending them is a 400 rather than a\nsilent no-op.\n",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "The user's display name.",
+            "example": "Jane Doe"
+          }
+        }
+      },
+      "AdminDeleteBlocker": {
+        "type": "object",
+        "description": "One reason a user cannot be deleted: a shared team they own that still has\nother members. Ownership must be transferred before the account can be\nremoved.\n",
+        "required": [
+          "team_id",
+          "team_name",
+          "member_count"
+        ],
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "team_name": {
+            "type": "string",
+            "example": "Acme Engineering"
+          },
+          "member_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many members the team has, including the owner.",
+            "example": 4
+          }
+        }
+      },
+      "AdminUserDeleteBlockedResponse": {
+        "type": "object",
+        "description": "Returned with 409 when a hard delete is refused. NOTHING was deleted: the\nuser and every listed team still exist.\n",
+        "required": [
+          "message",
+          "blockers"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable summary of why the delete was refused.",
+            "example": "This user owns shared teams with other members. Transfer ownership before deleting."
+          },
+          "blockers": {
+            "type": "array",
+            "description": "Every shared team blocking the delete.",
+            "items": {
+              "$ref": "#/components/schemas/AdminDeleteBlocker"
+            }
           }
         }
       },

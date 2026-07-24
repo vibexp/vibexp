@@ -190,6 +190,7 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"AdminEntityBreakdown":             "generated strict-server type (internal/server/gen/admin); handler builds buckets via make(...,0) — handlers_admin_dashboard.go toGenAdminOverview",
 	"AdminSystemHealth":                "generated strict-server type (internal/server/gen/admin); handler builds tables via make(...,0) — handlers_admin_dashboard.go toGenAdminOverview",
 	"AdminTimeseriesResponse":          "generated strict-server type (internal/server/gen/admin); handler builds growth/sign_ins/access_by_source via make(...,0) — handlers_admin_dashboard.go toGenAdminTimeseries",
+	"AdminUserDeleteBlockedResponse":   "generated strict-server type (internal/server/gen/admin); handler builds blockers via make(...,0) — handlers_admin_user_mutations.go toGenDeleteBlockedResponse",
 	"RecentCommentListResponse":        "generated strict-server type (internal/server/gen/comments); handler builds via make(...,0) — handlers_comments.go toGenRecentComments",
 	"ActivityListResponse":             "activities-pkg wire type wrapped in a data-envelope map; slices always make(...,0) — services/activities/service.go",
 	"ActivityStatsResponse":            "activities-pkg wire type wrapped in a data-envelope map; slices always make(...,0) — services/activities/service.go",
