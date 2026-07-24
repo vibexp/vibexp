@@ -1289,7 +1289,7 @@ func (s *Server) handlePing(w http.ResponseWriter, r *http.Request) {
 	logger.With(
 		"handler", "handlePing",
 		"user_agent", r.Header.Get("User-Agent"),
-		"remote_ip", r.RemoteAddr,
+		"remote_ip", clientIP(r),
 	).Info("Ping endpoint accessed")
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
@@ -1303,7 +1303,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	logger.With(
 		"handler", "handleHealth",
 		"user_agent", r.Header.Get("User-Agent"),
-		"remote_ip", r.RemoteAddr,
+		"remote_ip", clientIP(r),
 	).Info("Health endpoint accessed")
 
 	sha := s.config.Server.ReleaseSHA
