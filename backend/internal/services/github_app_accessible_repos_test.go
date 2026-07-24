@@ -29,6 +29,7 @@ func buildGitHubAppServiceForURLTest(
 		nil, // encryptionSvc not needed
 		nil, // attachmentSvc not needed
 		nil, // eventManager not needed
+		allowAllAuthz{},
 		logger,
 	)
 }

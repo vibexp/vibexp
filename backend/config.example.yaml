@@ -235,6 +235,14 @@ github:
   app_private_key: "${GITHUB_APP_PRIVATE_KEY}"
   webhook_url: ""
   webhook_secret: "${GITHUB_WEBHOOK_SECRET}"
+  # OAuth credentials of the SAME GitHub App (not the github web-login client).
+  # Required for the install flow: the callback exchanges GitHub's `code` for a
+  # user access token and refuses to bind an installation the caller cannot
+  # administer. Enable "Request user authorization (OAuth) during installation"
+  # on the App, then copy its Client ID / secret here. Empty = install callback
+  # is rejected (fail closed).
+  app_client_id: ""
+  app_client_secret: "${GITHUB_APP_CLIENT_SECRET}"
 
 # Resource-attachment storage. Empty disables attachments (upload/download/
 # delete return 503). Set to your GCS bucket name to enable.

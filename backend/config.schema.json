@@ -394,6 +394,12 @@
         },
         "webhook_secret": {
           "type": "string"
+        },
+        "app_client_id": {
+          "type": "string"
+        },
+        "app_client_secret": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

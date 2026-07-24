@@ -677,6 +677,7 @@ func ProvideGitHubAppService(
 	encryptionSvc services.EncryptionServiceInterface,
 	attachmentSvc services.AttachmentServiceInterface,
 	eventManager events.EventPublisher,
+	authzSvc services.AuthorizationServiceInterface,
 	logger *slog.Logger,
 ) services.GitHubAppServiceInterface {
 	return services.NewGitHubAppService(
@@ -687,6 +688,7 @@ func ProvideGitHubAppService(
 		encryptionSvc,
 		attachmentSvc,
 		eventManager,
+		authzSvc,
 		logger,
 	)
 }

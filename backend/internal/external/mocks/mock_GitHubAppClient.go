@@ -59,6 +59,63 @@ func (_c *MockGitHubAppClient_EvictCachedClient_Call) RunAndReturn(run func(int6
 	return _c
 }
 
+// ExchangeUserCode provides a mock function with given fields: ctx, code
+func (_m *MockGitHubAppClient) ExchangeUserCode(ctx context.Context, code string) (string, error) {
+	ret := _m.Called(ctx, code)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExchangeUserCode")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
+		return rf(ctx, code)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) string); ok {
+		r0 = rf(ctx, code)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, code)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockGitHubAppClient_ExchangeUserCode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExchangeUserCode'
+type MockGitHubAppClient_ExchangeUserCode_Call struct {
+	*mock.Call
+}
+
+// ExchangeUserCode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - code string
+func (_e *MockGitHubAppClient_Expecter) ExchangeUserCode(ctx interface{}, code interface{}) *MockGitHubAppClient_ExchangeUserCode_Call {
+	return &MockGitHubAppClient_ExchangeUserCode_Call{Call: _e.mock.On("ExchangeUserCode", ctx, code)}
+}
+
+func (_c *MockGitHubAppClient_ExchangeUserCode_Call) Run(run func(ctx context.Context, code string)) *MockGitHubAppClient_ExchangeUserCode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockGitHubAppClient_ExchangeUserCode_Call) Return(_a0 string, _a1 error) *MockGitHubAppClient_ExchangeUserCode_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockGitHubAppClient_ExchangeUserCode_Call) RunAndReturn(run func(context.Context, string) (string, error)) *MockGitHubAppClient_ExchangeUserCode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetBranchHeadSHA provides a mock function with given fields: ctx, installationID, owner, repoName, branch
 func (_m *MockGitHubAppClient) GetBranchHeadSHA(ctx context.Context, installationID int64, owner string, repoName string, branch string) (string, error) {
 	ret := _m.Called(ctx, installationID, owner, repoName, branch)
@@ -489,6 +546,64 @@ func (_c *MockGitHubAppClient_GetRepository_Call) Return(_a0 *models.GitHubRepos
 }
 
 func (_c *MockGitHubAppClient_GetRepository_Call) RunAndReturn(run func(context.Context, int64, int64) (*models.GitHubRepository, error)) *MockGitHubAppClient_GetRepository_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UserCanAdministerInstallation provides a mock function with given fields: ctx, userToken, installationID
+func (_m *MockGitHubAppClient) UserCanAdministerInstallation(ctx context.Context, userToken string, installationID int64) (bool, error) {
+	ret := _m.Called(ctx, userToken, installationID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UserCanAdministerInstallation")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) (bool, error)); ok {
+		return rf(ctx, userToken, installationID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) bool); ok {
+		r0 = rf(ctx, userToken, installationID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int64) error); ok {
+		r1 = rf(ctx, userToken, installationID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockGitHubAppClient_UserCanAdministerInstallation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UserCanAdministerInstallation'
+type MockGitHubAppClient_UserCanAdministerInstallation_Call struct {
+	*mock.Call
+}
+
+// UserCanAdministerInstallation is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userToken string
+//   - installationID int64
+func (_e *MockGitHubAppClient_Expecter) UserCanAdministerInstallation(ctx interface{}, userToken interface{}, installationID interface{}) *MockGitHubAppClient_UserCanAdministerInstallation_Call {
+	return &MockGitHubAppClient_UserCanAdministerInstallation_Call{Call: _e.mock.On("UserCanAdministerInstallation", ctx, userToken, installationID)}
+}
+
+func (_c *MockGitHubAppClient_UserCanAdministerInstallation_Call) Run(run func(ctx context.Context, userToken string, installationID int64)) *MockGitHubAppClient_UserCanAdministerInstallation_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockGitHubAppClient_UserCanAdministerInstallation_Call) Return(_a0 bool, _a1 error) *MockGitHubAppClient_UserCanAdministerInstallation_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockGitHubAppClient_UserCanAdministerInstallation_Call) RunAndReturn(run func(context.Context, string, int64) (bool, error)) *MockGitHubAppClient_UserCanAdministerInstallation_Call {
 	_c.Call.Return(run)
 	return _c
 }

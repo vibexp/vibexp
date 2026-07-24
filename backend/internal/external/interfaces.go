@@ -15,6 +15,17 @@ import (
 // so the stored installation record must be treated as dead, not retried.
 var ErrGitHubInstallationGone = errors.New("github app installation no longer exists")
 
+// ErrGitHubUserAuthNotConfigured signals that the GitHub App's OAuth
+// credentials (client id / secret) are absent, so the install callback cannot
+// prove the caller may administer the installation. Callers must fail closed
+// on this error rather than falling back to the app-JWT-only path (#463).
+var ErrGitHubUserAuthNotConfigured = errors.New("github app user authorization is not configured")
+
+// ErrGitHubUserCodeInvalid signals that GitHub rejected the authorization code
+// submitted with an install callback (expired, replayed, or minted for a
+// different app).
+var ErrGitHubUserCodeInvalid = errors.New("github authorization code is invalid or expired")
+
 // EmailProvider defines the interface for email delivery providers
 type EmailProvider interface {
 	SendEmail(ctx context.Context, message *gomail.EmailMessage) error
@@ -88,4 +99,18 @@ type GitHubAppClient interface {
 	// EvictCachedClient removes the cached GitHub client for the given installationID.
 	// Call this when an installation is disconnected to prevent stale entries.
 	EvictCachedClient(installationID int64)
+
+	// ExchangeUserCode exchanges the authorization code GitHub appends to the
+	// post-install redirect for a *user* access token. Unlike every other method
+	// here it authenticates as the installing human, not as the App, which is
+	// what makes it usable as a proof of authority. Returns
+	// ErrGitHubUserAuthNotConfigured when no OAuth credentials are configured
+	// and ErrGitHubUserCodeInvalid when GitHub rejects the code.
+	ExchangeUserCode(ctx context.Context, code string) (string, error)
+
+	// UserCanAdministerInstallation reports whether installationID appears in
+	// the installation list of the user behind userToken (GET /user/installations).
+	// GitHub only lists installations the user may administer, so a true result
+	// is the authority check the install callback needs (#463).
+	UserCanAdministerInstallation(ctx context.Context, userToken string, installationID int64) (bool, error)
 }

@@ -208,6 +208,20 @@ func (m *MockGitHubAppClient) GetBranchHeadSHA(
 
 func (m *MockGitHubAppClient) EvictCachedClient(_ int64) {}
 
+func (m *MockGitHubAppClient) ExchangeUserCode(ctx context.Context, code string) (string, error) {
+	args := m.Called(ctx, code)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockGitHubAppClient) UserCanAdministerInstallation(
+	ctx context.Context,
+	userToken string,
+	installationID int64,
+) (bool, error) {
+	args := m.Called(ctx, userToken, installationID)
+	return args.Bool(0), args.Error(1)
+}
+
 type MockEventPublisher struct {
 	mock.Mock
 }
@@ -509,6 +523,7 @@ func setupTestService(
 		encryptionSvc,
 		nil, // attachmentSvc not needed
 		eventManager,
+		allowAllAuthz{},
 		logger,
 	)
 }
@@ -1443,6 +1458,7 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 				encryptionSvc,
 				nil, // attachmentSvc not needed
 				eventManager,
+				allowAllAuthz{},
 				logger,
 			)
 
@@ -1681,6 +1697,7 @@ func TestGitHubAppService_ImportSingleFile_FrontMatter(t *testing.T) {
 				encryptionSvc,
 				nil, // attachmentSvc not needed
 				eventManager,
+				allowAllAuthz{},
 				logger,
 			)
 

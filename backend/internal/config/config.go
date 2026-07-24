@@ -338,6 +338,14 @@ type GitHubConfig struct {
 	AppPrivateKey string `koanf:"app_private_key"`
 	WebhookURL    string `koanf:"webhook_url"`
 	WebhookSecret string `koanf:"webhook_secret"`
+	// AppClientID / AppClientSecret are the GitHub App's OAuth credentials, used
+	// to exchange the `code` GitHub returns after an install for a *user* access
+	// token. That token is what proves the caller may administer the submitted
+	// installation (#463) — without it the install callback fails closed, so
+	// both must be set (and "Request user authorization (OAuth) during
+	// installation" enabled on the App) for the GitHub integration to work.
+	AppClientID     string `koanf:"app_client_id"`
+	AppClientSecret string `koanf:"app_client_secret"`
 }
 
 // StorageConfig holds resource-attachment storage settings.
@@ -446,6 +454,11 @@ type GitHubAppConfig struct {
 	PrivateKey    *rsa.PrivateKey
 	PrivateKeyPEM []byte // PEM-encoded private key for ghinstallation
 	WebhookSecret string
+	// ClientID / ClientSecret back the user-authorization leg of the install
+	// flow (#463). Empty means user authorization is not configured, and the
+	// client rejects installation callbacks rather than trusting them.
+	ClientID     string
+	ClientSecret string
 }
 
 // GetGitHubAppConfig returns the GitHub App configuration with parsed private key
@@ -482,6 +495,8 @@ func (c *Config) GetGitHubAppConfig() (*GitHubAppConfig, error) {
 		PrivateKey:    privateKey,
 		PrivateKeyPEM: privateKeyBytes, // Store PEM bytes for ghinstallation
 		WebhookSecret: c.GitHub.WebhookSecret,
+		ClientID:      c.GitHub.AppClientID,
+		ClientSecret:  c.GitHub.AppClientSecret,
 	}, nil
 }
 

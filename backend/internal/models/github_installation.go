@@ -57,6 +57,11 @@ type GitHubInstallCallbackRequest struct {
 	InstallationID int64  `json:"installation_id"`
 	SetupAction    string `json:"setup_action"`
 	State          string `json:"state"` // HMAC-signed state for CSRF protection
+	// Code is the OAuth authorization code GitHub appends to the post-install
+	// redirect. It is exchanged for a user access token to prove the caller may
+	// administer InstallationID — state alone only proves the caller started an
+	// install flow for their own team (#463).
+	Code string `json:"code"`
 }
 
 // GitHubRepositoriesResponse represents the response for listing repositories

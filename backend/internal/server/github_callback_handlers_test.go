@@ -47,7 +47,7 @@ func TestHandleGitHubCallback_NewInstallation(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID)
+	state := srv.signGitHubState(githubTestTeamID, 0)
 
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
@@ -55,11 +55,13 @@ func TestHandleGitHubCallback_NewInstallation(t *testing.T) {
 		githubTestUserID,
 		githubTestTeamID,
 		int64(999),
+		githubTestInstallCode,
 	).Return(false, nil)
 
 	reqBody := map[string]interface{}{
 		"installation_id": 999,
 		"state":           state,
+		"code":            githubTestInstallCode,
 	}
 	req := makeCallbackRequest(reqBody)
 	rr := httptest.NewRecorder()
@@ -83,7 +85,7 @@ func TestHandleGitHubCallback_Reconnect(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID)
+	state := srv.signGitHubState(githubTestTeamID, 0)
 
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
@@ -91,11 +93,13 @@ func TestHandleGitHubCallback_Reconnect(t *testing.T) {
 		githubTestUserID,
 		githubTestTeamID,
 		int64(777),
+		githubTestInstallCode,
 	).Return(true, nil) // reconnected=true
 
 	reqBody := map[string]interface{}{
 		"installation_id": 777,
 		"state":           state,
+		"code":            githubTestInstallCode,
 	}
 	req := makeCallbackRequest(reqBody)
 	rr := httptest.NewRecorder()
@@ -118,7 +122,7 @@ func TestHandleGitHubCallback_CrossTeamConflict(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID)
+	state := srv.signGitHubState(githubTestTeamID, 0)
 
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
@@ -126,11 +130,13 @@ func TestHandleGitHubCallback_CrossTeamConflict(t *testing.T) {
 		githubTestUserID,
 		githubTestTeamID,
 		int64(555),
+		githubTestInstallCode,
 	).Return(false, services.ErrInstallationAlreadyConnected)
 
 	reqBody := map[string]interface{}{
 		"installation_id": 555,
 		"state":           state,
+		"code":            githubTestInstallCode,
 	}
 	req := makeCallbackRequest(reqBody)
 	rr := httptest.NewRecorder()
@@ -154,7 +160,7 @@ func TestHandleGitHubCallback_InternalError(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID)
+	state := srv.signGitHubState(githubTestTeamID, 0)
 
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
@@ -162,11 +168,13 @@ func TestHandleGitHubCallback_InternalError(t *testing.T) {
 		githubTestUserID,
 		githubTestTeamID,
 		int64(111),
+		githubTestInstallCode,
 	).Return(false, assert.AnError)
 
 	reqBody := map[string]interface{}{
 		"installation_id": 111,
 		"state":           state,
+		"code":            githubTestInstallCode,
 	}
 	req := makeCallbackRequest(reqBody)
 	rr := httptest.NewRecorder()
@@ -184,11 +192,12 @@ func TestHandleGitHubCallback_MissingInstallationID(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID)
+	state := srv.signGitHubState(githubTestTeamID, 0)
 
 	reqBody := map[string]interface{}{
 		"installation_id": 0, // zero = missing
 		"state":           state,
+		"code":            githubTestInstallCode,
 	}
 	req := makeCallbackRequest(reqBody)
 	rr := httptest.NewRecorder()
@@ -206,6 +215,7 @@ func TestHandleGitHubCallback_MissingState(t *testing.T) {
 
 	reqBody := map[string]interface{}{
 		"installation_id": 123,
+		"code":            githubTestInstallCode,
 		// no state
 	}
 	req := makeCallbackRequest(reqBody)
@@ -224,7 +234,8 @@ func TestHandleGitHubCallback_InvalidState(t *testing.T) {
 
 	reqBody := map[string]interface{}{
 		"installation_id": 123,
-		"state":           "invalid:1234:badsig",
+		"state":           "invalid:0:1234:badsig",
+		"code":            githubTestInstallCode,
 	}
 	req := makeCallbackRequest(reqBody)
 	rr := httptest.NewRecorder()

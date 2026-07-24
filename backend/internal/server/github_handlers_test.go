@@ -32,6 +32,11 @@ import (
 const githubTestUserID = "user-github-123"
 const githubTestTeamID = "550e8400-e29b-41d4-a716-446655440001"
 
+// githubTestInstallCode is the OAuth authorization code the install-callback
+// tests submit. The handler only requires it to be non-empty; proving the
+// caller's authority with it is the service's job (#463).
+const githubTestInstallCode = "gh-install-code"
+
 // =============================================================================
 // Mock Activity Service for tracking calls
 // =============================================================================

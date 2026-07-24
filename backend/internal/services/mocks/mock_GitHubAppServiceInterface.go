@@ -249,9 +249,9 @@ func (_c *MockGitHubAppServiceInterface_GetRepositories_Call) RunAndReturn(run f
 	return _c
 }
 
-// HandleInstallationCallback provides a mock function with given fields: ctx, userID, teamID, installationID
-func (_m *MockGitHubAppServiceInterface) HandleInstallationCallback(ctx context.Context, userID string, teamID string, installationID int64) (bool, error) {
-	ret := _m.Called(ctx, userID, teamID, installationID)
+// HandleInstallationCallback provides a mock function with given fields: ctx, userID, teamID, installationID, code
+func (_m *MockGitHubAppServiceInterface) HandleInstallationCallback(ctx context.Context, userID string, teamID string, installationID int64, code string) (bool, error) {
+	ret := _m.Called(ctx, userID, teamID, installationID, code)
 
 	if len(ret) == 0 {
 		panic("no return value specified for HandleInstallationCallback")
@@ -259,17 +259,17 @@ func (_m *MockGitHubAppServiceInterface) HandleInstallationCallback(ctx context.
 
 	var r0 bool
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64) (bool, error)); ok {
-		return rf(ctx, userID, teamID, installationID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, string) (bool, error)); ok {
+		return rf(ctx, userID, teamID, installationID, code)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64) bool); ok {
-		r0 = rf(ctx, userID, teamID, installationID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, string) bool); ok {
+		r0 = rf(ctx, userID, teamID, installationID, code)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, int64) error); ok {
-		r1 = rf(ctx, userID, teamID, installationID)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int64, string) error); ok {
+		r1 = rf(ctx, userID, teamID, installationID, code)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -287,13 +287,14 @@ type MockGitHubAppServiceInterface_HandleInstallationCallback_Call struct {
 //   - userID string
 //   - teamID string
 //   - installationID int64
-func (_e *MockGitHubAppServiceInterface_Expecter) HandleInstallationCallback(ctx interface{}, userID interface{}, teamID interface{}, installationID interface{}) *MockGitHubAppServiceInterface_HandleInstallationCallback_Call {
-	return &MockGitHubAppServiceInterface_HandleInstallationCallback_Call{Call: _e.mock.On("HandleInstallationCallback", ctx, userID, teamID, installationID)}
+//   - code string
+func (_e *MockGitHubAppServiceInterface_Expecter) HandleInstallationCallback(ctx interface{}, userID interface{}, teamID interface{}, installationID interface{}, code interface{}) *MockGitHubAppServiceInterface_HandleInstallationCallback_Call {
+	return &MockGitHubAppServiceInterface_HandleInstallationCallback_Call{Call: _e.mock.On("HandleInstallationCallback", ctx, userID, teamID, installationID, code)}
 }
 
-func (_c *MockGitHubAppServiceInterface_HandleInstallationCallback_Call) Run(run func(ctx context.Context, userID string, teamID string, installationID int64)) *MockGitHubAppServiceInterface_HandleInstallationCallback_Call {
+func (_c *MockGitHubAppServiceInterface_HandleInstallationCallback_Call) Run(run func(ctx context.Context, userID string, teamID string, installationID int64, code string)) *MockGitHubAppServiceInterface_HandleInstallationCallback_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int64))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int64), args[4].(string))
 	})
 	return _c
 }
@@ -303,7 +304,7 @@ func (_c *MockGitHubAppServiceInterface_HandleInstallationCallback_Call) Return(
 	return _c
 }
 
-func (_c *MockGitHubAppServiceInterface_HandleInstallationCallback_Call) RunAndReturn(run func(context.Context, string, string, int64) (bool, error)) *MockGitHubAppServiceInterface_HandleInstallationCallback_Call {
+func (_c *MockGitHubAppServiceInterface_HandleInstallationCallback_Call) RunAndReturn(run func(context.Context, string, string, int64, string) (bool, error)) *MockGitHubAppServiceInterface_HandleInstallationCallback_Call {
 	_c.Call.Return(run)
 	return _c
 }

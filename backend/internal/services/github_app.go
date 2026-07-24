@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -37,7 +38,11 @@ type GitHubAppService struct {
 	// per-companion skips.
 	attachmentSvc AttachmentServiceInterface
 	eventManager  events.EventPublisher
-	logger        *slog.Logger
+	// authz gates the mutating integration operations (connect / disconnect).
+	// Connecting a GitHub org hands the whole team read access to its private
+	// source, so it is an owner/admin action rather than a member one (#463).
+	authz  AuthorizationServiceInterface
+	logger *slog.Logger
 }
 
 // NewGitHubAppService creates a new GitHub App service
@@ -49,6 +54,7 @@ func NewGitHubAppService(
 	encryptionSvc EncryptionServiceInterface,
 	attachmentSvc AttachmentServiceInterface,
 	eventManager events.EventPublisher,
+	authz AuthorizationServiceInterface,
 	logger *slog.Logger,
 ) GitHubAppServiceInterface {
 	return &GitHubAppService{
@@ -59,6 +65,7 @@ func NewGitHubAppService(
 		encryptionSvc:    encryptionSvc,
 		attachmentSvc:    attachmentSvc,
 		eventManager:     eventManager,
+		authz:            authz,
 		logger:           logger,
 	}
 }
@@ -87,6 +94,12 @@ func (s *GitHubAppService) GetInstallationStatus(
 
 // DisconnectInstallation removes the GitHub App installation for a team
 func (s *GitHubAppService) DisconnectInstallation(ctx context.Context, userID, teamID string) error {
+	// Disconnecting revokes the whole team's source access, so it is gated at
+	// the same level as connecting (#463).
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.TeamUpdate); authzErr != nil {
+		return authzErr
+	}
+
 	installation, err := s.installationRepo.GetByTeamID(ctx, teamID)
 	if err != nil {
 		return fmt.Errorf("failed to get installation: %w", err)
