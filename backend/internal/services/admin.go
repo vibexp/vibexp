@@ -44,6 +44,15 @@ type AdminServiceInterface interface {
 	GetDashboardTimeseries(
 		ctx context.Context, q AdminTimeseriesQuery, window models.AdminDataWindow,
 	) (models.AdminTimeseries, error)
+	// SuspendUser blocks an account at every auth entry point. Returns
+	// (nil, nil) for an unknown id (handler: 404); *ErrAdminSuspendSelf or
+	// *ErrAdminSuspendInstanceAdmin for the two lockout guards (handler: 409).
+	SuspendUser(
+		ctx context.Context, actingAdminID, targetID string, isInstanceAdmin InstanceAdminPredicate,
+	) (*models.AdminUserDetail, error)
+	// ReactivateUser restores a suspended account. Returns (nil, nil) for an
+	// unknown id (handler: 404).
+	ReactivateUser(ctx context.Context, targetID string) (*models.AdminUserDetail, error)
 }
 
 // AdminService implements AdminServiceInterface.

@@ -16,7 +16,6 @@ import (
 
 	"github.com/vibexp/vibexp/internal/auth/mcptoken"
 	"github.com/vibexp/vibexp/internal/auth/oauthserver"
-	"github.com/vibexp/vibexp/internal/contextkeys"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services/feature_flags"
@@ -257,8 +256,14 @@ func (s *Server) handleMCPAuthorizationServerMetadata(w http.ResponseWriter, r *
 // mcpTokenContextMiddleware bridges the OAuth bearer-token context to the
 // context keys the MCP tool layer reads. RequireBearerToken stores an
 // *auth.TokenInfo in context; the MCP handler expects contextkeys.UserID. This
-// middleware runs immediately after RequireBearerToken and copies the resolved
-// internal user ID across, mirroring the other auth paths' context setup.
+// middleware runs immediately after RequireBearerToken and turns the resolved
+// internal user ID into an authenticated context.
+//
+// It goes through s.authenticateUser like every other auth path, so a suspended
+// account cannot use an unexpired MCP bearer token (#454). Before that it
+// hand-rolled the same three context keys, which made it a silent suspension
+// bypass; the guardrail in middleware_suspension_guardrail_test.go now prevents
+// that shape from coming back.
 func (s *Server) mcpTokenContextMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenInfo := mcpauth.TokenInfoFromContext(r.Context())
@@ -268,14 +273,12 @@ func (s *Server) mcpTokenContextMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), contextkeys.UserID, tokenInfo.UserID)
-		ctx = context.WithValue(ctx, contextkeys.AuthType, "oauth")
-
-		updatedLogger := contextkeys.GetLoggerFromContext(ctx).With(
-			"auth_type", "oauth",
-			"user_id", tokenInfo.UserID,
-		)
-		ctx = context.WithValue(ctx, contextkeys.Logger, updatedLogger)
+		ctx, err := s.authenticateUser(r.Context(), tokenInfo.UserID, "oauth", nil)
+		if err != nil {
+			s.logSuspendedRejection(r.Context(), "mcpTokenContextMiddleware", "oauth", tokenInfo.UserID, err)
+			s.writeSuspensionAuthError(w, r, err)
+			return
+		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

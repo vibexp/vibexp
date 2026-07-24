@@ -54,12 +54,12 @@ func TestUserRepository_GetByID(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
 					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
-					"default_team_id", "onboarding_completed", "onboarding_completed_at",
+					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
 					"user-123", "google-123", nil, nil, "user@example.com", "Test User", &avatarURL, &stripeCustomerID,
 					"active", nil, &subscriptionPlan, nil,
-					&defaultTeamID, false, nil,
+					&defaultTeamID, "active", false, nil,
 					now, now, 1,
 				)
 
@@ -84,12 +84,12 @@ func TestUserRepository_GetByID(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
 					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
-					"default_team_id", "onboarding_completed", "onboarding_completed_at",
+					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
 					"user-456", "google-456", nil, nil, "minimal@example.com", "Minimal User", nil, nil,
 					"trial", nil, nil, nil,
-					nil, false, nil,
+					nil, "active", false, nil,
 					now, now, 1,
 				)
 
@@ -174,12 +174,12 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
 					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
-					"default_team_id", "onboarding_completed", "onboarding_completed_at",
+					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
 					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil, nil,
 					"active", nil, nil, nil,
-					nil, false, nil,
+					nil, "active", false, nil,
 					now, now, 1,
 				)
 
@@ -262,12 +262,12 @@ func TestUserRepository_GetByGoogleID(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
 					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
-					"default_team_id", "onboarding_completed", "onboarding_completed_at",
+					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
 					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil, nil,
 					"active", nil, nil, nil,
-					nil, false, nil,
+					nil, "active", false, nil,
 					now, now, 1,
 				)
 
@@ -351,12 +351,12 @@ func TestUserRepository_GetByStripeCustomerID(t *testing.T) {
 				rows := sqlmock.NewRows([]string{
 					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
 					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
-					"default_team_id", "onboarding_completed", "onboarding_completed_at",
+					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
 					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil, &stripeCustomerID,
 					"active", nil, nil, nil,
-					nil, false, nil,
+					nil, "active", false, nil,
 					now, now, 1,
 				)
 

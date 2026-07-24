@@ -80,6 +80,14 @@ func toAdminUserFilters(p admingen.ListAdminUsersParams) (repositories.AdminUser
 		Limit:       limit,
 	}
 
+	if p.Status != nil {
+		if err := validateAdminSortEnum("status", string(*p.Status), p.Status.Valid()); err != nil {
+			return repositories.AdminUserFilters{}, err
+		}
+		status := string(*p.Status)
+		filters.Status = &status
+	}
+
 	if p.SortBy != nil {
 		if err := validateAdminSortEnum("sort_by", string(*p.SortBy), p.SortBy.Valid()); err != nil {
 			return repositories.AdminUserFilters{}, err
@@ -161,6 +169,7 @@ func toGenAdminUserListItem(u models.AdminUserListItem) (admingen.AdminUserListI
 		Email:       openapi_types.Email(u.Email),
 		Name:        u.Name,
 		IdpProvider: u.IDPProvider,
+		Status:      admingen.AdminUserListItemStatus(u.Status),
 		CreatedAt:   u.CreatedAt,
 		TeamCount:   u.TeamCount,
 	}, nil
@@ -210,6 +219,7 @@ func toGenAdminUserDetail(d *models.AdminUserDetail) (admingen.AdminUserDetail, 
 		Email:       openapi_types.Email(d.Email),
 		Name:        d.Name,
 		IdpProvider: d.IDPProvider,
+		Status:      admingen.AdminUserDetailStatus(d.Status),
 		CreatedAt:   d.CreatedAt,
 		Memberships: memberships,
 	}, nil

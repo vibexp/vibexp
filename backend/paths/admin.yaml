@@ -96,6 +96,15 @@ api-v1-admin-users:
         schema:
           type: string
           format: date-time
+      - name: status
+        in: query
+        description: Narrow to accounts in this lifecycle state.
+        required: false
+        schema:
+          type: string
+          enum:
+            - active
+            - suspended
       - name: sort_by
         in: query
         description: Column to sort by. Ties are always broken by user id so paging is stable.
@@ -430,6 +439,122 @@ api-v1-admin-dashboard-timeseries:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-users-id-suspend:
+  post:
+    summary: Suspend a user
+    description: |
+      Suspends the account, blocking it at EVERY authentication entry point:
+      existing cookie sessions, API keys and MCP/OAuth bearer tokens all stop
+      working on their next request, not at expiry. A suspended user also cannot
+      complete a fresh sign-in.
+
+      Suspension is instance-local — it does not disable the account at the
+      upstream identity provider — and is fully reversible via the reactivate
+      operation, with no data loss.
+
+      Rejected with 409 when the acting admin targets themselves, or when the
+      target's email is listed in the `auth.instance_admins` config allowlist
+      (which would otherwise let an instance lock itself out of its own admin
+      surface).
+
+      Suspending an already-suspended user is a no-op and returns 200.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: suspendAdminUser
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The updated user
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserDetail'
+      '400':
+        description: Bad request — malformed user id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown user id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — the acting admin cannot suspend themselves or a config-listed instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-users-id-reactivate:
+  post:
+    summary: Reactivate a suspended user
+    description: |
+      Restores a suspended account to `active`. Access is restored at every
+      authentication entry point on the next request, and no data is lost —
+      teams, resources and API keys are untouched by suspension.
+
+      Reactivating an already-active user is a no-op and returns 200.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: reactivateAdminUser
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The updated user
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserDetail'
+      '400':
+        description: Bad request — malformed user id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown user id, or the caller is not an instance admin
         content:
           application/problem+json:
             schema:

@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
+
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/container"
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/external"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
@@ -34,9 +37,25 @@ type BaseMockContainer struct{}
 // Compile-time interface compliance check
 var _ container.Container = (*BaseMockContainer)(nil)
 
-// Repository methods - all return nil by default
+// alwaysActiveUserRepository is the default UserRepository every server test
+// gets. Since #454 EVERY authenticated request performs a suspension lookup
+// through container.UserRepository(), and that check fails CLOSED — so a nil
+// default would reject every authenticated request in every handler test for
+// reasons that have nothing to do with what those tests assert.
+//
+// It answers GetByID with an active user and nothing else; a test that actually
+// exercises suspension overrides UserRepository() with its own mock.
+type alwaysActiveUserRepository struct {
+	repositories.UserRepository
+}
+
+func (alwaysActiveUserRepository) GetByID(_ context.Context, userID string) (*models.User, error) {
+	return &models.User{ID: userID, Status: models.UserStatusActive}, nil
+}
+
+// Repository methods - all return nil by default, except UserRepository (see above)
 func (b *BaseMockContainer) UserRepository() repositories.UserRepository {
-	return nil
+	return alwaysActiveUserRepository{}
 }
 
 func (b *BaseMockContainer) APIKeyRepository() repositories.APIKeyRepository {

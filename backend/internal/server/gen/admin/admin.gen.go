@@ -43,6 +43,42 @@ func (e AdminTimeseriesResponseGranularity) Valid() bool {
 	}
 }
 
+// Defines values for AdminUserDetailStatus.
+const (
+	AdminUserDetailStatusActive    AdminUserDetailStatus = "active"
+	AdminUserDetailStatusSuspended AdminUserDetailStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserDetailStatus enum.
+func (e AdminUserDetailStatus) Valid() bool {
+	switch e {
+	case AdminUserDetailStatusActive:
+		return true
+	case AdminUserDetailStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminUserListItemStatus.
+const (
+	AdminUserListItemStatusActive    AdminUserListItemStatus = "active"
+	AdminUserListItemStatusSuspended AdminUserListItemStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserListItemStatus enum.
+func (e AdminUserListItemStatus) Valid() bool {
+	switch e {
+	case AdminUserListItemStatusActive:
+		return true
+	case AdminUserListItemStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAdminDashboardTimeseriesParamsGranularity.
 const (
 	GetAdminDashboardTimeseriesParamsGranularityDay   GetAdminDashboardTimeseriesParamsGranularity = "day"
@@ -97,6 +133,24 @@ func (e ListAdminTeamsParamsSortOrder) Valid() bool {
 	case ListAdminTeamsParamsSortOrderAsc:
 		return true
 	case ListAdminTeamsParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminUsersParamsStatus.
+const (
+	Active    ListAdminUsersParamsStatus = "active"
+	Suspended ListAdminUsersParamsStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminUsersParamsStatus enum.
+func (e ListAdminUsersParamsStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Suspended:
 		return true
 	default:
 		return false
@@ -375,7 +429,10 @@ type AdminTimeseriesResponse struct {
 	// zeros rather than missing data.
 	DataWindow AdminDataWindow `json:"data_window"`
 
-	// From Inclusive start of the range actually used (after defaulting).
+	// From Inclusive start of the range actually used. This is snapped DOWN to the
+	// start of its bucket, so it may precede the requested `from` (asking for
+	// 2026-07-15 at month granularity reports and queries 2026-07-01). Buckets
+	// are therefore always whole, never partial at the head.
 	From time.Time `json:"from"`
 
 	// Granularity Bucket size actually used.
@@ -387,7 +444,8 @@ type AdminTimeseriesResponse struct {
 	// SignIns Successful sign-ins per bucket (activities.auth_login), ascending.
 	SignIns []AdminCountPoint `json:"sign_ins"`
 
-	// To Exclusive end of the range actually used (after defaulting).
+	// To Exclusive end of the range actually used (after defaulting). This is NOT
+	// snapped, so the final bucket may cover only part of its period.
 	To time.Time `json:"to"`
 }
 
@@ -406,7 +464,19 @@ type AdminUserDetail struct {
 	// Memberships Teams the user belongs to.
 	Memberships []AdminTeamMembership `json:"memberships"`
 	Name        string                `json:"name"`
+
+	// Status Account lifecycle. A suspended account is rejected at every
+	// authentication entry point — existing sessions, API keys and MCP/OAuth
+	// tokens stop working immediately, not at expiry. Instance-local: it does
+	// not disable the account at the upstream identity provider.
+	Status AdminUserDetailStatus `json:"status"`
 }
+
+// AdminUserDetailStatus Account lifecycle. A suspended account is rejected at every
+// authentication entry point — existing sessions, API keys and MCP/OAuth
+// tokens stop working immediately, not at expiry. Instance-local: it does
+// not disable the account at the upstream identity provider.
+type AdminUserDetailStatus string
 
 // AdminUserListItem One user in the instance-wide admin user listing.
 type AdminUserListItem struct {
@@ -418,9 +488,21 @@ type AdminUserListItem struct {
 	IdpProvider *string `json:"idp_provider,omitempty"`
 	Name        string  `json:"name"`
 
+	// Status Account lifecycle. A suspended account is rejected at every
+	// authentication entry point — existing sessions, API keys and MCP/OAuth
+	// tokens stop working immediately, not at expiry. Instance-local: it does
+	// not disable the account at the upstream identity provider.
+	Status AdminUserListItemStatus `json:"status"`
+
 	// TeamCount Number of teams the user belongs to.
 	TeamCount int64 `json:"team_count"`
 }
+
+// AdminUserListItemStatus Account lifecycle. A suspended account is rejected at every
+// authentication entry point — existing sessions, API keys and MCP/OAuth
+// tokens stop working immediately, not at expiry. Instance-local: it does
+// not disable the account at the upstream identity provider.
+type AdminUserListItemStatus string
 
 // AdminUserListResponse A page of the instance-wide user listing, newest first.
 type AdminUserListResponse struct {
@@ -565,12 +647,18 @@ type ListAdminUsersParams struct {
 	// CreatedTo Only users created at or before this instant (inclusive).
 	CreatedTo *time.Time `form:"created_to,omitempty" json:"created_to,omitempty"`
 
+	// Status Narrow to accounts in this lifecycle state.
+	Status *ListAdminUsersParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
 	// SortBy Column to sort by. Ties are always broken by user id so paging is stable.
 	SortBy *ListAdminUsersParamsSortBy `form:"sort_by,omitempty" json:"sort_by,omitempty"`
 
 	// SortOrder Sort direction.
 	SortOrder *ListAdminUsersParamsSortOrder `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 }
+
+// ListAdminUsersParamsStatus defines parameters for ListAdminUsers.
+type ListAdminUsersParamsStatus string
 
 // ListAdminUsersParamsSortBy defines parameters for ListAdminUsers.
 type ListAdminUsersParamsSortBy string
@@ -601,6 +689,12 @@ type ServerInterface interface {
 	// Get an instance user
 	// (GET /api/v1/admin/users/{id})
 	GetAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Reactivate a suspended user
+	// (POST /api/v1/admin/users/{id}/reactivate)
+	ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Suspend a user
+	// (POST /api/v1/admin/users/{id}/suspend)
+	SuspendAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -646,6 +740,18 @@ func (_ Unimplemented) ListAdminUsers(w http.ResponseWriter, r *http.Request, pa
 // Get an instance user
 // (GET /api/v1/admin/users/{id})
 func (_ Unimplemented) GetAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reactivate a suspended user
+// (POST /api/v1/admin/users/{id}/reactivate)
+func (_ Unimplemented) ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Suspend a user
+// (POST /api/v1/admin/users/{id}/suspend)
+func (_ Unimplemented) SuspendAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1030,6 +1136,19 @@ func (siw *ServerInterfaceWrapper) ListAdminUsers(w http.ResponseWriter, r *http
 		return
 	}
 
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
 	// ------------- Optional query parameter "sort_by" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_by", r.URL.Query(), &params.SortBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
@@ -1092,6 +1211,74 @@ func (siw *ServerInterfaceWrapper) GetAdminUser(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminUser(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReactivateAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) ReactivateAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReactivateAdminUser(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SuspendAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) SuspendAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SuspendAdminUser(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1234,6 +1421,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/users/{id}", wrapper.GetAdminUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/reactivate", wrapper.ReactivateAdminUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/suspend", wrapper.SuspendAdminUser)
 	})
 
 	return r
@@ -1629,6 +1822,148 @@ func (response GetAdminUser500ApplicationProblemPlusJSONResponse) VisitGetAdminU
 	return err
 }
 
+type ReactivateAdminUserRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type ReactivateAdminUserResponseObject interface {
+	VisitReactivateAdminUserResponse(w http.ResponseWriter) error
+}
+
+type ReactivateAdminUser200JSONResponse AdminUserDetail
+
+func (response ReactivateAdminUser200JSONResponse) VisitReactivateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReactivateAdminUser400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ReactivateAdminUser400ApplicationProblemPlusJSONResponse) VisitReactivateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReactivateAdminUser404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ReactivateAdminUser404ApplicationProblemPlusJSONResponse) VisitReactivateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReactivateAdminUser500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ReactivateAdminUser500ApplicationProblemPlusJSONResponse) VisitReactivateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuspendAdminUserRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type SuspendAdminUserResponseObject interface {
+	VisitSuspendAdminUserResponse(w http.ResponseWriter) error
+}
+
+type SuspendAdminUser200JSONResponse AdminUserDetail
+
+func (response SuspendAdminUser200JSONResponse) VisitSuspendAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuspendAdminUser400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response SuspendAdminUser400ApplicationProblemPlusJSONResponse) VisitSuspendAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuspendAdminUser404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response SuspendAdminUser404ApplicationProblemPlusJSONResponse) VisitSuspendAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuspendAdminUser409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response SuspendAdminUser409ApplicationProblemPlusJSONResponse) VisitSuspendAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuspendAdminUser500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response SuspendAdminUser500ApplicationProblemPlusJSONResponse) VisitSuspendAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Get admin dashboard overview
@@ -1652,6 +1987,12 @@ type StrictServerInterface interface {
 	// Get an instance user
 	// (GET /api/v1/admin/users/{id})
 	GetAdminUser(ctx context.Context, request GetAdminUserRequestObject) (GetAdminUserResponseObject, error)
+	// Reactivate a suspended user
+	// (POST /api/v1/admin/users/{id}/reactivate)
+	ReactivateAdminUser(ctx context.Context, request ReactivateAdminUserRequestObject) (ReactivateAdminUserResponseObject, error)
+	// Suspend a user
+	// (POST /api/v1/admin/users/{id}/suspend)
+	SuspendAdminUser(ctx context.Context, request SuspendAdminUserRequestObject) (SuspendAdminUserResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1854,6 +2195,58 @@ func (sh *strictHandler) GetAdminUser(w http.ResponseWriter, r *http.Request, id
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminUserResponseObject); ok {
 		if err := validResponse.VisitGetAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReactivateAdminUser operation middleware
+func (sh *strictHandler) ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request ReactivateAdminUserRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReactivateAdminUser(ctx, request.(ReactivateAdminUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReactivateAdminUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReactivateAdminUserResponseObject); ok {
+		if err := validResponse.VisitReactivateAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SuspendAdminUser operation middleware
+func (sh *strictHandler) SuspendAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request SuspendAdminUserRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SuspendAdminUser(ctx, request.(SuspendAdminUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SuspendAdminUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SuspendAdminUserResponseObject); ok {
+		if err := validResponse.VisitSuspendAdminUserResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

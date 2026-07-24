@@ -685,6 +685,64 @@ func (_c *MockAdminRepository_ListUsers_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// UpdateUserStatus provides a mock function with given fields: ctx, id, status
+func (_m *MockAdminRepository) UpdateUserStatus(ctx context.Context, id string, status string) (bool, error) {
+	ret := _m.Called(ctx, id, status)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserStatus")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (bool, error)); ok {
+		return rf(ctx, id, status)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) bool); ok {
+		r0 = rf(ctx, id, status)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, id, status)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_UpdateUserStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateUserStatus'
+type MockAdminRepository_UpdateUserStatus_Call struct {
+	*mock.Call
+}
+
+// UpdateUserStatus is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - status string
+func (_e *MockAdminRepository_Expecter) UpdateUserStatus(ctx interface{}, id interface{}, status interface{}) *MockAdminRepository_UpdateUserStatus_Call {
+	return &MockAdminRepository_UpdateUserStatus_Call{Call: _e.mock.On("UpdateUserStatus", ctx, id, status)}
+}
+
+func (_c *MockAdminRepository_UpdateUserStatus_Call) Run(run func(ctx context.Context, id string, status string)) *MockAdminRepository_UpdateUserStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_UpdateUserStatus_Call) Return(_a0 bool, _a1 error) *MockAdminRepository_UpdateUserStatus_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_UpdateUserStatus_Call) RunAndReturn(run func(context.Context, string, string) (bool, error)) *MockAdminRepository_UpdateUserStatus_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockAdminRepository creates a new instance of MockAdminRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockAdminRepository(t interface {

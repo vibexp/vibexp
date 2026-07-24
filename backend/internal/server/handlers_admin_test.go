@@ -22,6 +22,7 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
+	"github.com/vibexp/vibexp/internal/services/activities"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/specconformance"
 )
@@ -30,12 +31,22 @@ import (
 // by the admin middleware + handler.
 type adminMockContainer struct {
 	BaseMockContainer
-	authService  services.AuthServiceInterface
-	adminService services.AdminServiceInterface
+	authService     services.AuthServiceInterface
+	adminService    services.AdminServiceInterface
+	activityService activities.ActivityService
 }
 
 func (c *adminMockContainer) AuthService() services.AuthServiceInterface   { return c.authService }
 func (c *adminMockContainer) AdminService() services.AdminServiceInterface { return c.adminService }
+
+// ActivityService backs the audit rows the suspension handlers write (#454). A
+// nil service is a supported no-op, so tests that do not care simply omit it.
+func (c *adminMockContainer) ActivityService() activities.ActivityService {
+	if c.activityService == nil {
+		return nil
+	}
+	return c.activityService
+}
 
 func newAdminTestServer(cfg *config.Config, container *adminMockContainer) *Server {
 	srv := New("8080", nil, "test-api-key", cfg, slog.New(slog.DiscardHandler))
@@ -264,8 +275,14 @@ func TestListAdminUsers(t *testing.T) {
 	idp := "oidc"
 	populated := models.AdminUserList{
 		Users: []models.AdminUserListItem{
-			{ID: uuid.NewString(), Email: "a@example.com", Name: "A", IDPProvider: &idp, CreatedAt: time.Now(), TeamCount: 2},
-			{ID: uuid.NewString(), Email: "b@example.com", Name: "B", CreatedAt: time.Now(), TeamCount: 0},
+			{
+				ID: uuid.NewString(), Email: "a@example.com", Name: "A", IDPProvider: &idp,
+				Status: models.UserStatusActive, CreatedAt: time.Now(), TeamCount: 2,
+			},
+			{
+				ID: uuid.NewString(), Email: "b@example.com", Name: "B",
+				Status: models.UserStatusSuspended, CreatedAt: time.Now(), TeamCount: 0,
+			},
 		},
 		TotalCount: 2, Page: 1, PerPage: 20, TotalPages: 1,
 	}
@@ -297,6 +314,11 @@ func TestListAdminUsers(t *testing.T) {
 			// The required array must never be null.
 			assert.Contains(t, rr.Body.String(), `"users":`)
 			assert.NotContains(t, rr.Body.String(), `"users":null`)
+			// #454's status must actually be mapped, both values.
+			if tc.wantUsers > 0 {
+				assert.Equal(t, admingen.AdminUserListItemStatus("active"), resp.Users[0].Status)
+				assert.Equal(t, admingen.AdminUserListItemStatus("suspended"), resp.Users[1].Status)
+			}
 
 			specconformance.AssertConformsToSpec(t, req, rr)
 		})
@@ -309,7 +331,8 @@ func TestGetAdminUser_Found(t *testing.T) {
 	teamID := uuid.NewString()
 	idp := "google"
 	detail := &models.AdminUserDetail{
-		ID: id, Email: "admin@example.com", Name: "Admin", IDPProvider: &idp, CreatedAt: time.Now(),
+		ID: id, Email: "admin@example.com", Name: "Admin", IDPProvider: &idp,
+		Status: models.UserStatusSuspended, CreatedAt: time.Now(),
 		Memberships: []models.AdminTeamMembership{{TeamID: teamID, TeamName: "Acme", Role: "owner"}},
 	}
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
@@ -324,6 +347,7 @@ func TestGetAdminUser_Found(t *testing.T) {
 	var resp admingen.AdminUserDetail
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.Equal(t, id, resp.Id.String())
+	assert.Equal(t, admingen.AdminUserDetailStatus("suspended"), resp.Status)
 	require.Len(t, resp.Memberships, 1)
 	assert.Equal(t, "owner", resp.Memberships[0].Role)
 

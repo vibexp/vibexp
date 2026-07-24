@@ -429,6 +429,126 @@ func (_c *MockAdminServiceInterface_ListUsers_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// ReactivateUser provides a mock function with given fields: ctx, targetID
+func (_m *MockAdminServiceInterface) ReactivateUser(ctx context.Context, targetID string) (*models.AdminUserDetail, error) {
+	ret := _m.Called(ctx, targetID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReactivateUser")
+	}
+
+	var r0 *models.AdminUserDetail
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.AdminUserDetail, error)); ok {
+		return rf(ctx, targetID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.AdminUserDetail); ok {
+		r0 = rf(ctx, targetID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminUserDetail)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, targetID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_ReactivateUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReactivateUser'
+type MockAdminServiceInterface_ReactivateUser_Call struct {
+	*mock.Call
+}
+
+// ReactivateUser is a helper method to define mock.On call
+//   - ctx context.Context
+//   - targetID string
+func (_e *MockAdminServiceInterface_Expecter) ReactivateUser(ctx interface{}, targetID interface{}) *MockAdminServiceInterface_ReactivateUser_Call {
+	return &MockAdminServiceInterface_ReactivateUser_Call{Call: _e.mock.On("ReactivateUser", ctx, targetID)}
+}
+
+func (_c *MockAdminServiceInterface_ReactivateUser_Call) Run(run func(ctx context.Context, targetID string)) *MockAdminServiceInterface_ReactivateUser_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ReactivateUser_Call) Return(_a0 *models.AdminUserDetail, _a1 error) *MockAdminServiceInterface_ReactivateUser_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ReactivateUser_Call) RunAndReturn(run func(context.Context, string) (*models.AdminUserDetail, error)) *MockAdminServiceInterface_ReactivateUser_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SuspendUser provides a mock function with given fields: ctx, actingAdminID, targetID, isInstanceAdmin
+func (_m *MockAdminServiceInterface) SuspendUser(ctx context.Context, actingAdminID string, targetID string, isInstanceAdmin services.InstanceAdminPredicate) (*models.AdminUserDetail, error) {
+	ret := _m.Called(ctx, actingAdminID, targetID, isInstanceAdmin)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SuspendUser")
+	}
+
+	var r0 *models.AdminUserDetail
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.InstanceAdminPredicate) (*models.AdminUserDetail, error)); ok {
+		return rf(ctx, actingAdminID, targetID, isInstanceAdmin)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.InstanceAdminPredicate) *models.AdminUserDetail); ok {
+		r0 = rf(ctx, actingAdminID, targetID, isInstanceAdmin)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminUserDetail)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, services.InstanceAdminPredicate) error); ok {
+		r1 = rf(ctx, actingAdminID, targetID, isInstanceAdmin)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_SuspendUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SuspendUser'
+type MockAdminServiceInterface_SuspendUser_Call struct {
+	*mock.Call
+}
+
+// SuspendUser is a helper method to define mock.On call
+//   - ctx context.Context
+//   - actingAdminID string
+//   - targetID string
+//   - isInstanceAdmin services.InstanceAdminPredicate
+func (_e *MockAdminServiceInterface_Expecter) SuspendUser(ctx interface{}, actingAdminID interface{}, targetID interface{}, isInstanceAdmin interface{}) *MockAdminServiceInterface_SuspendUser_Call {
+	return &MockAdminServiceInterface_SuspendUser_Call{Call: _e.mock.On("SuspendUser", ctx, actingAdminID, targetID, isInstanceAdmin)}
+}
+
+func (_c *MockAdminServiceInterface_SuspendUser_Call) Run(run func(ctx context.Context, actingAdminID string, targetID string, isInstanceAdmin services.InstanceAdminPredicate)) *MockAdminServiceInterface_SuspendUser_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(services.InstanceAdminPredicate))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_SuspendUser_Call) Return(_a0 *models.AdminUserDetail, _a1 error) *MockAdminServiceInterface_SuspendUser_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_SuspendUser_Call) RunAndReturn(run func(context.Context, string, string, services.InstanceAdminPredicate) (*models.AdminUserDetail, error)) *MockAdminServiceInterface_SuspendUser_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockAdminServiceInterface creates a new instance of MockAdminServiceInterface. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockAdminServiceInterface(t interface {

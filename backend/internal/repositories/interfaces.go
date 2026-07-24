@@ -953,6 +953,7 @@ type BackofficeRepository interface {
 type AdminUserFilters struct {
 	Search      *string
 	IDPProvider *string
+	Status      *string
 	CreatedFrom *time.Time
 	CreatedTo   *time.Time
 	SortBy      string
@@ -1022,6 +1023,9 @@ type AdminRepository interface {
 	GetAccessBySourceSeries(
 		ctx context.Context, from, to time.Time, granularity string,
 	) ([]models.AdminSourcePoint, error)
+	// UpdateUserStatus sets a user's lifecycle status, reporting false when no
+	// user with that id exists so the caller can 404 without a second query.
+	UpdateUserStatus(ctx context.Context, id, status string) (bool, error)
 }
 
 // BlueprintRepository defines the interface for blueprint data access operations
