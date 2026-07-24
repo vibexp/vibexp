@@ -661,7 +661,7 @@ func (s *Server) recordMemoryActivity(
 	ctx context.Context, userID, activityType, entityID, description string, r *http.Request,
 ) {
 	userAgent := r.Header.Get("User-Agent")
-	sourceIP := getClientIP(r)
+	sourceIP := clientIP(r)
 
 	req := activities.CreateActivityRequest{
 		ActivityType: activityType,

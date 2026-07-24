@@ -31,7 +31,7 @@ func (ar *ActivityRecorder) RecordAuthActivity(
 		return
 	}
 
-	clientIP := getClientIP(r)
+	sourceIP := clientIP(r)
 	userAgent := r.UserAgent()
 
 	if metadata == nil {
@@ -41,7 +41,7 @@ func (ar *ActivityRecorder) RecordAuthActivity(
 	metadata["method"] = r.Method
 
 	err := ar.activityService.RecordAuthActivity(
-		ctx, userID, activityType, sessionID, metadata, &clientIP, &userAgent,
+		ctx, userID, activityType, sessionID, metadata, &sourceIP, &userAgent,
 	)
 	if err != nil {
 		slog.With("error", err).
@@ -81,7 +81,7 @@ func (ar *ActivityRecorder) RecordResourceActivity(
 	metadata["endpoint"] = r.URL.Path
 	metadata["method"] = r.Method
 	metadata["user_agent"] = r.UserAgent()
-	metadata["source_ip"] = getClientIP(r)
+	metadata["source_ip"] = clientIP(r)
 
 	err := ar.activityService.RecordResourceActivity(
 		ctx, p.userID, p.activityType, p.entityType, p.entityID, p.description, metadata,
@@ -105,7 +105,7 @@ func (ar *ActivityRecorder) RecordAPIKeyUsage(
 		"endpoint":   endpoint,
 		"method":     r.Method,
 		"user_agent": r.UserAgent(),
-		"source_ip":  getClientIP(r),
+		"source_ip":  clientIP(r),
 	}
 
 	description := "API key used for " + endpoint

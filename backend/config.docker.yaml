@@ -28,6 +28,12 @@ server:
   port: "${PORT:-8080}"
   log_level: "${LOG_LEVEL:-info}"
   log_format: "${LOG_FORMAT:-json}"
+  # Comma-separated CIDRs allowed to assert a client IP via X-Forwarded-For /
+  # X-Real-IP. EMPTY (the default) ignores those headers and uses the connecting
+  # peer, which is what keeps per-IP rate limiting honest on a directly-exposed
+  # container. Behind a reverse proxy set this to its CIDR(s), e.g.
+  # TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12
+  trusted_proxies: "${TRUSTED_PROXIES:-}"
 
 # PostgreSQL connection. The defaults match docker-compose.yml's bundled
 # Postgres; for `docker run` point DB_HOST at your database.

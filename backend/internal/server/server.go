@@ -86,7 +86,9 @@ const (
 // that made the Playwright e2e suite chronically flaky (#299). The bypass is gated on
 // Config.IsLocalDevelopment() (localhost frontend.base_url — the same switch that enables
 // the dev-login bypass), so any internet-facing deployment keeps the limiter on.
-// middleware.RealIP runs earlier in the chain, so the limiter keys on the true client IP.
+// clientIPMiddleware runs earlier in the chain and has already resolved RemoteAddr to the
+// client IP under the trusted-proxy rule, so the limiter keys on an address the caller
+// cannot forge (#465). With no trusted proxies configured that is the peer address.
 // Limits are applied per route group, never globally, so internal Pub/Sub job routes,
 // Stripe/GitHub webhooks, and the /ping & /health probes are never throttled.
 func rateLimitByIP(r chi.Router, limit int, localDev bool) {
@@ -287,9 +289,13 @@ func New(port string, db *database.DB, apiKey string, cfg *config.Config, logger
 	// Other middleware
 	r.Use(RequestIDMiddleware(logger))     // Request ID (honors inbound X-Request-ID) + request-scoped logger
 	r.Use(structuredRequestLogger(logger)) // Structured request-completion log (replaces middleware.Logger)
-	// middleware.RealIP trusts X-Forwarded-For/X-Real-IP; only safe behind a
-	// trusted reverse proxy (chi deprecation GHSA-3fxj-6jh8-hvhx).
-	r.Use(middleware.RealIP) //nolint:staticcheck // safe only behind a trusted proxy
+	// Resolve the client IP, honouring X-Forwarded-For / X-Real-IP only from a
+	// configured trusted proxy. Replaces chi's deprecated middleware.RealIP,
+	// which trusted those headers from anyone and so let a directly-reachable
+	// instance's rate limiter be bypassed outright (#465).
+	trustedProxies := cfg.Server.ParsedTrustedProxies()
+	warnIfProxyHeadersIgnored(logger, len(trustedProxies), cfg.IsLocalDevelopment())
+	r.Use(clientIPMiddleware(trustedProxies))
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(maxBodySize(cfg.Server.MaxBodySizeBytes)) // Global request-body cap (configurable, 1MiB default)
 

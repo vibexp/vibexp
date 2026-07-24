@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"reflect"
 	"strings"
@@ -72,6 +73,57 @@ type ServerConfig struct {
 	// of error responses (joined as <base>/<error-code>). Defaults to the
 	// neutral "about:blank".
 	ErrorTypeBaseURI string `koanf:"error_type_base_uri"`
+
+	// TrustedProxies lists CIDRs whose requests may assert a client IP via
+	// X-Forwarded-For / X-Real-IP. EMPTY BY DEFAULT (fail closed): with no entry,
+	// those headers are ignored entirely and the peer address is the client IP.
+	//
+	// This is the switch that makes per-IP rate limiting real. VibeXP is
+	// deploy-anywhere, so an instance may be directly reachable; trusting the
+	// headers unconditionally let any client rotate X-Forwarded-For and bypass
+	// the limiter completely (#465). Set this to your reverse proxy's CIDR(s)
+	// when you run behind one, or per-client limits collapse into a single
+	// bucket keyed on the proxy.
+	// Declared EnvStringSlice (not []string) so the combined image can supply it
+	// as a comma-separated ${TRUSTED_PROXIES} placeholder, like instance_admins.
+	TrustedProxies EnvStringSlice `koanf:"trusted_proxies"`
+}
+
+// ParsedTrustedProxies returns Server.TrustedProxies as parsed CIDRs. Entries
+// are validated at load time, so a parse failure here cannot happen for a
+// config that booted; malformed entries are skipped defensively rather than
+// panicking in the request path.
+func (c ServerConfig) ParsedTrustedProxies() []*net.IPNet {
+	if len(c.TrustedProxies) == 0 {
+		return nil
+	}
+	nets := make([]*net.IPNet, 0, len(c.TrustedProxies))
+	for _, entry := range c.TrustedProxies {
+		_, network, err := net.ParseCIDR(strings.TrimSpace(entry))
+		if err != nil {
+			continue
+		}
+		nets = append(nets, network)
+	}
+	return nets
+}
+
+// validateTrustedProxies fails startup on a malformed CIDR, consistent with the
+// rest of the config's fail-fast validation. A typo here would otherwise be
+// silently ignored and quietly leave the deployment keying every request on its
+// proxy's address.
+func validateTrustedProxies(entries EnvStringSlice) error {
+	for _, entry := range entries {
+		trimmed := strings.TrimSpace(entry)
+		if trimmed == "" {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(trimmed); err != nil {
+			return fmt.Errorf(
+				"server.trusted_proxies: %q is not a valid CIDR (use e.g. 10.0.0.0/8 or 192.168.1.5/32)", trimmed)
+		}
+	}
+	return nil
 }
 
 // DatabaseConfig holds PostgreSQL connection settings. Host may be a Unix
@@ -837,6 +889,7 @@ func validateAll(cfg *Config) error {
 		validateEncryptionKey,
 		validateInstanceAdmins,
 		validateOAuthASConfig,
+		func(c *Config) error { return validateTrustedProxies(c.Server.TrustedProxies) },
 	}
 	for _, check := range checks {
 		if err := check(cfg); err != nil {

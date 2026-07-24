@@ -52,7 +52,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		"service", serverLogServiceName,
 		"handler", "handleLogin",
 		"user_agent", r.Header.Get("User-Agent"),
-		"remote_ip", r.RemoteAddr,
+		"remote_ip", clientIP(r),
 	).Info("Login request received")
 
 	requested := r.URL.Query().Get("provider")
@@ -549,7 +549,7 @@ func (s *Server) logAuthRequest(handler, description string, r *http.Request) {
 		"service", serverLogServiceName,
 		"handler", handler,
 		"user_agent", r.Header.Get("User-Agent"),
-		"remote_ip", r.RemoteAddr,
+		"remote_ip", clientIP(r),
 	).Info(description + " request received")
 }
 

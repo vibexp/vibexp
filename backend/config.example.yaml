@@ -47,6 +47,13 @@ server:
   cors_allowed_origins: []
   # Base URI for the RFC 9457 error "type" member (joined as <base>/<code>).
   error_type_base_uri: "about:blank"
+  # CIDRs allowed to assert a client IP via X-Forwarded-For / X-Real-IP.
+  # EMPTY = those headers are ignored and the connecting peer is the client IP.
+  # That is correct for a directly-exposed instance and is what makes per-IP rate
+  # limiting real. If you run behind a reverse proxy, list its CIDR(s) here —
+  # otherwise every request keys on the proxy and per-client limits collapse into
+  # one bucket. Example: ["10.0.0.0/8", "192.168.1.5/32"]
+  trusted_proxies: []
 
 # PostgreSQL connection. Host may be a Unix socket path (Cloud SQL) when it
 # starts with '/'. Defaults match the dev Postgres in backend/docker-compose.yml.
