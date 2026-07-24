@@ -3,10 +3,11 @@ name: release
 description: >-
   Cut a VibeXP release end to end — preflight checks, trigger + wait on the CI
   E2E suite, generate curated release notes, publish the GitHub Release (which
-  builds & pushes the combined image), then post-release run two tracks in
-  parallel — smoke-test the published image locally AND sync the vibexp/docs
-  site to the new version — and hand back a test URL plus the docs PR. Use when
-  asked to "create a release", "cut vX.Y.Z", "do a release", or "release VibeXP".
+  builds & pushes the combined image), then post-release run three tracks in
+  parallel — smoke-test the published image locally, sync the vibexp/docs site,
+  and verify vibexp/cli compatibility (e2e + gap-analysis issues) — and hand back
+  a test URL, the docs PR, and the CLI verdict. Use when asked to "create a
+  release", "cut vX.Y.Z", "do a release", or "release VibeXP".
 ---
 
 # VibeXP Release
@@ -32,6 +33,11 @@ builds and pushes `:X.Y.Z` (+ `:latest` for non-prereleases).
   published release, not `main`. Its own `update-docs` skill
   (`../docs/.claude/skills/update-docs/SKILL.md`) drives the sync and records the
   last-synced core version in `../docs/.vibexp-release`.
+- **CLI compat:** `vibexp/cli` (sibling `../cli`) ships a self-contained e2e job
+  (`.github/workflows/ci.yml`, job `e2e`) with a `workflow_dispatch` input
+  `platform_image_tag` that boots `ghcr.io/vibexp/vibexp:<tag>` and runs the CLI
+  against it. Track C verifies the latest CLI *release* (not `main`) this way, and
+  files CLI catch-up issues. Auto-dispatch-on-release is tracked in #448.
 - **Compose for self-host / smoke test:** root `docker-compose.yml` tracks `:latest`.
 
 ## Inputs
@@ -133,18 +139,22 @@ approves the notes (Phase 3). Never bypass a failing gate — fix or stop.
    done
    ```
 
-### Phase 4 — Post-release: smoke test + docs sync (in parallel)
+### Phase 4 — Post-release: smoke test + docs sync + CLI compat (in parallel)
 
-Once the image is published, run **two independent tracks concurrently** and
-report both when they finish:
+Once the image is published, run **three independent tracks concurrently** and
+report all three when they finish:
 
 - **Track A — smoke test** the published image (below).
 - **Track B — docs sync**: bring `vibexp/docs` up to the new release (below).
+- **Track C — CLI compatibility**: verify the latest `vibexp/cli` release still
+  works against the new platform image, and file follow-up issues for any CLI
+  catch-up the release implies (below).
 
-The two tracks touch different repos and never conflict, so kick them off
-together (e.g. launch Track B via a background Agent, or interleave the steps)
-rather than serially. Track A ends with a live URL; Track B ends with an
-unmerged docs PR. The release is not "done" until both are reported.
+The three tracks touch different repos and never conflict, so kick them off
+together (launch B and C via background Agents, or interleave the steps) rather
+than serially. Track A ends with a live URL; Track B ends with an unmerged docs
+PR; Track C ends with a CLI e2e verdict plus any filed CLI issues. The release
+is not "done" until all three are reported.
 
 #### Track A — smoke test
 
@@ -245,19 +255,78 @@ Track A.
 If the docs are already in sync (marker already at `vX.Y.Z`), `update-docs`
 reports that and makes no PR — pass that through.
 
+#### Track C — CLI compatibility
+
+Verify the **latest `vibexp/cli` release** still works against the new platform
+image, and file follow-up issues for CLI catch-up the release implies. Two parts,
+both concurrent with Tracks A and B.
+
+**C1 — e2e compatibility run (in CI, never local).** The CLI repo already owns a
+self-contained e2e job: `vibexp/cli` `.github/workflows/ci.yml` has an `e2e` job
+plus a `workflow_dispatch` input `platform_image_tag` that boots
+`ghcr.io/vibexp/vibexp:<tag>` and drives the built CLI against it. **We verify the
+released CLI, not `main`.**
+
+- **Preferred (once the automation in vibexp/vibexp#448 exists):** the platform
+  `release: published` event auto-dispatches the CLI e2e (cross-repo, like
+  `publish-api-client.yml`). Then just **find and watch** that run:
+  `gh run list --repo vibexp/cli --workflow ci.yml -L 5` (pick the run triggered
+  right after the release), `gh run watch <id> --repo vibexp/cli --exit-status`.
+- **Fallback (until #448 lands):** self-dispatch it against the latest CLI
+  release tag:
+  ```bash
+  CLI_TAG=$(gh release view --repo vibexp/cli --json tagName -q .tagName)
+  gh workflow run ci.yml --repo vibexp/cli --ref "$CLI_TAG" -f platform_image_tag=X.Y.Z
+  # then poll for the new run and: gh run watch <id> --repo vibexp/cli --exit-status
+  ```
+- **Guard (required):** `workflow_dispatch --ref <tag>` runs the workflow **from
+  that tag**, so if the latest CLI release predates the e2e harness/job, the
+  dispatch does nothing useful. Before dispatching, confirm the tag carries the
+  job: `git -C ../cli show "$CLI_TAG:.github/workflows/ci.yml" | grep -q 'platform_image_tag'`
+  (or the API equivalent). **If it is absent, SKIP the e2e run and report it
+  clearly** ("latest CLI release `<tag>` predates the e2e harness; compatibility
+  e2e skipped") — do NOT silently fall back to `main` (that tests unreleased CLI
+  code, not the release). Still do C2.
+- A failing CLI e2e is a **compatibility regression**: report it loudly (link the
+  failing run) so a CLI fix can follow. It does NOT roll back the platform release
+  (already published) — it is post-release signal.
+
+**C2 — gap analysis + issues (always run).** Independently of C1, assess whether
+the new release adds surface the CLI should catch up to, and file issues in
+`vibexp/cli` for real gaps so they are tracked for later:
+
+- Compare the release's new/changed API surface and features (from the Phase 2
+  notes and the spec diff) against the CLI's curated command coverage
+  (`../cli/internal/cli/*cmd/` nouns + `vibexp api` passthrough) and its auth/output
+  behavior (`../cli/CLAUDE.md` is the design map).
+- File one focused `gh issue create --repo vibexp/cli` per genuine gap (new
+  resource nouns/commands, changed auth/response behavior the CLI narrates, new
+  read fields worth surfacing). WHAT/WHY/HOW bodies, cite the platform PRs and CLI
+  source. Do not over-file: skip anything the raw-JSON passthrough already covers
+  with no UX loss.
+- These are **follow-up tickets, not blockers** — the release is already out.
+
+Track C ends with: the e2e verdict (passed / failed+link / skipped-with-reason)
+and the list of filed CLI issue URLs (or "no gaps").
+
 ## Guardrails
 
 - STOP (do not publish) if: working tree dirty / not synced, fast CI not green,
   the **E2E run fails**, the tag/release already exists, or the user has not
   approved the notes.
 - Never `git commit/push --no-verify`. This skill makes **no commit to
-  `vibexp/vibexp`** — it operates on an already-merged `main`. The only writes
-  it produces are in Track B, and those land as an **unmerged PR in
-  `vibexp/docs`** (opened by the delegated `update-docs` skill).
+  `vibexp/vibexp`** — it operates on an already-merged `main`. Its only writes are
+  an **unmerged PR in `vibexp/docs`** (Track B, via `update-docs`) and **follow-up
+  issues in `vibexp/cli`** (Track C). It never edits or merges CLI code.
 - **Never merge the docs PR.** Track B ends at a review-approved, unmerged PR;
   the human merges it. Do not merge even with admin rights.
+- **Track C tests the CLI *release*, never `main`.** If the latest CLI release
+  predates the e2e job, skip the run and say so — do not fall back to `main`.
+  A CLI e2e failure is post-release signal (report it, file a fix issue); it does
+  not roll back the already-published platform release.
 - The isolated smoke project must use a version-specific name + its own volume;
   never reuse the self-host `docker-compose.yml` project or its data.
 - Keep temp files (notes, smoke compose) in the scratchpad, not the repo.
-- The release is complete only after **both** tracks are reported: the smoke-test
-  URL (Track A) and the docs PR URL / "already in sync" (Track B).
+- The release is complete only after **all three** tracks are reported: the
+  smoke-test URL (A), the docs PR URL / "already in sync" (B), and the CLI e2e
+  verdict + filed CLI issues / "no gaps" (C).
