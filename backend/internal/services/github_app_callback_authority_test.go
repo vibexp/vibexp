@@ -54,7 +54,7 @@ func assertNothingStored(t *testing.T, installationRepo *MockGitHubInstallationR
 
 // TestHandleInstallationCallback_ForeignInstallationRejected is the core case:
 // the caller holds a valid code, but the installation is not one they can
-// administer, so the bind is refused.
+// access, so the bind is refused.
 func TestHandleInstallationCallback_ForeignInstallationRejected(t *testing.T) {
 	installationRepo := new(MockGitHubInstallationRepository)
 	githubClient := new(MockGitHubAppClient)

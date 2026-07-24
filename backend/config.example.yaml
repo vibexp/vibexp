@@ -237,8 +237,8 @@ github:
   webhook_secret: "${GITHUB_WEBHOOK_SECRET}"
   # OAuth credentials of the SAME GitHub App (not the github web-login client).
   # Required for the install flow: the callback exchanges GitHub's `code` for a
-  # user access token and refuses to bind an installation the caller cannot
-  # administer. Enable "Request user authorization (OAuth) during installation"
+  # user access token and refuses to bind an installation the caller has no
+  # access to. Enable "Request user authorization (OAuth) during installation"
   # on the App, then copy its Client ID / secret here. Empty = install callback
   # is rejected (fail closed).
   app_client_id: ""

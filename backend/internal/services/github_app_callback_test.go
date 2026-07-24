@@ -59,7 +59,7 @@ func expectAuthorizedInstaller(githubClient *MockGitHubAppClient) {
 }
 
 // newCallbackTestService creates a GitHubAppService with the given mock deps for
-// callback tests, as a caller who is both permitted and can administer the
+// callback tests, as a caller who is both permitted and can access the
 // installation.
 func newCallbackTestService(
 	installationRepo *MockGitHubInstallationRepository,

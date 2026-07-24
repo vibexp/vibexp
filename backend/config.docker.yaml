@@ -157,8 +157,8 @@ github:
   webhook_url: "${GITHUB_WEBHOOK_URL:-}"
   webhook_secret: "${GITHUB_WEBHOOK_SECRET:-}"
   # OAuth credentials of the same GitHub App. Required for the install callback:
-  # it proves the caller can administer the installation before binding it to a
-  # team. Enable "Request user authorization (OAuth) during installation" on the
+  # it confirms the caller has access to the installation on GitHub before
+  # binding it to a team. Enable "Request user authorization (OAuth) during installation" on the
   # App. Empty = the callback fails closed.
   app_client_id: "${GITHUB_APP_CLIENT_ID:-}"
   app_client_secret: "${GITHUB_APP_CLIENT_SECRET:-}"

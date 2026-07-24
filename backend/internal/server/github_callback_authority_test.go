@@ -62,7 +62,7 @@ func runCallbackServiceErrorCase(
 
 // TestHandleGitHubCallback_ForeignInstallationDenied is the core regression:
 // a valid state for the caller's own team plus an installation they cannot
-// administer must be refused with 403, not stored.
+// access must be refused with 403, not stored.
 func TestHandleGitHubCallback_ForeignInstallationDenied(t *testing.T) {
 	runCallbackServiceErrorCase(t,
 		services.ErrInstallationNotAuthorized, http.StatusForbidden, "installation_not_authorized")
