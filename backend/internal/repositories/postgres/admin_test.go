@@ -77,9 +77,11 @@ func defaultAdminTeamFilters() repositories.AdminTeamFilters {
 }
 
 func adminUserRows() *sqlmock.Rows {
-	return sqlmock.NewRows([]string{"id", "email", "name", "idp_provider", "created_at", "team_count"}).
-		AddRow("u1", "a@example.com", "A", "oidc", time.Now(), 2).
-		AddRow("u2", "b@example.com", "B", nil, time.Now(), 0)
+	return sqlmock.NewRows([]string{
+		"id", "email", "name", "idp_provider", "status", "created_at", "team_count",
+	}).
+		AddRow("u1", "a@example.com", "A", "oidc", "active", time.Now(), 2).
+		AddRow("u2", "b@example.com", "B", nil, "suspended", time.Now(), 0)
 }
 
 func adminTeamRows() *sqlmock.Rows {
@@ -257,8 +259,10 @@ func TestAdminRepository_GetUserDetail_Found(t *testing.T) {
 
 	mock.ExpectQuery(`FROM users WHERE id = \$1`).
 		WithArgs("u1").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "idp_provider", "created_at"}).
-			AddRow("u1", "a@example.com", "A", "oidc", time.Now()))
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "email", "name", "idp_provider", "status", "created_at",
+		}).
+			AddRow("u1", "a@example.com", "A", "oidc", "suspended", time.Now()))
 	mock.ExpectQuery(`FROM team_members tm`).
 		WithArgs("u1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "role"}).
@@ -268,6 +272,7 @@ func TestAdminRepository_GetUserDetail_Found(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, detail)
 	assert.Equal(t, "u1", detail.ID)
+	assert.Equal(t, "suspended", detail.Status, "status must be scanned, not left zero")
 	require.Len(t, detail.Memberships, 1)
 	assert.Equal(t, "owner", detail.Memberships[0].Role)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -344,8 +349,10 @@ func TestAdminRepository_GetUserDetail_MembershipError(t *testing.T) {
 	}()
 
 	mock.ExpectQuery(`FROM users WHERE id = \$1`).WithArgs("u1").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "idp_provider", "created_at"}).
-			AddRow("u1", "a@example.com", "A", nil, time.Now()))
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "email", "name", "idp_provider", "status", "created_at",
+		}).
+			AddRow("u1", "a@example.com", "A", nil, "active", time.Now()))
 	mock.ExpectQuery(`FROM team_members tm`).WithArgs("u1").WillReturnError(errors.New("boom"))
 
 	_, err := repo.GetUserDetail(context.Background(), "u1")
@@ -584,4 +591,123 @@ func TestAdminRepository_GetTeamDetail_MembersError(t *testing.T) {
 
 	_, err := repo.GetTeamDetail(context.Background(), "t1")
 	require.Error(t, err)
+}
+
+// TestAdminRepository_ListUsers_StatusFilter covers #454's status filter on the
+// shared WHERE, including that it combines with the other filters.
+func TestAdminRepository_ListUsers_StatusFilter(t *testing.T) {
+	suspended := "suspended"
+	search := "alice"
+
+	tests := []struct {
+		name     string
+		filters  repositories.AdminUserFilters
+		wantSQL  string
+		wantArgs []driver.Value
+	}{
+		{
+			name:     "status alone",
+			filters:  repositories.AdminUserFilters{Status: &suspended, Page: 1, Limit: 20},
+			wantSQL:  `u.status = \$1`,
+			wantArgs: []driver.Value{"suspended"},
+		},
+		{
+			name: "status combines with search",
+			filters: repositories.AdminUserFilters{
+				Search: &search, Status: &suspended, Page: 1, Limit: 20,
+			},
+			wantSQL:  `\(u.email ILIKE \$1 OR u.name ILIKE \$2\) AND u.status = \$3`,
+			wantArgs: []driver.Value{"%alice%", "%alice%", "suspended"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, mock, mockDB := newAdminRepoMock(t)
+			defer func() {
+				if closeErr := mockDB.Close(); closeErr != nil {
+					t.Logf("failed to close mock DB: %v", closeErr)
+				}
+			}()
+
+			mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users u WHERE \(` + tc.wantSQL + `\)`).
+				WithArgs(tc.wantArgs...).
+				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+			mock.ExpectQuery(`FROM users u LEFT JOIN team_members tm .* WHERE \(` + tc.wantSQL + `\)`).
+				WithArgs(tc.wantArgs...).
+				WillReturnRows(adminUserRows())
+
+			_, total, err := repo.ListUsers(context.Background(), tc.filters)
+			require.NoError(t, err)
+			assert.Equal(t, 1, total)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+// TestAdminRepository_ListUsers_ScansStatus proves the column is actually read
+// into the model — a missing scan would leave every status empty and silently
+// break the admin UI's suspended badge.
+func TestAdminRepository_ListUsers_ScansStatus(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users u$`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery(`u.status`).WillReturnRows(adminUserRows())
+
+	users, _, err := repo.ListUsers(context.Background(), defaultAdminUserFilters())
+	require.NoError(t, err)
+	require.Len(t, users, 2)
+	assert.Equal(t, "active", users[0].Status)
+	assert.Equal(t, "suspended", users[1].Status)
+}
+
+// TestAdminRepository_UpdateUserStatus covers the write, including that a
+// no-match reports false so the caller 404s instead of pretending it worked.
+func TestAdminRepository_UpdateUserStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     driver.Result
+		execErr    error
+		wantOK     bool
+		wantErr    bool
+		wantStatus string
+	}{
+		{name: "suspends", result: sqlmock.NewResult(0, 1), wantOK: true, wantStatus: "suspended"},
+		{name: "no such user", result: sqlmock.NewResult(0, 0), wantOK: false, wantStatus: "suspended"},
+		{name: "exec fails", execErr: errors.New("boom"), wantErr: true, wantStatus: "active"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, mock, mockDB := newAdminRepoMock(t)
+			defer func() {
+				if closeErr := mockDB.Close(); closeErr != nil {
+					t.Logf("failed to close mock DB: %v", closeErr)
+				}
+			}()
+
+			exp := mock.ExpectExec(`UPDATE users SET status = \$1, updated_at = NOW\(\) WHERE id = \$2`).
+				WithArgs(tc.wantStatus, "u1")
+			if tc.execErr != nil {
+				exp.WillReturnError(tc.execErr)
+			} else {
+				exp.WillReturnResult(tc.result)
+			}
+
+			ok, err := repo.UpdateUserStatus(context.Background(), "u1", tc.wantStatus)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantOK, ok)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }

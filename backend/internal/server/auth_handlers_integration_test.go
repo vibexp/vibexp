@@ -24,6 +24,8 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	ometrics "github.com/vibexp/vibexp/internal/observability/metrics"
+	"github.com/vibexp/vibexp/internal/repositories"
+	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
@@ -37,10 +39,25 @@ type MockAuthContainer struct {
 	authService        *svcmocks.MockAuthServiceInterface
 	activityService    *MockActivityServiceForAuthHandlers
 	environmentService *services.EnvironmentService
+	// userRepository backs the per-request suspension check every authenticated
+	// path now performs (#454). Without it the container's nil default would
+	// make rejectIfSuspended fail closed and every test session 500.
+	userRepository *repomocks.MockUserRepository
 }
 
 func (m *MockAuthContainer) AuthService() services.AuthServiceInterface {
 	return m.authService
+}
+
+func (m *MockAuthContainer) UserRepository() repositories.UserRepository {
+	// Some tests build MockAuthContainer as a struct literal without this field,
+	// which would otherwise hand back a TYPED nil — non-nil as an interface, so
+	// the nil guard in rejectIfSuspended cannot see it, and the first method call
+	// panics. Fall back to the base's always-active stub instead.
+	if m.userRepository == nil {
+		return m.BaseMockContainer.UserRepository()
+	}
+	return m.userRepository
 }
 
 func (m *MockAuthContainer) ActivityService() activities.ActivityService {
@@ -155,10 +172,17 @@ func newMockAuthContainer(t *testing.T) *MockAuthContainer {
 		Frontend: config.FrontendConfig{BaseURL: "http://localhost:5173"},
 		Auth:     config.AuthConfig{DevLoginEnabled: true},
 	}
+	userRepo := repomocks.NewMockUserRepository(t)
+	// Default: every user is active, so existing auth tests keep passing. A test
+	// that cares about suspension overrides this with its own expectation.
+	userRepo.On("GetByID", mock.Anything, mock.Anything).
+		Return(&models.User{Status: models.UserStatusActive}, nil).Maybe()
+
 	return &MockAuthContainer{
 		authService:        svcmocks.NewMockAuthServiceInterface(t),
 		activityService:    &MockActivityServiceForAuthHandlers{},
 		environmentService: services.NewEnvironmentService(cfg),
+		userRepository:     userRepo,
 	}
 }
 
@@ -876,4 +900,40 @@ func TestHandleLogin_NoProvidersEnabled(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+// TestHandleCallbackSuccess_RejectsSuspendedUser is the OIDC leg of #454's
+// "one test per auth entry point". A suspended account must not receive a fresh
+// session: the per-request check would refuse every later call anyway, but
+// stopping at the callback means no cookie is ever minted and the SPA gets a
+// stable error code to render instead of an app that signs in then fails
+// everything.
+func TestHandleCallbackSuccess_RejectsSuspendedUser(t *testing.T) {
+	mockContainer := newMockAuthContainer(t)
+	srv := createTestAuthServer(mockContainer)
+
+	suspended := &models.User{
+		ID:     "suspended-user",
+		Email:  "suspended@example.com",
+		Status: models.UserStatusSuspended,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback?code=x&state=s", nil)
+	rr := httptest.NewRecorder()
+
+	srv.handleCallbackSuccess(rr, req, suspended, &idp.Tokens{
+		AccessToken: "at",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}, "s", "google", false)
+
+	require.Equal(t, http.StatusFound, rr.Code)
+	assert.Contains(t, rr.Header().Get("Location"), "error=account_suspended")
+
+	// The decisive assertion: NO session cookie was issued. The active-account
+	// counterpart of this path is already covered by the existing callback
+	// success tests in this file, so this one only has to prove the new gate.
+	for _, c := range rr.Result().Cookies() {
+		assert.NotEqual(t, sesslib.CookieName, c.Name,
+			"a suspended account must never be handed a session cookie")
+	}
 }

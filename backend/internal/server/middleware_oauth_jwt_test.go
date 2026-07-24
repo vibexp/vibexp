@@ -23,7 +23,9 @@ import (
 	"github.com/vibexp/vibexp/internal/auth/authkit"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/contextkeys"
+	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
 )
 
@@ -96,9 +98,26 @@ func validOAuthClaims(issuer string) jwt.MapClaims {
 
 func newOAuthJWTTestServer(t *testing.T, cookiePassword string) *Server {
 	t.Helper()
+	return newOAuthJWTTestServerWithStatus(t, cookiePassword, models.UserStatusActive)
+}
+
+// newOAuthJWTTestServerWithStatus builds the test server with a container whose
+// user repository reports the resolved account with the given status. New()
+// constructs a real container over a nil *database.DB, whose UserRepository
+// panics on first use — harmless until #454 made every authenticated request
+// read the account's status, so the container is replaced here.
+func newOAuthJWTTestServerWithStatus(t *testing.T, cookiePassword, status string) *Server {
+	t.Helper()
 	cfg := &config.Config{Auth: config.AuthConfig{SessionEncryptionKey: cookiePassword}}
 	logger := slog.New(slog.DiscardHandler)
-	return New("8080", nil, "test-api-key", cfg, logger)
+	srv := New("8080", nil, "test-api-key", cfg, logger)
+
+	users := repomocks.NewMockUserRepository(t)
+	users.On("GetByID", mock.Anything, mock.Anything).
+		Return(&models.User{ID: oauthTestInternalID, Status: status}, nil).Maybe()
+	srv.container = containerWithUsers{BaseMockContainer: &BaseMockContainer{}, users: users}
+
+	return srv
 }
 
 // attachVerifier wires an authkit verifier with the given resolver directly

@@ -238,6 +238,10 @@ func (s *Server) handleCallbackSuccess(
 	provider string,
 	isNewUser bool,
 ) {
+	if s.rejectSuspendedSignIn(w, r, user, provider) {
+		return
+	}
+
 	s.logger.With(
 		"service", serverLogServiceName,
 		"handler", "handleCallback",
@@ -286,6 +290,35 @@ func (s *Server) handleCallbackSuccess(
 
 	// Redirect to frontend home after successful authentication
 	http.Redirect(w, r, s.config.Frontend.BaseURL+"/", http.StatusFound)
+}
+
+// rejectSuspendedSignIn stops a suspended account from receiving a fresh
+// session (#454), reporting true when the request was handled.
+//
+// The per-request check in authenticateUser would refuse every later call
+// anyway, but stopping at the callback means no cookie is ever minted and the
+// user sees a clear reason instead of an app that signs in and then fails
+// everything. models.User already carries status, so this costs no extra query.
+// Mirrors the access-allowlist denial in handleCallbackFailure: a browser
+// redirect with a stable error code, not JSON.
+func (s *Server) rejectSuspendedSignIn(
+	w http.ResponseWriter, r *http.Request, user *models.User, provider string,
+) bool {
+	if !user.IsSuspended() {
+		return false
+	}
+
+	s.logger.With(
+		"service", serverLogServiceName,
+		"handler", "handleCallback",
+		"user_id", user.ID,
+		"provider", provider,
+	).Info("Rejected sign-in for suspended account")
+	if s.metrics != nil {
+		s.metrics.RecordUserLoginFailed(r.Context(), "account_suspended")
+	}
+	http.Redirect(w, r, s.config.Frontend.BaseURL+"/auth/callback?error=account_suspended", http.StatusFound)
+	return true
 }
 
 // handleLogout clears the session cookie and returns a JSON confirmation.

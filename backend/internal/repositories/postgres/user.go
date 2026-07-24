@@ -15,7 +15,7 @@ import (
 // Keep in sync with scanUser below.
 const userColumns = `id, google_id, idp_provider, idp_subject, email, name, avatar_url,
 		stripe_customer_id, subscription_status, trial_ends_at, subscription_plan,
-		subscription_canceled_at, default_team_id, onboarding_completed,
+		subscription_canceled_at, default_team_id, status, onboarding_completed,
 		onboarding_completed_at, created_at, updated_at, version`
 
 // UserRepository implements the repositories.UserRepository interface for PostgreSQL
@@ -41,7 +41,7 @@ func scanUser(row rowScanner) (*models.User, error) {
 		&user.ID, &user.GoogleID, &user.IDPProvider, &user.IDPSubject,
 		&user.Email, &user.Name, &user.AvatarURL, &user.StripeCustomerID,
 		&user.SubscriptionStatus, &user.TrialEndsAt, &user.SubscriptionPlan,
-		&user.SubscriptionCanceledAt, &user.DefaultTeamID,
+		&user.SubscriptionCanceledAt, &user.DefaultTeamID, &user.Status,
 		&user.OnboardingCompleted, &user.OnboardingCompletedAt,
 		&user.CreatedAt, &user.UpdatedAt, &user.Version,
 	)

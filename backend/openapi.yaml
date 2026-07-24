@@ -1133,6 +1133,10 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-dashboard-overview"
   /api/v1/admin/dashboard/timeseries:
     $ref: "./paths/admin.yaml#/api-v1-admin-dashboard-timeseries"
+  /api/v1/admin/users/{id}/suspend:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id-suspend"
+  /api/v1/admin/users/{id}/reactivate:
+    $ref: "./paths/admin.yaml#/api-v1-admin-users-id-reactivate"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:

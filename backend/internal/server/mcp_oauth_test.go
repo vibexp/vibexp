@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/auth/oauthserver"
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/container"
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -235,6 +237,9 @@ func TestMCPMetadata_DerivedFromResourceURI(t *testing.T) {
 // it rather than constructing the context value directly.
 func TestMCPTokenContextBridge_SetsUserID(t *testing.T) {
 	srv := newMCPOAuthTestServer(t, "")
+	// Since #454 the bridge authenticates through s.authenticateUser, which reads
+	// the account's status, so the container must supply a user repository.
+	srv.container = mcpContainerWithUser(t, models.UserStatusActive)
 
 	var gotUserID, gotAuthType string
 	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
@@ -242,10 +247,7 @@ func TestMCPTokenContextBridge_SetsUserID(t *testing.T) {
 		gotAuthType, _ = r.Context().Value(contextkeys.AuthType).(string)
 	})
 
-	verifier := func(_ context.Context, _ string, _ *http.Request) (*mcpauth.TokenInfo, error) {
-		return &mcpauth.TokenInfo{UserID: "internal-user-7", Expiration: time.Now().Add(time.Hour)}, nil
-	}
-	handler := mcpauth.RequireBearerToken(verifier, nil)(srv.mcpTokenContextMiddleware(next))
+	handler := mcpauth.RequireBearerToken(mcpFixedTokenVerifier, nil)(srv.mcpTokenContextMiddleware(next))
 
 	req := httptest.NewRequest(http.MethodGet, "/mcp/v1/common", nil)
 	req.Header.Set("Authorization", "Bearer valid-token")
@@ -254,6 +256,45 @@ func TestMCPTokenContextBridge_SetsUserID(t *testing.T) {
 
 	assert.Equal(t, "internal-user-7", gotUserID)
 	assert.Equal(t, "oauth", gotAuthType)
+}
+
+// mcpFixedTokenVerifier resolves any bearer token to the same internal user.
+func mcpFixedTokenVerifier(_ context.Context, _ string, _ *http.Request) (*mcpauth.TokenInfo, error) {
+	return &mcpauth.TokenInfo{UserID: "internal-user-7", Expiration: time.Now().Add(time.Hour)}, nil
+}
+
+// mcpContainerWithUser builds a container whose user repository reports
+// internal-user-7 with the given status.
+func mcpContainerWithUser(t *testing.T, status string) container.Container {
+	t.Helper()
+	users := repomocks.NewMockUserRepository(t)
+	users.On("GetByID", mock.Anything, "internal-user-7").
+		Return(&models.User{ID: "internal-user-7", Status: status}, nil).Maybe()
+	return containerWithUsers{BaseMockContainer: &BaseMockContainer{}, users: users}
+}
+
+// TestMCPTokenContextBridge_RejectsSuspendedUser is the MCP leg of #454's
+// "one test per auth entry point". The MCP path is the one that hand-rolled its
+// context keys instead of calling authenticatedContext, so it was a suspension
+// bypass until it was routed through authenticateUser: an unexpired MCP bearer
+// token belonging to a suspended account must be refused on the very next
+// request, not at token expiry.
+func TestMCPTokenContextBridge_RejectsSuspendedUser(t *testing.T) {
+	srv := newMCPOAuthTestServer(t, "")
+	srv.container = mcpContainerWithUser(t, models.UserStatusSuspended)
+
+	reached := false
+	next := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { reached = true })
+
+	handler := mcpauth.RequireBearerToken(mcpFixedTokenVerifier, nil)(srv.mcpTokenContextMiddleware(next))
+
+	req := httptest.NewRequest(http.MethodGet, "/mcp/v1/common", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.False(t, reached, "the MCP tool layer must never run for a suspended account")
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
 // TestUserResolverAdapter resolves a token subject to the internal user ID and

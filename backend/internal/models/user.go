@@ -50,6 +50,7 @@ type User struct {
 	SubscriptionPlan       *string    `json:"subscription_plan,omitempty" db:"subscription_plan"`
 	SubscriptionCanceledAt *time.Time `json:"-" db:"subscription_canceled_at"`
 	DefaultTeamID          *string    `json:"default_team_id,omitempty" db:"default_team_id"`
+	Status                 string     `json:"status" db:"status"`
 	OnboardingCompleted    bool       `json:"onboarding_completed" db:"onboarding_completed"`
 	OnboardingCompletedAt  *time.Time `json:"onboarding_completed_at,omitempty" db:"onboarding_completed_at"`
 	CreatedAt              time.Time  `json:"created_at" db:"created_at"`
@@ -91,4 +92,24 @@ type UserOnboardingProgress struct {
 	HasClaudeCodeIntegration            bool       `json:"has_claude_code_integration"`
 	HasMemories                         bool       `json:"has_memories"`
 	ClaudeCodeIntegrationLastAccessedAt *time.Time `json:"claude_code_integration_last_accessed_at,omitempty"`
+}
+
+// User account lifecycle states (users.status, #454). A suspended user is
+// rejected at every authentication entry point — existing sessions, API keys
+// and OAuth/MCP tokens all stop working immediately, not at expiry.
+//
+// Suspension is instance-local: it does not disable the account at the upstream
+// identity provider.
+const (
+	UserStatusActive    = "active"
+	UserStatusSuspended = "suspended"
+)
+
+// IsSuspended reports whether the account is blocked from authenticating.
+// Anything other than the explicit suspended value is treated as active, so a
+// row written before the status column existed (or by a future migration that
+// adds a new non-blocking state) fails OPEN for authentication rather than
+// locking users out.
+func (u *User) IsSuspended() bool {
+	return u.Status == UserStatusSuspended
 }

@@ -58,6 +58,7 @@ AdminUserListItem:
     - id
     - email
     - name
+    - status
     - created_at
     - team_count
   properties:
@@ -77,6 +78,17 @@ AdminUserListItem:
       nullable: true
       description: Identity provider name (e.g. "google", "oidc"); null for accounts without one.
       example: "oidc"
+    status:
+      type: string
+      enum:
+        - active
+        - suspended
+      description: |
+        Account lifecycle. A suspended account is rejected at every
+        authentication entry point — existing sessions, API keys and MCP/OAuth
+        tokens stop working immediately, not at expiry. Instance-local: it does
+        not disable the account at the upstream identity provider.
+      example: "active"
     created_at:
       type: string
       format: date-time
@@ -145,6 +157,7 @@ AdminUserDetail:
     - id
     - email
     - name
+    - status
     - created_at
     - memberships
   properties:
@@ -164,6 +177,17 @@ AdminUserDetail:
       nullable: true
       description: Identity provider name (e.g. "google", "oidc"); null for accounts without one.
       example: "oidc"
+    status:
+      type: string
+      enum:
+        - active
+        - suspended
+      description: |
+        Account lifecycle. A suspended account is rejected at every
+        authentication entry point — existing sessions, API keys and MCP/OAuth
+        tokens stop working immediately, not at expiry. Instance-local: it does
+        not disable the account at the upstream identity provider.
+      example: "active"
     created_at:
       type: string
       format: date-time

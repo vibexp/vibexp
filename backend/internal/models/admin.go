@@ -22,6 +22,7 @@ type AdminUserListItem struct {
 	Email       string
 	Name        string
 	IDPProvider *string
+	Status      string
 	CreatedAt   time.Time
 	TeamCount   int64
 }
@@ -50,6 +51,7 @@ type AdminUserDetail struct {
 	Email       string
 	Name        string
 	IDPProvider *string
+	Status      string
 	CreatedAt   time.Time
 	Memberships []AdminTeamMembership
 }

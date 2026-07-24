@@ -60,14 +60,14 @@ func (r *AdminRepository) GetInstanceCounts(ctx context.Context) (models.Instanc
 // team count comes from a LEFT JOIN aggregate over team_members; no role
 // predicate (decision D3) — the join is on user_id only.
 var adminUserListSelectColumns = []string{
-	"u.id", "u.email", "u.name", "u.idp_provider", "u.created_at",
+	"u.id", "u.email", "u.name", "u.idp_provider", "u.status", "u.created_at",
 	"COUNT(tm.team_id) AS team_count",
 }
 
 // adminUserListGroupByColumns are the non-aggregated projection columns, which
 // must all appear in GROUP BY alongside the team_count aggregate.
 var adminUserListGroupByColumns = []string{
-	"u.id", "u.email", "u.name", "u.idp_provider", "u.created_at",
+	"u.id", "u.email", "u.name", "u.idp_provider", "u.status", "u.created_at",
 }
 
 // applyAdminWhere attaches the shared conditions to a select builder, skipping
@@ -119,6 +119,9 @@ func buildAdminUserWhere(filters repositories.AdminUserFilters) squirrel.And {
 	}
 	if filters.IDPProvider != nil && *filters.IDPProvider != "" {
 		where = append(where, squirrel.Eq{"u.idp_provider": *filters.IDPProvider})
+	}
+	if filters.Status != nil && *filters.Status != "" {
+		where = append(where, squirrel.Eq{"u.status": *filters.Status})
 	}
 	if filters.CreatedFrom != nil {
 		where = append(where, squirrel.GtOrEq{"u.created_at": *filters.CreatedFrom})
@@ -216,7 +219,9 @@ func (r *AdminRepository) queryAdminUsers(
 	users := make([]models.AdminUserListItem, 0)
 	for rows.Next() {
 		var u models.AdminUserListItem
-		if scanErr := rows.Scan(&u.ID, &u.Email, &u.Name, &u.IDPProvider, &u.CreatedAt, &u.TeamCount); scanErr != nil {
+		if scanErr := rows.Scan(
+			&u.ID, &u.Email, &u.Name, &u.IDPProvider, &u.Status, &u.CreatedAt, &u.TeamCount,
+		); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan admin user: %w", scanErr)
 		}
 		users = append(users, u)
@@ -244,8 +249,8 @@ func (r *AdminRepository) GetUserDetail(
 ) (*models.AdminUserDetail, error) {
 	var detail models.AdminUserDetail
 	err := r.db.QueryRowContext(ctx,
-		"SELECT id, email, name, idp_provider, created_at FROM users WHERE id = $1", id,
-	).Scan(&detail.ID, &detail.Email, &detail.Name, &detail.IDPProvider, &detail.CreatedAt)
+		"SELECT id, email, name, idp_provider, status, created_at FROM users WHERE id = $1", id,
+	).Scan(&detail.ID, &detail.Email, &detail.Name, &detail.IDPProvider, &detail.Status, &detail.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -465,4 +470,22 @@ func (r *AdminRepository) GetTeamDetail(
 		return nil, fmt.Errorf("failed to iterate team members: %w", err)
 	}
 	return &detail, nil
+}
+
+// UpdateUserStatus sets a user's lifecycle status, reporting whether a row was
+// actually matched so the caller can 404 an unknown id without a second query.
+// The status value is written as a bound parameter and additionally constrained
+// by the users_status_check CHECK constraint, so an unexpected value fails at
+// the database rather than being stored.
+func (r *AdminRepository) UpdateUserStatus(ctx context.Context, id, status string) (bool, error) {
+	result, err := r.db.ExecContext(ctx,
+		"UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2", status, id)
+	if err != nil {
+		return false, fmt.Errorf("failed to update user status: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to read affected rows for user status update: %w", err)
+	}
+	return affected > 0, nil
 }

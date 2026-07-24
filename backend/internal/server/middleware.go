@@ -186,7 +186,12 @@ func (s *Server) authenticateWithAPIKey(w http.ResponseWriter, r *http.Request, 
 
 	// Set user context from API key
 	ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
-	ctx = authenticatedContext(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID})
+	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID})
+	if err != nil {
+		s.logSuspendedRejection(r.Context(), "authenticateWithAPIKey", "api_key", apiKey.UserID, err)
+		s.writeSuspensionAuthError(w, r, err)
+		return
+	}
 
 	contextkeys.GetLoggerFromContext(ctx).Debug("API key authentication successful")
 	next.ServeHTTP(w, r.WithContext(ctx))
@@ -225,7 +230,12 @@ func (s *Server) authenticateWithOAuthJWT(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ctx := authenticatedContext(r.Context(), info.UserID, "oauth", nil)
+	ctx, err := s.authenticateUser(r.Context(), info.UserID, "oauth", nil)
+	if err != nil {
+		s.logSuspendedRejection(r.Context(), "authenticateWithOAuthJWT", "oauth", info.UserID, err)
+		s.writeSuspensionAuthError(w, r, err)
+		return
+	}
 
 	contextkeys.GetLoggerFromContext(ctx).Debug("OAuth bearer JWT authentication successful")
 	next.ServeHTTP(w, r.WithContext(ctx))
@@ -292,8 +302,14 @@ func (s *Server) authenticateWithSession(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	// Set user context from session
-	ctx := authenticatedContext(r.Context(), sess.UserID, "cookie", nil)
+	// Set user context from session. A suspended account is rejected HERE rather
+	// than at sign-in, which is what makes an already-issued cookie stop working.
+	ctx, err := s.authenticateUser(r.Context(), sess.UserID, "cookie", nil)
+	if err != nil {
+		s.logSuspendedRejection(r.Context(), "authenticateWithSession", "cookie", sess.UserID, err)
+		s.writeSuspensionAuthError(w, r, err)
+		return
+	}
 
 	contextkeys.GetLoggerFromContext(ctx).Debug("Cookie session authentication successful")
 	next.ServeHTTP(w, r.WithContext(ctx))
@@ -416,8 +432,15 @@ func (s *Server) optionalAPIKeyContext(r *http.Request, token string) (context.C
 		return nil, false
 	}
 	ctx := context.WithValue(r.Context(), contextkeys.APIKeyID, apiKey.ID)
-	return authenticatedContext(ctx, apiKey.UserID, "api_key",
-		[]any{"api_key_id", apiKey.ID}), true
+	ctx, err = s.authenticateUser(ctx, apiKey.UserID, "api_key", []any{"api_key_id", apiKey.ID})
+	if err != nil {
+		// Suspended (or unverifiable) accounts proceed ANONYMOUS here, which is
+		// what makes instanceAdminMiddleware 404 a suspended admin off the admin
+		// surface instead of serving it.
+		s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", "api_key", apiKey.UserID, err)
+		return nil, false
+	}
+	return ctx, true
 }
 
 // optionalSessionContext returns the authenticated context for a valid,
@@ -430,7 +453,12 @@ func (s *Server) optionalSessionContext(r *http.Request) (context.Context, bool)
 	if err != nil || sess.IsExpired() {
 		return nil, false
 	}
-	return authenticatedContext(r.Context(), sess.UserID, "cookie", nil), true
+	ctx, err := s.authenticateUser(r.Context(), sess.UserID, "cookie", nil)
+	if err != nil {
+		s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", "cookie", sess.UserID, err)
+		return nil, false
+	}
+	return ctx, true
 }
 
 // optionalOAuthJWTContext verifies an AuthKit bearer JWT for the optional-auth
@@ -441,7 +469,12 @@ func (s *Server) optionalSessionContext(r *http.Request) (context.Context, bool)
 func (s *Server) optionalOAuthJWTContext(r *http.Request, token string) (context.Context, bool) {
 	info, err := s.apiTokenVerifier.Verify(r.Context(), token)
 	if err == nil {
-		return authenticatedContext(r.Context(), info.UserID, "oauth", nil), true
+		ctx, authErr := s.authenticateUser(r.Context(), info.UserID, "oauth", nil)
+		if authErr != nil {
+			s.logSuspendedRejection(r.Context(), "optionalAuthMiddleware", "oauth", info.UserID, authErr)
+			return nil, false
+		}
+		return ctx, true
 	}
 
 	logEntry := contextkeys.GetLoggerFromContext(r.Context()).With(

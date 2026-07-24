@@ -155,6 +155,11 @@ const (
 
 	// Project migration activities
 	ActivityTypeProjectMigrated = "project_migrated"
+
+	// Instance-admin activities (#454). The acting admin is the activity's
+	// user_id; the affected account is the entity_id.
+	ActivityTypeAdminUserSuspended   = "admin_user_suspended"
+	ActivityTypeAdminUserReactivated = "admin_user_reactivated"
 )
 
 // Entity Type Constants
