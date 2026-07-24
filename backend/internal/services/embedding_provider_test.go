@@ -25,7 +25,7 @@ func createTestEmbeddingProviderService(repo repositories.EmbeddingProviderRepos
 	if err != nil {
 		panic(err)
 	}
-	return NewEmbeddingProviderService(repo, enc)
+	return NewEmbeddingProviderService(repo, enc, localDevProviderConfig(), permissiveProviderAuthz{})
 }
 
 func createTestCreateEmbeddingProviderRequest() models.CreateEmbeddingProviderRequest {
@@ -85,7 +85,7 @@ func TestNewEmbeddingProviderService(t *testing.T) {
 	mockRepo := mocks.NewMockEmbeddingProviderRepository(t)
 	enc, err := NewEncryptionService(testEncryptionKey)
 	require.NoError(t, err)
-	service := NewEmbeddingProviderService(mockRepo, enc)
+	service := NewEmbeddingProviderService(mockRepo, enc, localDevProviderConfig(), permissiveProviderAuthz{})
 
 	assert.NotNil(t, service)
 	assert.Equal(t, mockRepo, service.repo)
@@ -642,7 +642,7 @@ func TestEmbeddingProviderService_UpdateEmbeddingProvider(t *testing.T) {
 
 			tt.setup(mockRepo)
 
-			provider, err := service.UpdateEmbeddingProvider(context.Background(), tt.userID, tt.providerID, tt.request)
+			provider, err := service.UpdateEmbeddingProvider(context.Background(), tt.userID, testProviderUserID, tt.providerID, tt.request)
 
 			assertUpdatedEmbeddingProvider(t, tt, provider, err)
 		})
@@ -750,7 +750,7 @@ func TestEmbeddingProviderService_DeleteEmbeddingProvider(t *testing.T) {
 
 			tt.setup(mockRepo)
 
-			err := service.DeleteEmbeddingProvider(context.Background(), tt.userID, tt.providerID)
+			err := service.DeleteEmbeddingProvider(context.Background(), tt.userID, testProviderUserID, tt.providerID)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -859,7 +859,7 @@ func TestEmbeddingProviderService_ValidateEmbeddingProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := service.ValidateEmbeddingProvider(context.Background(), tt.request)
+			resp, err := service.ValidateEmbeddingProvider(context.Background(), testProviderTeamID, testProviderUserID, tt.request)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
@@ -917,11 +917,11 @@ func TestEmbeddingProviderService_nilService(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "EmbeddingProviderService is nil")
 
-	_, err = service.UpdateEmbeddingProvider(ctx, userID, "provider-123", models.UpdateEmbeddingProviderRequest{})
+	_, err = service.UpdateEmbeddingProvider(ctx, userID, testProviderUserID, "provider-123", models.UpdateEmbeddingProviderRequest{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "EmbeddingProviderService is nil")
 
-	err = service.DeleteEmbeddingProvider(ctx, userID, "provider-123")
+	err = service.DeleteEmbeddingProvider(ctx, userID, testProviderUserID, "provider-123")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "EmbeddingProviderService is nil")
 
@@ -929,7 +929,7 @@ func TestEmbeddingProviderService_nilService(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "EmbeddingProviderService is nil")
 
-	_, err = service.ValidateEmbeddingProvider(ctx, models.ValidateEmbeddingProviderRequest{})
+	_, err = service.ValidateEmbeddingProvider(ctx, testProviderTeamID, testProviderUserID, models.ValidateEmbeddingProviderRequest{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "EmbeddingProviderService is nil")
 }
@@ -1152,7 +1152,7 @@ func TestEmbeddingProviderService_UpdateEmbeddingProvider_AppliesAndClearsPrefix
 		QueryPrefix:    stringPtr(""),          // explicit empty string clears it
 		DocumentPrefix: stringPtr("passage: "), // set a new document prefix
 	}
-	_, err := service.UpdateEmbeddingProvider(context.Background(), "user-1", "provider-1", req)
+	_, err := service.UpdateEmbeddingProvider(context.Background(), "user-1", testProviderUserID, "provider-1", req)
 	require.NoError(t, err)
 
 	require.NotNil(t, captured)

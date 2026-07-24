@@ -208,11 +208,14 @@ type EmbeddingProviderServiceInterface interface {
 	) ([]models.EmbeddingProviderResponse, error)
 	GetEmbeddingProvider(ctx context.Context, teamID, providerID string,
 	) (*models.EmbeddingProviderResponse, error)
-	UpdateEmbeddingProvider(ctx context.Context, teamID, providerID string,
+	UpdateEmbeddingProvider(ctx context.Context, teamID, userID, providerID string,
 		req models.UpdateEmbeddingProviderRequest) (*models.EmbeddingProvider, error)
-	DeleteEmbeddingProvider(ctx context.Context, teamID, providerID string) error
+	DeleteEmbeddingProvider(ctx context.Context, teamID, userID, providerID string) error
 	GetDefaultEmbeddingProvider(ctx context.Context, teamID string) (*models.EmbeddingProvider, error)
-	ValidateEmbeddingProvider(ctx context.Context, req models.ValidateEmbeddingProviderRequest,
+	// ValidateEmbeddingProvider probes a caller-supplied base_url, so it takes
+	// teamID/userID: it is authorized like a mutation and SSRF-guarded (#464).
+	ValidateEmbeddingProvider(ctx context.Context, teamID, userID string,
+		req models.ValidateEmbeddingProviderRequest,
 	) (*models.ValidateEmbeddingProviderResponse, error)
 	// ResolveActiveProvider resolves a team's embedding provider used by the
 	// embedding pipeline (document + query embedding). Returns (nil, nil) when the
@@ -231,11 +234,14 @@ type ModelProviderServiceInterface interface {
 	) ([]models.ModelProviderResponse, error)
 	GetModelProvider(ctx context.Context, teamID, providerID string,
 	) (*models.ModelProviderResponse, error)
-	UpdateModelProvider(ctx context.Context, teamID, providerID string,
+	UpdateModelProvider(ctx context.Context, teamID, userID, providerID string,
 		req models.UpdateModelProviderRequest) (*models.ModelProvider, error)
-	DeleteModelProvider(ctx context.Context, teamID, providerID string) error
+	DeleteModelProvider(ctx context.Context, teamID, userID, providerID string) error
 	GetDefaultModelProvider(ctx context.Context, teamID string) (*models.ModelProvider, error)
-	ValidateModelProvider(ctx context.Context, req models.ValidateModelProviderRequest,
+	// ValidateModelProvider probes a caller-supplied base_url, so it takes
+	// teamID/userID: it is authorized like a mutation and SSRF-guarded (#464).
+	ValidateModelProvider(ctx context.Context, teamID, userID string,
+		req models.ValidateModelProviderRequest,
 	) (*models.ValidateModelProviderResponse, error)
 }
 

@@ -51,12 +51,17 @@ var _ ModelProvider = (*OpenAICompatibleModelProvider)(nil)
 // NewOpenAICompatibleModelProvider builds an OpenAICompatibleModelProvider.
 // baseURL and model must be non-empty; apiKey may be empty for endpoints that do
 // not require auth (e.g. a local Ollama).
+// guard is the SSRF policy applied to every request this provider makes; see
+// NewOpenAICompatibleProvider for why it is required.
 func NewOpenAICompatibleModelProvider(
-	baseURL, apiKey, model string, timeout time.Duration,
+	baseURL, apiKey, model string, timeout time.Duration, guard *ssrfGuard,
 ) (*OpenAICompatibleModelProvider, error) {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
 		return nil, fmt.Errorf("model provider base_url is required")
+	}
+	if err := validateProviderBaseURLScheme(baseURL); err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(model) == "" {
 		return nil, fmt.Errorf("model is required")
@@ -65,7 +70,7 @@ func NewOpenAICompatibleModelProvider(
 		timeout = validateModelProviderTimeout
 	}
 	return &OpenAICompatibleModelProvider{
-		httpClient: &http.Client{Timeout: timeout},
+		httpClient: newProviderHTTPClient(guard, timeout),
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		apiKey:     apiKey,
 		model:      model,
@@ -131,8 +136,9 @@ func (p *OpenAICompatibleModelProvider) Validate(
 // this one function so gosec's SSRF/bodyclose analysers stay satisfied.
 func (p *OpenAICompatibleModelProvider) probeModels(ctx context.Context) (int, error) {
 	endpoint := p.baseURL + "/models"
-	// #nosec G107 -- base_url is a caller-supplied bring-your-own provider endpoint that
-	// VibeXP intentionally probes; connecting to it is the whole point of validation.
+	// The destination is caller-supplied on purpose; what bounds it is
+	// p.httpClient's SSRF-guarded transport, which refuses reserved ranges at
+	// dial time. Do not reinstate a #nosec here (#464).
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create models request: %w", err)
@@ -167,8 +173,7 @@ func (p *OpenAICompatibleModelProvider) probeChatCompletions(ctx context.Context
 	}
 
 	endpoint := p.baseURL + "/chat/completions"
-	// #nosec G107 -- base_url is a caller-supplied bring-your-own provider endpoint that
-	// VibeXP intentionally probes; connecting to it is the whole point of validation.
+	// See probeModels: the SSRF-guarded transport is the control, not a #nosec.
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return 0, fmt.Errorf("failed to create chat completions request: %w", err)
@@ -196,9 +201,14 @@ func (p *OpenAICompatibleModelProvider) probeChatCompletions(ctx context.Context
 func describeModelValidationFailure(
 	listStatus int, listErr error, chatStatus int, chatErr error,
 ) (message, detail string) {
+	// detail is a fixed category, never the raw error or the URL: the difference
+	// between "connection refused", "no such host", and a real HTTP status is
+	// exactly the oracle an internal port scan needs (#464). The real error is
+	// logged by the caller.
+	//
 	// A transport error on both probes means the host is unreachable.
 	if listErr != nil && chatErr != nil {
-		return "Failed to reach the model provider - please check your base URL", chatErr.Error()
+		return "Failed to reach the model provider - please check your base URL", providerErrConnectionFailed
 	}
 
 	status := chatStatus
@@ -207,11 +217,11 @@ func describeModelValidationFailure(
 	}
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return "Authentication failed - please check your API key", fmt.Sprintf("provider returned status %d", status)
+		return "Authentication failed - please check your API key", providerErrUnauthorized
 	case http.StatusNotFound:
-		return "Model endpoint not found - please check your base URL", fmt.Sprintf("provider returned status %d", status)
+		return "Model endpoint not found - please check your base URL", providerErrMisconfigured
 	default:
-		return "Failed to validate model provider", fmt.Sprintf("provider returned status %d", status)
+		return "Failed to validate model provider", providerErrConnectionFailed
 	}
 }
 
@@ -220,7 +230,7 @@ func describeModelValidationFailure(
 // additional case here plus its implementation. This is the seam a runtime
 // consumer resolves against — issue #110 wires nothing to it.
 func NewModelProvider(
-	provider *models.ModelProvider, apiKey, model string, timeout time.Duration,
+	provider *models.ModelProvider, apiKey, model string, timeout time.Duration, guard *ssrfGuard,
 ) (ModelProvider, error) {
 	if provider == nil {
 		return nil, fmt.Errorf("model provider is nil")
@@ -232,7 +242,7 @@ func NewModelProvider(
 		if provider.BaseURL != nil {
 			baseURL = *provider.BaseURL
 		}
-		return NewOpenAICompatibleModelProvider(baseURL, apiKey, model, timeout)
+		return NewOpenAICompatibleModelProvider(baseURL, apiKey, model, timeout, guard)
 	default:
 		return nil, fmt.Errorf("unsupported model provider type: %q", provider.ProviderType)
 	}

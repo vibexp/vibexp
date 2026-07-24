@@ -16303,6 +16303,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "409": {
             "description": "A provider with the same name already exists (`PROVIDER_ALREADY_EXISTS`)",
             "content": {
@@ -16588,6 +16598,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Embedding provider not found (`PROVIDER_NOT_FOUND`)",
             "content": {
@@ -16652,6 +16672,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -16735,6 +16765,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -16835,6 +16875,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Validation failed due to an internal service error (`INTERNAL_ERROR`)",
             "content": {
@@ -16909,6 +16959,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -17202,6 +17262,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Embedding provider not found (`PROVIDER_NOT_FOUND`)",
             "content": {
@@ -17266,6 +17336,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -17349,6 +17429,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -17449,6 +17539,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Validation failed due to an internal service error (`INTERNAL_ERROR`)",
             "content": {
@@ -17503,6 +17603,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -17585,6 +17695,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -17813,6 +17933,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Model provider not found (`MODEL_PROVIDER_NOT_FOUND`)",
             "content": {
@@ -17877,6 +18007,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -17977,6 +18117,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Validation failed due to an internal service error (`INTERNAL_ERROR`)",
             "content": {
@@ -18051,6 +18201,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -18279,6 +18439,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Model provider not found (`MODEL_PROVIDER_NOT_FOUND`)",
             "content": {
@@ -18343,6 +18513,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -18435,6 +18615,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {

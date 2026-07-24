@@ -150,6 +150,9 @@ func (s *Server) handleCreateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	teamID := chi.URLParam(r, "team_id")
 	provider, err := s.container.EmbeddingProviderService().CreateEmbeddingProvider(r.Context(), teamID, userID, req)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleCreateEmbeddingProvider",
@@ -404,8 +407,13 @@ func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		oldProvider = nil
 	}
 
-	provider, err := s.container.EmbeddingProviderService().UpdateEmbeddingProvider(r.Context(), teamID, providerID, req)
+	provider, err := s.container.EmbeddingProviderService().UpdateEmbeddingProvider(
+		r.Context(), teamID, userID, providerID, req,
+	)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.handleUpdateEmbeddingProviderError(w, r, userID, providerID, err)
 		return
 	}
@@ -500,8 +508,11 @@ func (s *Server) handleDeleteEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err := s.container.EmbeddingProviderService().DeleteEmbeddingProvider(r.Context(), teamID, providerID)
+	err := s.container.EmbeddingProviderService().DeleteEmbeddingProvider(r.Context(), teamID, userID, providerID)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleDeleteEmbeddingProvider",
@@ -553,6 +564,12 @@ func (s *Server) handleReprocessEmbeddingProvider(w http.ResponseWriter, r *http
 		"user_id", userID,
 		"provider_id", providerID,
 	).Info("Embedding provider reprocess request received")
+
+	// A team-wide re-embed spends the team's provider budget, so it is gated
+	// like the settings that cause it (#464).
+	if !s.requireProviderManagePermission(w, r, userID, teamID) {
+		return
+	}
 
 	if providerID == "" {
 		apiErr := errors.NewProviderValidationError(
@@ -607,6 +624,11 @@ func (s *Server) handleClearEmbeddings(w http.ResponseWriter, r *http.Request) {
 		"team_id", teamID,
 	).Info("Clear embeddings request received")
 
+	// Destructive: this deletes every embedding the team has. Owner/admin only (#464).
+	if !s.requireProviderManagePermission(w, r, userID, teamID) {
+		return
+	}
+
 	deleted, err := s.container.EmbeddingRepository().DeleteByTeam(r.Context(), teamID)
 	if err != nil {
 		s.logger.With(
@@ -635,6 +657,7 @@ func (s *Server) handleClearEmbeddings(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleValidateEmbeddingProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
 		"service", serverLogServiceName,
@@ -656,8 +679,11 @@ func (s *Server) handleValidateEmbeddingProvider(w http.ResponseWriter, r *http.
 		return
 	}
 
-	response, err := s.container.EmbeddingProviderService().ValidateEmbeddingProvider(r.Context(), req)
+	response, err := s.container.EmbeddingProviderService().ValidateEmbeddingProvider(r.Context(), teamID, userID, req)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleValidateEmbeddingProvider",
