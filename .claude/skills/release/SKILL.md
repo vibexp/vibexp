@@ -3,9 +3,10 @@ name: release
 description: >-
   Cut a VibeXP release end to end — preflight checks, trigger + wait on the CI
   E2E suite, generate curated release notes, publish the GitHub Release (which
-  builds & pushes the combined image), then smoke-test the published image
-  locally and hand back a test URL. Use when asked to "create a release", "cut
-  vX.Y.Z", "do a release", or "release VibeXP".
+  builds & pushes the combined image), then post-release run two tracks in
+  parallel — smoke-test the published image locally AND sync the vibexp/docs
+  site to the new version — and hand back a test URL plus the docs PR. Use when
+  asked to "create a release", "cut vX.Y.Z", "do a release", or "release VibeXP".
 ---
 
 # VibeXP Release
@@ -24,7 +25,13 @@ builds and pushes `:X.Y.Z` (+ `:latest` for non-prereleases).
 - **E2E workflow:** `.github/workflows/ci-e2e.yml` — on-demand only
   (`workflow_dispatch`, input `branch`). Not wired to PRs. Must be triggered and
   awaited explicitly (this is a required pre-release gate).
-- **Fast CI:** `ci-backend.yml`, `ci-frontend.yml` run on push/PR.
+- **Fast CI:** one consolidated `ci.yml` workflow named **`CI`** (backend +
+  frontend + Sonar in one run, #390/#391) runs on push/PR — NOT the old split
+  `ci-backend.yml`/`ci-frontend.yml`.
+- **Docs site:** `vibexp/docs` (sibling checkout `../docs`) tracks the latest
+  published release, not `main`. Its own `update-docs` skill
+  (`../docs/.claude/skills/update-docs/SKILL.md`) drives the sync and records the
+  last-synced core version in `../docs/.vibexp-release`.
 - **Compose for self-host / smoke test:** root `docker-compose.yml` tracks `:latest`.
 
 ## Inputs
@@ -52,8 +59,12 @@ approves the notes (Phase 3). Never bypass a failing gate — fix or stop.
 ### Phase 1 — Pre-release checks (E2E gate)
 
 1. Verify the fast CI is green on the release commit:
-   `gh run list --branch main -L 8 --json workflowName,conclusion,headSha`
-   — `CI / Backend` and `CI / Frontend` must be `success` on HEAD.
+   `gh run list --branch main -L 8 --json workflowName,conclusion,status,headSha`
+   — the consolidated **`CI`** workflow must be `completed`/`success` on HEAD
+   (it may still be `in_progress` right after the last merge; watch it to
+   success before proceeding). Ignore the repo-hygiene workflows (`Stale issue
+   lifecycle`, `Project board hygiene`) — they are not build/test gates and
+   `Project board hygiene` fails until an org admin grants the Projects scope.
 2. **Trigger the E2E suite and wait for it to pass** (required):
 
    ```bash
@@ -122,7 +133,20 @@ approves the notes (Phase 3). Never bypass a failing gate — fix or stop.
    done
    ```
 
-### Phase 4 — Post-release smoke test
+### Phase 4 — Post-release: smoke test + docs sync (in parallel)
+
+Once the image is published, run **two independent tracks concurrently** and
+report both when they finish:
+
+- **Track A — smoke test** the published image (below).
+- **Track B — docs sync**: bring `vibexp/docs` up to the new release (below).
+
+The two tracks touch different repos and never conflict, so kick them off
+together (e.g. launch Track B via a background Agent, or interleave the steps)
+rather than serially. Track A ends with a live URL; Track B ends with an
+unmerged docs PR. The release is not "done" until both are reported.
+
+#### Track A — smoke test
 
 Run the **published** image (pinned to the new version) in an isolated compose
 project (separate name + fresh volume so it never touches dev data), wait for
@@ -135,9 +159,10 @@ health, curl the key surfaces, then hand the user a URL.
    until `healthy` (migrations run on boot); tail app logs to confirm
    "Database migrations completed" and "Authorization Server enabled".
 4. Smoke the HTTP surfaces (all must be `200`):
-   `/ping`, `/` (SPA index — expect `<title>VibeXP`, `#root`, `__VIBEXP_ENV__`),
-   `/config.js`, a SPA client route like `/prompts` (catch-all → index),
-   `/api/v1/auth/providers`, `/.well-known/oauth-authorization-server`.
+   `/ping`, `/` (SPA index — expect `<title>VibeXP`, `<div id="root">`,
+   `__VIBEXP_ENV__`), `/config.js`, a SPA client route like `/prompts`
+   (catch-all → index), `/api/v1/auth/providers`,
+   `/.well-known/oauth-authorization-server`.
 5. Report a results table and give the user **http://localhost:8080** to test.
    `FRONTEND_BASE_URL=http://localhost:8080` puts it in local mode (dev-login
    bypass on), so they can sign in without configuring a provider.
@@ -190,13 +215,49 @@ volumes: { pgdata: {} }
 networks: { vibexp: { driver: bridge } }
 ```
 
+#### Track B — docs sync
+
+Bring the documentation site up to the release you just published. The docs
+site (`vibexp/docs`) **tracks the latest published release, never `main`**, so
+a fresh `vX.Y.Z` is exactly when it needs syncing. This runs concurrently with
+Track A.
+
+1. Ensure the docs checkout exists as a sibling (`../docs`, relative to this
+   repo). If missing, clone it:
+   `git clone https://github.com/vibexp/docs.git ../docs`.
+2. Delegate the whole sync to the docs repo's own **`update-docs`** skill
+   (`../docs/.claude/skills/update-docs/SKILL.md`) scoped to `core`. That skill
+   owns the real work: it audits every in-scope doc page against the vibexp
+   source **at the `vX.Y.Z` tag** with file:line evidence, fixes/adds/removes
+   content, bumps `../docs/.vibexp-release` to the new tag, validates the build
+   (`npm run build/lint/typecheck/test`), opens a PR, and runs its review loop.
+   Do not re-implement that flow here — invoke it. (Prefer running it as a
+   background Agent so Track A proceeds in parallel; the audit + review loop can
+   take a while.)
+   - **Source-tree note:** the freshly published `vX.Y.Z` tag == current `main`
+     HEAD, so if the sibling `../vibexp` checkout is clean on `main` at that
+     commit, its working tree already *is* the v-tag source — the audit can read
+     it in place with no `git checkout` (which avoids disturbing a running
+     hot-reload dev server). Only check out the tag if the checkout has drifted.
+3. Per its own hard rule, `update-docs` **stops at an unmerged, review-approved
+   PR** — never merge it here. The human merges the docs PR separately.
+
+If the docs are already in sync (marker already at `vX.Y.Z`), `update-docs`
+reports that and makes no PR — pass that through.
+
 ## Guardrails
 
 - STOP (do not publish) if: working tree dirty / not synced, fast CI not green,
   the **E2E run fails**, the tag/release already exists, or the user has not
   approved the notes.
-- Never `git commit/push --no-verify`. This skill does not itself commit to the
-  repo — it operates on an already-merged `main`.
+- Never `git commit/push --no-verify`. This skill makes **no commit to
+  `vibexp/vibexp`** — it operates on an already-merged `main`. The only writes
+  it produces are in Track B, and those land as an **unmerged PR in
+  `vibexp/docs`** (opened by the delegated `update-docs` skill).
+- **Never merge the docs PR.** Track B ends at a review-approved, unmerged PR;
+  the human merges it. Do not merge even with admin rights.
 - The isolated smoke project must use a version-specific name + its own volume;
   never reuse the self-host `docker-compose.yml` project or its data.
 - Keep temp files (notes, smoke compose) in the scratchpad, not the repo.
+- The release is complete only after **both** tracks are reported: the smoke-test
+  URL (Track A) and the docs PR URL / "already in sync" (Track B).
