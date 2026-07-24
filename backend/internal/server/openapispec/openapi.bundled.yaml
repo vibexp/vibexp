@@ -9566,6 +9566,113 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/dashboard/overview:
+    get:
+      summary: Get admin dashboard overview
+      description: |
+        Returns instance-wide entity totals, status/type breakdowns, and system
+        health (database size and per-table estimated row counts), plus the running
+        backend version. Computed on demand — there are no rollup tables.
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: getAdminDashboardOverview
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Dashboard overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardOverview'
+        '404':
+          description: Not found — the caller is not an instance admin (surface not advertised)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/dashboard/timeseries:
+    get:
+      summary: Get admin dashboard time series
+      description: |
+        Returns growth, sign-in, and resource-access-by-source counts bucketed over
+        a time range. Omitting the parameters yields the last 30 days at `day`
+        granularity. Every bucket in the range is present in every series with an
+        explicit 0.
+
+        Both event sources are TTL-pruned (config `retention.activity_days` and
+        `retention.access_event_days`), so the response carries a `data_window`
+        stating the earliest instant for which data still exists — a range older
+        than that legitimately reads as zeros rather than missing data.
+
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: getAdminDashboardTimeseries
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: from
+          in: query
+          description: Inclusive start of the range. Defaults to 30 days before `to`.
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Exclusive end of the range. Defaults to now.
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: granularity
+          in: query
+          description: Bucket size.
+          required: false
+          schema:
+            type: string
+            enum:
+              - day
+              - week
+              - month
+            default: day
+      responses:
+        '200':
+          description: Bucketed time series for the requested range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTimeseriesResponse'
+        '400':
+          description: |
+            Bad request — `to` is not after `from`, the range exceeds the maximum
+            span, or `granularity` is outside its enum
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin (surface not advertised)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/{team_id}/comments:
     get:
       summary: List a resource's comments
@@ -19714,6 +19821,298 @@ components:
           description: The team's members.
           items:
             $ref: '#/components/schemas/AdminTeamMember'
+    AdminExtendedCounts:
+      type: object
+      description: |
+        Instance-wide totals for every top-level entity. A superset of
+        AdminInstanceCounts, which stays as-is for the legacy stats endpoint.
+      required:
+        - users
+        - teams
+        - projects
+        - prompts
+        - artifacts
+        - memories
+        - blueprints
+        - agents
+        - feeds
+        - api_keys
+      properties:
+        users:
+          type: integer
+          format: int64
+          example: 42
+        teams:
+          type: integer
+          format: int64
+          example: 12
+        projects:
+          type: integer
+          format: int64
+          example: 30
+        prompts:
+          type: integer
+          format: int64
+          example: 340
+        artifacts:
+          type: integer
+          format: int64
+          example: 128
+        memories:
+          type: integer
+          format: int64
+          example: 512
+        blueprints:
+          type: integer
+          format: int64
+          example: 64
+        agents:
+          type: integer
+          format: int64
+          example: 9
+        feeds:
+          type: integer
+          format: int64
+          example: 4
+        api_keys:
+          type: integer
+          format: int64
+          example: 17
+    AdminBreakdownBucket:
+      type: object
+      description: One value of a grouped column plus how many rows carry it.
+      required:
+        - value
+        - count
+      properties:
+        value:
+          type: string
+          description: The column value. NULL values are reported as an empty string.
+          example: active
+        count:
+          type: integer
+          format: int64
+          example: 120
+    AdminEntityBreakdown:
+      type: object
+      description: A GROUP BY over one status/type column of one entity table.
+      required:
+        - entity
+        - field
+        - buckets
+      properties:
+        entity:
+          type: string
+          description: The entity table the breakdown covers.
+          example: prompts
+        field:
+          type: string
+          description: The grouped column.
+          example: status
+        buckets:
+          type: array
+          description: One entry per distinct value, most frequent first.
+          items:
+            $ref: '#/components/schemas/AdminBreakdownBucket'
+    AdminTableStat:
+      type: object
+      description: Approximate row count for one table.
+      required:
+        - table
+        - estimated_rows
+      properties:
+        table:
+          type: string
+          example: prompts
+        estimated_rows:
+          type: integer
+          format: int64
+          description: |
+            ESTIMATE from pg_stat_user_tables.n_live_tup, not an exact COUNT(*) —
+            an exact per-table count does not scale and this figure is only meant
+            for relative sizing. Freshness depends on autovacuum/ANALYZE.
+          example: 34012
+    AdminSystemHealth:
+      type: object
+      description: Instance storage health.
+      required:
+        - database_size_bytes
+        - tables
+      properties:
+        database_size_bytes:
+          type: integer
+          format: int64
+          description: pg_database_size(current_database()).
+          example: 184549376
+        tables:
+          type: array
+          description: Per-table estimated row counts, largest first.
+          items:
+            $ref: '#/components/schemas/AdminTableStat'
+    AdminDashboardOverview:
+      type: object
+      description: Totals, breakdowns and system health (GET /api/v1/admin/dashboard/overview).
+      required:
+        - counts
+        - breakdowns
+        - system_health
+        - version
+      properties:
+        counts:
+          $ref: '#/components/schemas/AdminExtendedCounts'
+        breakdowns:
+          type: array
+          description: One entry per entity/column pair that has a status or type column.
+          items:
+            $ref: '#/components/schemas/AdminEntityBreakdown'
+        system_health:
+          $ref: '#/components/schemas/AdminSystemHealth'
+        version:
+          type: string
+          description: The running backend application version ("dev" when unset).
+          example: 1.2.3
+    AdminGrowthPoint:
+      type: object
+      description: New rows created per entity within one time bucket.
+      required:
+        - bucket
+        - users
+        - teams
+        - projects
+        - prompts
+        - artifacts
+        - memories
+      properties:
+        bucket:
+          type: string
+          format: date-time
+          description: Start of the bucket, in UTC.
+        users:
+          type: integer
+          format: int64
+        teams:
+          type: integer
+          format: int64
+        projects:
+          type: integer
+          format: int64
+        prompts:
+          type: integer
+          format: int64
+        artifacts:
+          type: integer
+          format: int64
+        memories:
+          type: integer
+          format: int64
+    AdminCountPoint:
+      type: object
+      description: A single count within one time bucket.
+      required:
+        - bucket
+        - count
+      properties:
+        bucket:
+          type: string
+          format: date-time
+          description: Start of the bucket, in UTC.
+        count:
+          type: integer
+          format: int64
+    AdminSourcePoint:
+      type: object
+      description: A count for one access source within one time bucket.
+      required:
+        - bucket
+        - source
+        - count
+      properties:
+        bucket:
+          type: string
+          format: date-time
+          description: Start of the bucket, in UTC.
+        source:
+          type: string
+          description: Access source (e.g. "web", "cli", "mcp").
+          example: mcp
+        count:
+          type: integer
+          format: int64
+    AdminDataWindow:
+      type: object
+      description: |
+        Earliest instant for which event data still exists. Both source tables are
+        TTL-pruned (config retention.activity_days / retention.access_event_days),
+        so a chart asking for a range older than these values will legitimately show
+        zeros rather than missing data.
+      required:
+        - sign_ins_earliest_retained_at
+        - access_by_source_earliest_retained_at
+      properties:
+        sign_ins_earliest_retained_at:
+          type: string
+          format: date-time
+          description: now() - retention.activity_days.
+        access_by_source_earliest_retained_at:
+          type: string
+          format: date-time
+          description: now() - retention.access_event_days.
+    AdminTimeseriesResponse:
+      type: object
+      description: |
+        Bucketed metrics over a time range (GET /api/v1/admin/dashboard/timeseries).
+        Every bucket in the requested range is present in every series with an
+        explicit 0 — the series are gap-filled, never sparse.
+      required:
+        - from
+        - to
+        - granularity
+        - growth
+        - sign_ins
+        - access_by_source
+        - data_window
+      properties:
+        from:
+          type: string
+          format: date-time
+          description: |
+            Inclusive start of the range actually used. This is snapped DOWN to the
+            start of its bucket, so it may precede the requested `from` (asking for
+            2026-07-15 at month granularity reports and queries 2026-07-01). Buckets
+            are therefore always whole, never partial at the head.
+        to:
+          type: string
+          format: date-time
+          description: |
+            Exclusive end of the range actually used (after defaulting). This is NOT
+            snapped, so the final bucket may cover only part of its period.
+        granularity:
+          type: string
+          enum:
+            - day
+            - week
+            - month
+          description: Bucket size actually used.
+        growth:
+          type: array
+          description: New entities per bucket, ascending by bucket.
+          items:
+            $ref: '#/components/schemas/AdminGrowthPoint'
+        sign_ins:
+          type: array
+          description: Successful sign-ins per bucket (activities.auth_login), ascending.
+          items:
+            $ref: '#/components/schemas/AdminCountPoint'
+        access_by_source:
+          type: array
+          description: |
+            Resource accesses per bucket per source, ascending by bucket then source.
+            Only sources actually observed in the range appear; a source with no
+            events in a bucket is gap-filled to 0 for the sources that do appear.
+          items:
+            $ref: '#/components/schemas/AdminSourcePoint'
+        data_window:
+          $ref: '#/components/schemas/AdminDataWindow'
     ProjectResponse:
       allOf:
         - $ref: '#/components/schemas/Project'

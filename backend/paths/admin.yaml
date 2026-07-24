@@ -331,3 +331,112 @@ api-v1-admin-teams-id:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-dashboard-overview:
+  get:
+    summary: Get admin dashboard overview
+    description: |
+      Returns instance-wide entity totals, status/type breakdowns, and system
+      health (database size and per-table estimated row counts), plus the running
+      backend version. Computed on demand — there are no rollup tables.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: getAdminDashboardOverview
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Dashboard overview
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminDashboardOverview'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-dashboard-timeseries:
+  get:
+    summary: Get admin dashboard time series
+    description: |
+      Returns growth, sign-in, and resource-access-by-source counts bucketed over
+      a time range. Omitting the parameters yields the last 30 days at `day`
+      granularity. Every bucket in the range is present in every series with an
+      explicit 0.
+
+      Both event sources are TTL-pruned (config `retention.activity_days` and
+      `retention.access_event_days`), so the response carries a `data_window`
+      stating the earliest instant for which data still exists — a range older
+      than that legitimately reads as zeros rather than missing data.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: getAdminDashboardTimeseries
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: from
+        in: query
+        description: Inclusive start of the range. Defaults to 30 days before `to`.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: Exclusive end of the range. Defaults to now.
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: granularity
+        in: query
+        description: Bucket size.
+        required: false
+        schema:
+          type: string
+          enum:
+            - day
+            - week
+            - month
+          default: day
+    responses:
+      '200':
+        description: Bucketed time series for the requested range
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminTimeseriesResponse'
+      '400':
+        description: |
+          Bad request — `to` is not after `from`, the range exceeds the maximum
+          span, or `granularity` is outside its enum
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'

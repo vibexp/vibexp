@@ -996,6 +996,32 @@ type AdminRepository interface {
 	// GetTeamDetail returns one team with owner and member list, or (nil, nil)
 	// when no team with that id exists.
 	GetTeamDetail(ctx context.Context, id string) (*models.AdminTeamDetail, error)
+
+	// GetExtendedCounts returns unscoped COUNT(*) totals for every top-level
+	// entity (a superset of GetInstanceCounts).
+	GetExtendedCounts(ctx context.Context) (models.AdminExtendedCounts, error)
+	// GetEntityBreakdowns returns a GROUP BY per entity table that has a status
+	// or type column, buckets ordered most frequent first.
+	GetEntityBreakdowns(ctx context.Context) ([]models.AdminEntityBreakdown, error)
+	// GetSystemHealth returns the database size plus per-table ESTIMATED row
+	// counts (pg_stat_user_tables.n_live_tup, not an exact COUNT(*)).
+	GetSystemHealth(ctx context.Context) (models.AdminSystemHealth, error)
+	// GetGrowthSeries returns SPARSE (entity, bucket, count) rows for rows
+	// created in [from, to); the caller pivots and gap-fills. granularity is
+	// mapped to a date_trunc unit through an allowlist.
+	GetGrowthSeries(
+		ctx context.Context, from, to time.Time, granularity string,
+	) ([]models.AdminGrowthCount, error)
+	// GetSignInSeries returns SPARSE (bucket, count) rows of successful sign-ins
+	// in [from, to); the caller gap-fills.
+	GetSignInSeries(
+		ctx context.Context, from, to time.Time, granularity string,
+	) ([]models.AdminCountPoint, error)
+	// GetAccessBySourceSeries returns SPARSE (bucket, source, count) rows in
+	// [from, to); the caller gap-fills.
+	GetAccessBySourceSeries(
+		ctx context.Context, from, to time.Time, granularity string,
+	) ([]models.AdminSourcePoint, error)
 }
 
 // BlueprintRepository defines the interface for blueprint data access operations
