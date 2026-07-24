@@ -96,6 +96,7 @@ func newImportLoggingService(
 		encryptionSvc,
 		nil, // attachmentSvc not needed
 		eventManager,
+		allowAllAuthz{},
 		logger,
 	).(*GitHubAppService)
 }

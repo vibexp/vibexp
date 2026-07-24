@@ -15,6 +15,17 @@ import (
 // so the stored installation record must be treated as dead, not retried.
 var ErrGitHubInstallationGone = errors.New("github app installation no longer exists")
 
+// ErrGitHubUserAuthNotConfigured signals that the GitHub App's OAuth
+// credentials (client id / secret) are absent, so the install callback cannot
+// establish that the caller has access to the installation. Callers must fail
+// closed on this error rather than falling back to the app-JWT-only path (#463).
+var ErrGitHubUserAuthNotConfigured = errors.New("github app user authorization is not configured")
+
+// ErrGitHubUserCodeInvalid signals that GitHub rejected the authorization code
+// submitted with an install callback (expired, replayed, or minted for a
+// different app).
+var ErrGitHubUserCodeInvalid = errors.New("github authorization code is invalid or expired")
+
 // EmailProvider defines the interface for email delivery providers
 type EmailProvider interface {
 	SendEmail(ctx context.Context, message *gomail.EmailMessage) error
@@ -88,4 +99,25 @@ type GitHubAppClient interface {
 	// EvictCachedClient removes the cached GitHub client for the given installationID.
 	// Call this when an installation is disconnected to prevent stale entries.
 	EvictCachedClient(installationID int64)
+
+	// ExchangeUserCode exchanges the authorization code GitHub appends to the
+	// post-install redirect for a *user* access token. Unlike every other method
+	// here it authenticates as the installing human, not as the App, which is
+	// what makes it usable as a proof of authority. Returns
+	// ErrGitHubUserAuthNotConfigured when no OAuth credentials are configured
+	// and ErrGitHubUserCodeInvalid when GitHub rejects the code.
+	ExchangeUserCode(ctx context.Context, code string) (string, error)
+
+	// UserCanAccessInstallation reports whether installationID appears in the
+	// installation list of the user behind userToken (GET /user/installations).
+	//
+	// Scope of the guarantee, precisely: that endpoint lists installations
+	// *accessible to* the authenticated user — not only ones they administer.
+	// For an org installation that includes ordinary members with repository
+	// access. So a true result proves the caller is an insider of that
+	// installation, which is what the install callback needs (#463): it reduces
+	// "any authenticated VibeXP user may claim any installation" to "only
+	// someone who already has access to it may". Do not treat it as proof of
+	// admin rights.
+	UserCanAccessInstallation(ctx context.Context, userToken string, installationID int64) (bool, error)
 }

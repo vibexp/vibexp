@@ -32,6 +32,11 @@ import (
 const githubTestUserID = "user-github-123"
 const githubTestTeamID = "550e8400-e29b-41d4-a716-446655440001"
 
+// githubTestInstallCode is the OAuth authorization code the install-callback
+// tests submit. The handler only requires it to be non-empty; proving the
+// caller's authority with it is the service's job (#463).
+const githubTestInstallCode = "gh-install-code"
+
 // =============================================================================
 // Mock Activity Service for tracking calls
 // =============================================================================
@@ -125,10 +130,18 @@ type GitHubTestContainer struct {
 	mock.Mock
 	gitHubAppService *svcmocks.MockGitHubAppServiceInterface
 	activitySvc      activities.ActivityService
+	// authzService gates handler-level permission checks (install-url, #463).
+	// BaseMockContainer returns nil, which would panic the moment a handler
+	// consults it, so tests that reach one must set this.
+	authzService services.AuthorizationServiceInterface
 }
 
 func (c *GitHubTestContainer) GitHubAppService() services.GitHubAppServiceInterface {
 	return c.gitHubAppService
+}
+
+func (c *GitHubTestContainer) AuthorizationService() services.AuthorizationServiceInterface {
+	return c.authzService
 }
 func (c *GitHubTestContainer) ActivityService() activities.ActivityService { return c.activitySvc }
 func (c *GitHubTestContainer) ResourceAccessService() resourceaccess.ResourceAccessService {

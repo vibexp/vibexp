@@ -6,10 +6,22 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
+	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/pkg/events"
 )
+
+// ErrInstallationNotAuthorized is returned when the caller cannot be shown to
+// have access to the GitHub App installation they are trying to bind to their
+// team.
+var ErrInstallationNotAuthorized = errors.New("you are not authorized to connect this GitHub installation")
+
+// ErrGitHubUserAuthUnavailable is returned when the GitHub App's OAuth
+// credentials are not configured, so caller authority cannot be established.
+// The callback fails closed rather than falling back to the app-JWT-only path.
+var ErrGitHubUserAuthUnavailable = errors.New("github app user authorization is not configured")
 
 // HandleInstallationCallback processes the installation callback from GitHub.
 // Returns (reconnected, error) where reconnected=true means the same team reconnected an existing installation.
@@ -17,7 +29,25 @@ func (s *GitHubAppService) HandleInstallationCallback(
 	ctx context.Context,
 	userID, teamID string,
 	installationID int64,
+	code string,
 ) (bool, error) {
+	// Connecting a GitHub org grants the whole team read access to its private
+	// source — an owner/admin decision, not a member one (#463).
+	if authzErr := s.authz.Can(ctx, userID, teamID, authz.TeamUpdate); authzErr != nil {
+		return false, authzErr
+	}
+
+	// Establish that the caller is an insider of this installation BEFORE
+	// touching it. The signed state only proves a VibeXP user started an install
+	// flow for a team they can access — it says nothing about who owns
+	// installationID, and GetInstallation below authenticates as the App, so it
+	// resolves every installation regardless of who is asking. The check lives
+	// here rather than in the handler so no future caller can reach the store
+	// path without it (#463).
+	if err := s.verifyCallerCanAccessInstallation(ctx, code, installationID); err != nil {
+		return false, err
+	}
+
 	// Get installation details from GitHub
 	installationInfo, err := s.githubClient.GetInstallation(ctx, installationID)
 	if err != nil {
@@ -66,6 +96,41 @@ func (s *GitHubAppService) HandleInstallationCallback(
 	}
 
 	return reconnected, nil
+}
+
+// verifyCallerCanAccessInstallation exchanges GitHub's post-install code for a
+// user access token and requires installationID to be one that user can reach.
+// Any failure is a denial: an unusable code, an installation the user has no
+// access to, and absent OAuth credentials all stop the bind.
+func (s *GitHubAppService) verifyCallerCanAccessInstallation(
+	ctx context.Context, code string, installationID int64,
+) error {
+	if code == "" {
+		return ErrInstallationNotAuthorized
+	}
+
+	userToken, err := s.githubClient.ExchangeUserCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, external.ErrGitHubUserAuthNotConfigured) {
+			return ErrGitHubUserAuthUnavailable
+		}
+		if errors.Is(err, external.ErrGitHubUserCodeInvalid) {
+			return ErrInstallationNotAuthorized
+		}
+		return fmt.Errorf("failed to exchange installation authorization code: %w", err)
+	}
+
+	accessible, err := s.githubClient.UserCanAccessInstallation(ctx, userToken, installationID)
+	if err != nil {
+		return fmt.Errorf("failed to verify installation access: %w", err)
+	}
+	if !accessible {
+		s.logger.With("installation_id", installationID).
+			Warn("Rejected install callback for an installation the caller cannot access")
+		return ErrInstallationNotAuthorized
+	}
+
+	return nil
 }
 
 // detectInstallationReconnection checks whether installationID is already connected.

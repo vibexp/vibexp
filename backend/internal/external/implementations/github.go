@@ -48,6 +48,11 @@ type GitHubAppClient struct {
 	// installation-token traffic is routed to this URL instead of github.com.
 	// NewGitHubAppClient never sets it, so it is always empty in production.
 	baseURL string
+	// oauthBaseURL is the test-only seam for the OAuth token endpoint. It is
+	// separate from baseURL because the token exchange lives on github.com
+	// rather than the API host, so WithEnterpriseURLs does not cover it.
+	// NewGitHubAppClient never sets it; empty means githubOAuthBaseURL.
+	oauthBaseURL string
 }
 
 // NewGitHubAppClient creates a new GitHub App client
@@ -732,6 +737,18 @@ func (s *stubGitHubAppClient) GetBranchHeadSHA(
 
 func (s *stubGitHubAppClient) EvictCachedClient(_ int64) {
 	// Intentionally empty: the stub caches no clients, so there is nothing to evict.
+}
+
+func (s *stubGitHubAppClient) ExchangeUserCode(ctx context.Context, code string) (string, error) {
+	return "", external.ErrGitHubUserAuthNotConfigured
+}
+
+func (s *stubGitHubAppClient) UserCanAccessInstallation(
+	ctx context.Context,
+	userToken string,
+	installationID int64,
+) (bool, error) {
+	return false, fmt.Errorf("GitHub App not configured")
 }
 
 // EvictCachedClient removes the cached GitHub client for the given installationID.

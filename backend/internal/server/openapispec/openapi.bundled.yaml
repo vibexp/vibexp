@@ -4511,7 +4511,7 @@ paths:
   /api/v1/{team_id}/integrations/github/install-url:
     get:
       summary: Get GitHub App installation URL
-      description: Returns a signed GitHub App installation URL with CSRF protection. Requires an active subscription.
+      description: Returns a signed GitHub App installation URL with CSRF protection. Requires team owner/admin — the same permission as completing the callback, so a caller cannot start an install they would be refused at the end of. Requires an active subscription.
       operationId: getGitHubInstallURL
       security:
         - BearerAuth: []
@@ -4536,7 +4536,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden - user does not have access to this team
+          description: Forbidden - user does not have access to this team, or is not a team owner/admin
           content:
             application/problem+json:
               schema:
@@ -4554,8 +4554,11 @@ paths:
       summary: Handle GitHub App installation callback
       description: |
         Completes the GitHub App installation flow after the user authorizes the app on GitHub.
-        The request must include the `installation_id` returned by GitHub and the signed `state`
-        parameter from the install URL to prevent CSRF attacks. Requires an active subscription.
+        The request must include the `installation_id` returned by GitHub, the signed `state`
+        parameter from the install URL (CSRF protection), and the `code` GitHub appends to the
+        post-install redirect. The `code` is exchanged for a user access token and the
+        installation is only bound to the team when that user has access to it on GitHub — a valid
+        `state` alone is not sufficient. Requires team owner/admin and an active subscription.
       operationId: handleGitHubCallback
       security:
         - BearerAuth: []
@@ -4585,10 +4588,15 @@ paths:
                 state:
                   type: string
                   description: HMAC-signed state parameter from the install URL (CSRF protection)
-                  example: team-id:1234567890:signature
+                  example: team-id:0:1234567890:signature
+                code:
+                  type: string
+                  description: OAuth authorization code from GitHub's post-install redirect. Exchanged server-side for a user access token to verify the caller has access to the installation on GitHub.
+                  example: abc123def456
               required:
                 - installation_id
                 - state
+                - code
       responses:
         '201':
           description: GitHub App installation connected successfully
@@ -4609,7 +4617,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden - state does not match team or user lacks access
+          description: Forbidden - state does not match team, the caller is not a team owner/admin, or the caller has no access to the submitted GitHub App installation on GitHub
           content:
             application/problem+json:
               schema:
@@ -4622,6 +4630,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: GitHub App user authorization is not configured on this instance, so caller authority cannot be verified and the installation is not connected
           content:
             application/problem+json:
               schema:

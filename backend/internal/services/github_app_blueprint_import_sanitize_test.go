@@ -27,7 +27,7 @@ func newSanitizeTestService() (*GitHubAppService, *MockBlueprintRepository) {
 
 	svc := NewGitHubAppService(
 		installationRepo, projectRepo, blueprintRepo,
-		githubClient, encryptionSvc, nil, eventManager, logger,
+		githubClient, encryptionSvc, nil, eventManager, allowAllAuthz{}, logger,
 	)
 	return svc.(*GitHubAppService), blueprintRepo
 }

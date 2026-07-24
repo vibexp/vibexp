@@ -15,11 +15,21 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// newCallbackTestService creates a GitHubAppService with the given mock deps for callback tests.
-func newCallbackTestService(
+const (
+	// testInstallCode is the authorization code the callback tests submit.
+	testInstallCode = "gh-install-code"
+	// testInstallerGrant is what ExchangeUserCode hands back for testInstallCode.
+	testInstallerGrant = "gh-installer-grant"
+)
+
+// newCallbackTestServiceWithAuthz creates a GitHubAppService with the given mock
+// deps and authorization double. Callers stub the caller-authority leg (#463)
+// on githubClient themselves.
+func newCallbackTestServiceWithAuthz(
 	installationRepo *MockGitHubInstallationRepository,
 	githubClient *MockGitHubAppClient,
 	eventManager *MockEventPublisher,
+	authzSvc AuthorizationServiceInterface,
 ) GitHubAppServiceInterface {
 	projectRepo := new(MockProjectRepository)
 	blueprintRepo := new(MockBlueprintRepository)
@@ -34,8 +44,30 @@ func newCallbackTestService(
 		encryptionSvc,
 		nil, // attachmentSvc not needed
 		eventManager,
+		authzSvc,
 		logger,
 	)
+}
+
+// expectAuthorizedInstaller stubs the #463 caller-authority leg as passing, so
+// tests about the storage mechanics are not also asserting the authority check.
+func expectAuthorizedInstaller(githubClient *MockGitHubAppClient) {
+	githubClient.On("ExchangeUserCode", mock.Anything, testInstallCode).
+		Return(testInstallerGrant, nil)
+	githubClient.On("UserCanAccessInstallation", mock.Anything, testInstallerGrant, mock.Anything).
+		Return(true, nil)
+}
+
+// newCallbackTestService creates a GitHubAppService with the given mock deps for
+// callback tests, as a caller who is both permitted and can access the
+// installation.
+func newCallbackTestService(
+	installationRepo *MockGitHubInstallationRepository,
+	githubClient *MockGitHubAppClient,
+	eventManager *MockEventPublisher,
+) GitHubAppServiceInterface {
+	expectAuthorizedInstaller(githubClient)
+	return newCallbackTestServiceWithAuthz(installationRepo, githubClient, eventManager, allowAllAuthz{})
 }
 
 // sampleInstallationInfo returns a reusable GitHubInstallationInfo for tests.
@@ -81,7 +113,7 @@ func TestHandleInstallationCallback_NewInstallation(t *testing.T) {
 
 	svc := newCallbackTestService(installationRepo, githubClient, eventManager)
 
-	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID)
+	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID, testInstallCode)
 
 	assert.NoError(t, err)
 	assert.False(t, reconnected, "new installation should have reconnected=false")
@@ -133,7 +165,7 @@ func TestHandleInstallationCallback_SameTeamReconnect(t *testing.T) {
 
 	svc := newCallbackTestService(installationRepo, githubClient, eventManager)
 
-	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID)
+	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID, testInstallCode)
 
 	assert.NoError(t, err)
 	assert.True(t, reconnected, "same-team reconnect should have reconnected=true")
@@ -170,7 +202,7 @@ func TestHandleInstallationCallback_CrossTeamConflict(t *testing.T) {
 
 	svc := newCallbackTestService(installationRepo, githubClient, eventManager)
 
-	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID)
+	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID, testInstallCode)
 
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrInstallationAlreadyConnected),
@@ -199,7 +231,7 @@ func TestHandleInstallationCallback_GetInstallationError(t *testing.T) {
 
 	svc := newCallbackTestService(installationRepo, githubClient, eventManager)
 
-	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID)
+	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID, testInstallCode)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get installation info")
@@ -247,7 +279,7 @@ func TestHandleInstallationCallback_ExistingByTeamIDOnly(t *testing.T) {
 
 	svc := newCallbackTestService(installationRepo, githubClient, eventManager)
 
-	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID)
+	reconnected, err := svc.HandleInstallationCallback(context.Background(), userID, teamID, installationID, testInstallCode)
 
 	assert.NoError(t, err)
 	assert.True(t, reconnected, "team had an existing installation record so reconnected should be true")
