@@ -63,16 +63,35 @@ func validateProviderBaseURLScheme(baseURL string) error {
 // connect time — this is what covers DNS rebinding, and it applies to the stored
 // provider's runtime traffic, not only the validate probe.
 //
+// It also covers REDIRECTS, which URL-level validation alone would miss: the
+// client follows a 3xx with the same transport, so a public endpoint answering
+// `302 Location: http://169.254.169.254/` still has to dial, and the hook
+// rejects it there.
+//
 // A nil guard falls back to the fail-closed production policy rather than an
 // unguarded client, so forgetting to thread one through cannot silently reopen
 // the hole.
+//
+// Pool settings mirror newAgentCardHTTPClient: the previous bare
+// &http.Client{Timeout} used http.DefaultTransport's shared pool, so an untuned
+// per-provider transport would quietly drop connection reuse for the embedding
+// worker, which issues many requests per run.
 func newProviderHTTPClient(guard *ssrfGuard, timeout time.Duration) *http.Client {
 	if guard == nil {
 		guard = defaultSSRFGuard
 	}
+	transport := guard.newSSRFSafeTransport(&http.Transport{
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		MaxConnsPerHost:       50,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
+	})
 	return &http.Client{
 		Timeout:   timeout,
-		Transport: guard.newSSRFSafeTransport(&http.Transport{}),
+		Transport: transport,
 	}
 }
 
