@@ -17,8 +17,8 @@ var ErrGitHubInstallationGone = errors.New("github app installation no longer ex
 
 // ErrGitHubUserAuthNotConfigured signals that the GitHub App's OAuth
 // credentials (client id / secret) are absent, so the install callback cannot
-// prove the caller may administer the installation. Callers must fail closed
-// on this error rather than falling back to the app-JWT-only path (#463).
+// establish that the caller has access to the installation. Callers must fail
+// closed on this error rather than falling back to the app-JWT-only path (#463).
 var ErrGitHubUserAuthNotConfigured = errors.New("github app user authorization is not configured")
 
 // ErrGitHubUserCodeInvalid signals that GitHub rejected the authorization code

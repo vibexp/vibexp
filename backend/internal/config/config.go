@@ -340,7 +340,7 @@ type GitHubConfig struct {
 	WebhookSecret string `koanf:"webhook_secret"`
 	// AppClientID / AppClientSecret are the GitHub App's OAuth credentials, used
 	// to exchange the `code` GitHub returns after an install for a *user* access
-	// token. That token is what proves the caller may administer the submitted
+	// token. That token is what shows the caller has access to the submitted
 	// installation (#463) — without it the install callback fails closed, so
 	// both must be set (and "Request user authorization (OAuth) during
 	// installation" enabled on the App) for the GitHub integration to work.

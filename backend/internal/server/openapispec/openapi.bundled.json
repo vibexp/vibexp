@@ -6931,7 +6931,7 @@
     "/api/v1/{team_id}/integrations/github/callback": {
       "post": {
         "summary": "Handle GitHub App installation callback",
-        "description": "Completes the GitHub App installation flow after the user authorizes the app on GitHub.\nThe request must include the `installation_id` returned by GitHub, the signed `state`\nparameter from the install URL (CSRF protection), and the `code` GitHub appends to the\npost-install redirect. The `code` is exchanged for a user access token and the\ninstallation is only bound to the team when that user can administer it — a valid\n`state` alone is not sufficient. Requires team owner/admin and an active subscription.\n",
+        "description": "Completes the GitHub App installation flow after the user authorizes the app on GitHub.\nThe request must include the `installation_id` returned by GitHub, the signed `state`\nparameter from the install URL (CSRF protection), and the `code` GitHub appends to the\npost-install redirect. The `code` is exchanged for a user access token and the\ninstallation is only bound to the team when that user has access to it on GitHub — a valid\n`state` alone is not sufficient. Requires team owner/admin and an active subscription.\n",
         "operationId": "handleGitHubCallback",
         "security": [
           {
@@ -6974,7 +6974,7 @@
                   },
                   "code": {
                     "type": "string",
-                    "description": "OAuth authorization code from GitHub's post-install redirect. Exchanged server-side for a user access token to verify the caller may administer the installation.",
+                    "description": "OAuth authorization code from GitHub's post-install redirect. Exchanged server-side for a user access token to verify the caller has access to the installation on GitHub.",
                     "example": "abc123def456"
                   }
                 },
@@ -7019,7 +7019,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - state does not match team, the caller is not a team owner/admin, or the caller cannot administer the submitted GitHub App installation",
+            "description": "Forbidden - state does not match team, the caller is not a team owner/admin, or the caller has no access to the submitted GitHub App installation on GitHub",
             "content": {
               "application/problem+json": {
                 "schema": {

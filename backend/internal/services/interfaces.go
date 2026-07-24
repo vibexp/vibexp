@@ -573,8 +573,8 @@ type GitHubAppServiceInterface interface {
 	GetInstallationStatus(ctx context.Context, teamID string) (*models.GitHubInstallationStatus, error)
 	// HandleInstallationCallback processes the GitHub App installation callback.
 	// code is the authorization code GitHub appends to the post-install
-	// redirect; it is exchanged for a user access token to prove the caller may
-	// administer installationID before anything is stored (#463).
+	// redirect; it is exchanged for a user access token to establish that the
+	// caller has access to installationID before anything is stored (#463).
 	// Returns (reconnected, error) where reconnected=true indicates the same team reconnected an existing installation.
 	HandleInstallationCallback(
 		ctx context.Context, userID, teamID string, installationID int64, code string,

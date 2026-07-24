@@ -22,10 +22,10 @@ import (
 // WithEnterpriseURLs) does not reach it — hence the separate oauthBaseURL field.
 const githubOAuthBaseURL = "https://github.com"
 
-// maxUserInstallationPages caps pagination over GET /user/installations. A user
-// with more installations than this cannot be administering the one we are
-// looking for in any realistic case, and the cap keeps a misbehaving upstream
-// from spinning the loop forever.
+// maxUserInstallationPages caps pagination over GET /user/installations. No
+// realistic user has this many installations, and the cap keeps a misbehaving
+// upstream from spinning the loop forever. Hitting it is logged, because the
+// caller reads a truncated scan as a denial.
 const maxUserInstallationPages = 20
 
 // userInstallationsPerPage is GitHub's maximum page size for list endpoints.
