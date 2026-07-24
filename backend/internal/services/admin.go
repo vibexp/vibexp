@@ -20,15 +20,18 @@ const (
 type AdminServiceInterface interface {
 	// GetInstanceCounts returns instance-wide totals for the top-level entities.
 	GetInstanceCounts(ctx context.Context) (models.InstanceCounts, error)
-	// ListUsers returns a page of all users with team counts and pagination
-	// metadata. page/limit are clamped (page>=1, limit in [1, 100], default 20).
-	ListUsers(ctx context.Context, page, limit int) (models.AdminUserList, error)
+	// ListUsers returns a page of users matching the filters with team counts and
+	// pagination metadata over the filtered set. filters.Page/Limit are clamped
+	// (page>=1, limit in [1, 100], default 20); every other filter is passed
+	// through to the repository unchanged.
+	ListUsers(ctx context.Context, filters repositories.AdminUserFilters) (models.AdminUserList, error)
 	// GetUserDetail returns one user with team memberships, or (nil, nil) when no
 	// user with that id exists (the handler maps that to 404).
 	GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error)
-	// ListTeams returns a page of all teams with owner and member count plus
-	// pagination metadata. page/limit are clamped (page>=1, limit in [1,100], 20).
-	ListTeams(ctx context.Context, page, limit int) (models.AdminTeamList, error)
+	// ListTeams returns a page of teams matching the filters with owner and member
+	// count plus pagination metadata over the filtered set. filters.Page/Limit are
+	// clamped (page>=1, limit in [1,100], default 20).
+	ListTeams(ctx context.Context, filters repositories.AdminTeamFilters) (models.AdminTeamList, error)
 	// GetTeamDetail returns one team with owner and member list, or (nil, nil)
 	// when no team with that id exists (the handler maps that to 404).
 	GetTeamDetail(ctx context.Context, id string) (*models.AdminTeamDetail, error)
@@ -65,11 +68,14 @@ func clampAdminPage(page, limit int) (int, int) {
 	return page, limit
 }
 
-// ListUsers returns a page of users with team counts and pagination metadata.
-func (s *AdminService) ListUsers(ctx context.Context, page, limit int) (models.AdminUserList, error) {
-	page, limit = clampAdminPage(page, limit)
+// ListUsers returns a page of filtered users with team counts and pagination
+// metadata computed over the filtered total.
+func (s *AdminService) ListUsers(
+	ctx context.Context, filters repositories.AdminUserFilters,
+) (models.AdminUserList, error) {
+	filters.Page, filters.Limit = clampAdminPage(filters.Page, filters.Limit)
 
-	users, totalCount, err := s.adminRepo.ListUsers(ctx, page, limit)
+	users, totalCount, err := s.adminRepo.ListUsers(ctx, filters)
 	if err != nil {
 		return models.AdminUserList{}, err
 	}
@@ -77,9 +83,9 @@ func (s *AdminService) ListUsers(ctx context.Context, page, limit int) (models.A
 	return models.AdminUserList{
 		Users:      users,
 		TotalCount: totalCount,
-		Page:       page,
-		PerPage:    limit,
-		TotalPages: int(math.Ceil(float64(totalCount) / float64(limit))),
+		Page:       filters.Page,
+		PerPage:    filters.Limit,
+		TotalPages: int(math.Ceil(float64(totalCount) / float64(filters.Limit))),
 	}, nil
 }
 
@@ -89,12 +95,14 @@ func (s *AdminService) GetUserDetail(ctx context.Context, id string) (*models.Ad
 	return s.adminRepo.GetUserDetail(ctx, id)
 }
 
-// ListTeams returns a page of teams with owner and member count plus pagination
-// metadata.
-func (s *AdminService) ListTeams(ctx context.Context, page, limit int) (models.AdminTeamList, error) {
-	page, limit = clampAdminPage(page, limit)
+// ListTeams returns a page of filtered teams with owner and member count plus
+// pagination metadata computed over the filtered total.
+func (s *AdminService) ListTeams(
+	ctx context.Context, filters repositories.AdminTeamFilters,
+) (models.AdminTeamList, error) {
+	filters.Page, filters.Limit = clampAdminPage(filters.Page, filters.Limit)
 
-	teams, totalCount, err := s.adminRepo.ListTeams(ctx, page, limit)
+	teams, totalCount, err := s.adminRepo.ListTeams(ctx, filters)
 	if err != nil {
 		return models.AdminTeamList{}, err
 	}
@@ -102,9 +110,9 @@ func (s *AdminService) ListTeams(ctx context.Context, page, limit int) (models.A
 	return models.AdminTeamList{
 		Teams:      teams,
 		TotalCount: totalCount,
-		Page:       page,
-		PerPage:    limit,
-		TotalPages: int(math.Ceil(float64(totalCount) / float64(limit))),
+		Page:       filters.Page,
+		PerPage:    filters.Limit,
+		TotalPages: int(math.Ceil(float64(totalCount) / float64(filters.Limit))),
 	}, nil
 }
 

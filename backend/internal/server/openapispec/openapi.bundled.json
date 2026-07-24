@@ -14452,7 +14452,7 @@
     "/api/v1/admin/users": {
       "get": {
         "summary": "List instance users",
-        "description": "Returns a paginated, instance-wide listing of users (newest first) with\neach user's team count. Instance-admin only; non-admin and unauthenticated\nrequests receive 404.\n",
+        "description": "Returns a paginated, instance-wide listing of users with each user's team\ncount. Supports case-insensitive search, typed filters, and allowlisted\nsorting; filters combine with AND and the pagination envelope reflects the\nfiltered set. Instance-admin only; non-admin and unauthenticated requests\nreceive 404.\n",
         "operationId": "listAdminUsers",
         "tags": [
           "Admin"
@@ -14488,6 +14488,74 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive substring match over the user's email and name.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idp_provider",
+            "in": "query",
+            "description": "Exact match on the user's identity-provider name (e.g. \"google\", \"oidc\").",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_from",
+            "in": "query",
+            "description": "Only users created at or after this instant (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "created_to",
+            "in": "query",
+            "description": "Only users created at or before this instant (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "description": "Column to sort by. Ties are always broken by user id so paging is stable.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "email",
+                "name",
+                "team_count"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "description": "Sort direction.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
           }
         ],
         "responses": {
@@ -14497,6 +14565,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminUserListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — a query parameter is malformed or outside its enum",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -14589,7 +14667,7 @@
     "/api/v1/admin/teams": {
       "get": {
         "summary": "List instance teams",
-        "description": "Returns a paginated, instance-wide listing of teams (newest first) with\neach team's owner and member count. Instance-admin only; non-admin and\nunauthenticated requests receive 404.\n",
+        "description": "Returns a paginated, instance-wide listing of teams with each team's owner\nand member count. Supports case-insensitive search, typed filters, and\nallowlisted sorting; filters combine with AND and the pagination envelope\nreflects the filtered set. Instance-admin only; non-admin and\nunauthenticated requests receive 404.\n",
         "operationId": "listAdminTeams",
         "tags": [
           "Admin"
@@ -14625,6 +14703,73 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive substring match over the team name, team slug, and the owner's email.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "is_personal",
+            "in": "query",
+            "description": "Narrow to personal workspaces (true) or shared team workspaces (false).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "created_from",
+            "in": "query",
+            "description": "Only teams created at or after this instant (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "created_to",
+            "in": "query",
+            "description": "Only teams created at or before this instant (inclusive).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "description": "Column to sort by. Ties are always broken by team id so paging is stable.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "name",
+                "member_count"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "description": "Sort direction.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
           }
         ],
         "responses": {
@@ -14634,6 +14779,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminTeamListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — a query parameter is malformed or outside its enum",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -28598,6 +28753,8 @@
         "required": [
           "id",
           "name",
+          "slug",
+          "is_personal",
           "owner",
           "member_count",
           "created_at"
@@ -28611,6 +28768,16 @@
           "name": {
             "type": "string",
             "example": "Acme Engineering"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe team identifier.",
+            "example": "acme-engineering"
+          },
+          "is_personal": {
+            "type": "boolean",
+            "description": "True for a user's default personal workspace, false for a shared team workspace.",
+            "example": false
           },
           "owner": {
             "$ref": "#/components/schemas/AdminTeamOwner"
@@ -28706,6 +28873,8 @@
         "required": [
           "id",
           "name",
+          "slug",
+          "is_personal",
           "owner",
           "created_at",
           "members"
@@ -28719,6 +28888,16 @@
           "name": {
             "type": "string",
             "example": "Acme Engineering"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe team identifier.",
+            "example": "acme-engineering"
+          },
+          "is_personal": {
+            "type": "boolean",
+            "description": "True for a user's default personal workspace, false for a shared team workspace.",
+            "example": false
           },
           "owner": {
             "$ref": "#/components/schemas/AdminTeamOwner"

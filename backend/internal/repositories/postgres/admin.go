@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+
+	"github.com/Masterminds/squirrel"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
@@ -53,31 +56,156 @@ func (r *AdminRepository) GetInstanceCounts(ctx context.Context) (models.Instanc
 	return counts, nil
 }
 
-// adminUserListQuery lists users (newest first) with a team count via a LEFT
-// JOIN aggregate over team_members. No role predicate (decision D3): the join is
-// on user_id only.
-const adminUserListQuery = `
-SELECT u.id, u.email, u.name, u.idp_provider, u.created_at, COUNT(tm.team_id) AS team_count
-FROM users u
-LEFT JOIN team_members tm ON tm.user_id = u.id
-GROUP BY u.id, u.email, u.name, u.idp_provider, u.created_at
-ORDER BY u.created_at DESC, u.id
-LIMIT $1 OFFSET $2
-`
+// adminUserListSelectColumns is the projection for the admin user listing. The
+// team count comes from a LEFT JOIN aggregate over team_members; no role
+// predicate (decision D3) — the join is on user_id only.
+var adminUserListSelectColumns = []string{
+	"u.id", "u.email", "u.name", "u.idp_provider", "u.created_at",
+	"COUNT(tm.team_id) AS team_count",
+}
 
-// ListUsers returns a page of users with team counts plus the total user count.
-func (r *AdminRepository) ListUsers(
-	ctx context.Context, page, limit int,
-) ([]models.AdminUserListItem, int, error) {
-	var totalCount int
-	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&totalCount); err != nil {
-		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+// adminUserListGroupByColumns are the non-aggregated projection columns, which
+// must all appear in GROUP BY alongside the team_count aggregate.
+var adminUserListGroupByColumns = []string{
+	"u.id", "u.email", "u.name", "u.idp_provider", "u.created_at",
+}
+
+// applyAdminWhere attaches the shared conditions to a select builder, skipping
+// an empty conjunction (squirrel would emit a dangling "WHERE" for it).
+func applyAdminWhere(sb squirrel.SelectBuilder, where squirrel.And) squirrel.SelectBuilder {
+	if len(where) == 0 {
+		return sb
+	}
+	return sb.Where(where)
+}
+
+// adminSortDirection maps the allowlisted sort_order enum to SQL. Anything
+// other than "asc" (including the empty default) sorts descending.
+func adminSortDirection(sortOrder string) string {
+	if strings.EqualFold(sortOrder, "asc") {
+		return "ASC"
+	}
+	return "DESC"
+}
+
+// adminPageBounds converts page/limit into the unsigned LIMIT/OFFSET squirrel
+// requires, clamping first (the same guard as prompt.go queryList): negative
+// paging inputs would otherwise wrap to huge values, and two negative factors
+// would multiply into a bogus positive offset. Contract: a non-positive limit
+// emits LIMIT 0 (empty page); the service clamps to page>=1, limit in [1,100].
+func adminPageBounds(page, limit int) (boundedLimit, offset uint64) {
+	if limit > 0 {
+		boundedLimit = uint64(limit)
+	}
+	if page > 1 && limit > 0 {
+		if raw := (page - 1) * limit; raw > 0 {
+			offset = uint64(raw)
+		}
+	}
+	return boundedLimit, offset
+}
+
+// buildAdminUserWhere builds the shared WHERE conditions for the admin user
+// listing. The count and page queries consume the same conditions, so the
+// pagination envelope can never diverge from the returned rows. Every predicate
+// here references only columns of `users`, which is why the count query can skip
+// the team_members join entirely.
+func buildAdminUserWhere(filters repositories.AdminUserFilters) squirrel.And {
+	where := squirrel.And{}
+
+	if filters.Search != nil && *filters.Search != "" {
+		term := "%" + *filters.Search + "%"
+		where = append(where, squirrel.Expr("(u.email ILIKE ? OR u.name ILIKE ?)", term, term))
+	}
+	if filters.IDPProvider != nil && *filters.IDPProvider != "" {
+		where = append(where, squirrel.Eq{"u.idp_provider": *filters.IDPProvider})
+	}
+	if filters.CreatedFrom != nil {
+		where = append(where, squirrel.GtOrEq{"u.created_at": *filters.CreatedFrom})
+	}
+	if filters.CreatedTo != nil {
+		where = append(where, squirrel.LtOrEq{"u.created_at": *filters.CreatedTo})
 	}
 
-	offset := (page - 1) * limit
-	rows, err := r.db.QueryContext(ctx, adminUserListQuery, limit, offset)
+	return where
+}
+
+// buildAdminUserOrderBy builds the ORDER BY clause from an allowlist. This is an
+// SQL-injection control: the request's sort_by never reaches the query text, only
+// a column name selected by the switch. The u.id tie-breaker keeps paging stable
+// when the sort column has duplicates.
+func buildAdminUserOrderBy(filters repositories.AdminUserFilters) string {
+	column := "u.created_at"
+	switch filters.SortBy {
+	case "email", "name", "created_at":
+		column = "u." + filters.SortBy
+	case "team_count":
+		column = "COUNT(tm.team_id)"
+	}
+	return column + " " + adminSortDirection(filters.SortOrder) + ", u.id"
+}
+
+// ListUsers returns a page of users matching the filters with team counts, plus
+// the total count of the filtered set.
+func (r *AdminRepository) ListUsers(
+	ctx context.Context, filters repositories.AdminUserFilters,
+) ([]models.AdminUserListItem, int, error) {
+	where := buildAdminUserWhere(filters)
+
+	totalCount, err := r.countAdminUsers(ctx, where)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list users: %w", err)
+		return nil, 0, err
+	}
+
+	users, err := r.queryAdminUsers(ctx, where, filters)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return users, totalCount, nil
+}
+
+// countAdminUsers counts users matching the shared WHERE conditions. The
+// team_members join is deliberately absent: no filter predicate references it,
+// and joining would require a COUNT(DISTINCT) over every membership row.
+func (r *AdminRepository) countAdminUsers(ctx context.Context, where squirrel.And) (int, error) {
+	query, args, err := applyAdminWhere(psql.Select("COUNT(*)").From("users u"), where).ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("failed to build admin user count query: %w", err)
+	}
+
+	var totalCount int
+	if scanErr := r.db.QueryRowContext(ctx, query, args...).Scan(&totalCount); scanErr != nil {
+		return 0, fmt.Errorf("failed to count users: %w", scanErr)
+	}
+	return totalCount, nil
+}
+
+// queryAdminUsers runs the paginated page query using the same WHERE conditions
+// as countAdminUsers.
+func (r *AdminRepository) queryAdminUsers(
+	ctx context.Context, where squirrel.And, filters repositories.AdminUserFilters,
+) ([]models.AdminUserListItem, error) {
+	limit, offset := adminPageBounds(filters.Page, filters.Limit)
+	sb := applyAdminWhere(
+		psql.Select(adminUserListSelectColumns...).
+			From("users u").
+			LeftJoin("team_members tm ON tm.user_id = u.id"),
+		where,
+	).
+		GroupBy(adminUserListGroupByColumns...).
+		OrderBy(buildAdminUserOrderBy(filters)).
+		Limit(limit).
+		Offset(offset)
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build admin user list query: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -89,14 +217,14 @@ func (r *AdminRepository) ListUsers(
 	for rows.Next() {
 		var u models.AdminUserListItem
 		if scanErr := rows.Scan(&u.ID, &u.Email, &u.Name, &u.IDPProvider, &u.CreatedAt, &u.TeamCount); scanErr != nil {
-			return nil, 0, fmt.Errorf("failed to scan admin user: %w", scanErr)
+			return nil, fmt.Errorf("failed to scan admin user: %w", scanErr)
 		}
 		users = append(users, u)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("failed to iterate admin users: %w", err)
+		return nil, fmt.Errorf("failed to iterate admin users: %w", err)
 	}
-	return users, totalCount, nil
+	return users, nil
 }
 
 // adminUserMembershipsQuery returns the teams a user belongs to with the user's
@@ -149,32 +277,117 @@ func (r *AdminRepository) GetUserDetail(
 	return &detail, nil
 }
 
-// adminTeamListQuery lists teams (newest first) with their owner and a member
-// count. The owner join is inner (teams.owner_id -> users, ON DELETE CASCADE, so
-// an existing team always has an owner). No role predicate (decision D3).
-const adminTeamListQuery = `
-SELECT t.id, t.name, t.created_at,
-	u.id, u.email, u.name,
-	(SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) AS member_count
-FROM teams t
-JOIN users u ON u.id = t.owner_id
-ORDER BY t.created_at DESC, t.id
-LIMIT $1 OFFSET $2
-`
+// adminTeamListSelectColumns is the projection for the admin team listing. The
+// owner join is inner (teams.owner_id -> users, ON DELETE CASCADE, so an
+// existing team always has an owner). No role predicate (decision D3).
+var adminTeamListSelectColumns = []string{
+	"t.id", "t.name", "t.slug", "t.is_personal", "t.created_at",
+	"u.id", "u.email", "u.name",
+	"(SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) AS member_count",
+}
 
-// ListTeams returns a page of teams with owner and member count, plus the total.
-func (r *AdminRepository) ListTeams(
-	ctx context.Context, page, limit int,
-) ([]models.AdminTeamListItem, int, error) {
-	var totalCount int
-	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM teams").Scan(&totalCount); err != nil {
-		return nil, 0, fmt.Errorf("failed to count teams: %w", err)
+// adminTeamListFrom is the FROM/JOIN shared by the count and page queries, so
+// both see exactly the same row set before filtering.
+func adminTeamListFrom(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
+	return sb.From("teams t").Join("users u ON u.id = t.owner_id")
+}
+
+// buildAdminTeamWhere builds the shared WHERE conditions for the admin team
+// listing, consumed by both the count and the page query so they can never
+// diverge.
+func buildAdminTeamWhere(filters repositories.AdminTeamFilters) squirrel.And {
+	where := squirrel.And{}
+
+	if filters.Search != nil && *filters.Search != "" {
+		term := "%" + *filters.Search + "%"
+		where = append(where, squirrel.Expr(
+			"(t.name ILIKE ? OR t.slug ILIKE ? OR u.email ILIKE ?)", term, term, term,
+		))
+	}
+	if filters.IsPersonal != nil {
+		where = append(where, squirrel.Eq{"t.is_personal": *filters.IsPersonal})
+	}
+	if filters.CreatedFrom != nil {
+		where = append(where, squirrel.GtOrEq{"t.created_at": *filters.CreatedFrom})
+	}
+	if filters.CreatedTo != nil {
+		where = append(where, squirrel.LtOrEq{"t.created_at": *filters.CreatedTo})
 	}
 
-	offset := (page - 1) * limit
-	rows, err := r.db.QueryContext(ctx, adminTeamListQuery, limit, offset)
+	return where
+}
+
+// buildAdminTeamOrderBy builds the ORDER BY clause from an allowlist (the same
+// SQL-injection control as buildAdminUserOrderBy). member_count is the SELECT
+// alias of the correlated subquery. The t.id tie-breaker keeps paging stable.
+func buildAdminTeamOrderBy(filters repositories.AdminTeamFilters) string {
+	column := "t.created_at"
+	switch filters.SortBy {
+	case "name", "created_at":
+		column = "t." + filters.SortBy
+	case "member_count":
+		column = "member_count"
+	}
+	return column + " " + adminSortDirection(filters.SortOrder) + ", t.id"
+}
+
+// ListTeams returns a page of teams matching the filters with owner and member
+// count, plus the total count of the filtered set.
+func (r *AdminRepository) ListTeams(
+	ctx context.Context, filters repositories.AdminTeamFilters,
+) ([]models.AdminTeamListItem, int, error) {
+	where := buildAdminTeamWhere(filters)
+
+	totalCount, err := r.countAdminTeams(ctx, where)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list teams: %w", err)
+		return nil, 0, err
+	}
+
+	teams, err := r.queryAdminTeams(ctx, where, filters)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return teams, totalCount, nil
+}
+
+// countAdminTeams counts teams matching the shared WHERE conditions over the
+// same FROM/JOIN as the page query. The owner join is inner on a NOT NULL FK, so
+// it never duplicates or drops a team row and COUNT(*) is exact.
+func (r *AdminRepository) countAdminTeams(ctx context.Context, where squirrel.And) (int, error) {
+	query, args, err := applyAdminWhere(adminTeamListFrom(psql.Select("COUNT(*)")), where).ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("failed to build admin team count query: %w", err)
+	}
+
+	var totalCount int
+	if scanErr := r.db.QueryRowContext(ctx, query, args...).Scan(&totalCount); scanErr != nil {
+		return 0, fmt.Errorf("failed to count teams: %w", scanErr)
+	}
+	return totalCount, nil
+}
+
+// queryAdminTeams runs the paginated page query using the same WHERE conditions
+// as countAdminTeams.
+func (r *AdminRepository) queryAdminTeams(
+	ctx context.Context, where squirrel.And, filters repositories.AdminTeamFilters,
+) ([]models.AdminTeamListItem, error) {
+	limit, offset := adminPageBounds(filters.Page, filters.Limit)
+	sb := applyAdminWhere(
+		adminTeamListFrom(psql.Select(adminTeamListSelectColumns...)), where,
+	).
+		OrderBy(buildAdminTeamOrderBy(filters)).
+		Limit(limit).
+		Offset(offset)
+
+	query, args, err := sb.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build admin team list query: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list teams: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -186,18 +399,18 @@ func (r *AdminRepository) ListTeams(
 	for rows.Next() {
 		var t models.AdminTeamListItem
 		if scanErr := rows.Scan(
-			&t.ID, &t.Name, &t.CreatedAt,
+			&t.ID, &t.Name, &t.Slug, &t.IsPersonal, &t.CreatedAt,
 			&t.Owner.ID, &t.Owner.Email, &t.Owner.Name,
 			&t.MemberCount,
 		); scanErr != nil {
-			return nil, 0, fmt.Errorf("failed to scan admin team: %w", scanErr)
+			return nil, fmt.Errorf("failed to scan admin team: %w", scanErr)
 		}
 		teams = append(teams, t)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("failed to iterate admin teams: %w", err)
+		return nil, fmt.Errorf("failed to iterate admin teams: %w", err)
 	}
-	return teams, totalCount, nil
+	return teams, nil
 }
 
 // adminTeamMembersQuery returns a team's members with the member's role (plain
@@ -217,9 +430,12 @@ func (r *AdminRepository) GetTeamDetail(
 ) (*models.AdminTeamDetail, error) {
 	var detail models.AdminTeamDetail
 	err := r.db.QueryRowContext(ctx,
-		`SELECT t.id, t.name, t.created_at, u.id, u.email, u.name
+		`SELECT t.id, t.name, t.slug, t.is_personal, t.created_at, u.id, u.email, u.name
 		 FROM teams t JOIN users u ON u.id = t.owner_id WHERE t.id = $1`, id,
-	).Scan(&detail.ID, &detail.Name, &detail.CreatedAt, &detail.Owner.ID, &detail.Owner.Email, &detail.Owner.Name)
+	).Scan(
+		&detail.ID, &detail.Name, &detail.Slug, &detail.IsPersonal, &detail.CreatedAt,
+		&detail.Owner.ID, &detail.Owner.Email, &detail.Owner.Name,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

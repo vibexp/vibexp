@@ -41,9 +41,11 @@ api-v1-admin-users:
   get:
     summary: List instance users
     description: |
-      Returns a paginated, instance-wide listing of users (newest first) with
-      each user's team count. Instance-admin only; non-admin and unauthenticated
-      requests receive 404.
+      Returns a paginated, instance-wide listing of users with each user's team
+      count. Supports case-insensitive search, typed filters, and allowlisted
+      sorting; filters combine with AND and the pagination envelope reflects the
+      filtered set. Instance-admin only; non-admin and unauthenticated requests
+      receive 404.
     operationId: listAdminUsers
     tags:
       - Admin
@@ -68,6 +70,54 @@ api-v1-admin-users:
           minimum: 1
           maximum: 100
           default: 20
+      - name: search
+        in: query
+        description: Case-insensitive substring match over the user's email and name.
+        required: false
+        schema:
+          type: string
+      - name: idp_provider
+        in: query
+        description: Exact match on the user's identity-provider name (e.g. "google", "oidc").
+        required: false
+        schema:
+          type: string
+      - name: created_from
+        in: query
+        description: Only users created at or after this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: created_to
+        in: query
+        description: Only users created at or before this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: sort_by
+        in: query
+        description: Column to sort by. Ties are always broken by user id so paging is stable.
+        required: false
+        schema:
+          type: string
+          enum:
+            - created_at
+            - email
+            - name
+            - team_count
+          default: created_at
+      - name: sort_order
+        in: query
+        description: Sort direction.
+        required: false
+        schema:
+          type: string
+          enum:
+            - asc
+            - desc
+          default: desc
     responses:
       '200':
         description: A page of users
@@ -75,6 +125,12 @@ api-v1-admin-users:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/AdminUserListResponse'
+      '400':
+        description: Bad request — a query parameter is malformed or outside its enum
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Not found — the caller is not an instance admin (surface not advertised)
         content:
@@ -133,8 +189,10 @@ api-v1-admin-teams:
   get:
     summary: List instance teams
     description: |
-      Returns a paginated, instance-wide listing of teams (newest first) with
-      each team's owner and member count. Instance-admin only; non-admin and
+      Returns a paginated, instance-wide listing of teams with each team's owner
+      and member count. Supports case-insensitive search, typed filters, and
+      allowlisted sorting; filters combine with AND and the pagination envelope
+      reflects the filtered set. Instance-admin only; non-admin and
       unauthenticated requests receive 404.
     operationId: listAdminTeams
     tags:
@@ -160,6 +218,53 @@ api-v1-admin-teams:
           minimum: 1
           maximum: 100
           default: 20
+      - name: search
+        in: query
+        description: Case-insensitive substring match over the team name, team slug, and the owner's email.
+        required: false
+        schema:
+          type: string
+      - name: is_personal
+        in: query
+        description: Narrow to personal workspaces (true) or shared team workspaces (false).
+        required: false
+        schema:
+          type: boolean
+      - name: created_from
+        in: query
+        description: Only teams created at or after this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: created_to
+        in: query
+        description: Only teams created at or before this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: sort_by
+        in: query
+        description: Column to sort by. Ties are always broken by team id so paging is stable.
+        required: false
+        schema:
+          type: string
+          enum:
+            - created_at
+            - name
+            - member_count
+          default: created_at
+      - name: sort_order
+        in: query
+        description: Sort direction.
+        required: false
+        schema:
+          type: string
+          enum:
+            - asc
+            - desc
+          default: desc
     responses:
       '200':
         description: A page of teams
@@ -167,6 +272,12 @@ api-v1-admin-teams:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/AdminTeamListResponse'
+      '400':
+        description: Bad request — a query parameter is malformed or outside its enum
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Not found — the caller is not an instance admin (surface not advertised)
         content:

@@ -199,6 +199,8 @@ AdminTeamListItem:
   required:
     - id
     - name
+    - slug
+    - is_personal
     - owner
     - member_count
     - created_at
@@ -210,6 +212,14 @@ AdminTeamListItem:
     name:
       type: string
       example: "Acme Engineering"
+    slug:
+      type: string
+      description: URL-safe team identifier.
+      example: "acme-engineering"
+    is_personal:
+      type: boolean
+      description: True for a user's default personal workspace, false for a shared team workspace.
+      example: false
     owner:
       $ref: '#/AdminTeamOwner'
     member_count:
@@ -285,6 +295,8 @@ AdminTeamDetail:
   required:
     - id
     - name
+    - slug
+    - is_personal
     - owner
     - created_at
     - members
@@ -296,6 +308,14 @@ AdminTeamDetail:
     name:
       type: string
       example: "Acme Engineering"
+    slug:
+      type: string
+      description: URL-safe team identifier.
+      example: "acme-engineering"
+    is_personal:
+      type: boolean
+      description: True for a user's default personal workspace, false for a shared team workspace.
+      example: false
     owner:
       $ref: '#/AdminTeamOwner'
     created_at:

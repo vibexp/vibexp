@@ -946,6 +946,35 @@ type BackofficeRepository interface {
 	GetUserActivities(ctx context.Context) ([]models.UserActivityRow, error)
 }
 
+// AdminUserFilters narrows and orders the instance-wide admin user listing.
+// Nil pointer fields mean "no filter"; SortBy/SortOrder are allowlisted in the
+// repository, so an unrecognized value falls back to the default ordering
+// rather than reaching SQL text.
+type AdminUserFilters struct {
+	Search      *string
+	IDPProvider *string
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+	SortBy      string
+	SortOrder   string
+	Page        int
+	Limit       int
+}
+
+// AdminTeamFilters narrows and orders the instance-wide admin team listing.
+// Nil pointer fields mean "no filter"; SortBy/SortOrder are allowlisted in the
+// repository.
+type AdminTeamFilters struct {
+	Search      *string
+	IsPersonal  *bool
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+	SortBy      string
+	SortOrder   string
+	Page        int
+	Limit       int
+}
+
 // AdminRepository defines instance-level administrative data access for the
 // /api/v1/admin surface. Reads are instance-wide (unscoped), unlike the
 // team/user-scoped repositories.
@@ -953,15 +982,17 @@ type AdminRepository interface {
 	// GetInstanceCounts returns unscoped COUNT(*) totals for the top-level
 	// entities (users, teams, prompts, artifacts, memories).
 	GetInstanceCounts(ctx context.Context) (models.InstanceCounts, error)
-	// ListUsers returns a page of all users (newest first) with each user's team
-	// count, plus the total user count. page/limit are already clamped.
-	ListUsers(ctx context.Context, page, limit int) ([]models.AdminUserListItem, int, error)
+	// ListUsers returns a page of users matching the filters with each user's
+	// team count, plus the total count of the filtered set. filters.Page/Limit
+	// are already clamped.
+	ListUsers(ctx context.Context, filters AdminUserFilters) ([]models.AdminUserListItem, int, error)
 	// GetUserDetail returns one user with their team memberships, or (nil, nil)
 	// when no user with that id exists.
 	GetUserDetail(ctx context.Context, id string) (*models.AdminUserDetail, error)
-	// ListTeams returns a page of all teams (newest first) with owner and member
-	// count, plus the total team count. page/limit are already clamped.
-	ListTeams(ctx context.Context, page, limit int) ([]models.AdminTeamListItem, int, error)
+	// ListTeams returns a page of teams matching the filters with owner and
+	// member count, plus the total count of the filtered set. filters.Page/Limit
+	// are already clamped.
+	ListTeams(ctx context.Context, filters AdminTeamFilters) ([]models.AdminTeamListItem, int, error)
 	// GetTeamDetail returns one team with owner and member list, or (nil, nil)
 	// when no team with that id exists.
 	GetTeamDetail(ctx context.Context, id string) (*models.AdminTeamDetail, error)

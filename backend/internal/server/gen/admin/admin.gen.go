@@ -22,6 +22,87 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "CookieAuth.Scopes"
 )
 
+// Defines values for ListAdminTeamsParamsSortBy.
+const (
+	ListAdminTeamsParamsSortByCreatedAt   ListAdminTeamsParamsSortBy = "created_at"
+	ListAdminTeamsParamsSortByMemberCount ListAdminTeamsParamsSortBy = "member_count"
+	ListAdminTeamsParamsSortByName        ListAdminTeamsParamsSortBy = "name"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminTeamsParamsSortBy enum.
+func (e ListAdminTeamsParamsSortBy) Valid() bool {
+	switch e {
+	case ListAdminTeamsParamsSortByCreatedAt:
+		return true
+	case ListAdminTeamsParamsSortByMemberCount:
+		return true
+	case ListAdminTeamsParamsSortByName:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminTeamsParamsSortOrder.
+const (
+	ListAdminTeamsParamsSortOrderAsc  ListAdminTeamsParamsSortOrder = "asc"
+	ListAdminTeamsParamsSortOrderDesc ListAdminTeamsParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminTeamsParamsSortOrder enum.
+func (e ListAdminTeamsParamsSortOrder) Valid() bool {
+	switch e {
+	case ListAdminTeamsParamsSortOrderAsc:
+		return true
+	case ListAdminTeamsParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminUsersParamsSortBy.
+const (
+	ListAdminUsersParamsSortByCreatedAt ListAdminUsersParamsSortBy = "created_at"
+	ListAdminUsersParamsSortByEmail     ListAdminUsersParamsSortBy = "email"
+	ListAdminUsersParamsSortByName      ListAdminUsersParamsSortBy = "name"
+	ListAdminUsersParamsSortByTeamCount ListAdminUsersParamsSortBy = "team_count"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminUsersParamsSortBy enum.
+func (e ListAdminUsersParamsSortBy) Valid() bool {
+	switch e {
+	case ListAdminUsersParamsSortByCreatedAt:
+		return true
+	case ListAdminUsersParamsSortByEmail:
+		return true
+	case ListAdminUsersParamsSortByName:
+		return true
+	case ListAdminUsersParamsSortByTeamCount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminUsersParamsSortOrder.
+const (
+	ListAdminUsersParamsSortOrderAsc  ListAdminUsersParamsSortOrder = "asc"
+	ListAdminUsersParamsSortOrderDesc ListAdminUsersParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminUsersParamsSortOrder enum.
+func (e ListAdminUsersParamsSortOrder) Valid() bool {
+	switch e {
+	case ListAdminUsersParamsSortOrderAsc:
+		return true
+	case ListAdminUsersParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // AdminInstanceCounts Instance-wide totals for the top-level entities (unscoped counts).
 type AdminInstanceCounts struct {
 	// Artifacts Total number of artifacts.
@@ -54,12 +135,18 @@ type AdminTeamDetail struct {
 	CreatedAt time.Time          `json:"created_at"`
 	Id        openapi_types.UUID `json:"id"`
 
+	// IsPersonal True for a user's default personal workspace, false for a shared team workspace.
+	IsPersonal bool `json:"is_personal"`
+
 	// Members The team's members.
 	Members []AdminTeamMember `json:"members"`
 	Name    string            `json:"name"`
 
 	// Owner The owning user of a team.
 	Owner AdminTeamOwner `json:"owner"`
+
+	// Slug URL-safe team identifier.
+	Slug string `json:"slug"`
 }
 
 // AdminTeamListItem One team in the instance-wide admin team listing.
@@ -67,12 +154,18 @@ type AdminTeamListItem struct {
 	CreatedAt time.Time          `json:"created_at"`
 	Id        openapi_types.UUID `json:"id"`
 
+	// IsPersonal True for a user's default personal workspace, false for a shared team workspace.
+	IsPersonal bool `json:"is_personal"`
+
 	// MemberCount Number of members in the team.
 	MemberCount int64  `json:"member_count"`
 	Name        string `json:"name"`
 
 	// Owner The owning user of a team.
 	Owner AdminTeamOwner `json:"owner"`
+
+	// Slug URL-safe team identifier.
+	Slug string `json:"slug"`
 }
 
 // AdminTeamListResponse A page of the instance-wide team listing, newest first.
@@ -224,7 +317,31 @@ type ListAdminTeamsParams struct {
 
 	// Limit Items per page
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Search Case-insensitive substring match over the team name, team slug, and the owner's email.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// IsPersonal Narrow to personal workspaces (true) or shared team workspaces (false).
+	IsPersonal *bool `form:"is_personal,omitempty" json:"is_personal,omitempty"`
+
+	// CreatedFrom Only teams created at or after this instant (inclusive).
+	CreatedFrom *time.Time `form:"created_from,omitempty" json:"created_from,omitempty"`
+
+	// CreatedTo Only teams created at or before this instant (inclusive).
+	CreatedTo *time.Time `form:"created_to,omitempty" json:"created_to,omitempty"`
+
+	// SortBy Column to sort by. Ties are always broken by team id so paging is stable.
+	SortBy *ListAdminTeamsParamsSortBy `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+
+	// SortOrder Sort direction.
+	SortOrder *ListAdminTeamsParamsSortOrder `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 }
+
+// ListAdminTeamsParamsSortBy defines parameters for ListAdminTeams.
+type ListAdminTeamsParamsSortBy string
+
+// ListAdminTeamsParamsSortOrder defines parameters for ListAdminTeams.
+type ListAdminTeamsParamsSortOrder string
 
 // ListAdminUsersParams defines parameters for ListAdminUsers.
 type ListAdminUsersParams struct {
@@ -233,7 +350,31 @@ type ListAdminUsersParams struct {
 
 	// Limit Items per page
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Search Case-insensitive substring match over the user's email and name.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// IdpProvider Exact match on the user's identity-provider name (e.g. "google", "oidc").
+	IdpProvider *string `form:"idp_provider,omitempty" json:"idp_provider,omitempty"`
+
+	// CreatedFrom Only users created at or after this instant (inclusive).
+	CreatedFrom *time.Time `form:"created_from,omitempty" json:"created_from,omitempty"`
+
+	// CreatedTo Only users created at or before this instant (inclusive).
+	CreatedTo *time.Time `form:"created_to,omitempty" json:"created_to,omitempty"`
+
+	// SortBy Column to sort by. Ties are always broken by user id so paging is stable.
+	SortBy *ListAdminUsersParamsSortBy `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+
+	// SortOrder Sort direction.
+	SortOrder *ListAdminUsersParamsSortOrder `form:"sort_order,omitempty" json:"sort_order,omitempty"`
 }
+
+// ListAdminUsersParamsSortBy defines parameters for ListAdminUsers.
+type ListAdminUsersParamsSortBy string
+
+// ListAdminUsersParamsSortOrder defines parameters for ListAdminUsers.
+type ListAdminUsersParamsSortOrder string
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -362,6 +503,84 @@ func (siw *ServerInterfaceWrapper) ListAdminTeams(w http.ResponseWriter, r *http
 		return
 	}
 
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "is_personal" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "is_personal", r.URL.Query(), &params.IsPersonal, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "is_personal"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "is_personal", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_from", r.URL.Query(), &params.CreatedFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_to", r.URL.Query(), &params.CreatedTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_by" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_by", r.URL.Query(), &params.SortBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_by"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_by", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_order", r.URL.Query(), &params.SortOrder, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_order", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAdminTeams(w, r, params)
 	}))
@@ -446,6 +665,84 @@ func (siw *ServerInterfaceWrapper) ListAdminUsers(w http.ResponseWriter, r *http
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "idp_provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "idp_provider", r.URL.Query(), &params.IdpProvider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "idp_provider"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "idp_provider", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_from", r.URL.Query(), &params.CreatedFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_to", r.URL.Query(), &params.CreatedTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_by" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_by", r.URL.Query(), &params.SortBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_by"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_by", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_order", r.URL.Query(), &params.SortOrder, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_order", Err: err})
 		}
 		return
 	}
@@ -698,6 +995,20 @@ func (response ListAdminTeams200JSONResponse) VisitListAdminTeamsResponse(w http
 	return err
 }
 
+type ListAdminTeams400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminTeams400ApplicationProblemPlusJSONResponse) VisitListAdminTeamsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListAdminTeams404ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response ListAdminTeams404ApplicationProblemPlusJSONResponse) VisitListAdminTeamsResponse(w http.ResponseWriter) error {
@@ -794,6 +1105,20 @@ func (response ListAdminUsers200JSONResponse) VisitListAdminUsersResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminUsers400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminUsers400ApplicationProblemPlusJSONResponse) VisitListAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
 	_, err := buf.WriteTo(w)
 	return err
 }
