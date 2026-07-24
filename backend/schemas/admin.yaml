@@ -595,11 +595,17 @@ AdminTimeseriesResponse:
     from:
       type: string
       format: date-time
-      description: Inclusive start of the range actually used (after defaulting).
+      description: |
+        Inclusive start of the range actually used. This is snapped DOWN to the
+        start of its bucket, so it may precede the requested `from` (asking for
+        2026-07-15 at month granularity reports and queries 2026-07-01). Buckets
+        are therefore always whole, never partial at the head.
     to:
       type: string
       format: date-time
-      description: Exclusive end of the range actually used (after defaulting).
+      description: |
+        Exclusive end of the range actually used (after defaulting). This is NOT
+        snapped, so the final bucket may cover only part of its period.
     granularity:
       type: string
       enum:

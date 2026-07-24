@@ -42,11 +42,6 @@ func (a *adminStrictServer) GetAdminStats(
 		return nil, apierrors.NewInternalError(adminMsgInternalError)
 	}
 
-	version := a.s.config.Server.ServiceVersion
-	if version == "" {
-		version = "dev"
-	}
-
 	return admingen.GetAdminStats200JSONResponse(admingen.AdminStatsResponse{
 		Counts: admingen.AdminInstanceCounts{
 			Users:     counts.Users,
@@ -55,7 +50,7 @@ func (a *adminStrictServer) GetAdminStats(
 			Artifacts: counts.Artifacts,
 			Memories:  counts.Memories,
 		},
-		Version: version,
+		Version: a.appVersion(),
 	}), nil
 }
 

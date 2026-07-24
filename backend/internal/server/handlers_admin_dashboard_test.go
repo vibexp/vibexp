@@ -83,6 +83,10 @@ func TestGetAdminDashboardOverview_Success(t *testing.T) {
 
 	assert.Equal(t, int64(184549376), resp.SystemHealth.DatabaseSizeBytes)
 	require.Len(t, resp.SystemHealth.Tables, 1)
+	// Value-asserted, not just counted: a dropped mapping would serialize as
+	// "" / 0 and still satisfy the schema.
+	assert.Equal(t, "prompts", resp.SystemHealth.Tables[0].Table)
+	assert.Equal(t, int64(340), resp.SystemHealth.Tables[0].EstimatedRows)
 	assert.Equal(t, "1.2.3", resp.Version)
 
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -185,8 +189,18 @@ func TestGetAdminDashboardTimeseries_Success(t *testing.T) {
 	assert.Equal(t, "mcp", resp.AccessBySource[0].Source)
 
 	assert.Equal(t, admingen.AdminTimeseriesResponseGranularity("day"), resp.Granularity)
-	assert.False(t, resp.DataWindow.SignInsEarliestRetainedAt.IsZero())
-	assert.False(t, resp.DataWindow.AccessBySourceEarliestRetainedAt.IsZero())
+	// The two window instants must be the RIGHT way round: this is what tells an
+	// operator whether a flat chart means "no activity" or "pruned", so a swapped
+	// mapping is a real misreport. Both are non-zero and distinct, so !IsZero()
+	// alone would not catch a transposition.
+	fixture := adminTimeseriesFixture()
+	assert.Equal(t, fixture.DataWindow.SignInsEarliestRetainedAt.UTC(),
+		resp.DataWindow.SignInsEarliestRetainedAt.UTC())
+	assert.Equal(t, fixture.DataWindow.AccessBySourceEarliestRetainedAt.UTC(),
+		resp.DataWindow.AccessBySourceEarliestRetainedAt.UTC())
+	assert.True(t, resp.DataWindow.AccessBySourceEarliestRetainedAt.
+		After(resp.DataWindow.SignInsEarliestRetainedAt),
+		"the 30-day access window must be more recent than the 90-day sign-in window")
 
 	specconformance.AssertConformsToSpec(t, req, rr)
 }

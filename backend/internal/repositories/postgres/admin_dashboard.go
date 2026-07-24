@@ -28,10 +28,16 @@ import (
 // are taken as written (they are produced by CURRENT_TIMESTAMP on a
 // UTC-configured server). Both then yield a UTC wall-clock the buckets share.
 //
-// Range predicates stay on the RAW column of each branch so the created_at
-// indexes remain usable; only the bucket expression is normalized. A naive
-// column is therefore bounded with `$n::timestamp` (the cast drops the offset
-// lib/pq sends, making the comparison independent of the session timezone).
+// Range predicates stay on the RAW column of each branch — wrapping the column
+// in an expression would make it index-ineligible — while only the bucket
+// expression is normalized. A naive column is therefore bounded with
+// `$n::timestamp` (the cast drops the offset lib/pq sends, making the comparison
+// independent of the session timezone).
+//
+// Note this keeps the predicate index-ELIGIBLE, which is not the same as fast:
+// `users` is the one aggregated table with no created_at index (every other one
+// has at least one), so that branch is a sequential scan. What actually bounds
+// the cost there is the service's range cap, not an index.
 
 // adminTruncUnit maps the granularity enum to the date_trunc unit literal. This
 // is an SQL-injection control: the request's granularity is never interpolated,
