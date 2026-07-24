@@ -66,6 +66,8 @@ type AdminTeamOwner struct {
 type AdminTeamListItem struct {
 	ID          string
 	Name        string
+	Slug        string
+	IsPersonal  bool
 	Owner       AdminTeamOwner
 	MemberCount int64
 	CreatedAt   time.Time
@@ -93,9 +95,11 @@ type AdminTeamMember struct {
 // AdminTeamDetail is the per-team admin view (GET /api/v1/admin/teams/{id}):
 // identity, owner, and the member list.
 type AdminTeamDetail struct {
-	ID        string
-	Name      string
-	Owner     AdminTeamOwner
-	CreatedAt time.Time
-	Members   []AdminTeamMember
+	ID         string
+	Name       string
+	Slug       string
+	IsPersonal bool
+	Owner      AdminTeamOwner
+	CreatedAt  time.Time
+	Members    []AdminTeamMember
 }

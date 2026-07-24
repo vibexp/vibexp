@@ -19,6 +19,7 @@ import (
 	"github.com/vibexp/vibexp/internal/config"
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	"github.com/vibexp/vibexp/internal/services"
 	servicesmocks "github.com/vibexp/vibexp/internal/services/mocks"
@@ -282,7 +283,7 @@ func TestListAdminUsers(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-			mockAdmin.On("ListUsers", mock.Anything, 0, 0).Return(tc.list, nil)
+			mockAdmin.On("ListUsers", mock.Anything, repositories.AdminUserFilters{}).Return(tc.list, nil)
 			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 			req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
@@ -332,7 +333,7 @@ func TestGetAdminUser_Found(t *testing.T) {
 // TestListAdminUsers_ServiceError maps a service failure to 500.
 func TestListAdminUsers_ServiceError(t *testing.T) {
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("ListUsers", mock.Anything, 0, 0).Return(models.AdminUserList{}, errors.New("db down"))
+	mockAdmin.On("ListUsers", mock.Anything, repositories.AdminUserFilters{}).Return(models.AdminUserList{}, errors.New("db down"))
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 	req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
@@ -349,7 +350,7 @@ func TestListAdminUsers_ConversionError(t *testing.T) {
 		PerPage: 20,
 	}
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("ListUsers", mock.Anything, 0, 0).Return(bad, nil)
+	mockAdmin.On("ListUsers", mock.Anything, repositories.AdminUserFilters{}).Return(bad, nil)
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 	req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
@@ -438,8 +439,14 @@ func TestListAdminTeams(t *testing.T) {
 	owner := models.AdminTeamOwner{ID: uuid.NewString(), Email: "owner@example.com", Name: "Owner"}
 	populated := models.AdminTeamList{
 		Teams: []models.AdminTeamListItem{
-			{ID: uuid.NewString(), Name: "Acme", Owner: owner, MemberCount: 3, CreatedAt: time.Now()},
-			{ID: uuid.NewString(), Name: "Beta", Owner: owner, MemberCount: 0, CreatedAt: time.Now()},
+			{
+				ID: uuid.NewString(), Name: "Acme", Slug: "acme", IsPersonal: false,
+				Owner: owner, MemberCount: 3, CreatedAt: time.Now(),
+			},
+			{
+				ID: uuid.NewString(), Name: "Beta", Slug: "beta", IsPersonal: true,
+				Owner: owner, MemberCount: 0, CreatedAt: time.Now(),
+			},
 		},
 		TotalCount: 2, Page: 1, PerPage: 20, TotalPages: 1,
 	}
@@ -456,7 +463,7 @@ func TestListAdminTeams(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-			mockAdmin.On("ListTeams", mock.Anything, 0, 0).Return(tc.list, nil)
+			mockAdmin.On("ListTeams", mock.Anything, repositories.AdminTeamFilters{}).Return(tc.list, nil)
 			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 			req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)
@@ -468,6 +475,121 @@ func TestListAdminTeams(t *testing.T) {
 			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 			assert.Len(t, resp.Teams, tc.wantTeams)
 			assert.NotContains(t, rr.Body.String(), `"teams":null`)
+			// #452's additive required fields. Spec conformance alone cannot catch a
+			// dropped mapping — the zero values ("" / false) are valid string/boolean —
+			// so assert the values actually round-trip.
+			if tc.wantTeams > 0 {
+				assert.Equal(t, "acme", resp.Teams[0].Slug)
+				assert.False(t, resp.Teams[0].IsPersonal)
+				assert.Equal(t, "beta", resp.Teams[1].Slug)
+				assert.True(t, resp.Teams[1].IsPersonal)
+			}
+			specconformance.AssertConformsToSpec(t, req, rr)
+		})
+	}
+}
+
+// adminFilterQueryTime is the instant used by the query-param mapping tests, in
+// the RFC 3339 form the generated date-time binder accepts.
+var adminFilterQueryTime = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+// TestListAdminUsers_MapsQueryParams asserts every documented user query param
+// reaches the service as the matching filter field, and that a filtered call
+// still conforms to the spec.
+func TestListAdminUsers_MapsQueryParams(t *testing.T) {
+	search := "alice"
+	idp := "google"
+	want := repositories.AdminUserFilters{
+		Search:      &search,
+		IDPProvider: &idp,
+		CreatedFrom: &adminFilterQueryTime,
+		CreatedTo:   &adminFilterQueryTime,
+		SortBy:      "email",
+		SortOrder:   "asc",
+		Page:        2,
+		Limit:       50,
+	}
+	list := models.AdminUserList{
+		Users: []models.AdminUserListItem{}, TotalCount: 0, Page: 2, PerPage: 50, TotalPages: 0,
+	}
+
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ListUsers", mock.Anything, want).Return(list, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	stamp := adminFilterQueryTime.Format(time.RFC3339)
+	req := httptest.NewRequest("GET", "/api/v1/admin/users?page=2&limit=50&search=alice"+
+		"&idp_provider=google&created_from="+stamp+"&created_to="+stamp+
+		"&sort_by=email&sort_order=asc", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
+// TestListAdminTeams_MapsQueryParams is the team mirror of the user mapping test.
+func TestListAdminTeams_MapsQueryParams(t *testing.T) {
+	search := "acme"
+	isPersonal := false
+	want := repositories.AdminTeamFilters{
+		Search:      &search,
+		IsPersonal:  &isPersonal,
+		CreatedFrom: &adminFilterQueryTime,
+		CreatedTo:   &adminFilterQueryTime,
+		SortBy:      "member_count",
+		SortOrder:   "desc",
+		Page:        1,
+		Limit:       10,
+	}
+	list := models.AdminTeamList{
+		Teams: []models.AdminTeamListItem{}, TotalCount: 0, Page: 1, PerPage: 10, TotalPages: 0,
+	}
+
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("ListTeams", mock.Anything, want).Return(list, nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	stamp := adminFilterQueryTime.Format(time.RFC3339)
+	req := httptest.NewRequest("GET", "/api/v1/admin/teams?page=1&limit=10&search=acme"+
+		"&is_personal=false&created_from="+stamp+"&created_to="+stamp+
+		"&sort_by=member_count&sort_order=desc", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
+
+// TestListAdmin_InvalidSortEnumReturns400 pins the acceptance criterion that an
+// out-of-enum sort_by/sort_order is a 400, not a silent fallback to the default
+// ordering. The generated binder does NOT enforce the enum (it binds the raw
+// string), so this is enforced explicitly in the handler — if that check is ever
+// dropped these cases go green-to-200 and catch it.
+func TestListAdmin_InvalidSortEnumReturns400(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"users unknown sort_by", "/api/v1/admin/users?sort_by=password"},
+		{"users unknown sort_order", "/api/v1/admin/users?sort_order=sideways"},
+		{"users injection-shaped sort_by", "/api/v1/admin/users?sort_by=id%3B+DROP+TABLE+users--"},
+		{"teams unknown sort_by", "/api/v1/admin/teams?sort_by=owner"},
+		{"teams unknown sort_order", "/api/v1/admin/teams?sort_order=random"},
+		{"teams injection-shaped sort_by", "/api/v1/admin/teams?sort_by=id%3B+DROP+TABLE+teams--"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// No service call is expected: the request must be rejected first.
+			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+			req := httptest.NewRequest("GET", tc.path, nil)
+			rr := httptest.NewRecorder()
+			mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusBadRequest, rr.Code)
 			specconformance.AssertConformsToSpec(t, req, rr)
 		})
 	}
@@ -477,7 +599,7 @@ func TestGetAdminTeam_Found(t *testing.T) {
 	id := uuid.NewString()
 	owner := models.AdminTeamOwner{ID: uuid.NewString(), Email: "owner@example.com", Name: "Owner"}
 	detail := &models.AdminTeamDetail{
-		ID: id, Name: "Acme", Owner: owner, CreatedAt: time.Now(),
+		ID: id, Name: "Acme", Slug: "acme", IsPersonal: true, Owner: owner, CreatedAt: time.Now(),
 		Members: []models.AdminTeamMember{
 			{UserID: uuid.NewString(), Email: "m@example.com", Name: "M", Role: "member", JoinedAt: time.Now()},
 		},
@@ -495,6 +617,10 @@ func TestGetAdminTeam_Found(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.Equal(t, id, resp.Id.String())
 	assert.Equal(t, "Owner", resp.Owner.Name)
+	// #452's additive required fields — asserted explicitly because their zero
+	// values would still satisfy the spec (see TestListAdminTeams).
+	assert.Equal(t, "acme", resp.Slug)
+	assert.True(t, resp.IsPersonal)
 	require.Len(t, resp.Members, 1)
 	assert.Equal(t, "member", resp.Members[0].Role)
 	specconformance.AssertConformsToSpec(t, req, rr)
@@ -524,7 +650,7 @@ func TestGetAdminTeam_InvalidUUID(t *testing.T) {
 
 func TestListAdminTeams_ServiceError(t *testing.T) {
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("ListTeams", mock.Anything, 0, 0).Return(models.AdminTeamList{}, errors.New("db down"))
+	mockAdmin.On("ListTeams", mock.Anything, repositories.AdminTeamFilters{}).Return(models.AdminTeamList{}, errors.New("db down"))
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 	req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)
@@ -540,7 +666,7 @@ func TestListAdminTeams_ConversionError(t *testing.T) {
 		PerPage: 20,
 	}
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("ListTeams", mock.Anything, 0, 0).Return(bad, nil)
+	mockAdmin.On("ListTeams", mock.Anything, repositories.AdminTeamFilters{}).Return(bad, nil)
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 	req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)

@@ -11,6 +11,7 @@ import (
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 )
 
@@ -58,13 +59,59 @@ func (a *adminStrictServer) GetAdminStats(
 	}), nil
 }
 
-// ListAdminUsers returns a paginated, instance-wide user listing with team counts.
+// validateAdminSortEnum rejects a sort enum value that the generated binding
+// accepted verbatim. oapi-codegen binds an enum query parameter as a plain
+// string (BindQueryParameterOptions{Type: "string"}) and never consults the
+// enum, so an unknown sort_by/sort_order would silently fall back to the default
+// ordering. The generated Valid() helper is the enum definition; calling it here
+// is what turns an out-of-enum value into a 400.
+func validateAdminSortEnum(name, value string, valid bool) error {
+	if !valid {
+		return apierrors.NewBadRequestError(fmt.Sprintf("invalid %s value %q", name, value))
+	}
+	return nil
+}
+
+// toAdminUserFilters maps the generated query params onto the repository filter
+// struct, validating the sort enums and clamping page/limit.
+func toAdminUserFilters(p admingen.ListAdminUsersParams) (repositories.AdminUserFilters, error) {
+	page, limit := derefPageLimit(p.Page, p.Limit)
+	filters := repositories.AdminUserFilters{
+		Search:      p.Search,
+		IDPProvider: p.IdpProvider,
+		CreatedFrom: p.CreatedFrom,
+		CreatedTo:   p.CreatedTo,
+		Page:        page,
+		Limit:       limit,
+	}
+
+	if p.SortBy != nil {
+		if err := validateAdminSortEnum("sort_by", string(*p.SortBy), p.SortBy.Valid()); err != nil {
+			return repositories.AdminUserFilters{}, err
+		}
+		filters.SortBy = string(*p.SortBy)
+	}
+	if p.SortOrder != nil {
+		if err := validateAdminSortEnum("sort_order", string(*p.SortOrder), p.SortOrder.Valid()); err != nil {
+			return repositories.AdminUserFilters{}, err
+		}
+		filters.SortOrder = string(*p.SortOrder)
+	}
+
+	return filters, nil
+}
+
+// ListAdminUsers returns a paginated, filtered, instance-wide user listing with
+// team counts.
 func (a *adminStrictServer) ListAdminUsers(
 	ctx context.Context, request admingen.ListAdminUsersRequestObject,
 ) (admingen.ListAdminUsersResponseObject, error) {
-	page, limit := derefPageLimit(request.Params.Page, request.Params.Limit)
+	filters, err := toAdminUserFilters(request.Params)
+	if err != nil {
+		return nil, err
+	}
 
-	list, err := a.s.container.AdminService().ListUsers(ctx, page, limit)
+	list, err := a.s.container.AdminService().ListUsers(ctx, filters)
 	if err != nil {
 		a.s.logger.With(
 			"service", serverLogServiceName, "handler", "ListAdminUsers", "error", err,
@@ -173,14 +220,46 @@ func toGenAdminUserDetail(d *models.AdminUserDetail) (admingen.AdminUserDetail, 
 	}, nil
 }
 
-// ListAdminTeams returns a paginated, instance-wide team listing with owner and
-// member counts.
+// toAdminTeamFilters maps the generated query params onto the repository filter
+// struct, validating the sort enums and clamping page/limit.
+func toAdminTeamFilters(p admingen.ListAdminTeamsParams) (repositories.AdminTeamFilters, error) {
+	page, limit := derefPageLimit(p.Page, p.Limit)
+	filters := repositories.AdminTeamFilters{
+		Search:      p.Search,
+		IsPersonal:  p.IsPersonal,
+		CreatedFrom: p.CreatedFrom,
+		CreatedTo:   p.CreatedTo,
+		Page:        page,
+		Limit:       limit,
+	}
+
+	if p.SortBy != nil {
+		if err := validateAdminSortEnum("sort_by", string(*p.SortBy), p.SortBy.Valid()); err != nil {
+			return repositories.AdminTeamFilters{}, err
+		}
+		filters.SortBy = string(*p.SortBy)
+	}
+	if p.SortOrder != nil {
+		if err := validateAdminSortEnum("sort_order", string(*p.SortOrder), p.SortOrder.Valid()); err != nil {
+			return repositories.AdminTeamFilters{}, err
+		}
+		filters.SortOrder = string(*p.SortOrder)
+	}
+
+	return filters, nil
+}
+
+// ListAdminTeams returns a paginated, filtered, instance-wide team listing with
+// owner and member counts.
 func (a *adminStrictServer) ListAdminTeams(
 	ctx context.Context, request admingen.ListAdminTeamsRequestObject,
 ) (admingen.ListAdminTeamsResponseObject, error) {
-	page, limit := derefPageLimit(request.Params.Page, request.Params.Limit)
+	filters, err := toAdminTeamFilters(request.Params)
+	if err != nil {
+		return nil, err
+	}
 
-	list, err := a.s.container.AdminService().ListTeams(ctx, page, limit)
+	list, err := a.s.container.AdminService().ListTeams(ctx, filters)
 	if err != nil {
 		a.s.logger.With(
 			"service", serverLogServiceName, "handler", "ListAdminTeams", "error", err,
@@ -245,6 +324,8 @@ func toGenAdminTeamListItem(t models.AdminTeamListItem) (admingen.AdminTeamListI
 	return admingen.AdminTeamListItem{
 		Id:          id,
 		Name:        t.Name,
+		Slug:        t.Slug,
+		IsPersonal:  t.IsPersonal,
 		Owner:       owner,
 		MemberCount: t.MemberCount,
 		CreatedAt:   t.CreatedAt,
@@ -306,11 +387,13 @@ func toGenAdminTeamDetail(d *models.AdminTeamDetail) (admingen.AdminTeamDetail, 
 		members = append(members, gm)
 	}
 	return admingen.AdminTeamDetail{
-		Id:        id,
-		Name:      d.Name,
-		Owner:     owner,
-		CreatedAt: d.CreatedAt,
-		Members:   members,
+		Id:         id,
+		Name:       d.Name,
+		Slug:       d.Slug,
+		IsPersonal: d.IsPersonal,
+		Owner:      owner,
+		CreatedAt:  d.CreatedAt,
+		Members:    members,
 	}, nil
 }
 
