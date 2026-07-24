@@ -154,6 +154,124 @@ api-v1-admin-users:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
 
 api-v1-admin-users-id:
+  patch:
+    summary: Update an instance user
+    description: |
+      Updates the display name of a user. This is the ONLY field an instance
+      admin may change: `email`, `idp_provider` and `idp_subject` are owned by the
+      upstream identity provider, and a body containing any unknown or
+      non-editable field is rejected with 400 rather than silently ignored.
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: updateAdminUser
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User id (UUID)
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminUserUpdateRequest'
+    responses:
+      '200':
+        description: The updated user
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserDetail'
+      '400':
+        description: Bad request — malformed id, or a body carrying an unknown or non-editable field
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown user id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+  delete:
+    summary: Delete an instance user
+    description: |
+      **Permanently and irreversibly** deletes a user. This cascades: the user's
+      personal team and everything they own (prompts, artifacts, memories,
+      projects, agents, feeds, API keys, …) are destroyed with them. Rows in
+      `attachments`, `content_versions`, `resource_access_events` and `types`
+      survive with a null user reference so audit and analytics history is kept.
+
+      **Suspension (`POST /admin/users/{id}/suspend`) is the reversible
+      alternative** and should be preferred unless the data genuinely must go.
+
+      The delete is REFUSED with 409 when the user owns any shared (non-personal)
+      team that still has other members, because removing them would cascade that
+      team away and destroy its other members' data. The response lists every
+      blocking team; transfer ownership first. Nothing is deleted in that case.
+
+      Also refused with 409 when the acting admin targets themselves, or when the
+      target's email is listed in the `auth.instance_admins` config allowlist.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: deleteAdminUser
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: The user was deleted
+      '400':
+        description: Bad request — malformed user id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown user id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: |
+          Conflict — the delete was refused and NOTHING was deleted. Either the
+          user owns shared teams with other members (see `blockers`), or the
+          target is the acting admin or a config-listed instance admin.
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserDeleteBlockedResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
   get:
     summary: Get an instance user
     description: |

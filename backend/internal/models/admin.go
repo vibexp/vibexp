@@ -213,3 +213,13 @@ type AdminTimeseries struct {
 	AccessBySource []AdminSourcePoint
 	DataWindow     AdminDataWindow
 }
+
+// AdminDeleteBlocker is one reason a user cannot be hard-deleted: a SHARED team
+// they own that still has other members. Deleting the user would cascade through
+// teams_owner_id_fkey and destroy that team along with every member's data in
+// it, so the delete is refused and this list is returned instead.
+type AdminDeleteBlocker struct {
+	TeamID      string
+	TeamName    string
+	MemberCount int64
+}

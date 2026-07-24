@@ -711,3 +711,210 @@ func TestAdminRepository_UpdateUserStatus(t *testing.T) {
 		})
 	}
 }
+
+// TestAdminRepository_DeleteUserIfUnblocked_RefusesAndDeletesNothing is the
+// single most important repository test in this epic. The delete must NOT run
+// when the blocker query returns rows: teams_owner_id_fkey is ON DELETE CASCADE
+// and 19 constraints cascade from teams, so deleting the user would destroy the
+// blocking teams and every other member's data in them.
+//
+// No ExpectExec is registered, so an executed DELETE fails the test.
+func TestAdminRepository_DeleteUserIfUnblocked_RefusesAndDeletesNothing(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`FROM teams t`).
+		WithArgs("u1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}).
+			AddRow("t1", "Acme Engineering", 4).
+			AddRow("t2", "Beta Squad", 2))
+	mock.ExpectRollback()
+
+	blockers, found, err := repo.DeleteUserIfUnblocked(context.Background(), "u1")
+	require.NoError(t, err)
+	assert.True(t, found)
+	require.Len(t, blockers, 2)
+	assert.Equal(t, "Acme Engineering", blockers[0].TeamName)
+	assert.Equal(t, int64(4), blockers[0].MemberCount)
+	assert.Equal(t, "t2", blockers[1].TeamID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAdminRepository_DeleteUserIfUnblocked_DeletesWhenClear covers the allowed
+// path, and pins that the check and the delete share ONE transaction — a member
+// joining between them is exactly the race that would destroy their data.
+func TestAdminRepository_DeleteUserIfUnblocked_DeletesWhenClear(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`FROM teams t`).
+		WithArgs("u1").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}))
+	mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).
+		WithArgs("u1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	blockers, found, err := repo.DeleteUserIfUnblocked(context.Background(), "u1")
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.Empty(t, blockers)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAdminRepository_DeleteUserIfUnblocked_UnknownUser reports found=false so
+// the caller 404s instead of claiming a delete that never happened.
+func TestAdminRepository_DeleteUserIfUnblocked_UnknownUser(t *testing.T) {
+	repo, mock, mockDB := newAdminRepoMock(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`FROM teams t`).WithArgs("gone").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}))
+	mock.ExpectExec(`DELETE FROM users`).WithArgs("gone").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	blockers, found, err := repo.DeleteUserIfUnblocked(context.Background(), "gone")
+	require.NoError(t, err)
+	assert.False(t, found)
+	assert.Empty(t, blockers)
+}
+
+// TestAdminRepository_DeleteUserIfUnblocked_Errors: every failure must roll back
+// rather than leave a half-applied delete.
+func TestAdminRepository_DeleteUserIfUnblocked_Errors(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(sqlmock.Sqlmock)
+	}{
+		{
+			name: "begin fails",
+			setup: func(m sqlmock.Sqlmock) {
+				m.ExpectBegin().WillReturnError(errors.New("boom"))
+			},
+		},
+		{
+			name: "blocker query fails",
+			setup: func(m sqlmock.Sqlmock) {
+				m.ExpectBegin()
+				m.ExpectQuery(`FROM teams t`).WillReturnError(errors.New("boom"))
+				m.ExpectRollback()
+			},
+		},
+		{
+			name: "delete fails",
+			setup: func(m sqlmock.Sqlmock) {
+				m.ExpectBegin()
+				m.ExpectQuery(`FROM teams t`).
+					WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}))
+				m.ExpectExec(`DELETE FROM users`).WillReturnError(errors.New("boom"))
+				m.ExpectRollback()
+			},
+		},
+		{
+			name: "commit fails",
+			setup: func(m sqlmock.Sqlmock) {
+				m.ExpectBegin()
+				m.ExpectQuery(`FROM teams t`).
+					WillReturnRows(sqlmock.NewRows([]string{"id", "name", "count"}))
+				m.ExpectExec(`DELETE FROM users`).WillReturnResult(sqlmock.NewResult(0, 1))
+				m.ExpectCommit().WillReturnError(errors.New("serialization failure"))
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, mock, mockDB := newAdminRepoMock(t)
+			defer func() {
+				if closeErr := mockDB.Close(); closeErr != nil {
+					t.Logf("failed to close mock DB: %v", closeErr)
+				}
+			}()
+
+			tc.setup(mock)
+			_, _, err := repo.DeleteUserIfUnblocked(context.Background(), "u1")
+			require.Error(t, err)
+		})
+	}
+}
+
+// TestAdminRepository_DeleteBlockerQuery_ScopesToSharedTeamsWithOthers pins the
+// three conditions that define a blocker. Widening any of them would refuse safe
+// deletes; narrowing any would permit destructive ones.
+func TestAdminRepository_DeleteBlockerQuery_ScopesToSharedTeamsWithOthers(t *testing.T) {
+	assert.Contains(t, adminUserDeleteBlockersQuery, "t.owner_id = $1",
+		"only teams the target OWNS can block")
+	assert.Contains(t, adminUserDeleteBlockersQuery, "t.is_personal = false",
+		"a personal team is meant to cascade away with its user")
+	assert.Contains(t, adminUserDeleteBlockersQuery, "member_counts.count > 1",
+		"a shared team the user owns ALONE holds nobody else's data")
+}
+
+// TestAdminRepository_UpdateUserName covers the edit write.
+func TestAdminRepository_UpdateUserName(t *testing.T) {
+	tests := []struct {
+		name    string
+		result  driver.Result
+		execErr error
+		wantOK  bool
+		wantErr bool
+	}{
+		{name: "updates", result: sqlmock.NewResult(0, 1), wantOK: true},
+		{name: "no such user", result: sqlmock.NewResult(0, 0), wantOK: false},
+		{name: "exec fails", execErr: errors.New("boom"), wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, mock, mockDB := newAdminRepoMock(t)
+			defer func() {
+				if closeErr := mockDB.Close(); closeErr != nil {
+					t.Logf("failed to close mock DB: %v", closeErr)
+				}
+			}()
+
+			exp := mock.ExpectExec(`UPDATE users SET name = \$1, updated_at = NOW\(\) WHERE id = \$2`).
+				WithArgs("Renamed", "u1")
+			if tc.execErr != nil {
+				exp.WillReturnError(tc.execErr)
+			} else {
+				exp.WillReturnResult(tc.result)
+			}
+
+			ok, err := repo.UpdateUserName(context.Background(), "u1", "Renamed")
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantOK, ok)
+		})
+	}
+}
+
+// TestAdminDeleteTxOptions_AreSerializable pins the isolation level the TOCTOU
+// argument rests on. sqlmock ignores tx options, so without this a silent
+// downgrade to the default would keep every test green while reopening the race
+// where a member joins one of the target's shared teams between the blocker
+// check and the delete — and gets their data destroyed.
+func TestAdminDeleteTxOptions_AreSerializable(t *testing.T) {
+	require.NotNil(t, adminDeleteTxOptions)
+	assert.Equal(t, sql.LevelSerializable, adminDeleteTxOptions.Isolation)
+	assert.False(t, adminDeleteTxOptions.ReadOnly, "the transaction must be able to DELETE")
+}

@@ -657,3 +657,67 @@ AdminTimeseriesResponse:
         $ref: '#/AdminSourcePoint'
     data_window:
       $ref: '#/AdminDataWindow'
+
+# ---------------------------------------------------------------------------
+# Admin user mutations (#455)
+# ---------------------------------------------------------------------------
+
+AdminUserUpdateRequest:
+  type: object
+  description: |
+    Fields an instance admin may change on a user. Deliberately minimal: email
+    and the identity-provider fields (idp_provider, idp_subject) are owned by the
+    upstream IdP and are not editable here — sending them is a 400 rather than a
+    silent no-op.
+  required:
+    - name
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: The user's display name.
+      example: "Jane Doe"
+
+AdminDeleteBlocker:
+  type: object
+  description: |
+    One reason a user cannot be deleted: a shared team they own that still has
+    other members. Ownership must be transferred before the account can be
+    removed.
+  required:
+    - team_id
+    - team_name
+    - member_count
+  properties:
+    team_id:
+      type: string
+      format: uuid
+    team_name:
+      type: string
+      example: "Acme Engineering"
+    member_count:
+      type: integer
+      format: int64
+      description: How many members the team has, including the owner.
+      example: 4
+
+AdminUserDeleteBlockedResponse:
+  type: object
+  description: |
+    Returned with 409 when a hard delete is refused. NOTHING was deleted: the
+    user and every listed team still exist.
+  required:
+    - message
+    - blockers
+  properties:
+    message:
+      type: string
+      description: Human-readable summary of why the delete was refused.
+      example: "This user owns shared teams with other members. Transfer ownership before deleting."
+    blockers:
+      type: array
+      description: Every shared team blocking the delete.
+      items:
+        $ref: '#/AdminDeleteBlocker'

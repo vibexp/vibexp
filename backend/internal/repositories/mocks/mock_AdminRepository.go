@@ -26,6 +26,72 @@ func (_m *MockAdminRepository) EXPECT() *MockAdminRepository_Expecter {
 	return &MockAdminRepository_Expecter{mock: &_m.Mock}
 }
 
+// DeleteUserIfUnblocked provides a mock function with given fields: ctx, id
+func (_m *MockAdminRepository) DeleteUserIfUnblocked(ctx context.Context, id string) ([]models.AdminDeleteBlocker, bool, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteUserIfUnblocked")
+	}
+
+	var r0 []models.AdminDeleteBlocker
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]models.AdminDeleteBlocker, bool, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []models.AdminDeleteBlocker); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AdminDeleteBlocker)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) bool); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string) error); ok {
+		r2 = rf(ctx, id)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockAdminRepository_DeleteUserIfUnblocked_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteUserIfUnblocked'
+type MockAdminRepository_DeleteUserIfUnblocked_Call struct {
+	*mock.Call
+}
+
+// DeleteUserIfUnblocked is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminRepository_Expecter) DeleteUserIfUnblocked(ctx interface{}, id interface{}) *MockAdminRepository_DeleteUserIfUnblocked_Call {
+	return &MockAdminRepository_DeleteUserIfUnblocked_Call{Call: _e.mock.On("DeleteUserIfUnblocked", ctx, id)}
+}
+
+func (_c *MockAdminRepository_DeleteUserIfUnblocked_Call) Run(run func(ctx context.Context, id string)) *MockAdminRepository_DeleteUserIfUnblocked_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_DeleteUserIfUnblocked_Call) Return(_a0 []models.AdminDeleteBlocker, _a1 bool, _a2 error) *MockAdminRepository_DeleteUserIfUnblocked_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockAdminRepository_DeleteUserIfUnblocked_Call) RunAndReturn(run func(context.Context, string) ([]models.AdminDeleteBlocker, bool, error)) *MockAdminRepository_DeleteUserIfUnblocked_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetAccessBySourceSeries provides a mock function with given fields: ctx, from, to, granularity
 func (_m *MockAdminRepository) GetAccessBySourceSeries(ctx context.Context, from time.Time, to time.Time, granularity string) ([]models.AdminSourcePoint, error) {
 	ret := _m.Called(ctx, from, to, granularity)
@@ -681,6 +747,64 @@ func (_c *MockAdminRepository_ListUsers_Call) Return(_a0 []models.AdminUserListI
 }
 
 func (_c *MockAdminRepository_ListUsers_Call) RunAndReturn(run func(context.Context, repositories.AdminUserFilters) ([]models.AdminUserListItem, int, error)) *MockAdminRepository_ListUsers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateUserName provides a mock function with given fields: ctx, id, name
+func (_m *MockAdminRepository) UpdateUserName(ctx context.Context, id string, name string) (bool, error) {
+	ret := _m.Called(ctx, id, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserName")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (bool, error)); ok {
+		return rf(ctx, id, name)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) bool); ok {
+		r0 = rf(ctx, id, name)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, id, name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminRepository_UpdateUserName_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateUserName'
+type MockAdminRepository_UpdateUserName_Call struct {
+	*mock.Call
+}
+
+// UpdateUserName is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+//   - name string
+func (_e *MockAdminRepository_Expecter) UpdateUserName(ctx interface{}, id interface{}, name interface{}) *MockAdminRepository_UpdateUserName_Call {
+	return &MockAdminRepository_UpdateUserName_Call{Call: _e.mock.On("UpdateUserName", ctx, id, name)}
+}
+
+func (_c *MockAdminRepository_UpdateUserName_Call) Run(run func(ctx context.Context, id string, name string)) *MockAdminRepository_UpdateUserName_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminRepository_UpdateUserName_Call) Return(_a0 bool, _a1 error) *MockAdminRepository_UpdateUserName_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminRepository_UpdateUserName_Call) RunAndReturn(run func(context.Context, string, string) (bool, error)) *MockAdminRepository_UpdateUserName_Call {
 	_c.Call.Return(run)
 	return _c
 }
