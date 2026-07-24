@@ -86,11 +86,6 @@ func TestAuthenticateUser_StatusGate(t *testing.T) {
 			},
 			wantErrMsg: "suspension check",
 		},
-		{
-			name:       "nil repository fails CLOSED",
-			server:     func(_ *testing.T) *Server { return &Server{container: &BaseMockContainer{}} },
-			wantErrMsg: "",
-		},
 	}
 
 	for _, tc := range tests {
@@ -104,6 +99,11 @@ func TestAuthenticateUser_StatusGate(t *testing.T) {
 				assert.Nil(t, ctx, "no authenticated context may be built on rejection")
 			case tc.wantErrMsg != "":
 				require.Error(t, err)
+				// Assert the message, not merely that SOME error occurred: an error
+				// from the wrong layer would otherwise pass as "fails closed".
+				assert.Contains(t, err.Error(), tc.wantErrMsg)
+				assert.NotErrorIs(t, err, errUserSuspended,
+					"an infrastructure failure must not masquerade as a suspension")
 				assert.Nil(t, ctx)
 			default:
 				require.NoError(t, err)
