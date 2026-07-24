@@ -13,8 +13,9 @@ import (
 	"github.com/vibexp/vibexp/pkg/events"
 )
 
-// ErrInstallationNotAuthorized is returned when the caller cannot administer
-// the GitHub App installation they are trying to bind to their team.
+// ErrInstallationNotAuthorized is returned when the caller cannot be shown to
+// have access to the GitHub App installation they are trying to bind to their
+// team.
 var ErrInstallationNotAuthorized = errors.New("you are not authorized to connect this GitHub installation")
 
 // ErrGitHubUserAuthUnavailable is returned when the GitHub App's OAuth
@@ -36,14 +37,14 @@ func (s *GitHubAppService) HandleInstallationCallback(
 		return false, authzErr
 	}
 
-	// Prove the caller may administer this installation BEFORE touching it.
-	// The signed state only proves a VibeXP user started an install flow for a
-	// team they can access — it says nothing about who owns installationID, and
-	// GetInstallation below authenticates as the App, so it resolves every
-	// installation regardless of who is asking. The check lives here rather
-	// than in the handler so no future caller can reach the store path without
-	// it (#463).
-	if err := s.verifyCallerAdministersInstallation(ctx, code, installationID); err != nil {
+	// Establish that the caller is an insider of this installation BEFORE
+	// touching it. The signed state only proves a VibeXP user started an install
+	// flow for a team they can access — it says nothing about who owns
+	// installationID, and GetInstallation below authenticates as the App, so it
+	// resolves every installation regardless of who is asking. The check lives
+	// here rather than in the handler so no future caller can reach the store
+	// path without it (#463).
+	if err := s.verifyCallerCanAccessInstallation(ctx, code, installationID); err != nil {
 		return false, err
 	}
 
@@ -97,11 +98,11 @@ func (s *GitHubAppService) HandleInstallationCallback(
 	return reconnected, nil
 }
 
-// verifyCallerAdministersInstallation exchanges GitHub's post-install code for
-// a user access token and requires installationID to be one that user may
-// administer. Any failure is a denial: an unusable code, an installation the
-// user does not administer, and absent OAuth credentials all stop the bind.
-func (s *GitHubAppService) verifyCallerAdministersInstallation(
+// verifyCallerCanAccessInstallation exchanges GitHub's post-install code for a
+// user access token and requires installationID to be one that user can reach.
+// Any failure is a denial: an unusable code, an installation the user has no
+// access to, and absent OAuth credentials all stop the bind.
+func (s *GitHubAppService) verifyCallerCanAccessInstallation(
 	ctx context.Context, code string, installationID int64,
 ) error {
 	if code == "" {
@@ -119,13 +120,13 @@ func (s *GitHubAppService) verifyCallerAdministersInstallation(
 		return fmt.Errorf("failed to exchange installation authorization code: %w", err)
 	}
 
-	authorized, err := s.githubClient.UserCanAdministerInstallation(ctx, userToken, installationID)
+	accessible, err := s.githubClient.UserCanAccessInstallation(ctx, userToken, installationID)
 	if err != nil {
-		return fmt.Errorf("failed to verify installation authority: %w", err)
+		return fmt.Errorf("failed to verify installation access: %w", err)
 	}
-	if !authorized {
+	if !accessible {
 		s.logger.With("installation_id", installationID).
-			Warn("Rejected install callback for an installation the caller cannot administer")
+			Warn("Rejected install callback for an installation the caller cannot access")
 		return ErrInstallationNotAuthorized
 	}
 

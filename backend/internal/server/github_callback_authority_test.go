@@ -10,7 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/vibexp/vibexp/internal/authz"
+	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/services"
+	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
 )
 
 // Regression tests for #463: the install callback must not bind an installation
@@ -171,4 +174,43 @@ func TestHandleGitHubDisconnect_MemberRoleDenied(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	container.gitHubAppService.AssertExpectations(t)
+}
+
+// TestHandleGitHubInstallURL_Authorization covers the gate added with #463:
+// minting an install URL needs the same permission as completing the callback,
+// so a member cannot install the App on a GitHub org and then be refused at the
+// end — which would leave the org connected to nothing.
+func TestHandleGitHubInstallURL_Authorization(t *testing.T) {
+	tests := []struct {
+		name       string
+		authzErr   error
+		wantStatus int
+	}{
+		{"owner or admin", nil, http.StatusOK},
+		{"plain member", services.ErrPermissionDenied, http.StatusForbidden},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			container, _ := newGitHubTestContainer(t)
+			authzSvc := svcmocks.NewMockAuthorizationServiceInterface(t)
+			authzSvc.On("Can", mock.Anything, githubTestUserID, githubTestTeamID, authz.TeamUpdate).
+				Return(tt.authzErr)
+			container.authzService = authzSvc
+
+			srv := createGitHubTestServer(container)
+			srv.config = &config.Config{GitHub: config.GitHubConfig{AppSlug: "vibexp"}}
+
+			req := httptest.NewRequest(http.MethodGet,
+				"/api/v1/"+githubTestTeamID+"/integrations/github/install-url", nil)
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, githubTestUserID))
+			req = addGitHubChiParams(req, map[string]string{"team_id": githubTestTeamID})
+			rr := httptest.NewRecorder()
+
+			srv.handleGitHubInstallURL(rr, req)
+
+			assert.Equal(t, tt.wantStatus, rr.Code)
+			authzSvc.AssertExpectations(t)
+		})
+	}
 }

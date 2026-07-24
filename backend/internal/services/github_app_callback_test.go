@@ -54,7 +54,7 @@ func newCallbackTestServiceWithAuthz(
 func expectAuthorizedInstaller(githubClient *MockGitHubAppClient) {
 	githubClient.On("ExchangeUserCode", mock.Anything, testInstallCode).
 		Return(testInstallerGrant, nil)
-	githubClient.On("UserCanAdministerInstallation", mock.Anything, testInstallerGrant, mock.Anything).
+	githubClient.On("UserCanAccessInstallation", mock.Anything, testInstallerGrant, mock.Anything).
 		Return(true, nil)
 }
 

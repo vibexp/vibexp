@@ -127,16 +127,18 @@ func (c *GitHubAppClient) readTokenExchangeResponse(resp *http.Response) (string
 	return payload.AccessToken, nil
 }
 
-// UserCanAdministerInstallation reports whether installationID is one the user
-// behind userToken may administer. GET /user/installations only ever lists
-// installations the authenticated user administers, so membership in that list
-// is the authority proof the install callback needs (#463).
-func (c *GitHubAppClient) UserCanAdministerInstallation(
+// UserCanAccessInstallation reports whether installationID is one the user
+// behind userToken can reach. GET /user/installations lists installations
+// *accessible to* that user — org members with repository access, not only
+// admins — so a true result proves insider status on the installation, which is
+// the bar the install callback needs (#463). See the interface doc for the
+// precise scope of the guarantee.
+func (c *GitHubAppClient) UserCanAccessInstallation(
 	ctx context.Context,
 	userToken string,
 	installationID int64,
 ) (bool, error) {
-	ctx, span := githubTracer.Start(ctx, "github.user_can_administer_installation",
+	ctx, span := githubTracer.Start(ctx, "github.user_can_access_installation",
 		trace.WithAttributes(
 			attribute.Int64(attrInstallationID, installationID),
 		),
@@ -175,6 +177,14 @@ func (c *GitHubAppClient) UserCanAdministerInstallation(
 		}
 		opts.Page = resp.NextPage
 	}
+
+	// Ran out of pages before finding it. The caller reads this as a denial, so
+	// say the scan was truncated — otherwise a wrongly-refused install looks
+	// identical to a genuine rejection and leaves nothing to diagnose.
+	c.logger.With(
+		"installation_id", installationID,
+		"pages_scanned", maxUserInstallationPages,
+	).Warn("Stopped scanning user installations at the page cap; treating as not accessible")
 
 	return false, nil
 }

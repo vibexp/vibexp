@@ -151,7 +151,7 @@ func writeUserInstallationsPage(t *testing.T, w http.ResponseWriter, ids ...int6
 	writeBody(t, w, fmt.Sprintf(body, len(ids)))
 }
 
-func TestUserCanAdministerInstallation(t *testing.T) {
+func TestUserCanAccessInstallation(t *testing.T) {
 	tests := []struct {
 		name           string
 		listed         []int64
@@ -172,7 +172,7 @@ func TestUserCanAdministerInstallation(t *testing.T) {
 				writeUserInstallationsPage(t, w, tt.listed...)
 			})
 
-			ok, err := client.UserCanAdministerInstallation(
+			ok, err := client.UserCanAccessInstallation(
 				context.Background(), "gho_user_token", tt.installationID)
 
 			require.NoError(t, err)
@@ -181,9 +181,9 @@ func TestUserCanAdministerInstallation(t *testing.T) {
 	}
 }
 
-// TestUserCanAdministerInstallation_Paginates verifies a match on a later page
+// TestUserCanAccessInstallation_Paginates verifies a match on a later page
 // is still found — a user with many installations must not be denied wrongly.
-func TestUserCanAdministerInstallation_Paginates(t *testing.T) {
+func TestUserCanAccessInstallation_Paginates(t *testing.T) {
 	mux, client := newUserAuthTestClient(t, "Iv1.test", "secret")
 
 	mux.HandleFunc("GET /api/v3/user/installations", func(w http.ResponseWriter, r *http.Request) {
@@ -195,19 +195,19 @@ func TestUserCanAdministerInstallation_Paginates(t *testing.T) {
 		writeUserInstallationsPage(t, w, 111)
 	})
 
-	ok, err := client.UserCanAdministerInstallation(context.Background(), "gho_user_token", 777)
+	ok, err := client.UserCanAccessInstallation(context.Background(), "gho_user_token", 777)
 
 	require.NoError(t, err)
 	assert.True(t, ok, "an installation on page 2 must still be found")
 }
 
-func TestUserCanAdministerInstallation_UpstreamError(t *testing.T) {
+func TestUserCanAccessInstallation_UpstreamError(t *testing.T) {
 	mux, client := newUserAuthTestClient(t, "Iv1.test", "secret")
 	mux.HandleFunc("GET /api/v3/user/installations", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 	})
 
-	ok, err := client.UserCanAdministerInstallation(context.Background(), "gho_user_token", 111)
+	ok, err := client.UserCanAccessInstallation(context.Background(), "gho_user_token", 111)
 
 	require.Error(t, err)
 	assert.False(t, ok, "an error must never read as authorized")
@@ -222,7 +222,7 @@ func TestStubGitHubAppClient_UserAuthFailsClosed(t *testing.T) {
 	assert.True(t, errors.Is(err, external.ErrGitHubUserAuthNotConfigured),
 		"expected ErrGitHubUserAuthNotConfigured, got: %v", err)
 
-	ok, err := stub.UserCanAdministerInstallation(context.Background(), "token", 111)
+	ok, err := stub.UserCanAccessInstallation(context.Background(), "token", 111)
 	assert.Error(t, err)
 	assert.False(t, ok)
 }

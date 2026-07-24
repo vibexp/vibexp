@@ -130,10 +130,18 @@ type GitHubTestContainer struct {
 	mock.Mock
 	gitHubAppService *svcmocks.MockGitHubAppServiceInterface
 	activitySvc      activities.ActivityService
+	// authzService gates handler-level permission checks (install-url, #463).
+	// BaseMockContainer returns nil, which would panic the moment a handler
+	// consults it, so tests that reach one must set this.
+	authzService services.AuthorizationServiceInterface
 }
 
 func (c *GitHubTestContainer) GitHubAppService() services.GitHubAppServiceInterface {
 	return c.gitHubAppService
+}
+
+func (c *GitHubTestContainer) AuthorizationService() services.AuthorizationServiceInterface {
+	return c.authzService
 }
 func (c *GitHubTestContainer) ActivityService() activities.ActivityService { return c.activitySvc }
 func (c *GitHubTestContainer) ResourceAccessService() resourceaccess.ResourceAccessService {

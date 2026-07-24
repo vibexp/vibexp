@@ -63,7 +63,7 @@ func TestHandleInstallationCallback_ForeignInstallationRejected(t *testing.T) {
 	githubClient.On("ExchangeUserCode", mock.Anything, testInstallCode).
 		Return(testInstallerGrant, nil)
 	// GET /user/installations does not list the victim's installation.
-	githubClient.On("UserCanAdministerInstallation", mock.Anything, testInstallerGrant, authorityTestInstallationID).
+	githubClient.On("UserCanAccessInstallation", mock.Anything, testInstallerGrant, authorityTestInstallationID).
 		Return(false, nil)
 
 	svc := newCallbackTestServiceWithAuthz(installationRepo, githubClient, eventManager, allowAllAuthz{})
@@ -103,7 +103,7 @@ func TestHandleInstallationCallback_InvalidCodeRejected(t *testing.T) {
 
 	assert.True(t, errors.Is(err, ErrInstallationNotAuthorized),
 		"expected ErrInstallationNotAuthorized, got: %v", err)
-	githubClient.AssertNotCalled(t, "UserCanAdministerInstallation")
+	githubClient.AssertNotCalled(t, "UserCanAccessInstallation")
 	assertNothingStored(t, installationRepo)
 }
 

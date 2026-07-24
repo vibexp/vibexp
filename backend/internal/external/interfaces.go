@@ -108,9 +108,16 @@ type GitHubAppClient interface {
 	// and ErrGitHubUserCodeInvalid when GitHub rejects the code.
 	ExchangeUserCode(ctx context.Context, code string) (string, error)
 
-	// UserCanAdministerInstallation reports whether installationID appears in
-	// the installation list of the user behind userToken (GET /user/installations).
-	// GitHub only lists installations the user may administer, so a true result
-	// is the authority check the install callback needs (#463).
-	UserCanAdministerInstallation(ctx context.Context, userToken string, installationID int64) (bool, error)
+	// UserCanAccessInstallation reports whether installationID appears in the
+	// installation list of the user behind userToken (GET /user/installations).
+	//
+	// Scope of the guarantee, precisely: that endpoint lists installations
+	// *accessible to* the authenticated user — not only ones they administer.
+	// For an org installation that includes ordinary members with repository
+	// access. So a true result proves the caller is an insider of that
+	// installation, which is what the install callback needs (#463): it reduces
+	// "any authenticated VibeXP user may claim any installation" to "only
+	// someone who already has access to it may". Do not treat it as proof of
+	// admin rights.
+	UserCanAccessInstallation(ctx context.Context, userToken string, installationID int64) (bool, error)
 }

@@ -550,12 +550,12 @@ func (_c *MockGitHubAppClient_GetRepository_Call) RunAndReturn(run func(context.
 	return _c
 }
 
-// UserCanAdministerInstallation provides a mock function with given fields: ctx, userToken, installationID
-func (_m *MockGitHubAppClient) UserCanAdministerInstallation(ctx context.Context, userToken string, installationID int64) (bool, error) {
+// UserCanAccessInstallation provides a mock function with given fields: ctx, userToken, installationID
+func (_m *MockGitHubAppClient) UserCanAccessInstallation(ctx context.Context, userToken string, installationID int64) (bool, error) {
 	ret := _m.Called(ctx, userToken, installationID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for UserCanAdministerInstallation")
+		panic("no return value specified for UserCanAccessInstallation")
 	}
 
 	var r0 bool
@@ -578,32 +578,32 @@ func (_m *MockGitHubAppClient) UserCanAdministerInstallation(ctx context.Context
 	return r0, r1
 }
 
-// MockGitHubAppClient_UserCanAdministerInstallation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UserCanAdministerInstallation'
-type MockGitHubAppClient_UserCanAdministerInstallation_Call struct {
+// MockGitHubAppClient_UserCanAccessInstallation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UserCanAccessInstallation'
+type MockGitHubAppClient_UserCanAccessInstallation_Call struct {
 	*mock.Call
 }
 
-// UserCanAdministerInstallation is a helper method to define mock.On call
+// UserCanAccessInstallation is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userToken string
 //   - installationID int64
-func (_e *MockGitHubAppClient_Expecter) UserCanAdministerInstallation(ctx interface{}, userToken interface{}, installationID interface{}) *MockGitHubAppClient_UserCanAdministerInstallation_Call {
-	return &MockGitHubAppClient_UserCanAdministerInstallation_Call{Call: _e.mock.On("UserCanAdministerInstallation", ctx, userToken, installationID)}
+func (_e *MockGitHubAppClient_Expecter) UserCanAccessInstallation(ctx interface{}, userToken interface{}, installationID interface{}) *MockGitHubAppClient_UserCanAccessInstallation_Call {
+	return &MockGitHubAppClient_UserCanAccessInstallation_Call{Call: _e.mock.On("UserCanAccessInstallation", ctx, userToken, installationID)}
 }
 
-func (_c *MockGitHubAppClient_UserCanAdministerInstallation_Call) Run(run func(ctx context.Context, userToken string, installationID int64)) *MockGitHubAppClient_UserCanAdministerInstallation_Call {
+func (_c *MockGitHubAppClient_UserCanAccessInstallation_Call) Run(run func(ctx context.Context, userToken string, installationID int64)) *MockGitHubAppClient_UserCanAccessInstallation_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(string), args[2].(int64))
 	})
 	return _c
 }
 
-func (_c *MockGitHubAppClient_UserCanAdministerInstallation_Call) Return(_a0 bool, _a1 error) *MockGitHubAppClient_UserCanAdministerInstallation_Call {
+func (_c *MockGitHubAppClient_UserCanAccessInstallation_Call) Return(_a0 bool, _a1 error) *MockGitHubAppClient_UserCanAccessInstallation_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockGitHubAppClient_UserCanAdministerInstallation_Call) RunAndReturn(run func(context.Context, string, int64) (bool, error)) *MockGitHubAppClient_UserCanAdministerInstallation_Call {
+func (_c *MockGitHubAppClient_UserCanAccessInstallation_Call) RunAndReturn(run func(context.Context, string, int64) (bool, error)) *MockGitHubAppClient_UserCanAccessInstallation_Call {
 	_c.Call.Return(run)
 	return _c
 }

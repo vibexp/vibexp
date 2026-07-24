@@ -213,7 +213,7 @@ func (m *MockGitHubAppClient) ExchangeUserCode(ctx context.Context, code string)
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockGitHubAppClient) UserCanAdministerInstallation(
+func (m *MockGitHubAppClient) UserCanAccessInstallation(
 	ctx context.Context,
 	userToken string,
 	installationID int64,

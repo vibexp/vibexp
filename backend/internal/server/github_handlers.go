@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -123,7 +124,20 @@ func (s *Server) handleGitHubStatus(w http.ResponseWriter, r *http.Request) {
 
 // handleGitHubInstallURL returns the GitHub App installation URL
 func (s *Server) handleGitHubInstallURL(w http.ResponseWriter, r *http.Request) {
+	userID := s.getUserIDFromContext(r)
 	teamID := chi.URLParam(r, "team_id")
+
+	// Gated on the same permission as the callback: only someone who could
+	// actually complete the connect may start it. Without this a member can
+	// install the App on a GitHub org and then be refused at the callback,
+	// leaving the org with the App installed and no team connected (#463).
+	if authzErr := s.container.AuthorizationService().Can(
+		r.Context(), userID, teamID, authz.TeamUpdate,
+	); authzErr != nil {
+		writeErrorResponse(w, r, "forbidden",
+			"You do not have permission to manage this team's GitHub integration.", http.StatusForbidden)
+		return
+	}
 
 	// Generate HMAC-signed state to prevent CSRF. The installation does not
 	// exist yet, so the state is minted unbound (installation id 0).

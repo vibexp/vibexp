@@ -6863,7 +6863,7 @@
     "/api/v1/{team_id}/integrations/github/install-url": {
       "get": {
         "summary": "Get GitHub App installation URL",
-        "description": "Returns a signed GitHub App installation URL with CSRF protection. Requires an active subscription.",
+        "description": "Returns a signed GitHub App installation URL with CSRF protection. Requires team owner/admin — the same permission as completing the callback, so a caller cannot start an install they would be refused at the end of. Requires an active subscription.",
         "operationId": "getGitHubInstallURL",
         "security": [
           {
@@ -6903,7 +6903,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - user does not have access to this team",
+            "description": "Forbidden - user does not have access to this team, or is not a team owner/admin",
             "content": {
               "application/problem+json": {
                 "schema": {

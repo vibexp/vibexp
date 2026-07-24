@@ -743,7 +743,7 @@ func (s *stubGitHubAppClient) ExchangeUserCode(ctx context.Context, code string)
 	return "", external.ErrGitHubUserAuthNotConfigured
 }
 
-func (s *stubGitHubAppClient) UserCanAdministerInstallation(
+func (s *stubGitHubAppClient) UserCanAccessInstallation(
 	ctx context.Context,
 	userToken string,
 	installationID int64,
