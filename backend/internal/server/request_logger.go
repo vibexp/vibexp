@@ -40,7 +40,7 @@ func RequestIDMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 
 			// Log incoming request
 			reqLogger.Debug("Incoming request",
-				"remote_addr", r.RemoteAddr,
+				"remote_addr", clientIP(r),
 				"user_agent", r.Header.Get("User-Agent"),
 			)
 

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -29,7 +28,7 @@ func (s *Server) handleActivitiesGet(w http.ResponseWriter, r *http.Request) {
 			"service", serverLogServiceName,
 			"handler", "handleActivitiesGet",
 			"endpoint", "/api/v1/activities",
-			"remote_ip", getClientIP(r),
+			"remote_ip", clientIP(r),
 			"user_agent", r.UserAgent(),
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to activities list endpoint")
@@ -126,7 +125,7 @@ func (s *Server) handleActivityGet(w http.ResponseWriter, r *http.Request) {
 			"service", serverLogServiceName,
 			"handler", "handleActivityGet",
 			"endpoint", "/api/v1/activities/{id}",
-			"remote_ip", getClientIP(r),
+			"remote_ip", clientIP(r),
 			"user_agent", r.UserAgent(),
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to individual activity endpoint")
@@ -168,7 +167,7 @@ func (s *Server) handleActivitiesStatsGet(w http.ResponseWriter, r *http.Request
 			"service", serverLogServiceName,
 			"handler", "handleActivitiesStatsGet",
 			"endpoint", "/api/v1/activities/stats",
-			"remote_ip", getClientIP(r),
+			"remote_ip", clientIP(r),
 			"user_agent", r.UserAgent(),
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to activity stats endpoint")
@@ -207,7 +206,7 @@ func (s *Server) handleActivitiesTypesGet(w http.ResponseWriter, r *http.Request
 			"service", serverLogServiceName,
 			"handler", "handleActivitiesTypesGet",
 			"endpoint", "/api/v1/activities/types",
-			"remote_ip", getClientIP(r),
+			"remote_ip", clientIP(r),
 			"user_agent", r.UserAgent(),
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to activity types endpoint")
@@ -235,7 +234,7 @@ func (s *Server) handleActivitiesEntityTypesGet(w http.ResponseWriter, r *http.R
 			"service", serverLogServiceName,
 			"handler", "handleActivitiesEntityTypesGet",
 			"endpoint", "/api/v1/activities/entity-types",
-			"remote_ip", getClientIP(r),
+			"remote_ip", clientIP(r),
 			"user_agent", r.UserAgent(),
 			"security_event", "unauthorized_access_attempt",
 		).Warn("Unauthorized access attempt to activity entity types endpoint")
@@ -293,7 +292,7 @@ func (s *Server) logUnauthorizedActivityAccess(r *http.Request, handler string) 
 		"handler", handler,
 		"endpoint", "/api/v1/activities",
 		"method", "POST",
-		"remote_ip", getClientIP(r),
+		"remote_ip", clientIP(r),
 		"user_agent", r.UserAgent(),
 		"security_event", "unauthorized_access_attempt",
 	).Warn("Unauthorized access attempt to activity creation endpoint")
@@ -319,9 +318,9 @@ func (s *Server) enrichActivityRequest(req *activities.CreateActivityRequest, r 
 	req.Metadata["manual_creation"] = true
 	req.Metadata["created_via"] = "api"
 
-	clientIP := getClientIP(r)
+	sourceIP := clientIP(r)
 	userAgent := r.UserAgent()
-	req.SourceIP = &clientIP
+	req.SourceIP = &sourceIP
 	req.UserAgent = &userAgent
 }
 
@@ -349,47 +348,6 @@ func (s *Server) writeActivityResponse(
 		"message": message,
 		"data":    activity,
 	}, s.logger)
-}
-
-// Helper function to get client IP address
-func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header first (for load balancers/proxies)
-	forwarded := r.Header.Get("X-Forwarded-For")
-	if forwarded != "" {
-		// X-Forwarded-For can contain multiple IPs, take the first one
-		if idx := strings.Index(forwarded, ","); idx != -1 {
-			return strings.TrimSpace(forwarded[:idx])
-		}
-		return strings.TrimSpace(forwarded)
-	}
-
-	// Check X-Real-IP header
-	realIP := r.Header.Get("X-Real-IP")
-	if realIP != "" {
-		return strings.TrimSpace(realIP)
-	}
-
-	// Fall back to RemoteAddr
-	// Handle both IPv4 (192.168.1.1:8080) and IPv6 ([::1]:8080) formats
-	addr := r.RemoteAddr
-
-	// Check if it's an IPv6 address (starts with '[')
-	if strings.HasPrefix(addr, "[") {
-		// IPv6 format: [::1]:8080
-		if idx := strings.LastIndex(addr, "]:"); idx != -1 {
-			// Remove brackets: [::1] -> ::1
-			return addr[1:idx]
-		}
-		// If no port, just remove brackets
-		return strings.Trim(addr, "[]")
-	}
-
-	// IPv4 format: 192.168.1.1:8080
-	if idx := strings.LastIndex(addr, ":"); idx != -1 {
-		return addr[:idx]
-	}
-
-	return addr
 }
 
 // handleActivityRetentionJob handles POST /internal/jobs/activities/retention

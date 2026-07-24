@@ -167,10 +167,11 @@ func TestRecordResourceAccess_InvalidSourceIPIsDropped(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}
 
-	// A forged, non-IP X-Forwarded-For must not reach the INET column; the event
-	// is still recorded, just without a source_ip.
+	// A non-IP value must not reach the INET column; the event is still
+	// recorded, just without a source_ip. clientIPMiddleware cannot produce
+	// one, so inject it directly to exercise the guard.
 	req := requestWithAuth("cookie", "", "Mozilla/5.0")
-	req.Header.Set("X-Forwarded-For", "not-an-ip")
+	req = req.WithContext(context.WithValue(req.Context(), contextkeys.ClientIP, "not-an-ip"))
 	rec := httptest.NewRecorder()
 	mountRecordMiddleware(srv, resourceTypePrompt, handler).ServeHTTP(rec, req)
 
@@ -179,7 +180,10 @@ func TestRecordResourceAccess_InvalidSourceIPIsDropped(t *testing.T) {
 	assert.Nil(t, calls[0].SourceIP)
 }
 
-func TestRecordResourceAccess_ValidSourceIPIsRecorded(t *testing.T) {
+// TestRecordResourceAccess_SourceIPIsTheResolvedClientIP verifies access events
+// key off the same resolved IP as the rate limiter (#465), rather than
+// re-reading X-Forwarded-For themselves.
+func TestRecordResourceAccess_SourceIPIsTheResolvedClientIP(t *testing.T) {
 	spy := &spyResourceAccessService{}
 	srv := newServerWithNullLogger(t)
 	srv.container = &resourceAccessTestContainer{svc: spy}
@@ -190,7 +194,7 @@ func TestRecordResourceAccess_ValidSourceIPIsRecorded(t *testing.T) {
 	}
 
 	req := requestWithAuth("cookie", "", "Mozilla/5.0")
-	req.Header.Set("X-Forwarded-For", "203.0.113.7")
+	req = req.WithContext(context.WithValue(req.Context(), contextkeys.ClientIP, "203.0.113.7"))
 	rec := httptest.NewRecorder()
 	mountRecordMiddleware(srv, resourceTypePrompt, handler).ServeHTTP(rec, req)
 
@@ -198,6 +202,37 @@ func TestRecordResourceAccess_ValidSourceIPIsRecorded(t *testing.T) {
 	require.Len(t, calls, 1)
 	require.NotNil(t, calls[0].SourceIP)
 	assert.Equal(t, "203.0.113.7", *calls[0].SourceIP)
+}
+
+// TestRecordResourceAccess_ForgedForwardedForIsNotRecorded is the audit-trail
+// half of #465: a spoofed header used to land in the access log verbatim, so
+// incident response read attacker-chosen addresses. With no trusted proxies the
+// peer address is recorded instead.
+func TestRecordResourceAccess_ForgedForwardedForIsNotRecorded(t *testing.T) {
+	spy := &spyResourceAccessService{}
+	srv := newServerWithNullLogger(t)
+	srv.container = &resourceAccessTestContainer{svc: spy}
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		contextkeys.SetAccessedResourceID(r.Context(), "resolved-uuid")
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req := requestWithAuth("cookie", "", "Mozilla/5.0")
+	req.RemoteAddr = "198.51.100.20:5555"
+	req.Header.Set("X-Forwarded-For", "203.0.113.7") // forged
+	rec := httptest.NewRecorder()
+
+	// Full production chain: no trusted proxies configured.
+	clientIPMiddleware(nil)(
+		mountRecordMiddleware(srv, resourceTypePrompt, handler),
+	).ServeHTTP(rec, req)
+
+	calls := spy.calls()
+	require.Len(t, calls, 1)
+	require.NotNil(t, calls[0].SourceIP)
+	assert.Equal(t, "198.51.100.20", *calls[0].SourceIP,
+		"the audit trail must record the peer, not the forged header")
 }
 
 func TestRecordResourceAccess_NilServiceIsSafe(t *testing.T) {

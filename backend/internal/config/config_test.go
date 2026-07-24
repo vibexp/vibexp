@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -969,4 +970,47 @@ func newTestAppPrivateKeyPEM(t *testing.T) string {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	}))
+}
+
+// TestLoad_TrustedProxies covers the #465 knob: CIDR parsing, the
+// comma-separated env form the combined image uses, and fail-fast on a typo.
+func TestLoad_TrustedProxies(t *testing.T) {
+	t.Run("empty by default", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.Server.TrustedProxies)
+		assert.Empty(t, cfg.Server.ParsedTrustedProxies(),
+			"no trusted proxies means forwarded headers are ignored")
+	})
+
+	t.Run("yaml list", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML+
+			"server:\n  trusted_proxies:\n    - 10.0.0.0/8\n    - 192.168.1.5/32\n")
+		require.NoError(t, err)
+		assert.Equal(t, EnvStringSlice{"10.0.0.0/8", "192.168.1.5/32"}, cfg.Server.TrustedProxies)
+		assert.Len(t, cfg.Server.ParsedTrustedProxies(), 2)
+	})
+
+	t.Run("comma-separated string", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML+
+			"server:\n  trusted_proxies: \"10.0.0.0/8,172.16.0.0/12\"\n")
+		require.NoError(t, err)
+		assert.Len(t, cfg.Server.ParsedTrustedProxies(), 2)
+	})
+
+	t.Run("invalid CIDR fails fast", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML+"server:\n  trusted_proxies: \"10.0.0.1\"\n")
+		require.Error(t, err, "a bare IP is not a CIDR and must not be silently ignored")
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "trusted_proxies")
+	})
+
+	t.Run("parsed CIDRs match the right peers", func(t *testing.T) {
+		cfg, err := loadYAML(t, baseValidYAML+"server:\n  trusted_proxies: \"10.0.0.0/8\"\n")
+		require.NoError(t, err)
+		nets := cfg.Server.ParsedTrustedProxies()
+		require.Len(t, nets, 1)
+		assert.True(t, nets[0].Contains(net.ParseIP("10.1.2.3")))
+		assert.False(t, nets[0].Contains(net.ParseIP("203.0.113.1")))
+	})
 }

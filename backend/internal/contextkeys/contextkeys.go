@@ -36,6 +36,13 @@ const (
 
 	// PubSub middleware context keys
 	PubSubServiceAccount ContextKey = "pubsub_service_account"
+
+	// ClientIP holds the client IP resolved by clientIPMiddleware, honouring
+	// X-Forwarded-For / X-Real-IP only when the peer is a configured trusted
+	// proxy (#465). It is the single source for the rate limiter, request logs,
+	// resource-access events, and activity records — downstream code must read
+	// this rather than parsing the headers again.
+	ClientIP ContextKey = "client_ip"
 )
 
 // accessedResourceIDHolder is a mutable container for the resolved resource UUID.

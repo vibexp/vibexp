@@ -95,11 +95,12 @@ func (s *Server) buildResourceAccessEvent(
 	if ua := r.UserAgent(); ua != "" {
 		event.UserAgent = &ua
 	}
-	// source_ip is an INET column, and getClientIP trusts client-supplied
-	// X-Forwarded-For / X-Real-IP headers. Only set it when it parses as a real
-	// IP; a forged non-IP value would otherwise fail the INSERT and silently
-	// drop the event (the column is nullable, so leaving it nil is safe).
-	if ip := getClientIP(r); net.ParseIP(ip) != nil {
+	// source_ip is an INET column. clientIP resolves under the trusted-proxy
+	// rule (#465), so a forged X-Forwarded-For no longer lands here on a
+	// directly-exposed instance. The parse check stays as a belt-and-braces
+	// guard: a non-IP value would fail the INSERT and silently drop the event
+	// (the column is nullable, so leaving it nil is safe).
+	if ip := clientIP(r); net.ParseIP(ip) != nil {
 		event.SourceIP = &ip
 	}
 

@@ -342,72 +342,64 @@ func TestActivityHandlers_AuthenticationValidation(t *testing.T) {
 	}
 }
 
-type clientIPTestCase struct {
-	name          string
-	remoteAddr    string
-	xForwardedFor string
-	xRealIP       string
-	expected      string
-}
-
-func setupClientIPRequest(tc clientIPTestCase) *http.Request {
-	req := httptest.NewRequest("GET", "/test", nil)
-	req.RemoteAddr = tc.remoteAddr
-
-	if tc.xForwardedFor != "" {
-		req.Header.Set("X-Forwarded-For", tc.xForwardedFor)
-	}
-	if tc.xRealIP != "" {
-		req.Header.Set("X-Real-IP", tc.xRealIP)
-	}
-	return req
-}
-
-func assertClientIP(t *testing.T, req *http.Request, expected string) {
-	t.Helper()
-	result := getClientIP(req)
-	if result != expected {
-		t.Errorf("getClientIP() = %v, want %v", result, expected)
-	}
-}
-
-func TestGetClientIP(t *testing.T) {
-	tests := []clientIPTestCase{
+// clientIP falls back to the peer address when clientIPMiddleware has not run
+// (as in direct handler tests). It must NEVER read the forwarded headers itself
+// — that decision belongs to the middleware, which applies the trusted-proxy
+// rule. The full trust table lives in middleware_clientip_test.go.
+//
+// This replaces TestGetClientIP, which asserted the pre-#465 behaviour: an
+// untrusted peer's X-Forwarded-For winning outright.
+func TestClientIPFallsBackToPeerAndIgnoresHeaders(t *testing.T) {
+	tests := []struct {
+		name          string
+		remoteAddr    string
+		xForwardedFor string
+		xRealIP       string
+		expected      string
+	}{
 		{name: "IPv4 with port", remoteAddr: "192.168.1.1:12345", expected: "192.168.1.1"},
 		{name: "IPv4 without port", remoteAddr: "192.168.1.1", expected: "192.168.1.1"},
 		{name: "IPv6 localhost with port", remoteAddr: "[::1]:56222", expected: "::1"},
 		{
 			name:       "IPv6 address with port",
-			remoteAddr: "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:8080",
-			expected:   "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			remoteAddr: "[2001:db8:85a3::8a2e:370:7334]:8080",
+			expected:   "2001:db8:85a3::8a2e:370:7334",
 		},
 		{name: "IPv6 without port", remoteAddr: "[::1]", expected: "::1"},
 		{
-			name:          "X-Forwarded-For single IP",
+			name:          "spoofed X-Forwarded-For is ignored",
 			remoteAddr:    "10.0.0.1:12345",
 			xForwardedFor: "203.0.113.1",
-			expected:      "203.0.113.1",
+			expected:      "10.0.0.1",
 		},
 		{
-			name:          "X-Forwarded-For multiple IPs",
+			name:          "spoofed X-Forwarded-For chain is ignored",
 			remoteAddr:    "10.0.0.1:12345",
 			xForwardedFor: "203.0.113.1, 198.51.100.1, 192.0.2.1",
-			expected:      "203.0.113.1",
+			expected:      "10.0.0.1",
 		},
-		{name: "X-Real-IP", remoteAddr: "10.0.0.1:12345", xRealIP: "203.0.113.1", expected: "203.0.113.1"},
 		{
-			name:          "X-Forwarded-For takes precedence over X-Real-IP",
-			remoteAddr:    "10.0.0.1:12345",
-			xForwardedFor: "203.0.113.1",
-			xRealIP:       "198.51.100.1",
-			expected:      "203.0.113.1",
+			name:       "spoofed X-Real-IP is ignored",
+			remoteAddr: "10.0.0.1:12345",
+			xRealIP:    "203.0.113.1",
+			expected:   "10.0.0.1",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := setupClientIPRequest(tt)
-			assertClientIP(t, req, tt.expected)
+			req := httptest.NewRequest("GET", "/test", nil)
+			req.RemoteAddr = tt.remoteAddr
+			if tt.xForwardedFor != "" {
+				req.Header.Set("X-Forwarded-For", tt.xForwardedFor)
+			}
+			if tt.xRealIP != "" {
+				req.Header.Set("X-Real-IP", tt.xRealIP)
+			}
+
+			if got := clientIP(req); got != tt.expected {
+				t.Errorf("clientIP() = %v, want %v", got, tt.expected)
+			}
 		})
 	}
 }
