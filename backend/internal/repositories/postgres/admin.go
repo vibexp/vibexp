@@ -517,6 +517,14 @@ WHERE t.owner_id = $1
 ORDER BY t.name, t.id
 `
 
+// adminDeleteTxOptions is SERIALIZABLE deliberately, and the whole TOCTOU
+// argument for this endpoint rests on it: at a weaker level a member could join
+// one of the target's shared teams between the blocker check and the delete, and
+// the cascade would destroy their data. Named (rather than inline) so a test can
+// assert it — sqlmock ignores tx options, so a silent downgrade to the default
+// would otherwise leave every test green while reopening the race.
+var adminDeleteTxOptions = &sql.TxOptions{Isolation: sql.LevelSerializable}
+
 // DeleteUserIfUnblocked runs the blocker check and the delete inside ONE
 // SERIALIZABLE transaction, returning the blockers when the delete was refused.
 //
@@ -534,7 +542,7 @@ ORDER BY t.name, t.id
 func (r *AdminRepository) DeleteUserIfUnblocked(
 	ctx context.Context, id string,
 ) ([]models.AdminDeleteBlocker, bool, error) {
-	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := r.db.BeginTx(ctx, adminDeleteTxOptions)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to begin delete transaction: %w", err)
 	}
