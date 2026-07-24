@@ -61,11 +61,14 @@ func TestDeleteUser_Success(t *testing.T) {
 		Return(deleteTargetDetail("target@example.com"), nil)
 	repo.On("DeleteUserIfUnblocked", mock.Anything, deleteTarget).Return(nil, true, nil)
 
-	deleted, err := NewAdminService(repo).DeleteUser(
+	email, deleted, err := NewAdminService(repo).DeleteUser(
 		context.Background(), deleteActingAdmin, deleteTarget, noInstanceAdmins,
 	)
 	require.NoError(t, err)
 	assert.True(t, deleted)
+	// The email must come back so the caller can name the account in its audit
+	// row — after the delete there is no row left to read it from.
+	assert.Equal(t, "target@example.com", email)
 }
 
 // TestDeleteUser_LockoutGuardsNeverReachTheRepository is the load-bearing test
@@ -113,7 +116,7 @@ func TestDeleteUser_LockoutGuardsNeverReachTheRepository(t *testing.T) {
 			repo := repomocks.NewMockAdminRepository(t)
 			repo.On("GetUserDetail", mock.Anything, deleteTarget).Return(tc.target, nil)
 
-			deleted, err := NewAdminService(repo).DeleteUser(
+			_, deleted, err := NewAdminService(repo).DeleteUser(
 				context.Background(), tc.actingID, deleteTarget, tc.predicate,
 			)
 			assert.False(t, deleted)
@@ -136,10 +139,11 @@ func TestDeleteUser_BlockedByOwnedSharedTeams(t *testing.T) {
 		Return(deleteTargetDetail("target@example.com"), nil)
 	repo.On("DeleteUserIfUnblocked", mock.Anything, deleteTarget).Return(blockers, true, nil)
 
-	deleted, err := NewAdminService(repo).DeleteUser(
+	email, deleted, err := NewAdminService(repo).DeleteUser(
 		context.Background(), deleteActingAdmin, deleteTarget, noInstanceAdmins,
 	)
 	assert.False(t, deleted, "a blocked delete must report that nothing was deleted")
+	assert.Empty(t, email, "a refusal returns no email — there is nothing to audit as deleted")
 
 	var blockedErr *ErrAdminDeleteBlocked
 	require.ErrorAs(t, err, &blockedErr)
@@ -157,7 +161,7 @@ func TestDeleteUser_UnknownTarget(t *testing.T) {
 		repo := repomocks.NewMockAdminRepository(t)
 		repo.On("GetUserDetail", mock.Anything, deleteTarget).Return(nil, nil)
 
-		deleted, err := NewAdminService(repo).DeleteUser(
+		_, deleted, err := NewAdminService(repo).DeleteUser(
 			context.Background(), deleteActingAdmin, deleteTarget, noInstanceAdmins,
 		)
 		require.NoError(t, err)
@@ -170,7 +174,7 @@ func TestDeleteUser_UnknownTarget(t *testing.T) {
 			Return(deleteTargetDetail("t@example.com"), nil)
 		repo.On("DeleteUserIfUnblocked", mock.Anything, deleteTarget).Return(nil, false, nil)
 
-		deleted, err := NewAdminService(repo).DeleteUser(
+		_, deleted, err := NewAdminService(repo).DeleteUser(
 			context.Background(), deleteActingAdmin, deleteTarget, noInstanceAdmins,
 		)
 		require.NoError(t, err)
@@ -186,7 +190,7 @@ func TestDeleteUser_NilPredicateStillGuardsSelf(t *testing.T) {
 	repo.On("GetUserDetail", mock.Anything, deleteTarget).
 		Return(deleteTargetDetail("me@example.com"), nil)
 
-	_, err := NewAdminService(repo).DeleteUser(
+	_, _, err := NewAdminService(repo).DeleteUser(
 		context.Background(), deleteTarget, deleteTarget, nil,
 	)
 	var e *ErrAdminDeleteSelf
@@ -200,7 +204,7 @@ func TestDeleteUser_RepositoryErrors(t *testing.T) {
 		repo := repomocks.NewMockAdminRepository(t)
 		repo.On("GetUserDetail", mock.Anything, deleteTarget).Return(nil, errors.New("boom"))
 
-		deleted, err := NewAdminService(repo).DeleteUser(
+		_, deleted, err := NewAdminService(repo).DeleteUser(
 			context.Background(), deleteActingAdmin, deleteTarget, noInstanceAdmins,
 		)
 		require.Error(t, err)
@@ -214,7 +218,7 @@ func TestDeleteUser_RepositoryErrors(t *testing.T) {
 		repo.On("DeleteUserIfUnblocked", mock.Anything, deleteTarget).
 			Return(nil, false, errors.New("serialization failure"))
 
-		deleted, err := NewAdminService(repo).DeleteUser(
+		_, deleted, err := NewAdminService(repo).DeleteUser(
 			context.Background(), deleteActingAdmin, deleteTarget, noInstanceAdmins,
 		)
 		require.Error(t, err)

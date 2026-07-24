@@ -27,31 +27,38 @@ func (_m *MockAdminServiceInterface) EXPECT() *MockAdminServiceInterface_Expecte
 }
 
 // DeleteUser provides a mock function with given fields: ctx, actingAdminID, targetID, isInstanceAdmin
-func (_m *MockAdminServiceInterface) DeleteUser(ctx context.Context, actingAdminID string, targetID string, isInstanceAdmin services.InstanceAdminPredicate) (bool, error) {
+func (_m *MockAdminServiceInterface) DeleteUser(ctx context.Context, actingAdminID string, targetID string, isInstanceAdmin services.InstanceAdminPredicate) (string, bool, error) {
 	ret := _m.Called(ctx, actingAdminID, targetID, isInstanceAdmin)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteUser")
 	}
 
-	var r0 bool
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.InstanceAdminPredicate) (bool, error)); ok {
+	var r0 string
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.InstanceAdminPredicate) (string, bool, error)); ok {
 		return rf(ctx, actingAdminID, targetID, isInstanceAdmin)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.InstanceAdminPredicate) bool); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, services.InstanceAdminPredicate) string); ok {
 		r0 = rf(ctx, actingAdminID, targetID, isInstanceAdmin)
 	} else {
-		r0 = ret.Get(0).(bool)
+		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, services.InstanceAdminPredicate) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, services.InstanceAdminPredicate) bool); ok {
 		r1 = rf(ctx, actingAdminID, targetID, isInstanceAdmin)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(bool)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, services.InstanceAdminPredicate) error); ok {
+		r2 = rf(ctx, actingAdminID, targetID, isInstanceAdmin)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // MockAdminServiceInterface_DeleteUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteUser'
@@ -75,12 +82,12 @@ func (_c *MockAdminServiceInterface_DeleteUser_Call) Run(run func(ctx context.Co
 	return _c
 }
 
-func (_c *MockAdminServiceInterface_DeleteUser_Call) Return(_a0 bool, _a1 error) *MockAdminServiceInterface_DeleteUser_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *MockAdminServiceInterface_DeleteUser_Call) Return(deletedEmail string, deleted bool, err error) *MockAdminServiceInterface_DeleteUser_Call {
+	_c.Call.Return(deletedEmail, deleted, err)
 	return _c
 }
 
-func (_c *MockAdminServiceInterface_DeleteUser_Call) RunAndReturn(run func(context.Context, string, string, services.InstanceAdminPredicate) (bool, error)) *MockAdminServiceInterface_DeleteUser_Call {
+func (_c *MockAdminServiceInterface_DeleteUser_Call) RunAndReturn(run func(context.Context, string, string, services.InstanceAdminPredicate) (string, bool, error)) *MockAdminServiceInterface_DeleteUser_Call {
 	_c.Call.Return(run)
 	return _c
 }

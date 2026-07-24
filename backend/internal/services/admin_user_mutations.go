@@ -78,32 +78,37 @@ func (s *AdminService) UpdateUserName(
 // delete cannot slip through — that race is exactly the case that would destroy
 // someone else's data.
 //
-// Returns (true, nil) when the user was deleted, (false, nil) when there was no
-// such user.
+// Returns the deleted user's email alongside the outcome: the guards already
+// load the row, and after the delete there is nothing left to read it from, so
+// the caller's audit entry would otherwise be unable to name the account.
+// (email, true, nil) when deleted; ("", false, nil) when there was no such user.
 func (s *AdminService) DeleteUser(
 	ctx context.Context, actingAdminID, targetID string, isInstanceAdmin InstanceAdminPredicate,
-) (bool, error) {
+) (string, bool, error) {
 	target, err := s.adminRepo.GetUserDetail(ctx, targetID)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 	if target == nil {
-		return false, nil
+		return "", false, nil
 	}
 
 	if targetID == actingAdminID {
-		return false, &ErrAdminDeleteSelf{}
+		return "", false, &ErrAdminDeleteSelf{}
 	}
 	if isInstanceAdmin != nil && isInstanceAdmin(target.Email) {
-		return false, &ErrAdminDeleteInstanceAdmin{Email: target.Email}
+		return "", false, &ErrAdminDeleteInstanceAdmin{Email: target.Email}
 	}
 
 	blockers, found, err := s.adminRepo.DeleteUserIfUnblocked(ctx, targetID)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 	if len(blockers) > 0 {
-		return false, &ErrAdminDeleteBlocked{Blockers: blockers}
+		return "", false, &ErrAdminDeleteBlocked{Blockers: blockers}
 	}
-	return found, nil
+	if !found {
+		return "", false, nil
+	}
+	return target.Email, true, nil
 }

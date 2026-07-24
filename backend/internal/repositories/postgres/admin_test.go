@@ -907,3 +907,14 @@ func TestAdminRepository_UpdateUserName(t *testing.T) {
 		})
 	}
 }
+
+// TestAdminDeleteTxOptions_AreSerializable pins the isolation level the TOCTOU
+// argument rests on. sqlmock ignores tx options, so without this a silent
+// downgrade to the default would keep every test green while reopening the race
+// where a member joins one of the target's shared teams between the blocker
+// check and the delete — and gets their data destroyed.
+func TestAdminDeleteTxOptions_AreSerializable(t *testing.T) {
+	require.NotNil(t, adminDeleteTxOptions)
+	assert.Equal(t, sql.LevelSerializable, adminDeleteTxOptions.Isolation)
+	assert.False(t, adminDeleteTxOptions.ReadOnly, "the transaction must be able to DELETE")
+}

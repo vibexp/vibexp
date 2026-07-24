@@ -96,8 +96,8 @@ func TestUpdateAdminUser_ServiceErrorReturns500(t *testing.T) {
 func TestDeleteAdminUser_Success(t *testing.T) {
 	id := uuid.NewString()
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("GetUserDetail", mock.Anything, id).Return(adminUserDetailNamed(id, "Target"), nil)
-	mockAdmin.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).Return(true, nil)
+	mockAdmin.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).
+		Return("target@example.com", true, nil)
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 	req := httptest.NewRequest("DELETE", "/api/v1/admin/users/"+id, nil)
@@ -119,9 +119,8 @@ func TestDeleteAdminUser_BlockedReturnsStructuredBlockers(t *testing.T) {
 	teamA, teamB := uuid.NewString(), uuid.NewString()
 
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("GetUserDetail", mock.Anything, id).Return(adminUserDetailNamed(id, "Target"), nil)
 	mockAdmin.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).
-		Return(false, &services.ErrAdminDeleteBlocked{Blockers: []models.AdminDeleteBlocker{
+		Return("", false, &services.ErrAdminDeleteBlocked{Blockers: []models.AdminDeleteBlocker{
 			{TeamID: teamA, TeamName: "Acme Engineering", MemberCount: 4},
 			{TeamID: teamB, TeamName: "Beta Squad", MemberCount: 2},
 		}})
@@ -150,9 +149,8 @@ func TestDeleteAdminUser_BlockedReturnsStructuredBlockers(t *testing.T) {
 func TestDeleteAdminUser_BlockedEmptyBlockersSerializeAsArray(t *testing.T) {
 	id := uuid.NewString()
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("GetUserDetail", mock.Anything, id).Return(adminUserDetailNamed(id, "Target"), nil)
 	mockAdmin.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).
-		Return(false, &services.ErrAdminDeleteBlocked{})
+		Return("", false, &services.ErrAdminDeleteBlocked{})
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 	req := httptest.NewRequest("DELETE", "/api/v1/admin/users/"+id, nil)
@@ -184,9 +182,8 @@ func TestDeleteAdminUser_LockoutGuardsReturn409(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			id := uuid.NewString()
 			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-			mockAdmin.On("GetUserDetail", mock.Anything, id).Return(adminUserDetailNamed(id, "Target"), nil)
 			mockAdmin.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).
-				Return(false, tc.err)
+				Return("", false, tc.err)
 			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 			req := httptest.NewRequest("DELETE", "/api/v1/admin/users/"+id, nil)
@@ -195,6 +192,7 @@ func TestDeleteAdminUser_LockoutGuardsReturn409(t *testing.T) {
 
 			require.Equal(t, http.StatusConflict, rr.Code)
 			assert.Contains(t, rr.Body.String(), tc.wantMsg)
+			specconformance.AssertConformsToSpec(t, req, rr)
 		})
 	}
 }
@@ -202,8 +200,7 @@ func TestDeleteAdminUser_LockoutGuardsReturn409(t *testing.T) {
 func TestDeleteAdminUser_UnknownIDReturns404(t *testing.T) {
 	id := uuid.NewString()
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("GetUserDetail", mock.Anything, id).Return(nil, nil)
-	mockAdmin.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).Return(false, nil)
+	mockAdmin.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).Return("", false, nil)
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 	req := httptest.NewRequest("DELETE", "/api/v1/admin/users/"+id, nil)
@@ -217,9 +214,8 @@ func TestDeleteAdminUser_UnknownIDReturns404(t *testing.T) {
 func TestDeleteAdminUser_ServiceErrorReturns500(t *testing.T) {
 	id := uuid.NewString()
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("GetUserDetail", mock.Anything, id).Return(adminUserDetailNamed(id, "Target"), nil)
 	mockAdmin.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).
-		Return(false, errors.New("db down"))
+		Return("", false, errors.New("db down"))
 	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
 
 	req := httptest.NewRequest("DELETE", "/api/v1/admin/users/"+id, nil)
@@ -252,8 +248,8 @@ func TestAdminUserMutations_RecordActivity(t *testing.T) {
 			name:     "delete",
 			wantType: activities.ActivityTypeAdminUserDeleted,
 			run: func(t *testing.T, m *servicesmocks.MockAdminServiceInterface, id string) *http.Request {
-				m.On("GetUserDetail", mock.Anything, id).Return(adminUserDetailNamed(id, "Target"), nil)
-				m.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).Return(true, nil)
+				m.On("DeleteUser", mock.Anything, mock.Anything, id, mock.Anything).
+					Return("target@example.com", true, nil)
 				return httptest.NewRequest("DELETE", "/api/v1/admin/users/"+id, nil)
 			},
 		},
@@ -310,8 +306,6 @@ func TestDeleteAdminUser_PassesActingAdminAndPredicate(t *testing.T) {
 	cfg.Auth.InstanceAdmins = []string{"root@example.com"}
 
 	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
-	mockAdmin.On("GetUserDetail", mock.Anything, targetID).
-		Return(adminUserDetailNamed(targetID, "Target"), nil)
 	mockAdmin.On("DeleteUser",
 		mock.Anything,
 		actingID,
@@ -319,7 +313,7 @@ func TestDeleteAdminUser_PassesActingAdminAndPredicate(t *testing.T) {
 		mock.MatchedBy(func(p services.InstanceAdminPredicate) bool {
 			return p != nil && p("root@example.com") && !p("someone@example.com")
 		}),
-	).Return(true, nil)
+	).Return("target@example.com", true, nil)
 
 	srv := newAdminTestServer(cfg, &adminMockContainer{adminService: mockAdmin})
 

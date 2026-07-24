@@ -52,11 +52,10 @@ func (a *adminStrictServer) DeleteAdminUser(
 ) (admingen.DeleteAdminUserResponseObject, error) {
 	targetID := request.Id.String()
 
-	// Capture the email BEFORE the delete: afterwards there is no row to read it
-	// from, and the audit row would name nobody.
-	targetEmail := a.lookupEmailForAudit(ctx, targetID)
-
-	deleted, err := a.s.container.AdminService().DeleteUser(
+	// The service returns the deleted user's email: it already loaded the row for
+	// its guards, and after the delete there is nothing left to read it from, so
+	// the audit row would otherwise name nobody.
+	targetEmail, deleted, err := a.s.container.AdminService().DeleteUser(
 		ctx, a.actingAdminID(ctx), targetID, a.s.config.IsInstanceAdmin,
 	)
 	if err != nil {
@@ -71,9 +70,15 @@ func (a *adminStrictServer) DeleteAdminUser(
 	return admingen.DeleteAdminUser204Response{}, nil
 }
 
-// mapDeleteError turns the three refusal kinds into their HTTP shapes. All are
-// 409, but a blocked delete carries the structured blocker list the SPA renders,
-// so it uses the documented response object rather than a problem document.
+// mapDeleteError turns the three refusal kinds into the operation's SINGLE
+// documented 409 body.
+//
+// All three must share that shape. The spec declares one 409 content type
+// (AdminUserDeleteBlockedResponse), so returning an RFC 9457 problem document
+// for the self / config-admin cases — as an earlier revision did — is spec
+// drift: #459's SPA parses the documented shape and would break on exactly the
+// refusals an admin hits by accident. `blockers` is simply empty when the
+// refusal is not about team ownership.
 func (a *adminStrictServer) mapDeleteError(err error) error {
 	var blockedErr *services.ErrAdminDeleteBlocked
 	if errors.As(err, &blockedErr) {
@@ -82,28 +87,17 @@ func (a *adminStrictServer) mapDeleteError(err error) error {
 
 	var selfErr *services.ErrAdminDeleteSelf
 	if errors.As(err, &selfErr) {
-		return adminConflictError(selfErr.Error())
+		return &adminDeleteBlockedError{detail: selfErr.Error()}
 	}
 	var adminErr *services.ErrAdminDeleteInstanceAdmin
 	if errors.As(err, &adminErr) {
-		return adminConflictError(adminErr.Error())
+		return &adminDeleteBlockedError{detail: adminErr.Error()}
 	}
 
 	a.s.logger.With(
 		"service", serverLogServiceName, "handler", "DeleteAdminUser", "error", err,
 	).Error("Failed to delete admin user")
 	return apierrors.NewInternalError(adminMsgInternalError)
-}
-
-// lookupEmailForAudit best-effort reads the target's email so the audit row can
-// name them after the row is gone. A failure must not block the delete, so it
-// degrades to an empty string.
-func (a *adminStrictServer) lookupEmailForAudit(ctx context.Context, targetID string) string {
-	detail, err := a.s.container.AdminService().GetUserDetail(ctx, targetID)
-	if err != nil || detail == nil {
-		return ""
-	}
-	return detail.Email
 }
 
 // recordUserMutationActivity writes the audit row for an edit or a delete.

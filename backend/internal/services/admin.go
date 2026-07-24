@@ -62,7 +62,7 @@ type AdminServiceInterface interface {
 	// (handler: 409) when refused — in every refusal case nothing is deleted.
 	DeleteUser(
 		ctx context.Context, actingAdminID, targetID string, isInstanceAdmin InstanceAdminPredicate,
-	) (bool, error)
+	) (deletedEmail string, deleted bool, err error)
 }
 
 // AdminService implements AdminServiceInterface.
