@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
+	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -14,18 +15,39 @@ import (
 type ModelProviderService struct {
 	repo repositories.ModelProviderRepository
 	enc  EncryptionServiceInterface
+	// guard bounds every outbound request made with a caller-supplied base_url (#464).
+	guard *ssrfGuard
+	// authz gates the mutating provider operations; provider rows hold encrypted
+	// API keys and choose where the team's model traffic goes (#464).
+	authz AuthorizationServiceInterface
 }
 
 // Ensure ModelProviderService implements ModelProviderServiceInterface
 var _ ModelProviderServiceInterface = (*ModelProviderService)(nil)
 
 func NewModelProviderService(
-	repo repositories.ModelProviderRepository, enc EncryptionServiceInterface,
+	repo repositories.ModelProviderRepository,
+	enc EncryptionServiceInterface,
+	cfg *config.Config,
+	authz AuthorizationServiceInterface,
 ) *ModelProviderService {
 	return &ModelProviderService{
-		repo: repo,
-		enc:  enc,
+		repo:  repo,
+		enc:   enc,
+		guard: ssrfGuardForConfig(cfg),
+		authz: authz,
 	}
+}
+
+// authorizeProviderMutation gates create/update/delete/validate. A nil authz is
+// a wiring bug — fail closed rather than allow.
+func (mps *ModelProviderService) authorizeProviderMutation(
+	ctx context.Context, userID, teamID string,
+) error {
+	if mps.authz == nil {
+		return fmt.Errorf("%w: authorization service is not configured", ErrPermissionDenied)
+	}
+	return mps.authz.Can(ctx, userID, teamID, authz.TeamUpdate)
 }
 
 // encrypt delegates to the shared, fail-closed EncryptionService, preserving the
@@ -106,6 +128,10 @@ func (mps *ModelProviderService) CreateModelProvider(
 		return nil, fmt.Errorf("ModelProviderService is nil")
 	}
 
+	if authzErr := mps.authorizeProviderMutation(ctx, userID, teamID); authzErr != nil {
+		return nil, authzErr
+	}
+
 	encryptedAPIKey, err := mps.prepareAPIKey(req)
 	if err != nil {
 		return nil, err
@@ -119,11 +145,7 @@ func (mps *ModelProviderService) CreateModelProvider(
 	provider := mps.buildModelProvider(teamID, userID, req, encryptedAPIKey, configJSON)
 
 	if err := mps.repo.Create(ctx, provider); err != nil {
-		// Check for duplicate/already exists errors from the database
-		errStr := strings.ToLower(err.Error())
-		if strings.Contains(errStr, "already exists") ||
-			strings.Contains(errStr, "duplicate") ||
-			strings.Contains(errStr, "unique constraint") {
+		if isDuplicateProviderError(err) {
 			return nil, fmt.Errorf("%w: %s", ErrModelProviderAlreadyExists, req.Name)
 		}
 		return nil, fmt.Errorf("failed to create model provider: %w", err)
@@ -278,11 +300,15 @@ func applyModelConfigurationUpdate(
 
 func (mps *ModelProviderService) UpdateModelProvider(
 	ctx context.Context,
-	teamID, providerID string,
+	teamID, userID, providerID string,
 	req models.UpdateModelProviderRequest,
 ) (*models.ModelProvider, error) {
 	if mps == nil || mps.repo == nil {
 		return nil, fmt.Errorf("ModelProviderService is nil")
+	}
+
+	if authzErr := mps.authorizeProviderMutation(ctx, userID, teamID); authzErr != nil {
+		return nil, authzErr
 	}
 
 	provider, err := mps.repo.GetByID(ctx, teamID, providerID)
@@ -310,9 +336,15 @@ func (mps *ModelProviderService) UpdateModelProvider(
 	return provider, nil
 }
 
-func (mps *ModelProviderService) DeleteModelProvider(ctx context.Context, teamID, providerID string) error {
+func (mps *ModelProviderService) DeleteModelProvider(
+	ctx context.Context, teamID, userID, providerID string,
+) error {
 	if mps == nil || mps.repo == nil {
 		return fmt.Errorf("ModelProviderService is nil")
+	}
+
+	if authzErr := mps.authorizeProviderMutation(ctx, userID, teamID); authzErr != nil {
+		return authzErr
 	}
 
 	// First, verify the provider exists and belongs to the team (security check)
@@ -356,10 +388,16 @@ func (mps *ModelProviderService) GetDefaultModelProvider(
 }
 
 func (mps *ModelProviderService) ValidateModelProvider(
-	ctx context.Context, req models.ValidateModelProviderRequest,
+	ctx context.Context, teamID, userID string, req models.ValidateModelProviderRequest,
 ) (*models.ValidateModelProviderResponse, error) {
 	if mps == nil {
 		return nil, fmt.Errorf("ModelProviderService is nil")
+	}
+
+	// /validate makes the server fetch a caller-supplied URL, so it is gated like
+	// a mutation even though it persists nothing (#464).
+	if authzErr := mps.authorizeProviderMutation(ctx, userID, teamID); authzErr != nil {
+		return nil, authzErr
 	}
 
 	response := &models.ValidateModelProviderResponse{
@@ -391,6 +429,16 @@ func (mps *ModelProviderService) validateOpenAICompatibleProvider(
 	}
 
 	baseURL := req.BaseURL
+
+	// Reject the destination before dialling it so the probe cannot be used as a
+	// port scanner; the transport's dial-time hook is the backstop (#464).
+	if err := mps.guard.validateOutboundHost(ctx, baseURL); err != nil {
+		logProviderValidationFailure("model", baseURL, err)
+		response.Message = "The provider URL is not an allowed destination"
+		response.Details.ErrorDetails = providerErrDestinationNotAllowed
+		return response, nil
+	}
+
 	row := &models.ModelProvider{
 		ProviderType: req.ProviderType,
 		BaseURL:      &baseURL,
@@ -401,10 +449,11 @@ func (mps *ModelProviderService) validateOpenAICompatibleProvider(
 		apiKey = *req.APIKey
 	}
 
-	provider, err := NewModelProvider(row, apiKey, req.Model, validateModelProviderTimeout)
+	provider, err := NewModelProvider(row, apiKey, req.Model, validateModelProviderTimeout, mps.guard)
 	if err != nil {
+		logProviderValidationFailure("model", baseURL, err)
 		response.Message = "Unsupported or misconfigured provider"
-		response.Details.ErrorDetails = err.Error()
+		response.Details.ErrorDetails = providerErrMisconfigured
 		return response, nil
 	}
 

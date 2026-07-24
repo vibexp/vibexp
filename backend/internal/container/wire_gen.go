@@ -143,8 +143,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	if err != nil {
 		return nil, err
 	}
-	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, encryptionServiceInterface)
-	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface)
+	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface)
+	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface)
 	emailProvider, err := providers.ProvideEmailProvider(cfg, logger)
 	if err != nil {
 		return nil, err

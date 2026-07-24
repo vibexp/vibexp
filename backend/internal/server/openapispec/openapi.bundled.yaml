@@ -10497,6 +10497,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: A provider with the same name already exists (`PROVIDER_ALREADY_EXISTS`)
           content:
@@ -10682,6 +10688,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
           content:
@@ -10724,6 +10736,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
           content:
             application/problem+json:
               schema:
@@ -10849,6 +10867,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Validation failed due to an internal service error (`INTERNAL_ERROR`)
           content:
@@ -10898,6 +10922,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
           content:
             application/problem+json:
               schema:
@@ -11085,6 +11115,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
           content:
@@ -11127,6 +11163,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
           content:
             application/problem+json:
               schema:
@@ -11248,6 +11290,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Validation failed due to an internal service error (`INTERNAL_ERROR`)
           content:
@@ -11342,6 +11390,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
           content:
             application/problem+json:
               schema:
@@ -11487,6 +11541,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Model provider not found (`MODEL_PROVIDER_NOT_FOUND`)
           content:
@@ -11529,6 +11589,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
           content:
             application/problem+json:
               schema:
@@ -11594,6 +11660,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Validation failed due to an internal service error (`INTERNAL_ERROR`)
           content:
@@ -11643,6 +11715,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
           content:
             application/problem+json:
               schema:
@@ -11788,6 +11866,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Model provider not found (`MODEL_PROVIDER_NOT_FOUND`)
           content:
@@ -11830,6 +11914,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
           content:
             application/problem+json:
               schema:
@@ -11892,6 +11982,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
           content:
             application/problem+json:
               schema:

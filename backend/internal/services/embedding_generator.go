@@ -94,12 +94,20 @@ var _ EmbeddingProvider = (*OpenAICompatibleProvider)(nil)
 // NewOpenAICompatibleProvider builds an OpenAICompatibleProvider. baseURL and
 // model must be non-empty and dimensions must be positive; apiKey may be empty
 // for endpoints that do not require auth (e.g. a local Ollama).
+//
+// guard is the SSRF policy applied to every request this provider makes. It is
+// required rather than optional because base_url is caller-supplied: pass
+// ssrfGuardForConfig(cfg) in production; a nil guard degrades to the fail-closed
+// production policy (see newProviderHTTPClient).
 func NewOpenAICompatibleProvider(
-	baseURL, apiKey, model string, dimensions int, timeout time.Duration,
+	baseURL, apiKey, model string, dimensions int, timeout time.Duration, guard *ssrfGuard,
 ) (*OpenAICompatibleProvider, error) {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
 		return nil, fmt.Errorf("embedding provider base_url is required")
+	}
+	if err := validateProviderBaseURLScheme(baseURL); err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(model) == "" {
 		return nil, fmt.Errorf("embedding model is required")
@@ -111,7 +119,7 @@ func NewOpenAICompatibleProvider(
 		timeout = generateEmbeddingsTimeout
 	}
 	return &OpenAICompatibleProvider{
-		httpClient: &http.Client{Timeout: timeout},
+		httpClient: newProviderHTTPClient(guard, timeout),
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		apiKey:     apiKey,
 		model:      model,
@@ -162,7 +170,10 @@ func (p *OpenAICompatibleProvider) GenerateEmbeddings(
 	}
 
 	endpoint := p.baseURL + "/embeddings"
-	// #nosec G107 -- endpoint is built from admin-configured provider base_url, not user input
+	// The destination IS caller-supplied; what makes it safe is p.httpClient's
+	// SSRF-guarded transport (built in NewOpenAICompatibleProvider), which
+	// refuses reserved ranges at dial time. Do not reinstate a #nosec here — it
+	// previously claimed "not user input", which was false (#464).
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings request: %w", err)
@@ -230,7 +241,8 @@ func (p *OpenAICompatibleProvider) orderVectors(decoded openAIEmbeddingsResponse
 // and dimensions is the fixed EmbeddingVectorDimensions constant, so document and
 // query embeddings always share one model and one vector width.
 func NewGenerationProvider(
-	provider *models.EmbeddingProvider, apiKey, model string, dimensions int, timeout time.Duration,
+	provider *models.EmbeddingProvider, apiKey, model string, dimensions int,
+	timeout time.Duration, guard *ssrfGuard,
 ) (EmbeddingProvider, error) {
 	if provider == nil {
 		return nil, fmt.Errorf("embedding provider is nil")
@@ -242,7 +254,7 @@ func NewGenerationProvider(
 		if provider.BaseURL != nil {
 			baseURL = *provider.BaseURL
 		}
-		return NewOpenAICompatibleProvider(baseURL, apiKey, model, dimensions, timeout)
+		return NewOpenAICompatibleProvider(baseURL, apiKey, model, dimensions, timeout, guard)
 	default:
 		return nil, fmt.Errorf("unsupported embedding provider type: %q", provider.ProviderType)
 	}

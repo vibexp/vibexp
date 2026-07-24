@@ -553,7 +553,7 @@ func TestHandleUpdateEmbeddingProvider_Success(t *testing.T) {
 	mockContainer.embeddingProviderService.
 		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
 		Return(&models.EmbeddingProviderResponse{EmbeddingProvider: *updatedProvider}, nil)
-	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
+	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "provider-1", reqBody).
 		Return(updatedProvider, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -603,7 +603,7 @@ func TestHandleUpdateEmbeddingProvider_PartialUpdate(t *testing.T) {
 	mockContainer.embeddingProviderService.
 		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
 		Return(&models.EmbeddingProviderResponse{EmbeddingProvider: *updatedProvider}, nil)
-	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
+	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "provider-1", reqBody).
 		Return(updatedProvider, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -636,7 +636,7 @@ func TestHandleUpdateEmbeddingProvider_NotFound(t *testing.T) {
 		On("GetEmbeddingProvider", mock.Anything, "team-123", "non-existent").
 		Return((*models.EmbeddingProviderResponse)(nil), services.ErrProviderNotFound)
 	mockContainer.embeddingProviderService.On(
-		"UpdateEmbeddingProvider", mock.Anything, "team-123", "non-existent", reqBody,
+		"UpdateEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "non-existent", reqBody,
 	).Return((*models.EmbeddingProvider)(nil), services.ErrProviderNotFound)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -664,7 +664,7 @@ func TestHandleUpdateEmbeddingProvider_ServiceError(t *testing.T) {
 	mockContainer.embeddingProviderService.
 		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
 		Return((*models.EmbeddingProviderResponse)(nil), errors.New("database error"))
-	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
+	mockContainer.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "provider-1", reqBody).
 		Return((*models.EmbeddingProvider)(nil), errors.New("database error"))
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -682,7 +682,7 @@ func TestHandleUpdateEmbeddingProvider_ServiceError(t *testing.T) {
 func TestHandleDeleteEmbeddingProvider_Success(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 
-	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "provider-1").
 		Return(nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -700,7 +700,7 @@ func TestHandleDeleteEmbeddingProvider_Success(t *testing.T) {
 func TestHandleDeleteEmbeddingProvider_NotFound(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 
-	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "team-123", "non-existent").
+	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "non-existent").
 		Return(services.ErrProviderNotFound)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -718,7 +718,7 @@ func TestHandleDeleteEmbeddingProvider_NotFound(t *testing.T) {
 func TestHandleDeleteEmbeddingProvider_LastProvider(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 
-	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "team-123", "provider-1").
+	mockContainer.embeddingProviderService.On("DeleteEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "provider-1").
 		Return(services.ErrLastProviderDelete)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -751,7 +751,7 @@ func TestHandleValidateEmbeddingProvider_Success(t *testing.T) {
 		},
 	}
 
-	mockContainer.embeddingProviderService.On("ValidateEmbeddingProvider", mock.Anything, reqBody).
+	mockContainer.embeddingProviderService.On("ValidateEmbeddingProvider", mock.Anything, mock.Anything, mock.Anything, reqBody).
 		Return(expectedResponse, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -792,7 +792,7 @@ func TestHandleValidateEmbeddingProvider_Invalid(t *testing.T) {
 		},
 	}
 
-	mockContainer.embeddingProviderService.On("ValidateEmbeddingProvider", mock.Anything, reqBody).
+	mockContainer.embeddingProviderService.On("ValidateEmbeddingProvider", mock.Anything, mock.Anything, mock.Anything, reqBody).
 		Return(expectedResponse, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -871,7 +871,7 @@ func TestHandleValidateEmbeddingProvider_ServiceError(t *testing.T) {
 		BaseURL:      "https://api.openai.com/v1",
 	}
 
-	mockContainer.embeddingProviderService.On("ValidateEmbeddingProvider", mock.Anything, reqBody).
+	mockContainer.embeddingProviderService.On("ValidateEmbeddingProvider", mock.Anything, mock.Anything, mock.Anything, reqBody).
 		Return((*models.ValidateEmbeddingProviderResponse)(nil), errors.New("network error"))
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -911,6 +911,8 @@ func TestHandleValidateEmbeddingProvider_WithConfiguration(t *testing.T) {
 	mockContainer.embeddingProviderService.On(
 		"ValidateEmbeddingProvider",
 		mock.Anything,
+		mock.Anything, // teamID
+		mock.Anything, // userID
 		mock.MatchedBy(func(req models.ValidateEmbeddingProviderRequest) bool {
 			return req.ProviderType == "openai" &&
 				req.BaseURL == "https://api.openai.com/v1" &&
@@ -958,7 +960,7 @@ func TestHandleUpdateEmbeddingProvider_ReembedsOnModelChange(t *testing.T) {
 		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
 		Return(oldProvider, nil)
 	mockContainer.embeddingProviderService.
-		On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
+		On("UpdateEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "provider-1", reqBody).
 		Return(updatedProvider, nil)
 	mockContainer.embeddingRepository.
 		On("DeleteByTeam", mock.Anything, "team-123").
@@ -1018,7 +1020,7 @@ func TestHandleUpdateEmbeddingProvider_ReembedsOnDocumentPrefixChange(t *testing
 		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
 		Return(oldProvider, nil)
 	mockContainer.embeddingProviderService.
-		On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
+		On("UpdateEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "provider-1", reqBody).
 		Return(updatedProvider, nil)
 	mockContainer.embeddingRepository.
 		On("DeleteByTeam", mock.Anything, "team-123").
@@ -1077,7 +1079,7 @@ func TestHandleUpdateEmbeddingProvider_NoReembedOnQueryPrefixChange(t *testing.T
 		On("GetEmbeddingProvider", mock.Anything, "team-123", "provider-1").
 		Return(oldProvider, nil)
 	mockContainer.embeddingProviderService.
-		On("UpdateEmbeddingProvider", mock.Anything, "team-123", "provider-1", reqBody).
+		On("UpdateEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "provider-1", reqBody).
 		Return(updatedProvider, nil)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)
@@ -1459,7 +1461,7 @@ func TestHandleClearEmbeddings_SettingsOnly(t *testing.T) {
 	mockContainer := newMockEmbeddingProviderContainer(t)
 	// The bare path matches DELETE /{id} -> provider delete with id "embeddings".
 	mockContainer.embeddingProviderService.
-		On("DeleteEmbeddingProvider", mock.Anything, "team-123", "embeddings").
+		On("DeleteEmbeddingProvider", mock.Anything, "team-123", mock.Anything, "embeddings").
 		Return(services.ErrProviderNotFound)
 
 	srv := createTestEmbeddingProviderServer(mockContainer)

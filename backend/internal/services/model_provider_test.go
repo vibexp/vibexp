@@ -21,7 +21,7 @@ func createTestModelProviderService(repo repositories.ModelProviderRepository) *
 	if err != nil {
 		panic(err)
 	}
-	return NewModelProviderService(repo, enc)
+	return NewModelProviderService(repo, enc, localDevProviderConfig(), permissiveProviderAuthz{})
 }
 
 // TestModelProviderService_EncryptDecryptRoundTrip verifies the service round-trips
@@ -143,7 +143,7 @@ func TestModelProviderService_DeleteModelProvider_LastBlocked(t *testing.T) {
 		Return(&models.ModelProvider{ID: "provider-1"}, nil)
 	mockRepo.On("Count", mock.Anything, "team-1").Return(1, nil)
 
-	err := svc.DeleteModelProvider(context.Background(), "team-1", "provider-1")
+	err := svc.DeleteModelProvider(context.Background(), "team-1", testProviderUserID, "provider-1")
 	require.ErrorIs(t, err, ErrLastModelProviderDelete)
 	mockRepo.AssertExpectations(t)
 }
@@ -159,7 +159,7 @@ func TestModelProviderService_DeleteModelProvider_Success(t *testing.T) {
 	mockRepo.On("Count", mock.Anything, "team-1").Return(2, nil)
 	mockRepo.On("Delete", mock.Anything, "team-1", "provider-1").Return(nil)
 
-	require.NoError(t, svc.DeleteModelProvider(context.Background(), "team-1", "provider-1"))
+	require.NoError(t, svc.DeleteModelProvider(context.Background(), "team-1", testProviderUserID, "provider-1"))
 	mockRepo.AssertExpectations(t)
 }
 
@@ -178,7 +178,7 @@ func TestModelProviderService_UpdateModelProvider_BlankKeyPreserved(t *testing.T
 		return p.Name == "Renamed" && p.APIKeyEncrypted != nil && *p.APIKeyEncrypted == stored
 	})).Return(nil)
 
-	_, err := svc.UpdateModelProvider(context.Background(), "team-1", "provider-1",
+	_, err := svc.UpdateModelProvider(context.Background(), "team-1", testProviderUserID, "provider-1",
 		models.UpdateModelProviderRequest{Name: &newName})
 	require.NoError(t, err)
 	mockRepo.AssertExpectations(t)
@@ -197,7 +197,7 @@ func TestModelProviderService_Validate_ModelsProbeSucceeds(t *testing.T) {
 	defer server.Close()
 
 	svc := createTestModelProviderService(nil)
-	resp, err := svc.ValidateModelProvider(context.Background(), models.ValidateModelProviderRequest{
+	resp, err := svc.ValidateModelProvider(context.Background(), testProviderTeamID, testProviderUserID, models.ValidateModelProviderRequest{
 		ProviderType: "openai_compatible",
 		Model:        "gpt-4o-mini",
 		BaseURL:      server.URL,
@@ -220,7 +220,7 @@ func TestModelProviderService_Validate_FallsBackToChatCompletions(t *testing.T) 
 	defer server.Close()
 
 	svc := createTestModelProviderService(nil)
-	resp, err := svc.ValidateModelProvider(context.Background(), models.ValidateModelProviderRequest{
+	resp, err := svc.ValidateModelProvider(context.Background(), testProviderTeamID, testProviderUserID, models.ValidateModelProviderRequest{
 		ProviderType: "openai_compatible",
 		Model:        "gpt-4o-mini",
 		BaseURL:      server.URL,
@@ -239,7 +239,7 @@ func TestModelProviderService_Validate_Unauthorized(t *testing.T) {
 	defer server.Close()
 
 	svc := createTestModelProviderService(nil)
-	resp, err := svc.ValidateModelProvider(context.Background(), models.ValidateModelProviderRequest{
+	resp, err := svc.ValidateModelProvider(context.Background(), testProviderTeamID, testProviderUserID, models.ValidateModelProviderRequest{
 		ProviderType: "openai_compatible",
 		Model:        "gpt-4o-mini",
 		BaseURL:      server.URL,
@@ -262,7 +262,7 @@ func TestModelProviderService_Validate_Unreachable(t *testing.T) {
 	server.Close()
 
 	svc := createTestModelProviderService(nil)
-	resp, err := svc.ValidateModelProvider(context.Background(), models.ValidateModelProviderRequest{
+	resp, err := svc.ValidateModelProvider(context.Background(), testProviderTeamID, testProviderUserID, models.ValidateModelProviderRequest{
 		ProviderType: "openai_compatible",
 		Model:        "gpt-4o-mini",
 		BaseURL:      closedURL,
@@ -277,7 +277,7 @@ func TestModelProviderService_Validate_Unreachable(t *testing.T) {
 // unknown provider type without touching the network.
 func TestModelProviderService_Validate_UnsupportedType(t *testing.T) {
 	svc := createTestModelProviderService(nil)
-	resp, err := svc.ValidateModelProvider(context.Background(), models.ValidateModelProviderRequest{
+	resp, err := svc.ValidateModelProvider(context.Background(), testProviderTeamID, testProviderUserID, models.ValidateModelProviderRequest{
 		ProviderType: "unsupported",
 		Model:        "m",
 		BaseURL:      "https://example.com/v1",

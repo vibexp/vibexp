@@ -42,6 +42,9 @@ func (s *Server) handleCreateModelProvider(w http.ResponseWriter, r *http.Reques
 	teamID := chi.URLParam(r, "team_id")
 	provider, err := s.container.ModelProviderService().CreateModelProvider(r.Context(), teamID, userID, req)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleCreateModelProvider",
@@ -261,8 +264,11 @@ func (s *Server) handleUpdateModelProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	provider, err := s.container.ModelProviderService().UpdateModelProvider(r.Context(), teamID, providerID, req)
+	provider, err := s.container.ModelProviderService().UpdateModelProvider(r.Context(), teamID, userID, providerID, req)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.handleUpdateModelProviderError(w, r, userID, providerID, err)
 		return
 	}
@@ -326,8 +332,11 @@ func (s *Server) handleDeleteModelProvider(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err := s.container.ModelProviderService().DeleteModelProvider(r.Context(), teamID, providerID)
+	err := s.container.ModelProviderService().DeleteModelProvider(r.Context(), teamID, userID, providerID)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleDeleteModelProvider",
@@ -361,6 +370,7 @@ func (s *Server) handleDeleteModelProvider(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) handleValidateModelProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
 		"service", serverLogServiceName,
@@ -382,8 +392,11 @@ func (s *Server) handleValidateModelProvider(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	response, err := s.container.ModelProviderService().ValidateModelProvider(r.Context(), req)
+	response, err := s.container.ModelProviderService().ValidateModelProvider(r.Context(), teamID, userID, req)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleValidateModelProvider",

@@ -83,17 +83,17 @@ func (_c *MockModelProviderServiceInterface_CreateModelProvider_Call) RunAndRetu
 	return _c
 }
 
-// DeleteModelProvider provides a mock function with given fields: ctx, teamID, providerID
-func (_m *MockModelProviderServiceInterface) DeleteModelProvider(ctx context.Context, teamID string, providerID string) error {
-	ret := _m.Called(ctx, teamID, providerID)
+// DeleteModelProvider provides a mock function with given fields: ctx, teamID, userID, providerID
+func (_m *MockModelProviderServiceInterface) DeleteModelProvider(ctx context.Context, teamID string, userID string, providerID string) error {
+	ret := _m.Called(ctx, teamID, userID, providerID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteModelProvider")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = rf(ctx, teamID, providerID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, teamID, userID, providerID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -109,14 +109,15 @@ type MockModelProviderServiceInterface_DeleteModelProvider_Call struct {
 // DeleteModelProvider is a helper method to define mock.On call
 //   - ctx context.Context
 //   - teamID string
+//   - userID string
 //   - providerID string
-func (_e *MockModelProviderServiceInterface_Expecter) DeleteModelProvider(ctx interface{}, teamID interface{}, providerID interface{}) *MockModelProviderServiceInterface_DeleteModelProvider_Call {
-	return &MockModelProviderServiceInterface_DeleteModelProvider_Call{Call: _e.mock.On("DeleteModelProvider", ctx, teamID, providerID)}
+func (_e *MockModelProviderServiceInterface_Expecter) DeleteModelProvider(ctx interface{}, teamID interface{}, userID interface{}, providerID interface{}) *MockModelProviderServiceInterface_DeleteModelProvider_Call {
+	return &MockModelProviderServiceInterface_DeleteModelProvider_Call{Call: _e.mock.On("DeleteModelProvider", ctx, teamID, userID, providerID)}
 }
 
-func (_c *MockModelProviderServiceInterface_DeleteModelProvider_Call) Run(run func(ctx context.Context, teamID string, providerID string)) *MockModelProviderServiceInterface_DeleteModelProvider_Call {
+func (_c *MockModelProviderServiceInterface_DeleteModelProvider_Call) Run(run func(ctx context.Context, teamID string, userID string, providerID string)) *MockModelProviderServiceInterface_DeleteModelProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -126,7 +127,7 @@ func (_c *MockModelProviderServiceInterface_DeleteModelProvider_Call) Return(_a0
 	return _c
 }
 
-func (_c *MockModelProviderServiceInterface_DeleteModelProvider_Call) RunAndReturn(run func(context.Context, string, string) error) *MockModelProviderServiceInterface_DeleteModelProvider_Call {
+func (_c *MockModelProviderServiceInterface_DeleteModelProvider_Call) RunAndReturn(run func(context.Context, string, string, string) error) *MockModelProviderServiceInterface_DeleteModelProvider_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -309,9 +310,9 @@ func (_c *MockModelProviderServiceInterface_GetModelProvidersByTeamID_Call) RunA
 	return _c
 }
 
-// UpdateModelProvider provides a mock function with given fields: ctx, teamID, providerID, req
-func (_m *MockModelProviderServiceInterface) UpdateModelProvider(ctx context.Context, teamID string, providerID string, req models.UpdateModelProviderRequest) (*models.ModelProvider, error) {
-	ret := _m.Called(ctx, teamID, providerID, req)
+// UpdateModelProvider provides a mock function with given fields: ctx, teamID, userID, providerID, req
+func (_m *MockModelProviderServiceInterface) UpdateModelProvider(ctx context.Context, teamID string, userID string, providerID string, req models.UpdateModelProviderRequest) (*models.ModelProvider, error) {
+	ret := _m.Called(ctx, teamID, userID, providerID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateModelProvider")
@@ -319,19 +320,19 @@ func (_m *MockModelProviderServiceInterface) UpdateModelProvider(ctx context.Con
 
 	var r0 *models.ModelProvider
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.UpdateModelProviderRequest) (*models.ModelProvider, error)); ok {
-		return rf(ctx, teamID, providerID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, models.UpdateModelProviderRequest) (*models.ModelProvider, error)); ok {
+		return rf(ctx, teamID, userID, providerID, req)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.UpdateModelProviderRequest) *models.ModelProvider); ok {
-		r0 = rf(ctx, teamID, providerID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, models.UpdateModelProviderRequest) *models.ModelProvider); ok {
+		r0 = rf(ctx, teamID, userID, providerID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.ModelProvider)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, models.UpdateModelProviderRequest) error); ok {
-		r1 = rf(ctx, teamID, providerID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, models.UpdateModelProviderRequest) error); ok {
+		r1 = rf(ctx, teamID, userID, providerID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -347,15 +348,16 @@ type MockModelProviderServiceInterface_UpdateModelProvider_Call struct {
 // UpdateModelProvider is a helper method to define mock.On call
 //   - ctx context.Context
 //   - teamID string
+//   - userID string
 //   - providerID string
 //   - req models.UpdateModelProviderRequest
-func (_e *MockModelProviderServiceInterface_Expecter) UpdateModelProvider(ctx interface{}, teamID interface{}, providerID interface{}, req interface{}) *MockModelProviderServiceInterface_UpdateModelProvider_Call {
-	return &MockModelProviderServiceInterface_UpdateModelProvider_Call{Call: _e.mock.On("UpdateModelProvider", ctx, teamID, providerID, req)}
+func (_e *MockModelProviderServiceInterface_Expecter) UpdateModelProvider(ctx interface{}, teamID interface{}, userID interface{}, providerID interface{}, req interface{}) *MockModelProviderServiceInterface_UpdateModelProvider_Call {
+	return &MockModelProviderServiceInterface_UpdateModelProvider_Call{Call: _e.mock.On("UpdateModelProvider", ctx, teamID, userID, providerID, req)}
 }
 
-func (_c *MockModelProviderServiceInterface_UpdateModelProvider_Call) Run(run func(ctx context.Context, teamID string, providerID string, req models.UpdateModelProviderRequest)) *MockModelProviderServiceInterface_UpdateModelProvider_Call {
+func (_c *MockModelProviderServiceInterface_UpdateModelProvider_Call) Run(run func(ctx context.Context, teamID string, userID string, providerID string, req models.UpdateModelProviderRequest)) *MockModelProviderServiceInterface_UpdateModelProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(models.UpdateModelProviderRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(models.UpdateModelProviderRequest))
 	})
 	return _c
 }
@@ -365,14 +367,14 @@ func (_c *MockModelProviderServiceInterface_UpdateModelProvider_Call) Return(_a0
 	return _c
 }
 
-func (_c *MockModelProviderServiceInterface_UpdateModelProvider_Call) RunAndReturn(run func(context.Context, string, string, models.UpdateModelProviderRequest) (*models.ModelProvider, error)) *MockModelProviderServiceInterface_UpdateModelProvider_Call {
+func (_c *MockModelProviderServiceInterface_UpdateModelProvider_Call) RunAndReturn(run func(context.Context, string, string, string, models.UpdateModelProviderRequest) (*models.ModelProvider, error)) *MockModelProviderServiceInterface_UpdateModelProvider_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// ValidateModelProvider provides a mock function with given fields: ctx, req
-func (_m *MockModelProviderServiceInterface) ValidateModelProvider(ctx context.Context, req models.ValidateModelProviderRequest) (*models.ValidateModelProviderResponse, error) {
-	ret := _m.Called(ctx, req)
+// ValidateModelProvider provides a mock function with given fields: ctx, teamID, userID, req
+func (_m *MockModelProviderServiceInterface) ValidateModelProvider(ctx context.Context, teamID string, userID string, req models.ValidateModelProviderRequest) (*models.ValidateModelProviderResponse, error) {
+	ret := _m.Called(ctx, teamID, userID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ValidateModelProvider")
@@ -380,19 +382,19 @@ func (_m *MockModelProviderServiceInterface) ValidateModelProvider(ctx context.C
 
 	var r0 *models.ValidateModelProviderResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.ValidateModelProviderRequest) (*models.ValidateModelProviderResponse, error)); ok {
-		return rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.ValidateModelProviderRequest) (*models.ValidateModelProviderResponse, error)); ok {
+		return rf(ctx, teamID, userID, req)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.ValidateModelProviderRequest) *models.ValidateModelProviderResponse); ok {
-		r0 = rf(ctx, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, models.ValidateModelProviderRequest) *models.ValidateModelProviderResponse); ok {
+		r0 = rf(ctx, teamID, userID, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.ValidateModelProviderResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, models.ValidateModelProviderRequest) error); ok {
-		r1 = rf(ctx, req)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, models.ValidateModelProviderRequest) error); ok {
+		r1 = rf(ctx, teamID, userID, req)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -407,14 +409,16 @@ type MockModelProviderServiceInterface_ValidateModelProvider_Call struct {
 
 // ValidateModelProvider is a helper method to define mock.On call
 //   - ctx context.Context
+//   - teamID string
+//   - userID string
 //   - req models.ValidateModelProviderRequest
-func (_e *MockModelProviderServiceInterface_Expecter) ValidateModelProvider(ctx interface{}, req interface{}) *MockModelProviderServiceInterface_ValidateModelProvider_Call {
-	return &MockModelProviderServiceInterface_ValidateModelProvider_Call{Call: _e.mock.On("ValidateModelProvider", ctx, req)}
+func (_e *MockModelProviderServiceInterface_Expecter) ValidateModelProvider(ctx interface{}, teamID interface{}, userID interface{}, req interface{}) *MockModelProviderServiceInterface_ValidateModelProvider_Call {
+	return &MockModelProviderServiceInterface_ValidateModelProvider_Call{Call: _e.mock.On("ValidateModelProvider", ctx, teamID, userID, req)}
 }
 
-func (_c *MockModelProviderServiceInterface_ValidateModelProvider_Call) Run(run func(ctx context.Context, req models.ValidateModelProviderRequest)) *MockModelProviderServiceInterface_ValidateModelProvider_Call {
+func (_c *MockModelProviderServiceInterface_ValidateModelProvider_Call) Run(run func(ctx context.Context, teamID string, userID string, req models.ValidateModelProviderRequest)) *MockModelProviderServiceInterface_ValidateModelProvider_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(models.ValidateModelProviderRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(models.ValidateModelProviderRequest))
 	})
 	return _c
 }
@@ -424,7 +428,7 @@ func (_c *MockModelProviderServiceInterface_ValidateModelProvider_Call) Return(_
 	return _c
 }
 
-func (_c *MockModelProviderServiceInterface_ValidateModelProvider_Call) RunAndReturn(run func(context.Context, models.ValidateModelProviderRequest) (*models.ValidateModelProviderResponse, error)) *MockModelProviderServiceInterface_ValidateModelProvider_Call {
+func (_c *MockModelProviderServiceInterface_ValidateModelProvider_Call) RunAndReturn(run func(context.Context, string, string, models.ValidateModelProviderRequest) (*models.ValidateModelProviderResponse, error)) *MockModelProviderServiceInterface_ValidateModelProvider_Call {
 	_c.Call.Return(run)
 	return _c
 }

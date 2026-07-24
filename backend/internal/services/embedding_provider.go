@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vibexp/vibexp/internal/authz"
+	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 )
@@ -30,17 +32,30 @@ var _ ActiveEmbeddingProviderResolver = (*EmbeddingProviderService)(nil)
 type EmbeddingProviderService struct {
 	repo repositories.EmbeddingProviderRepository
 	enc  EncryptionServiceInterface
+	// guard bounds every outbound request made with a caller-supplied base_url,
+	// covering both the /validate probe and the stored provider's runtime
+	// embedding traffic (#464).
+	guard *ssrfGuard
+	// authz gates the mutating provider operations. Provider rows hold encrypted
+	// API keys and redirect all of a team's embedding traffic, so editing them is
+	// an owner/admin action rather than a member one (#464).
+	authz AuthorizationServiceInterface
 }
 
 // Ensure EmbeddingProviderService implements EmbeddingProviderServiceInterface
 var _ EmbeddingProviderServiceInterface = (*EmbeddingProviderService)(nil)
 
 func NewEmbeddingProviderService(
-	repo repositories.EmbeddingProviderRepository, enc EncryptionServiceInterface,
+	repo repositories.EmbeddingProviderRepository,
+	enc EncryptionServiceInterface,
+	cfg *config.Config,
+	authz AuthorizationServiceInterface,
 ) *EmbeddingProviderService {
 	return &EmbeddingProviderService{
-		repo: repo,
-		enc:  enc,
+		repo:  repo,
+		enc:   enc,
+		guard: ssrfGuardForConfig(cfg),
+		authz: authz,
 	}
 }
 
@@ -140,6 +155,10 @@ func (eps *EmbeddingProviderService) CreateEmbeddingProvider(
 		return nil, fmt.Errorf("EmbeddingProviderService is nil")
 	}
 
+	if authzErr := eps.authorizeProviderMutation(ctx, userID, teamID); authzErr != nil {
+		return nil, authzErr
+	}
+
 	encryptedAPIKey, err := eps.prepareAPIKey(req)
 	if err != nil {
 		return nil, err
@@ -153,11 +172,7 @@ func (eps *EmbeddingProviderService) CreateEmbeddingProvider(
 	provider := eps.buildEmbeddingProvider(teamID, userID, req, encryptedAPIKey, configJSON)
 
 	if err := eps.repo.Create(ctx, provider); err != nil {
-		// Check for duplicate/already exists errors from the database
-		errStr := strings.ToLower(err.Error())
-		if strings.Contains(errStr, "already exists") ||
-			strings.Contains(errStr, "duplicate") ||
-			strings.Contains(errStr, "unique constraint") {
+		if isDuplicateProviderError(err) {
 			return nil, fmt.Errorf("%w: %s", ErrProviderAlreadyExists, req.Name)
 		}
 		return nil, fmt.Errorf("failed to create embedding provider: %w", err)
@@ -328,11 +343,15 @@ func applyConfigurationUpdate(
 
 func (eps *EmbeddingProviderService) UpdateEmbeddingProvider(
 	ctx context.Context,
-	teamID, providerID string,
+	teamID, userID, providerID string,
 	req models.UpdateEmbeddingProviderRequest,
 ) (*models.EmbeddingProvider, error) {
 	if eps == nil || eps.repo == nil {
 		return nil, fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	if authzErr := eps.authorizeProviderMutation(ctx, userID, teamID); authzErr != nil {
+		return nil, authzErr
 	}
 
 	provider, err := eps.repo.GetByID(ctx, teamID, providerID)
@@ -360,9 +379,15 @@ func (eps *EmbeddingProviderService) UpdateEmbeddingProvider(
 	return provider, nil
 }
 
-func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(ctx context.Context, teamID, providerID string) error {
+func (eps *EmbeddingProviderService) DeleteEmbeddingProvider(
+	ctx context.Context, teamID, userID, providerID string,
+) error {
 	if eps == nil || eps.repo == nil {
 		return fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	if authzErr := eps.authorizeProviderMutation(ctx, userID, teamID); authzErr != nil {
+		return authzErr
 	}
 
 	// First, verify the provider exists and belongs to the user (security check)
@@ -437,7 +462,7 @@ func (eps *EmbeddingProviderService) ResolveActiveProvider(
 	// The model and vector width come from the stored row + the fixed constant, so
 	// document and query embeddings for this team always share one model and width.
 	provider, err := NewGenerationProvider(
-		row, apiKey, row.Model, EmbeddingVectorDimensions, generateEmbeddingsTimeout,
+		row, apiKey, row.Model, EmbeddingVectorDimensions, generateEmbeddingsTimeout, eps.guard,
 	)
 	if err != nil {
 		return nil, err
@@ -463,10 +488,16 @@ func derefString(s *string) string {
 }
 
 func (eps *EmbeddingProviderService) ValidateEmbeddingProvider(
-	ctx context.Context, req models.ValidateEmbeddingProviderRequest,
+	ctx context.Context, teamID, userID string, req models.ValidateEmbeddingProviderRequest,
 ) (*models.ValidateEmbeddingProviderResponse, error) {
 	if eps == nil {
 		return nil, fmt.Errorf("EmbeddingProviderService is nil")
+	}
+
+	// /validate makes the server fetch a caller-supplied URL, so it is gated like
+	// a mutation even though it persists nothing (#464).
+	if authzErr := eps.authorizeProviderMutation(ctx, userID, teamID); authzErr != nil {
+		return nil, authzErr
 	}
 
 	response := &models.ValidateEmbeddingProviderResponse{
@@ -487,6 +518,18 @@ func (eps *EmbeddingProviderService) ValidateEmbeddingProvider(
 // validation. It is short and neutral; only the returned vector's shape matters.
 const embeddingValidationProbeText = "VibeXP embedding provider validation probe."
 
+// authorizeProviderMutation gates the operations that create, change, probe, or
+// remove provider configuration. A nil authz means the service was constructed
+// without one, which is a wiring bug — fail closed rather than allow.
+func (eps *EmbeddingProviderService) authorizeProviderMutation(
+	ctx context.Context, userID, teamID string,
+) error {
+	if eps.authz == nil {
+		return fmt.Errorf("%w: authorization service is not configured", ErrPermissionDenied)
+	}
+	return eps.authz.Can(ctx, userID, teamID, authz.TeamUpdate)
+}
+
 // validateOpenAICompatibleProvider validates a provider by running the exact
 // generation path used for real embeddings: it builds the provider and requests a
 // probe embedding. Reusing NewGenerationProvider means the provider is accepted
@@ -504,6 +547,18 @@ func (eps *EmbeddingProviderService) validateOpenAICompatibleProvider(
 	}
 
 	baseURL := req.BaseURL
+
+	// Reject the destination before dialling it, so the caller cannot use the
+	// probe as a port scanner. The transport's dial-time hook is the backstop
+	// (and what covers DNS rebinding); this exists to give a clear, non-oracular
+	// answer instead of a connection error (#464).
+	if err := eps.guard.validateOutboundHost(ctx, baseURL); err != nil {
+		logProviderValidationFailure("embedding", baseURL, err)
+		response.Message = "The provider URL is not an allowed destination"
+		response.Details.ErrorDetails = providerErrDestinationNotAllowed
+		return response, nil
+	}
+
 	row := &models.EmbeddingProvider{
 		ProviderType: req.ProviderType,
 		BaseURL:      &baseURL,
@@ -515,11 +570,12 @@ func (eps *EmbeddingProviderService) validateOpenAICompatibleProvider(
 	}
 
 	provider, err := NewGenerationProvider(
-		row, apiKey, req.Model, EmbeddingVectorDimensions, generateEmbeddingsTimeout,
+		row, apiKey, req.Model, EmbeddingVectorDimensions, generateEmbeddingsTimeout, eps.guard,
 	)
 	if err != nil {
+		logProviderValidationFailure("embedding", baseURL, err)
 		response.Message = "Unsupported or misconfigured provider"
-		response.Details.ErrorDetails = err.Error()
+		response.Details.ErrorDetails = providerErrMisconfigured
 		return response, nil
 	}
 
@@ -527,8 +583,9 @@ func (eps *EmbeddingProviderService) validateOpenAICompatibleProvider(
 	vectors, err := provider.GenerateEmbeddings(ctx, []string{embeddingValidationProbeText})
 	response.Details.ResponseTime = int(time.Since(startTime).Milliseconds())
 	if err != nil {
+		logProviderValidationFailure("embedding", baseURL, err)
 		response.Message = describeEmbeddingValidationError(err)
-		response.Details.ErrorDetails = err.Error()
+		response.Details.ErrorDetails = categoriseEmbeddingValidationError(err)
 		return response, nil
 	}
 	// GenerateEmbeddings already guarantees exactly one vector of
@@ -560,5 +617,21 @@ func describeEmbeddingValidationError(err error) string {
 		return fmt.Sprintf("Provider must return %d-dimensional embeddings", EmbeddingVectorDimensions)
 	default:
 		return "Failed to validate embedding provider"
+	}
+}
+
+// categoriseEmbeddingValidationError maps a probe failure to a fixed category
+// for the response. Anything it cannot classify collapses to
+// providerErrConnectionFailed, so an unrecognised transport error can never leak
+// the URL or the distinction between a refused and an accepted connection.
+func categoriseEmbeddingValidationError(err error) string {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "status 401"):
+		return providerErrUnauthorized
+	case strings.Contains(msg, "expected") && strings.Contains(msg, "length"):
+		return providerErrBadDimension
+	default:
+		return providerErrConnectionFailed
 	}
 }

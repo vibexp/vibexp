@@ -150,6 +150,9 @@ func (s *Server) handleCreateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	teamID := chi.URLParam(r, "team_id")
 	provider, err := s.container.EmbeddingProviderService().CreateEmbeddingProvider(r.Context(), teamID, userID, req)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleCreateEmbeddingProvider",
@@ -404,8 +407,13 @@ func (s *Server) handleUpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		oldProvider = nil
 	}
 
-	provider, err := s.container.EmbeddingProviderService().UpdateEmbeddingProvider(r.Context(), teamID, providerID, req)
+	provider, err := s.container.EmbeddingProviderService().UpdateEmbeddingProvider(
+		r.Context(), teamID, userID, providerID, req,
+	)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.handleUpdateEmbeddingProviderError(w, r, userID, providerID, err)
 		return
 	}
@@ -500,8 +508,11 @@ func (s *Server) handleDeleteEmbeddingProvider(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err := s.container.EmbeddingProviderService().DeleteEmbeddingProvider(r.Context(), teamID, providerID)
+	err := s.container.EmbeddingProviderService().DeleteEmbeddingProvider(r.Context(), teamID, userID, providerID)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleDeleteEmbeddingProvider",
@@ -635,6 +646,7 @@ func (s *Server) handleClearEmbeddings(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleValidateEmbeddingProvider(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(contextKeyUserID).(string)
+	teamID := chi.URLParam(r, "team_id")
 
 	s.logger.With(
 		"service", serverLogServiceName,
@@ -656,8 +668,11 @@ func (s *Server) handleValidateEmbeddingProvider(w http.ResponseWriter, r *http.
 		return
 	}
 
-	response, err := s.container.EmbeddingProviderService().ValidateEmbeddingProvider(r.Context(), req)
+	response, err := s.container.EmbeddingProviderService().ValidateEmbeddingProvider(r.Context(), teamID, userID, req)
 	if err != nil {
+		if writeIfPermissionDenied(w, r, err) {
+			return
+		}
 		s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "handleValidateEmbeddingProvider",

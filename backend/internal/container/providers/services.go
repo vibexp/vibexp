@@ -176,8 +176,10 @@ func ProvideBlueprintService(deps services.BlueprintServiceDeps) services.Bluepr
 func ProvideEmbeddingProviderService(
 	repo repositories.EmbeddingProviderRepository,
 	enc services.EncryptionServiceInterface,
+	cfg *config.Config,
+	authzSvc services.AuthorizationServiceInterface,
 ) services.EmbeddingProviderServiceInterface {
-	return services.NewEmbeddingProviderService(repo, enc)
+	return services.NewEmbeddingProviderService(repo, enc, cfg, authzSvc)
 }
 
 // ProvideModelProviderService creates a new ModelProviderService. Secret
@@ -186,8 +188,10 @@ func ProvideEmbeddingProviderService(
 func ProvideModelProviderService(
 	repo repositories.ModelProviderRepository,
 	enc services.EncryptionServiceInterface,
+	cfg *config.Config,
+	authzSvc services.AuthorizationServiceInterface,
 ) services.ModelProviderServiceInterface {
-	return services.NewModelProviderService(repo, enc)
+	return services.NewModelProviderService(repo, enc, cfg, authzSvc)
 }
 
 // ProvideEmailService creates a new EmailService

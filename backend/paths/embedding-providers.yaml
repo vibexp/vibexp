@@ -47,6 +47,13 @@ api-v1-embedding-providers:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '409':
         description: A provider with the same name already exists (`PROVIDER_ALREADY_EXISTS`)
         content:
@@ -192,6 +199,13 @@ api-v1-embedding-providers-id:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
         content:
@@ -235,6 +249,13 @@ api-v1-embedding-providers-id:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
         content:
           application/problem+json:
             schema:
@@ -362,6 +383,13 @@ api-v1-embedding-providers-validate:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Validation failed due to an internal service error (`INTERNAL_ERROR`)
         content:
@@ -412,6 +440,13 @@ api-v1-settings-embedding-providers:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
         content:
           application/problem+json:
             schema:
@@ -562,6 +597,13 @@ api-v1-settings-embedding-providers-id:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Embedding provider not found (`PROVIDER_NOT_FOUND`)
         content:
@@ -605,6 +647,13 @@ api-v1-settings-embedding-providers-id:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
         content:
           application/problem+json:
             schema:
@@ -724,6 +773,13 @@ api-v1-settings-embedding-providers-validate:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: >-
+          Forbidden - managing provider settings requires team owner/admin (`FORBIDDEN`)
         content:
           application/problem+json:
             schema:

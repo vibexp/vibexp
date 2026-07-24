@@ -225,7 +225,7 @@ func TestHandleUpdateModelProvider_SpecConformance(t *testing.T) {
 			updated.Name = newName
 
 			mockContainer.modelProviderService.
-				On("UpdateModelProvider", mock.Anything, "team-123", "provider-1", reqBody).
+				On("UpdateModelProvider", mock.Anything, "team-123", mock.Anything, "provider-1", reqBody).
 				Return(updated, nil)
 
 			srv := createTestModelProviderServer(mockContainer)
@@ -256,7 +256,7 @@ func TestHandleDeleteModelProvider_SpecConformance(t *testing.T) {
 			mockContainer := newMockModelProviderContainer(t)
 
 			mockContainer.modelProviderService.
-				On("DeleteModelProvider", mock.Anything, "team-123", "provider-1").
+				On("DeleteModelProvider", mock.Anything, "team-123", mock.Anything, "provider-1").
 				Return(nil)
 
 			srv := createTestModelProviderServer(mockContainer)
@@ -296,7 +296,7 @@ func TestHandleValidateModelProvider_SpecConformance(t *testing.T) {
 			}
 
 			mockContainer.modelProviderService.
-				On("ValidateModelProvider", mock.Anything, reqBody).
+				On("ValidateModelProvider", mock.Anything, mock.Anything, mock.Anything, reqBody).
 				Return(expected, nil)
 
 			srv := createTestModelProviderServer(mockContainer)
@@ -414,7 +414,7 @@ func TestHandleUpdateModelProvider_NotFound(t *testing.T) {
 	newName := "Renamed"
 	reqBody := models.UpdateModelProviderRequest{Name: &newName}
 	mockContainer.modelProviderService.
-		On("UpdateModelProvider", mock.Anything, "team-123", "missing", reqBody).
+		On("UpdateModelProvider", mock.Anything, "team-123", mock.Anything, "missing", reqBody).
 		Return((*models.ModelProvider)(nil), services.ErrModelProviderNotFound)
 
 	srv := createTestModelProviderServer(mockContainer)
@@ -431,7 +431,7 @@ func TestHandleUpdateModelProvider_NotFound(t *testing.T) {
 func TestHandleDeleteModelProvider_LastProvider(t *testing.T) {
 	mockContainer := newMockModelProviderContainer(t)
 	mockContainer.modelProviderService.
-		On("DeleteModelProvider", mock.Anything, "team-123", "provider-1").
+		On("DeleteModelProvider", mock.Anything, "team-123", mock.Anything, "provider-1").
 		Return(services.ErrLastModelProviderDelete)
 
 	srv := createTestModelProviderServer(mockContainer)
@@ -462,7 +462,7 @@ func TestHandleValidateModelProvider_Invalid(t *testing.T) {
 		Details: models.ValidateModelProviderDetails{StatusCode: 401},
 	}
 	mockContainer.modelProviderService.
-		On("ValidateModelProvider", mock.Anything, reqBody).
+		On("ValidateModelProvider", mock.Anything, mock.Anything, mock.Anything, reqBody).
 		Return(expected, nil)
 
 	srv := createTestModelProviderServer(mockContainer)
@@ -515,7 +515,7 @@ func TestHandleValidateModelProvider_ServiceError(t *testing.T) {
 		BaseURL:      "https://api.openai.com/v1",
 	}
 	mockContainer.modelProviderService.
-		On("ValidateModelProvider", mock.Anything, reqBody).
+		On("ValidateModelProvider", mock.Anything, mock.Anything, mock.Anything, reqBody).
 		Return((*models.ValidateModelProviderResponse)(nil), errors.New("internal error"))
 
 	srv := createTestModelProviderServer(mockContainer)
