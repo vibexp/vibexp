@@ -168,6 +168,41 @@ func TestGitHubAppConfigService_Create(t *testing.T) {
 		assert.Contains(t, err.Error(), "private key")
 	})
 
+	// The retry exists so an (astronomically unlikely) token collision is a
+	// transparent non-event rather than a spurious 500. Untested, it would be
+	// indistinguishable from a broken one.
+	t.Run("re-mints the token once on a collision", func(t *testing.T) {
+		repo := mocks.NewMockGitHubAppConfigRepository(t)
+		svc := newAppConfigService(t, repo)
+
+		var tokens []string
+		repo.EXPECT().Create(ctx, mock.Anything).RunAndReturn(
+			func(_ context.Context, c *models.GitHubAppConfig) error {
+				tokens = append(tokens, c.WebhookToken)
+				if len(tokens) == 1 {
+					return repositories.ErrGitHubAppWebhookTokenTaken
+				}
+				return nil
+			}).Twice()
+
+		_, err := svc.CreateAppConfig(
+			ctx, testAppConfigTeamID, testAppConfigUserID, validCreateRequest(t))
+		require.NoError(t, err)
+		require.Len(t, tokens, 2)
+		assert.NotEqual(t, tokens[0], tokens[1], "the retry must mint a NEW token, not resend the collided one")
+	})
+
+	t.Run("gives up after a persistent token collision", func(t *testing.T) {
+		repo := mocks.NewMockGitHubAppConfigRepository(t)
+		svc := newAppConfigService(t, repo)
+		repo.EXPECT().Create(ctx, mock.Anything).
+			Return(repositories.ErrGitHubAppWebhookTokenTaken).Twice()
+
+		_, err := svc.CreateAppConfig(
+			ctx, testAppConfigTeamID, testAppConfigUserID, validCreateRequest(t))
+		require.Error(t, err, "a persistent collision must surface, not loop")
+	})
+
 	t.Run("maps a duplicate app id to the sentinel", func(t *testing.T) {
 		repo := mocks.NewMockGitHubAppConfigRepository(t)
 		svc := newAppConfigService(t, repo)

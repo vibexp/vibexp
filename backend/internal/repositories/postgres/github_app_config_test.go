@@ -107,18 +107,36 @@ func TestGitHubAppConfigRepository_Create(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	// A unique violation on some other constraint must NOT be laundered into a
-	// 409-shaped sentinel that says something untrue about which App is taken.
-	t.Run("unrecognised unique constraint stays a raw error", func(t *testing.T) {
+	// The token collision gets its own sentinel so the service can re-mint and
+	// retry via errors.Is, rather than recognising a raw pq error by its message.
+	t.Run("webhook token collision maps to its own sentinel", func(t *testing.T) {
 		repo, mock := setupGitHubAppConfigTest(t)
 
 		mock.ExpectQuery(`INSERT INTO github_app_configs`).
 			WillReturnError(&pq.Error{Code: "23505", Constraint: "idx_github_app_configs_webhook_token"})
 
 		err := repo.Create(ctx, newGitHubAppConfig())
+		assert.ErrorIs(t, err, repositories.ErrGitHubAppWebhookTokenTaken)
+		// It must stay distinguishable from the two that mean "this App/team is
+		// taken" — those are user-facing 409s, this one is retryable.
+		assert.NotErrorIs(t, err, repositories.ErrGitHubAppAlreadyRegistered)
+		assert.NotErrorIs(t, err, repositories.ErrGitHubAppConfigTeamTaken)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	// A unique violation on some genuinely unknown constraint must NOT be
+	// laundered into a sentinel that says something untrue.
+	t.Run("unrecognised unique constraint stays a raw error", func(t *testing.T) {
+		repo, mock := setupGitHubAppConfigTest(t)
+
+		mock.ExpectQuery(`INSERT INTO github_app_configs`).
+			WillReturnError(&pq.Error{Code: "23505", Constraint: "some_future_constraint"})
+
+		err := repo.Create(ctx, newGitHubAppConfig())
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, repositories.ErrGitHubAppAlreadyRegistered)
 		assert.NotErrorIs(t, err, repositories.ErrGitHubAppConfigTeamTaken)
+		assert.NotErrorIs(t, err, repositories.ErrGitHubAppWebhookTokenTaken)
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 

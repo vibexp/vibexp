@@ -159,10 +159,8 @@ func TestGitHubAppConfigRepositoryIntegration_UniqueWebhookToken(t *testing.T) {
 	second := buildGitHubAppConfig(teamB, userID, "400002")
 	second.WebhookToken = first.WebhookToken
 	err := repo.Create(ctx, second)
-	require.Error(t, err)
-	pqErr := uniqueViolation(err)
-	require.NotNil(t, pqErr, "expected a unique violation, got: %v", err)
-	assert.Equal(t, "idx_github_app_configs_webhook_token", pqErr.Constraint)
+	assert.ErrorIs(t, err, repositories.ErrGitHubAppWebhookTokenTaken,
+		"the collision must surface as the retryable sentinel the service re-mints on")
 }
 
 // TestGitHubAppConfigRepositoryIntegration_EmptyStringsRejected pins the CHECK

@@ -43,6 +43,13 @@ var (
 	// caller should re-read and retry.
 	ErrGitHubAppConfigVersionConflict = errors.New("GitHub App configuration was modified concurrently")
 
+	// ErrGitHubAppWebhookTokenTaken is returned by GitHubAppConfigRepository
+	// Create/Update when the minted webhook token collides with an existing one
+	// (idx_github_app_configs_webhook_token). With 32 bytes of crypto/rand this
+	// is astronomically unlikely; it exists so the caller can re-mint and retry
+	// instead of having to recognise a raw pq error by its message text.
+	ErrGitHubAppWebhookTokenTaken = errors.New("GitHub App webhook token already in use")
+
 	// ErrGitHubAppConfigTeamTaken is returned by GitHubAppConfigRepository.Create
 	// when the team already has an App registered (unique_team_github_app). One
 	// App per team is the design, so the caller should update the existing

@@ -162,8 +162,10 @@ func (s *GitHubAppConfigService) decrypt(ciphertext string) (string, error) {
 	return s.enc.Decrypt(ciphertext)
 }
 
-// requiredSecretError is the shared shape for "this secret may not be blank".
-func requiredSecretError(field string) error {
+// requiredFieldError is the shared shape for "this field may not be blank". It
+// covers the plain identity fields as well as the secrets: for all of them an
+// explicit empty value is a client bug, not an intent to clear.
+func requiredFieldError(field string) error {
 	return apierrors.NewValidationError(
 		fmt.Sprintf("%s cannot be empty", field),
 		[]apierrors.ValidationError{{
@@ -189,7 +191,7 @@ func (s *GitHubAppConfigService) CreateAppConfig(
 		return nil, err
 	}
 	if req.ClientSecret == "" {
-		return nil, requiredSecretError("client_secret")
+		return nil, requiredFieldError("client_secret")
 	}
 
 	webhookSecret, err := generateSecret()
@@ -265,7 +267,7 @@ func (s *GitHubAppConfigService) createWithTokenRetry(
 			return ErrGitHubAppAlreadyRegistered
 		case errors.Is(err, repositories.ErrGitHubAppConfigTeamTaken):
 			return ErrGitHubAppConfigExists
-		case isWebhookTokenCollision(err) && attempt == 0:
+		case errors.Is(err, repositories.ErrGitHubAppWebhookTokenTaken) && attempt == 0:
 			slog.Warn("GitHub App webhook token collision; re-minting", "team_id", config.TeamID)
 			continue
 		default:
@@ -273,14 +275,6 @@ func (s *GitHubAppConfigService) createWithTokenRetry(
 		}
 	}
 	return fmt.Errorf("failed to create GitHub App config: webhook token collision persisted")
-}
-
-// isWebhookTokenCollision reports whether err is the unique violation on the
-// webhook-token index. The repository maps the two constraints that carry domain
-// meaning to sentinels and leaves this one raw, so it is matched on the index
-// name here rather than being given a sentinel nothing else would use.
-func isWebhookTokenCollision(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "idx_github_app_configs_webhook_token")
 }
 
 // GetAppConfig returns the team's App config. Reads are not gated here: the
@@ -354,7 +348,7 @@ func (s *GitHubAppConfigService) applyUpdate(
 
 	if req.PrivateKey != nil {
 		if *req.PrivateKey == "" {
-			return requiredSecretError("private_key")
+			return requiredFieldError("private_key")
 		}
 		if _, err := parsePrivateKey(*req.PrivateKey); err != nil {
 			return err
@@ -368,7 +362,7 @@ func (s *GitHubAppConfigService) applyUpdate(
 
 	if req.ClientSecret != nil {
 		if *req.ClientSecret == "" {
-			return requiredSecretError("client_secret")
+			return requiredFieldError("client_secret")
 		}
 		encrypted, err := s.encrypt(*req.ClientSecret)
 		if err != nil {
@@ -386,7 +380,7 @@ func applyRequiredStringUpdate(incoming *string, field string, target *string) e
 		return nil
 	}
 	if *incoming == "" {
-		return requiredSecretError(field)
+		return requiredFieldError(field)
 	}
 	*target = *incoming
 	return nil
