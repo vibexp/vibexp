@@ -87,6 +87,15 @@ func TestIntegrationTeamSearchSettings_Upsert_ConflictUpdatesAndBumpsVersion(t *
 	first := integrationTeamSearchSettings(teamID)
 	require.NoError(t, repo.Upsert(ctx, first))
 
+	// Read the stored row back rather than trusting the struct Upsert mutated:
+	// afterFirst.UpdatedAt is the baseline the second upsert must advance past.
+	// Comparing the second write against created_at instead would be vacuous —
+	// the insert sets created_at = updated_at, so an ON CONFLICT clause that
+	// never rewrote updated_at would still satisfy it.
+	afterFirst, err := repo.Get(ctx, teamID)
+	require.NoError(t, err)
+	require.NotNil(t, afterFirst)
+
 	second := integrationTeamSearchSettings(teamID)
 	second.RecencyRankingEnabled = false
 	second.RankWeightRelevance = 1
@@ -96,7 +105,7 @@ func TestIntegrationTeamSearchSettings_Upsert_ConflictUpdatesAndBumpsVersion(t *
 	require.NoError(t, repo.Upsert(ctx, second), "second Upsert must update, not conflict")
 
 	assert.Equal(t, int64(2), second.Version, "version must increment on conflict")
-	assert.Equal(t, first.CreatedAt, second.CreatedAt, "created_at must survive the update")
+	assert.True(t, second.CreatedAt.Equal(afterFirst.CreatedAt), "created_at must survive the update")
 
 	got, err := repo.Get(ctx, teamID)
 	require.NoError(t, err)
@@ -105,8 +114,9 @@ func TestIntegrationTeamSearchSettings_Upsert_ConflictUpdatesAndBumpsVersion(t *
 	assert.False(t, got.RecencyRankingEnabled)
 	assert.InDelta(t, 90.0, got.RankHalfLifeDays, 1e-9)
 	assert.Equal(t, int64(2), got.Version)
-	assert.True(t, got.UpdatedAt.After(got.CreatedAt) || got.UpdatedAt.Equal(got.CreatedAt),
-		"updated_at must advance to at least created_at")
+	assert.True(t, got.UpdatedAt.After(afterFirst.UpdatedAt),
+		"updated_at must advance past the previous write, not merely match created_at")
+	assert.True(t, got.CreatedAt.Equal(afterFirst.CreatedAt), "created_at must not move")
 }
 
 func TestIntegrationTeamSearchSettings_Delete(t *testing.T) {
