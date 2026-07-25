@@ -43,6 +43,7 @@ function renderResult(result: MigrationResult) {
   return render(
     <MemoryRouter>
       <ResultStep
+        teamId="team-1"
         result={result}
         destinationProjectSlug="dest-project"
         destinationProjectName="Destination Project"
@@ -138,7 +139,7 @@ describe('ResultStep', () => {
     renderResult(cleanResult)
 
     const link = screen.getByRole('link', { name: /view destination project/i })
-    expect(link).toHaveAttribute('href', '/settings/projects/dest-project')
+    expect(link).toHaveAttribute('href', '/teams/team-1/projects/dest-project')
   })
 
   it('calls onDone when Done button is clicked', async () => {
@@ -147,6 +148,7 @@ describe('ResultStep', () => {
     render(
       <MemoryRouter>
         <ResultStep
+          teamId="team-1"
           result={cleanResult}
           destinationProjectSlug="dest-project"
           destinationProjectName="Destination Project"

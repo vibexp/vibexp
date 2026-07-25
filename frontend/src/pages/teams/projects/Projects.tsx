@@ -15,8 +15,8 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { ProjectFilters } from '@/pages/settings/projects/ProjectFilters'
-import { buildProjectsColumns } from '@/pages/settings/projects/projectsColumns'
+import { ProjectFilters } from '@/pages/teams/projects/ProjectFilters'
+import { buildProjectsColumns } from '@/pages/teams/projects/projectsColumns'
 import type {
   Project,
   ProjectFilters as ProjectFiltersType,
@@ -125,6 +125,7 @@ export function Projects() {
   const columns = useMemo(
     () =>
       buildProjectsColumns({
+        teamId: currentTeam?.id ?? '',
         navigate,
         onDelete: setProjectToDelete,
         canUpdate: canUpdateProject,
@@ -148,7 +149,7 @@ export function Projects() {
           <RequirePermission permission="project.create">
             <Button
               onClick={() => {
-                void navigate('/settings/projects/create')
+                void navigate(`/teams/${currentTeam?.id ?? ''}/projects/create`)
               }}
             >
               <Plus className="mr-2 size-4" />
@@ -187,7 +188,9 @@ export function Projects() {
                 <RequirePermission permission="project.create">
                   <Button
                     onClick={() => {
-                      void navigate('/settings/projects/create')
+                      void navigate(
+                        `/teams/${currentTeam?.id ?? ''}/projects/create`
+                      )
                     }}
                   >
                     <Plus className="mr-2 size-4" />

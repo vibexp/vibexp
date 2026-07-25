@@ -53,11 +53,14 @@ function ExternalLinkCell({
 }
 
 export function buildProjectsColumns({
+  teamId,
   navigate,
   onDelete,
   canUpdate,
   canDelete,
 }: {
+  /** Team from the URL scope (#542) - every row action links under it. */
+  teamId: string
   navigate: NavigateFunction
   onDelete: (project: Project) => void
   /** `project.update` — gates Edit and Migrate resources (#225). */
@@ -76,7 +79,7 @@ export function buildProjectsColumns({
             className="hover:text-primary text-left text-sm font-medium underline-offset-2 hover:underline"
             onClick={() => {
               void navigate(
-                `/settings/projects/${encodeURIComponent(row.original.slug)}`
+                `/teams/${teamId}/projects/${encodeURIComponent(row.original.slug)}`
               )
             }}
           >
@@ -135,7 +138,7 @@ export function buildProjectsColumns({
                 aria-label="Edit"
                 onClick={() => {
                   void navigate(
-                    `/settings/projects/edit/${encodeURIComponent(row.original.slug)}`
+                    `/teams/${teamId}/projects/${encodeURIComponent(row.original.slug)}/edit`
                   )
                 }}
               >
@@ -151,7 +154,7 @@ export function buildProjectsColumns({
                     aria-label="Migrate resources"
                     onClick={() => {
                       void navigate(
-                        `/settings/projects/${encodeURIComponent(row.original.slug)}/migrate`
+                        `/teams/${teamId}/projects/${encodeURIComponent(row.original.slug)}/migrate`
                       )
                     }}
                   >

@@ -11,10 +11,10 @@ import { Separator } from '@/components/ui/separator'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { ResultStep } from '@/pages/settings/projects/migration/ResultStep'
-import { SelectDestinationStep } from '@/pages/settings/projects/migration/SelectDestinationStep'
-import { SelectResourcesStep } from '@/pages/settings/projects/migration/SelectResourcesStep'
-import { SelectSourceStep } from '@/pages/settings/projects/migration/SelectSourceStep'
+import { ResultStep } from '@/pages/teams/projects/migration/ResultStep'
+import { SelectDestinationStep } from '@/pages/teams/projects/migration/SelectDestinationStep'
+import { SelectResourcesStep } from '@/pages/teams/projects/migration/SelectResourcesStep'
+import { SelectSourceStep } from '@/pages/teams/projects/migration/SelectSourceStep'
 import {
   type ConflictPolicy,
   type MigrationInventory,
@@ -257,7 +257,7 @@ export function ProjectMigrate() {
   ])
 
   const handleDone = useCallback(() => {
-    void navigate('/settings/projects')
+    void navigate(`/teams/${currentTeam?.id ?? ''}/projects`)
   }, [navigate])
 
   const inventoryCounts = wizard.inventory
@@ -313,7 +313,7 @@ export function ProjectMigrate() {
         <Button
           variant="outline"
           onClick={() => {
-            void navigate('/settings/projects')
+            void navigate(`/teams/${currentTeam?.id ?? ''}/projects`)
           }}
         >
           <ArrowLeft className="mr-2 size-4" />
@@ -332,7 +332,7 @@ export function ProjectMigrate() {
           aria-label="Back to projects"
           className="mb-4 -ml-2 gap-1"
           onClick={() => {
-            void navigate('/settings/projects')
+            void navigate(`/teams/${currentTeam?.id ?? ''}/projects`)
           }}
         >
           <ArrowLeft className="size-4" />
@@ -401,6 +401,7 @@ export function ProjectMigrate() {
 
       {wizard.step === 4 && wizard.result && (
         <ResultStep
+          teamId={currentTeam?.id ?? ''}
           result={wizard.result}
           destinationProjectSlug={wizard.destinationProjectSlug}
           destinationProjectName={wizard.destinationProjectName}

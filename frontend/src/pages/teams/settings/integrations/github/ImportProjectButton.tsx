@@ -59,7 +59,9 @@ export function ImportProjectButton({
   if (importedSlug) {
     return (
       <Button asChild size="sm" variant="secondary">
-        <Link to={`/settings/projects/${importedSlug}`}>
+        <Link
+          to={`/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(importedSlug)}`}
+        >
           <ExternalLink className="mr-2 h-4 w-4" />
           View Project
         </Link>

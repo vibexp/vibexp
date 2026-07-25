@@ -289,7 +289,7 @@ export function MemoryView() {
             {project && (
               <MetaRow label="Project">
                 <Link
-                  to={`/settings/projects/edit/${project.slug}`}
+                  to={`/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(project.slug)}/edit`}
                   className="flex items-center gap-1 hover:underline"
                 >
                   <FolderOpen className="size-3" />

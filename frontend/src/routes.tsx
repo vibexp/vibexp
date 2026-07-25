@@ -46,11 +46,6 @@ import { PromptVersions } from '@/pages/prompts/PromptVersions'
 import { Search } from '@/pages/search/Search'
 import { APIKeys } from '@/pages/settings/api-keys/APIKeys'
 import { NotificationPreferences } from '@/pages/settings/notifications/NotificationPreferences'
-import { ProjectCreate } from '@/pages/settings/projects/ProjectCreate'
-import { ProjectDetails } from '@/pages/settings/projects/ProjectDetails'
-import { ProjectEdit } from '@/pages/settings/projects/ProjectEdit'
-import { ProjectMigrate } from '@/pages/settings/projects/ProjectMigrate'
-import { Projects } from '@/pages/settings/projects/Projects'
 import { Settings } from '@/pages/settings/Settings'
 import { Showcase } from '@/pages/Showcase'
 import { Teams } from '@/pages/teams/Teams'
@@ -203,14 +198,6 @@ export function AppRoutes() {
         element={<NotificationPreferences />}
       />
       <Route path="settings/api-keys" element={<APIKeys />} />
-      <Route path="settings/projects" element={<Projects />} />
-      <Route path="settings/projects/create" element={<ProjectCreate />} />
-      <Route path="settings/projects/edit/:slug" element={<ProjectEdit />} />
-      <Route
-        path="settings/projects/:slug/migrate"
-        element={<ProjectMigrate />}
-      />
-      <Route path="settings/projects/:slug" element={<ProjectDetails />} />
       <Route path="teams" element={<Teams />} />
       {/* The `/*` is load-bearing: a bare `teams/:id` silently breaks every
           nested path. Mirrors App.tsx's `/admin/*` mount (#539). */}

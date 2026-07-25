@@ -1,5 +1,10 @@
 import { Route, Routes } from 'react-router-dom'
 
+import { ProjectCreate } from '@/pages/teams/projects/ProjectCreate'
+import { ProjectDetails } from '@/pages/teams/projects/ProjectDetails'
+import { ProjectEdit } from '@/pages/teams/projects/ProjectEdit'
+import { ProjectMigrate } from '@/pages/teams/projects/ProjectMigrate'
+import { Projects } from '@/pages/teams/projects/Projects'
 import { Customization } from '@/pages/teams/settings/customization/Customization'
 import { EmbeddingProviders } from '@/pages/teams/settings/embedding-providers/EmbeddingProviders'
 import { GitHubIntegration } from '@/pages/teams/settings/integrations/github/GitHubIntegration'
@@ -29,6 +34,14 @@ export function TeamRoutes({ team }: Readonly<{ team: Team }>) {
     <Routes>
       <Route index element={<TeamDetailsPage />} />
       <Route path="analytics" element={<TeamAnalyticsPage />} />
+      {/* Projects sit beside analytics, NOT under settings/ (#542). `create`
+          before `:slug` for legibility; `:slug/edit` matches every other
+          resource in the app rather than the old `edit/:slug`. */}
+      <Route path="projects" element={<Projects />} />
+      <Route path="projects/create" element={<ProjectCreate />} />
+      <Route path="projects/:slug" element={<ProjectDetails />} />
+      <Route path="projects/:slug/edit" element={<ProjectEdit />} />
+      <Route path="projects/:slug/migrate" element={<ProjectMigrate />} />
       <Route path="settings" element={<TeamSettings team={team} />} />
       {/* The four team-scoped configuration pages, relocated in #540. They read
           the team from `useTeam()`, which TeamScopeLayout has already pointed at

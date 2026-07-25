@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { useTeam } from '@/contexts/TeamContext'
 
 import type { EditorSettingsProps } from './types'
 
@@ -28,6 +29,7 @@ export function EditorSettings({
   onSlugChange,
   onFormDataChange,
 }: Readonly<EditorSettingsProps>) {
+  const { currentTeam } = useTeam()
   const removeLabel = (labelToRemove: string) => {
     onFormDataChange(prev => ({
       ...prev,
@@ -40,7 +42,10 @@ export function EditorSettings({
       <Alert>
         <AlertDescription className="text-sm">
           No projects available. Please{' '}
-          <Link to="/settings/projects/create" className="underline">
+          <Link
+            to={`/teams/${currentTeam?.id ?? ''}/projects/create`}
+            className="underline"
+          >
             create a project
           </Link>{' '}
           first.

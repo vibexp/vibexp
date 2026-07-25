@@ -131,7 +131,7 @@ export function ProjectDetails() {
       setDeleting(true)
       await projectService.deleteProject(currentTeam.id, projectToDelete.slug)
       showSuccess('Project deleted successfully', 'Success')
-      void navigate('/settings/projects')
+      void navigate(`/teams/${currentTeam.id}/projects`)
     } catch (err) {
       handleError(err, 'Failed to delete project')
     } finally {
@@ -151,7 +151,7 @@ export function ProjectDetails() {
           variant="ghost"
           size="sm"
           onClick={() => {
-            void navigate('/settings/projects')
+            void navigate(`/teams/${currentTeam?.id ?? ''}/projects`)
           }}
         >
           <ArrowLeft className="mr-2 size-4" />
@@ -168,7 +168,7 @@ export function ProjectDetails() {
     )
   }
 
-  const encodedSlug = encodeURIComponent(project.slug)
+  const projectBase = `/teams/${currentTeam?.id ?? ''}/projects/${encodeURIComponent(project.slug)}`
 
   return (
     <div className="space-y-6">
@@ -176,7 +176,7 @@ export function ProjectDetails() {
         variant="ghost"
         size="sm"
         onClick={() => {
-          void navigate('/settings/projects')
+          void navigate(`/teams/${currentTeam?.id ?? ''}/projects`)
         }}
       >
         <ArrowLeft className="mr-2 size-4" />
@@ -193,7 +193,7 @@ export function ProjectDetails() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  void navigate(`/settings/projects/${encodedSlug}/migrate`)
+                  void navigate(`${projectBase}/migrate`)
                 }}
               >
                 <ArrowRightLeft className="mr-2 size-4" />
@@ -205,7 +205,7 @@ export function ProjectDetails() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  void navigate(`/settings/projects/edit/${encodedSlug}`)
+                  void navigate(`${projectBase}/edit`)
                 }}
               >
                 <Pencil className="mr-2 size-4" />
