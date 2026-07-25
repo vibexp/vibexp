@@ -50,9 +50,12 @@ const mockProject: Project = {
 
 function renderProjectEdit(slug = 'my-project') {
   return render(
-    <MemoryRouter initialEntries={[`/settings/projects/${slug}/edit`]}>
+    <MemoryRouter initialEntries={[`/teams/team-1/projects/${slug}/edit`]}>
       <Routes>
-        <Route path="/settings/projects/:slug/edit" element={<ProjectEdit />} />
+        <Route
+          path="/teams/:id/projects/:slug/edit"
+          element={<ProjectEdit />}
+        />
       </Routes>
     </MemoryRouter>
   )
@@ -164,10 +167,12 @@ describe('ProjectEdit', () => {
         refreshTeams: jest.fn() as () => Promise<void>,
       })
       rerender(
-        <MemoryRouter initialEntries={['/settings/projects/my-project/edit']}>
+        <MemoryRouter
+          initialEntries={['/teams/team-1/projects/my-project/edit']}
+        >
           <Routes>
             <Route
-              path="/settings/projects/:slug/edit"
+              path="/teams/:id/projects/:slug/edit"
               element={<ProjectEdit />}
             />
           </Routes>

@@ -85,9 +85,9 @@ const mockTeamLoading = {
 
 function renderProjectDetails(slug = 'my-project') {
   return render(
-    <MemoryRouter initialEntries={[`/settings/projects/${slug}`]}>
+    <MemoryRouter initialEntries={[`/teams/team-1/projects/${slug}`]}>
       <Routes>
-        <Route path="/settings/projects/:slug" element={<ProjectDetails />} />
+        <Route path="/teams/:id/projects/:slug" element={<ProjectDetails />} />
       </Routes>
     </MemoryRouter>
   )
