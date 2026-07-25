@@ -1,8 +1,8 @@
 import { Route, Routes } from 'react-router-dom'
 
+import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { AdminProjectDetail } from '@/pages/admin/AdminProjectDetail'
 import { AdminProjects } from '@/pages/admin/AdminProjects'
-import { AdminStats } from '@/pages/admin/AdminStats'
 import { AdminTeamDetail } from '@/pages/admin/AdminTeamDetail'
 import { AdminTeams } from '@/pages/admin/AdminTeams'
 import { AdminUserDetail } from '@/pages/admin/AdminUserDetail'
@@ -22,7 +22,7 @@ import { AdminUsers } from '@/pages/admin/AdminUsers'
 export function AdminRoutes() {
   return (
     <Routes>
-      <Route index element={<AdminStats />} />
+      <Route index element={<AdminDashboard />} />
       <Route path="users" element={<AdminUsers />} />
       <Route path="users/:id" element={<AdminUserDetail />} />
       <Route path="teams" element={<AdminTeams />} />

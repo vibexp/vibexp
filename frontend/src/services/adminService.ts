@@ -7,6 +7,24 @@ import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 // pages; every call is authorized server-side (404 for non-admins) regardless
 // of the SPA's `is_instance_admin` gating.
 export type AdminInstanceCounts = components['schemas']['AdminInstanceCounts']
+export type AdminExtendedCounts = components['schemas']['AdminExtendedCounts']
+export type AdminBreakdownBucket = components['schemas']['AdminBreakdownBucket']
+export type AdminEntityBreakdown = components['schemas']['AdminEntityBreakdown']
+export type AdminTableStat = components['schemas']['AdminTableStat']
+export type AdminSystemHealth = components['schemas']['AdminSystemHealth']
+export type AdminDashboardOverview =
+  components['schemas']['AdminDashboardOverview']
+export type AdminGrowthPoint = components['schemas']['AdminGrowthPoint']
+export type AdminCountPoint = components['schemas']['AdminCountPoint']
+export type AdminSourcePoint = components['schemas']['AdminSourcePoint']
+export type AdminDataWindow = components['schemas']['AdminDataWindow']
+export type AdminTimeseriesResponse =
+  components['schemas']['AdminTimeseriesResponse']
+
+/** Query parameters for the dashboard time series (#451). */
+export type AdminTimeseriesParams = NonNullable<
+  operations['getAdminDashboardTimeseries']['parameters']['query']
+>
 export type AdminStatsResponse = components['schemas']['AdminStatsResponse']
 export type AdminUserListItem = components['schemas']['AdminUserListItem']
 export type AdminUserListResponse =
@@ -167,6 +185,28 @@ class AdminService {
     // rest of the app handles.
     await unwrap(Promise.resolve(result))
     return { deleted: true }
+  }
+
+  /** Instance totals, per-entity breakdowns, system health and the app version. */
+  async getDashboardOverview(): Promise<AdminDashboardOverview> {
+    return unwrap(generatedClient.GET('/api/v1/admin/dashboard/overview', {}))
+  }
+
+  /**
+   * Bucketed growth, sign-ins and access-by-source for a range.
+   *
+   * The response reports the range and granularity it actually used: `from` is
+   * snapped down to a whole bucket, so it can precede what was asked for. Panels
+   * label themselves from the response rather than from the request.
+   */
+  async getDashboardTimeseries(
+    params: AdminTimeseriesParams
+  ): Promise<AdminTimeseriesResponse> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/dashboard/timeseries', {
+        params: { query: params },
+      })
+    )
   }
 
   /** A single user with their team memberships. */
