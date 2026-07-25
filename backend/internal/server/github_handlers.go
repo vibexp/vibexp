@@ -63,6 +63,12 @@ func (s *Server) githubStateMACKey() []byte {
 
 // githubStateMessage is the signed portion of a state, shared by the signer and
 // the verifier so the two layouts cannot drift apart.
+//
+// teamID and appConfigID MUST be colon-free — both are UUIDs, which is what
+// makes this safe. The MAC covers the joined string, so a field containing a
+// colon would move the field boundaries without changing the signature, and a
+// state for one (team, App) pair could verify as another. Anything less
+// constrained than a UUID does not belong in this message.
 func githubStateMessage(teamID, appConfigID string, installationID, timestamp int64) string {
 	return fmt.Sprintf("%s:%s:%d:%d", teamID, appConfigID, installationID, timestamp)
 }
