@@ -24,6 +24,31 @@ var (
 	// ErrGitHubRepositoryNotFound is returned when a GitHub repository is not found or not accessible
 	ErrGitHubRepositoryNotFound = errors.New("GitHub repository not found or not accessible")
 
+	// ErrGitHubAppConfigNotFound is returned by GitHubAppConfigRepository reads,
+	// updates and deletes when no config matches the identifiers -- including
+	// when the row exists but belongs to another team, which is deliberately
+	// indistinguishable from "absent" so a foreign id cannot be probed.
+	ErrGitHubAppConfigNotFound = errors.New("GitHub App configuration not found")
+
+	// ErrGitHubAppAlreadyRegistered is returned by GitHubAppConfigRepository
+	// Create/Update when the App id is already registered by another team
+	// (unique_github_app_id). A GitHub App has exactly one hook_url, so sharing
+	// one App across teams would leave the second team's webhook token dead;
+	// callers surface this as a 409 rather than storing a broken integration.
+	ErrGitHubAppAlreadyRegistered = errors.New("GitHub App is already registered by another team")
+
+	// ErrGitHubAppConfigVersionConflict is returned by
+	// GitHubAppConfigRepository.Update when the supplied version no longer
+	// matches the stored row (optimistic locking). Nothing is mutated; the
+	// caller should re-read and retry.
+	ErrGitHubAppConfigVersionConflict = errors.New("GitHub App configuration was modified concurrently")
+
+	// ErrGitHubAppConfigTeamTaken is returned by GitHubAppConfigRepository.Create
+	// when the team already has an App registered (unique_team_github_app). One
+	// App per team is the design, so the caller should update the existing
+	// config instead of creating a second one.
+	ErrGitHubAppConfigTeamTaken = errors.New("team already has a GitHub App configured")
+
 	// ErrProjectNotFoundForRepo is returned when no project exists for a given repository
 	ErrProjectNotFoundForRepo = errors.New("project not found for repository")
 
@@ -1198,6 +1223,40 @@ type GitHubInstallationRepository interface {
 	GetByInstallationID(ctx context.Context, installationID int64) (*models.GitHubInstallation, error)
 	Update(ctx context.Context, installation *models.GitHubInstallation) error
 	Delete(ctx context.Context, teamID string) error
+}
+
+// GitHubAppConfigRepository defines the data access operations for a team's own
+// GitHub App registration (#477).
+//
+// Every method except GetByWebhookToken takes a teamID and puts it in the WHERE
+// clause: an under-scoped query here hands another team's GitHub credentials
+// out, so tenancy is enforced by construction rather than by the caller
+// remembering to check. The repository stores whatever ciphertext it is handed
+// and never encrypts or decrypts.
+type GitHubAppConfigRepository interface {
+	// Create inserts a config, filling ID/CreatedAt/UpdatedAt/Version on the
+	// passed struct. Returns ErrGitHubAppConfigTeamTaken when the team already
+	// has one, and ErrGitHubAppAlreadyRegistered when the App id is taken.
+	Create(ctx context.Context, config *models.GitHubAppConfig) error
+	// GetByTeamID returns the team's config, or ErrGitHubAppConfigNotFound.
+	GetByTeamID(ctx context.Context, teamID string) (*models.GitHubAppConfig, error)
+	// GetByID returns the config only when it belongs to teamID; a foreign id
+	// yields ErrGitHubAppConfigNotFound, never the row.
+	GetByID(ctx context.Context, teamID, configID string) (*models.GitHubAppConfig, error)
+	// Update applies an optimistic-locked update keyed on
+	// (id, team_id, version), refreshing UpdatedAt/Version on success. Returns
+	// ErrGitHubAppConfigVersionConflict when the version is stale or the config
+	// does not belong to teamID, and ErrGitHubAppAlreadyRegistered on an App-id
+	// collision.
+	Update(ctx context.Context, config *models.GitHubAppConfig) error
+	// Delete removes the team's config by id, cascading to its installations.
+	// Returns ErrGitHubAppConfigNotFound when nothing matched.
+	Delete(ctx context.Context, teamID, configID string) error
+	// GetByWebhookToken resolves a config from the opaque token embedded in its
+	// webhook URL. This is the ONE deliberately un-team-scoped read: the public
+	// webhook route has no team context until this lookup supplies it. Returns
+	// ErrGitHubAppConfigNotFound for an unknown token.
+	GetByWebhookToken(ctx context.Context, token string) (*models.GitHubAppConfig, error)
 }
 
 // FeedRepository defines the interface for feed data access operations

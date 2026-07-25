@@ -27,10 +27,10 @@ func newGitHubInstallationMockRepo(t *testing.T) (repositories.GitHubInstallatio
 	return NewGitHubInstallationRepository(mockDB, slog.New(slog.DiscardHandler)), mock, mockDB
 }
 
-// githubInstallationColumns mirrors the 13-column projection scanned by
+// githubInstallationColumns mirrors the 14-column projection scanned by
 // GetByTeamID and GetByInstallationID.
 var githubInstallationColumns = []string{
-	"id", "team_id", "installation_id", "account_login", "account_type", "target_type",
+	"id", "team_id", "app_config_id", "installation_id", "account_login", "account_type", "target_type",
 	"encrypted_access_token", "token_expires_at", "permissions", "events", "suspended_at",
 	"created_at", "updated_at",
 }
@@ -41,6 +41,7 @@ func sampleGitHubInstallation() *models.GitHubInstallation {
 	return &models.GitHubInstallation{
 		ID:                   "8c6f2c1e-0b0a-4a1e-9f7d-1c2d3e4f5a6b",
 		TeamID:               "team-1",
+		AppConfigID:          "cfg-1",
 		InstallationID:       4242,
 		AccountLogin:         "octo-org",
 		AccountType:          "Organization",
@@ -68,8 +69,8 @@ func TestGitHubInstallationRepository_Create(t *testing.T) {
 		inst := sampleGitHubInstallation()
 		mock.ExpectQuery(`INSERT INTO github_installations`).
 			WithArgs(
-				inst.ID, inst.TeamID, inst.InstallationID, inst.AccountLogin, inst.AccountType,
-				inst.TargetType, inst.EncryptedAccessToken, inst.TokenExpiresAt,
+				inst.ID, inst.TeamID, inst.AppConfigID, inst.InstallationID, inst.AccountLogin,
+				inst.AccountType, inst.TargetType, inst.EncryptedAccessToken, inst.TokenExpiresAt,
 				[]byte(`{"contents":"read","metadata":"read"}`), pq.Array(inst.Events), nil,
 			).
 			WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at"}).
@@ -116,7 +117,7 @@ var (
 
 func githubInstallationHappyRows() *sqlmock.Rows {
 	return sqlmock.NewRows(githubInstallationColumns).AddRow(
-		"inst-1", "team-1", int64(4242), "octo-org", "Organization", "organization",
+		"inst-1", "team-1", "cfg-1", int64(4242), "octo-org", "Organization", "organization",
 		"enc-token", githubInstallationTestExpires, []byte(`{"contents":"read"}`), []byte(`{push,pull_request}`),
 		nil, githubInstallationTestNow, githubInstallationTestNow,
 	)
@@ -124,7 +125,7 @@ func githubInstallationHappyRows() *sqlmock.Rows {
 
 func githubInstallationBadPermissionsRows() *sqlmock.Rows {
 	return sqlmock.NewRows(githubInstallationColumns).AddRow(
-		"inst-1", "team-1", int64(4242), "octo-org", "Organization", "organization",
+		"inst-1", "team-1", "cfg-1", int64(4242), "octo-org", "Organization", "organization",
 		"enc-token", githubInstallationTestExpires, []byte(`{not json`), []byte(`{push}`),
 		nil, githubInstallationTestNow, githubInstallationTestNow,
 	)
@@ -168,6 +169,7 @@ func assertHappyGitHubInstallation(t *testing.T, got *models.GitHubInstallation)
 	t.Helper()
 	assert.Equal(t, "inst-1", got.ID)
 	assert.Equal(t, "team-1", got.TeamID)
+	assert.Equal(t, "cfg-1", got.AppConfigID)
 	assert.Equal(t, int64(4242), got.InstallationID)
 	assert.Equal(t, "octo-org", got.AccountLogin)
 	assert.Equal(t, "Organization", got.AccountType)
@@ -251,8 +253,8 @@ func TestGitHubInstallationRepository_Update(t *testing.T) {
 			setupMock: func(mock sqlmock.Sqlmock, inst *models.GitHubInstallation) {
 				mock.ExpectExec(`UPDATE github_installations`).
 					WithArgs(
-						inst.InstallationID, inst.AccountLogin, inst.AccountType, inst.TargetType,
-						inst.EncryptedAccessToken, inst.TokenExpiresAt,
+						inst.AppConfigID, inst.InstallationID, inst.AccountLogin, inst.AccountType,
+						inst.TargetType, inst.EncryptedAccessToken, inst.TokenExpiresAt,
 						[]byte(`{"contents":"read","metadata":"read"}`), pq.Array(inst.Events),
 						nil, inst.ID,
 					).

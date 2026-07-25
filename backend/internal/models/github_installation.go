@@ -4,8 +4,14 @@ import "time"
 
 // GitHubInstallation represents a GitHub App installation for a team
 type GitHubInstallation struct {
-	ID                   string                 `json:"id" db:"id"`
-	TeamID               string                 `json:"team_id" db:"team_id"`
+	ID     string `json:"id" db:"id"`
+	TeamID string `json:"team_id" db:"team_id"`
+	// AppConfigID binds the installation to the team's GitHubAppConfig that
+	// produced it (#477). Installations are only meaningful in the context of
+	// the App they were installed from, and installation_id is unique per App,
+	// not globally -- two teams may legitimately install their own App on the
+	// same GitHub org.
+	AppConfigID          string                 `json:"app_config_id" db:"app_config_id"`
 	InstallationID       int64                  `json:"installation_id" db:"installation_id"`
 	AccountLogin         string                 `json:"account_login" db:"account_login"`
 	AccountType          string                 `json:"account_type" db:"account_type"`
