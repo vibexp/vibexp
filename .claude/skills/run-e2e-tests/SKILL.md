@@ -29,9 +29,23 @@ embedded SPA), so a red run is a real signal even when the fix is test-side.
   so a green local run means a green CI run and vice versa. If they disagree,
   that itself is the finding.
 - **What `make e2e` does** (Makefile, `E2E_COMPOSE` / `e2e-*` targets):
-  `e2e-browsers` (installs chromium, needs sudo for `--with-deps`) → `e2e-up`
+  `e2e-browsers` (installs chromium) → `e2e-up`
   (`docker compose -f docker-compose.e2e.yml up -d --build --wait`, builds the
   combined image from source) → Playwright → teardown.
+- **Known trap — `make e2e` HANGS where sudo needs a password.** Its
+  `e2e-browsers` prerequisite runs `npx playwright install --with-deps chromium`
+  **unconditionally**, and `--with-deps` escalates to root. Where sudo prompts,
+  the run stalls forever after printing only:
+
+  ```
+  Installing dependencies...
+  Switching to root user to install dependencies...
+  ```
+
+  No timeout, no error — indistinguishable from a slow image build. It stalls
+  even when chromium is **already installed**, so the escalation buys nothing.
+  **This is why `make e2e` is not the default path for an unattended run** —
+  see "Choosing how to run it" below.
 - **Stack shape** (`docker-compose.e2e.yml`, project name `vibexp-e2e`): Postgres
   (pgvector), fake-gcs-server + a one-shot bucket init, an `a2a-test-agent`, and
   `app` — the combined image, the **only** host-exposed port, `:8080`. Dev login
@@ -45,11 +59,39 @@ embedded SPA), so a red run is a real signal even when the fix is test-side.
   attempts is deterministic, not flake.
 - **Specs live in `frontend/e2e/`**: `features/`, `journeys/`, `smoke/`,
   plus `fixtures/` (`auth` → `devLogin`) and `helpers/`.
+- **The image is built from the WORKING TREE, not from the ref.** Uncommitted
+  changes are silently included — useful when iterating on a fix, misleading when
+  you think you are testing a clean ref. Say which in the report.
+- **The compose project name is fixed (`vibexp-e2e`) and only `:8080` is
+  published.** Two runs cannot coexist: one from a git worktree and one from the
+  main checkout collide on both the project name and the port. Run one at a time,
+  and tear down between.
 - **Known trap — teardown is broken (#598).** The `e2e` recipe's `cd frontend`
   leaks into the teardown line, so `docker compose … down` runs from `frontend/`
   and fails on the relative compose path. **The stack keeps running, volume and
   all**, and the next run reuses that Postgres data. Always tear down by hand
   from the repo root (below) until #598 lands.
+
+## Choosing how to run it
+
+Decide this in preflight, before starting anything long:
+
+```bash
+sudo -n true 2>/dev/null && echo "passwordless sudo" || echo "sudo needs a password"
+ls ~/.cache/ms-playwright/ | grep -c '^chromium-'     # >0 means chromium is present
+```
+
+| sudo | chromium present | Use |
+|---|---|---|
+| passwordless | either | `make e2e` (installs deps, runs, tears down) |
+| **needs a password** | **yes** | **`make e2e-up && make e2e-test`, then `make e2e-down`** |
+| needs a password | no | Ask the user to run `make e2e-browsers` once — you cannot install system deps |
+
+**In an unattended/agent session sudo almost always needs a password, so the
+second row is the normal path.** It runs the same Playwright invocation `make
+e2e` does and only skips the `e2e-browsers` prerequisite, so the result is
+equivalent. It does not tear down for you — which you must do explicitly anyway
+(see #598).
 
 ## Inputs
 
@@ -101,11 +143,21 @@ gh run watch "$RUN_ID" --exit-status --interval 20
 ```
 
 **Local** — long-running, so start it in the background with the output tee'd to
-a log you can tail, and keep working while it runs:
+a log you can tail, and keep working while it runs. Pick the command from the
+decision table above:
 
 ```bash
+# passwordless sudo:
 (make frontend-install && make e2e) > <scratchpad>/e2e-local.log 2>&1
+
+# sudo needs a password (the usual unattended case) — skips only e2e-browsers:
+(make e2e-up && make e2e-test) > <scratchpad>/e2e-local.log 2>&1
+# ...then ALWAYS: make e2e-down
 ```
+
+If you started `make e2e` by mistake and it is sitting on *"Switching to root
+user to install dependencies..."*, it will never finish: `pkill -f "playwright
+install"`, then use the second form.
 
 Do not babysit it with short sleeps; wait on a condition, e.g.
 `until grep -qE '^  [0-9]+ (failed|passed)' <scratchpad>/e2e-local.log; do sleep 15; done`.
@@ -190,7 +242,11 @@ volumes) — see the #598 trap. Verify with
 3. Check for duplicates first (`gh issue list --search "e2e in:title"`), and link
    related known issues rather than restating them (#559 vacuous guards, #598
    teardown).
-4. Do **not** fix anything unless asked — the ask is usually "run it and tell me
+4. **Report which run path you used.** If you used `e2e-up`/`e2e-test`, say that
+   system browser deps were not (re)installed — the run is still valid, but a
+   genuinely missing dependency would surface as a browser launch failure rather
+   than a test failure.
+5. Do **not** fix anything unless asked — the ask is usually "run it and tell me
    what broke". Fixing a spec you have not re-run is how a dead test gets
    replaced with a differently-dead test.
 

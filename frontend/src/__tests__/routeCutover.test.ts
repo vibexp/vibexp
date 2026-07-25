@@ -51,12 +51,33 @@ const RETIRED_SEGMENTS = [
 const RETAINED = ['activities', 'notifications', 'api-keys']
 
 /**
- * A path literal that STARTS at `/settings/<retired>` — quote/backtick/paren
- * delimited, so `/teams/x/settings/search` and `@/pages/teams/settings/search`
- * cannot match.
+ * A path literal that STARTS at `/settings/<retired>`.
+ *
+ * Two delimiter families, because routes are written two ways:
+ *
+ *  - **String literals** — `navigate('/settings/teams')`, `to={\`/settings/x\`}`,
+ *    `path="/settings/teams/:id"`. Preceded by a quote, backtick or `(`.
+ *  - **Regex literals** — `waitForURL(/\\/settings\\/teams\\/[0-9a-f-]+$/)`, which
+ *    Playwright specs use for URL assertions. Here the slashes are ESCAPED, so
+ *    the text reads `settings\\/teams` and the string-literal pattern never
+ *    matches it.
+ *
+ * That second case is not hypothetical: #596 was exactly this shape. #538's
+ * path replacement missed two regex literals in a Playwright spec, the original
+ * version of this guard missed them too, and the stale assertion only surfaced
+ * when the e2e suite was finally run by hand.
+ *
+ * Either way `/teams/x/settings/search` and `@/pages/teams/settings/search`
+ * cannot match, because both require the literal to begin at `/settings/`.
  */
+const SEGMENTS = RETIRED_SEGMENTS.join('|')
 const RETIRED_ROUTE = new RegExp(
-  `['"\`(]/settings/(${RETIRED_SEGMENTS.join('|')})(?=['"\`/?#]|$)`
+  [
+    // string literal: '/settings/teams', `/settings/teams/...`, "/settings/..."
+    `['"\`(]/settings/(${SEGMENTS})(?=['"\`/?#]|$)`,
+    // regex literal with escaped slashes: /settings\/teams\/...$/
+    `\\(/(?:\\\\/)?settings\\\\/(${SEGMENTS})(?=\\\\/|['"\`/?#$]|$)`,
+  ].join('|')
 )
 
 /**
@@ -142,6 +163,10 @@ describe('retired /settings/* frontend routes stay retired (#545)', () => {
       `path="/settings/teams/:id"`,
       "goto('/settings/search')",
       "initialEntries={['/settings/integrations/github']}",
+      // Regex literals - the #596 shape the first version of this guard missed.
+      'waitForURL(/settings\\/teams\\/[0-9a-f-]+$/)',
+      'toHaveURL(/settings\\/teams$/)',
+      'expect(page).toHaveURL(/\\/settings\\/projects$/)',
     ])('flags %s', line => {
       expect(RETIRED_ROUTE.test(line)).toBe(true)
     })
@@ -164,6 +189,9 @@ describe('retired /settings/* frontend routes stay retired (#545)', () => {
       // Near-misses that must not over-match.
       "navigate('/settingsfoo')",
       "navigate('/settings')",
+      // Regex literals for RETAINED routes and for the new nested tree.
+      'toHaveURL(/settings\\/api-keys$/)',
+      'toHaveURL(/\\/teams\\/[0-9a-f-]+\\/settings\\/search$/)',
     ])('does not flag %s', line => {
       expect(RETIRED_ROUTE.test(line)).toBe(false)
     })
