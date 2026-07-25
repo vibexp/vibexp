@@ -108,7 +108,8 @@ repos:
 
       - id: frontend-audit
         name: frontend dependency audit
-        entry: bash -c 'cd frontend && npm run audit:deps'
+        # Same Make target CI runs, so hook and CI share one definition (#547).
+        entry: bash -c 'make frontend-audit'
         language: system
         files: ^frontend/package-lock\.json$
         pass_filenames: false

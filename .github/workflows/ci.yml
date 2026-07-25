@@ -97,6 +97,29 @@ jobs:
       - name: gofmt check
         run: make backend-format
 
+      # make backend-vulncheck / backend-security invoke these binaries directly,
+      # so CI has to install them (same pattern as golangci-lint in the lint job).
+      # Both are pinned, and for the same reason the linter is: an unpinned bump
+      # turns a new upstream rule into a surprise red build on untouched code.
+      # gosec is held at v2.24.7 — the version this repo is green under, and the
+      # one the pre-commit hook resolves to. v2.28.0 adds G124 (cookie attributes)
+      # and G710 (open-redirect taint analysis), which flag 7 pre-existing
+      # findings on untouched code. Triaging those and lifting this pin is #553;
+      # until then the pin keeps this step gating regressions rather than failing
+      # on day one. Install the same versions locally — the pre-commit hooks run
+      # whatever `gosec`/`govulncheck` is on PATH, so a newer local build reports
+      # failures CI does not.
+      - name: Install govulncheck and gosec
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.24.7
+
+      - name: Vulnerability check
+        run: make backend-vulncheck
+
+      - name: Security scan
+        run: make backend-security
+
       - name: Build
         run: make backend-build
 
@@ -203,6 +226,13 @@ jobs:
 
       - name: Lint
         run: make frontend-lint
+
+      # Production-dependency advisory gate (npm audit --omit=dev, with the
+      # documented allowlist in frontend/scripts/audit-deps.js). Previously
+      # pre-commit-only, so a contributor without the hooks installed bypassed it
+      # entirely and dependency drift accumulated unseen (#547).
+      - name: Dependency audit
+        run: make frontend-audit
 
       - name: Type-check
         run: make frontend-type-check
