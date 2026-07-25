@@ -81,6 +81,8 @@ type Container interface {
 	MemoryService() services.MemoryServiceInterface
 	EmbeddingService() services.EmbeddingServiceInterface
 	SearchService() services.Searcher
+	TeamEmailProviderService() services.TeamEmailProviderServiceInterface
+	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
 	EnvironmentService() *services.EnvironmentService
 	ResourceUsageService() services.ResourceUsageServiceInterface

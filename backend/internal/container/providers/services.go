@@ -419,6 +419,35 @@ func ProvideEmbeddingProcessor(
 	)
 }
 
+// ProvideTeamEmailProviderService creates the team email provider service.
+// Secret encryption is delegated to the shared, fail-closed EncryptionService
+// (#294); when Security.EncryptionKey is unset ProvideEncryptionService returns
+// nil and the service refuses to store or read a credential rather than handling
+// one in plaintext.
+func ProvideTeamEmailProviderService(
+	repo repositories.TeamEmailProviderRepository,
+	userRepo repositories.UserRepository,
+	enc services.EncryptionServiceInterface,
+	cfg *config.Config,
+	authzService services.AuthorizationServiceInterface,
+	logger *slog.Logger,
+) services.TeamEmailProviderServiceInterface {
+	return services.NewTeamEmailProviderService(repo, userRepo, enc, cfg, authzService, logger)
+}
+
+// ProvideEmailSenderResolver creates the send-time sender resolver. The
+// EmailProvider built at wire time from config.yaml becomes the INSTANCE
+// FALLBACK, used for any team that has not configured a provider of its own.
+func ProvideEmailSenderResolver(
+	repo repositories.TeamEmailProviderRepository,
+	enc services.EncryptionServiceInterface,
+	instanceProvider external.EmailProvider,
+	cfg *config.Config,
+	logger *slog.Logger,
+) services.EmailSenderResolver {
+	return services.NewEmailSenderResolver(repo, enc, instanceProvider, cfg, logger)
+}
+
 // ProvideTeamSearchSettingsService creates the team search settings service.
 // It receives the deployment `search:` config, which is both the fallback for a
 // team with no stored profile and the instance_defaults reported on every read.

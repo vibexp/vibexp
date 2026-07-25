@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/vibexp/vibexp/internal/models"
 )
@@ -338,4 +339,50 @@ func NewCannotDeleteLastProjectError(teamID, projectSlug string) *CannotDeleteLa
 		TeamID:      teamID,
 		ProjectSlug: projectSlug,
 	}
+}
+
+// Team Email Provider Errors
+
+// ErrEncryptionUnavailable is returned when a team email provider operation needs
+// the encryption service but it is not configured (Security.EncryptionKey unset,
+// so ProvideEncryptionService returned nil). Fail closed: storing a credential in
+// plaintext, or sending with one that cannot be decrypted, is worse than refusing.
+var ErrEncryptionUnavailable = errors.New("encryption service is not configured")
+
+// ErrTeamEmailProviderValidation matches any TeamEmailProviderValidationError via
+// errors.Is, so handlers can detect "this is a 400 with field details" without
+// depending on the concrete type.
+var ErrTeamEmailProviderValidation = errors.New("team email provider configuration is invalid")
+
+// FieldError names one invalid request field and why. Services are HTTP-agnostic,
+// so this carries the detail a handler needs to build an RFC 9457 validation
+// response without the services package importing internal/errors.
+type FieldError struct {
+	Field   string
+	Message string
+}
+
+// TeamEmailProviderValidationError reports one or more invalid fields in a team
+// email provider request. It is returned before any repository or network access,
+// so a rejected configuration is never partially applied.
+type TeamEmailProviderValidationError struct {
+	Fields []FieldError
+}
+
+// Error implements the error interface.
+func (e *TeamEmailProviderValidationError) Error() string {
+	if len(e.Fields) == 0 {
+		return ErrTeamEmailProviderValidation.Error()
+	}
+	parts := make([]string, 0, len(e.Fields))
+	for _, field := range e.Fields {
+		parts = append(parts, field.Field+" "+field.Message)
+	}
+	return ErrTeamEmailProviderValidation.Error() + ": " + strings.Join(parts, "; ")
+}
+
+// Is reports this error as ErrTeamEmailProviderValidation so callers can match
+// the category with errors.Is.
+func (e *TeamEmailProviderValidationError) Is(target error) bool {
+	return target == ErrTeamEmailProviderValidation
 }
