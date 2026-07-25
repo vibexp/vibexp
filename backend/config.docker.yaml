@@ -13,7 +13,10 @@
 #     reference so `docker run -e ENCRYPTION_KEY=... -e DB_HOST=...` configures a
 #     container with environment variables alone. Fields not listed here inherit
 #     the code defaults (see internal/config defaults()), which are production
-#     tuned (rate limits, retention, event bus, OTel, search ranking, …).
+#     tuned (rate limits, retention, event bus, OTel, search ranking, …). Note
+#     that the search ranking values are only the DEFAULT each team inherits —
+#     any team may override them from Settings -> Search — except
+#     search.rank_candidate_cap, which is instance-only and applies to everyone.
 #
 # To take FULL control, mount your own file over the baked path instead:
 #   docker run -v $PWD/config.yaml:/app/config.yaml ghcr.io/vibexp/vibexp

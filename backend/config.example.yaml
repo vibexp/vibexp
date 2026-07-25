@@ -222,8 +222,19 @@ frontend:
   gtm_enabled: ""
   ga4_measurement_id: ""
 
-# Search ranking. When recency_ranking_enabled is false (default) results keep
-# relevance-only ordering; true blends relevance and freshness by the weights.
+# Search ranking — these are the INSTANCE DEFAULTS, not absolute settings.
+# Every team inherits them until it saves its own profile in Settings -> Search;
+# a team that has overridden them is unaffected by changes here. Changing these
+# takes effect for inheriting teams on restart.
+#
+# When recency_ranking_enabled is false (default) results keep relevance-only
+# ordering; true blends relevance and freshness by the weights.
+#
+# rank_candidate_cap is the ONE exception: it is instance-only, applies to every
+# team, and is never team-overridable. It caps how many top-by-relevance rows are
+# re-ranked in memory per query — and therefore how many results are reachable
+# via pagination while recency ranking is on. Raising it costs memory/latency on
+# every query.
 search:
   recency_ranking_enabled: false
   rank_weight_relevance: 0.5
