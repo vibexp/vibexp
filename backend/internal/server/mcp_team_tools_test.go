@@ -123,6 +123,7 @@ func TestAddAllTools_RegistersDiscoveryAndTeamScopedTools(t *testing.T) {
 		"vibexp_io_create_artifact",
 		"vibexp_io_get_resource",
 		"vibexp_io_list_resources",
+		"vibexp_io_list_resource_metadata",
 		"vibexp_io_create_memory",
 		"vibexp_io_create_prompt",
 		"vibexp_io_update_prompt",

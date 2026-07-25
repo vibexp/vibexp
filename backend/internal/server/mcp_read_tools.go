@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 )
 
@@ -29,7 +30,10 @@ const listResourcesToolName = "vibexp_io_list_resources"
 
 const listResourcesToolDescription = "List resources in a project with filtering and pagination. Supported " +
 	"resource_type values: \"memory\", \"artifact\", \"blueprint\". Requires project_id. Returns slim items " +
-	"without full content — call get_resource for a single resource's content. The team is resolved per call."
+	"without full content — call get_resource for a single resource's content. The team is resolved per call. " +
+	"Use `metadata` to filter on the metadata agents write: keys are ANDed, values within a key ORed, and an " +
+	"empty array means \"the key exists\". Call vibexp_io_list_resource_metadata first to discover which keys " +
+	"and values a team actually uses rather than guessing."
 
 // GetResourceParams defines the parameters for the generic get_resource tool.
 // The required identifier fields vary by resource_type and are validated per type.
@@ -47,14 +51,15 @@ type GetResourceParams struct {
 //
 //nolint:lll // struct tag values contain verbatim tool descriptions; cannot be shortened
 type ListResourcesParams struct {
-	TeamID       string `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
-	ResourceType string `json:"resource_type" jsonschema:"REQUIRED. The resource type to list: one of \"memory\", \"artifact\", or \"blueprint\"."`
-	ProjectID    string `json:"project_id" jsonschema:"REQUIRED. Project UUID to list resources within."`
-	Page         int    `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
-	Search       string `json:"search,omitempty" jsonschema:"Search filter (memory text, or artifact/blueprint title/description)"`
-	Status       string `json:"status,omitempty" jsonschema:"Filter by status"`
-	Type         string `json:"type,omitempty" jsonschema:"Filter by type (artifact and blueprint only)"`
+	TeamID       string              `json:"team_id" jsonschema:"REQUIRED. Team UUID or slug to operate within."`
+	ResourceType string              `json:"resource_type" jsonschema:"REQUIRED. The resource type to list: one of \"memory\", \"artifact\", or \"blueprint\"."`
+	ProjectID    string              `json:"project_id" jsonschema:"REQUIRED. Project UUID to list resources within."`
+	Page         int                 `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
+	Limit        int                 `json:"limit,omitempty" jsonschema:"Items per page (default: 10, max: 10)"`
+	Search       string              `json:"search,omitempty" jsonschema:"Search filter (memory text, or artifact/blueprint title/description)"`
+	Status       string              `json:"status,omitempty" jsonschema:"Filter by status"`
+	Type         string              `json:"type,omitempty" jsonschema:"Filter by type (artifact and blueprint only)"`
+	Metadata     map[string][]string `json:"metadata,omitempty" jsonschema:"Filter by metadata: an object of key to array of string values, e.g. {\"env\":[\"prod\",\"staging\"],\"scope\":[\"backend\"]}. Keys are combined with AND, values within a key with OR. An empty array means \"the key exists\". Array-valued metadata matches element-wise, and numeric or boolean values match their string form. At most 10 keys, 25 values per key, key length 255, value length 512."`
 }
 
 // blueprintListItem is the per-item shape returned by list_resources for
@@ -228,6 +233,16 @@ func (s *Server) listResources(
 		return r, nil, nil
 	}
 
+	if r := validateMCPMetadataFilter(params.Metadata); r != nil {
+		slog.Warn(
+			"MCP tool rejected: invalid metadata filter",
+			"tool", listResourcesToolName,
+			"user_id", userID,
+			"team_id", teamID,
+		)
+		return r, nil, nil
+	}
+
 	switch strings.ToLower(strings.TrimSpace(params.ResourceType)) {
 	case resourceTypeMemory:
 		return s.listMemoryResources(params, userID, teamID)
@@ -255,12 +270,13 @@ func (s *Server) listMemoryResources(
 	page, limit := normalizeMCPListPagination(params.Page, params.Limit)
 	projectID := params.ProjectID
 	filters := services.MemoryFilters{
-		TeamID:    teamID,
-		ProjectID: &projectID,
-		Search:    params.Search,
-		Status:    statusPtr,
-		Page:      page,
-		Limit:     limit,
+		TeamID:         teamID,
+		ProjectID:      &projectID,
+		Search:         params.Search,
+		Status:         statusPtr,
+		MetadataFilter: repositories.MetadataFilter(params.Metadata),
+		Page:           page,
+		Limit:          limit,
 	}
 
 	response, err := s.container.MemoryService().ListMemories(userID, filters)
@@ -287,13 +303,14 @@ func (s *Server) listArtifactResources(
 ) (*mcp.CallToolResult, any, error) {
 	page, limit := normalizeMCPListPagination(params.Page, params.Limit)
 	filters := services.ArtifactFilters{
-		ProjectID: params.ProjectID,
-		Status:    params.Status,
-		Type:      params.Type,
-		Search:    params.Search,
-		TeamID:    teamID,
-		Page:      page,
-		Limit:     limit,
+		ProjectID:      params.ProjectID,
+		Status:         params.Status,
+		Type:           params.Type,
+		Search:         params.Search,
+		TeamID:         teamID,
+		MetadataFilter: repositories.MetadataFilter(params.Metadata),
+		Page:           page,
+		Limit:          limit,
 	}
 
 	response, err := s.container.ArtifactService().ListArtifactsByProject(userID, params.ProjectID, filters)
@@ -322,12 +339,13 @@ func (s *Server) listBlueprintResources(
 ) (*mcp.CallToolResult, any, error) {
 	page, limit := normalizeMCPListPagination(params.Page, params.Limit)
 	filters := services.BlueprintFilters{
-		Status: params.Status,
-		Type:   params.Type,
-		TeamID: teamID,
-		Search: params.Search,
-		Page:   page,
-		Limit:  limit,
+		Status:         params.Status,
+		Type:           params.Type,
+		TeamID:         teamID,
+		Search:         params.Search,
+		MetadataFilter: repositories.MetadataFilter(params.Metadata),
+		Page:           page,
+		Limit:          limit,
 	}
 
 	response, err := s.container.BlueprintService().ListBlueprintsByProject(userID, params.ProjectID, filters)
