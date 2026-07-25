@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import type { GitHubAppConfigResponse } from '@/services/githubAppConfigService'
 
@@ -123,5 +124,56 @@ describe('GitHubAppConfigCard — permission gating', () => {
     for (const name of ['Edit', 'Verify', 'Rotate webhook URL', 'Remove']) {
       expect(screen.getByRole('button', { name })).toBeVisible()
     }
+  })
+})
+
+describe('GitHubAppConfigCard — destructive confirmations', () => {
+  // These two dialogs exist for what they SAY, not that they exist: rotating
+  // without updating GitHub stops deliveries silently, and removing the App
+  // disconnects installations. Asserting only that the buttons render would
+  // pass with the warnings deleted.
+  it('warns that GitHub must be updated after rotating', async () => {
+    const user = userEvent.setup()
+    renderCard()
+
+    await user.click(screen.getByRole('button', { name: 'Rotate webhook URL' }))
+
+    expect(
+      await screen.findByText(/deliveries stop until you do/i)
+    ).toBeVisible()
+  })
+
+  it('warns that installations disconnect on remove', async () => {
+    const user = userEvent.setup()
+    renderCard()
+
+    await user.click(screen.getByRole('button', { name: 'Remove' }))
+
+    expect(
+      await screen.findByText(/installations are disconnected/i)
+    ).toBeVisible()
+  })
+})
+
+describe('GitHubAppSetupGuide — organization deep link', () => {
+  it('targets the personal account by default and the org once given one', async () => {
+    const user = userEvent.setup()
+    renderCard({ config: null })
+
+    expect(
+      screen.getByRole('link', { name: /Create App on GitHub/i })
+    ).toHaveAttribute('href', 'https://github.com/settings/apps/new')
+
+    await user.type(
+      screen.getByLabelText(/Organization \(optional\)/i),
+      'acme-inc'
+    )
+
+    expect(
+      screen.getByRole('link', { name: /Create App in acme-inc/i })
+    ).toHaveAttribute(
+      'href',
+      'https://github.com/organizations/acme-inc/settings/apps/new'
+    )
   })
 })

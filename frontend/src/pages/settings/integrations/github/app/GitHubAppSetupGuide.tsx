@@ -1,6 +1,9 @@
 import { ExternalLink } from 'lucide-react'
+import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 /**
  * The numbered walkthrough for registering a team's own GitHub App.
@@ -41,16 +44,22 @@ const REQUIRED_EVENTS: { name: string; why: string }[] = [
 
 export interface GitHubAppSetupGuideProps {
   /**
-   * GitHub organization to create the App under. Empty creates it on the
-   * signed-in user's personal account.
+   * Pre-fills the organization the App is created under. The field stays
+   * editable — this is only a starting value.
    */
-  organization?: string
+  defaultOrganization?: string
 }
 
 export function GitHubAppSetupGuide({
-  organization,
+  defaultOrganization = '',
 }: GitHubAppSetupGuideProps) {
-  const trimmedOrg = organization?.trim() ?? ''
+  // The create-App URL differs for a personal account and an org, and there is
+  // no way to know which one someone wants: asking is cheaper than sending them
+  // to the wrong page and letting them work out why the App is owned by the
+  // wrong account (which only becomes visible much later, when that account
+  // goes away).
+  const [organization, setOrganization] = useState(defaultOrganization)
+  const trimmedOrg = organization.trim()
   const createUrl = trimmedOrg
     ? `https://github.com/organizations/${encodeURIComponent(trimmedOrg)}/settings/apps/new`
     : 'https://github.com/settings/apps/new'
@@ -67,9 +76,25 @@ export function GitHubAppSetupGuide({
             <strong>Webhook URL blank</strong> for now; you will come back for
             it in step 3.
           </p>
+          <div className="mt-2 space-y-1">
+            <Label htmlFor="github-app-org" className="text-xs">
+              Organization (optional)
+            </Label>
+            <Input
+              id="github-app-org"
+              value={organization}
+              onChange={event => {
+                setOrganization(event.target.value)
+              }}
+              placeholder="acme-inc — leave blank for your personal account"
+              className="max-w-sm"
+            />
+          </div>
           <Button asChild variant="outline" size="sm" className="mt-2">
             <a href={createUrl} target="_blank" rel="noopener noreferrer">
-              Create App on GitHub
+              {trimmedOrg
+                ? `Create App in ${trimmedOrg}`
+                : 'Create App on GitHub'}
               <ExternalLink className="ml-2 h-3.5 w-3.5" />
             </a>
           </Button>
