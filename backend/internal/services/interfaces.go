@@ -228,9 +228,10 @@ type EmbeddingProviderServiceInterface interface {
 // operations (per-team, bring-your-own OpenAI-compatible LLM config). Issue #110
 // ships only config storage + a validate probe; no runtime consumer is wired.
 // GitHubAppConfigServiceInterface owns a team's own GitHub App credentials
-// (#478). Every mutating method is gated on authz.TeamUpdate (owner/admin), and
-// so is ValidateAppConfig, which makes the server perform an authenticated
-// outbound call on the team's behalf.
+// (#478). Every mutating method is gated on authz.TeamSettingsUpdate
+// (owner/admin) -- an App registration is team configuration, not team identity
+// -- and so is ValidateAppConfig, which makes the server perform an
+// authenticated outbound call on the team's behalf.
 type GitHubAppConfigServiceInterface interface {
 	// CreateAppConfig registers the team's App. The webhook secret is generated
 	// server-side and disclosed exactly once, in the returned payload.

@@ -5,8 +5,12 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/vibexp/vibexp/internal/authz"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories/mocks"
@@ -91,4 +95,51 @@ func TestGitHubAppConfigService_NilAuthzFailsClosed(t *testing.T) {
 
 	deleteErr := svc.DeleteAppConfig(ctx, testAppConfigTeamID, testAppConfigUserID)
 	assert.True(t, errors.Is(deleteErr, ErrPermissionDenied), "got: %v", deleteErr)
+}
+
+// recordingAuthz captures which permission was demanded, so the CHOICE of
+// permission is pinned rather than merely "some check happened".
+type recordingAuthz struct{ got []authz.Permission }
+
+func (r *recordingAuthz) Can(_ context.Context, _, _ string, p authz.Permission) error {
+	r.got = append(r.got, p)
+	return nil
+}
+
+func (r *recordingAuthz) CanActOnResource(
+	_ context.Context, _, _, _ string, _, _ authz.Permission,
+) error {
+	return nil
+}
+
+func (r *recordingAuthz) Authorize(
+	_ context.Context, _, _ string, _ authz.Permission,
+) (models.TeamMemberRole, error) {
+	panic("recordingAuthz: unexpected Authorize call")
+}
+
+// TestGitHubAppConfigService_UsesTeamSettingsUpdate pins the permission itself.
+//
+// A GitHub App registration is team-level CONFIGURATION, not team identity, so
+// it belongs to team.settings.update rather than team.update. The two are
+// deliberately separate (#489) so configuration and identity can diverge later
+// without a breaking rename; today both grant owner+admin, which is exactly why
+// a silent swap between them would pass every other test in this file.
+func TestGitHubAppConfigService_UsesTeamSettingsUpdate(t *testing.T) {
+	ctx := context.Background()
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+
+	rec := &recordingAuthz{}
+	repo := mocks.NewMockGitHubAppConfigRepository(t)
+	svc := NewGitHubAppConfigService(repo, enc, rec, "https://vibexp.example")
+	repo.EXPECT().Create(ctx, mock.Anything).Return(nil)
+
+	_, err = svc.CreateAppConfig(
+		ctx, testAppConfigTeamID, testAppConfigUserID, validCreateRequest(t))
+	require.NoError(t, err)
+
+	require.Len(t, rec.got, 1)
+	assert.Equal(t, authz.TeamSettingsUpdate, rec.got[0],
+		"an App registration is team configuration, not team identity")
 }

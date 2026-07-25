@@ -101,13 +101,19 @@ func NewGitHubAppConfigService(
 
 // authorizeAppConfigMutation gates create/update/delete/validate/rotate. A nil
 // authz is a wiring bug — fail closed rather than allow.
+//
+// TeamSettingsUpdate rather than TeamUpdate: a GitHub App registration is
+// team-level CONFIGURATION, not team identity (name/slug/description). The two
+// permissions are deliberately separate (#489) precisely so configuration and
+// identity can diverge later without a breaking rename — both grant owner+admin
+// today, so this is a semantic choice with no behavioural difference now.
 func (s *GitHubAppConfigService) authorizeAppConfigMutation(
 	ctx context.Context, userID, teamID string,
 ) error {
 	if s.authz == nil {
 		return fmt.Errorf("%w: authorization service is not configured", ErrPermissionDenied)
 	}
-	return s.authz.Can(ctx, userID, teamID, authz.TeamUpdate)
+	return s.authz.Can(ctx, userID, teamID, authz.TeamSettingsUpdate)
 }
 
 // generateSecret returns githubAppSecretBytes of crypto/rand, hex-encoded.
