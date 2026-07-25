@@ -67,19 +67,15 @@ func createTestGitHubAppConfigServer(container *MockGitHubAppConfigContainer) *S
 		router:    r,
 	}
 
-	// The production setup registers BOTH prefixes and applies
-	// teamValidationMiddleware; the middleware is skipped here by registering the
-	// inner routes directly, so these tests cover the handlers and the spec
-	// contract rather than re-testing team membership.
+	// Mount the PRODUCTION route function under each prefix. Registering the
+	// verbs by hand here would make these tests pass even if a route were
+	// missing from production or registered on only one prefix — the exact
+	// regressions this file exists to catch. teamValidationMiddleware is applied
+	// by mountGitHubAppConfigRoutes in production and skipped here, so these
+	// tests cover the handlers and the spec contract rather than re-testing team
+	// membership.
 	for _, prefix := range githubAppPrefixes {
-		r.Route("/api/v1/{team_id}/"+prefix, func(r chi.Router) {
-			r.Get("/", srv.handleGetGitHubAppConfig)
-			r.Post("/", srv.handleCreateGitHubAppConfig)
-			r.Put("/", srv.handleUpdateGitHubAppConfig)
-			r.Delete("/", srv.handleDeleteGitHubAppConfig)
-			r.Post("/validate", srv.handleValidateGitHubAppConfig)
-			r.Post("/rotate-webhook-token", srv.handleRotateGitHubAppWebhookToken)
-		})
+		r.Route("/api/v1/{team_id}/"+prefix, srv.setupGitHubAppConfigRoutes)
 	}
 
 	return srv
