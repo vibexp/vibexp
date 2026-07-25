@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { GitHubIcon } from '@/components/icons/GitHubIcon'
@@ -17,10 +17,13 @@ import type {
 } from '@/services/githubIntegrationService'
 import { githubIntegrationService } from '@/services/githubIntegrationService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import { ApiError } from '@/types/errors'
 import { safeRedirect } from '@/utils/urlValidation'
 
 import { GitHubAppConfigCard } from './app/GitHubAppConfigCard'
+import {
+  describeCallbackFailure,
+  MISSING_CODE_MESSAGE,
+} from './callbackMessages'
 import { GitHubConnectionCard } from './GitHubConnectionCard'
 import { GitHubInstallModal } from './GitHubInstallModal'
 import { GitHubRepositoryList } from './GitHubRepositoryList'
@@ -32,6 +35,7 @@ const REPOS_PER_SERVER_PAGE = 100
 
 export function GitHubIntegration() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const { currentTeam } = useTeam()
   const { trackEvent } = useAnalytics()
@@ -151,6 +155,14 @@ export function GitHubIntegration() {
     }
   }, [currentTeam, serverPage, isLoadingMore, handleError])
 
+  // Drops the callback query params while staying on whatever path this page is
+  // mounted at. Deliberately NOT a hardcoded route: the intent is "strip the
+  // consumed params", and this page has already moved once (#541) — a literal
+  // path silently redirects into a 404 the next time it moves.
+  const clearCallbackParams = useCallback(() => {
+    void navigate(location.pathname, { replace: true })
+  }, [navigate, location.pathname])
+
   const handleCallback = useCallback(
     async (data: GitHubInstallCallbackRequest) => {
       if (!currentTeam) return
@@ -161,9 +173,7 @@ export function GitHubIntegration() {
           data
         )
 
-        void navigate(`/teams/${currentTeam.id}/settings/integrations/github`, {
-          replace: true,
-        })
+        clearCallbackParams()
         await loadStatus()
         if (response.reconnected) {
           toast.success('Reconnected to existing GitHub installation')
@@ -179,23 +189,15 @@ export function GitHubIntegration() {
           },
         })
       } catch (error) {
-        if (
-          error instanceof ApiError &&
-          error.code === 'installation_already_connected'
-        ) {
-          handleError(
-            error,
-            'This GitHub organization is already connected to another team. Each GitHub org/account can only be connected to one team.'
-          )
-        } else {
-          handleError(error, 'Failed to complete GitHub installation')
-        }
-        void navigate(`/teams/${currentTeam.id}/settings/integrations/github`, {
-          replace: true,
-        })
+        // Shown directly rather than through handleError: that helper ignores
+        // its defaultMessage for Error/ApiError and renders the server's own
+        // `detail`, which is exactly the generic text these arms exist to
+        // replace.
+        toast.error(describeCallbackFailure(error))
+        clearCallbackParams()
       }
     },
-    [currentTeam, handleError, loadStatus, navigate, trackEvent]
+    [currentTeam, loadStatus, clearCallbackParams, trackEvent]
   )
 
   useEffect(() => {
@@ -228,30 +230,37 @@ export function GitHubIntegration() {
   // GitHub's OAuth code. Required by the callback since #463, which exchanges it
   // for a user token to prove the caller can actually access the installation
   // being bound — so a callback without it is a guaranteed 400 and is not sent.
-  // Relaying it is the minimum needed to compile against the republished client;
-  // #485 still owns the rest of this flow (per-arm error messages, stripping the
-  // params after handling, and end-to-end verification against a real App).
   const code = searchParams.get('code')
 
   useEffect(() => {
-    if (installationIdStr && setupAction && state && code && currentTeam) {
-      const installationId = Number.parseInt(installationIdStr, 10)
+    if (!installationIdStr || !setupAction || !state || !currentTeam) return
 
-      if (Number.isNaN(installationId) || installationId <= 0) {
-        handleError(
-          new Error(`Invalid installation ID: ${installationIdStr}`),
-          'Failed to complete GitHub installation'
-        )
-        return
-      }
-
-      void handleCallback({
-        installation_id: installationId,
-        setup_action: setupAction,
-        state,
-        code,
-      })
+    const installationId = Number.parseInt(installationIdStr, 10)
+    if (Number.isNaN(installationId) || installationId <= 0) {
+      handleError(
+        new Error(`Invalid installation ID: ${installationIdStr}`),
+        'Failed to complete GitHub installation'
+      )
+      clearCallbackParams()
+      return
     }
+
+    // Landing here without a code means the App is not set up for user
+    // authorization, or the admin arrived by some route other than GitHub's
+    // redirect. The request would be a guaranteed 400, so say what to do
+    // instead of firing it and reporting the server's rejection.
+    if (!code) {
+      toast.error(MISSING_CODE_MESSAGE)
+      clearCallbackParams()
+      return
+    }
+
+    void handleCallback({
+      installation_id: installationId,
+      setup_action: setupAction,
+      state,
+      code,
+    })
   }, [
     installationIdStr,
     setupAction,
@@ -260,6 +269,7 @@ export function GitHubIntegration() {
     currentTeam,
     handleCallback,
     handleError,
+    clearCallbackParams,
   ])
 
   const handleConnect = () => {
