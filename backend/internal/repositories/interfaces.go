@@ -1124,6 +1124,21 @@ type UserPreferencesRepository interface {
 	Upsert(ctx context.Context, prefs *models.UserPreferences) error
 }
 
+// TeamSearchSettingsRepository defines the interface for per-team search
+// ranking override data access operations.
+//
+// The override is whole-row: a team either has a complete profile stored or no
+// row at all, in which case it inherits the instance defaults from config.yaml.
+type TeamSearchSettingsRepository interface {
+	// Get returns (nil, nil) — not an error — when the team has no override
+	// row, so callers can fall back to the instance defaults.
+	Get(ctx context.Context, teamID string) (*models.TeamSearchSettings, error)
+	Upsert(ctx context.Context, settings *models.TeamSearchSettings) error
+	// Delete removes the team's override row. Deleting when no row exists is a
+	// no-op, not an error.
+	Delete(ctx context.Context, teamID string) error
+}
+
 // ProjectRepository defines the interface for project data access operations
 type ProjectRepository interface {
 	Create(ctx context.Context, project *models.Project) error

@@ -161,6 +161,11 @@ func ProvideUserPreferencesRepository(db *database.DB) repositories.UserPreferen
 	return postgres.NewUserPreferencesRepository(db)
 }
 
+// ProvideTeamSearchSettingsRepository creates a new TeamSearchSettingsRepository
+func ProvideTeamSearchSettingsRepository(db *database.DB) repositories.TeamSearchSettingsRepository {
+	return postgres.NewTeamSearchSettingsRepository(db)
+}
+
 // ProvideTeamRepository creates a new TeamRepository
 func ProvideTeamRepository(db *database.DB) repositories.TeamRepository {
 	return postgres.NewTeamRepository(db)
