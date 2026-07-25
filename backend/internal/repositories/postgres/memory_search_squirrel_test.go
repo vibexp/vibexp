@@ -15,11 +15,17 @@ import (
 )
 
 // searchBaseArgs is the argument set squirrel binds for every SearchByMetadata
-// query regardless of optional filters: user_id, then the metadata key/value.
+// query regardless of optional filters: the tenancy predicate (team_id, then
+// the team/user pair per EXISTS clause), then user_id and the metadata
+// key/value. The tenancy args lead because #517 added them — without them the
+// query ignored {team_id} entirely and spanned every team the caller belongs to.
 // It must return a fresh slice on every call — test cases append to the result,
 // and a shared backing array would let cases corrupt each other.
 func searchBaseArgs() []driver.Value {
-	return []driver.Value{"user-123", "env", "prod"}
+	return []driver.Value{
+		"team-123", "team-123", "user-123", "team-123", "user-123",
+		"user-123", "env", "prod",
+	}
 }
 
 // searchDefaultArgs adds the trailing status-visibility argument bound by the
@@ -59,11 +65,13 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 	}{
 		{
 			name:    "base metadata filter binds user_id, key/value and hides archived",
-			filters: repositories.MemoryFilters{Page: 1, Limit: 10},
+			filters: repositories.MemoryFilters{TeamID: "team-123", Page: 1, Limit: 10},
 			setupMock: func() {
 				mock.ExpectQuery(
-					`SELECT COUNT\(\*\) FROM memories WHERE ` +
-						`\(user_id = \$1 AND metadata ->> \$2 = \$3 AND status <> \$4\)`).
+					`SELECT COUNT\(\*\) FROM memories WHERE \(team_id = \$1 AND ` +
+						`\(EXISTS \(SELECT 1 FROM teams WHERE id = \$2 AND owner_id = \$3\) ` +
+						`OR EXISTS \(SELECT 1 FROM team_members WHERE team_id = \$4 AND user_id = \$5\)\) ` +
+						`AND user_id = \$6 AND metadata ->> \$7 = \$8 AND status <> \$9\)`).
 					WithArgs(searchDefaultArgs()...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM memories WHERE .* ORDER BY created_at DESC LIMIT 10 OFFSET 0`).
@@ -75,13 +83,13 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 		},
 		{
 			name:    "explicit status filter selects that status",
-			filters: repositories.MemoryFilters{Status: &draftStatus, Page: 1, Limit: 10},
+			filters: repositories.MemoryFilters{TeamID: "team-123", Status: &draftStatus, Page: 1, Limit: 10},
 			setupMock: func() {
 				args := append(searchBaseArgs(), "draft")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND status = \$4`).
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND status = \$9`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories WHERE .* AND status = \$4`).
+				mock.ExpectQuery(`FROM memories WHERE .* AND status = \$9`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
@@ -90,13 +98,13 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 		},
 		{
 			name:    "ProjectID filter binds project_id equality",
-			filters: repositories.MemoryFilters{ProjectID: &projectID, Page: 1, Limit: 10},
+			filters: repositories.MemoryFilters{TeamID: "team-123", ProjectID: &projectID, Page: 1, Limit: 10},
 			setupMock: func() {
 				args := append(searchBaseArgs(), "project-x", "archived")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND project_id = \$4 AND status <> \$5`).
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND project_id = \$9 AND status <> \$10`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories WHERE .* AND project_id = \$4 AND status <> \$5`).
+				mock.ExpectQuery(`FROM memories WHERE .* AND project_id = \$9 AND status <> \$10`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
@@ -105,13 +113,13 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 		},
 		{
 			name:    "Search binds a single %term% via ILIKE and forces active status",
-			filters: repositories.MemoryFilters{Search: "alpha", Page: 1, Limit: 10},
+			filters: repositories.MemoryFilters{TeamID: "team-123", Search: "alpha", Page: 1, Limit: 10},
 			setupMock: func() {
 				args := append(searchBaseArgs(), "%alpha%", "active")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND text ILIKE \$4 AND status = \$5`).
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE .* AND text ILIKE \$9 AND status = \$10`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories WHERE .* AND text ILIKE \$4 AND status = \$5`).
+				mock.ExpectQuery(`FROM memories WHERE .* AND text ILIKE \$9 AND status = \$10`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
@@ -120,14 +128,14 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 		},
 		{
 			name:    "ProjectID and Search bind both extra args and force active",
-			filters: repositories.MemoryFilters{ProjectID: &projectID, Search: "alpha", Page: 1, Limit: 10},
+			filters: repositories.MemoryFilters{TeamID: "team-123", ProjectID: &projectID, Search: "alpha", Page: 1, Limit: 10},
 			setupMock: func() {
 				args := append(searchBaseArgs(), "project-x", "%alpha%", "active")
 				mock.ExpectQuery(
-					`SELECT COUNT\(\*\) FROM memories WHERE .* AND project_id = \$4 AND text ILIKE \$5 AND status = \$6`).
+					`SELECT COUNT\(\*\) FROM memories WHERE .* AND project_id = \$9 AND text ILIKE \$10 AND status = \$11`).
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories WHERE .* AND project_id = \$4 AND text ILIKE \$5 AND status = \$6`).
+				mock.ExpectQuery(`FROM memories WHERE .* AND project_id = \$9 AND text ILIKE \$10 AND status = \$11`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},
@@ -136,7 +144,7 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 		},
 		{
 			name:    "non-positive page and limit clamp to LIMIT 0 OFFSET 0",
-			filters: repositories.MemoryFilters{Page: 0, Limit: -5},
+			filters: repositories.MemoryFilters{TeamID: "team-123", Page: 0, Limit: -5},
 			setupMock: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE`).
 					WithArgs(searchDefaultArgs()...).
@@ -150,7 +158,7 @@ func TestMemoryRepository_SearchByMetadata_Squirrel(t *testing.T) {
 		},
 		{
 			name:    "pagination computes offset from page and limit",
-			filters: repositories.MemoryFilters{Page: 3, Limit: 5},
+			filters: repositories.MemoryFilters{TeamID: "team-123", Page: 3, Limit: 5},
 			setupMock: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories WHERE`).
 					WithArgs(searchDefaultArgs()...).
@@ -208,7 +216,7 @@ func TestMemoryRepository_SearchByMetadata_ExplicitProjection(t *testing.T) {
 		))
 
 	memories, total, err := repo.SearchByMetadata(ctx, "user-123", "env", "prod",
-		repositories.MemoryFilters{Page: 1, Limit: 10})
+		repositories.MemoryFilters{TeamID: "team-123", Page: 1, Limit: 10})
 	assert.NoError(t, err)
 	assert.Equal(t, 1, total)
 	require.Len(t, memories, 1)
@@ -221,7 +229,7 @@ func TestMemoryRepository_SearchByMetadata_ExplicitProjection(t *testing.T) {
 //nolint:funlen // table-driven error-path test with multiple scenarios
 func TestMemoryRepository_SearchByMetadata_ErrorPaths(t *testing.T) {
 	now := time.Now()
-	filters := repositories.MemoryFilters{Page: 1, Limit: 10}
+	filters := repositories.MemoryFilters{TeamID: "team-123", Page: 1, Limit: 10}
 
 	tests := []struct {
 		name      string
