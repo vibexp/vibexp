@@ -1,4 +1,4 @@
-import type { components } from '@vibexp/api-client'
+import type { components, operations } from '@vibexp/api-client'
 
 import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 
@@ -19,6 +19,19 @@ export type AdminTeamListResponse =
   components['schemas']['AdminTeamListResponse']
 export type AdminTeamMember = components['schemas']['AdminTeamMember']
 export type AdminTeamDetail = components['schemas']['AdminTeamDetail']
+
+/**
+ * Query parameters for the instance-wide team listing (#452).
+ *
+ * Taken straight off the generated operation rather than restated, so a spec
+ * change surfaces here as a type error instead of a silently ignored filter.
+ * `created_from`/`created_to` are RFC 3339 instants — the caller converts a
+ * date-only range with `rangeToInstants`, which puts the upper bound at local
+ * end-of-day so a single-day filter is not empty.
+ */
+export type AdminTeamListParams = NonNullable<
+  operations['listAdminTeams']['parameters']['query']
+>
 
 class AdminService {
   /** Instance-wide counts + running backend version (GET /admin/stats). */
@@ -44,11 +57,16 @@ class AdminService {
     )
   }
 
-  /** One page of the instance-wide team listing, newest first. */
-  async listTeams(page: number, limit: number): Promise<AdminTeamListResponse> {
+  /**
+   * One page of the instance-wide team listing.
+   *
+   * Filters, sort and pagination are all server-side, so the envelope's totals
+   * describe the filtered set rather than the instance.
+   */
+  async listTeams(params: AdminTeamListParams): Promise<AdminTeamListResponse> {
     return unwrap(
       generatedClient.GET('/api/v1/admin/teams', {
-        params: { query: { page, limit } },
+        params: { query: params },
       })
     )
   }

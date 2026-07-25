@@ -107,3 +107,52 @@ export function formatRangeLabel(
   if (!to || isSameDay(from, to)) return format(from, 'd MMM yyyy')
   return `${format(from, 'd MMM')} – ${format(to, 'd MMM yyyy')}`
 }
+
+/**
+ * Formats a `Date` as the `YYYY-MM-DD` **local** calendar day, for a query
+ * string or URL param.
+ *
+ * A date-only param keeps a shared admin URL readable and stable, and the
+ * instant is reconstructed at the API boundary, where the caller decides whether
+ * a bound means the start or the end of that day.
+ */
+export function toDateParam(date: Date): string {
+  return format(date, 'yyyy-MM-dd')
+}
+
+/**
+ * Parses a `YYYY-MM-DD` param back to local midnight, or `undefined` if it is
+ * absent or not that shape.
+ *
+ * Built from the components rather than handed to `new Date(string)`, which
+ * parses a date-only string as UTC and lands on the previous day for anyone west
+ * of it — the same precedent as `parseLocalDate` in `TimeSeriesBarChart.tsx`.
+ */
+export function fromDateParam(value: string | undefined): Date | undefined {
+  if (!value) return undefined
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return undefined
+  const [, year, month, day] = match
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day))
+  // Rejects a well-shaped but impossible day such as 2026-02-31, which JS would
+  // silently roll forward into March.
+  return parsed.getMonth() === Number(month) - 1 ? parsed : undefined
+}
+
+/**
+ * The inclusive instant bounds a date-only range denotes: local midnight at the
+ * start, local end-of-day at the end.
+ *
+ * The end matters — sending bare midnight for `to` would exclude everything that
+ * happened during that day, so a one-day filter would return nothing.
+ */
+export function rangeToInstants(value: DateRangeValue): {
+  from?: string
+  to?: string
+} {
+  const { from, to } = normalizeRange(value)
+  return {
+    from: from ? startOfDay(from).toISOString() : undefined,
+    to: to ? endOfDay(to).toISOString() : undefined,
+  }
+}

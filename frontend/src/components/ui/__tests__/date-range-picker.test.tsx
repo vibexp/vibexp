@@ -13,7 +13,10 @@ import type { DateRangeValue } from '@/components/ui/date-range'
 import {
   DEFAULT_RANGE_PRESETS,
   formatRangeLabel,
+  fromDateParam,
   rangeForPreset,
+  rangeToInstants,
+  toDateParam,
 } from '@/components/ui/date-range'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 
@@ -327,5 +330,69 @@ describe('the default clock', () => {
     const range = rangeForPreset(DEFAULT_RANGE_PRESETS[2])
 
     expect(formatRangeLabel(range)).toBe('Last 90 days')
+  })
+})
+
+describe('URL params (#460)', () => {
+  it('formats a Date as its local calendar day', () => {
+    expect(toDateParam(new Date(2026, 6, 4, 23, 30))).toBe('2026-07-04')
+    // Late-evening local time is still that local day, even when the UTC day has
+    // already rolled over for eastern offsets.
+    expect(toDateParam(new Date(2026, 0, 1, 0, 0))).toBe('2026-01-01')
+  })
+
+  it('parses a param to exactly local midnight of that day', () => {
+    // Compared against a component-built Date, which is the only assertion that
+    // distinguishes local construction from `new Date('2026-07-01')` — the latter
+    // is parsed as UTC and is a different instant in every non-UTC zone.
+    expect(fromDateParam('2026-07-01')).toEqual(new Date(2026, 6, 1))
+    expect(fromDateParam('2026-01-31')).toEqual(new Date(2026, 0, 31))
+  })
+
+  it('round-trips a Date through the param and back', () => {
+    const day = new Date(2026, 6, 4)
+
+    expect(fromDateParam(toDateParam(day))).toEqual(day)
+  })
+
+  it('rejects anything that is not a real YYYY-MM-DD day', () => {
+    expect(fromDateParam(undefined)).toBeUndefined()
+    expect(fromDateParam('')).toBeUndefined()
+    expect(fromDateParam('not-a-date')).toBeUndefined()
+    expect(fromDateParam('2026-7-1')).toBeUndefined()
+    expect(fromDateParam('2026-07-01T10:00:00Z')).toBeUndefined()
+    // Well-shaped but impossible: JS would roll this forward into March.
+    expect(fromDateParam('2026-02-31')).toBeUndefined()
+  })
+
+  it('bounds a range at local midnight and local end-of-day', () => {
+    const instants = rangeToInstants({
+      from: new Date(2026, 6, 1),
+      to: new Date(2026, 6, 4),
+    })
+
+    expect(instants.from).toBe(new Date(2026, 6, 1, 0, 0, 0, 0).toISOString())
+    // End-of-day, not midnight: a bare midnight upper bound excludes everything
+    // that happened during the last day, so a one-day filter returns nothing.
+    expect(instants.to).toBe(
+      new Date(2026, 6, 4, 23, 59, 59, 999).toISOString()
+    )
+  })
+
+  it('orders an inverted range before converting', () => {
+    const instants = rangeToInstants({
+      from: new Date(2026, 6, 4),
+      to: new Date(2026, 6, 1),
+    })
+
+    expect(instants.from).toBe(new Date(2026, 6, 1, 0, 0, 0, 0).toISOString())
+    expect(instants.to).toBe(
+      new Date(2026, 6, 4, 23, 59, 59, 999).toISOString()
+    )
+  })
+
+  it('leaves an absent bound absent', () => {
+    expect(rangeToInstants({})).toEqual({ from: undefined, to: undefined })
+    expect(rangeToInstants({ from: new Date(2026, 6, 1) }).to).toBeUndefined()
   })
 })

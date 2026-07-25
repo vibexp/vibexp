@@ -213,9 +213,16 @@ export function GitHubIntegration() {
   const installationIdStr = searchParams.get('installation_id')
   const setupAction = searchParams.get('setup_action')
   const state = searchParams.get('state')
+  // GitHub's OAuth code. Required by the callback since #463, which exchanges it
+  // for a user token to prove the caller can actually access the installation
+  // being bound — so a callback without it is a guaranteed 400 and is not sent.
+  // Relaying it is the minimum needed to compile against the republished client;
+  // #485 still owns the rest of this flow (per-arm error messages, stripping the
+  // params after handling, and end-to-end verification against a real App).
+  const code = searchParams.get('code')
 
   useEffect(() => {
-    if (installationIdStr && setupAction && state && currentTeam) {
+    if (installationIdStr && setupAction && state && code && currentTeam) {
       const installationId = Number.parseInt(installationIdStr, 10)
 
       if (Number.isNaN(installationId) || installationId <= 0) {
@@ -230,12 +237,14 @@ export function GitHubIntegration() {
         installation_id: installationId,
         setup_action: setupAction,
         state,
+        code,
       })
     }
   }, [
     installationIdStr,
     setupAction,
     state,
+    code,
     currentTeam,
     handleCallback,
     handleError,

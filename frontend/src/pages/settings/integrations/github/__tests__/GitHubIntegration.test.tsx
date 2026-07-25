@@ -434,9 +434,9 @@ describe('GitHubIntegration — installed', () => {
 
 describe('GitHubIntegration — install callback via URL params', () => {
   const callbackUrl =
-    '/settings/integrations/github?installation_id=12345678&setup_action=install&state=csrf-state'
+    '/settings/integrations/github?installation_id=12345678&setup_action=install&state=csrf-state&code=gh-oauth-code'
 
-  it('posts the callback from ?installation_id/setup_action/state and toasts on a new connection', async () => {
+  it('posts the callback from ?installation_id/setup_action/state/code and toasts on a new connection', async () => {
     ;(githubIntegrationService.handleCallback as jest.Mock).mockResolvedValue({
       reconnected: false,
     })
@@ -450,6 +450,7 @@ describe('GitHubIntegration — install callback via URL params', () => {
           installation_id: 12345678,
           setup_action: 'install',
           state: 'csrf-state',
+          code: 'gh-oauth-code',
         }
       )
     })
@@ -480,9 +481,47 @@ describe('GitHubIntegration — install callback via URL params', () => {
     })
   })
 
+  it('fires no request when GitHub returned no code', async () => {
+    // The code is required by the callback since #463 (it is exchanged for a
+    // user token to prove the caller can access the installation), so posting
+    // without it is a guaranteed 400. #485 owns the user-facing message for
+    // this case; the guard is here so the doomed request is not sent.
+    renderPage(
+      '/settings/integrations/github?installation_id=12345678&setup_action=install&state=csrf-state'
+    )
+
+    await waitFor(() => {
+      expect(githubIntegrationService.getStatus).toHaveBeenCalled()
+    })
+    expect(githubIntegrationService.handleCallback).not.toHaveBeenCalled()
+  })
+
+  it('never writes the code to the console', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {})
+    ;(githubIntegrationService.handleCallback as jest.Mock).mockRejectedValue(
+      new Error('boom')
+    )
+
+    renderPage(callbackUrl)
+
+    await waitFor(() => {
+      expect(githubIntegrationService.handleCallback).toHaveBeenCalled()
+    })
+    // The code is a short-lived single-use credential; it must not be logged,
+    // including on the failure path where a payload dump is most tempting.
+    for (const spy of [consoleSpy, consoleLog]) {
+      for (const call of spy.mock.calls) {
+        expect(JSON.stringify(call)).not.toContain('gh-oauth-code')
+      }
+    }
+    consoleSpy.mockRestore()
+    consoleLog.mockRestore()
+  })
+
   it('rejects a non-numeric installation_id without calling the service', async () => {
     renderPage(
-      '/settings/integrations/github?installation_id=not-a-number&setup_action=install&state=csrf-state'
+      '/settings/integrations/github?installation_id=not-a-number&setup_action=install&state=csrf-state&code=gh-oauth-code'
     )
 
     await waitFor(() => {
