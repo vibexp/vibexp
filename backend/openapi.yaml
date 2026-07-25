@@ -1259,19 +1259,19 @@ paths:
   /api/v1/{team_id}/integrations/github/app/rotate-webhook-token:
     $ref: "./paths/github-app-config.yaml#/api-v1-github-app-rotate-webhook-token"
   /api/v1/{team_id}/settings/github-app:
-    $ref: "./paths/github-app-config.yaml#/api-v1-github-app"
+    $ref: "./paths/github-app-config.yaml#/api-v1-settings-github-app"
   /api/v1/{team_id}/settings/github-app/validate:
-    $ref: "./paths/github-app-config.yaml#/api-v1-github-app-validate"
+    $ref: "./paths/github-app-config.yaml#/api-v1-settings-github-app-validate"
   /api/v1/{team_id}/settings/github-app/rotate-webhook-token:
-    $ref: "./paths/github-app-config.yaml#/api-v1-github-app-rotate-webhook-token"
+    $ref: "./paths/github-app-config.yaml#/api-v1-settings-github-app-rotate-webhook-token"
   /api/v1/{team_id}/email-provider:
     $ref: "./paths/team-email-provider.yaml#/api-v1-team-email-provider"
   /api/v1/{team_id}/email-provider/test:
     $ref: "./paths/team-email-provider.yaml#/api-v1-team-email-provider-test"
   /api/v1/{team_id}/settings/email-provider:
-    $ref: "./paths/team-email-provider.yaml#/api-v1-team-email-provider"
+    $ref: "./paths/team-email-provider.yaml#/api-v1-settings-email-provider"
   /api/v1/{team_id}/settings/email-provider/test:
-    $ref: "./paths/team-email-provider.yaml#/api-v1-team-email-provider-test"
+    $ref: "./paths/team-email-provider.yaml#/api-v1-settings-email-provider-test"
   /api/v1/{team_id}/model-providers:
     $ref: "./paths/model-providers.yaml#/api-v1-model-providers"
   /api/v1/{team_id}/model-providers/{id}:
