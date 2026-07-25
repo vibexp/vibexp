@@ -17,24 +17,50 @@ import (
 	"github.com/vibexp/vibexp/internal/services/notifications"
 )
 
+// digestSend is one captured digest email. The digest sends one email PER TEAM
+// (#505), so tests assert over the whole sequence rather than just the last one.
+type digestSend struct {
+	teamID  string
+	to      string
+	subject string
+	html    string
+}
+
 // mockDigestEmailSender is a simple test double for DigestEmailSender.
 type mockDigestEmailSender struct {
 	calls int
-	// lastTeamID records what the digest attributed the send to. A digest spans
-	// every team the user belongs to, so it must stay empty (instance sender)
-	// until #505 splits it per team.
+	// lastTeamID is the team the most recent send was attributed to: the team's own
+	// provider when set, the instance provider when empty.
 	lastTeamID string
 	lastTo     string
+	sends      []digestSend
 	err        error
+	// errByTeam fails only the named teams, so a test can make one team's provider
+	// break while another succeeds.
+	errByTeam map[string]error
 }
 
 func (m *mockDigestEmailSender) SendNotificationEmail(
-	_ context.Context, teamID, to, _, _ string,
+	_ context.Context, teamID, to, subject, html string,
 ) error {
 	m.lastTeamID = teamID
 	m.calls++
 	m.lastTo = to
+	m.sends = append(m.sends, digestSend{teamID: teamID, to: to, subject: subject, html: html})
+	if teamErr, ok := m.errByTeam[teamID]; ok {
+		return teamErr
+	}
 	return m.err
+}
+
+// sendForTeam returns the captured send for a team, or nil.
+func (m *mockDigestEmailSender) sendForTeam(teamID string) *digestSend {
+	for i := range m.sends {
+		if m.sends[i].teamID == teamID {
+			return &m.sends[i]
+		}
+	}
+	return nil
 }
 
 // newDigestRunner constructs a DigestRunner for tests, registering advisory-lock
@@ -120,12 +146,11 @@ func TestDigestRunner_Run_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, emailSvc.calls, "expected exactly one email sent")
 	assert.Equal(t, "alice@example.com", emailSvc.lastTo)
-	// A digest aggregates notifications from every team the user belongs to, so it
-	// has no single owning team and sends from the instance provider. #505 splits
-	// it per team; until then an empty team ID here is deliberate, not an
-	// oversight.
+	// This fixture's notification belongs to no team, so it forms the teamless
+	// group and sends from the instance provider (#505). A notification WITH a team
+	// is attributed to it — see TestDigestRunner_Run_PerTeamSplit.
 	assert.Empty(t, emailSvc.lastTeamID,
-		"a digest spans teams, so it must not be attributed to one (see #505)")
+		"a teamless notification sends from the instance provider")
 }
 
 // --------------------------------------------------------------------------
@@ -752,4 +777,271 @@ func TestDigestRunner_Run_NilPreferencesDefaultsToEnabled(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, emailSvc.calls)
+}
+
+// --------------------------------------------------------------------------
+// Per-team digest split (#505, epic #499)
+// --------------------------------------------------------------------------
+
+// digestPerTeamFixture builds a user with pending notifications from two teams
+// plus one teamless notification, which is the shape the split has to handle.
+type digestPerTeamFixture struct {
+	ctx        context.Context
+	now        time.Time
+	userID     string
+	digestRepo *repomocks.MockNotificationDigestQueueRepository
+	notifRepo  *repomocks.MockNotificationRepository
+	userRepo   *repomocks.MockUserRepository
+	teamRepo   *repomocks.MockTeamRepository
+	prefRepo   *repomocks.MockUserPreferencesRepository
+	emailSvc   *mockDigestEmailSender
+}
+
+func newDigestPerTeamFixture(t *testing.T, emailSvc *mockDigestEmailSender) *digestPerTeamFixture {
+	t.Helper()
+	ctx := context.Background()
+	now := time.Now().UTC()
+	const userID = "user-multi"
+
+	f := &digestPerTeamFixture{
+		ctx:        ctx,
+		now:        now,
+		userID:     userID,
+		digestRepo: repomocks.NewMockNotificationDigestQueueRepository(t),
+		notifRepo:  repomocks.NewMockNotificationRepository(t),
+		userRepo:   repomocks.NewMockUserRepository(t),
+		teamRepo:   repomocks.NewMockTeamRepository(t),
+		prefRepo:   repomocks.NewMockUserPreferencesRepository(t),
+		emailSvc:   emailSvc,
+	}
+
+	pending := []*models.NotificationDigestQueueRow{
+		{ID: "row-a1", UserID: userID, NotificationID: "n-a1", ScheduledFor: now.Add(-time.Hour)},
+		{ID: "row-b1", UserID: userID, NotificationID: "n-b1", ScheduledFor: now.Add(-time.Hour)},
+		{ID: "row-a2", UserID: userID, NotificationID: "n-a2", ScheduledFor: now.Add(-time.Hour)},
+	}
+	notifs := []*models.Notification{
+		{ID: "n-a1", RecipientUserID: userID, TeamID: "team-a", Title: "Alpha one", Body: "A1"},
+		{ID: "n-b1", RecipientUserID: userID, TeamID: "team-b", Title: "Beta one", Body: "B1"},
+		{ID: "n-a2", RecipientUserID: userID, TeamID: "team-a", Title: "Alpha two", Body: "A2"},
+	}
+
+	setupAdvisoryLock(f.digestRepo, ctx)
+	f.digestRepo.EXPECT().FetchPending(ctx, now).Return(pending, nil)
+	f.userRepo.EXPECT().GetByID(ctx, userID).
+		Return(&models.User{ID: userID, Name: "Multi", Email: "multi@example.com"}, nil)
+	f.prefRepo.EXPECT().GetByUserID(ctx, userID).Return(&models.UserPreferences{
+		Preferences: models.Preferences{
+			Notifications: models.NotificationPreferences{
+				Channels: models.NotificationChannelPreferences{Email: true},
+			},
+		},
+	}, nil)
+	f.notifRepo.EXPECT().GetByIDsForUser(ctx, userID, []string{"n-a1", "n-b1", "n-a2"}).
+		Return(notifs, nil)
+	f.teamRepo.EXPECT().GetByID(ctx, "team-a").Return(&models.Team{ID: "team-a", Name: "Alpha"}, nil)
+	f.teamRepo.EXPECT().GetByID(ctx, "team-b").Return(&models.Team{ID: "team-b", Name: "Beta"}, nil)
+
+	return f
+}
+
+func (f *digestPerTeamFixture) run(t *testing.T) {
+	t.Helper()
+	runner := newDigestRunner(f.digestRepo, f.notifRepo, f.userRepo, f.teamRepo, f.prefRepo, f.emailSvc)
+	require.NoError(t, runner.Run(f.ctx, f.now))
+}
+
+// A user with notifications from two teams receives TWO emails, each containing
+// only that team's items and sent via that team's provider.
+func TestDigestRunner_Run_PerTeamSplit(t *testing.T) {
+	emailSvc := &mockDigestEmailSender{}
+	f := newDigestPerTeamFixture(t, emailSvc)
+
+	// Each group marks only its OWN rows.
+	f.digestRepo.EXPECT().MarkSent(f.ctx, []string{"row-a1", "row-a2"}, f.now).Return(nil)
+	f.digestRepo.EXPECT().MarkSent(f.ctx, []string{"row-b1"}, f.now).Return(nil)
+
+	f.run(t)
+
+	require.Equal(t, 2, emailSvc.calls, "one email per team, not one combined email")
+
+	alpha := emailSvc.sendForTeam("team-a")
+	beta := emailSvc.sendForTeam("team-b")
+	require.NotNil(t, alpha)
+	require.NotNil(t, beta)
+
+	// Content is disjoint: neither email leaks the other team's notifications.
+	assert.Contains(t, alpha.html, "Alpha one")
+	assert.Contains(t, alpha.html, "Alpha two")
+	assert.NotContains(t, alpha.html, "Beta one")
+	assert.Contains(t, beta.html, "Beta one")
+	assert.NotContains(t, beta.html, "Alpha one")
+
+	// The subject names the team so several digests are distinguishable.
+	assert.Contains(t, alpha.subject, "Alpha")
+	assert.Contains(t, beta.subject, "Beta")
+}
+
+// The failure mode that matters: when one team's provider is broken, only that
+// team's rows stay pending. The healthy team's digest is delivered and marked, so
+// a broken tenant provider cannot cost another team its digest — nor cause a
+// duplicate of the delivered one.
+func TestDigestRunner_Run_PerTeamPartialFailure(t *testing.T) {
+	emailSvc := &mockDigestEmailSender{
+		errByTeam: map[string]error{"team-b": errors.New("relay denied")},
+	}
+	f := newDigestPerTeamFixture(t, emailSvc)
+
+	// Only team A's rows are marked. team-b's row-b1 is NOT marked, so the next run
+	// retries it.
+	f.digestRepo.EXPECT().MarkSent(f.ctx, []string{"row-a1", "row-a2"}, f.now).Return(nil)
+
+	f.run(t)
+
+	assert.Equal(t, 2, emailSvc.calls, "both teams are attempted")
+	// mockery fails the test if MarkSent is called with team-b's rows, because no
+	// such expectation is registered.
+}
+
+// Notifications with no team form one group that sends from the instance provider,
+// and are never dropped.
+func TestDigestRunner_Run_TeamlessNotificationsSendViaInstance(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	const userID = "user-mixed"
+
+	digestRepo := repomocks.NewMockNotificationDigestQueueRepository(t)
+	notifRepo := repomocks.NewMockNotificationRepository(t)
+	userRepo := repomocks.NewMockUserRepository(t)
+	teamRepo := repomocks.NewMockTeamRepository(t)
+	prefRepo := repomocks.NewMockUserPreferencesRepository(t)
+	emailSvc := &mockDigestEmailSender{}
+
+	pending := []*models.NotificationDigestQueueRow{
+		{ID: "row-none", UserID: userID, NotificationID: "n-none", ScheduledFor: now.Add(-time.Hour)},
+		{ID: "row-team", UserID: userID, NotificationID: "n-team", ScheduledFor: now.Add(-time.Hour)},
+	}
+	notifs := []*models.Notification{
+		{ID: "n-none", RecipientUserID: userID, TeamID: "", Title: "Instance item", Body: "no team"},
+		{ID: "n-team", RecipientUserID: userID, TeamID: "team-a", Title: "Team item", Body: "team"},
+	}
+
+	setupAdvisoryLock(digestRepo, ctx)
+	digestRepo.EXPECT().FetchPending(ctx, now).Return(pending, nil)
+	userRepo.EXPECT().GetByID(ctx, userID).
+		Return(&models.User{ID: userID, Name: "Mixed", Email: "mixed@example.com"}, nil)
+	prefRepo.EXPECT().GetByUserID(ctx, userID).Return(&models.UserPreferences{
+		Preferences: models.Preferences{
+			Notifications: models.NotificationPreferences{
+				Channels: models.NotificationChannelPreferences{Email: true},
+			},
+		},
+	}, nil)
+	notifRepo.EXPECT().GetByIDsForUser(ctx, userID, []string{"n-none", "n-team"}).Return(notifs, nil)
+	teamRepo.EXPECT().GetByID(ctx, "team-a").Return(&models.Team{ID: "team-a", Name: "Alpha"}, nil)
+	digestRepo.EXPECT().MarkSent(ctx, []string{"row-none"}, now).Return(nil)
+	digestRepo.EXPECT().MarkSent(ctx, []string{"row-team"}, now).Return(nil)
+
+	runner := newDigestRunner(digestRepo, notifRepo, userRepo, teamRepo, prefRepo, emailSvc)
+	require.NoError(t, runner.Run(ctx, now))
+
+	require.Equal(t, 2, emailSvc.calls)
+
+	instance := emailSvc.sendForTeam("")
+	require.NotNil(t, instance, "the teamless group must still be delivered")
+	assert.Contains(t, instance.html, "Instance item")
+	assert.Equal(t, "Your vibexp daily digest", instance.subject,
+		"the teamless group keeps the plain subject")
+}
+
+// Queue rows whose notification no longer exists must be drained, or they would be
+// re-fetched on every run forever. The combined digest used to drain them
+// incidentally by marking every row after one send.
+func TestDigestRunner_Run_DrainsRowsWithMissingNotifications(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	const userID = "user-orphan"
+
+	digestRepo := repomocks.NewMockNotificationDigestQueueRepository(t)
+	notifRepo := repomocks.NewMockNotificationRepository(t)
+	userRepo := repomocks.NewMockUserRepository(t)
+	teamRepo := repomocks.NewMockTeamRepository(t)
+	prefRepo := repomocks.NewMockUserPreferencesRepository(t)
+	emailSvc := &mockDigestEmailSender{}
+
+	pending := []*models.NotificationDigestQueueRow{
+		{ID: "row-live", UserID: userID, NotificationID: "n-live", ScheduledFor: now.Add(-time.Hour)},
+		{ID: "row-gone", UserID: userID, NotificationID: "n-gone", ScheduledFor: now.Add(-time.Hour)},
+	}
+	// n-gone is absent from the result: its notification was deleted.
+	notifs := []*models.Notification{
+		{ID: "n-live", RecipientUserID: userID, TeamID: "team-a", Title: "Still here", Body: "x"},
+	}
+
+	setupAdvisoryLock(digestRepo, ctx)
+	digestRepo.EXPECT().FetchPending(ctx, now).Return(pending, nil)
+	userRepo.EXPECT().GetByID(ctx, userID).
+		Return(&models.User{ID: userID, Name: "Orphan", Email: "orphan@example.com"}, nil)
+	prefRepo.EXPECT().GetByUserID(ctx, userID).Return(&models.UserPreferences{
+		Preferences: models.Preferences{
+			Notifications: models.NotificationPreferences{
+				Channels: models.NotificationChannelPreferences{Email: true},
+			},
+		},
+	}, nil)
+	notifRepo.EXPECT().GetByIDsForUser(ctx, userID, []string{"n-live", "n-gone"}).Return(notifs, nil)
+	teamRepo.EXPECT().GetByID(ctx, "team-a").Return(&models.Team{ID: "team-a", Name: "Alpha"}, nil)
+	// The orphan row is drained on its own; the live row is marked with its group.
+	digestRepo.EXPECT().MarkSent(ctx, []string{"row-gone"}, now).Return(nil)
+	digestRepo.EXPECT().MarkSent(ctx, []string{"row-live"}, now).Return(nil)
+
+	runner := newDigestRunner(digestRepo, notifRepo, userRepo, teamRepo, prefRepo, emailSvc)
+	require.NoError(t, runner.Run(ctx, now))
+
+	assert.Equal(t, 1, emailSvc.calls, "only the surviving notification is emailed")
+}
+
+// A single-team user still gets exactly one email — the common case must not
+// regress into extra mail.
+func TestDigestRunner_Run_SingleTeamStillOneEmail(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	const userID = "user-single"
+
+	digestRepo := repomocks.NewMockNotificationDigestQueueRepository(t)
+	notifRepo := repomocks.NewMockNotificationRepository(t)
+	userRepo := repomocks.NewMockUserRepository(t)
+	teamRepo := repomocks.NewMockTeamRepository(t)
+	prefRepo := repomocks.NewMockUserPreferencesRepository(t)
+	emailSvc := &mockDigestEmailSender{}
+
+	pending := []*models.NotificationDigestQueueRow{
+		{ID: "row-1", UserID: userID, NotificationID: "n-1", ScheduledFor: now.Add(-time.Hour)},
+		{ID: "row-2", UserID: userID, NotificationID: "n-2", ScheduledFor: now.Add(-time.Hour)},
+	}
+	notifs := []*models.Notification{
+		{ID: "n-1", RecipientUserID: userID, TeamID: "team-a", Title: "One", Body: "1"},
+		{ID: "n-2", RecipientUserID: userID, TeamID: "team-a", Title: "Two", Body: "2"},
+	}
+
+	setupAdvisoryLock(digestRepo, ctx)
+	digestRepo.EXPECT().FetchPending(ctx, now).Return(pending, nil)
+	userRepo.EXPECT().GetByID(ctx, userID).
+		Return(&models.User{ID: userID, Name: "Single", Email: "single@example.com"}, nil)
+	prefRepo.EXPECT().GetByUserID(ctx, userID).Return(&models.UserPreferences{
+		Preferences: models.Preferences{
+			Notifications: models.NotificationPreferences{
+				Channels: models.NotificationChannelPreferences{Email: true},
+			},
+		},
+	}, nil)
+	notifRepo.EXPECT().GetByIDsForUser(ctx, userID, []string{"n-1", "n-2"}).Return(notifs, nil)
+	teamRepo.EXPECT().GetByID(ctx, "team-a").Return(&models.Team{ID: "team-a", Name: "Alpha"}, nil)
+	digestRepo.EXPECT().MarkSent(ctx, []string{"row-1", "row-2"}, now).Return(nil)
+
+	runner := newDigestRunner(digestRepo, notifRepo, userRepo, teamRepo, prefRepo, emailSvc)
+	require.NoError(t, runner.Run(ctx, now))
+
+	assert.Equal(t, 1, emailSvc.calls, "one team means one email, as before")
+	assert.Equal(t, "team-a", emailSvc.lastTeamID)
 }

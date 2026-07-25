@@ -13,7 +13,9 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// digestEmailSubject is the subject line used for all daily digest emails.
+// digestEmailSubject is the base subject line for daily digest emails, and the
+// complete subject for the teamless group. A team's digest appends its team name
+// (see digestSubjectForTeam) so a user receiving several can tell them apart.
 const digestEmailSubject = "Your vibexp daily digest"
 
 // DigestEmailSender is a narrow interface for sending digest notification emails.
@@ -223,10 +225,26 @@ func (d *DigestRunner) resolveTeamNames(ctx context.Context, notifs []*models.No
 	return names
 }
 
-// sendDigestEmail renders and sends the digest email, then marks rows sent.
-// If MarkSent fails after a successful send, a warning is logged so ops can detect
-// potential duplicate-email risk on the next run. The outbox pattern would eliminate
-// this race but is deferred as over-engineering for current scale.
+// digestTeamGroup is one team's slice of a user's pending digest: the queue rows
+// and the notifications they point at, which always share a team.
+type digestTeamGroup struct {
+	// teamID is empty for notifications that belong to no team; that group sends
+	// from the instance provider.
+	teamID string
+	rows   []*models.NotificationDigestQueueRow
+	notifs []*models.Notification
+}
+
+// sendDigestEmail sends ONE EMAIL PER TEAM, each via that team's own provider.
+//
+// A single message cannot have per-team senders, so a combined digest is
+// structurally incompatible with per-team providers (epic #499 decision 12): a
+// user in N teams now receives up to N digest emails per run instead of one.
+//
+// Each group renders, sends and marks its OWN rows, so a team whose provider is
+// broken leaves only its own rows pending for the next run. That is what makes the
+// epic's hard-fail-no-fallback rule degrade per team instead of costing a user
+// their whole digest.
 func (d *DigestRunner) sendDigestEmail(
 	ctx context.Context,
 	user *models.User,
@@ -234,37 +252,72 @@ func (d *DigestRunner) sendDigestEmail(
 	notifs []*models.Notification,
 	now time.Time,
 ) {
-	teamNames := d.resolveTeamNames(ctx, notifs)
-	htmlBody, err := d.renderer.RenderDigestEmailWithTeamNames(user, notifs, teamNames)
+	groups, orphanRows := groupDigestByTeam(items, notifs)
+
+	// Rows whose notification no longer exists have nothing to send but must still
+	// be drained, or they would be re-fetched on every run forever. The combined
+	// digest used to drain them incidentally by marking every row after one send.
+	if len(orphanRows) > 0 {
+		d.logger.With(
+			"user_id", user.ID,
+			"row_count", len(orphanRows),
+		).Info("digest: draining queue rows whose notification no longer exists")
+		d.markSent(ctx, rowIDs(orphanRows), now)
+	}
+
+	for _, group := range groups {
+		d.sendTeamDigestEmail(ctx, user, group, now)
+	}
+}
+
+// sendTeamDigestEmail renders and sends one team's digest, then marks that team's
+// rows sent.
+//
+// If MarkSent fails after a successful send, a warning is logged so ops can detect
+// potential duplicate-email risk on the next run. The outbox pattern would
+// eliminate this race but is deferred as over-engineering for current scale.
+func (d *DigestRunner) sendTeamDigestEmail(
+	ctx context.Context,
+	user *models.User,
+	group digestTeamGroup,
+	now time.Time,
+) {
+	teamNames := d.resolveTeamNames(ctx, group.notifs)
+	htmlBody, err := d.renderer.RenderDigestEmailWithTeamNames(user, group.notifs, teamNames)
 	if err != nil {
 		d.logger.With(
 			"user_id", user.ID,
+			"team_id", group.teamID,
 			"error", err.Error(),
 		).Error("digest: failed to render digest email")
 		d.appMetrics.RecordDigestEmailSent(ctx, "failed")
 		return
 	}
 
-	// A digest aggregates notifications from every team the user belongs to, so
-	// there is no single owning team and it sends from the instance provider. #505
-	// splits the digest per team; do not put a team ID here before then.
+	// The team ID selects the sender: the team's own provider when it has
+	// configured one, otherwise the instance provider. The teamless group passes
+	// "" and therefore always sends from the instance.
 	if sendErr := d.emailSvc.SendNotificationEmail(
-		ctx, "", user.Email, digestEmailSubject, htmlBody); sendErr != nil {
+		ctx, group.teamID, user.Email,
+		digestSubjectForTeam(teamNames[group.teamID]), htmlBody); sendErr != nil {
 		d.logger.With(
 			"user_id", user.ID,
+			"team_id", group.teamID,
 			"error", sendErr.Error(),
 		).Warn("digest: send failed")
 		d.appMetrics.RecordDigestEmailSent(ctx, "failed")
 		return
 	}
 
-	// Email sent successfully — mark rows sent.
-	// If MarkSent fails here, the same rows will be re-fetched on the next run,
-	// producing a duplicate email. Log at Warn so this is visible in ops dashboards.
-	if markErr := d.digestRepo.MarkSent(ctx, rowIDs(items), now); markErr != nil {
+	// Email sent successfully — mark THIS GROUP's rows sent. Marking only the
+	// group's own rows is what keeps one team's failure from suppressing another
+	// team's retry (and, more importantly, from marking rows whose email never
+	// went out).
+	if markErr := d.digestRepo.MarkSent(ctx, rowIDs(group.rows), now); markErr != nil {
 		d.logger.With(
 			"user_id", user.ID,
-			"row_count", len(items),
+			"team_id", group.teamID,
+			"row_count", len(group.rows),
 			"error", markErr.Error(),
 		).Warn("digest: email sent but failed to mark rows sent — duplicate email risk on next run")
 		d.appMetrics.RecordDigestEmailSent(ctx, "sent")
@@ -272,6 +325,66 @@ func (d *DigestRunner) sendDigestEmail(
 	}
 
 	d.appMetrics.RecordDigestEmailSent(ctx, "sent")
+}
+
+// digestSubjectForTeam names the team in the subject so a user receiving several
+// digests can tell them apart. The teamless group keeps the plain subject.
+//
+// The separator is deliberately ASCII: a team name may already contain non-ASCII
+// characters, but there is no reason to make EVERY team digest subject require
+// MIME encoded-word handling to survive a strict SMTP server.
+func digestSubjectForTeam(teamName string) string {
+	if teamName == "" {
+		return digestEmailSubject
+	}
+	return digestEmailSubject + " - " + teamName
+}
+
+// groupDigestByTeam buckets a user's queue rows by the team of the notification
+// each row points at, returning the groups in a deterministic order (sorted by
+// team ID, so the teamless group comes first) plus any rows whose notification
+// could not be found.
+//
+// Grouping is driven by the ROWS, not the notifications, because the rows are what
+// gets marked sent: a notification present without its row would mark nothing, and
+// a row dropped here would be retried forever.
+func groupDigestByTeam(
+	items []*models.NotificationDigestQueueRow,
+	notifs []*models.Notification,
+) (groups []digestTeamGroup, orphanRows []*models.NotificationDigestQueueRow) {
+	byID := make(map[string]*models.Notification, len(notifs))
+	for _, n := range notifs {
+		byID[n.ID] = n
+	}
+
+	rowsByTeam := make(map[string][]*models.NotificationDigestQueueRow)
+	notifsByTeam := make(map[string][]*models.Notification)
+	for _, row := range items {
+		notif, ok := byID[row.NotificationID]
+		if !ok {
+			orphanRows = append(orphanRows, row)
+			continue
+		}
+		rowsByTeam[notif.TeamID] = append(rowsByTeam[notif.TeamID], row)
+		notifsByTeam[notif.TeamID] = append(notifsByTeam[notif.TeamID], notif)
+	}
+
+	teamIDs := make([]string, 0, len(rowsByTeam))
+	for teamID := range rowsByTeam {
+		teamIDs = append(teamIDs, teamID)
+	}
+	sort.Strings(teamIDs)
+
+	groups = make([]digestTeamGroup, 0, len(teamIDs))
+	for _, teamID := range teamIDs {
+		groups = append(groups, digestTeamGroup{
+			teamID: teamID,
+			rows:   rowsByTeam[teamID],
+			notifs: notifsByTeam[teamID],
+		})
+	}
+
+	return groups, orphanRows
 }
 
 // emailChannelEnabled returns true when the user's global email channel toggle is on.
