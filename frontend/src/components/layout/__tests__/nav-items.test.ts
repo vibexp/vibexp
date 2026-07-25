@@ -36,8 +36,11 @@ describe('NAV_GROUPS', () => {
   })
 
   it('flattens NAV_ITEMS in group order without dropping entries', () => {
-    expect(NAV_ITEMS).toHaveLength(
-      NAV_GROUPS.reduce((n, g) => n + g.items.length, 0)
+    // Compare the actual sequence, not just the count - a length check passes
+    // on any permutation, and consumers that render NAV_ITEMS directly depend
+    // on the order matching NAV_GROUPS.
+    expect(NAV_ITEMS.map(i => i.href)).toEqual(
+      NAV_GROUPS.flatMap(g => g.items.map(i => i.href))
     )
   })
 })
