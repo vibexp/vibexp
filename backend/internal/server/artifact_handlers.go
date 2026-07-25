@@ -15,6 +15,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
 )
@@ -133,7 +134,10 @@ func (s *Server) handleListArtifacts(w http.ResponseWriter, r *http.Request) {
 	).
 		Info("List artifacts request received")
 
-	filters := s.buildArtifactFilters(r, "", teamID)
+	filters, ok := s.buildArtifactFilters(w, r, "", teamID)
+	if !ok {
+		return
+	}
 
 	response, listErr := s.container.ArtifactService().ListArtifacts(userID, filters)
 	if listErr != nil {
@@ -181,7 +185,10 @@ func (s *Server) handleListArtifactsByProject(w http.ResponseWriter, r *http.Req
 		"project_id", decodedProjectID,
 	).Info("List artifacts by project request received")
 
-	filters := s.buildArtifactFilters(r, decodedProjectID, teamID)
+	filters, ok := s.buildArtifactFilters(w, r, decodedProjectID, teamID)
+	if !ok {
+		return
+	}
 
 	response, listErr := s.container.ArtifactService().ListArtifacts(userID, filters)
 	if listErr != nil {
@@ -859,10 +866,12 @@ func (s *Server) handleUpdateArtifactError(w http.ResponseWriter, userID, projec
 	writeErrorResponse(w, nil, "internal_error", "Failed to update artifact", http.StatusInternalServerError)
 }
 
-// buildArtifactFilters builds artifact filters from request query parameters
+// buildArtifactFilters builds artifact filters from request query parameters.
+// It reports false — having already written a 400 — when a parameter is
+// malformed, mirroring buildBlueprintFilters.
 func (s *Server) buildArtifactFilters(
-	r *http.Request, projectID, teamID string,
-) services.ArtifactFilters {
+	w http.ResponseWriter, r *http.Request, projectID, teamID string,
+) (services.ArtifactFilters, bool) {
 	filters := services.ArtifactFilters{
 		ProjectID: projectID,
 		TeamID:    teamID,
@@ -881,12 +890,34 @@ func (s *Server) buildArtifactFilters(
 
 	filters.Metadata = extractMetadataFromQuery(r.URL.Query())
 
+	metadataFilter, ok := parseMetadataQueryParam(w, r)
+	if !ok {
+		return services.ArtifactFilters{}, false
+	}
+	filters.MetadataFilter = metadataFilter
+
 	// Parse and validate pagination parameters with bounds checking
 	pagination := validatePaginationParams(r.URL.Query().Get("page"), r.URL.Query().Get("limit"))
 	filters.Page = pagination.Page
 	filters.Limit = pagination.Limit
 
-	return filters
+	return filters, true
+}
+
+// parseMetadataQueryParam parses the shared `metadata` list filter (epic #519)
+// from the request. It lives beside extractMetadataFromQuery — the legacy
+// metadata_<key> reader it supersedes — because the artifact, blueprint and
+// memory list handlers all call both.
+//
+// On a malformed filter it writes a 400 problem+json and reports false, so the
+// caller returns without querying.
+func parseMetadataQueryParam(w http.ResponseWriter, r *http.Request) (repositories.MetadataFilter, bool) {
+	filter, err := repositories.ParseMetadataFilter(r.URL.Query().Get("metadata"))
+	if err != nil {
+		writeErrorResponse(w, r, "validation_error", err.Error(), http.StatusBadRequest)
+		return nil, false
+	}
+	return filter, true
 }
 
 // extractMetadataFromQuery extracts metadata_* query parameters

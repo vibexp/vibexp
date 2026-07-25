@@ -799,6 +799,12 @@ components:
     RelationListResponse:
       $ref: "./schemas/relations.yaml#/RelationListResponse"
 
+    # Import metadata catalog schemas (epic #519)
+    MetadataKeysResponse:
+      $ref: "./schemas/metadata.yaml#/MetadataKeysResponse"
+    MetadataValuesResponse:
+      $ref: "./schemas/metadata.yaml#/MetadataValuesResponse"
+
     # Import team settings schemas (epic #487)
     TeamSearchSettings:
       $ref: "./schemas/team-settings.yaml#/TeamSearchSettings"
@@ -1228,6 +1234,10 @@ paths:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-id-reprocess"
   /api/v1/{team_id}/embedding-providers/validate:
     $ref: "./paths/embedding-providers.yaml#/api-v1-embedding-providers-validate"
+  /api/v1/{team_id}/metadata/keys:
+    $ref: "./paths/metadata.yaml#/api-v1-team_id-metadata-keys"
+  /api/v1/{team_id}/metadata/values:
+    $ref: "./paths/metadata.yaml#/api-v1-team_id-metadata-values"
   /api/v1/{team_id}/settings/search:
     $ref: "./paths/team-settings.yaml#/api-v1-team_id-settings-search"
   /api/v1/{team_id}/settings/embedding-providers:
@@ -1374,6 +1384,8 @@ tags:
     description: Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)
   - name: Relations
     description: Typed, directed edges between artifacts, memories, prompts, and blueprints
+  - name: Metadata
+    description: Discovery of the metadata keys and values in use, backing the metadata filters on the list endpoints
   - name: TeamSettings
     description: Team-level configuration, starting with per-team search ranking settings
   - name: Admin

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"strings"
 	"testing"
 	"time"
 
@@ -186,6 +187,55 @@ func TestBlueprintRepository_ListSquirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
+			name: "metadata filter renders containment probes, keys ANDed values ORed",
+			filters: repositories.BlueprintFilters{
+				TeamID: "team-123",
+				MetadataFilter: repositories.MetadataFilter{
+					"env": {"prod", "staging"}, "team": {"core"},
+				},
+				Page: 1, Limit: 10,
+			},
+			setupMock: func(mock sqlmock.Sqlmock) {
+				// Each value probes both the scalar and the single-element-array
+				// shape, since containment is type-strict; keys bind in sorted order.
+				args := append(blueprintListBaseArgs(),
+					`{"env":"prod"}`, `{"env":["prod"]}`,
+					`{"env":"staging"}`, `{"env":["staging"]}`,
+					`{"team":"core"}`, `{"team":["core"]}`,
+				)
+				pattern := `s\.metadata @> \$6::jsonb OR s\.metadata @> \$7::jsonb ` +
+					`OR s\.metadata @> \$8::jsonb OR s\.metadata @> \$9::jsonb\) ` +
+					`AND \(s\.metadata @> \$10::jsonb OR s\.metadata @> \$11::jsonb\)`
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM blueprints s .*` + pattern).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM blueprints s .*` + pattern).
+					WithArgs(args...).
+					WillReturnRows(blueprintListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name: "metadata filter with no values renders jsonb_exists",
+			filters: repositories.BlueprintFilters{
+				TeamID:         "team-123",
+				MetadataFilter: repositories.MetadataFilter{"env": {}},
+				Page:           1, Limit: 10,
+			},
+			setupMock: func(mock sqlmock.Sqlmock) {
+				args := append(blueprintListBaseArgs(), "env")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM blueprints s .*jsonb_exists\(s\.metadata, \$6\)`).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM blueprints s .*jsonb_exists\(s\.metadata, \$6\)`).
+					WithArgs(args...).
+					WillReturnRows(blueprintListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
 			name:    "clamps non-positive page and limit to LIMIT 0 OFFSET 0",
 			filters: repositories.BlueprintFilters{TeamID: "team-123", Page: 0, Limit: -5},
 			setupMock: func(mock sqlmock.Sqlmock) {
@@ -297,8 +347,11 @@ func TestBlueprintRepository_List_RequiresTeamID(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestBlueprintRepository_List_InvalidMetadataKey verifies an invalid metadata
-// key short-circuits before any query is issued.
+// TestBlueprintRepository_List_InvalidMetadataKey verifies an out-of-bounds
+// metadata key short-circuits before any query is issued.
+//
+// Since #519 "out of bounds" means length only — an injection-looking key is
+// legal input, because it is bound as a parameter.
 func TestBlueprintRepository_List_InvalidMetadataKey(t *testing.T) {
 	repo, mock, mockDB := setupBlueprintListTest(t)
 	defer func() {
@@ -309,7 +362,7 @@ func TestBlueprintRepository_List_InvalidMetadataKey(t *testing.T) {
 
 	filters := repositories.BlueprintFilters{
 		TeamID:   "team-123",
-		Metadata: map[string]string{"bad key'; DROP TABLE blueprints; --": "v"},
+		Metadata: map[string]string{strings.Repeat("k", 256): "v"},
 		Page:     1, Limit: 10,
 	}
 

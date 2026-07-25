@@ -1,0 +1,50 @@
+# Metadata catalog schemas (epic #519) — referenced from ../openapi.yaml.
+#
+# These back the discovery half of metadata filtering: the `metadata` query
+# parameter on the artifact/blueprint/memory list operations lets a client
+# filter, and these two responses let it find out what there is to filter on.
+#
+# Both responses carry `truncated` rather than silently capping: a typeahead
+# that shows a partial list without saying so is worse than one that admits it.
+
+MetadataKeysResponse:
+  type: object
+  required:
+    - keys
+    - truncated
+  properties:
+    keys:
+      type: array
+      description: >-
+        Distinct metadata keys present on the caller's rows of the requested
+        resource type, in ascending order.
+      items:
+        type: string
+      example: ["env", "owner", "spec.type"]
+    truncated:
+      type: boolean
+      description: >-
+        True when more distinct keys exist than the requested limit returned.
+      example: false
+
+MetadataValuesResponse:
+  type: object
+  required:
+    - values
+    - truncated
+  properties:
+    values:
+      type: array
+      description: >-
+        Distinct values stored under the requested key, in ascending order.
+        Values held in an array are flattened, and non-string scalars are
+        rendered in their text form. Keys whose value is a JSON object are
+        skipped, since they have no meaningful value list.
+      items:
+        type: string
+      example: ["prod", "staging"]
+    truncated:
+      type: boolean
+      description: >-
+        True when more distinct values exist than the requested limit returned.
+      example: false

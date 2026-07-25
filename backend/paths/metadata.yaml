@@ -1,0 +1,177 @@
+# Metadata catalog path items (epic #519) — referenced from ../openapi.yaml.
+#
+# Two generic, team-scoped discovery endpoints shared by all three
+# metadata-bearing resource types, selected by the `resource_type` parameter.
+# They exist so a client can populate a metadata filter without guessing which
+# keys and values a team actually uses.
+#
+# Both queries carry the same tenancy predicate as the corresponding list
+# query. A catalog that leaked key names across teams would be the same bug
+# class as #517.
+
+api-v1-team_id-metadata-keys:
+  get:
+    summary: List the metadata keys in use
+    description: >-
+      Returns the distinct metadata keys present on the caller's rows of the
+      requested resource type, optionally narrowed to a single project. Use it
+      to populate the key side of a metadata filter.
+    operationId: getMetadataKeys
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: resource_type
+        in: query
+        required: true
+        description: Which resource type's metadata to enumerate
+        schema:
+          type: string
+          enum: [artifacts, blueprints, memories]
+      - name: project_id
+        in: query
+        required: false
+        description: Narrow the catalog to a single project
+        schema:
+          type: string
+          format: uuid
+      - name: limit
+        in: query
+        required: false
+        description: Maximum number of keys to return
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 100
+    responses:
+      '200':
+        description: Metadata keys retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/MetadataKeysResponse'
+      '400':
+        description: Invalid or missing query parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Metadata
+
+api-v1-team_id-metadata-values:
+  get:
+    summary: List the values stored under a metadata key
+    description: >-
+      Returns the distinct values stored under one metadata key on the caller's
+      rows of the requested resource type. Values held in an array are
+      flattened and non-string scalars are rendered in their text form, so the
+      result is directly usable as filter input. Supply `q` for typeahead.
+    operationId: getMetadataValues
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+      - name: resource_type
+        in: query
+        required: true
+        description: Which resource type's metadata to enumerate
+        schema:
+          type: string
+          enum: [artifacts, blueprints, memories]
+      - name: key
+        in: query
+        required: true
+        description: The metadata key whose values to enumerate
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+      - name: project_id
+        in: query
+        required: false
+        description: Narrow the catalog to a single project
+        schema:
+          type: string
+          format: uuid
+      - name: q
+        in: query
+        required: false
+        description: Case-insensitive substring filter for typeahead
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        description: Maximum number of values to return
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 100
+    responses:
+      '200':
+        description: Metadata values retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/MetadataValuesResponse'
+      '400':
+        description: Invalid or missing query parameter
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Metadata

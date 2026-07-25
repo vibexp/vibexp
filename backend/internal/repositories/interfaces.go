@@ -554,9 +554,14 @@ type ArtifactFilters struct {
 	Search    string
 	SortBy    string
 	SortOrder string
-	Metadata  map[string]string
-	Page      int
-	Limit     int
+	// Metadata is the legacy metadata_<key>=value filter: exact string equality
+	// per key, ANDed. Superseded by MetadataFilter; removed in #526.
+	Metadata map[string]string
+	// MetadataFilter is the JSONB containment filter behind the `metadata`
+	// query parameter: keys ANDed, values within a key ORed.
+	MetadataFilter MetadataFilter
+	Page           int
+	Limit          int
 }
 
 // EmbeddingProviderRepository defines the interface for embedding provider data access operations
@@ -820,16 +825,21 @@ type MemoryRepository interface {
 
 // MemoryFilters represents filters for memory queries
 type MemoryFilters struct {
-	Search        string
+	Search string
+	// MetadataKey and MetadataValue are the legacy single-pair metadata filter.
+	// Superseded by MetadataFilter; removed in #526.
 	MetadataKey   *string
 	MetadataValue *string
-	Status        *string
-	TeamID        string
-	ProjectID     *string
-	SortBy        string
-	SortOrder     string
-	Page          int
-	Limit         int
+	// MetadataFilter is the JSONB containment filter behind the `metadata`
+	// query parameter: keys ANDed, values within a key ORed.
+	MetadataFilter MetadataFilter
+	Status         *string
+	TeamID         string
+	ProjectID      *string
+	SortBy         string
+	SortOrder      string
+	Page           int
+	Limit          int
 }
 
 // EmbeddingRepository defines the interface for embedding data access operations
@@ -1150,9 +1160,14 @@ type BlueprintFilters struct {
 	Search    string
 	SortBy    string
 	SortOrder string
-	Metadata  map[string]string
-	Page      int
-	Limit     int
+	// Metadata is the legacy metadata_<key>=value filter: exact string equality
+	// per key, ANDed. Superseded by MetadataFilter; removed in #526.
+	Metadata map[string]string
+	// MetadataFilter is the JSONB containment filter behind the `metadata`
+	// query parameter: keys ANDed, values within a key ORed.
+	MetadataFilter MetadataFilter
+	Page           int
+	Limit          int
 }
 
 // UserPreferencesRepository defines the interface for user preferences data access operations
@@ -1175,6 +1190,20 @@ type TeamSearchSettingsRepository interface {
 	// Delete removes the team's override row. Deleting when no row exists is a
 	// no-op, not an error.
 	Delete(ctx context.Context, teamID string) error
+}
+
+// MetadataCatalogRepository enumerates the metadata keys and values in use
+// across a team's artifacts, blueprints or memories (epic #519).
+//
+// Both lookups carry the same tenancy predicate as the corresponding list
+// query, so the catalog can never surface a key or value that originates from
+// a team the caller cannot read.
+type MetadataCatalogRepository interface {
+	// Keys returns the distinct metadata keys in ascending order.
+	Keys(ctx context.Context, query MetadataCatalogQuery) (MetadataCatalogResult, error)
+	// Values returns the distinct values stored under query.Key, in ascending
+	// order, flattening array-valued metadata and skipping object-valued keys.
+	Values(ctx context.Context, query MetadataCatalogQuery) (MetadataCatalogResult, error)
 }
 
 // ProjectRepository defines the interface for project data access operations

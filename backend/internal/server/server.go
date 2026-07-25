@@ -30,6 +30,7 @@ import (
 	"github.com/vibexp/vibexp/internal/server/gen"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
+	metadatagen "github.com/vibexp/vibexp/internal/server/gen/metadata"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
 	teamsettingsgen "github.com/vibexp/vibexp/internal/server/gen/teamsettings"
@@ -700,6 +701,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupCommentsRoutes(r)
 		s.setupRelationsRoutes(r)
 		s.setupTeamSettingsRoutes(r)
+		s.setupMetadataRoutes(r)
 		s.setupBlueprintRoutes(r)
 		s.setupMemoriesRoutes(r)
 		s.setupProjectsRoutes(r)
@@ -951,6 +953,29 @@ func (s *Server) setupTeamSettingsRoutes(r chi.Router) {
 		teamsettingsgen.HandlerWithOptions(strict, teamsettingsgen.ChiServerOptions{
 			BaseRouter:       gr,
 			ErrorHandlerFunc: s.teamSettingsBindErrorHandler,
+		})
+	})
+}
+
+// setupMetadataRoutes mounts the generated Metadata strict-server handler under
+// a team-validated group (epic #519), mirroring setupRelationsRoutes. Both
+// operations are reads, so the tenancy middleware is the whole authorization
+// story: any team member may discover the keys and values on rows they can
+// already list.
+func (s *Server) setupMetadataRoutes(r chi.Router) {
+	strict := metadatagen.NewStrictHandlerWithOptions(
+		&metadataStrictServer{s: s},
+		nil,
+		metadatagen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.metadataBindErrorHandler,
+			ResponseErrorHandlerFunc: s.metadataResponseErrorHandler,
+		},
+	)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		metadatagen.HandlerWithOptions(strict, metadatagen.ChiServerOptions{
+			BaseRouter:       gr,
+			ErrorHandlerFunc: s.metadataBindErrorHandler,
 		})
 	})
 }

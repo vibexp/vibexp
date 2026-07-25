@@ -64,8 +64,10 @@ type ArtifactFilters struct {
 	SortBy    string
 	SortOrder string
 	Metadata  map[string]string
-	Page      int
-	Limit     int
+	// MetadataFilter is the parsed `metadata` query parameter (epic #519).
+	MetadataFilter repositories.MetadataFilter
+	Page           int
+	Limit          int
 }
 
 // validateAndResolveTeamID validates team membership and returns the final team ID to use
@@ -269,16 +271,17 @@ func (s *ArtifactService) ListArtifacts(userID string, filters ArtifactFilters) 
 	}
 
 	repoFilters := repositories.ArtifactFilters{
-		ProjectID: projectID,
-		Status:    status,
-		Type:      artifactType,
-		TeamID:    filters.TeamID,
-		Search:    filters.Search,
-		SortBy:    filters.SortBy,
-		SortOrder: filters.SortOrder,
-		Metadata:  filters.Metadata,
-		Page:      filters.Page,
-		Limit:     filters.Limit,
+		ProjectID:      projectID,
+		Status:         status,
+		Type:           artifactType,
+		TeamID:         filters.TeamID,
+		Search:         filters.Search,
+		SortBy:         filters.SortBy,
+		SortOrder:      filters.SortOrder,
+		Metadata:       filters.Metadata,
+		MetadataFilter: filters.MetadataFilter,
+		Page:           filters.Page,
+		Limit:          filters.Limit,
 	}
 
 	artifacts, totalCount, err := s.repo.List(context.Background(), userID, repoFilters)
@@ -332,15 +335,16 @@ func (s *ArtifactService) ListArtifactsByProjectCrossTeam(
 	}
 
 	repoFilters := repositories.ArtifactFilters{
-		ProjectID: projectIDPtr,
-		Status:    status,
-		Type:      artifactType,
-		Search:    filters.Search,
-		SortBy:    filters.SortBy,
-		SortOrder: filters.SortOrder,
-		Metadata:  filters.Metadata,
-		Page:      filters.Page,
-		Limit:     filters.Limit,
+		ProjectID:      projectIDPtr,
+		Status:         status,
+		Type:           artifactType,
+		Search:         filters.Search,
+		SortBy:         filters.SortBy,
+		SortOrder:      filters.SortOrder,
+		Metadata:       filters.Metadata,
+		MetadataFilter: filters.MetadataFilter,
+		Page:           filters.Page,
+		Limit:          filters.Limit,
 	}
 
 	artifacts, totalCount, err := s.repo.ListCrossTeam(context.Background(), userID, repoFilters)

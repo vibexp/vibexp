@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -177,6 +178,18 @@ func isAllowedMemoryStatus(status string) bool {
 }
 
 // parseMemoryFilters parses query parameters into MemoryFilters
+// legacyMemoryMetadataPair reads the single metadata_key/metadata_value pair.
+// Superseded by the `metadata` filter; removed in #526.
+func legacyMemoryMetadataPair(query url.Values) (metadataKey, metadataValue *string) {
+	if key := query.Get("metadata_key"); key != "" {
+		metadataKey = &key
+		if value := query.Get("metadata_value"); value != "" {
+			metadataValue = &value
+		}
+	}
+	return metadataKey, metadataValue
+}
+
 func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (services.MemoryFilters, bool) {
 	query := r.URL.Query()
 
@@ -191,13 +204,7 @@ func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (
 
 	search := query.Get("search")
 
-	var metadataKey, metadataValue *string
-	if key := query.Get("metadata_key"); key != "" {
-		metadataKey = &key
-		if value := query.Get("metadata_value"); value != "" {
-			metadataValue = &value
-		}
-	}
+	metadataKey, metadataValue := legacyMemoryMetadataPair(query)
 
 	var projectID *string
 	if pid := query.Get("project_id"); pid != "" {
@@ -220,17 +227,23 @@ func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (
 		status = &st
 	}
 
+	metadataFilter, ok := parseMetadataQueryParam(w, r)
+	if !ok {
+		return services.MemoryFilters{}, false
+	}
+
 	filters := services.MemoryFilters{
-		TeamID:        teamID,
-		ProjectID:     projectID,
-		Search:        search,
-		MetadataKey:   metadataKey,
-		MetadataValue: metadataValue,
-		Status:        status,
-		SortBy:        sortBy,
-		SortOrder:     strings.ToLower(query.Get("sort_order")),
-		Page:          pagination.Page,
-		Limit:         pagination.Limit,
+		TeamID:         teamID,
+		ProjectID:      projectID,
+		Search:         search,
+		MetadataKey:    metadataKey,
+		MetadataValue:  metadataValue,
+		MetadataFilter: metadataFilter,
+		Status:         status,
+		SortBy:         sortBy,
+		SortOrder:      strings.ToLower(query.Get("sort_order")),
+		Page:           pagination.Page,
+		Limit:          pagination.Limit,
 	}
 
 	return filters, true

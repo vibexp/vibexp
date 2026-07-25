@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -23,8 +24,14 @@ func setupArtifactMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock, *ArtifactRepos
 	return sqlDB, mock, repo
 }
 
-// TestArtifactList_InvalidMetadataKey verifies the allowlist rejects malicious keys
-// before any query is issued (defense-in-depth alongside parameter binding).
+// TestArtifactList_InvalidMetadataKey verifies an out-of-bounds metadata key is
+// rejected before any query is issued.
+//
+// Since #519 the bound is length only. The charset allowlist that used to sit
+// here was dropped: every key is bound as a parameter (asserted by
+// TestArtifactList_MetadataKeyBoundAsParameter below), so restricting the
+// charset bought no safety while making imported keys like `spec.type`
+// unfilterable.
 func TestArtifactList_InvalidMetadataKey(t *testing.T) {
 	db, _, repo := setupArtifactMockDB(t)
 	defer func() {
@@ -38,10 +45,12 @@ func TestArtifactList_InvalidMetadataKey(t *testing.T) {
 		metadataKey string
 		shouldError bool
 	}{
-		{"UNION injection attempt", "x') OR '1'='1' --", true},
-		{"semicolon drop attempt", "key'; DROP TABLE artifacts; --", true},
-		{"special characters", "key@#$", true},
+		{"UNION injection text is a legal key", "x') OR '1'='1' --", false},
+		{"semicolon text is a legal key", "key'; DROP TABLE artifacts; --", false},
+		{"special characters", "key@#$", false},
+		{"dotted key from an import", "spec.type", false},
 		{"empty key", "", true},
+		{"over-long key", strings.Repeat("k", 256), true},
 		{"valid key", "environment", false},
 	}
 

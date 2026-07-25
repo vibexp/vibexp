@@ -76,6 +76,18 @@ api-v1-team_id-memories:
         description: Filter by metadata value (requires metadata_key)
         schema:
           type: string
+      - name: metadata
+        in: query
+        description: >-
+          Filter by metadata as a JSON object of key to array of string values.
+          Keys are combined with AND, values within a key with OR, and an empty
+          array means "the key exists". Values match metadata stored as a scalar
+          or as an array, and numeric/boolean values are matched by their string
+          form. At most 10 keys, 25 values per key, key length 255, value length
+          512. Example: {"env":["prod","staging"],"team":["core"]}
+        schema:
+          type: string
+        example: '{"env":["prod","staging"]}'
       - name: status
         in: query
         description: >-
@@ -120,6 +132,14 @@ api-v1-team_id-memories:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/MemoryListResponse'
+      '400':
+        description: >-
+          Invalid query parameter (for example an unknown `status` or `sort_by`
+          value, or a malformed `metadata` filter)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
         content:

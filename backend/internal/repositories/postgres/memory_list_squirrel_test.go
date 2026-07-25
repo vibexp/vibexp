@@ -192,6 +192,59 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 			expectCount: 1,
 		},
 		{
+			name: "metadata filter renders containment probes before the status predicate",
+			filters: repositories.MemoryFilters{
+				TeamID: "team-123",
+				MetadataFilter: repositories.MetadataFilter{
+					"env": {"prod", "staging"}, "team": {"core"},
+				},
+				Page: 1, Limit: 10,
+			},
+			setupMock: func() {
+				// The containment predicate is appended before the status-visibility
+				// one, so "archived" binds last.
+				args := append(memoryListBaseArgs(),
+					`{"env":"prod"}`, `{"env":["prod"]}`,
+					`{"env":"staging"}`, `{"env":["staging"]}`,
+					`{"team":"core"}`, `{"team":["core"]}`,
+					"archived",
+				)
+				// The trailing \)\) is squirrel.And wrapping the whole containment
+				// conjunction in its own parentheses on top of the per-key group.
+				pattern := `m\.metadata @> \$6::jsonb OR m\.metadata @> \$7::jsonb ` +
+					`OR m\.metadata @> \$8::jsonb OR m\.metadata @> \$9::jsonb\) ` +
+					`AND \(m\.metadata @> \$10::jsonb OR m\.metadata @> \$11::jsonb\)\) ` +
+					`AND m\.status <> \$12`
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .*` + pattern).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM memories m .*` + pattern).
+					WithArgs(args...).
+					WillReturnRows(oneRow())
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name: "metadata filter with no values renders jsonb_exists",
+			filters: repositories.MemoryFilters{
+				TeamID:         "team-123",
+				MetadataFilter: repositories.MetadataFilter{"env": {}},
+				Page:           1, Limit: 10,
+			},
+			setupMock: func() {
+				args := append(memoryListBaseArgs(), "env", "archived")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .*jsonb_exists\(m\.metadata, \$6\)`).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM memories m .*jsonb_exists\(m\.metadata, \$6\)`).
+					WithArgs(args...).
+					WillReturnRows(oneRow())
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
 			name: "non-positive page and limit clamp to LIMIT 0 OFFSET 0",
 			filters: repositories.MemoryFilters{
 				TeamID: "team-123", Page: 0, Limit: -5,

@@ -133,7 +133,7 @@ func (s *Server) handleListBlueprints(w http.ResponseWriter, r *http.Request) {
 	).
 		Info("List blueprints request received")
 
-	filters, ok := s.buildBlueprintFilters(r, "", teamID)
+	filters, ok := s.buildBlueprintFilters(w, r, "", teamID)
 	if !ok {
 		return
 	}
@@ -183,7 +183,7 @@ func (s *Server) handleListBlueprintsByProject(w http.ResponseWriter, r *http.Re
 		"project_id", decodedProjectID,
 	).Info("List blueprints by project request received")
 
-	filters, ok := s.buildBlueprintFilters(r, decodedProjectID, teamID)
+	filters, ok := s.buildBlueprintFilters(w, r, decodedProjectID, teamID)
 	if !ok {
 		return
 	}
@@ -764,7 +764,7 @@ func (s *Server) handleUpdateBlueprintError(w http.ResponseWriter, userID, proje
 
 // buildBlueprintFilters builds blueprint filters from request query parameters
 func (s *Server) buildBlueprintFilters(
-	r *http.Request, projectID string, teamID string,
+	w http.ResponseWriter, r *http.Request, projectID string, teamID string,
 ) (services.BlueprintFilters, bool) {
 	query := r.URL.Query()
 
@@ -786,6 +786,12 @@ func (s *Server) buildBlueprintFilters(
 	}
 
 	filters.Metadata = extractMetadataFromQuery(query)
+
+	metadataFilter, ok := parseMetadataQueryParam(w, r)
+	if !ok {
+		return services.BlueprintFilters{}, false
+	}
+	filters.MetadataFilter = metadataFilter
 
 	// Parse and validate pagination parameters with bounds checking
 	pagination := validatePaginationParams(query.Get("page"), query.Get("limit"))

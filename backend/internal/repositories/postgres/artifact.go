@@ -279,9 +279,14 @@ func applyArtifactFilters(where squirrel.And, filters repositories.ArtifactFilte
 
 	for _, key := range sortedMetadataKeys(filters.Metadata) {
 		if !isValidMetadataKey(key) {
-			return nil, fmt.Errorf("invalid metadata key: %s (must contain only alphanumeric, underscore, or hyphen)", key)
+			return nil, fmt.Errorf("invalid metadata key: %s (must be non-empty and at most %d characters)",
+				key, repositories.MaxMetadataFilterKeyLength)
 		}
 		where = append(where, squirrel.Expr("a.metadata->>? = ?", key, filters.Metadata[key]))
+	}
+
+	if containment := metadataContainment("a.metadata", filters.MetadataFilter); containment != nil {
+		where = append(where, containment)
 	}
 
 	return where, nil

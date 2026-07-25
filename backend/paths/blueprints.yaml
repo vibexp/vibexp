@@ -103,10 +103,9 @@ api-v1-team_id-blueprints:
     summary: List spec libraries
     description: >-
       Retrieves all spec libraries for the authenticated user with optional
-      filtering and pagination. Metadata filtering is dynamic: any query
-      parameter named `metadata_<key>` filters on that metadata field, e.g.
-      `metadata_env=prod` matches spec libraries whose metadata `env` equals
-      `prod`. Multiple `metadata_*` parameters are combined (AND).
+      filtering and pagination. Use the `metadata` parameter to filter on
+      metadata; the undocumented `metadata_<key>` prefix convention is
+      deprecated and will be removed.
     operationId: listSpecLibraries
     parameters:
       - name: team_id
@@ -143,7 +142,7 @@ api-v1-team_id-blueprints:
         description: Filter by type
         schema:
           type: string
-          enum: [general]
+          enum: [general, claude-code, claude, cursor, codex]
           example: "general"
       - name: subtype
         in: query
@@ -158,6 +157,18 @@ api-v1-team_id-blueprints:
         schema:
           type: string
           example: "openapi"
+      - name: metadata
+        in: query
+        description: >-
+          Filter by metadata as a JSON object of key to array of string values.
+          Keys are combined with AND, values within a key with OR, and an empty
+          array means "the key exists". Values match metadata stored as a scalar
+          or as an array, and numeric/boolean values are matched by their string
+          form. At most 10 keys, 25 values per key, key length 255, value length
+          512. Example: {"env":["prod","staging"],"team":["core"]}
+        schema:
+          type: string
+        example: '{"env":["prod","staging"]}'
       - name: sort_by
         in: query
         description: Sort field
@@ -194,6 +205,12 @@ api-v1-team_id-blueprints:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/BlueprintListResponse'
+      '400':
+        description: Invalid query parameter (for example a malformed `metadata` filter)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
         content:
@@ -258,10 +275,8 @@ api-v1-team_id-blueprints-project_id:
     summary: List spec libraries by project
     description: >-
       Retrieves spec libraries for a specific project with optional filtering.
-      Metadata filtering is dynamic: any query parameter named `metadata_<key>`
-      filters on that metadata field, e.g. `metadata_env=prod` matches spec
-      libraries whose metadata `env` equals `prod`. Multiple `metadata_*`
-      parameters are combined (AND).
+      Use the `metadata` parameter to filter on metadata; the undocumented
+      `metadata_<key>` prefix convention is deprecated and will be removed.
     operationId: listSpecLibrariesByProject
     parameters:
       - name: team_id
@@ -289,7 +304,7 @@ api-v1-team_id-blueprints-project_id:
         description: Filter by type
         schema:
           type: string
-          enum: [general]
+          enum: [general, claude-code, claude, cursor, codex]
       - name: subtype
         in: query
         description: Filter by subtype category
@@ -301,6 +316,18 @@ api-v1-team_id-blueprints-project_id:
         description: Search in title, description, and content
         schema:
           type: string
+      - name: metadata
+        in: query
+        description: >-
+          Filter by metadata as a JSON object of key to array of string values.
+          Keys are combined with AND, values within a key with OR, and an empty
+          array means "the key exists". Values match metadata stored as a scalar
+          or as an array, and numeric/boolean values are matched by their string
+          form. At most 10 keys, 25 values per key, key length 255, value length
+          512. Example: {"env":["prod","staging"],"team":["core"]}
+        schema:
+          type: string
+        example: '{"env":["prod","staging"]}'
       - name: sort_by
         in: query
         description: Sort field

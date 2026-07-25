@@ -92,6 +92,18 @@ api-v1-team_id-artifacts:
         description: Search in title, description, and content
         schema:
           type: string
+      - name: metadata
+        in: query
+        description: >-
+          Filter by metadata as a JSON object of key to array of string values.
+          Keys are combined with AND, values within a key with OR, and an empty
+          array means "the key exists". Values match metadata stored as a scalar
+          or as an array, and numeric/boolean values are matched by their string
+          form. At most 10 keys, 25 values per key, key length 255, value length
+          512. Example: {"env":["prod","staging"],"team":["core"]}
+        schema:
+          type: string
+        example: '{"env":["prod","staging"]}'
       - name: sort_by
         in: query
         description: Sort field
@@ -126,6 +138,12 @@ api-v1-team_id-artifacts:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ArtifactListResponse'
+      '400':
+        description: Invalid query parameter (for example a malformed `metadata` filter)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
         content:
@@ -215,6 +233,18 @@ api-v1-team_id-artifacts-project_id:
         description: Search in title, description, and content
         schema:
           type: string
+      - name: metadata
+        in: query
+        description: >-
+          Filter by metadata as a JSON object of key to array of string values.
+          Keys are combined with AND, values within a key with OR, and an empty
+          array means "the key exists". Values match metadata stored as a scalar
+          or as an array, and numeric/boolean values are matched by their string
+          form. At most 10 keys, 25 values per key, key length 255, value length
+          512. Example: {"env":["prod","staging"],"team":["core"]}
+        schema:
+          type: string
+        example: '{"env":["prod","staging"]}'
       - name: sort_by
         in: query
         description: Sort field
@@ -249,6 +279,12 @@ api-v1-team_id-artifacts-project_id:
           application/json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ArtifactListResponse'
+      '400':
+        description: Invalid query parameter (for example a malformed `metadata` filter)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
         content:
