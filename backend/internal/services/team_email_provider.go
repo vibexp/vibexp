@@ -51,7 +51,9 @@ type TeamEmailProviderService struct {
 	guard *ssrfGuard
 	// authz gates the mutating operations: a provider row holds an encrypted
 	// credential and decides what address the team's mail comes from.
-	authz  AuthorizationServiceInterface
+	authz AuthorizationServiceInterface
+	// cfg supplies the instance fallback identity reported by GetEffective.
+	cfg    *config.Config
 	logger *slog.Logger
 }
 
@@ -73,6 +75,7 @@ func NewTeamEmailProviderService(
 		enc:      enc,
 		guard:    ssrfGuardForConfig(cfg),
 		authz:    authzSvc,
+		cfg:      cfg,
 		logger:   logger,
 	}
 }
@@ -115,6 +118,80 @@ func (s *TeamEmailProviderService) Get(
 	ctx context.Context, _ /*userID*/, teamID string,
 ) (*models.TeamEmailProvider, error) {
 	return s.repo.GetByTeamID(ctx, teamID)
+}
+
+// GetEffective reports the configuration actually in force for a team: its own
+// provider when it has one, otherwise the instance fallback.
+//
+// It never reports "not found" — a team without a row is inheriting the instance
+// provider, which is a valid state the caller needs described, not an absence. It
+// also deliberately does NOT construct a provider: a stored row that cannot be
+// built must still be readable, or an admin could not see the configuration they
+// need to fix.
+func (s *TeamEmailProviderService) GetEffective(
+	ctx context.Context, userID, teamID string,
+) (*models.TeamEmailProviderEffective, error) {
+	provider, err := s.Get(ctx, userID, teamID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrTeamEmailProviderNotFound) {
+			return models.NewTeamEmailProviderEffectiveInstance(InstanceFromAddress(s.cfg)), nil
+		}
+		return nil, err
+	}
+
+	return models.NewTeamEmailProviderEffectiveTeam(provider, teamSettingsUnion(provider)), nil
+}
+
+// EffectiveFromProvider builds the effective view from a row the caller already
+// has, so a write can describe its own result without a second read (and without
+// a window where a concurrent change makes the response describe a state that was
+// never stored).
+func (s *TeamEmailProviderService) EffectiveFromProvider(
+	provider *models.TeamEmailProvider,
+) *models.TeamEmailProviderEffective {
+	return models.NewTeamEmailProviderEffectiveTeam(provider, teamSettingsUnion(provider))
+}
+
+// teamSettingsUnion lifts the row's stored settings block into the per-type union
+// the API exposes, so a GET response is shaped exactly like the PUT body that
+// produced it and can be fed straight back.
+//
+// The stored blob holds only the inner block (the provider type is a separate
+// column), so returning it as-is would document `settings.mailgun.domain` and
+// serve `settings.domain`. A blob that will not decode yields nil rather than an
+// error: the rest of the configuration must stay readable by the admin who has to
+// repair it.
+func teamSettingsUnion(provider *models.TeamEmailProvider) *models.TeamEmailProviderSettings {
+	if len(provider.Settings) == 0 {
+		return nil
+	}
+
+	union := &models.TeamEmailProviderSettings{}
+	switch normalizeProviderType(provider.ProviderType) {
+	case EmailProviderTypeSMTP:
+		var block models.SMTPProviderSettings
+		if json.Unmarshal(provider.Settings, &block) != nil {
+			return nil
+		}
+		union.SMTP = &block
+	case EmailProviderTypeMailgun:
+		var block models.MailgunProviderSettings
+		if json.Unmarshal(provider.Settings, &block) != nil {
+			return nil
+		}
+		union.Mailgun = &block
+	case EmailProviderTypePostmark:
+		var block models.PostmarkProviderSettings
+		if json.Unmarshal(provider.Settings, &block) != nil {
+			return nil
+		}
+		union.Postmark = &block
+	default:
+		// SendGrid (and anything unrecognised) has no non-secret settings.
+		return nil
+	}
+
+	return union
 }
 
 // Upsert validates, encrypts and stores the team's provider.
@@ -217,9 +294,10 @@ func (s *TeamEmailProviderService) Test(
 		providerSpecFromRequest(req.UpsertTeamEmailProviderRequest, secret), s.logger)
 	if err != nil {
 		return &models.TeamEmailProviderTestResult{
-			Success:   false,
-			Recipient: recipient,
-			Message:   "The provider could not be configured: " + err.Error(),
+			Success:      false,
+			Recipient:    recipient,
+			Message:      "The provider could not be configured: " + err.Error(),
+			ErrorDetails: models.TeamEmailProviderErrConfigInvalid,
 		}, nil
 	}
 
@@ -236,9 +314,10 @@ func (s *TeamEmailProviderService) Test(
 
 	if sendErr := provider.SendEmail(ctx, message); sendErr != nil {
 		return &models.TeamEmailProviderTestResult{
-			Success:   false,
-			Recipient: recipient,
-			Message:   "Sending failed: " + sendErr.Error(),
+			Success:      false,
+			Recipient:    recipient,
+			Message:      "Sending failed: " + sendErr.Error(),
+			ErrorDetails: models.TeamEmailProviderErrSendFailed,
 		}, nil
 	}
 

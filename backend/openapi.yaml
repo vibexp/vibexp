@@ -294,6 +294,24 @@ components:
     ValidateGitHubAppConfigDetails:
       $ref: "./schemas/github-app-config.yaml#/ValidateGitHubAppConfigDetails"
 
+    # Import per-team email provider schemas
+    SMTPProviderSettings:
+      $ref: "./schemas/team-email-provider.yaml#/SMTPProviderSettings"
+    MailgunProviderSettings:
+      $ref: "./schemas/team-email-provider.yaml#/MailgunProviderSettings"
+    PostmarkProviderSettings:
+      $ref: "./schemas/team-email-provider.yaml#/PostmarkProviderSettings"
+    TeamEmailProviderSettings:
+      $ref: "./schemas/team-email-provider.yaml#/TeamEmailProviderSettings"
+    UpsertTeamEmailProviderRequest:
+      $ref: "./schemas/team-email-provider.yaml#/UpsertTeamEmailProviderRequest"
+    TeamEmailProviderResponse:
+      $ref: "./schemas/team-email-provider.yaml#/TeamEmailProviderResponse"
+    TeamEmailProviderTestDetails:
+      $ref: "./schemas/team-email-provider.yaml#/TeamEmailProviderTestDetails"
+    TeamEmailProviderTestResponse:
+      $ref: "./schemas/team-email-provider.yaml#/TeamEmailProviderTestResponse"
+
     # Import resource usage schemas
     ResourceUsageItem:
       $ref: "./schemas/resource-usage.yaml#/ResourceUsageItem"
@@ -1234,6 +1252,14 @@ paths:
     $ref: "./paths/github-app-config.yaml#/api-v1-github-app-validate"
   /api/v1/{team_id}/settings/github-app/rotate-webhook-token:
     $ref: "./paths/github-app-config.yaml#/api-v1-github-app-rotate-webhook-token"
+  /api/v1/{team_id}/email-provider:
+    $ref: "./paths/team-email-provider.yaml#/api-v1-team-email-provider"
+  /api/v1/{team_id}/email-provider/test:
+    $ref: "./paths/team-email-provider.yaml#/api-v1-team-email-provider-test"
+  /api/v1/{team_id}/settings/email-provider:
+    $ref: "./paths/team-email-provider.yaml#/api-v1-team-email-provider"
+  /api/v1/{team_id}/settings/email-provider/test:
+    $ref: "./paths/team-email-provider.yaml#/api-v1-team-email-provider-test"
   /api/v1/{team_id}/model-providers:
     $ref: "./paths/model-providers.yaml#/api-v1-model-providers"
   /api/v1/{team_id}/model-providers/{id}:

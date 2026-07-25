@@ -398,3 +398,53 @@ func NewDateRangeError() *APIError {
 	}
 	return NewValidationError(detail, validationErrors)
 }
+
+// NewTeamEmailProviderNotConfiguredError reports that the team has no email
+// provider of its own. It is a 409 rather than a 404: the endpoint exists and the
+// team is addressable, it is simply not in a state that can serve the request.
+//
+// Note that GET never returns this — a team inheriting the instance provider is a
+// valid state that GET describes rather than refuses.
+func NewTeamEmailProviderNotConfiguredError() *APIError {
+	return NewAPIError(
+		CodeTeamEmailProviderNotConfigured,
+		GetErrorTitle(CodeTeamEmailProviderNotConfigured),
+		"This team has no email provider configured",
+		http.StatusConflict,
+	)
+}
+
+// NewTeamEmailProviderValidationError reports an invalid email provider
+// configuration with the offending fields.
+func NewTeamEmailProviderValidationError(detail string, validationErrors []ValidationError) *APIError {
+	err := NewAPIError(
+		CodeTeamEmailProviderValidationFailed,
+		GetErrorTitle(CodeTeamEmailProviderValidationFailed),
+		detail,
+		http.StatusBadRequest,
+	)
+	err.ValidationErrors = validationErrors
+	return err
+}
+
+// NewTeamEmailProviderUpdateFailedError reports that storing the configuration
+// failed for a reason the caller cannot fix.
+func NewTeamEmailProviderUpdateFailedError(detail string) *APIError {
+	return NewAPIError(
+		CodeTeamEmailProviderUpdateFailed,
+		GetErrorTitle(CodeTeamEmailProviderUpdateFailed),
+		detail,
+		http.StatusInternalServerError,
+	)
+}
+
+// NewTeamEmailProviderDeleteFailedError reports that removing the configuration
+// failed for a reason the caller cannot fix.
+func NewTeamEmailProviderDeleteFailedError(detail string) *APIError {
+	return NewAPIError(
+		CodeTeamEmailProviderDeleteFailed,
+		GetErrorTitle(CodeTeamEmailProviderDeleteFailed),
+		detail,
+		http.StatusInternalServerError,
+	)
+}

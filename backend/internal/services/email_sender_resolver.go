@@ -108,19 +108,28 @@ func (r *teamEmailSenderResolver) Resolve(
 // chain used by EmailService.sendEmail, so nothing changes for a team without its
 // own provider.
 func (r *teamEmailSenderResolver) instanceSender() *ResolvedEmailSender {
-	from := ""
-	if r.cfg != nil {
-		from = r.cfg.Email.FromAddress
-		if from == "" {
-			from = r.cfg.Email.SMTP.Username
-		}
-	}
-
 	return &ResolvedEmailSender{
 		Provider:    r.instanceProvider,
-		FromAddress: from,
+		FromAddress: InstanceFromAddress(r.cfg),
 		Source:      EmailSenderSourceInstance,
 	}
+}
+
+// InstanceFromAddress is the instance's envelope sender: the configured
+// email.from_address, falling back to the SMTP username for backwards
+// compatibility with an SMTP-only deployment.
+//
+// Exported and kept in ONE place because three callers need the identical chain
+// — this resolver, EmailService.sendEmail, and the settings endpoint that reports
+// the effective from-address. A second copy would drift.
+func InstanceFromAddress(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	if cfg.Email.FromAddress != "" {
+		return cfg.Email.FromAddress
+	}
+	return cfg.Email.SMTP.Username
 }
 
 // teamSender builds a provider from a stored row: decrypt the secret, map the
