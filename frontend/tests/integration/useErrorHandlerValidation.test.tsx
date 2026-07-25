@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react'
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 import { AlertProvider } from '../../src/contexts/AlertContext'
 import { useErrorHandler } from '../../src/hooks/useErrorHandler'

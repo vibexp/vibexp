@@ -12,8 +12,6 @@
  */
 
 import { renderHook, act } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import React from 'react'
 
 import type {
   AnalyticsEvent,
@@ -58,25 +56,12 @@ let mockAuthContext: AuthContextValue = {
   isAuthenticated: false,
 }
 
-const MockAuthContext = React.createContext<AuthContextValue>(mockAuthContext)
-
 jest.mock('../../src/contexts/AuthContext', () => ({
   useAuth: () => mockAuthContext,
 }))
 
 // Import the hook after mocking
 import { useAnalytics } from '../../src/hooks/useAnalytics'
-
-// Create a wrapper for the hook - exported for potential external use
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const createWrapper = (authValue: AuthContextValue) => {
-  mockAuthContext = authValue
-  return ({ children }: { children: ReactNode }) => (
-    <MockAuthContext.Provider value={authValue}>
-      {children}
-    </MockAuthContext.Provider>
-  )
-}
 
 describe('useAnalytics', () => {
   const mockUser: MockUser = {

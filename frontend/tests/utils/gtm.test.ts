@@ -264,8 +264,11 @@ describe('GTM Utilities (GTM Enabled)', () => {
       jest.isolateModules(() => {
         const { trackEvent } = require('../../src/utils/gtm')
 
-        // Remove dataLayer
-        delete window.dataLayer
+        // Remove dataLayer. `Window.dataLayer` is declared non-optional
+        // (src/utils/gtm.ts) because index.html always defines it; this test
+        // simulates the case where it is missing, so the delete needs a view of
+        // `window` where the property is optional.
+        delete (window as Partial<Window>).dataLayer
 
         trackEvent('test_event', { category: 'test' })
 
