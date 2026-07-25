@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/authz"
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/services"
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
 )
@@ -29,9 +28,10 @@ func runCallbackServiceErrorCase(
 
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
+	expectGitHubAppConfig(container)
 
 	const installationID = int64(4242)
-	state := srv.signGitHubState(githubTestTeamID, 0)
+	state := srv.signGitHubState(githubTestTeamID, githubTestAppConfigID, 0)
 
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
@@ -93,7 +93,7 @@ func TestHandleGitHubCallback_MissingCode(t *testing.T) {
 
 	req := makeCallbackRequest(map[string]interface{}{
 		"installation_id": 4242,
-		"state":           srv.signGitHubState(githubTestTeamID, 0),
+		"state":           srv.signGitHubState(githubTestTeamID, githubTestAppConfigID, 0),
 		// no code
 	})
 	rr := httptest.NewRecorder()
@@ -113,7 +113,7 @@ func TestHandleGitHubCallback_StateInstallationMismatch(t *testing.T) {
 	// State bound to installation 1111, submitted for 2222.
 	req := makeCallbackRequest(map[string]interface{}{
 		"installation_id": 2222,
-		"state":           srv.signGitHubState(githubTestTeamID, 1111),
+		"state":           srv.signGitHubState(githubTestTeamID, githubTestAppConfigID, 1111),
 		"code":            githubTestInstallCode,
 	})
 	rr := httptest.NewRecorder()
@@ -132,6 +132,7 @@ func TestHandleGitHubCallback_StateBoundToMatchingInstallation(t *testing.T) {
 
 	const installationID = int64(1111)
 
+	expectGitHubAppConfig(container)
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
 		mock.Anything,
@@ -143,7 +144,7 @@ func TestHandleGitHubCallback_StateBoundToMatchingInstallation(t *testing.T) {
 
 	req := makeCallbackRequest(map[string]interface{}{
 		"installation_id": installationID,
-		"state":           srv.signGitHubState(githubTestTeamID, installationID),
+		"state":           srv.signGitHubState(githubTestTeamID, githubTestAppConfigID, installationID),
 		"code":            githubTestInstallCode,
 	})
 	rr := httptest.NewRecorder()
@@ -185,9 +186,13 @@ func TestHandleGitHubInstallURL_Authorization(t *testing.T) {
 		name       string
 		authzErr   error
 		wantStatus int
+		// hasAppConfig is false for the denied case: authorization is checked
+		// before the App is looked up, so a member must be refused without the
+		// handler ever consulting the team's configuration.
+		hasAppConfig bool
 	}{
-		{"owner or admin", nil, http.StatusOK},
-		{"plain member", services.ErrPermissionDenied, http.StatusForbidden},
+		{"owner or admin", nil, http.StatusOK, true},
+		{"plain member", services.ErrPermissionDenied, http.StatusForbidden, false},
 	}
 
 	for _, tt := range tests {
@@ -197,20 +202,20 @@ func TestHandleGitHubInstallURL_Authorization(t *testing.T) {
 			authzSvc.On("Can", mock.Anything, githubTestUserID, githubTestTeamID, authz.TeamUpdate).
 				Return(tt.authzErr)
 			container.authzService = authzSvc
+			if tt.hasAppConfig {
+				expectGitHubAppConfig(container)
+			}
 
 			srv := createGitHubTestServer(container)
-			srv.config = &config.Config{GitHub: config.GitHubConfig{AppSlug: "vibexp"}}
 
-			req := httptest.NewRequest(http.MethodGet,
-				"/api/v1/"+githubTestTeamID+"/integrations/github/install-url", nil)
-			req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, githubTestUserID))
-			req = addGitHubChiParams(req, map[string]string{"team_id": githubTestTeamID})
+			req := newGitHubInstallURLRequest(githubTestTeamID)
 			rr := httptest.NewRecorder()
 
 			srv.handleGitHubInstallURL(rr, req)
 
 			assert.Equal(t, tt.wantStatus, rr.Code)
 			authzSvc.AssertExpectations(t)
+			container.gitHubAppConfigService.AssertExpectations(t)
 		})
 	}
 }

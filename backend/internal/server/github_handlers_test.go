@@ -37,6 +37,11 @@ const githubTestTeamID = "550e8400-e29b-41d4-a716-446655440001"
 // caller's authority with it is the service's job (#463).
 const githubTestInstallCode = "gh-install-code"
 
+// The team's own GitHub App (#482): the install URL is built from its slug and
+// every state is bound to its id.
+const githubTestAppConfigID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+const githubTestAppSlug = "acme-vibexp"
+
 // =============================================================================
 // Mock Activity Service for tracking calls
 // =============================================================================
@@ -129,7 +134,11 @@ type GitHubTestContainer struct {
 	BaseMockContainer
 	mock.Mock
 	gitHubAppService *svcmocks.MockGitHubAppServiceInterface
-	activitySvc      activities.ActivityService
+	// gitHubAppConfigService supplies the team's own App (#482). The install-URL
+	// and callback handlers both consult it, so any test reaching either must
+	// stub GetAppConfig — expectGitHubAppConfig / expectNoGitHubAppConfig do it.
+	gitHubAppConfigService *svcmocks.MockGitHubAppConfigServiceInterface
+	activitySvc            activities.ActivityService
 	// authzService gates handler-level permission checks (install-url, #463).
 	// BaseMockContainer returns nil, which would panic the moment a handler
 	// consults it, so tests that reach one must set this.
@@ -138,6 +147,10 @@ type GitHubTestContainer struct {
 
 func (c *GitHubTestContainer) GitHubAppService() services.GitHubAppServiceInterface {
 	return c.gitHubAppService
+}
+
+func (c *GitHubTestContainer) GitHubAppConfigService() services.GitHubAppConfigServiceInterface {
+	return c.gitHubAppConfigService
 }
 
 func (c *GitHubTestContainer) AuthorizationService() services.AuthorizationServiceInterface {
@@ -265,14 +278,39 @@ func (c *GitHubTestContainer) ProjectMigrationService() services.ProjectMigratio
 func newGitHubTestContainer(t *testing.T) (*GitHubTestContainer, *trackingActivityService) {
 	trackingSvc := &trackingActivityService{}
 	c := &GitHubTestContainer{
-		gitHubAppService: svcmocks.NewMockGitHubAppServiceInterface(t),
-		activitySvc:      trackingSvc,
+		gitHubAppService:       svcmocks.NewMockGitHubAppServiceInterface(t),
+		gitHubAppConfigService: svcmocks.NewMockGitHubAppConfigServiceInterface(t),
+		activitySvc:            trackingSvc,
 	}
 	return c, trackingSvc
 }
 
+// expectGitHubAppConfig stubs the team as having its own App registered, with
+// the id every test state is bound to.
+func expectGitHubAppConfig(container *GitHubTestContainer) {
+	container.gitHubAppConfigService.On("GetAppConfig", mock.Anything, githubTestTeamID).
+		Return(&models.GitHubAppConfigResponse{
+			GitHubAppConfig: models.GitHubAppConfig{
+				ID:      githubTestAppConfigID,
+				TeamID:  githubTestTeamID,
+				AppSlug: githubTestAppSlug,
+			},
+		}, nil)
+}
+
+// expectNoGitHubAppConfig stubs a team that has not registered an App yet.
+func expectNoGitHubAppConfig(container *GitHubTestContainer) {
+	container.gitHubAppConfigService.On("GetAppConfig", mock.Anything, githubTestTeamID).
+		Return(nil, services.ErrGitHubAppNotConfigured)
+}
+
 func createGitHubTestServer(container *GitHubTestContainer) *Server {
-	cfg := &config.Config{}
+	// A non-empty encryption key: the install-state MAC is derived from it
+	// (#482), so signing with the zero config would not exercise the real key
+	// path.
+	cfg := &config.Config{
+		Security: config.SecurityConfig{EncryptionKey: githubStateTestEncryptionKey},
+	}
 	logger := slog.New(slog.DiscardHandler)
 
 	r := chi.NewRouter()
