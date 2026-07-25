@@ -16,12 +16,12 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceListFilters } from '@/hooks/useResourceListFilters'
+import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { BlueprintFilters } from '@/pages/blueprints/BlueprintFilters'
 import { buildBlueprintsColumns } from '@/pages/blueprints/blueprintsColumns'
 import type { Blueprint } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import { getErrorMessage } from '@/utils/errorHandling'
 
 type BlueprintSortKey = 'title' | 'updated_at'
 
@@ -57,24 +57,6 @@ const FILTER_DEFAULTS = {
   sort_order: 'desc',
 }
 
-interface State {
-  blueprints: Blueprint[]
-  loading: boolean
-  error: string | null
-  totalPages: number
-  currentPage: number
-  total: number
-}
-
-const INITIAL: State = {
-  blueprints: [],
-  loading: true,
-  error: null,
-  totalPages: 0,
-  currentPage: 1,
-  total: 0,
-}
-
 function isSortKey(value: string): value is BlueprintSortKey {
   return (BLUEPRINT_SORTABLE_KEYS as readonly string[]).includes(value)
 }
@@ -96,6 +78,12 @@ export function Blueprints() {
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
+  const handleErrorRef = useCallback(
+    (error: unknown) => {
+      handleError(error, 'Failed to load blueprints')
+    },
+    [handleError]
+  )
   const { trackEvent } = useAnalytics()
 
   const projectId = currentProject?.id
@@ -120,7 +108,6 @@ export function Blueprints() {
     isProjectLoading,
   })
 
-  const [state, setState] = useState<State>(INITIAL)
   const [blueprintToDelete, setBlueprintToDelete] = useState<Blueprint | null>(
     null
   )
@@ -133,16 +120,10 @@ export function Blueprints() {
     : 'updated_at'
   const type = filters.type === 'all' ? undefined : coerceType(filters.type)
 
-  useEffect(() => {
-    // Wait for a persisted project selection to restore, so the first fetch is
-    // already scoped instead of flashing unfiltered results.
-    if (!currentTeam || isProjectLoading) return
-
-    let cancelled = false
-    setState(prev => ({ ...prev, loading: true, error: null }))
-
-    blueprintService
-      .getBlueprints(currentTeam.id, {
+  const load = useCallback(async () => {
+    const response = await blueprintService.getBlueprints(
+      currentTeam?.id ?? '',
+      {
         page,
         limit: PAGE_SIZE,
         search: filters.search || undefined,
@@ -151,46 +132,33 @@ export function Blueprints() {
         project_id: projectId,
         sort_by: sortBy,
         sort_order: sortOrder,
-      })
-      .then(response => {
-        if (cancelled) return
-        setState({
-          blueprints: response.blueprints,
-          loading: false,
-          error: null,
-          totalPages: response.total_pages,
-          currentPage: page,
-          total: response.total_count,
-        })
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          error: getErrorMessage(error, 'Failed to fetch blueprints'),
-        }))
-        handleError(error, 'Failed to load blueprints')
-      })
-
-    return () => {
-      // Guards the debounced-search race: a slow response for an earlier filter
-      // must not overwrite the results of a newer one.
-      cancelled = true
+      }
+    )
+    return {
+      items: response.blueprints,
+      totalPages: response.total_pages,
+      total: response.total_count,
     }
   }, [
-    currentTeam,
-    isProjectLoading,
-    projectId,
+    currentTeam?.id,
     page,
     filters.search,
     type,
     metadataParam,
+    projectId,
     sortBy,
     sortOrder,
-    reloadToken,
-    handleError,
   ])
+
+  const state = useResourceListQuery({
+    // Wait for a persisted project selection to restore, so the first fetch is
+    // already scoped instead of flashing unfiltered results.
+    ready: !!currentTeam && !isProjectLoading,
+    load,
+    reloadToken,
+    errorFallback: 'Failed to fetch blueprints',
+    onError: handleErrorRef,
+  })
 
   useEffect(() => {
     trackEvent({
@@ -245,7 +213,7 @@ export function Blueprints() {
   const status = listPageStatus(
     state.loading,
     state.error,
-    state.blueprints.length === 0
+    state.items.length === 0
   )
 
   return (
@@ -321,7 +289,7 @@ export function Blueprints() {
           }
         >
           <ListTable
-            rows={state.blueprints}
+            rows={state.items}
             columns={columns}
             sortableKeys={BLUEPRINT_SORTABLE_KEYS}
             sortKey={sortBy}
@@ -335,13 +303,13 @@ export function Blueprints() {
             status === 'loading' || status === 'error'
               ? undefined
               : {
-                  visible: state.blueprints.length,
+                  visible: state.items.length,
                   total: state.total,
                   noun: 'blueprint',
                 }
           }
           pagination={{
-            page: state.currentPage,
+            page,
             totalPages: state.totalPages,
             onPageChange: setPage,
           }}

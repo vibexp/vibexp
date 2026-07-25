@@ -16,6 +16,7 @@ import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useResourceListFilters } from '@/hooks/useResourceListFilters'
+import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { useTypes } from '@/hooks/useTypes'
 import { ArtifactFilters } from '@/pages/artifacts/ArtifactFilters'
 import { buildArtifactsColumns } from '@/pages/artifacts/artifactsColumns'
@@ -23,7 +24,6 @@ import { ARTIFACT_STATUS_OPTIONS } from '@/pages/artifacts/artifactStatus'
 import type { Artifact } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import { getErrorMessage } from '@/utils/errorHandling'
 
 type ArtifactSortKey = 'updated_at'
 
@@ -49,24 +49,6 @@ const FILTER_DEFAULTS = {
   sort_order: 'desc',
 }
 
-interface State {
-  artifacts: Artifact[]
-  loading: boolean
-  error: string | null
-  totalPages: number
-  currentPage: number
-  total: number
-}
-
-const INITIAL: State = {
-  artifacts: [],
-  loading: true,
-  error: null,
-  totalPages: 0,
-  currentPage: 1,
-  total: 0,
-}
-
 /**
  * The API rejects a `status` outside its enum with a 400, so the page must not
  * forward whatever the URL happens to contain. `type` needs no such guard: it
@@ -86,6 +68,12 @@ export function Artifacts() {
   const { types } = useTypes('artifacts')
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
+  const handleErrorRef = useCallback(
+    (error: unknown) => {
+      handleError(error, 'Failed to load artifacts')
+    },
+    [handleError]
+  )
   const { trackEvent } = useAnalytics()
 
   const projectId = currentProject?.id
@@ -110,7 +98,6 @@ export function Artifacts() {
     isProjectLoading,
   })
 
-  const [state, setState] = useState<State>(INITIAL)
   const [artifactToDelete, setArtifactToDelete] = useState<Artifact | null>(
     null
   )
@@ -126,65 +113,43 @@ export function Artifacts() {
   const status =
     filters.status === 'all' ? undefined : coerceStatus(filters.status)
 
-  useEffect(() => {
-    // Wait for a persisted project selection to restore, so the first fetch is
-    // already scoped instead of flashing unfiltered results.
-    if (!currentTeam || isProjectLoading) return
-
-    let cancelled = false
-    setState(prev => ({ ...prev, loading: true, error: null }))
-
-    artifactService
-      .getArtifacts(currentTeam.id, {
-        page,
-        limit: PAGE_SIZE,
-        search: filters.search || undefined,
-        type,
-        status,
-        metadata: metadataParam,
-        project_id: projectId,
-        sort_by: 'updated_at',
-        sort_order: sortOrder,
-      })
-      .then(response => {
-        if (cancelled) return
-        setState({
-          artifacts: response.artifacts,
-          loading: false,
-          error: null,
-          totalPages: response.total_pages,
-          currentPage: page,
-          total: response.total_count,
-        })
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          error: getErrorMessage(error, 'Failed to fetch artifacts'),
-        }))
-        handleError(error, 'Failed to load artifacts')
-      })
-
-    return () => {
-      // Guards the debounced-search race: a slow response for an earlier filter
-      // must not overwrite the results of a newer one.
-      cancelled = true
+  const load = useCallback(async () => {
+    const response = await artifactService.getArtifacts(currentTeam?.id ?? '', {
+      page,
+      limit: PAGE_SIZE,
+      search: filters.search || undefined,
+      type,
+      status,
+      metadata: metadataParam,
+      project_id: projectId,
+      sort_by: 'updated_at',
+      sort_order: sortOrder,
+    })
+    return {
+      items: response.artifacts,
+      totalPages: response.total_pages,
+      total: response.total_count,
     }
   }, [
-    currentTeam,
-    isProjectLoading,
-    projectId,
+    currentTeam?.id,
     page,
     filters.search,
     type,
     status,
     metadataParam,
+    projectId,
     sortOrder,
-    reloadToken,
-    handleError,
   ])
+
+  const state = useResourceListQuery({
+    // Wait for a persisted project selection to restore, so the first fetch is
+    // already scoped instead of flashing unfiltered results.
+    ready: !!currentTeam && !isProjectLoading,
+    load,
+    reloadToken,
+    errorFallback: 'Failed to fetch artifacts',
+    onError: handleErrorRef,
+  })
 
   useEffect(() => {
     trackEvent({
@@ -242,7 +207,7 @@ export function Artifacts() {
   const listStatus = listPageStatus(
     state.loading,
     state.error,
-    state.artifacts.length === 0
+    state.items.length === 0
   )
 
   return (
@@ -322,7 +287,7 @@ export function Artifacts() {
           }
         >
           <ListTable
-            rows={state.artifacts}
+            rows={state.items}
             columns={columns}
             sortableKeys={ARTIFACT_SORTABLE_KEYS}
             sortKey="updated_at"
@@ -336,13 +301,13 @@ export function Artifacts() {
             listStatus === 'loading' || listStatus === 'error'
               ? undefined
               : {
-                  visible: state.artifacts.length,
+                  visible: state.items.length,
                   total: state.total,
                   noun: 'artifact',
                 }
           }
           pagination={{
-            page: state.currentPage,
+            page,
             totalPages: state.totalPages,
             onPageChange: setPage,
           }}
