@@ -117,7 +117,7 @@
     "eslint-plugin-react-hooks": "~5.2.0",
     "eslint-plugin-react-refresh": "~0.5.2",
     "eslint-plugin-security": "~4.0.1",
-    "eslint-plugin-simple-import-sort": "~13.0.0",
+    "eslint-plugin-simple-import-sort": "~14.0.0",
     "eslint-plugin-sonarjs": "~3.0.5",
     "eslint-plugin-unused-imports": "~4.4.1",
     "globals": "~17.6.0",
