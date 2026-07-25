@@ -15,7 +15,7 @@ import type { Project } from '@/services/projectService'
 // buttons for the callbacks, so this file tests ONLY the ProjectMigrate
 // wiring: step transitions, inventory loading, selection plumbing, and the
 // confirm-before-migrate guard (the ConfirmDialog stays real).
-jest.mock('@/pages/settings/projects/migration/SelectSourceStep', () => ({
+jest.mock('@/pages/teams/projects/migration/SelectSourceStep', () => ({
   SelectSourceStep: ({
     resolvedSourceProject,
     selectedProjectId,
@@ -56,7 +56,7 @@ jest.mock('@/pages/settings/projects/migration/SelectSourceStep', () => ({
   ),
 }))
 
-jest.mock('@/pages/settings/projects/migration/SelectResourcesStep', () => ({
+jest.mock('@/pages/teams/projects/migration/SelectResourcesStep', () => ({
   SelectResourcesStep: ({
     inventory,
     selectedResources,
@@ -103,7 +103,7 @@ jest.mock('@/pages/settings/projects/migration/SelectResourcesStep', () => ({
   ),
 }))
 
-jest.mock('@/pages/settings/projects/migration/SelectDestinationStep', () => ({
+jest.mock('@/pages/teams/projects/migration/SelectDestinationStep', () => ({
   SelectDestinationStep: ({
     sourceProjectName,
     destinationProjectId,
@@ -169,7 +169,7 @@ jest.mock('@/pages/settings/projects/migration/SelectDestinationStep', () => ({
   ),
 }))
 
-jest.mock('@/pages/settings/projects/migration/ResultStep', () => ({
+jest.mock('@/pages/teams/projects/migration/ResultStep', () => ({
   ResultStep: ({
     result,
     destinationProjectName,
@@ -275,14 +275,16 @@ const pickedSelection: ResourceSelections = {
 
 function renderMigrate() {
   return render(
-    <MemoryRouter initialEntries={['/settings/projects/alpha-project/migrate']}>
+    <MemoryRouter
+      initialEntries={['/teams/team-1/projects/alpha-project/migrate']}
+    >
       <Routes>
         <Route
-          path="/settings/projects/:slug/migrate"
+          path="/teams/:id/projects/:slug/migrate"
           element={<ProjectMigrate />}
         />
         <Route
-          path="/settings/projects"
+          path="/teams/:id/projects"
           element={<div data-testid="projects-probe">Projects list probe</div>}
         />
       </Routes>

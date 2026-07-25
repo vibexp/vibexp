@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Project } from '@/services/projectService'
 
 // Mock ProjectForm to avoid complex form internals in unit tests
-jest.mock('@/pages/settings/projects/ProjectForm', () => ({
+jest.mock('@/pages/teams/projects/ProjectForm', () => ({
   ProjectForm: jest.fn(() => <div data-testid="project-form" />),
 }))
 

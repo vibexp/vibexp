@@ -10,7 +10,7 @@ import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
   ProjectForm,
   type ProjectFormHandle,
-} from '@/pages/settings/projects/ProjectForm'
+} from '@/pages/teams/projects/ProjectForm'
 import type {
   CreateProjectRequest,
   UpdateProjectRequest,
@@ -39,7 +39,7 @@ export function ProjectCreate() {
         data as CreateProjectRequest
       )
       showSuccess('Project created successfully', 'Success')
-      void navigate('/settings/projects')
+      void navigate(`/teams/${currentTeam.id}/projects`)
     } catch (error) {
       handleError(error, 'Failed to create project')
     } finally {
@@ -57,7 +57,7 @@ export function ProjectCreate() {
             <Button
               variant="outline"
               onClick={() => {
-                void navigate('/settings/projects')
+                void navigate(`/teams/${currentTeam?.id ?? ''}/projects`)
               }}
             >
               <ArrowLeft className="mr-2 size-4" />

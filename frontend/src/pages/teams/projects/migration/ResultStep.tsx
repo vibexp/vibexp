@@ -71,6 +71,8 @@ function OutcomeSection({
 }
 
 interface ResultStepProps {
+  /** Team from the URL scope (#542); the destination link nests under it. */
+  teamId: string
   result: MigrationResult
   destinationProjectSlug: string
   destinationProjectName: string
@@ -78,6 +80,7 @@ interface ResultStepProps {
 }
 
 export function ResultStep({
+  teamId,
   result,
   destinationProjectSlug,
   destinationProjectName,
@@ -161,7 +164,7 @@ export function ResultStep({
       <div className="flex flex-wrap gap-2">
         <Button asChild>
           <Link
-            to={`/settings/projects/${encodeURIComponent(destinationProjectSlug)}`}
+            to={`/teams/${teamId}/projects/${encodeURIComponent(destinationProjectSlug)}`}
           >
             View destination project
           </Link>

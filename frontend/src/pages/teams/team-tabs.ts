@@ -21,14 +21,14 @@ export interface TeamTab {
 /**
  * The tabs for one team.
  *
- * **No Projects tab yet.** `/teams/:id/projects` does not exist until #542, and
- * a tab that lands on the in-shell not-found page is a visibly broken
- * affordance on every team page. #542 adds the tab together with the route it
- * points at.
+ * Projects joined in #542, together with the routes it points at - #539
+ * deliberately shipped without it rather than link to a route that did not
+ * exist yet.
  */
 export function teamTabsFor(teamId: string): TeamTab[] {
   return [
     { label: 'Overview', href: `/teams/${teamId}`, end: true },
+    { label: 'Projects', href: `/teams/${teamId}/projects` },
     { label: 'Analytics', href: `/teams/${teamId}/analytics` },
     { label: 'Settings', href: `/teams/${teamId}/settings` },
   ]

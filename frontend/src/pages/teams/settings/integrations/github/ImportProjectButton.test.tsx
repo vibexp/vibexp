@@ -78,7 +78,7 @@ describe('ImportProjectButton', () => {
 
     const link = screen.getByRole('link', { name: /view project/i })
     expect(link).toBeInTheDocument()
-    expect(link.getAttribute('href')).toBe('/settings/projects/abc')
+    expect(link.getAttribute('href')).toBe('/teams/team-1/projects/abc')
     expect(
       screen.queryByRole('button', { name: /import as project/i })
     ).not.toBeInTheDocument()
@@ -122,7 +122,9 @@ describe('ImportProjectButton', () => {
 
     await waitFor(() => {
       const link = screen.getByRole('link', { name: /view project/i })
-      expect(link.getAttribute('href')).toBe('/settings/projects/awesome-repo')
+      expect(link.getAttribute('href')).toBe(
+        '/teams/team-1/projects/awesome-repo'
+      )
     })
     expect(
       screen.queryByRole('button', { name: /import as project/i })

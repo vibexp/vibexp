@@ -12,7 +12,7 @@ import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
   ProjectForm,
   type ProjectFormHandle,
-} from '@/pages/settings/projects/ProjectForm'
+} from '@/pages/teams/projects/ProjectForm'
 import type {
   CreateProjectRequest,
   Project,
@@ -70,7 +70,7 @@ export function ProjectEdit() {
       setUpdating(true)
       await projectService.updateProject(currentTeam.id, project.slug, data)
       showSuccess('Project updated successfully', 'Success')
-      void navigate('/settings/projects')
+      void navigate(`/teams/${currentTeam.id}/projects`)
     } catch (err) {
       handleError(err, 'Failed to update project')
     } finally {
@@ -103,7 +103,7 @@ export function ProjectEdit() {
         <Button
           variant="outline"
           onClick={() => {
-            void navigate('/settings/projects')
+            void navigate(`/teams/${currentTeam?.id ?? ''}/projects`)
           }}
         >
           <ArrowLeft className="mr-2 size-4" />
@@ -123,7 +123,7 @@ export function ProjectEdit() {
             <Button
               variant="outline"
               onClick={() => {
-                void navigate('/settings/projects')
+                void navigate(`/teams/${currentTeam?.id ?? ''}/projects`)
               }}
             >
               <ArrowLeft className="mr-2 size-4" />
