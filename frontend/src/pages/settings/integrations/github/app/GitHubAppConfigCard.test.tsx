@@ -1,0 +1,127 @@
+import { render, screen } from '@testing-library/react'
+
+import type { GitHubAppConfigResponse } from '@/services/githubAppConfigService'
+
+import { GitHubAppConfigCard } from './GitHubAppConfigCard'
+
+jest.mock('@/services/githubAppConfigService', () => ({
+  ...jest.requireActual('@/services/githubAppConfigService'),
+  githubAppConfigService: {
+    validateAppConfig: jest.fn(),
+    rotateWebhookToken: jest.fn(),
+    deleteAppConfig: jest.fn(),
+  },
+}))
+
+jest.mock('@/lib/toast', () => ({
+  toast: { success: jest.fn(), error: jest.fn() },
+}))
+
+const TEAM_ID = 'team-1'
+
+const config = {
+  id: 'cfg-1',
+  team_id: TEAM_ID,
+  app_id: '123456',
+  app_slug: 'acme-app',
+  client_id: 'Iv1.abc',
+  has_private_key: true,
+  has_client_secret: true,
+  has_webhook_secret: true,
+  webhook_url: 'https://vibexp.example.com/api/v1/webhooks/github/rout1ngtok3n',
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+  version: 1,
+} as unknown as GitHubAppConfigResponse
+
+const renderCard = (
+  props: Partial<React.ComponentProps<typeof GitHubAppConfigCard>> = {}
+) =>
+  render(
+    <GitHubAppConfigCard
+      teamId={TEAM_ID}
+      config={config}
+      canManage
+      onChanged={jest.fn()}
+      {...props}
+    />
+  )
+
+describe('GitHubAppConfigCard — unconfigured', () => {
+  it('shows the setup guide rather than the configured state', () => {
+    renderCard({ config: null })
+
+    expect(screen.getByText('Connect a GitHub App')).toBeVisible()
+    expect(screen.getByText(/Create a GitHub App/i)).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Register GitHub App' })
+    ).toBeVisible()
+  })
+
+  it('spells out the permissions and events with their rationale', () => {
+    renderCard({ config: null })
+
+    expect(screen.getByText(/Contents: Read-only/)).toBeVisible()
+    expect(screen.getByText(/Metadata: Read-only/)).toBeVisible()
+    expect(screen.getByText('Installation')).toBeVisible()
+    expect(screen.getByText('Installation repositories')).toBeVisible()
+  })
+})
+
+describe('GitHubAppConfigCard — configured', () => {
+  it('shows the public fields and the webhook URL', () => {
+    renderCard()
+
+    expect(screen.getByText('acme-app')).toBeVisible()
+    expect(screen.getByText('123456')).toBeVisible()
+    expect(screen.getByText(config.webhook_url)).toBeVisible()
+  })
+
+  it('reports secrets as Set/Not set and never renders a value', () => {
+    const { container } = renderCard({
+      config: { ...config, has_webhook_secret: false },
+    })
+
+    expect(screen.getByText('Private key: Set')).toBeVisible()
+    expect(screen.getByText('Client secret: Set')).toBeVisible()
+    expect(screen.getByText('Webhook secret: Not set')).toBeVisible()
+    // A missing webhook secret is called out, because it silently breaks
+    // delivery verification rather than failing loudly.
+    expect(screen.getByText('No webhook secret set')).toBeVisible()
+
+    // Nothing secret-shaped is in the DOM at all.
+    expect(container.textContent).not.toMatch(/BEGIN .*PRIVATE KEY/)
+  })
+})
+
+describe('GitHubAppConfigCard — permission gating', () => {
+  it('offers no mutating affordance to a member', () => {
+    renderCard({ canManage: false })
+
+    for (const name of ['Edit', 'Verify', 'Rotate webhook URL', 'Remove']) {
+      expect(screen.queryByRole('button', { name })).toBeNull()
+    }
+    expect(
+      screen.getByText('Only a team owner or admin can change these settings.')
+    ).toBeVisible()
+  })
+
+  it('offers no registration affordance to a member on an unconfigured team', () => {
+    renderCard({ config: null, canManage: false })
+
+    expect(
+      screen.queryByRole('button', { name: 'Register GitHub App' })
+    ).toBeNull()
+    expect(screen.getByText('Ask an owner or admin')).toBeVisible()
+    // The guide itself stays visible — reading how it works is not a mutation.
+    expect(screen.getByText(/Create a GitHub App/i)).toBeVisible()
+  })
+
+  it('offers the full surface to an owner or admin', () => {
+    renderCard({ canManage: true })
+
+    for (const name of ['Edit', 'Verify', 'Rotate webhook URL', 'Remove']) {
+      expect(screen.getByRole('button', { name })).toBeVisible()
+    }
+  })
+})
