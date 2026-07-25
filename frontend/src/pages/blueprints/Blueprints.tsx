@@ -1,5 +1,5 @@
 import { BookOpen, Plus } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -15,15 +15,11 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useUrlFilters } from '@/hooks/useUrlFilters'
+import { useResourceListFilters } from '@/hooks/useResourceListFilters'
 import { BlueprintFilters } from '@/pages/blueprints/BlueprintFilters'
 import { buildBlueprintsColumns } from '@/pages/blueprints/blueprintsColumns'
 import type { Blueprint } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
-import {
-  parseMetadataFilter,
-  serializeMetadataFilter,
-} from '@/services/metadataService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -43,7 +39,6 @@ const BLUEPRINT_TYPES: readonly string[] = [
 ]
 
 const PAGE_SIZE = 20
-const SEARCH_DEBOUNCE_MS = 500
 
 /**
  * Filter defaults. Every value here is omitted from the URL, so an unfiltered
@@ -103,11 +98,29 @@ export function Blueprints() {
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
 
-  const { filters, setFilters, resetFilters } = useUrlFilters(FILTER_DEFAULTS)
+  const projectId = currentProject?.id
+
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    page,
+    setPage,
+    sortOrder,
+    metadata,
+    metadataParam,
+    setMetadata,
+    hasActiveFilters,
+    handleClear,
+  } = useResourceListFilters({
+    defaults: FILTER_DEFAULTS,
+    filterKeys: ['type'],
+    projectId,
+    isProjectLoading,
+  })
 
   const [state, setState] = useState<State>(INITIAL)
-  // Uncommitted text in the search box, debounced into the URL below.
-  const [searchInput, setSearchInput] = useState(filters.search)
   const [blueprintToDelete, setBlueprintToDelete] = useState<Blueprint | null>(
     null
   )
@@ -115,58 +128,10 @@ export function Blueprints() {
   // Bumped after a delete to re-run the fetch effect without duplicating it.
   const [reloadToken, setReloadToken] = useState(0)
 
-  const projectId = currentProject?.id
-
-  const page = Number(filters.page) || 1
   const sortBy: BlueprintSortKey = isSortKey(filters.sort_by)
     ? filters.sort_by
     : 'updated_at'
-  const sortOrder: 'asc' | 'desc' =
-    filters.sort_order === 'asc' ? 'asc' : 'desc'
   const type = filters.type === 'all' ? undefined : coerceType(filters.type)
-
-  const metadata = useMemo(
-    () => parseMetadataFilter(filters.metadata),
-    [filters.metadata]
-  )
-  // The re-serialized canonical string is both the fetch dep and the request
-  // value, so a malformed URL param is never forwarded and the effect does not
-  // re-run merely because the parsed object is referentially new.
-  const metadataParam = useMemo(
-    () => serializeMetadataFilter(metadata),
-    [metadata]
-  )
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchInput !== filters.search) {
-        setFilters({ search: searchInput })
-      }
-    }, SEARCH_DEBOUNCE_MS)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [searchInput, filters.search, setFilters])
-
-  // Changing the globally selected project returns to page 1 — but a persisted
-  // project RESTORING is not a change, and treating it as one would clobber the
-  // `?page=3` of a shared link. So the guard is only armed once the restore has
-  // finished; seeding it on first render is not enough, because at that point
-  // the project is still undefined and the restore itself then looks like a
-  // change.
-  const previousProjectRef = useRef<string | undefined>(undefined)
-  const projectSyncArmedRef = useRef(false)
-  useEffect(() => {
-    if (isProjectLoading) return
-    if (!projectSyncArmedRef.current) {
-      projectSyncArmedRef.current = true
-      previousProjectRef.current = projectId
-      return
-    }
-    if (previousProjectRef.current === projectId) return
-    previousProjectRef.current = projectId
-    setFilters({ page: FILTER_DEFAULTS.page })
-  }, [projectId, isProjectLoading, setFilters])
 
   useEffect(() => {
     // Wait for a persisted project selection to restore, so the first fetch is
@@ -233,25 +198,6 @@ export function Blueprints() {
       properties: { action_context: 'view' },
     })
   }, [trackEvent])
-
-  const hasActiveFilters =
-    filters.search !== '' ||
-    filters.type !== FILTER_DEFAULTS.type ||
-    Object.keys(metadata).length > 0
-
-  const handleClear = useCallback(() => {
-    // Stale text left in the box would be re-committed on the next debounce
-    // tick and undo the clear.
-    setSearchInput('')
-    resetFilters()
-  }, [resetFilters])
-
-  const handleMetadataChange = useCallback(
-    (next: Record<string, string[]>) => {
-      setFilters({ metadata: serializeMetadataFilter(next) ?? '' })
-    },
-    [setFilters]
-  )
 
   const handleDelete = async () => {
     if (!blueprintToDelete || !currentTeam) return
@@ -329,7 +275,7 @@ export function Blueprints() {
               setFilters({ type: value ?? FILTER_DEFAULTS.type })
             }}
             metadata={metadata}
-            onMetadataChange={handleMetadataChange}
+            onMetadataChange={setMetadata}
             projectId={projectId}
             onClear={handleClear}
             hasActiveFilters={hasActiveFilters}
@@ -397,9 +343,7 @@ export function Blueprints() {
           pagination={{
             page: state.currentPage,
             totalPages: state.totalPages,
-            onPageChange: next => {
-              setFilters({ page: String(next) })
-            },
+            onPageChange: setPage,
           }}
           hideCount={status === 'loading'}
         />

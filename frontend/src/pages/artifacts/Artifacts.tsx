@@ -1,5 +1,5 @@
 import { Package, Plus } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -15,17 +15,13 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useResourceListFilters } from '@/hooks/useResourceListFilters'
 import { useTypes } from '@/hooks/useTypes'
-import { useUrlFilters } from '@/hooks/useUrlFilters'
 import { ArtifactFilters } from '@/pages/artifacts/ArtifactFilters'
 import { buildArtifactsColumns } from '@/pages/artifacts/artifactsColumns'
 import { ARTIFACT_STATUS_OPTIONS } from '@/pages/artifacts/artifactStatus'
 import type { Artifact } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
-import {
-  parseMetadataFilter,
-  serializeMetadataFilter,
-} from '@/services/metadataService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { getErrorMessage } from '@/utils/errorHandling'
 
@@ -34,7 +30,6 @@ type ArtifactSortKey = 'updated_at'
 const ARTIFACT_SORTABLE_KEYS: readonly ArtifactSortKey[] = ['updated_at']
 
 const PAGE_SIZE = 20
-const SEARCH_DEBOUNCE_MS = 500
 
 /**
  * Filter defaults. Every value here is omitted from the URL, so an unfiltered
@@ -93,11 +88,29 @@ export function Artifacts() {
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
 
-  const { filters, setFilters, resetFilters } = useUrlFilters(FILTER_DEFAULTS)
+  const projectId = currentProject?.id
+
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    page,
+    setPage,
+    sortOrder,
+    metadata,
+    metadataParam,
+    setMetadata,
+    hasActiveFilters,
+    handleClear,
+  } = useResourceListFilters({
+    defaults: FILTER_DEFAULTS,
+    filterKeys: ['type', 'status'],
+    projectId,
+    isProjectLoading,
+  })
 
   const [state, setState] = useState<State>(INITIAL)
-  // Uncommitted text in the search box, debounced into the URL below.
-  const [searchInput, setSearchInput] = useState(filters.search)
   const [artifactToDelete, setArtifactToDelete] = useState<Artifact | null>(
     null
   )
@@ -105,11 +118,6 @@ export function Artifacts() {
   // Bumped after a delete to re-run the fetch effect without duplicating it.
   const [reloadToken, setReloadToken] = useState(0)
 
-  const projectId = currentProject?.id
-
-  const page = Number(filters.page) || 1
-  const sortOrder: 'asc' | 'desc' =
-    filters.sort_order === 'asc' ? 'asc' : 'desc'
   // `type` is an open string (the team's registered types), so it has no enum
   // coercion to absorb a junk value the way `status` does — an explicit `?type=`
   // in the URL would otherwise be forwarded as an empty string.
@@ -117,49 +125,6 @@ export function Artifacts() {
     filters.type === 'all' || filters.type === '' ? undefined : filters.type
   const status =
     filters.status === 'all' ? undefined : coerceStatus(filters.status)
-
-  const metadata = useMemo(
-    () => parseMetadataFilter(filters.metadata),
-    [filters.metadata]
-  )
-  // The re-serialized canonical string is both the fetch dep and the request
-  // value, so a malformed URL param is never forwarded and the effect does not
-  // re-run merely because the parsed object is referentially new.
-  const metadataParam = useMemo(
-    () => serializeMetadataFilter(metadata),
-    [metadata]
-  )
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchInput !== filters.search) {
-        setFilters({ search: searchInput })
-      }
-    }, SEARCH_DEBOUNCE_MS)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [searchInput, filters.search, setFilters])
-
-  // Changing the globally selected project returns to page 1 — but a persisted
-  // project RESTORING is not a change, and treating it as one would clobber the
-  // `?page=3` of a shared link. So the guard is only armed once the restore has
-  // finished; seeding it on first render is not enough, because at that point
-  // the project is still undefined and the restore itself then looks like a
-  // change.
-  const previousProjectRef = useRef<string | undefined>(undefined)
-  const projectSyncArmedRef = useRef(false)
-  useEffect(() => {
-    if (isProjectLoading) return
-    if (!projectSyncArmedRef.current) {
-      projectSyncArmedRef.current = true
-      previousProjectRef.current = projectId
-      return
-    }
-    if (previousProjectRef.current === projectId) return
-    previousProjectRef.current = projectId
-    setFilters({ page: FILTER_DEFAULTS.page })
-  }, [projectId, isProjectLoading, setFilters])
 
   useEffect(() => {
     // Wait for a persisted project selection to restore, so the first fetch is
@@ -227,26 +192,6 @@ export function Artifacts() {
       properties: { action_context: 'view' },
     })
   }, [trackEvent])
-
-  const hasActiveFilters =
-    filters.search !== '' ||
-    filters.type !== FILTER_DEFAULTS.type ||
-    filters.status !== FILTER_DEFAULTS.status ||
-    Object.keys(metadata).length > 0
-
-  const handleClear = useCallback(() => {
-    // Stale text left in the box would be re-committed on the next debounce
-    // tick and undo the clear.
-    setSearchInput('')
-    resetFilters()
-  }, [resetFilters])
-
-  const handleMetadataChange = useCallback(
-    (next: Record<string, string[]>) => {
-      setFilters({ metadata: serializeMetadataFilter(next) ?? '' })
-    },
-    [setFilters]
-  )
 
   const handleDelete = async () => {
     if (!artifactToDelete || !currentTeam) return
@@ -331,7 +276,7 @@ export function Artifacts() {
               setFilters({ status: value ?? FILTER_DEFAULTS.status })
             }}
             metadata={metadata}
-            onMetadataChange={handleMetadataChange}
+            onMetadataChange={setMetadata}
             projectId={projectId}
             onClear={handleClear}
             hasActiveFilters={hasActiveFilters}
@@ -399,9 +344,7 @@ export function Artifacts() {
           pagination={{
             page: state.currentPage,
             totalPages: state.totalPages,
-            onPageChange: next => {
-              setFilters({ page: String(next) })
-            },
+            onPageChange: setPage,
           }}
           hideCount={listStatus === 'loading'}
         />
