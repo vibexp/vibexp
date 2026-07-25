@@ -2,11 +2,8 @@ package providers
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
-
-	"github.com/darkrockmountain/gomail"
 
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/auth/idp/github"
@@ -172,52 +169,50 @@ func buildOIDCProvider(cfg *config.Config, logger *slog.Logger) (idp.IdentityPro
 // is normalised to lowercase and trimmed before matching, so "MAILGUN" and "smtp " work
 // correctly. When EMAIL_PROVIDER is empty or "smtp" and no SMTP host/port are configured,
 // a no-op stub is returned so the container can wire up without email credentials.
+//
+// This is a mapping adapter: provider selection itself lives in
+// implementations.NewEmailProvider, which is config-free so it can also be
+// called per send with team-supplied values.
 func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.EmailProvider, error) {
-	switch strings.ToLower(strings.TrimSpace(cfg.Email.Provider)) {
-	case "mailgun":
-		provider, err := implementations.NewMailgunEmailProvider(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("email provider factory: %w", err)
-		}
-		logger.With("email_provider", "mailgun").Info(msgEmailProviderInitialized)
-		return provider, nil
-	case "postmark":
-		provider, err := implementations.NewPostmarkEmailProvider(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("email provider factory: %w", err)
-		}
-		logger.With("email_provider", "postmark").Info(msgEmailProviderInitialized)
-		return provider, nil
-	case "sendgrid":
-		provider, err := implementations.NewSendGridEmailProvider(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("email provider factory: %w", err)
-		}
-		logger.With("email_provider", "sendgrid").Info(msgEmailProviderInitialized)
-		return provider, nil
-	case "smtp", "":
-		if cfg.Email.SMTP.Host == "" || cfg.Email.SMTP.Port == "" {
-			logger.With("email_provider", "stub").Info(msgEmailProviderInitialized)
-			return &stubEmailProvider{}, nil
-		}
-		provider, err := implementations.NewSMTPEmailProvider(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("email provider factory: %w", err)
-		}
-		logger.With("email_provider", "smtp").Info(msgEmailProviderInitialized)
-		return provider, nil
-	default:
-		return nil, fmt.Errorf("email provider factory: unknown email provider %q", cfg.Email.Provider)
+	provider, err := implementations.NewEmailProvider(emailProviderSpec(cfg), logger)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.With("email_provider", implementations.ProviderLabel(provider)).Info(msgEmailProviderInitialized)
+	return provider, nil
+}
+
+// emailProviderSpec maps the process-wide email config onto the config-free
+// spec the factory consumes.
+func emailProviderSpec(cfg *config.Config) implementations.ProviderSpec {
+	return implementations.ProviderSpec{
+		Type: cfg.Email.Provider,
+		SMTP: implementations.SMTPSpec{
+			Host:     cfg.Email.SMTP.Host,
+			Port:     cfg.Email.SMTP.Port,
+			Username: cfg.Email.SMTP.Username,
+			Password: cfg.Email.SMTP.Password,
+		},
+		Mailgun: implementations.MailgunSpec{
+			BaseURL:    cfg.Email.Mailgun.BaseURL,
+			Domain:     cfg.Email.Mailgun.Domain,
+			SendingKey: cfg.Email.Mailgun.SendingKey,
+		},
+		Postmark: implementations.PostmarkSpec{
+			ServerToken:   cfg.Email.Postmark.ServerToken,
+			MessageStream: cfg.Email.Postmark.MessageStream,
+		},
+		SendGrid: implementations.SendGridSpec{
+			APIKey: cfg.Email.SendGrid.APIKey,
+		},
 	}
 }
 
-// stubEmailProvider is a no-op provider for testing without SMTP config
-type stubEmailProvider struct{}
-
-func (s *stubEmailProvider) SendEmail(ctx context.Context, message *gomail.EmailMessage) error {
-	// No-op for tests
-	return nil
-}
+// stubEmailProvider aliases the no-op provider that now lives beside the
+// factory. Kept as an alias so this package (and its tests) can keep referring
+// to the stub by its original name while there is only one such type.
+type stubEmailProvider = implementations.StubEmailProvider
 
 // ProvideEmailSender creates a new EmailSender (DEPRECATED: Use ProvideEmailProvider instead)
 func ProvideEmailSender(cfg *config.Config) external.EmailSender {

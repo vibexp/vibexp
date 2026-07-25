@@ -10,7 +10,6 @@ import (
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
 )
 
@@ -29,13 +28,13 @@ type SendGridEmailProvider struct {
 }
 
 // NewSendGridEmailProvider creates a new SendGrid email provider.
-// Required config: SendGridAPIKey (an API key with "Mail Send" permission).
-func NewSendGridEmailProvider(cfg *config.Config) (external.EmailProvider, error) {
-	if cfg.Email.SendGrid.APIKey == "" {
+// Required: APIKey (an API key with "Mail Send" permission).
+func NewSendGridEmailProvider(spec SendGridSpec) (external.EmailProvider, error) {
+	if spec.APIKey == "" {
 		return nil, fmt.Errorf("sendgrid provider: SENDGRID_API_KEY is required")
 	}
 
-	return &SendGridEmailProvider{sender: sendgrid.NewSendClient(cfg.Email.SendGrid.APIKey)}, nil
+	return &SendGridEmailProvider{sender: sendgrid.NewSendClient(spec.APIKey)}, nil
 }
 
 // SendEmail sends an email via the SendGrid v3 Mail Send API. The caller's ctx
