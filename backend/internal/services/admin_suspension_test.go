@@ -37,7 +37,7 @@ func TestSuspendUser_Success(t *testing.T) {
 	repo.On("GetUserDetail", mock.Anything, suspendTarget).
 		Return(suspensionTarget(suspendTarget, "target@example.com", models.UserStatusSuspended), nil).Once()
 
-	got, err := NewAdminService(repo).SuspendUser(
+	got, err := newReadOnlyAdminService(repo).SuspendUser(
 		context.Background(), suspendActingAdmin, suspendTarget, noInstanceAdmins,
 	)
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestSuspendUser_LockoutGuards(t *testing.T) {
 			// than silently suspending the account.
 			repo.On("GetUserDetail", mock.Anything, suspendTarget).Return(tc.target, nil)
 
-			got, err := NewAdminService(repo).SuspendUser(
+			got, err := newReadOnlyAdminService(repo).SuspendUser(
 				context.Background(), tc.actingID, suspendTarget, tc.predicate,
 			)
 			require.Nil(t, got)
@@ -105,7 +105,7 @@ func TestSuspendUser_NilPredicateStillGuardsSelf(t *testing.T) {
 	repo.On("GetUserDetail", mock.Anything, suspendTarget).
 		Return(suspensionTarget(suspendTarget, "me@example.com", models.UserStatusActive), nil)
 
-	_, err := NewAdminService(repo).SuspendUser(
+	_, err := newReadOnlyAdminService(repo).SuspendUser(
 		context.Background(), suspendTarget, suspendTarget, nil,
 	)
 	var e *ErrAdminSuspendSelf
@@ -117,7 +117,7 @@ func TestSuspendUser_UnknownTarget(t *testing.T) {
 	repo := repomocks.NewMockAdminRepository(t)
 	repo.On("GetUserDetail", mock.Anything, suspendTarget).Return(nil, nil)
 
-	got, err := NewAdminService(repo).SuspendUser(
+	got, err := newReadOnlyAdminService(repo).SuspendUser(
 		context.Background(), suspendActingAdmin, suspendTarget, noInstanceAdmins,
 	)
 	require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestSuspendUser_VanishedBetweenReadAndWrite(t *testing.T) {
 	repo.On("UpdateUserStatus", mock.Anything, suspendTarget, models.UserStatusSuspended).
 		Return(false, nil)
 
-	got, err := NewAdminService(repo).SuspendUser(
+	got, err := newReadOnlyAdminService(repo).SuspendUser(
 		context.Background(), suspendActingAdmin, suspendTarget, noInstanceAdmins,
 	)
 	require.NoError(t, err)
@@ -146,7 +146,7 @@ func TestSuspendUser_RepositoryErrors(t *testing.T) {
 		repo := repomocks.NewMockAdminRepository(t)
 		repo.On("GetUserDetail", mock.Anything, suspendTarget).Return(nil, errors.New("boom"))
 
-		_, err := NewAdminService(repo).SuspendUser(
+		_, err := newReadOnlyAdminService(repo).SuspendUser(
 			context.Background(), suspendActingAdmin, suspendTarget, noInstanceAdmins,
 		)
 		require.Error(t, err)
@@ -159,7 +159,7 @@ func TestSuspendUser_RepositoryErrors(t *testing.T) {
 		repo.On("UpdateUserStatus", mock.Anything, suspendTarget, models.UserStatusSuspended).
 			Return(false, errors.New("boom"))
 
-		_, err := NewAdminService(repo).SuspendUser(
+		_, err := newReadOnlyAdminService(repo).SuspendUser(
 			context.Background(), suspendActingAdmin, suspendTarget, noInstanceAdmins,
 		)
 		require.Error(t, err)
@@ -177,7 +177,7 @@ func TestReactivateUser_Success(t *testing.T) {
 	repo.On("GetUserDetail", mock.Anything, suspendTarget).
 		Return(suspensionTarget(suspendTarget, "t@example.com", models.UserStatusActive), nil).Once()
 
-	got, err := NewAdminService(repo).ReactivateUser(context.Background(), suspendTarget)
+	got, err := newReadOnlyAdminService(repo).ReactivateUser(context.Background(), suspendTarget)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, models.UserStatusActive, got.Status)
@@ -193,7 +193,7 @@ func TestReactivateUser_SelfIsAllowed(t *testing.T) {
 	repo.On("GetUserDetail", mock.Anything, suspendActingAdmin).
 		Return(suspensionTarget(suspendActingAdmin, "me@example.com", models.UserStatusActive), nil).Once()
 
-	got, err := NewAdminService(repo).ReactivateUser(context.Background(), suspendActingAdmin)
+	got, err := newReadOnlyAdminService(repo).ReactivateUser(context.Background(), suspendActingAdmin)
 	require.NoError(t, err)
 	assert.Equal(t, models.UserStatusActive, got.Status)
 }
@@ -203,7 +203,7 @@ func TestReactivateUser_UnknownTarget(t *testing.T) {
 	repo := repomocks.NewMockAdminRepository(t)
 	repo.On("GetUserDetail", mock.Anything, suspendTarget).Return(nil, nil)
 
-	got, err := NewAdminService(repo).ReactivateUser(context.Background(), suspendTarget)
+	got, err := newReadOnlyAdminService(repo).ReactivateUser(context.Background(), suspendTarget)
 	require.NoError(t, err)
 	assert.Nil(t, got)
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
+	"github.com/vibexp/vibexp/pkg/events"
 )
 
 const (
@@ -63,17 +64,36 @@ type AdminServiceInterface interface {
 	DeleteUser(
 		ctx context.Context, actingAdminID, targetID string, isInstanceAdmin InstanceAdminPredicate,
 	) (deletedEmail string, deleted bool, err error)
+	// CreateUser creates a user and publishes `user.created` so the personal
+	// workspace and default project are provisioned by the same listener
+	// self-signup uses. Returns *ErrAdminUserEmailTaken (handler: 409) when the
+	// email is already registered.
+	CreateUser(ctx context.Context, req AdminUserCreateRequest) (*models.AdminUserDetail, error)
 }
 
 // AdminService implements AdminServiceInterface.
+//
+// userRepo and eventPublisher exist only for user CREATION (#462): a new user
+// must be provisioned by the same `user.created` listener self-signup uses, so
+// this service needs to write the users row and publish that event. Everything
+// else goes through adminRepo. Both may be nil in a read-only wiring; CreateUser
+// reports a clear error rather than panicking.
 type AdminService struct {
-	adminRepo repositories.AdminRepository
+	adminRepo      repositories.AdminRepository
+	userRepo       repositories.UserRepository
+	eventPublisher events.EventPublisher
 }
 
 // NewAdminService creates a new AdminService.
-func NewAdminService(adminRepo repositories.AdminRepository) AdminServiceInterface {
+func NewAdminService(
+	adminRepo repositories.AdminRepository,
+	userRepo repositories.UserRepository,
+	eventPublisher events.EventPublisher,
+) AdminServiceInterface {
 	return &AdminService{
-		adminRepo: adminRepo,
+		adminRepo:      adminRepo,
+		userRepo:       userRepo,
+		eventPublisher: eventPublisher,
 	}
 }
 

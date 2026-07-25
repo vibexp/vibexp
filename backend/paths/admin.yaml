@@ -38,6 +38,70 @@ api-v1-admin-stats:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
 
 api-v1-admin-users:
+  post:
+    summary: Create an instance user
+    description: |
+      Creates a user account directly, without waiting for them to complete an
+      identity-provider sign-in.
+
+      The account is provisioned exactly like a self-signup: it gets a personal
+      "Private Workspace" team (owner membership, set as the user's default team)
+      and a default project. That provisioning is driven by the same
+      `user.created` event the sign-in path publishes, and it is handled
+      ASYNCHRONOUSLY — so the personal workspace may appear a moment after this
+      operation returns 201, exactly as it does for a self-signup. If the event
+      cannot be published at all, the user is not created and this returns 500,
+      so an unprovisioned account is never left behind.
+
+      No password is set (VibeXP has no password provider); the account's owner
+      signs in through the configured identity provider. Instance-admin rights
+      are config-only and cannot be granted here.
+
+      A duplicate email returns 409 and creates nothing. Instance-admin only;
+      non-admin and unauthenticated requests receive 404.
+    operationId: createAdminUser
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/AdminUserCreateRequest'
+    responses:
+      '201':
+        description: The created user
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminUserDetail'
+      '400':
+        description: Bad request — missing or malformed email/name, or an unknown field
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: Conflict — a user with that email already exists; nothing was created
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
   get:
     summary: List instance users
     description: |

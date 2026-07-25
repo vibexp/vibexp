@@ -47,6 +47,11 @@ type adminGuardedBody struct {
 
 var adminGuardedBodies = []adminGuardedBody{
 	{
+		method:   http.MethodPost,
+		path:     regexp.MustCompile(`^/api/v1/admin/users$`),
+		bodyType: admingen.AdminUserCreateRequest{},
+	},
+	{
 		method:   http.MethodPatch,
 		path:     regexp.MustCompile(`^/api/v1/admin/users/[^/]+$`),
 		bodyType: admingen.AdminUserUpdateRequest{},

@@ -36,6 +36,11 @@ var (
 	// row exists for the given identifier. Callers can distinguish a genuine missing user
 	// from a transient DB error by checking errors.Is(err, repositories.ErrUserNotFound).
 	ErrUserNotFound = errors.New("user not found")
+	// ErrUserEmailTaken is returned by UserRepository.Create when the email is
+	// already registered. It maps the users_email_key unique violation into a
+	// domain error, so callers can answer 409 without importing lib/pq or
+	// re-checking with a second query that a concurrent insert could invalidate.
+	ErrUserEmailTaken = errors.New("user email already registered")
 
 	// ErrProjectSlugExists is returned by ProjectRepository.Create when a project
 	// with the same slug already exists in the team (Postgres unique violation 23505).
@@ -298,6 +303,12 @@ type UserRepository interface {
 	// GetNamesByIDs returns a map of userID → display name (or email when name is blank)
 	// for the given set of IDs. Unknown IDs are silently omitted from the result.
 	GetNamesByIDs(ctx context.Context, ids []string) (map[string]string, error)
+	// DeleteByID removes a user row. It exists for compensating rollback: admin
+	// user creation (#462) deletes the row it just inserted when publishing
+	// `user.created` fails, so an unprovisioned account is never left behind.
+	// It is NOT the admin-facing delete — that one is guarded (see #455) because a
+	// user with data cascades far more widely.
+	DeleteByID(ctx context.Context, userID string) error
 }
 
 // TeamRepository defines the interface for team data access operations

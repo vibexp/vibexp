@@ -820,6 +820,9 @@ components:
       $ref: "./schemas/admin.yaml#/AdminDeleteBlocker"
     AdminUserDeleteBlockedResponse:
       $ref: "./schemas/admin.yaml#/AdminUserDeleteBlockedResponse"
+    # Admin user creation (#462)
+    AdminUserCreateRequest:
+      $ref: "./schemas/admin.yaml#/AdminUserCreateRequest"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):

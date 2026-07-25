@@ -721,3 +721,36 @@ AdminUserDeleteBlockedResponse:
       description: Every shared team blocking the delete.
       items:
         $ref: '#/AdminDeleteBlocker'
+
+# ---------------------------------------------------------------------------
+# Admin user creation (#462)
+# ---------------------------------------------------------------------------
+
+AdminUserCreateRequest:
+  type: object
+  description: |
+    A user to create directly, without waiting for them to complete an
+    identity-provider sign-in. No password is set: VibeXP has no password
+    provider, and the account's owner still signs in through the configured IdP.
+  required:
+    - email
+    - name
+  additionalProperties: false
+  properties:
+    email:
+      type: string
+      format: email
+      description: Must be unique across the instance; a duplicate is a 409.
+      example: "new.user@example.com"
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+      example: "New User"
+    idp_provider:
+      type: string
+      description: |
+        Optional label recording which identity provider this account is expected
+        to sign in with (e.g. "google", "oidc"). Informational only — it does not
+        pre-link an IdP identity, which is established on first sign-in.
+      example: "oidc"

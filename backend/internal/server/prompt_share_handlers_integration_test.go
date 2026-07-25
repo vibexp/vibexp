@@ -130,6 +130,11 @@ func (m *mockUserRepository) GetNamesByIDs(_ context.Context, _ []string) (map[s
 	return map[string]string{}, nil
 }
 
+// DeleteByID satisfies the interface; these tests never delete users.
+func (m *mockUserRepository) DeleteByID(_ context.Context, _ string) error {
+	return nil
+}
+
 // promptShareTestParams describes one prompt-share handler request/assertion
 // round-trip executed by runPromptShareTest.
 type promptShareTestParams struct {
