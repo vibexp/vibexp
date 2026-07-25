@@ -160,6 +160,7 @@ const (
 	// user_id; the affected account is the entity_id.
 	ActivityTypeAdminUserSuspended   = "admin_user_suspended"
 	ActivityTypeAdminUserReactivated = "admin_user_reactivated"
+	ActivityTypeAdminUserCreated     = "admin_user_created"
 	ActivityTypeAdminUserUpdated     = "admin_user_updated"
 	// ActivityTypeAdminUserDeleted is recorded against the ACTING ADMIN, never
 	// the deleted user: an activities row owned by the target would cascade away

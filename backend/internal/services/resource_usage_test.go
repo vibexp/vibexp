@@ -142,6 +142,11 @@ func (m *mockUserRepo) GetNamesByIDs(_ context.Context, _ []string) (map[string]
 	return map[string]string{}, nil
 }
 
+// DeleteByID satisfies the interface; these tests never delete users.
+func (m *mockUserRepo) DeleteByID(_ context.Context, _ string) error {
+	return nil
+}
+
 type mockPromptRepo struct {
 	mock.Mock
 }

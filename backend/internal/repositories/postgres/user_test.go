@@ -3,15 +3,19 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/database"
 	"github.com/vibexp/vibexp/internal/models"
+	"github.com/vibexp/vibexp/internal/repositories"
 )
 
 func setupUserTest(t *testing.T) (*UserRepository, sqlmock.Sqlmock, *sql.DB) {
@@ -1188,6 +1192,90 @@ func TestUserRepository_UpdateSubscriptionWithCancellation(t *testing.T) {
 			}
 
 			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+// TestUserRepository_Create_DuplicateEmailIsDomainError pins the mapping that
+// lets admin user creation answer 409 instead of 500. The unique constraint is
+// the only place two concurrent inserts are actually serialized, so this — not a
+// pre-check — is what makes the conflict reliable.
+func TestUserRepository_Create_DuplicateEmailIsDomainError(t *testing.T) {
+	repo, mock, mockDB := setupUserTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`INSERT INTO users`).
+		WillReturnError(&pq.Error{Code: "23505", Constraint: "users_email_key"})
+
+	err := repo.Create(context.Background(), &models.User{
+		Email: "taken@example.com", Name: "Someone",
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, repositories.ErrUserEmailTaken,
+		"a 23505 unique violation must surface as ErrUserEmailTaken so callers can 409")
+	assert.Contains(t, err.Error(), "taken@example.com")
+}
+
+// TestUserRepository_Create_OtherErrorsAreNotConflicts keeps a genuine failure
+// from being misreported as a duplicate email.
+func TestUserRepository_Create_OtherErrorsAreNotConflicts(t *testing.T) {
+	repo, mock, mockDB := setupUserTest(t)
+	defer func() {
+		if closeErr := mockDB.Close(); closeErr != nil {
+			t.Logf("Failed to close mock DB: %v", closeErr)
+		}
+	}()
+
+	mock.ExpectQuery(`INSERT INTO users`).WillReturnError(errors.New("connection reset"))
+
+	err := repo.Create(context.Background(), &models.User{Email: "a@example.com", Name: "A"})
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, repositories.ErrUserEmailTaken)
+}
+
+// TestUserRepository_DeleteByID covers the compensating rollback used by admin
+// user creation when publishing `user.created` fails.
+func TestUserRepository_DeleteByID(t *testing.T) {
+	tests := []struct {
+		name    string
+		result  driver.Result
+		execErr error
+		wantErr error
+	}{
+		{name: "deletes", result: sqlmock.NewResult(0, 1)},
+		{name: "no such user", result: sqlmock.NewResult(0, 0), wantErr: repositories.ErrUserNotFound},
+		{name: "exec fails", execErr: errors.New("boom")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, mock, mockDB := setupUserTest(t)
+			defer func() {
+				if closeErr := mockDB.Close(); closeErr != nil {
+					t.Logf("Failed to close mock DB: %v", closeErr)
+				}
+			}()
+
+			exp := mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).WithArgs("u1")
+			if tc.execErr != nil {
+				exp.WillReturnError(tc.execErr)
+			} else {
+				exp.WillReturnResult(tc.result)
+			}
+
+			err := repo.DeleteByID(context.Background(), "u1")
+			switch {
+			case tc.wantErr != nil:
+				require.ErrorIs(t, err, tc.wantErr)
+			case tc.execErr != nil:
+				require.Error(t, err)
+			default:
+				require.NoError(t, err)
+			}
 		})
 	}
 }

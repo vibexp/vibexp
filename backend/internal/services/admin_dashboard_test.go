@@ -200,7 +200,7 @@ func TestGetDashboardTimeseries_GapFillsEmptyRange(t *testing.T) {
 
 	to := time.Now().UTC()
 	from := to.AddDate(0, 0, -6)
-	got, err := NewAdminService(repo).GetDashboardTimeseries(context.Background(), AdminTimeseriesQuery{
+	got, err := newReadOnlyAdminService(repo).GetDashboardTimeseries(context.Background(), AdminTimeseriesQuery{
 		From: &from, To: &to,
 	}, models.AdminDataWindow{})
 	require.NoError(t, err)
@@ -280,7 +280,7 @@ func TestFillSources_OneLinePerObservedSource(t *testing.T) {
 func TestGetDashboardTimeseries_InvalidRangeSkipsRepository(t *testing.T) {
 	repo := repomocks.NewMockAdminRepository(t)
 
-	_, err := NewAdminService(repo).GetDashboardTimeseries(context.Background(), AdminTimeseriesQuery{
+	_, err := newReadOnlyAdminService(repo).GetDashboardTimeseries(context.Background(), AdminTimeseriesQuery{
 		Granularity: "century",
 	}, models.AdminDataWindow{})
 
@@ -306,7 +306,7 @@ func TestGetDashboardOverview_Composes(t *testing.T) {
 	repo.On("GetEntityBreakdowns", mock.Anything).Return(breakdowns, nil)
 	repo.On("GetSystemHealth", mock.Anything).Return(health, nil)
 
-	got, err := NewAdminService(repo).GetDashboardOverview(context.Background(), "1.2.3")
+	got, err := newReadOnlyAdminService(repo).GetDashboardOverview(context.Background(), "1.2.3")
 	require.NoError(t, err)
 	assert.Equal(t, counts, got.Counts)
 	assert.Equal(t, breakdowns, got.Breakdowns)
@@ -351,7 +351,7 @@ func TestGetDashboardOverview_PropagatesErrors(t *testing.T) {
 			repo := repomocks.NewMockAdminRepository(t)
 			tc.setup(repo)
 
-			_, err := NewAdminService(repo).GetDashboardOverview(context.Background(), "dev")
+			_, err := newReadOnlyAdminService(repo).GetDashboardOverview(context.Background(), "dev")
 			require.Error(t, err)
 		})
 	}
@@ -404,7 +404,7 @@ func TestGetDashboardTimeseries_PropagatesSeriesErrors(t *testing.T) {
 			repo := repomocks.NewMockAdminRepository(t)
 			tc.setup(repo)
 
-			_, err := NewAdminService(repo).GetDashboardTimeseries(
+			_, err := newReadOnlyAdminService(repo).GetDashboardTimeseries(
 				context.Background(), AdminTimeseriesQuery{}, models.AdminDataWindow{},
 			)
 			require.Error(t, err)

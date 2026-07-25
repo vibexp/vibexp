@@ -20,7 +20,7 @@ func TestAdminService_GetInstanceCounts(t *testing.T) {
 	repo := repomocks.NewMockAdminRepository(t)
 	repo.On("GetInstanceCounts", mock.Anything).Return(want, nil)
 
-	got, err := NewAdminService(repo).GetInstanceCounts(context.Background())
+	got, err := newReadOnlyAdminService(repo).GetInstanceCounts(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }
@@ -29,7 +29,7 @@ func TestAdminService_GetInstanceCounts_Error(t *testing.T) {
 	repo := repomocks.NewMockAdminRepository(t)
 	repo.On("GetInstanceCounts", mock.Anything).Return(models.InstanceCounts{}, errors.New("boom"))
 
-	_, err := NewAdminService(repo).GetInstanceCounts(context.Background())
+	_, err := newReadOnlyAdminService(repo).GetInstanceCounts(context.Background())
 	require.Error(t, err)
 }
 
@@ -39,7 +39,7 @@ func TestAdminService_ListUsers_ClampsAndComputesPages(t *testing.T) {
 	repo.On("ListUsers", mock.Anything, repositories.AdminUserFilters{Page: 1, Limit: 20}).
 		Return([]models.AdminUserListItem{{ID: "u1"}}, 45, nil)
 
-	got, err := NewAdminService(repo).ListUsers(context.Background(), repositories.AdminUserFilters{})
+	got, err := newReadOnlyAdminService(repo).ListUsers(context.Background(), repositories.AdminUserFilters{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, got.Page)
 	assert.Equal(t, 20, got.PerPage)
@@ -66,7 +66,7 @@ func TestAdminService_ListUsers_ForwardsFiltersAndPagesFilteredTotal(t *testing.
 	repo.On("ListUsers", mock.Anything, want).
 		Return([]models.AdminUserListItem{{ID: "u1"}}, 3, nil)
 
-	got, err := NewAdminService(repo).ListUsers(context.Background(), repositories.AdminUserFilters{
+	got, err := newReadOnlyAdminService(repo).ListUsers(context.Background(), repositories.AdminUserFilters{
 		Search: &search, IDPProvider: &idp, CreatedFrom: &from, CreatedTo: &to,
 		SortBy: "email", SortOrder: "asc", Page: 0, Limit: 0,
 	})
@@ -89,7 +89,7 @@ func TestAdminService_ListTeams_ForwardsFilters(t *testing.T) {
 	repo.On("ListTeams", mock.Anything, want).
 		Return([]models.AdminTeamListItem{{ID: "t1"}}, 1, nil)
 
-	got, err := NewAdminService(repo).ListTeams(context.Background(), repositories.AdminTeamFilters{
+	got, err := newReadOnlyAdminService(repo).ListTeams(context.Background(), repositories.AdminTeamFilters{
 		Search: &search, IsPersonal: &isPersonal,
 		SortBy: "member_count", SortOrder: "desc",
 	})
@@ -104,7 +104,7 @@ func TestAdminService_ListUsers_LimitCapped(t *testing.T) {
 	repo.On("ListUsers", mock.Anything, repositories.AdminUserFilters{Page: 2, Limit: 100}).
 		Return([]models.AdminUserListItem{}, 0, nil)
 
-	got, err := NewAdminService(repo).ListUsers(context.Background(), repositories.AdminUserFilters{Page: 2, Limit: 500})
+	got, err := newReadOnlyAdminService(repo).ListUsers(context.Background(), repositories.AdminUserFilters{Page: 2, Limit: 500})
 	require.NoError(t, err)
 	assert.Equal(t, 100, got.PerPage)
 	assert.Equal(t, 0, got.TotalPages)
@@ -115,7 +115,7 @@ func TestAdminService_ListUsers_Error(t *testing.T) {
 	repo.On("ListUsers", mock.Anything, repositories.AdminUserFilters{Page: 1, Limit: 20}).
 		Return(nil, 0, errors.New("boom"))
 
-	_, err := NewAdminService(repo).ListUsers(context.Background(), repositories.AdminUserFilters{Page: 1, Limit: 20})
+	_, err := newReadOnlyAdminService(repo).ListUsers(context.Background(), repositories.AdminUserFilters{Page: 1, Limit: 20})
 	require.Error(t, err)
 }
 
@@ -124,7 +124,7 @@ func TestAdminService_GetUserDetail(t *testing.T) {
 	want := &models.AdminUserDetail{ID: "u1", Memberships: []models.AdminTeamMembership{}}
 	repo.On("GetUserDetail", mock.Anything, "u1").Return(want, nil)
 
-	got, err := NewAdminService(repo).GetUserDetail(context.Background(), "u1")
+	got, err := newReadOnlyAdminService(repo).GetUserDetail(context.Background(), "u1")
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }
@@ -134,7 +134,7 @@ func TestAdminService_ListTeams_ClampsAndComputesPages(t *testing.T) {
 	repo.On("ListTeams", mock.Anything, repositories.AdminTeamFilters{Page: 1, Limit: 20}).
 		Return([]models.AdminTeamListItem{{ID: "t1"}}, 21, nil)
 
-	got, err := NewAdminService(repo).ListTeams(context.Background(), repositories.AdminTeamFilters{})
+	got, err := newReadOnlyAdminService(repo).ListTeams(context.Background(), repositories.AdminTeamFilters{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, got.Page)
 	assert.Equal(t, 20, got.PerPage)
@@ -148,7 +148,7 @@ func TestAdminService_ListTeams_Error(t *testing.T) {
 	repo.On("ListTeams", mock.Anything, repositories.AdminTeamFilters{Page: 1, Limit: 20}).
 		Return(nil, 0, errors.New("boom"))
 
-	_, err := NewAdminService(repo).ListTeams(context.Background(), repositories.AdminTeamFilters{Page: 1, Limit: 20})
+	_, err := newReadOnlyAdminService(repo).ListTeams(context.Background(), repositories.AdminTeamFilters{Page: 1, Limit: 20})
 	require.Error(t, err)
 }
 
@@ -157,7 +157,15 @@ func TestAdminService_GetTeamDetail(t *testing.T) {
 	want := &models.AdminTeamDetail{ID: "t1", Members: []models.AdminTeamMember{}}
 	repo.On("GetTeamDetail", mock.Anything, "t1").Return(want, nil)
 
-	got, err := NewAdminService(repo).GetTeamDetail(context.Background(), "t1")
+	got, err := newReadOnlyAdminService(repo).GetTeamDetail(context.Background(), "t1")
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
+}
+
+// newReadOnlyAdminService builds an AdminService for the read paths, which need
+// no user repository or event publisher — those two exist solely for user
+// CREATION (#462). CreateUser rejects a nil wiring explicitly rather than
+// panicking, and TestCreateUser_UnwiredDependencies covers that.
+func newReadOnlyAdminService(repo repositories.AdminRepository) AdminServiceInterface {
+	return NewAdminService(repo, nil, nil)
 }

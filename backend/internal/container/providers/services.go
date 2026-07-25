@@ -461,10 +461,16 @@ func ProvideBackofficeService(
 }
 
 // ProvideAdminService creates a new AdminService
+// It takes the user repository and the event publisher because admin user
+// creation (#462) must publish the same `user.created` event as self-signup, so
+// the personal workspace and default project are provisioned by one listener
+// rather than by two code paths that can drift.
 func ProvideAdminService(
 	adminRepo repositories.AdminRepository,
+	userRepo repositories.UserRepository,
+	eventManager events.EventPublisher,
 ) services.AdminServiceInterface {
-	return services.NewAdminService(adminRepo)
+	return services.NewAdminService(adminRepo, userRepo, eventManager)
 }
 
 // ProvideEmbeddingBackfillService creates a new EmbeddingBackfillService that

@@ -127,6 +127,13 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 		&user.OnboardingCompleted, &user.OnboardingCompletedAt, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
+		// A duplicate email is a client-correctable conflict, not a server fault:
+		// surface it as a domain error so callers answer 409. Doing it here rather
+		// than pre-checking in a service is also race-proof — the constraint is
+		// the only place two concurrent inserts are actually serialized.
+		if uniqueViolation(err) != nil {
+			return fmt.Errorf("%w: %s", repositories.ErrUserEmailTaken, user.Email)
+		}
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
@@ -393,4 +400,25 @@ func scanUserNameRows(rows interface {
 		return nil, fmt.Errorf("iterate user name rows: %w", err)
 	}
 	return result, nil
+}
+
+// DeleteByID removes a user row. See the interface doc: this is the compensating
+// rollback for admin user creation, not the guarded admin delete.
+//
+// Deleting a user cascades widely (teams the user owns, and through them their
+// members' data), which is safe HERE only because the caller uses it on a row it
+// has just inserted and which therefore owns nothing yet.
+func (r *UserRepository) DeleteByID(ctx context.Context, userID string) error {
+	result, err := r.db.ExecContext(ctx, "DELETE FROM users WHERE id = $1", userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to read affected rows for user delete: %w", err)
+	}
+	if affected == 0 {
+		return repositories.ErrUserNotFound
+	}
+	return nil
 }

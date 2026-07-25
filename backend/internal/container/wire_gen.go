@@ -189,7 +189,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	environmentService := providers.ProvideEnvironmentService(cfg)
 	usageAndGrowthGetter := providers.ProvideBackofficeService(backofficeRepository)
 	adminRepository := providers.ProvideAdminRepository(db)
-	adminServiceInterface := providers.ProvideAdminService(adminRepository)
+	adminServiceInterface := providers.ProvideAdminService(adminRepository, userRepository, eventManager)
 	embeddingBackfillRepository := providers.ProvideEmbeddingBackfillRepository(db)
 	embeddingBackfiller := providers.ProvideEmbeddingBackfillService(embeddingBackfillRepository, eventManager, promptServiceInterface, logger)
 	embeddingCoverageGetter := providers.ProvideEmbeddingStatusService(embeddingProviderRepository, embeddingBackfillRepository, logger)

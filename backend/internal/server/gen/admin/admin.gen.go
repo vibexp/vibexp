@@ -462,6 +462,20 @@ type AdminTimeseriesResponse struct {
 // AdminTimeseriesResponseGranularity Bucket size actually used.
 type AdminTimeseriesResponseGranularity string
 
+// AdminUserCreateRequest A user to create directly, without waiting for them to complete an
+// identity-provider sign-in. No password is set: VibeXP has no password
+// provider, and the account's owner still signs in through the configured IdP.
+type AdminUserCreateRequest struct {
+	// Email Must be unique across the instance; a duplicate is a 409.
+	Email openapi_types.Email `json:"email"`
+
+	// IdpProvider Optional label recording which identity provider this account is expected
+	// to sign in with (e.g. "google", "oidc"). Informational only — it does not
+	// pre-link an IdP identity, which is established on first sign-in.
+	IdpProvider *string `json:"idp_provider,omitempty"`
+	Name        string  `json:"name"`
+}
+
 // AdminUserDeleteBlockedResponse Returned with 409 when a hard delete is refused. NOTHING was deleted: the
 // user and every listed team still exist.
 type AdminUserDeleteBlockedResponse struct {
@@ -695,6 +709,9 @@ type ListAdminUsersParamsSortBy string
 // ListAdminUsersParamsSortOrder defines parameters for ListAdminUsers.
 type ListAdminUsersParamsSortOrder string
 
+// CreateAdminUserJSONRequestBody defines body for CreateAdminUser for application/json ContentType.
+type CreateAdminUserJSONRequestBody = AdminUserCreateRequest
+
 // UpdateAdminUserJSONRequestBody defines body for UpdateAdminUser for application/json ContentType.
 type UpdateAdminUserJSONRequestBody = AdminUserUpdateRequest
 
@@ -718,6 +735,9 @@ type ServerInterface interface {
 	// List instance users
 	// (GET /api/v1/admin/users)
 	ListAdminUsers(w http.ResponseWriter, r *http.Request, params ListAdminUsersParams)
+	// Create an instance user
+	// (POST /api/v1/admin/users)
+	CreateAdminUser(w http.ResponseWriter, r *http.Request)
 	// Delete an instance user
 	// (DELETE /api/v1/admin/users/{id})
 	DeleteAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -772,6 +792,12 @@ func (_ Unimplemented) GetAdminTeam(w http.ResponseWriter, r *http.Request, id o
 // List instance users
 // (GET /api/v1/admin/users)
 func (_ Unimplemented) ListAdminUsers(w http.ResponseWriter, r *http.Request, params ListAdminUsersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create an instance user
+// (POST /api/v1/admin/users)
+func (_ Unimplemented) CreateAdminUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1236,6 +1262,28 @@ func (siw *ServerInterfaceWrapper) ListAdminUsers(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// CreateAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAdminUser(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteAdminUser operation middleware
 func (siw *ServerInterfaceWrapper) DeleteAdminUser(w http.ResponseWriter, r *http.Request) {
 
@@ -1536,6 +1584,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/users", wrapper.ListAdminUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/admin/users", wrapper.CreateAdminUser)
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v1/admin/users/{id}", wrapper.DeleteAdminUser)
@@ -1896,6 +1947,84 @@ func (response ListAdminUsers500ApplicationProblemPlusJSONResponse) VisitListAdm
 	return err
 }
 
+type CreateAdminUserRequestObject struct {
+	Body *CreateAdminUserJSONRequestBody
+}
+
+type CreateAdminUserResponseObject interface {
+	VisitCreateAdminUserResponse(w http.ResponseWriter) error
+}
+
+type CreateAdminUser201JSONResponse AdminUserDetail
+
+func (response CreateAdminUser201JSONResponse) VisitCreateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdminUser400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateAdminUser400ApplicationProblemPlusJSONResponse) VisitCreateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdminUser404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateAdminUser404ApplicationProblemPlusJSONResponse) VisitCreateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdminUser409ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateAdminUser409ApplicationProblemPlusJSONResponse) VisitCreateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAdminUser500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response CreateAdminUser500ApplicationProblemPlusJSONResponse) VisitCreateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteAdminUserRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -2245,6 +2374,9 @@ type StrictServerInterface interface {
 	// List instance users
 	// (GET /api/v1/admin/users)
 	ListAdminUsers(ctx context.Context, request ListAdminUsersRequestObject) (ListAdminUsersResponseObject, error)
+	// Create an instance user
+	// (POST /api/v1/admin/users)
+	CreateAdminUser(ctx context.Context, request CreateAdminUserRequestObject) (CreateAdminUserResponseObject, error)
 	// Delete an instance user
 	// (DELETE /api/v1/admin/users/{id})
 	DeleteAdminUser(ctx context.Context, request DeleteAdminUserRequestObject) (DeleteAdminUserResponseObject, error)
@@ -2436,6 +2568,37 @@ func (sh *strictHandler) ListAdminUsers(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminUsersResponseObject); ok {
 		if err := validResponse.VisitListAdminUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateAdminUser operation middleware
+func (sh *strictHandler) CreateAdminUser(w http.ResponseWriter, r *http.Request) {
+	var request CreateAdminUserRequestObject
+
+	var body CreateAdminUserJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateAdminUser(ctx, request.(CreateAdminUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateAdminUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAdminUserResponseObject); ok {
+		if err := validResponse.VisitCreateAdminUserResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
