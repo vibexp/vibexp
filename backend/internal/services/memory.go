@@ -50,9 +50,7 @@ func NewMemoryService(
 }
 
 type MemoryFilters struct {
-	Search        string
-	MetadataKey   *string
-	MetadataValue *string
+	Search string
 	// MetadataFilter is the parsed `metadata` query parameter (epic #519).
 	MetadataFilter repositories.MetadataFilter
 	Status         *string
@@ -129,8 +127,6 @@ func (s *MemoryService) ListMemories(userID string, filters MemoryFilters) (*mod
 
 	repoFilters := repositories.MemoryFilters{
 		Search:         filters.Search,
-		MetadataKey:    filters.MetadataKey,
-		MetadataValue:  filters.MetadataValue,
 		MetadataFilter: filters.MetadataFilter,
 		Status:         filters.Status,
 		TeamID:         filters.TeamID,
@@ -371,43 +367,4 @@ func (s *MemoryService) deleteMemoryRelations(ctx context.Context, teamID, memor
 			"error", fmt.Sprintf("%+v", err),
 		).Warn("Failed to delete relations for deleted memory")
 	}
-}
-
-func (s *MemoryService) SearchMemoriesByMetadata(
-	userID, metadataKey, metadataValue string, filters MemoryFilters,
-) (*models.MemoryListResponse, error) {
-	ctx := context.Background()
-
-	if filters.Page == 0 {
-		filters.Page = 1
-	}
-	if filters.Limit == 0 {
-		filters.Limit = 50
-	}
-
-	repoFilters := repositories.MemoryFilters{
-		Search:    filters.Search,
-		Status:    filters.Status,
-		TeamID:    filters.TeamID,
-		ProjectID: filters.ProjectID,
-		SortBy:    filters.SortBy,
-		SortOrder: filters.SortOrder,
-		Page:      filters.Page,
-		Limit:     filters.Limit,
-	}
-
-	memories, totalCount, err := s.repo.SearchByMetadata(ctx, userID, metadataKey, metadataValue, repoFilters)
-	if err != nil {
-		return nil, err
-	}
-
-	totalPages := int(math.Ceil(float64(totalCount) / float64(filters.Limit)))
-
-	return &models.MemoryListResponse{
-		Memories:   memories,
-		TotalCount: totalCount,
-		Page:       filters.Page,
-		PerPage:    filters.Limit,
-		TotalPages: totalPages,
-	}, nil
 }

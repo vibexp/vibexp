@@ -15,44 +15,43 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import {
-  buildMemoriesColumns,
-  extractTags,
-} from '@/pages/memories/memoriesColumns'
+import { useResourceListFilters } from '@/hooks/useResourceListFilters'
+import { useResourceListQuery } from '@/hooks/useResourceListQuery'
+import { buildMemoriesColumns } from '@/pages/memories/memoriesColumns'
 import { MemoryFilters } from '@/pages/memories/MemoryFilters'
-import type {
-  Memory,
-  MemoryFilters as MemoryFiltersType,
-} from '@/services/memoryService'
+import { MEMORY_STATUS_OPTIONS } from '@/pages/memories/memoryStatus'
+import type { Memory, MemoryStatus } from '@/services/memoryService'
 import { memoryService } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import { getErrorMessage } from '@/utils/errorHandling'
 
-interface MemoriesState {
-  memories: Memory[]
-  loading: boolean
-  error: string | null
-  totalPages: number
-  currentPage: number
-  total: number
+const PAGE_SIZE = 20
+
+/**
+ * Filter defaults. Every value here is omitted from the URL, so an unfiltered
+ * page has a clean address bar (see `useUrlFilters`).
+ *
+ * `project_id` is deliberately absent: it comes from the global header project
+ * selector, not this page's filter bar, so it is neither page-shareable nor
+ * something `Clear filters` could clear.
+ */
+const FILTER_DEFAULTS = {
+  page: '1',
+  search: '',
+  status: 'all',
+  metadata: '',
+  sort_order: 'desc',
 }
 
-function emptyStateDescription(
-  filters: MemoryFiltersType,
-  currentProject: { name: string } | null | undefined
-): string {
-  if (filters.search && filters.project_id) {
-    return 'Try a different search term or clear the filters.'
-  }
-  if (filters.project_id && currentProject) {
-    return `No memories in ${currentProject.name}. Create one to get started.`
-  }
-  if (filters.search || filters.project_id || filters.status) {
-    return 'Try a different search term or clear the filters.'
-  }
-  return 'Create your first memory to save insights, snippets, or notes.'
+/**
+ * The API rejects a `status` outside its enum with a 400, so the page must not
+ * forward whatever the URL happens to contain.
+ */
+function coerceStatus(value: string): MemoryStatus | undefined {
+  return MEMORY_STATUS_OPTIONS.some(option => option.value === value)
+    ? (value as MemoryStatus)
+    : undefined
 }
 
 export function Memories() {
@@ -64,59 +63,79 @@ export function Memories() {
   const { handleError } = useErrorHandler()
   const { trackEvent } = useAnalytics()
 
-  const [state, setState] = useState<MemoriesState>({
-    memories: [],
-    loading: true,
-    error: null,
-    totalPages: 0,
-    currentPage: 1,
-    total: 0,
+  const handleLoadError = useCallback(
+    (error: unknown) => {
+      handleError(error, 'Failed to load memories')
+    },
+    [handleError]
+  )
+
+  const projectId = currentProject?.id
+
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    page,
+    setPage,
+    sortOrder,
+    metadata,
+    metadataParam,
+    setMetadata,
+    hasActiveFilters,
+    handleClear,
+  } = useResourceListFilters({
+    defaults: FILTER_DEFAULTS,
+    filterKeys: ['status'],
+    projectId,
+    isProjectLoading,
   })
 
-  const [filters, setFilters] = useState<MemoryFiltersType>(() => ({
-    search: '',
-    sort_by: 'updated_at',
-    sort_order: 'desc',
-    page: 1,
-    limit: 20,
-    project_id: currentProject?.id,
-  }))
-  const [searchInput, setSearchInput] = useState('')
-  const [selectedTag, setSelectedTag] = useState<string | undefined>()
   const [projects, setProjects] = useState<Project[]>([])
   const [memoryToDelete, setMemoryToDelete] = useState<Memory | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // Bumped after a delete to re-run the fetch without duplicating it.
+  const [reloadToken, setReloadToken] = useState(0)
 
-  const fetchMemories = useCallback(
-    async (currentFilters: MemoryFiltersType) => {
-      // Wait for a persisted project selection to restore, so the first fetch
-      // is already scoped instead of flashing unfiltered results.
-      if (!currentTeam || isProjectLoading) return
-      setState(prev => ({ ...prev, loading: true, error: null }))
-      const response = await memoryService.getMemories(
-        currentTeam.id,
-        currentFilters
-      )
-      const memories = Array.isArray(response.memories) ? response.memories : []
-      setState(prev => ({
-        ...prev,
-        memories,
-        totalPages: response.total_pages,
-        currentPage: currentFilters.page ?? 1,
-        total: response.total_count,
-        loading: false,
-      }))
-    },
-    [currentTeam, isProjectLoading]
-  )
+  const status =
+    filters.status === 'all' ? undefined : coerceStatus(filters.status)
 
-  useEffect(() => {
-    fetchMemories(filters).catch((error: unknown) => {
-      const errorMessage = getErrorMessage(error, 'Failed to fetch memories')
-      setState(prev => ({ ...prev, loading: false, error: errorMessage }))
-      handleError(error, 'Failed to load memories')
+  const load = useCallback(async () => {
+    const response = await memoryService.getMemories(currentTeam?.id ?? '', {
+      page,
+      limit: PAGE_SIZE,
+      search: filters.search || undefined,
+      status,
+      metadata: metadataParam,
+      project_id: projectId,
+      sort_by: 'updated_at',
+      sort_order: sortOrder,
     })
-  }, [fetchMemories, filters, handleError])
+    return {
+      items: Array.isArray(response.memories) ? response.memories : [],
+      totalPages: response.total_pages,
+      total: response.total_count,
+    }
+  }, [
+    currentTeam?.id,
+    page,
+    filters.search,
+    status,
+    metadataParam,
+    projectId,
+    sortOrder,
+  ])
+
+  const state = useResourceListQuery({
+    // Wait for a persisted project selection to restore, so the first fetch is
+    // already scoped instead of flashing unfiltered results.
+    ready: !!currentTeam && !isProjectLoading,
+    load,
+    reloadToken,
+    errorFallback: 'Failed to fetch memories',
+    onError: handleLoadError,
+  })
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -134,19 +153,6 @@ export function Memories() {
   }, [currentTeam, handleError])
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setFilters(prev =>
-        prev.search === searchInput
-          ? prev
-          : { ...prev, search: searchInput, page: 1 }
-      )
-    }, 500)
-    return () => {
-      clearTimeout(timeout)
-    }
-  }, [searchInput])
-
-  useEffect(() => {
     trackEvent({
       event: ANALYTICS_EVENTS.MEMORIES_PAGE_VIEW,
       properties: { action_context: 'view' },
@@ -158,7 +164,7 @@ export function Memories() {
     try {
       setDeleting(true)
       await memoryService.deleteMemory(currentTeam.id, memoryToDelete.id)
-      void fetchMemories(filters)
+      setReloadToken(token => token + 1)
       showSuccess('Memory deleted successfully', 'Success')
     } catch (error) {
       handleError(error, 'Failed to delete memory')
@@ -168,63 +174,16 @@ export function Memories() {
     }
   }
 
-  const hasAnyTags = useMemo(
-    () => state.memories.some(m => extractTags(m.metadata).length > 0),
-    [state.memories]
+  const handleSortChange = useCallback(
+    (key: 'updated_at') => {
+      // Only one sortable column today, so a click always flips direction.
+      setFilters({
+        sort_by: key,
+        sort_order: sortOrder === 'asc' ? 'desc' : 'asc',
+      })
+    },
+    [setFilters, sortOrder]
   )
-
-  const allTags = useMemo(
-    () =>
-      Array.from(
-        new Set(state.memories.flatMap(m => extractTags(m.metadata)))
-      ).sort((a, b) => a.localeCompare(b)),
-    [state.memories]
-  )
-
-  useEffect(() => {
-    if (selectedTag && !allTags.includes(selectedTag)) {
-      setSelectedTag(undefined)
-    }
-  }, [allTags, selectedTag])
-
-  // Keep the list scoped to the globally selected project (header selector);
-  // ProjectContext already resets the selection on team change.
-  const projectId = currentProject?.id
-  useEffect(() => {
-    setFilters(prev =>
-      prev.project_id === projectId
-        ? prev
-        : { ...prev, project_id: projectId, page: 1 }
-    )
-  }, [projectId])
-
-  const displayedMemories = useMemo(
-    () =>
-      selectedTag
-        ? state.memories.filter(m =>
-            extractTags(m.metadata).includes(selectedTag)
-          )
-        : state.memories,
-    [state.memories, selectedTag]
-  )
-
-  // The memories table only exposes `updated_at` sorting (sortableKeys below), so
-  // narrow the widened generated sort_by union to it.
-  const sortKey = (filters.sort_by ?? 'updated_at') as 'updated_at'
-  const sortDir = filters.sort_order ?? 'desc'
-
-  const handleSortChange = useCallback((key: 'updated_at') => {
-    setFilters(prev => {
-      if (key === prev.sort_by) {
-        return {
-          ...prev,
-          sort_order: prev.sort_order === 'asc' ? 'desc' : 'asc',
-          page: 1,
-        }
-      }
-      return { ...prev, sort_by: key, sort_order: 'desc', page: 1 }
-    })
-  }, [])
 
   const columns = useMemo(
     () =>
@@ -232,16 +191,19 @@ export function Memories() {
         navigate,
         onDelete: setMemoryToDelete,
         canDelete: memory => canDeleteResource(memory.user_id),
-        includeTags: hasAnyTags,
+        // The tags column is no longer conditional on the loaded page: it used
+        // to hide itself whenever the current page happened to carry no tags,
+        // which made the column flicker while paginating (#518).
+        includeTags: true,
         projects,
       }),
-    [navigate, hasAnyTags, projects, canDeleteResource]
+    [navigate, projects, canDeleteResource]
   )
 
-  const status = listPageStatus(
+  const listStatus = listPageStatus(
     state.loading,
     state.error,
-    state.memories.length === 0
+    state.items.length === 0
   )
 
   return (
@@ -266,71 +228,85 @@ export function Memories() {
           <MemoryFilters
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}
-            tags={allTags}
-            selectedTag={selectedTag}
-            onTagChange={setSelectedTag}
-            status={filters.status}
+            status={status}
             onStatusChange={value => {
-              setFilters(prev => ({ ...prev, status: value, page: 1 }))
+              setFilters({ status: value ?? FILTER_DEFAULTS.status })
             }}
+            metadata={metadata}
+            onMetadataChange={setMetadata}
+            projectId={projectId}
+            onClear={handleClear}
+            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 
         <ListPage.Body
-          status={status}
+          status={listStatus}
           errorTitle="Failed to load memories"
           errorMessage={state.error}
           empty={
-            <EmptyState
-              icon={HardDrive}
-              title={
-                filters.search || filters.project_id || filters.status
-                  ? 'No memories match your filters'
-                  : 'No memories yet'
-              }
-              description={emptyStateDescription(filters, currentProject)}
-              actions={
-                <Button
-                  onClick={() => {
-                    void navigate('/memories/new')
-                  }}
-                >
-                  <Plus className="mr-2 size-4" />
-                  New memory
-                </Button>
-              }
-            />
+            // Two distinct empty states: "nothing exists" is a fact about the
+            // team, "nothing matches" is a fact about the filters, and only the
+            // second one has a way out.
+            hasActiveFilters ? (
+              <EmptyState
+                icon={HardDrive}
+                title="No memories match your filters"
+                description="Try a different search, status or metadata setting."
+                actions={
+                  <Button variant="outline" onClick={handleClear}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={HardDrive}
+                title="No memories yet"
+                description="Create your first memory to save insights, snippets, or notes."
+                actions={
+                  <Button
+                    onClick={() => {
+                      void navigate('/memories/new')
+                    }}
+                  >
+                    <Plus className="mr-2 size-4" />
+                    New memory
+                  </Button>
+                }
+              />
+            )
           }
         >
           <ListTable
-            rows={displayedMemories}
+            rows={state.items}
             columns={columns}
             sortableKeys={['updated_at'] as const}
-            sortKey={sortKey}
-            sortDir={sortDir}
+            sortKey="updated_at"
+            sortDir={sortOrder}
             onSortChange={handleSortChange}
           />
         </ListPage.Body>
 
         <ListPage.Footer
           count={
-            status === 'loading' || status === 'error'
+            listStatus === 'loading' || listStatus === 'error'
               ? undefined
               : {
-                  visible: displayedMemories.length,
+                  // Filtering is server-side now, so the visible count and the
+                  // server total finally describe the same result set (#518).
+                  visible: state.items.length,
                   total: state.total,
                   noun: 'memory',
                   nounPlural: 'memories',
                 }
           }
           pagination={{
-            page: state.currentPage,
+            page,
             totalPages: state.totalPages,
-            onPageChange: page => {
-              setFilters(prev => ({ ...prev, page }))
-            },
+            onPageChange: setPage,
           }}
-          hideCount={status === 'loading'}
+          hideCount={listStatus === 'loading'}
         />
       </ListPage.Container>
 

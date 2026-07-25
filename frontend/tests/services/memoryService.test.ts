@@ -165,44 +165,6 @@ describe('MemoryService', () => {
     })
   })
 
-  describe('searchMemoriesByMetadata', () => {
-    it('requires metadata_key and metadata_value', async () => {
-      await expect(
-        memoryService.searchMemoriesByMetadata(teamId, { search: 'x' })
-      ).rejects.toThrow('metadata_key and metadata_value are required')
-      expect(mockGeneratedClient.GET).not.toHaveBeenCalled()
-    })
-
-    it('queries the metadata-search endpoint with the metadata filters', async () => {
-      mockGeneratedClient.GET.mockReturnValue(success(mockListResponse))
-
-      const result = await memoryService.searchMemoriesByMetadata(teamId, {
-        metadata_key: 'category',
-        metadata_value: 'reminder',
-        search: 'api',
-        page: 1,
-        limit: 20,
-      })
-
-      expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
-        '/api/v1/{team_id}/memories/search',
-        {
-          params: {
-            path: { team_id: teamId },
-            query: {
-              metadata_key: 'category',
-              metadata_value: 'reminder',
-              search: 'api',
-              page: 1,
-              limit: 20,
-            },
-          },
-        }
-      )
-      expect(result).toEqual(mockListResponse)
-    })
-  })
-
   describe('version history', () => {
     const versionList = {
       versions: [

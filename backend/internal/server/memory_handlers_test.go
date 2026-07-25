@@ -29,7 +29,9 @@ func TestMemoryHandlers_Unauthorized(t *testing.T) {
 		{"Update Memory - Unauthorized", "PUT", testPath + "/test-id", http.StatusUnauthorized},
 		{"Delete Memory - Unauthorized", "DELETE", testPath + "/test-id", http.StatusUnauthorized},
 		{
-			"Search Memories by Metadata - Unauthorized",
+			// Auth is enforced before routing, so even a path with no route
+			// (metadata search was removed in #524) must 401, not 404.
+			"Removed search path - Unauthorized",
 			"GET",
 			testPath + "/search",
 			http.StatusUnauthorized,
@@ -209,38 +211,14 @@ func TestMemoryHandlers_QueryParameters(t *testing.T) {
 		},
 		{
 			"List memories with metadata filter", "GET",
-			testPath + "?metadata_key=category&metadata_value=work",
+			testPath + `?metadata={"env":["prod"]}`,
 			http.StatusUnauthorized,
 		},
 		{
 			"List memories with all filters", "GET",
-			testPath + "?page=2&limit=25&search=important&metadata_key=priority&metadata_value=high",
+			testPath + "?page=2&limit=25&search=important",
 			http.StatusUnauthorized,
 		},
-		{
-			"Search by metadata with required params", "GET",
-			testPath + "/search?metadata_key=category&metadata_value=work",
-			http.StatusUnauthorized,
-		},
-		{
-			"Search by metadata with additional search", "GET",
-			testPath + "/search?metadata_key=priority&metadata_value=high&search=project",
-			http.StatusUnauthorized,
-		},
-		{
-			"Search by metadata with pagination", "GET",
-			testPath + "/search?metadata_key=tags&metadata_value=important&page=1&limit=5",
-			http.StatusUnauthorized,
-		},
-		{
-			"Search by metadata missing key", "GET", testPath + "/search?metadata_value=work",
-			http.StatusUnauthorized,
-		},
-		{
-			"Search by metadata missing value", "GET", testPath + "/search?metadata_key=category",
-			http.StatusUnauthorized,
-		},
-		{"Search by metadata with empty params", "GET", testPath + "/search", http.StatusUnauthorized},
 	}
 
 	runQueryParameterTests(t, srv, tests)
@@ -444,7 +422,7 @@ func TestMemoryHandlers_HTTPMethods(t *testing.T) {
 		{"GET to specific memory", "GET", testPath + "/test-id", http.StatusUnauthorized},
 		{"PUT to update endpoint", "PUT", testPath + "/test-id", http.StatusUnauthorized},
 		{"DELETE to delete endpoint", "DELETE", testPath + "/test-id", http.StatusUnauthorized},
-		{"GET to search endpoint", "GET", testPath + "/search", http.StatusUnauthorized},
+		{"GET to a removed path", "GET", testPath + "/search", http.StatusUnauthorized},
 		{"HEAD not allowed on create", "HEAD", testPath, http.StatusUnauthorized},
 		{"OPTIONS not configured", "OPTIONS", testPath, http.StatusUnauthorized}, // CORS preflight
 		{"PATCH not allowed", "PATCH", testPath + "/test-id", http.StatusUnauthorized},

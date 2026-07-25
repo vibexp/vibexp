@@ -815,8 +815,6 @@ type MemoryRepository interface {
 	List(ctx context.Context, userID string, filters MemoryFilters) ([]models.Memory, int, error)
 	Update(ctx context.Context, memory *models.Memory) error
 	Delete(ctx context.Context, userID, teamID, memoryID string) error
-	SearchByMetadata(ctx context.Context, userID string, metadataKey, metadataValue string,
-		filters MemoryFilters) ([]models.Memory, int, error)
 	CountAll(ctx context.Context, userID string) (int, error)
 	// GetNamesByIDsCrossTeam returns a map of memoryID → truncated text for the given IDs visible to
 	// userID, searching across all the user's teams. Unknown or inaccessible IDs are omitted.
@@ -826,10 +824,6 @@ type MemoryRepository interface {
 // MemoryFilters represents filters for memory queries
 type MemoryFilters struct {
 	Search string
-	// MetadataKey and MetadataValue are the legacy single-pair metadata filter.
-	// Superseded by MetadataFilter; removed in #526.
-	MetadataKey   *string
-	MetadataValue *string
 	// MetadataFilter is the JSONB containment filter behind the `metadata`
 	// query parameter: keys ANDed, values within a key ORed.
 	MetadataFilter MetadataFilter

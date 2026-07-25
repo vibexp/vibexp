@@ -368,16 +368,6 @@ func (m *mockMemoryRepo) GetByIDCrossTeam(ctx context.Context, userID, memoryID 
 	return args.Get(0).(*models.Memory), args.Error(1)
 }
 
-func (m *mockMemoryRepo) SearchByMetadata(
-	ctx context.Context,
-	userID string,
-	metadataKey, metadataValue string,
-	filters repositories.MemoryFilters,
-) ([]models.Memory, int, error) {
-	args := m.Called(ctx, userID, metadataKey, metadataValue, filters)
-	return args.Get(0).([]models.Memory), args.Int(1), args.Error(2)
-}
-
 func (m *mockMemoryRepo) CountAll(ctx context.Context, userID string) (int, error) {
 	args := m.Called(ctx, userID)
 	return args.Int(0), args.Error(1)

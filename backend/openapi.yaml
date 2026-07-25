@@ -994,8 +994,6 @@ paths:
     $ref: "./paths/search.yaml#/api-v1-team_id-resource-access-metrics"
   /api/v1/{team_id}/memories:
     $ref: "./paths/memories.yaml#/api-v1-team_id-memories"
-  /api/v1/{team_id}/memories/search:
-    $ref: "./paths/memories.yaml#/api-v1-team_id-memories-search"
   /api/v1/{team_id}/memories/{id}:
     $ref: "./paths/memories.yaml#/api-v1-team_id-memories-id"
   /api/v1/{team_id}/memories/{id}/versions:

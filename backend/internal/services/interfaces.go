@@ -355,8 +355,6 @@ type MemoryServiceInterface interface {
 	ListMemories(userID string, filters MemoryFilters) (*models.MemoryListResponse, error)
 	UpdateMemory(userID, teamID, memoryID string, req *models.UpdateMemoryRequest) (*models.Memory, error)
 	DeleteMemory(userID, teamID, memoryID string) error
-	SearchMemoriesByMetadata(userID, metadataKey, metadataValue string, filters MemoryFilters,
-	) (*models.MemoryListResponse, error)
 	// ListMemoryVersions returns the content-version history (newest-first) for a memory
 	// identified by id. The memory is loaded through the authorization-enforcing
 	// team-scoped lookup before its versions are read.
