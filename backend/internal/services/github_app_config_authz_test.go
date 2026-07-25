@@ -33,7 +33,7 @@ func TestGitHubAppConfigService_MemberIsDenied(t *testing.T) {
 		t.Helper()
 		return NewGitHubAppConfigService(
 			mocks.NewMockGitHubAppConfigRepository(t), enc,
-			denyingProviderAuthz{}, "https://vibexp.example",
+			denyingProviderAuthz{}, nil, "https://vibexp.example",
 		)
 	}
 
@@ -83,7 +83,7 @@ func TestGitHubAppConfigService_NilAuthzFailsClosed(t *testing.T) {
 	require.NoError(t, err)
 
 	svc := NewGitHubAppConfigService(
-		mocks.NewMockGitHubAppConfigRepository(t), enc, nil, "https://vibexp.example",
+		mocks.NewMockGitHubAppConfigRepository(t), enc, nil, nil, "https://vibexp.example",
 	)
 
 	_, createErr := svc.CreateAppConfig(
@@ -132,7 +132,7 @@ func TestGitHubAppConfigService_UsesTeamSettingsUpdate(t *testing.T) {
 
 	rec := &recordingAuthz{}
 	repo := mocks.NewMockGitHubAppConfigRepository(t)
-	svc := NewGitHubAppConfigService(repo, enc, rec, "https://vibexp.example")
+	svc := NewGitHubAppConfigService(repo, enc, rec, nil, "https://vibexp.example")
 	repo.EXPECT().Create(ctx, mock.Anything).Return(nil)
 
 	_, err = svc.CreateAppConfig(

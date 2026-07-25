@@ -47,10 +47,10 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 		return nil, err
 	}
 
-	// 2. Get repository details
-	repo, err := s.githubClient.GetRepository(ctx, installation.InstallationID, repoID)
+	// 2. Resolve the team's App and fetch repository details through it
+	client, repo, err := s.resolveRepositoryForImport(ctx, teamID, installation.InstallationID, repoID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get repository: %w", err)
+		return nil, err
 	}
 
 	// 3. Find project by repository URL.
@@ -86,10 +86,11 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 	}
 
 	// 5. Resolve the branch head commit SHA once per run for import provenance.
-	sourceCommitSHA := s.resolveSourceCommitSHA(ctx, installation.InstallationID, repo, teamID)
+	sourceCommitSHA := s.resolveSourceCommitSHA(ctx, client, installation.InstallationID, repo, teamID)
 
 	// 6-7. Scan and import each well-known path
 	job := &blueprintImportJob{
+		client:          client,
 		installationID:  installation.InstallationID,
 		userID:          userID,
 		teamID:          teamID,
@@ -103,6 +104,26 @@ func (s *GitHubAppService) ImportBlueprintsFromRepository(
 	}
 
 	return report, nil
+}
+
+// resolveRepositoryForImport resolves the team's App client and loads the
+// repository through it. Extracted so the import entry point stays readable:
+// both steps are prerequisites that fail the whole run, and neither is
+// interesting to a reader following the import itself.
+func (s *GitHubAppService) resolveRepositoryForImport(
+	ctx context.Context, teamID string, installationID, repoID int64,
+) (external.GitHubAppClient, *models.GitHubRepository, error) {
+	client, err := s.resolveClient(ctx, teamID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	repo, err := client.GetRepository(ctx, installationID, repoID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get repository: %w", err)
+	}
+
+	return client, repo, nil
 }
 
 // runBlueprintScan scans every well-known AI-config path for the job and imports
@@ -128,12 +149,16 @@ func (s *GitHubAppService) runBlueprintScan(ctx context.Context, job *blueprintI
 // the commit SHA is treated as unknown (empty), exactly as an absent blob SHA is
 // treated. Returns "" when the default branch is unknown or resolution fails.
 func (s *GitHubAppService) resolveSourceCommitSHA(
-	ctx context.Context, installationID int64, repo *models.GitHubRepository, teamID string,
+	ctx context.Context,
+	client external.GitHubAppClient,
+	installationID int64,
+	repo *models.GitHubRepository,
+	teamID string,
 ) string {
 	if repo.DefaultBranch == "" {
 		return ""
 	}
-	sha, err := s.githubClient.GetBranchHeadSHA(
+	sha, err := client.GetBranchHeadSHA(
 		ctx, installationID, repo.Owner.Login, repo.Name, repo.DefaultBranch,
 	)
 	if err != nil {
@@ -163,6 +188,11 @@ var blueprintScanPaths = []blueprintScanPath{
 // blueprintImportJob carries the fields invariant across one repository's
 // blueprint import, so the per-path scan helpers stay at two parameters.
 type blueprintImportJob struct {
+	// client is the team's App client, resolved ONCE per import run rather than
+	// per scanned file — an import walks a whole repository tree, and resolving
+	// per file would put a cache lookup (and a config read on a miss) in front
+	// of every request.
+	client         external.GitHubAppClient
 	installationID int64
 	userID         string
 	teamID         string
@@ -191,7 +221,7 @@ func (s *GitHubAppService) scanBlueprintPath(
 		return s.scanBlueprintDirectory(ctx, job, scanPath.path)
 	}
 
-	file, err := s.githubClient.GetFileContent(
+	file, err := job.client.GetFileContent(
 		ctx, installationID, repo.Owner.Login, repo.Name, scanPath.path,
 	)
 	if err != nil {
@@ -218,7 +248,7 @@ func (s *GitHubAppService) scanBlueprintDirectory(
 	ctx context.Context, job *blueprintImportJob, dirPath string,
 ) error {
 	installationID, repo, report := job.installationID, job.repo, job.report
-	files, err := s.githubClient.GetDirectoryContentsRecursive(
+	files, err := job.client.GetDirectoryContentsRecursive(
 		ctx, installationID, repo.Owner.Login, repo.Name, dirPath,
 	)
 	if err != nil {

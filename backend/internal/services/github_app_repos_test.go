@@ -35,7 +35,7 @@ func buildGitHubAppServiceForReposTest(
 		installationRepo,
 		projectRepo,
 		nil, // blueprintRepo not needed
-		githubClient,
+		resolverFor(githubClient),
 		nil, // encryptionSvc not needed
 		nil, // attachmentSvc not needed
 		nil, // eventManager not needed

@@ -212,17 +212,3 @@ func TestUserCanAccessInstallation_UpstreamError(t *testing.T) {
 	require.Error(t, err)
 	assert.False(t, ok, "an error must never read as authorized")
 }
-
-// TestStubGitHubAppClient_UserAuthFailsClosed pins the stub used when no GitHub
-// App is configured: it must deny, never allow.
-func TestStubGitHubAppClient_UserAuthFailsClosed(t *testing.T) {
-	stub := &stubGitHubAppClient{}
-
-	_, err := stub.ExchangeUserCode(context.Background(), "the-code")
-	assert.True(t, errors.Is(err, external.ErrGitHubUserAuthNotConfigured),
-		"expected ErrGitHubUserAuthNotConfigured, got: %v", err)
-
-	ok, err := stub.UserCanAccessInstallation(context.Background(), "token", 111)
-	assert.Error(t, err)
-	assert.False(t, ok)
-}

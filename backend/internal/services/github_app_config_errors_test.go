@@ -159,7 +159,7 @@ func TestGitHubAppConfigService_WebhookURLDegradesSafely(t *testing.T) {
 	require.NoError(t, err)
 
 	repo := mocks.NewMockGitHubAppConfigRepository(t)
-	svc := NewGitHubAppConfigService(repo, enc, permissiveProviderAuthz{}, "")
+	svc := NewGitHubAppConfigService(repo, enc, permissiveProviderAuthz{}, nil, "")
 	stored := storedConfig(t, svc)
 	repo.EXPECT().GetByTeamID(ctx, testAppConfigTeamID).Return(stored, nil)
 
@@ -176,7 +176,7 @@ func TestGitHubAppConfigService_WebhookURLTrimsTrailingSlash(t *testing.T) {
 	require.NoError(t, err)
 
 	repo := mocks.NewMockGitHubAppConfigRepository(t)
-	svc := NewGitHubAppConfigService(repo, enc, permissiveProviderAuthz{}, "https://vibexp.example/")
+	svc := NewGitHubAppConfigService(repo, enc, permissiveProviderAuthz{}, nil, "https://vibexp.example/")
 	stored := storedConfig(t, svc)
 	repo.EXPECT().GetByTeamID(ctx, testAppConfigTeamID).Return(stored, nil)
 

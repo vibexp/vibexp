@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"regexp"
 	"testing"
 
@@ -43,7 +44,7 @@ func newAppConfigService(
 	t.Helper()
 	enc, err := NewEncryptionService(testEncryptionKey)
 	require.NoError(t, err)
-	return NewGitHubAppConfigService(repo, enc, permissiveProviderAuthz{}, "https://vibexp.example")
+	return NewGitHubAppConfigService(repo, enc, permissiveProviderAuthz{}, nil, "https://vibexp.example")
 }
 
 func validCreateRequest(t *testing.T) models.CreateGitHubAppConfigRequest {
@@ -354,6 +355,48 @@ func TestGitHubAppConfigService_Delete(t *testing.T) {
 	repo.EXPECT().Delete(ctx, testAppConfigTeamID, "cfg-1").Return(nil)
 
 	require.NoError(t, svc.DeleteAppConfig(ctx, testAppConfigTeamID, testAppConfigUserID))
+}
+
+// A credential EDIT invalidates the client cache by itself (the cache keys on
+// version), but a DELETE has no new version to observe — so it must be pushed,
+// or the deleted App's credentials sit in memory until LRU pressure.
+func TestGitHubAppConfigService_DeleteEvictsCachedClient(t *testing.T) {
+	ctx := context.Background()
+
+	repo := mocks.NewMockGitHubAppConfigRepository(t)
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+
+	evictor := &staticGitHubAppResolver{}
+	svc := NewGitHubAppConfigService(repo, enc, permissiveProviderAuthz{}, evictor, "https://vibexp.example")
+
+	stored := storedConfig(t, svc)
+	repo.EXPECT().GetByTeamID(ctx, testAppConfigTeamID).Return(stored, nil)
+	repo.EXPECT().Delete(ctx, testAppConfigTeamID, "cfg-1").Return(nil)
+
+	require.NoError(t, svc.DeleteAppConfig(ctx, testAppConfigTeamID, testAppConfigUserID))
+	assert.Equal(t, []string{"cfg-1"}, evictor.evicted,
+		"deleting a config must evict its cached client")
+}
+
+// A failed delete must NOT evict: the config still exists, and dropping its
+// client would force a needless rebuild on the next call.
+func TestGitHubAppConfigService_FailedDeleteDoesNotEvict(t *testing.T) {
+	ctx := context.Background()
+
+	repo := mocks.NewMockGitHubAppConfigRepository(t)
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+
+	evictor := &staticGitHubAppResolver{}
+	svc := NewGitHubAppConfigService(repo, enc, permissiveProviderAuthz{}, evictor, "https://vibexp.example")
+
+	stored := storedConfig(t, svc)
+	repo.EXPECT().GetByTeamID(ctx, testAppConfigTeamID).Return(stored, nil)
+	repo.EXPECT().Delete(ctx, testAppConfigTeamID, "cfg-1").Return(errors.New("boom"))
+
+	require.Error(t, svc.DeleteAppConfig(ctx, testAppConfigTeamID, testAppConfigUserID))
+	assert.Empty(t, evictor.evicted)
 }
 
 func TestGitHubAppConfigService_Rotation(t *testing.T) {

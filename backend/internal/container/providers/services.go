@@ -201,8 +201,9 @@ func ProvideGitHubAppConfigService(
 	enc services.EncryptionServiceInterface,
 	cfg *config.Config,
 	authzSvc services.AuthorizationServiceInterface,
+	clients services.GitHubAppClientResolver,
 ) services.GitHubAppConfigServiceInterface {
-	return services.NewGitHubAppConfigService(repo, enc, authzSvc, cfg.Frontend.BaseURL)
+	return services.NewGitHubAppConfigService(repo, enc, authzSvc, clients, cfg.Frontend.BaseURL)
 }
 
 // ProvideEmailService creates a new EmailService
@@ -742,12 +743,23 @@ func ProvideProjectMigrationService(
 	return projectmigration.NewService(db, projectRepo, logger)
 }
 
+// ProvideGitHubAppClientResolver creates the per-team GitHub App client
+// resolver (#480). It reads credentials from the team's github_app_configs row
+// rather than instance config, so it takes no *config.Config.
+func ProvideGitHubAppClientResolver(
+	repo repositories.GitHubAppConfigRepository,
+	enc services.EncryptionServiceInterface,
+	logger *slog.Logger,
+) services.GitHubAppClientResolver {
+	return services.NewGitHubAppClientResolver(repo, enc, logger)
+}
+
 // ProvideGitHubAppService creates a new GitHubAppService
 func ProvideGitHubAppService(
 	installationRepo repositories.GitHubInstallationRepository,
 	projectRepo repositories.ProjectRepository,
 	blueprintRepo repositories.BlueprintRepository,
-	githubClient external.GitHubAppClient,
+	clients services.GitHubAppClientResolver,
 	encryptionSvc services.EncryptionServiceInterface,
 	attachmentSvc services.AttachmentServiceInterface,
 	eventManager events.EventPublisher,
@@ -758,7 +770,7 @@ func ProvideGitHubAppService(
 		installationRepo,
 		projectRepo,
 		blueprintRepo,
-		githubClient,
+		clients,
 		encryptionSvc,
 		attachmentSvc,
 		eventManager,

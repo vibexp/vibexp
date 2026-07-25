@@ -69,40 +69,6 @@ func TestGitHubAppClientConstants(t *testing.T) {
 	assert.Equal(t, 15*time.Second, githubAPIFastTimeout)
 }
 
-// TestNewGitHubAppClient_NilConfig returns stub.
-func TestNewGitHubAppClient_NilConfig(t *testing.T) {
-	logger := slog.New(slog.DiscardHandler)
-	client := NewGitHubAppClient(nil, logger)
-	assert.NotNil(t, client)
-	_, ok := client.(*stubGitHubAppClient)
-	assert.True(t, ok, "expected stub for nil config")
-}
-
-// TestNewGitHubAppClient_MissingAppID returns stub.
-func TestNewGitHubAppClient_MissingAppID(t *testing.T) {
-	cfg := &config.GitHubAppConfig{
-		AppID:         "",
-		PrivateKeyPEM: []byte(testRSAPEM),
-	}
-	logger := slog.New(slog.DiscardHandler)
-	client := NewGitHubAppClient(cfg, logger)
-	_, ok := client.(*stubGitHubAppClient)
-	assert.True(t, ok, "expected stub when AppID is empty")
-}
-
-// TestNewGitHubAppClient_NilPrivateKey returns stub.
-func TestNewGitHubAppClient_NilPrivateKey(t *testing.T) {
-	cfg := &config.GitHubAppConfig{
-		AppID:         "12345",
-		PrivateKeyPEM: []byte(testRSAPEM),
-		PrivateKey:    nil, // nil PrivateKey → stub
-	}
-	logger := slog.New(slog.DiscardHandler)
-	client := NewGitHubAppClient(cfg, logger)
-	_, ok := client.(*stubGitHubAppClient)
-	assert.True(t, ok, "expected stub when PrivateKey is nil")
-}
-
 // TestCreateInstallationTransport_CacheHit verifies that when a client is already
 // present in the cache the same pointer is returned without re-building.
 func TestCreateInstallationTransport_CacheHit(t *testing.T) {
@@ -268,31 +234,6 @@ func TestGitHubAppClient_ContextDeadlineIsSet(t *testing.T) {
 	assert.Error(t, err)
 
 	_, err = c.GetDirectoryContentsRecursive(ctx, int64(1), "o", "r", "d")
-	assert.Error(t, err)
-}
-
-// TestStubGitHubAppClient_AllMethodsReturnError verifies the stub client returns
-// an error for every interface method.
-func TestStubGitHubAppClient_AllMethodsReturnError(t *testing.T) {
-	s := &stubGitHubAppClient{}
-	ctx := context.Background()
-
-	_, _, err := s.GetInstallationToken(ctx, 1)
-	assert.Error(t, err)
-
-	_, _, err = s.GetInstallationRepositories(ctx, 1, 1)
-	assert.Error(t, err)
-
-	_, err = s.GetInstallation(ctx, 1)
-	assert.Error(t, err)
-
-	_, err = s.GetRepository(ctx, 1, 1)
-	assert.Error(t, err)
-
-	_, err = s.GetFileContent(ctx, 1, "owner", "repo", "path")
-	assert.Error(t, err)
-
-	_, err = s.GetDirectoryContentsRecursive(ctx, 1, "owner", "repo", "dir")
 	assert.Error(t, err)
 }
 

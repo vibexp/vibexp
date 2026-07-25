@@ -219,11 +219,6 @@ func ProvideEmailSender(cfg *config.Config) external.EmailSender {
 	return implementations.NewEmailSender(cfg)
 }
 
-// ProvideGitHubAppClient creates a new GitHubAppClient
-func ProvideGitHubAppClient(cfg *config.Config, logger *slog.Logger) (external.GitHubAppClient, error) {
-	githubCfg, err := cfg.GetGitHubAppConfig()
-	if err != nil {
-		return nil, err
-	}
-	return implementations.NewGitHubAppClient(githubCfg, logger), nil
-}
+// The process-wide GitHubAppClient provider is gone (#480). Clients are now
+// built per team by services.GitHubAppClientResolver from the team's
+// github_app_configs row, so nothing constructs one from instance config.

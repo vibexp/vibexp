@@ -51,7 +51,12 @@ func (s *GitHubAppService) ImportProjectFromRepository(
 	}
 
 	// Get repository details from GitHub API
-	repo, err := s.githubClient.GetRepository(ctx, installation.InstallationID, repoID)
+	client, err := s.resolveClient(ctx, teamID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	repo, err := client.GetRepository(ctx, installation.InstallationID, repoID)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get repository: %w", err)
 	}

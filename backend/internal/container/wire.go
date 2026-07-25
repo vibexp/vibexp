@@ -24,7 +24,6 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideIdentityProviderRegistry,
 	providers.ProvideEmailProvider,
 	providers.ProvideEmailSender,
-	providers.ProvideGitHubAppClient,
 
 	// Event system
 	providers.ProvideEventManager,
@@ -147,6 +146,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideTeamInvitationService,
 	providers.ProvideProjectService,
 	providers.ProvideProjectMigrationService,
+	providers.ProvideGitHubAppClientResolver,
 	providers.ProvideGitHubAppService,
 	providers.ProvideFeedService,
 	providers.ProvideFeedItemService,

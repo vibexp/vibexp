@@ -56,13 +56,14 @@ type GitHubAppClient struct {
 }
 
 // NewGitHubAppClient creates a new GitHub App client
+// NewGitHubAppClient builds a client bound to ONE App's credentials.
+//
+// It no longer degrades to a stub when the config is absent. Credentials now
+// come from the team's github_app_configs row via GitHubAppClientResolver,
+// which returns a typed ErrGitHubAppNotConfigured — surfaced as 409, so the UI
+// can say "configure your GitHub App first". A stub here would turn that
+// actionable state back into the opaque failure it replaced (#480).
 func NewGitHubAppClient(cfg *config.GitHubAppConfig, logger *slog.Logger) external.GitHubAppClient {
-	// Return stub client for test/dev environments without GitHub App config
-	if cfg == nil || cfg.AppID == "" || cfg.PrivateKey == nil {
-		logger.Warn("GitHub App config missing, returning stub client")
-		return &stubGitHubAppClient{}
-	}
-
 	// Create shared HTTP client with connection pooling
 	httpClient := &http.Client{
 		Timeout: 30 * time.Second,
@@ -676,79 +677,6 @@ func (c *GitHubAppClient) generateJWT() (string, error) {
 	}
 
 	return signedToken, nil
-}
-
-// stubGitHubAppClient is a no-op implementation for test/dev environments
-type stubGitHubAppClient struct{}
-
-func (s *stubGitHubAppClient) GetInstallationToken(
-	ctx context.Context,
-	installationID int64,
-) (string, time.Time, error) {
-	return "", time.Time{}, fmt.Errorf("GitHub App not configured")
-}
-
-func (s *stubGitHubAppClient) GetInstallationRepositories(
-	ctx context.Context,
-	installationID int64,
-	page int,
-) ([]models.GitHubRepository, int, error) {
-	return nil, 0, fmt.Errorf("GitHub App not configured")
-}
-
-func (s *stubGitHubAppClient) GetInstallation(
-	ctx context.Context,
-	installationID int64,
-) (*external.GitHubInstallationInfo, error) {
-	return nil, fmt.Errorf("GitHub App not configured")
-}
-
-func (s *stubGitHubAppClient) GetRepository(
-	ctx context.Context,
-	installationID int64,
-	repoID int64,
-) (*models.GitHubRepository, error) {
-	return nil, fmt.Errorf("GitHub App not configured")
-}
-
-func (s *stubGitHubAppClient) GetFileContent(
-	ctx context.Context,
-	installationID int64,
-	owner, repoName, path string,
-) (*external.GitHubFile, error) {
-	return nil, fmt.Errorf("GitHub App not configured")
-}
-
-func (s *stubGitHubAppClient) GetDirectoryContentsRecursive(
-	ctx context.Context,
-	installationID int64,
-	owner, repoName, dirPath string,
-) ([]*external.GitHubFile, error) {
-	return nil, fmt.Errorf("GitHub App not configured")
-}
-
-func (s *stubGitHubAppClient) GetBranchHeadSHA(
-	ctx context.Context,
-	installationID int64,
-	owner, repoName, branch string,
-) (string, error) {
-	return "", fmt.Errorf("GitHub App not configured")
-}
-
-func (s *stubGitHubAppClient) EvictCachedClient(_ int64) {
-	// Intentionally empty: the stub caches no clients, so there is nothing to evict.
-}
-
-func (s *stubGitHubAppClient) ExchangeUserCode(ctx context.Context, code string) (string, error) {
-	return "", external.ErrGitHubUserAuthNotConfigured
-}
-
-func (s *stubGitHubAppClient) UserCanAccessInstallation(
-	ctx context.Context,
-	userToken string,
-	installationID int64,
-) (bool, error) {
-	return false, fmt.Errorf("GitHub App not configured")
 }
 
 // EvictCachedClient removes the cached GitHub client for the given installationID.

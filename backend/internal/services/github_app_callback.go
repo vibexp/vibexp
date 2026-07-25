@@ -44,12 +44,24 @@ func (s *GitHubAppService) HandleInstallationCallback(
 	// resolves every installation regardless of who is asking. The check lives
 	// here rather than in the handler so no future caller can reach the store
 	// path without it (#463).
-	if err := s.verifyCallerCanAccessInstallation(ctx, code, installationID); err != nil {
+	// Resolve the team's own App once: the SAME resolution supplies both the
+	// client that talks to GitHub and the app_config_id persisted on the
+	// installation row, so an installation can never be recorded against a
+	// different App than the one that produced it (#477 made that column NOT
+	// NULL).
+	resolved, err := s.clients.ResolveForTeam(ctx, teamID)
+	if err != nil {
 		return false, err
 	}
 
+	if accessErr := s.verifyCallerCanAccessInstallation(
+		ctx, resolved.Client, code, installationID,
+	); accessErr != nil {
+		return false, accessErr
+	}
+
 	// Get installation details from GitHub
-	installationInfo, err := s.githubClient.GetInstallation(ctx, installationID)
+	installationInfo, err := resolved.Client.GetInstallation(ctx, installationID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get installation info: %w", err)
 	}
@@ -60,19 +72,13 @@ func (s *GitHubAppService) HandleInstallationCallback(
 		return false, err
 	}
 
-	// NOTE: We don't fetch/store tokens here because ghinstallation library
-	// handles token generation and management automatically when making API calls.
-	// Store placeholder values to satisfy database schema (can be migrated away later).
-	placeholderToken := fmt.Sprintf("ghinstallation-managed-%d", installationID)
-	encryptedToken, err := s.encryptionSvc.Encrypt(placeholderToken)
+	encryptedToken, expiresAt, err := s.placeholderInstallationToken(installationID)
 	if err != nil {
-		return false, fmt.Errorf("failed to encrypt placeholder token: %w", err)
+		return false, err
 	}
 
-	// Set expiry far in the future since ghinstallation manages actual tokens
-	expiresAt := time.Now().Add(365 * 24 * time.Hour)
-
-	installation := newInstallationRecord(teamID, installationID, installationInfo, encryptedToken, expiresAt)
+	installation := newInstallationRecord(
+		teamID, resolved.AppConfigID, installationID, installationInfo, encryptedToken, expiresAt)
 
 	updated, err := s.upsertInstallation(ctx, teamID, installation)
 	if err != nil {
@@ -98,18 +104,33 @@ func (s *GitHubAppService) HandleInstallationCallback(
 	return reconnected, nil
 }
 
+// placeholderInstallationToken produces the token columns the schema still
+// requires. ghinstallation mints and refreshes real installation tokens on
+// demand, so nothing reads these — they exist only to satisfy NOT NULL, with an
+// expiry far enough out that no refresh path trips on it.
+func (s *GitHubAppService) placeholderInstallationToken(
+	installationID int64,
+) (string, time.Time, error) {
+	encrypted, err := s.encryptionSvc.Encrypt(
+		fmt.Sprintf("ghinstallation-managed-%d", installationID))
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("failed to encrypt placeholder token: %w", err)
+	}
+	return encrypted, time.Now().Add(365 * 24 * time.Hour), nil
+}
+
 // verifyCallerCanAccessInstallation exchanges GitHub's post-install code for a
 // user access token and requires installationID to be one that user can reach.
 // Any failure is a denial: an unusable code, an installation the user has no
 // access to, and absent OAuth credentials all stop the bind.
 func (s *GitHubAppService) verifyCallerCanAccessInstallation(
-	ctx context.Context, code string, installationID int64,
+	ctx context.Context, client external.GitHubAppClient, code string, installationID int64,
 ) error {
 	if code == "" {
 		return ErrInstallationNotAuthorized
 	}
 
-	userToken, err := s.githubClient.ExchangeUserCode(ctx, code)
+	userToken, err := client.ExchangeUserCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, external.ErrGitHubUserAuthNotConfigured) {
 			return ErrGitHubUserAuthUnavailable
@@ -120,7 +141,7 @@ func (s *GitHubAppService) verifyCallerCanAccessInstallation(
 		return fmt.Errorf("failed to exchange installation authorization code: %w", err)
 	}
 
-	accessible, err := s.githubClient.UserCanAccessInstallation(ctx, userToken, installationID)
+	accessible, err := client.UserCanAccessInstallation(ctx, userToken, installationID)
 	if err != nil {
 		return fmt.Errorf("failed to verify installation access: %w", err)
 	}
