@@ -438,3 +438,47 @@ func TestGitHubAppConfigService_Rotation(t *testing.T) {
 		assert.Contains(t, out.WebhookURL, stored.WebhookToken)
 	})
 }
+
+// ResolveWebhookToken backs a PUBLIC, unauthenticated route, so its two
+// outcomes both matter: a real token yields the App plus its decrypted secret,
+// and an unknown one yields a typed sentinel the handler turns into a bare 404.
+func TestGitHubAppConfigService_ResolveWebhookToken(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("resolves the App and decrypts its secret", func(t *testing.T) {
+		repo := mocks.NewMockGitHubAppConfigRepository(t)
+		svc := newAppConfigService(t, repo)
+		stored := storedConfig(t, svc)
+		repo.EXPECT().GetByWebhookToken(ctx, "tok-abc").Return(stored, nil)
+
+		target, err := svc.ResolveWebhookToken(ctx, "tok-abc")
+		require.NoError(t, err)
+		assert.Equal(t, "cfg-1", target.AppConfigID)
+		assert.Equal(t, testAppConfigTeamID, target.TeamID)
+		// The handler HMACs against this, so it must be plaintext, not ciphertext.
+		assert.Equal(t, "ws-secret", target.WebhookSecret)
+		assert.NotEqual(t, stored.WebhookSecretEncrypted, target.WebhookSecret)
+	})
+
+	t.Run("unknown token maps to the sentinel", func(t *testing.T) {
+		repo := mocks.NewMockGitHubAppConfigRepository(t)
+		svc := newAppConfigService(t, repo)
+		repo.EXPECT().GetByWebhookToken(ctx, "nope").
+			Return(nil, repositories.ErrGitHubAppConfigNotFound)
+
+		_, err := svc.ResolveWebhookToken(ctx, "nope")
+		assert.ErrorIs(t, err, ErrGitHubAppNotConfigured)
+	})
+
+	t.Run("transport failure is not laundered into not-configured", func(t *testing.T) {
+		repo := mocks.NewMockGitHubAppConfigRepository(t)
+		svc := newAppConfigService(t, repo)
+		boom := errors.New("connection reset")
+		repo.EXPECT().GetByWebhookToken(ctx, "tok-abc").Return(nil, boom)
+
+		_, err := svc.ResolveWebhookToken(ctx, "tok-abc")
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, ErrGitHubAppNotConfigured)
+		assert.ErrorIs(t, err, boom)
+	})
+}

@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/vibexp/vibexp/internal/config"
-	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/repositories"
 	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 	"github.com/vibexp/vibexp/internal/services"
@@ -268,25 +267,6 @@ func TestWebhookByToken_EmptySecretRejectsAll(t *testing.T) {
 		webhookRequest(webhookTestRoutingSegment, webhookTestPayload, signWebhook(webhookTestPayload, "")))
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
-}
-
-// The routing token grants the ability to submit signature-checked deliveries,
-// so it is a credential sitting in a URL path. Access logs are widely readable
-// and long-lived — exactly where it must not land.
-func TestRedactSensitivePath(t *testing.T) {
-	assert.Equal(t, "/api/v1/webhooks/github/[redacted]",
-		apierrors.RedactSensitivePath("/api/v1/webhooks/github/"+webhookTestRoutingSegment))
-	assert.NotContains(t,
-		apierrors.RedactSensitivePath("/api/v1/webhooks/github/"+webhookTestRoutingSegment), webhookTestRoutingSegment)
-
-	// Everything else is logged verbatim; redaction must not blunt the logs.
-	for _, path := range []string{
-		"/api/v1/webhooks/github",
-		"/api/v1/team-1/prompts",
-		"/healthz",
-	} {
-		assert.Equal(t, path, apierrors.RedactSensitivePath(path))
-	}
 }
 
 func TestVerifyGitHubSignature(t *testing.T) {

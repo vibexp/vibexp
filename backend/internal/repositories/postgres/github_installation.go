@@ -62,146 +62,92 @@ func (r *GitHubInstallationRepository) Create(ctx context.Context, installation 
 	return nil
 }
 
+// githubInstallationColumnList is the projection every installation read uses.
+// One definition keeps the three readers from drifting apart — a column added
+// to one and forgotten in another scans into the wrong field.
+const githubInstallationColumnList = `id, team_id, app_config_id, installation_id, account_login,
+	account_type, target_type, encrypted_access_token, token_expires_at, permissions, events,
+	suspended_at, created_at, updated_at`
+
+// scanInstallation reads one row in githubInstallationColumnList order and
+// unmarshals the JSONB permissions blob.
+func scanInstallation(row rowScanner) (*models.GitHubInstallation, error) {
+	installation := &models.GitHubInstallation{}
+	var permissionsJSON []byte
+
+	err := row.Scan(
+		&installation.ID,
+		&installation.TeamID,
+		&installation.AppConfigID,
+		&installation.InstallationID,
+		&installation.AccountLogin,
+		&installation.AccountType,
+		&installation.TargetType,
+		&installation.EncryptedAccessToken,
+		&installation.TokenExpiresAt,
+		&permissionsJSON,
+		pq.Array(&installation.Events),
+		&installation.SuspendedAt,
+		&installation.CreatedAt,
+		&installation.UpdatedAt,
+	)
+	if err != nil {
+		return nil, mapNoRows(
+			fmt.Errorf("failed to get GitHub installation: %w", err),
+			repositories.ErrGitHubInstallationNotFound,
+		)
+	}
+
+	if err := json.Unmarshal(permissionsJSON, &installation.Permissions); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal permissions: %w", err)
+	}
+
+	return installation, nil
+}
+
 // GetByTeamID retrieves a GitHub installation by team ID
 func (r *GitHubInstallationRepository) GetByTeamID(
 	ctx context.Context,
 	teamID string,
 ) (*models.GitHubInstallation, error) {
-	installation := &models.GitHubInstallation{}
-	var permissionsJSON []byte
-
-	query := `
-		SELECT id, team_id, app_config_id, installation_id, account_login, account_type, target_type,
-			   encrypted_access_token, token_expires_at, permissions, events, suspended_at,
-			   created_at, updated_at
+	query := `SELECT ` + githubInstallationColumnList + `
 		FROM github_installations
-		WHERE team_id = $1
-	`
+		WHERE team_id = $1`
 
-	err := r.db.QueryRowContext(ctx, query, teamID).Scan(
-		&installation.ID,
-		&installation.TeamID,
-		&installation.AppConfigID,
-		&installation.InstallationID,
-		&installation.AccountLogin,
-		&installation.AccountType,
-		&installation.TargetType,
-		&installation.EncryptedAccessToken,
-		&installation.TokenExpiresAt,
-		&permissionsJSON,
-		pq.Array(&installation.Events),
-		&installation.SuspendedAt,
-		&installation.CreatedAt,
-		&installation.UpdatedAt,
-	)
-
-	if err != nil {
-		return nil, mapNoRows(
-			fmt.Errorf("failed to get GitHub installation: %w", err),
-			repositories.ErrGitHubInstallationNotFound,
-		)
-	}
-
-	if err := json.Unmarshal(permissionsJSON, &installation.Permissions); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal permissions: %w", err)
-	}
-
-	return installation, nil
+	return scanInstallation(r.db.QueryRowContext(ctx, query, teamID))
 }
 
-// GetByInstallationID retrieves a GitHub installation by installation ID
+// GetByInstallationID retrieves a GitHub installation by installation ID.
+//
+// This read is NOT scoped to an App, and installation_id stopped being globally
+// unique in #477 — two teams may install their own Apps on the same GitHub org.
+// Use GetByAppConfigAndInstallationID wherever the App is known; this one
+// remains for the reconnection check, which deliberately looks across Apps.
 func (r *GitHubInstallationRepository) GetByInstallationID(
 	ctx context.Context,
 	installationID int64,
 ) (*models.GitHubInstallation, error) {
-	installation := &models.GitHubInstallation{}
-	var permissionsJSON []byte
-
-	query := `
-		SELECT id, team_id, app_config_id, installation_id, account_login, account_type, target_type,
-			   encrypted_access_token, token_expires_at, permissions, events, suspended_at,
-			   created_at, updated_at
+	query := `SELECT ` + githubInstallationColumnList + `
 		FROM github_installations
-		WHERE installation_id = $1
-	`
+		WHERE installation_id = $1`
 
-	err := r.db.QueryRowContext(ctx, query, installationID).Scan(
-		&installation.ID,
-		&installation.TeamID,
-		&installation.AppConfigID,
-		&installation.InstallationID,
-		&installation.AccountLogin,
-		&installation.AccountType,
-		&installation.TargetType,
-		&installation.EncryptedAccessToken,
-		&installation.TokenExpiresAt,
-		&permissionsJSON,
-		pq.Array(&installation.Events),
-		&installation.SuspendedAt,
-		&installation.CreatedAt,
-		&installation.UpdatedAt,
-	)
-
-	if err != nil {
-		return nil, mapNoRows(
-			fmt.Errorf("failed to get GitHub installation: %w", err),
-			repositories.ErrGitHubInstallationNotFound,
-		)
-	}
-
-	if err := json.Unmarshal(permissionsJSON, &installation.Permissions); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal permissions: %w", err)
-	}
-
-	return installation, nil
+	return scanInstallation(r.db.QueryRowContext(ctx, query, installationID))
 }
 
-// GetByAppConfigAndInstallationID retrieves an installation scoped to one App.
+// GetByAppConfigAndInstallationID retrieves an installation scoped to one App,
+// matching the UNIQUE (app_config_id, installation_id) constraint. This is what
+// keeps a webhook delivery for one team from resolving another team's
+// installation when the numeric ids collide.
 func (r *GitHubInstallationRepository) GetByAppConfigAndInstallationID(
 	ctx context.Context,
 	appConfigID string,
 	installationID int64,
 ) (*models.GitHubInstallation, error) {
-	installation := &models.GitHubInstallation{}
-	var permissionsJSON []byte
-
-	query := `
-		SELECT id, team_id, app_config_id, installation_id, account_login, account_type, target_type,
-			   encrypted_access_token, token_expires_at, permissions, events, suspended_at,
-			   created_at, updated_at
+	query := `SELECT ` + githubInstallationColumnList + `
 		FROM github_installations
-		WHERE app_config_id = $1 AND installation_id = $2
-	`
+		WHERE app_config_id = $1 AND installation_id = $2`
 
-	err := r.db.QueryRowContext(ctx, query, appConfigID, installationID).Scan(
-		&installation.ID,
-		&installation.TeamID,
-		&installation.AppConfigID,
-		&installation.InstallationID,
-		&installation.AccountLogin,
-		&installation.AccountType,
-		&installation.TargetType,
-		&installation.EncryptedAccessToken,
-		&installation.TokenExpiresAt,
-		&permissionsJSON,
-		pq.Array(&installation.Events),
-		&installation.SuspendedAt,
-		&installation.CreatedAt,
-		&installation.UpdatedAt,
-	)
-
-	if err != nil {
-		return nil, mapNoRows(
-			fmt.Errorf("failed to get GitHub installation: %w", err),
-			repositories.ErrGitHubInstallationNotFound,
-		)
-	}
-
-	if err := json.Unmarshal(permissionsJSON, &installation.Permissions); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal permissions: %w", err)
-	}
-
-	return installation, nil
+	return scanInstallation(r.db.QueryRowContext(ctx, query, appConfigID, installationID))
 }
 
 // Update updates a GitHub installation
