@@ -1,5 +1,8 @@
 import { Search } from 'lucide-react'
 
+import { MetadataFilter } from '@/components/metadata/MetadataFilter'
+import { useMetadataCatalog } from '@/components/metadata/useMetadataCatalog'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -11,14 +14,24 @@ import {
 import { useTypes } from '@/hooks/useTypes'
 import { ARTIFACT_STATUS_OPTIONS } from '@/pages/artifacts/artifactStatus'
 import type { Artifact } from '@/services/artifactService'
+import type { MetadataFilterValue } from '@/services/metadataService'
 
-interface Props {
+export interface ArtifactFiltersProps {
+  /** Uncommitted search text; the page debounces it into the URL. */
   searchInput: string
   onSearchInputChange: (value: string) => void
   type: Artifact['type'] | undefined
   onTypeChange: (value: Artifact['type'] | undefined) => void
   status: Artifact['status'] | undefined
   onStatusChange: (value: Artifact['status'] | undefined) => void
+  /** Committed metadata filter; one chip per key. */
+  metadata: MetadataFilterValue
+  onMetadataChange: (value: MetadataFilterValue) => void
+  /** Narrows the metadata catalog to the globally selected project. */
+  projectId?: string
+  /** Shown only while at least one filter is applied. */
+  onClear?: () => void
+  hasActiveFilters: boolean
 }
 
 // Project filtering moved to the global header project selector (useProject).
@@ -29,8 +42,18 @@ export function ArtifactFilters({
   onTypeChange,
   status,
   onStatusChange,
-}: Readonly<Props>) {
+  metadata,
+  onMetadataChange,
+  projectId,
+  onClear,
+  hasActiveFilters,
+}: Readonly<ArtifactFiltersProps>) {
   const { types } = useTypes('artifacts')
+  // The catalog is this bar's own concern: MetadataFilter stays fetch-free so
+  // it can move into the design system, and the page stays free of catalog
+  // state it never reads.
+  const catalog = useMetadataCatalog({ resourceType: 'artifacts', projectId })
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-[240px] max-w-[480px] flex-1">
@@ -41,6 +64,7 @@ export function ArtifactFilters({
             onSearchInputChange(e.target.value)
           }}
           placeholder="Search artifacts…"
+          aria-label="Search artifacts"
           className="pl-8"
         />
       </div>
@@ -50,7 +74,7 @@ export function ArtifactFilters({
           onTypeChange(value === 'all' ? undefined : value)
         }}
       >
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-[150px]" aria-label="Filter by type">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -72,6 +96,7 @@ export function ArtifactFilters({
       >
         <SelectTrigger
           className="w-[150px]"
+          aria-label="Filter by status"
           data-testid="artifact-status-filter"
         >
           <SelectValue />
@@ -85,6 +110,30 @@ export function ArtifactFilters({
           ))}
         </SelectContent>
       </Select>
+
+      <MetadataFilter
+        value={metadata}
+        onChange={onMetadataChange}
+        ariaLabel="Filter artifacts by metadata"
+        keys={catalog.keys}
+        keysLoading={catalog.keysLoading}
+        keysError={catalog.keysError}
+        onOpenCatalog={catalog.loadKeys}
+        activeKey={catalog.activeKey}
+        onSelectKey={catalog.selectKey}
+        values={catalog.values}
+        valuesLoading={catalog.valuesLoading}
+        valuesError={catalog.valuesError}
+        valuesTruncated={catalog.valuesTruncated}
+        valueQuery={catalog.valueQuery}
+        onValueQueryChange={catalog.setValueQuery}
+      />
+
+      {hasActiveFilters && onClear && (
+        <Button variant="outline" onClick={onClear}>
+          Clear filters
+        </Button>
+      )}
     </div>
   )
 }
