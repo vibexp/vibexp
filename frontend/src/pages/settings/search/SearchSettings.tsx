@@ -325,22 +325,34 @@ export function SearchSettings() {
 
   const teamId = currentTeam?.id
 
-  const load = useCallback(async () => {
-    if (!teamId) return
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await searchSettingsService.getSearchSettings(teamId)
-      setSettings(response)
-      setForm(toForm(effectiveValues(response)))
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to load search settings'
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [teamId])
+  /**
+   * Fetches the settings, reporting whether it succeeded.
+   *
+   * `silent` refetches without swapping the page for the loading spinner. That
+   * matters after a reset: the full-page spinner would unmount the Advanced
+   * disclosure and silently collapse it under a user who had it open.
+   */
+  const load = useCallback(
+    async (silent = false): Promise<boolean> => {
+      if (!teamId) return false
+      try {
+        if (!silent) setLoading(true)
+        setError(null)
+        const response = await searchSettingsService.getSearchSettings(teamId)
+        setSettings(response)
+        setForm(toForm(effectiveValues(response)))
+        return true
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : 'Failed to load search settings'
+        )
+        return false
+      } finally {
+        if (!silent) setLoading(false)
+      }
+    },
+    [teamId]
+  )
 
   useEffect(() => {
     void load()
@@ -394,8 +406,12 @@ export function SearchSettings() {
       setError(null)
       setSuccessMessage(null)
       await searchSettingsService.resetSearchSettings(teamId)
-      await load()
-      setSuccessMessage('Reset to the instance defaults.')
+      // Only claim success once the refetch confirms it — otherwise the page
+      // would show a green "reset" banner beside the red refetch error while
+      // still displaying the now-stale team profile.
+      if (await load(true)) {
+        setSuccessMessage('Reset to the instance defaults.')
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to reset search settings'

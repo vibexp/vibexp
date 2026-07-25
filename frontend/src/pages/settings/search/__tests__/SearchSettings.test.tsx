@@ -302,6 +302,62 @@ describe('SearchSettings', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps the Advanced disclosure open across a reset', async () => {
+    const user = userEvent.setup()
+    mockedService.getSearchSettings
+      .mockResolvedValueOnce(settings({ source: 'team', ...FAVOR_RECENT }))
+      // The refetch must NOT resolve within the same tick: an instantly
+      // resolved mock lets React batch `loading` true→false without ever
+      // rendering, which would make this test pass even for a full-page
+      // spinner. The delay forces the intermediate render this guards against.
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            setTimeout(() => {
+              resolve(settings())
+            }, 20)
+          })
+      )
+    mockedService.resetSearchSettings.mockResolvedValue(undefined)
+
+    renderPage()
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: /favor recent/i })).toBeChecked()
+    })
+    await openAdvanced(user)
+    expect(screen.getByLabelText(/half-life \(days\)/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /reset to defaults/i }))
+
+    // A full-page spinner on refetch would unmount the disclosure and collapse
+    // it under the user, losing the panel they had deliberately opened.
+    expect(
+      await screen.findByText('Reset to the instance defaults.')
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText(/half-life \(days\)/i)).toHaveValue(90)
+  })
+
+  it('does not claim a successful reset when the refetch fails', async () => {
+    const user = userEvent.setup()
+    mockedService.getSearchSettings
+      .mockResolvedValueOnce(settings({ source: 'team', ...FAVOR_RECENT }))
+      .mockRejectedValueOnce(new Error('Failed to load search settings'))
+    mockedService.resetSearchSettings.mockResolvedValue(undefined)
+
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: /reset to defaults/i })
+    )
+
+    expect(
+      await screen.findByText('Failed to load search settings')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Reset to the instance defaults.')
+    ).not.toBeInTheDocument()
+  })
+
   it('surfaces a failed save without losing the edit', async () => {
     const user = userEvent.setup()
     mockedService.updateSearchSettings.mockRejectedValue(
