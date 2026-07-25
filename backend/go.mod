@@ -16,7 +16,7 @@ require (
 	github.com/darkrockmountain/gomail v0.6.1
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-chi/cors v1.2.2
-	github.com/go-chi/httprate v0.16.0
+	github.com/go-chi/httprate v0.15.0
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/go-viper/mapstructure/v2 v2.5.0
@@ -38,7 +38,7 @@ require (
 	github.com/ory/fosite v0.49.0
 	github.com/panjf2000/ants/v2 v2.12.1
 	github.com/pb33f/libopenapi v0.38.7
-	github.com/pb33f/libopenapi-validator v0.14.0
+	github.com/pb33f/libopenapi-validator v0.13.10
 	github.com/pgvector/pgvector-go v0.4.0
 	github.com/samber/lo v1.53.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
