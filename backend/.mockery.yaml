@@ -25,6 +25,8 @@ packages:
       GitHubAppConfigServiceInterface:
       EmbeddingServiceInterface:
       Searcher:
+      TeamEmailProviderServiceInterface:
+      EmailSenderResolver:
       TeamSearchSettingsServiceInterface:
       SearchSettingsResolver:
       QueryEmbedder:

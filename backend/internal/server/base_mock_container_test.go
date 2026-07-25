@@ -267,6 +267,14 @@ func (b *BaseMockContainer) TeamSearchSettingsService() services.TeamSearchSetti
 	return nil
 }
 
+func (b *BaseMockContainer) TeamEmailProviderService() services.TeamEmailProviderServiceInterface {
+	return nil
+}
+
+func (b *BaseMockContainer) EmailSenderResolver() services.EmailSenderResolver {
+	return nil
+}
+
 func (b *BaseMockContainer) EnvironmentService() *services.EnvironmentService {
 	return nil
 }

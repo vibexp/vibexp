@@ -85,6 +85,8 @@ type WireContainer struct {
 	memoryService             services.MemoryServiceInterface
 	embeddingService          services.EmbeddingServiceInterface
 	searchService             services.Searcher
+	teamEmailProviderService  services.TeamEmailProviderServiceInterface
+	emailSenderResolver       services.EmailSenderResolver
 	teamSearchSettingsService services.TeamSearchSettingsServiceInterface
 	environmentService        *services.EnvironmentService
 	resourceUsageService      services.ResourceUsageServiceInterface
@@ -357,6 +359,17 @@ func (c *WireContainer) MemoryService() services.MemoryServiceInterface {
 
 func (c *WireContainer) EmbeddingService() services.EmbeddingServiceInterface {
 	return c.embeddingService
+}
+
+// TeamEmailProviderService returns the team email provider service.
+func (c *WireContainer) TeamEmailProviderService() services.TeamEmailProviderServiceInterface {
+	return c.teamEmailProviderService
+}
+
+// EmailSenderResolver returns the send-time email sender resolver, which picks a
+// team's own provider or falls back to the instance one.
+func (c *WireContainer) EmailSenderResolver() services.EmailSenderResolver {
+	return c.emailSenderResolver
 }
 
 func (c *WireContainer) TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface {

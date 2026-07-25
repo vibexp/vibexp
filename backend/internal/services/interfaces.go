@@ -272,6 +272,31 @@ type ModelProviderServiceInterface interface {
 	) (*models.ValidateModelProviderResponse, error)
 }
 
+// TeamEmailProviderServiceInterface defines the operations on a team's own
+// outbound email provider (#502, epic #499).
+//
+// Upsert, Delete and Test are authorized with authz.TeamUpdate before any
+// repository or network access; Get is not role-gated (team membership is checked
+// by middleware and the secret never leaves the server).
+type TeamEmailProviderServiceInterface interface {
+	// Get returns the team's provider, or repositories.ErrTeamEmailProviderNotFound
+	// when the team inherits the instance provider.
+	Get(ctx context.Context, userID, teamID string) (*models.TeamEmailProvider, error)
+	// Upsert validates, encrypts and stores the team's provider. An omitted
+	// secret keeps the stored one; an empty secret is a validation error.
+	Upsert(ctx context.Context, userID, teamID string,
+		req models.UpsertTeamEmailProviderRequest) (*models.TeamEmailProvider, error)
+	// Delete removes the team's provider, reverting it to the instance provider.
+	Delete(ctx context.Context, userID, teamID string) error
+	// Test sends a real message using the configuration in the request rather
+	// than the stored row, so credentials can be verified before saving. The
+	// recipient is always the acting user's own account email — never
+	// caller-supplied — and a delivery failure is reported in the result, not as
+	// an error.
+	Test(ctx context.Context, userID, teamID string,
+		req models.TestTeamEmailProviderRequest) (*models.TeamEmailProviderTestResult, error)
+}
+
 // EmailServiceInterface defines the interface for email operations
 type EmailServiceInterface interface {
 	SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error
