@@ -161,7 +161,9 @@ export function GitHubIntegration() {
           data
         )
 
-        void navigate('/settings/integrations/github', { replace: true })
+        void navigate(`/teams/${currentTeam.id}/settings/integrations/github`, {
+          replace: true,
+        })
         await loadStatus()
         if (response.reconnected) {
           toast.success('Reconnected to existing GitHub installation')
@@ -188,7 +190,9 @@ export function GitHubIntegration() {
         } else {
           handleError(error, 'Failed to complete GitHub installation')
         }
-        void navigate('/settings/integrations/github', { replace: true })
+        void navigate(`/teams/${currentTeam.id}/settings/integrations/github`, {
+          replace: true,
+        })
       }
     },
     [currentTeam, handleError, loadStatus, navigate, trackEvent]

@@ -35,6 +35,12 @@ jest.mock(
 jest.mock('@/pages/teams/settings/customization/Customization', () => ({
   Customization: () => <div data-testid="customization" />,
 }))
+jest.mock(
+  '@/pages/teams/settings/integrations/github/GitHubIntegration',
+  () => ({
+    GitHubIntegration: () => <div data-testid="github-integration" />,
+  })
+)
 
 import { TeamRoutes } from '../TeamRoutes'
 
@@ -85,6 +91,8 @@ describe('TeamRoutes', () => {
     ['/teams/team-a/settings/model-providers', 'model-providers'],
     ['/teams/team-a/settings/embedding-providers', 'embedding-providers'],
     ['/teams/team-a/settings/customization', 'customization'],
+    // #541 - note the nested path, which a non-splat sibling route still matches.
+    ['/teams/team-a/settings/integrations/github', 'github-integration'],
   ])('renders the relocated page at %s', (path, testId) => {
     renderAt(path)
     expect(screen.getByTestId(testId)).toBeInTheDocument()

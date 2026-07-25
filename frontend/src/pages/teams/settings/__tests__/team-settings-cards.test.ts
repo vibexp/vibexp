@@ -1,11 +1,12 @@
 import { teamSettingsCardsFor } from '../team-settings-cards'
 
 describe('teamSettingsCardsFor', () => {
-  it('lists the four team-scoped configuration pages relocated in #540', () => {
+  it('lists every team-scoped configuration page (#540, #541)', () => {
     expect(teamSettingsCardsFor('team-a').map(c => c.title)).toEqual([
       'Search Settings',
       'Model Providers',
       'Embedding Providers',
+      'GitHub Integration',
       'Artifact Types',
     ])
   })
@@ -15,6 +16,7 @@ describe('teamSettingsCardsFor', () => {
       '/teams/team-a/settings/search',
       '/teams/team-a/settings/model-providers',
       '/teams/team-a/settings/embedding-providers',
+      '/teams/team-a/settings/integrations/github',
       '/teams/team-a/settings/customization',
     ])
   })

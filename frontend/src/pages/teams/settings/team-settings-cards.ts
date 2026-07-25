@@ -1,5 +1,6 @@
 import { Bot, Cpu, Shapes, SlidersHorizontal } from 'lucide-react'
 
+import { GitHubIcon } from '@/components/icons/GitHubIcon'
 import type { SettingItem } from '@/components/settings/SettingsGrid'
 
 /**
@@ -14,8 +15,7 @@ import type { SettingItem } from '@/components/settings/SettingsGrid'
  * the relocated cards are recognisably the same ones. "Artifact Types" keeps its
  * title — `customization` is only the route segment.
  *
- * #541 adds GitHub integration here; #543 removes the corresponding cards from
- * the personal hub.
+ * #543 removes the corresponding cards from the personal hub.
  */
 export function teamSettingsCardsFor(teamId: string): SettingItem[] {
   const base = `/teams/${teamId}/settings`
@@ -39,6 +39,12 @@ export function teamSettingsCardsFor(teamId: string): SettingItem[] {
         'Configure embedding vector providers for your AI applications.',
       icon: Cpu,
       href: `${base}/embedding-providers`,
+    },
+    {
+      title: 'GitHub Integration',
+      description: 'Connect GitHub repositories to your team workspace.',
+      icon: GitHubIcon,
+      href: `${base}/integrations/github`,
     },
     {
       title: 'Artifact Types',
