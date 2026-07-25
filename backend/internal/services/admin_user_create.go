@@ -86,11 +86,15 @@ func (s *AdminService) CreateUser(
 		Email:       email,
 		Name:        strings.TrimSpace(req.Name),
 		IDPProvider: req.IDPProvider,
-		Status:      models.UserStatusActive,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	// GoogleID and IDPSubject stay nil: an admin-created account has no IdP
+	// Status is deliberately NOT set here: UserRepository.Create does not include
+	// the column in its INSERT, so assigning it would be silently dropped and read
+	// as if it did something. The users.status column defaults to 'active'
+	// (migration 011), which is what a newly created account should be.
+	//
+	// GoogleID and IDPSubject stay nil too: an admin-created account has no IdP
 	// subject until its owner first signs in through the configured provider.
 
 	if createErr := s.userRepo.Create(ctx, user); createErr != nil {

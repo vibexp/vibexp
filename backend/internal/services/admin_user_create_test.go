@@ -67,8 +67,10 @@ func TestCreateUser_PublishesUserCreated(t *testing.T) {
 		Return(nil, repositories.ErrUserNotFound)
 	userRepo.On("Create", mock.Anything, mock.MatchedBy(func(u *models.User) bool {
 		// Email normalized, IdP identity deliberately unset until first sign-in.
+		// Status is NOT asserted: Create's INSERT omits the column, so the value on
+		// this struct would prove nothing — the DB default supplies 'active'.
 		return u.Email == "new.user@example.com" && u.Name == "New User" &&
-			u.GoogleID == nil && u.IDPSubject == nil && u.Status == models.UserStatusActive
+			u.GoogleID == nil && u.IDPSubject == nil
 	})).Run(func(args mock.Arguments) {
 		args.Get(1).(*models.User).ID = createdUserID
 	}).Return(nil)

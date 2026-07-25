@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -204,4 +205,109 @@ func TestCreateAdminUser_RecordsActivity(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, rr.Code)
 	activitySvc.AssertExpectations(t)
+}
+
+// TestCreateAdminUser_RejectsUnknownFields is the enforcement behind
+// `additionalProperties: false` on AdminUserCreateRequest.
+//
+// Without the body-guard entry this returned 201 while silently discarding the
+// extra fields — and the two most likely ones are exactly the dangerous ones:
+// `status` belongs to the suspend/reactivate endpoints (#454) and
+// `is_instance_admin` is config-only by the epic's decision. An admin setting
+// either and receiving 201 would reasonably believe it applied.
+//
+// The service mock has no expectations, so anything reaching it fails the test.
+func TestCreateAdminUser_RejectsUnknownFields(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "status belongs to suspend/reactivate",
+			body: `{"email":"a@example.com","name":"A","status":"suspended"}`,
+			want: "status",
+		},
+		{
+			name: "instance-admin rights are config-only",
+			body: `{"email":"a@example.com","name":"A","is_instance_admin":true}`,
+			want: "is_instance_admin",
+		},
+		{
+			name: "identity fields are IdP-owned",
+			body: `{"email":"a@example.com","name":"A","idp_subject":"sub-1"}`,
+			want: "idp_subject",
+		},
+		{
+			name: "several at once are all named",
+			body: `{"email":"a@example.com","name":"A","status":"active","idp_subject":"s"}`,
+			want: "idp_subject, status",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+			srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+			req := postUserRequest(t, tc.body)
+			rr := httptest.NewRecorder()
+			mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusBadRequest, rr.Code)
+			assert.Contains(t, rr.Body.String(), tc.want)
+		})
+	}
+}
+
+// TestCreateAdminUser_AcceptsAllDeclaredFields is the control: the guard must not
+// reject a body using every property the schema declares.
+func TestCreateAdminUser_AcceptsAllDeclaredFields(t *testing.T) {
+	id := uuid.NewString()
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	mockAdmin.On("CreateUser", mock.Anything, mock.Anything).Return(createdUserDetail(id), nil)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := postUserRequest(t, `{"email":"a@example.com","name":"A","idp_provider":"oidc"}`)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusCreated, rr.Code)
+}
+
+// TestValidateAdminUserCreate_DefenceInDepth exercises the handler's own checks
+// directly. Over HTTP the generated Email type rejects a malformed address before
+// these run, so they are unreachable that way — but they are the safety net if the
+// spec ever drops `format: email`, and an untested safety net is not one.
+func TestValidateAdminUserCreate_DefenceInDepth(t *testing.T) {
+	tests := []struct {
+		name    string
+		email   string
+		reqName string
+		wantErr string
+	}{
+		{"trims and lowercases", "  Mixed@Example.COM ", " A ", ""},
+		{"empty email", "", "A", "email is required"},
+		{"whitespace email", "   ", "A", "email is required"},
+		{"malformed email", "not-an-email", "A", "valid address"},
+		{"empty name", "a@example.com", "", "name is required"},
+		{"whitespace name", "a@example.com", "   ", "name is required"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			email, name, err := validateAdminUserCreate(admingen.AdminUserCreateRequest{
+				Email: openapi_types.Email(tc.email),
+				Name:  tc.reqName,
+			})
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "mixed@example.com", email)
+			assert.Equal(t, "A", name)
+		})
+	}
 }
