@@ -131,7 +131,9 @@ export function Projects() {
         canUpdate: canUpdateProject,
         canDelete: canDeleteProject,
       }),
-    [navigate, canUpdateProject, canDeleteProject]
+    // currentTeam?.id is load-bearing: every row link is built from it, so
+    // omitting it leaves the previous team's links after a team switch.
+    [currentTeam?.id, navigate, canUpdateProject, canDeleteProject]
   )
 
   const status = listPageStatus(

@@ -258,7 +258,7 @@ export function ProjectMigrate() {
 
   const handleDone = useCallback(() => {
     void navigate(`/teams/${currentTeam?.id ?? ''}/projects`)
-  }, [navigate])
+  }, [currentTeam?.id, navigate])
 
   const inventoryCounts = wizard.inventory
     ? {

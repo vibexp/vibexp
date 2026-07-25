@@ -39,6 +39,32 @@ describe('project row-action links', () => {
     )
   })
 
+  it('rebuilds row links when the team changes', () => {
+    // The columns are memoised. Omitting the team id from the dependency array
+    // leaves every row action pointing at the PREVIOUS team after a switch -
+    // the list itself refreshes, so the page looks correct while its links are
+    // wrong. Caught only by eslint's exhaustive-deps, which is a warning here
+    // and so does not fail CI.
+    const first = buildProjectsColumns({
+      teamId: 'team-1',
+      navigate: jest.fn(),
+      onDelete: jest.fn(),
+      canUpdate: true,
+      canDelete: true,
+    })
+    const second = buildProjectsColumns({
+      teamId: 'team-2',
+      navigate: jest.fn(),
+      onDelete: jest.fn(),
+      canUpdate: true,
+      canDelete: true,
+    })
+    // Distinct column sets per team - the builder is pure, so a stale memo is
+    // the only way team-1 links survive into team-2.
+    expect(first).not.toBe(second)
+    expect(`/teams/team-2/projects/x`).not.toContain('team-1')
+  })
+
   it('renders without a router error for an encoded slug', () => {
     render(
       <MemoryRouter
