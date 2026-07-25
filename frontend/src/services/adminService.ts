@@ -12,6 +12,30 @@ export type AdminUserListItem = components['schemas']['AdminUserListItem']
 export type AdminUserListResponse =
   components['schemas']['AdminUserListResponse']
 export type AdminTeamMembership = components['schemas']['AdminTeamMembership']
+export type AdminUserCreateRequest =
+  components['schemas']['AdminUserCreateRequest']
+export type AdminUserUpdateRequest =
+  components['schemas']['AdminUserUpdateRequest']
+export type AdminDeleteBlocker = components['schemas']['AdminDeleteBlocker']
+export type AdminUserDeleteBlockedResponse =
+  components['schemas']['AdminUserDeleteBlockedResponse']
+
+/** Query parameters for the instance-wide user listing (#452 + #454's status). */
+export type AdminUserListParams = NonNullable<
+  operations['listAdminUsers']['parameters']['query']
+>
+
+/**
+ * Outcome of a delete attempt.
+ *
+ * A refusal is **data**, not an error: the 409 body is a documented schema
+ * (`AdminUserDeleteBlockedResponse`) carrying the teams that blocked it, and the
+ * dialog renders them. Modelling it as a thrown error would lose the list — see
+ * `deleteUser` for why `unwrap` cannot be used on this call.
+ */
+export type AdminUserDeleteResult =
+  | { deleted: true }
+  | { deleted: false; refusal: AdminUserDeleteBlockedResponse }
 export type AdminUserDetail = components['schemas']['AdminUserDetail']
 export type AdminTeamOwner = components['schemas']['AdminTeamOwner']
 export type AdminTeamListItem = components['schemas']['AdminTeamListItem']
@@ -46,19 +70,103 @@ export type AdminProjectListParams = NonNullable<
   operations['listAdminProjects']['parameters']['query']
 >
 
+/**
+ * Structural check on the 409 body.
+ *
+ * A 409 whose body is not the documented refusal shape falls through to the
+ * normal error path rather than being reported as a refusal with no blockers —
+ * failing loudly beats inventing "nothing is blocking this" when the response
+ * cannot be read.
+ */
+function isDeleteRefusal(
+  body: unknown
+): body is AdminUserDeleteBlockedResponse {
+  if (typeof body !== 'object' || body === null) return false
+  const candidate = body as Partial<AdminUserDeleteBlockedResponse>
+  return (
+    typeof candidate.message === 'string' && Array.isArray(candidate.blockers)
+  )
+}
+
 class AdminService {
   /** Instance-wide counts + running backend version (GET /admin/stats). */
   async getStats(): Promise<AdminStatsResponse> {
     return unwrap(generatedClient.GET('/api/v1/admin/stats', {}))
   }
 
-  /** One page of the instance-wide user listing, newest first. */
-  async listUsers(page: number, limit: number): Promise<AdminUserListResponse> {
+  /**
+   * One page of the instance-wide user listing.
+   *
+   * Filters, sort and pagination are server-side, so the envelope's totals
+   * describe the filtered set.
+   */
+  async listUsers(params: AdminUserListParams): Promise<AdminUserListResponse> {
     return unwrap(
       generatedClient.GET('/api/v1/admin/users', {
-        params: { query: { page, limit } },
+        params: { query: params },
       })
     )
+  }
+
+  /** Create a user directly. Publishes `user.created`, so the account gets its personal team and default project exactly as a self-signup would (#462). */
+  async createUser(body: AdminUserCreateRequest): Promise<AdminUserDetail> {
+    return unwrap(generatedClient.POST('/api/v1/admin/users', { body }))
+  }
+
+  /** Update a user's display name. */
+  async updateUser(
+    id: string,
+    body: AdminUserUpdateRequest
+  ): Promise<AdminUserDetail> {
+    return unwrap(
+      generatedClient.PATCH('/api/v1/admin/users/{id}', {
+        params: { path: { id } },
+        body,
+      })
+    )
+  }
+
+  /** Suspend a user: every auth entry point rejects them until reactivated (#454). */
+  async suspendUser(id: string): Promise<AdminUserDetail> {
+    return unwrap(
+      generatedClient.POST('/api/v1/admin/users/{id}/suspend', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /** Lift a suspension. */
+  async reactivateUser(id: string): Promise<AdminUserDetail> {
+    return unwrap(
+      generatedClient.POST('/api/v1/admin/users/{id}/reactivate', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /**
+   * Hard-delete a user, or report why it was refused.
+   *
+   * Deliberately **not** routed through `unwrap`. The 409 body is
+   * `application/json` + `AdminUserDeleteBlockedResponse`, not RFC-9457 problem
+   * details, so `unwrap`'s `isProblemDetails` check fails and it collapses the
+   * response into a generic `ApiError` with `code: 'UNKNOWN_ERROR'` and
+   * `detail: 'HTTP 409 error'` — discarding `blockers` entirely, which is the
+   * one thing the dialog needs. Every other status still goes through `unwrap`'s
+   * error handling, so timeouts and 404s behave exactly as elsewhere.
+   */
+  async deleteUser(id: string): Promise<AdminUserDeleteResult> {
+    const result = await generatedClient.DELETE('/api/v1/admin/users/{id}', {
+      params: { path: { id } },
+    })
+
+    if (result.response.status === 409 && isDeleteRefusal(result.error)) {
+      return { deleted: false, refusal: result.error }
+    }
+    // Re-resolve through unwrap so non-409 failures throw the same ApiError the
+    // rest of the app handles.
+    await unwrap(Promise.resolve(result))
+    return { deleted: true }
   }
 
   /** A single user with their team memberships. */
