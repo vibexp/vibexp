@@ -75,6 +75,25 @@ var ErrLastProviderDelete = errors.New("cannot delete the last embedding provide
 // ErrModelProviderNotFound is returned when a model provider is not found
 var ErrModelProviderNotFound = errors.New("model provider not found")
 
+// ErrGitHubAppNotConfigured is returned when a team has no GitHub App
+// registered. Callers surface it as a 409: the request is well-formed, the team
+// is simply not in a state where it can be served.
+var ErrGitHubAppNotConfigured = errors.New("team has no GitHub App configured")
+
+// ErrGitHubAppAlreadyRegistered is returned when the App id belongs to another
+// team. A GitHub App has exactly one hook_url, so sharing one across teams would
+// leave the second team's webhook permanently dead — hence a 409 rather than a
+// silently broken integration.
+var ErrGitHubAppAlreadyRegistered = errors.New("GitHub App is already registered by another team")
+
+// ErrGitHubAppConfigExists is returned when the team already has an App. One App
+// per team is the design; the caller should edit the existing config instead.
+var ErrGitHubAppConfigExists = errors.New("team already has a GitHub App configured")
+
+// ErrGitHubAppConfigConflict is returned when an optimistic-locked update loses
+// to a concurrent write. Nothing was mutated; re-read and retry.
+var ErrGitHubAppConfigConflict = errors.New("GitHub App configuration was modified concurrently")
+
 // ErrModelProviderAlreadyExists is returned when trying to create a model provider that already exists
 var ErrModelProviderAlreadyExists = errors.New("model provider already exists")
 

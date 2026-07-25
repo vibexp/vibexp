@@ -71,6 +71,7 @@ type Container interface {
 	BlueprintService() services.BlueprintServiceInterface
 	EmbeddingProviderService() services.EmbeddingProviderServiceInterface
 	ModelProviderService() services.ModelProviderServiceInterface
+	GitHubAppConfigService() services.GitHubAppConfigServiceInterface
 	EmailService() services.EmailServiceInterface
 	ActivityService() activities.ActivityService
 	ResourceAccessService() resourceaccess.ResourceAccessService

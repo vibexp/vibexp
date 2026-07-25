@@ -223,6 +223,10 @@ func (b *BaseMockContainer) ModelProviderService() services.ModelProviderService
 	return nil
 }
 
+func (b *BaseMockContainer) GitHubAppConfigService() services.GitHubAppConfigServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) EmailService() services.EmailServiceInterface {
 	return nil
 }
