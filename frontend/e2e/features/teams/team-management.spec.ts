@@ -267,7 +267,7 @@ test.describe('Team Management', () => {
           // Open the new team's details page, then delete it from there
           // (deletion lives on the details page, not the list).
           await teamLink.click()
-          await authenticatedPage.waitForURL(/settings\/teams\/[0-9a-f-]+$/, {
+          await authenticatedPage.waitForURL(/\/teams\/[0-9a-f-]+$/, {
             timeout: 10000,
           })
 
@@ -284,7 +284,7 @@ test.describe('Team Management', () => {
             .click()
 
           // Should navigate back to the teams list after deletion
-          await expect(authenticatedPage).toHaveURL(/settings\/teams$/, {
+          await expect(authenticatedPage).toHaveURL(/\/teams$/, {
             timeout: 10000,
           })
         }

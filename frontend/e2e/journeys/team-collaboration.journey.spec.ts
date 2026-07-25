@@ -515,20 +515,25 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       await expect(
         authenticatedPage.locator('[data-testid="team-name-input"]')
       ).toBeVisible({ timeout: 10000 })
-      await authenticatedPage.fill(
-        '[data-testid="team-name-input"]',
-        'Confirm Delete Team'
-      )
+      // Deliberately NOT a name that contains a UI control label: team names
+      // are user data and collide with text-based selectors (#597).
+      const teamName = `Journey7 Confirm Teardown ${Date.now()}`
+      await authenticatedPage.fill('[data-testid="team-name-input"]', teamName)
       await authenticatedPage.click('[data-testid="submit-create-team-button"]')
-      await expect(
-        authenticatedPage.getByText('Confirm Delete Team')
-      ).toBeVisible({ timeout: 10000 })
+      await expect(authenticatedPage.getByText(teamName)).toBeVisible({
+        timeout: 10000,
+      })
 
-      await authenticatedPage.click('text=Confirm Delete Team')
+      await authenticatedPage.click(`text=${teamName}`)
 
-      // Click delete
+      // Click delete. Selected by its test hook rather than by text: since
+      // #544 the header team switcher renders the current team's name while
+      // disabled, so `button:has-text("Delete Team")` also matches the switcher
+      // for a team whose name contains that substring - which this fixture's
+      // does. The sibling test above avoids it by using getByRole, since the
+      // switcher carries role="combobox".
       const deleteButton = authenticatedPage.locator(
-        'button:has-text("Delete Team")'
+        '[data-testid="delete-team-button"]'
       )
       await deleteButton
         .first()
