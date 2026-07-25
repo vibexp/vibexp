@@ -139,7 +139,59 @@ func (s *TeamEmailProviderService) GetEffective(
 		return nil, err
 	}
 
-	return models.NewTeamEmailProviderEffectiveTeam(provider), nil
+	return models.NewTeamEmailProviderEffectiveTeam(provider, teamSettingsUnion(provider)), nil
+}
+
+// EffectiveFromProvider builds the effective view from a row the caller already
+// has, so a write can describe its own result without a second read (and without
+// a window where a concurrent change makes the response describe a state that was
+// never stored).
+func (s *TeamEmailProviderService) EffectiveFromProvider(
+	provider *models.TeamEmailProvider,
+) *models.TeamEmailProviderEffective {
+	return models.NewTeamEmailProviderEffectiveTeam(provider, teamSettingsUnion(provider))
+}
+
+// teamSettingsUnion lifts the row's stored settings block into the per-type union
+// the API exposes, so a GET response is shaped exactly like the PUT body that
+// produced it and can be fed straight back.
+//
+// The stored blob holds only the inner block (the provider type is a separate
+// column), so returning it as-is would document `settings.mailgun.domain` and
+// serve `settings.domain`. A blob that will not decode yields nil rather than an
+// error: the rest of the configuration must stay readable by the admin who has to
+// repair it.
+func teamSettingsUnion(provider *models.TeamEmailProvider) *models.TeamEmailProviderSettings {
+	if len(provider.Settings) == 0 {
+		return nil
+	}
+
+	union := &models.TeamEmailProviderSettings{}
+	switch normalizeProviderType(provider.ProviderType) {
+	case EmailProviderTypeSMTP:
+		var block models.SMTPProviderSettings
+		if json.Unmarshal(provider.Settings, &block) != nil {
+			return nil
+		}
+		union.SMTP = &block
+	case EmailProviderTypeMailgun:
+		var block models.MailgunProviderSettings
+		if json.Unmarshal(provider.Settings, &block) != nil {
+			return nil
+		}
+		union.Mailgun = &block
+	case EmailProviderTypePostmark:
+		var block models.PostmarkProviderSettings
+		if json.Unmarshal(provider.Settings, &block) != nil {
+			return nil
+		}
+		union.Postmark = &block
+	default:
+		// SendGrid (and anything unrecognised) has no non-secret settings.
+		return nil
+	}
+
+	return union
 }
 
 // Upsert validates, encrypts and stores the team's provider.

@@ -189,11 +189,14 @@ type TeamEmailProviderEffective struct {
 
 	// The remaining fields describe the team's own row and are omitted entirely
 	// when the team inherits the instance provider.
-	FromAddress *string         `json:"from_address,omitempty"`
-	FromName    *string         `json:"from_name,omitempty"`
-	ReplyTo     *string         `json:"reply_to,omitempty"`
-	Settings    json.RawMessage `json:"settings,omitempty"`
-	IsHealthy   *bool           `json:"is_healthy,omitempty"`
+	FromAddress *string `json:"from_address,omitempty"`
+	FromName    *string `json:"from_name,omitempty"`
+	ReplyTo     *string `json:"reply_to,omitempty"`
+	// Settings is the per-type union, keyed by provider type exactly as the
+	// request body is — NOT the bare inner block. Keeping the two symmetric is
+	// what lets a client feed a GET response straight back into a PUT.
+	Settings  *TeamEmailProviderSettings `json:"settings,omitempty"`
+	IsHealthy *bool                      `json:"is_healthy,omitempty"`
 	// LastSuccessAt, LastError and LastErrorAt drive the health banner. LastError
 	// can be set while the provider is healthy again — see IsHealthy.
 	LastSuccessAt *time.Time `json:"last_success_at,omitempty"`
@@ -216,7 +219,11 @@ func NewTeamEmailProviderEffectiveInstance(instanceFromAddress string) *TeamEmai
 // NewTeamEmailProviderEffectiveTeam builds the GET view for a team using its own
 // provider. The encrypted secret is never copied across — only the has_credential
 // boolean derived from it.
-func NewTeamEmailProviderEffectiveTeam(provider *TeamEmailProvider) *TeamEmailProviderEffective {
+// settings is the row's stored block lifted into the per-type union; pass nil
+// when it could not be decoded, so the rest of the configuration stays readable.
+func NewTeamEmailProviderEffectiveTeam(
+	provider *TeamEmailProvider, settings *TeamEmailProviderSettings,
+) *TeamEmailProviderEffective {
 	providerType := provider.ProviderType
 	healthy := provider.IsHealthy()
 
@@ -229,7 +236,7 @@ func NewTeamEmailProviderEffectiveTeam(provider *TeamEmailProvider) *TeamEmailPr
 		FromAddress:          &provider.FromAddress,
 		FromName:             provider.FromName,
 		ReplyTo:              provider.ReplyTo,
-		Settings:             provider.Settings,
+		Settings:             settings,
 		IsHealthy:            &healthy,
 		LastSuccessAt:        provider.LastSuccessAt,
 		LastError:            provider.LastError,

@@ -739,3 +739,254 @@ func TestTeamEmailProvider_GetEffective_NeverSerializesTheSecret(t *testing.T) {
 	assert.NotContains(t, string(encoded), "SUPER-SECRET-CIPHERTEXT")
 	assert.Contains(t, string(encoded), `"has_credential":true`)
 }
+
+// --- EffectiveFromProvider / settings union -----------------------------------
+
+// A write describes its own result from the row it just stored, without a second
+// read.
+func TestTeamEmailProvider_EffectiveFromProvider(t *testing.T) {
+	svc := newTestTeamEmailProviderService(t,
+		repomocks.NewMockTeamEmailProviderRepository(t),
+		repomocks.NewMockUserRepository(t), permissiveProviderAuthz{})
+
+	fromName := "Acme"
+	effective := svc.EffectiveFromProvider(&models.TeamEmailProvider{
+		TeamID:          testProviderTeamID,
+		ProviderType:    EmailProviderTypeMailgun,
+		Settings:        json.RawMessage(`{"domain":"mg.acme.test"}`),
+		SecretEncrypted: "ciphertext",
+		FromAddress:     "hello@acme.test",
+		FromName:        &fromName,
+	})
+
+	assert.True(t, effective.Configured)
+	assert.Equal(t, "team", effective.Source)
+	assert.Equal(t, "hello@acme.test", effective.EffectiveFromAddress)
+	assert.True(t, effective.HasCredential)
+	require.NotNil(t, effective.Settings)
+	require.NotNil(t, effective.Settings.Mailgun)
+	assert.Equal(t, "mg.acme.test", effective.Settings.Mailgun.Domain)
+}
+
+// The stored blob holds only the inner block, so the union must be rebuilt per
+// provider type — the shape the API documents and that round-trips into a PUT.
+func TestTeamSettingsUnion_PerProviderType(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider *models.TeamEmailProvider
+		assertOn func(t *testing.T, union *models.TeamEmailProviderSettings)
+	}{
+		{
+			name: "smtp",
+			provider: &models.TeamEmailProvider{
+				ProviderType: EmailProviderTypeSMTP,
+				Settings:     json.RawMessage(`{"host":"smtp.acme.test","port":"587","username":"mailer"}`),
+			},
+			assertOn: func(t *testing.T, union *models.TeamEmailProviderSettings) {
+				require.NotNil(t, union.SMTP)
+				assert.Equal(t, "smtp.acme.test", union.SMTP.Host)
+				assert.Equal(t, "587", union.SMTP.Port)
+				assert.Equal(t, "mailer", union.SMTP.Username)
+				assert.Nil(t, union.Mailgun, "only the matching block is populated")
+			},
+		},
+		{
+			name: "mailgun",
+			provider: &models.TeamEmailProvider{
+				ProviderType: EmailProviderTypeMailgun,
+				Settings:     json.RawMessage(`{"domain":"mg.acme.test","base_url":"https://api.eu.mailgun.net/v3"}`),
+			},
+			assertOn: func(t *testing.T, union *models.TeamEmailProviderSettings) {
+				require.NotNil(t, union.Mailgun)
+				assert.Equal(t, "mg.acme.test", union.Mailgun.Domain)
+				assert.Equal(t, "https://api.eu.mailgun.net/v3", union.Mailgun.BaseURL)
+			},
+		},
+		{
+			name: "postmark",
+			provider: &models.TeamEmailProvider{
+				ProviderType: EmailProviderTypePostmark,
+				Settings:     json.RawMessage(`{"message_stream":"broadcast"}`),
+			},
+			assertOn: func(t *testing.T, union *models.TeamEmailProviderSettings) {
+				require.NotNil(t, union.Postmark)
+				assert.Equal(t, "broadcast", union.Postmark.MessageStream)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			union := teamSettingsUnion(tc.provider)
+			require.NotNil(t, union)
+			tc.assertOn(t, union)
+		})
+	}
+}
+
+func TestTeamSettingsUnion_NilCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider *models.TeamEmailProvider
+	}{
+		{
+			name: "sendgrid has no non-secret settings",
+			provider: &models.TeamEmailProvider{
+				ProviderType: EmailProviderTypeSendGrid,
+				Settings:     json.RawMessage(`{}`),
+			},
+		},
+		{
+			name:     "empty settings",
+			provider: &models.TeamEmailProvider{ProviderType: EmailProviderTypeSMTP},
+		},
+		{
+			name: "unrecognised provider type",
+			provider: &models.TeamEmailProvider{
+				ProviderType: "ses",
+				Settings:     json.RawMessage(`{"host":"x"}`),
+			},
+		},
+		{
+			name: "malformed blob stays readable as nil rather than failing the read",
+			provider: &models.TeamEmailProvider{
+				ProviderType: EmailProviderTypeSMTP,
+				Settings:     json.RawMessage(`{"host": 42}`),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Nil(t, teamSettingsUnion(tc.provider))
+		})
+	}
+}
+
+func TestNewTeamEmailProviderTestResponse_MapsOutcome(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		got := models.NewTeamEmailProviderTestResponse(&models.TeamEmailProviderTestResult{
+			Success:   true,
+			Recipient: "admin@acme.test",
+			Message:   "sent",
+		})
+		assert.True(t, got.IsValid)
+		assert.Equal(t, "admin@acme.test", got.Recipient)
+		assert.Empty(t, got.Details.ErrorDetails)
+	})
+
+	t.Run("failure carries the fixed category", func(t *testing.T) {
+		got := models.NewTeamEmailProviderTestResponse(&models.TeamEmailProviderTestResult{
+			Success:      false,
+			Recipient:    "admin@acme.test",
+			Message:      "nope",
+			ErrorDetails: models.TeamEmailProviderErrConfigInvalid,
+		})
+		assert.False(t, got.IsValid)
+		assert.Equal(t, models.TeamEmailProviderErrConfigInvalid, got.Details.ErrorDetails)
+	})
+}
+
+// A test send whose configuration cannot build a provider is reported as a result
+// with the configuration_invalid category, not as an error.
+func TestTeamEmailProvider_Test_ConfigInvalidCategory(t *testing.T) {
+	userRepo := repomocks.NewMockUserRepository(t)
+	userRepo.On("GetByID", mock.Anything, testProviderUserID).
+		Return(&models.User{ID: testProviderUserID, Email: "admin@example.com"}, nil)
+
+	svc := newTestTeamEmailProviderService(t,
+		repomocks.NewMockTeamEmailProviderRepository(t), userRepo, permissiveProviderAuthz{})
+
+	// Passes validation but the SMTP provider rejects the port at construction:
+	// validateSMTPSettings allows 65535, the sender does not accept 0-width hosts,
+	// so use a port the factory parses yet gomail refuses to dial from.
+	req := validSMTPRequest()
+	req.Settings.SMTP.Host = "localhost"
+	req.Settings.SMTP.Port = "65535"
+
+	result, err := svc.Test(context.Background(), testProviderUserID, testProviderTeamID,
+		models.TestTeamEmailProviderRequest{UpsertTeamEmailProviderRequest: req})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.Equal(t, models.TeamEmailProviderErrSendFailed, result.ErrorDetails)
+}
+
+// A user whose account has no email address cannot receive a test send; that is a
+// validation error naming the problem, not a silent success.
+func TestTeamEmailProvider_Test_UserWithoutEmail(t *testing.T) {
+	userRepo := repomocks.NewMockUserRepository(t)
+	userRepo.On("GetByID", mock.Anything, testProviderUserID).
+		Return(&models.User{ID: testProviderUserID, Email: ""}, nil)
+
+	svc := newTestTeamEmailProviderService(t,
+		repomocks.NewMockTeamEmailProviderRepository(t), userRepo, permissiveProviderAuthz{})
+
+	_, err := svc.Test(context.Background(), testProviderUserID, testProviderTeamID,
+		models.TestTeamEmailProviderRequest{UpsertTeamEmailProviderRequest: validSMTPRequest()})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrTeamEmailProviderValidation)
+	assert.Contains(t, err.Error(), "recipient")
+}
+
+// A repository failure on the user lookup must surface rather than being reported
+// as a bad configuration.
+func TestTeamEmailProvider_Test_UserLookupFailure(t *testing.T) {
+	userRepo := repomocks.NewMockUserRepository(t)
+	userRepo.On("GetByID", mock.Anything, testProviderUserID).
+		Return(nil, errors.New("connection reset"))
+
+	svc := newTestTeamEmailProviderService(t,
+		repomocks.NewMockTeamEmailProviderRepository(t), userRepo, permissiveProviderAuthz{})
+
+	_, err := svc.Test(context.Background(), testProviderUserID, testProviderTeamID,
+		models.TestTeamEmailProviderRequest{UpsertTeamEmailProviderRequest: validSMTPRequest()})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve the acting user")
+}
+
+// Delete surfaces a repository failure rather than reporting success.
+func TestTeamEmailProvider_Delete_RepositoryError(t *testing.T) {
+	repo := repomocks.NewMockTeamEmailProviderRepository(t)
+	repo.On("Delete", mock.Anything, testProviderTeamID).Return(errors.New("connection reset"))
+
+	svc := newTestTeamEmailProviderService(t, repo, repomocks.NewMockUserRepository(t),
+		permissiveProviderAuthz{})
+
+	err := svc.Delete(context.Background(), testProviderUserID, testProviderTeamID)
+
+	require.Error(t, err)
+}
+
+// Upsert surfaces a repository write failure.
+func TestTeamEmailProvider_Upsert_RepositoryError(t *testing.T) {
+	repo := repomocks.NewMockTeamEmailProviderRepository(t)
+	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
+		Return(nil, repositories.ErrTeamEmailProviderNotFound)
+	repo.On("Upsert", mock.Anything, mock.Anything).Return(errors.New("constraint violation"))
+
+	svc := newTestTeamEmailProviderService(t, repo, repomocks.NewMockUserRepository(t),
+		permissiveProviderAuthz{})
+
+	_, err := svc.Upsert(context.Background(), testProviderUserID, testProviderTeamID, validSMTPRequest())
+
+	require.Error(t, err)
+}
+
+// A read failure while deciding create-vs-update must abort rather than guess.
+func TestTeamEmailProvider_Upsert_ExistingLookupFailure(t *testing.T) {
+	repo := repomocks.NewMockTeamEmailProviderRepository(t)
+	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
+		Return(nil, errors.New("connection reset"))
+
+	svc := newTestTeamEmailProviderService(t, repo, repomocks.NewMockUserRepository(t),
+		permissiveProviderAuthz{})
+
+	_, err := svc.Upsert(context.Background(), testProviderUserID, testProviderTeamID, validSMTPRequest())
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrTeamEmailProviderValidation)
+}

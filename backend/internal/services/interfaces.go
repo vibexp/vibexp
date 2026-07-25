@@ -290,6 +290,9 @@ type TeamEmailProviderServiceInterface interface {
 	// secret keeps the stored one; an empty secret is a validation error.
 	Upsert(ctx context.Context, userID, teamID string,
 		req models.UpsertTeamEmailProviderRequest) (*models.TeamEmailProvider, error)
+	// EffectiveFromProvider builds the effective view from a row the caller
+	// already holds, so a write can describe its own result without re-reading.
+	EffectiveFromProvider(provider *models.TeamEmailProvider) *models.TeamEmailProviderEffective
 	// Delete removes the team's provider, reverting it to the instance provider.
 	Delete(ctx context.Context, userID, teamID string) error
 	// Test sends a real message using the configuration in the request rather

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -114,6 +115,14 @@ func sampleTeamProvider() *models.TeamEmailProvider {
 	}
 }
 
+// sampleTeamSettings is the per-type union the API exposes — keyed by provider
+// type, exactly like the request body, so a GET response round-trips into a PUT.
+func sampleTeamSettings() *models.TeamEmailProviderSettings {
+	return &models.TeamEmailProviderSettings{
+		Mailgun: &models.MailgunProviderSettings{Domain: "mg.acme.test"},
+	}
+}
+
 func validUpsertRequestBody() models.UpsertTeamEmailProviderRequest {
 	secret := teamEmailProviderTestSecret
 	return models.UpsertTeamEmailProviderRequest{
@@ -162,7 +171,7 @@ func TestHandleGetTeamEmailProvider_TeamConfigured_SpecConformance(t *testing.T)
 			c := newMockTeamEmailProviderContainer(t)
 			c.teamEmailProviderService.EXPECT().
 				GetEffective(mock.Anything, "user-123", "team-123").
-				Return(models.NewTeamEmailProviderEffectiveTeam(sampleTeamProvider()), nil)
+				Return(models.NewTeamEmailProviderEffectiveTeam(sampleTeamProvider(), sampleTeamSettings()), nil)
 
 			req := makeTeamEmailProviderRequest(http.MethodGet, "/api/v1/team-123/"+prefix, nil)
 			w := httptest.NewRecorder()
@@ -186,6 +195,38 @@ func TestHandleGetTeamEmailProvider_TeamConfigured_SpecConformance(t *testing.T)
 	}
 }
 
+// The settings a GET returns must be shaped like the PUT body that produced them
+// — keyed by provider type, not the bare inner block. Otherwise a client cannot
+// feed a GET response back into a PUT, and the documented schema would describe
+// something the API does not serve. The spec schema is permissive enough that
+// conformance alone would not catch this, so assert the shape explicitly.
+func TestHandleGetTeamEmailProvider_SettingsRoundTripIntoUpsert(t *testing.T) {
+	c := newMockTeamEmailProviderContainer(t)
+	c.teamEmailProviderService.EXPECT().
+		GetEffective(mock.Anything, "user-123", "team-123").
+		Return(models.NewTeamEmailProviderEffectiveTeam(sampleTeamProvider(), sampleTeamSettings()), nil)
+
+	req := makeTeamEmailProviderRequest(http.MethodGet, "/api/v1/team-123/email-provider", nil)
+	w := httptest.NewRecorder()
+	createTestTeamEmailProviderServer(c).ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// The wire shape is settings.mailgun.domain, matching the request body.
+	var raw struct {
+		Settings map[string]map[string]any `json:"settings"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &raw))
+	require.Contains(t, raw.Settings, "mailgun",
+		"settings must be keyed by provider type, not the bare inner block")
+	assert.Equal(t, "mg.acme.test", raw.Settings["mailgun"]["domain"])
+
+	// And it decodes straight back into the request type.
+	var back models.UpsertTeamEmailProviderRequest
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &back))
+	require.NotNil(t, back.Settings.Mailgun)
+	assert.Equal(t, "mg.acme.test", back.Settings.Mailgun.Domain)
+}
+
 // --- PUT ---------------------------------------------------------------------
 
 func TestHandleUpsertTeamEmailProvider_SpecConformance(t *testing.T) {
@@ -193,12 +234,13 @@ func TestHandleUpsertTeamEmailProvider_SpecConformance(t *testing.T) {
 		t.Run(prefix, func(t *testing.T) {
 			c := newMockTeamEmailProviderContainer(t)
 			body := validUpsertRequestBody()
+			stored := sampleTeamProvider()
 			c.teamEmailProviderService.EXPECT().
 				Upsert(mock.Anything, "user-123", "team-123", body).
-				Return(sampleTeamProvider(), nil)
+				Return(stored, nil)
 			c.teamEmailProviderService.EXPECT().
-				GetEffective(mock.Anything, "user-123", "team-123").
-				Return(models.NewTeamEmailProviderEffectiveTeam(sampleTeamProvider()), nil)
+				EffectiveFromProvider(stored).
+				Return(models.NewTeamEmailProviderEffectiveTeam(stored, sampleTeamSettings()))
 
 			req := makeTeamEmailProviderRequest(http.MethodPut, "/api/v1/team-123/"+prefix, body)
 			w := httptest.NewRecorder()
@@ -477,4 +519,131 @@ func TestTeamEmailProviderHandlers_MemberCanRead(t *testing.T) {
 	createTestTeamEmailProviderServer(c).ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code, "reading the effective configuration is not privileged")
+}
+
+// --- Error paths -------------------------------------------------------------
+
+// An unexpected service failure becomes a 500 with the domain's own code, not a
+// bare panic or an unmapped error.
+func TestTeamEmailProviderHandlers_InternalFailures(t *testing.T) {
+	body := validUpsertRequestBody()
+
+	tests := []struct {
+		name     string
+		arrange  func(c *MockTeamEmailProviderContainer)
+		method   string
+		path     string
+		body     any
+		wantCode string
+	}{
+		{
+			name: "get",
+			arrange: func(c *MockTeamEmailProviderContainer) {
+				c.teamEmailProviderService.EXPECT().
+					GetEffective(mock.Anything, "user-123", "team-123").
+					Return(nil, errors.New("connection reset"))
+			},
+			method:   http.MethodGet,
+			path:     "/api/v1/team-123/email-provider",
+			wantCode: "INTERNAL_ERROR",
+		},
+		{
+			name: "put",
+			arrange: func(c *MockTeamEmailProviderContainer) {
+				c.teamEmailProviderService.EXPECT().
+					Upsert(mock.Anything, "user-123", "team-123", body).
+					Return(nil, errors.New("connection reset"))
+			},
+			method:   http.MethodPut,
+			path:     "/api/v1/team-123/email-provider",
+			body:     body,
+			wantCode: "TEAM_EMAIL_PROVIDER_UPDATE_FAILED",
+		},
+		{
+			name: "delete",
+			arrange: func(c *MockTeamEmailProviderContainer) {
+				c.teamEmailProviderService.EXPECT().
+					Delete(mock.Anything, "user-123", "team-123").
+					Return(errors.New("connection reset"))
+			},
+			method:   http.MethodDelete,
+			path:     "/api/v1/team-123/email-provider",
+			wantCode: "TEAM_EMAIL_PROVIDER_DELETE_FAILED",
+		},
+		{
+			name: "test",
+			arrange: func(c *MockTeamEmailProviderContainer) {
+				c.teamEmailProviderService.EXPECT().
+					Test(mock.Anything, "user-123", "team-123",
+						models.TestTeamEmailProviderRequest{UpsertTeamEmailProviderRequest: body}).
+					Return(nil, errors.New("connection reset"))
+			},
+			method:   http.MethodPost,
+			path:     "/api/v1/team-123/email-provider/test",
+			body:     body,
+			wantCode: "INTERNAL_ERROR",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newMockTeamEmailProviderContainer(t)
+			tc.arrange(c)
+
+			req := makeTeamEmailProviderRequest(tc.method, tc.path, tc.body)
+			w := httptest.NewRecorder()
+			createTestTeamEmailProviderServer(c).ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusInternalServerError, w.Code)
+
+			var problem map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &problem))
+			assert.Equal(t, tc.wantCode, problem["code"])
+		})
+	}
+}
+
+// A validation failure on the test endpoint is a 400 with field detail, not a
+// misleading "your provider is broken" 200.
+func TestHandleTestTeamEmailProvider_ValidationFailureIsA400(t *testing.T) {
+	c := newMockTeamEmailProviderContainer(t)
+	body := validUpsertRequestBody()
+	c.teamEmailProviderService.EXPECT().
+		Test(mock.Anything, "user-123", "team-123",
+			models.TestTeamEmailProviderRequest{UpsertTeamEmailProviderRequest: body}).
+		Return(nil, &services.TeamEmailProviderValidationError{Fields: []services.FieldError{
+			{Field: "secret", Message: "is required"},
+		}})
+
+	req := makeTeamEmailProviderRequest(http.MethodPost, "/api/v1/team-123/email-provider/test", body)
+	w := httptest.NewRecorder()
+	createTestTeamEmailProviderServer(c).ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+
+	var problem map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &problem))
+	assert.Equal(t, "TEAM_EMAIL_PROVIDER_VALIDATION_FAILED", problem["code"])
+}
+
+func TestHandleTestTeamEmailProvider_MalformedBody(t *testing.T) {
+	c := newMockTeamEmailProviderContainer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/team-123/email-provider/test",
+		bytes.NewReader([]byte("{not json")))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, "user-123"))
+
+	w := httptest.NewRecorder()
+	createTestTeamEmailProviderServer(c).ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	specconformance.AssertConformsToSpec(t, req, w)
+}
+
+// A validation error carrying no field list still maps to a 400 rather than
+// falling through to a 500.
+func TestTeamEmailProviderValidationErrors_HandlesUnwrappedError(t *testing.T) {
+	assert.Nil(t, teamEmailProviderValidationErrors(errors.New("not a validation error")))
 }

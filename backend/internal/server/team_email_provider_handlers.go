@@ -122,23 +122,18 @@ func (s *Server) handleUpsertTeamEmailProvider(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if _, err := s.container.TeamEmailProviderService().Upsert(r.Context(), userID, teamID, req); err != nil {
+	provider, err := s.container.TeamEmailProviderService().Upsert(r.Context(), userID, teamID, req)
+	if err != nil {
 		s.writeTeamEmailProviderAPIError(w, r, "handleUpsertTeamEmailProvider", userID, teamID, err,
 			errors.NewTeamEmailProviderUpdateFailedError("Unable to save the email provider configuration."))
 		return
 	}
 
-	// Re-read rather than echoing what was stored: the response is the effective
-	// view, and building it from the row keeps one construction path for GET and
-	// PUT so they can never disagree.
-	effective, err := s.container.TeamEmailProviderService().GetEffective(r.Context(), userID, teamID)
-	if err != nil {
-		s.writeTeamEmailProviderAPIError(w, r, "handleUpsertTeamEmailProvider", userID, teamID, err,
-			errors.NewTeamEmailProviderUpdateFailedError("Unable to load the saved email provider configuration."))
-		return
-	}
-
-	writeOK(w, effective, s.logger)
+	// Built from the row Upsert just returned, not re-read: GET and PUT share the
+	// same constructor, so a second round trip would buy nothing and would open a
+	// window where a concurrent delete makes this response describe a state that
+	// was never stored.
+	writeOK(w, s.container.TeamEmailProviderService().EffectiveFromProvider(provider), s.logger)
 }
 
 // handleDeleteTeamEmailProvider removes the team's provider, reverting it to the

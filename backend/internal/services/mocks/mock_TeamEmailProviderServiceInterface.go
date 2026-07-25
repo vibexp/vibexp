@@ -70,6 +70,54 @@ func (_c *MockTeamEmailProviderServiceInterface_Delete_Call) RunAndReturn(run fu
 	return _c
 }
 
+// EffectiveFromProvider provides a mock function with given fields: provider
+func (_m *MockTeamEmailProviderServiceInterface) EffectiveFromProvider(provider *models.TeamEmailProvider) *models.TeamEmailProviderEffective {
+	ret := _m.Called(provider)
+
+	if len(ret) == 0 {
+		panic("no return value specified for EffectiveFromProvider")
+	}
+
+	var r0 *models.TeamEmailProviderEffective
+	if rf, ok := ret.Get(0).(func(*models.TeamEmailProvider) *models.TeamEmailProviderEffective); ok {
+		r0 = rf(provider)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.TeamEmailProviderEffective)
+		}
+	}
+
+	return r0
+}
+
+// MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'EffectiveFromProvider'
+type MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call struct {
+	*mock.Call
+}
+
+// EffectiveFromProvider is a helper method to define mock.On call
+//   - provider *models.TeamEmailProvider
+func (_e *MockTeamEmailProviderServiceInterface_Expecter) EffectiveFromProvider(provider interface{}) *MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call {
+	return &MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call{Call: _e.mock.On("EffectiveFromProvider", provider)}
+}
+
+func (_c *MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call) Run(run func(provider *models.TeamEmailProvider)) *MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*models.TeamEmailProvider))
+	})
+	return _c
+}
+
+func (_c *MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call) Return(_a0 *models.TeamEmailProviderEffective) *MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call) RunAndReturn(run func(*models.TeamEmailProvider) *models.TeamEmailProviderEffective) *MockTeamEmailProviderServiceInterface_EffectiveFromProvider_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Get provides a mock function with given fields: ctx, userID, teamID
 func (_m *MockTeamEmailProviderServiceInterface) Get(ctx context.Context, userID string, teamID string) (*models.TeamEmailProvider, error) {
 	ret := _m.Called(ctx, userID, teamID)
