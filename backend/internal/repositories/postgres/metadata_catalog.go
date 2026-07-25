@@ -15,20 +15,24 @@ import (
 // the spec declares for the `limit` parameter.
 const maxMetadataCatalogLimit = 500
 
-// metadataCatalogTable describes the one thing that varies between the three
-// metadata-bearing resource types. The table name is interpolated into the SQL
-// text, so it may only ever come from metadataCatalogTables below — never from
-// a request value.
-type metadataCatalogTable struct {
-	table string
+// metadataCatalogTables is the closed map from resource type to table name. The
+// table name is the only fragment interpolated into the catalog SQL, so it may
+// only ever come from this map — never from a request value. A resource type
+// absent from it is rejected before any SQL is built.
+var metadataCatalogTables = map[repositories.MetadataResourceType]string{
+	repositories.MetadataResourceArtifacts:  "artifacts",
+	repositories.MetadataResourceBlueprints: "blueprints",
+	repositories.MetadataResourceMemories:   "memories",
 }
 
-// metadataCatalogTables is the closed map from resource type to table. A
-// resource type absent from it is rejected before any SQL is built.
-var metadataCatalogTables = map[repositories.MetadataResourceType]metadataCatalogTable{
-	repositories.MetadataResourceArtifacts:  {table: "artifacts"},
-	repositories.MetadataResourceBlueprints: {table: "blueprints"},
-	repositories.MetadataResourceMemories:   {table: "memories"},
+// metadataCatalogSource resolves the table to read and the page size to use,
+// the prologue both catalog lookups share.
+func metadataCatalogSource(query repositories.MetadataCatalogQuery) (table string, limit int, err error) {
+	table, ok := metadataCatalogTables[query.ResourceType]
+	if !ok {
+		return "", 0, fmt.Errorf("unknown metadata resource type: %s", query.ResourceType)
+	}
+	return table, clampMetadataCatalogLimit(query.Limit), nil
 }
 
 // MetadataCatalogRepository enumerates the metadata keys and values in use
@@ -49,15 +53,13 @@ var _ repositories.MetadataCatalogRepository = (*MetadataCatalogRepository)(nil)
 func (r *MetadataCatalogRepository) Keys(
 	ctx context.Context, query repositories.MetadataCatalogQuery,
 ) (repositories.MetadataCatalogResult, error) {
-	spec, ok := metadataCatalogTables[query.ResourceType]
-	if !ok {
-		return repositories.MetadataCatalogResult{}, fmt.Errorf("unknown metadata resource type: %s", query.ResourceType)
+	table, limit, err := metadataCatalogSource(query)
+	if err != nil {
+		return repositories.MetadataCatalogResult{}, err
 	}
 
-	limit := clampMetadataCatalogLimit(query.Limit)
-
 	builder := psql.Select("DISTINCT k AS entry").
-		From(spec.table + " t").
+		From(table + " t").
 		JoinClause("CROSS JOIN LATERAL jsonb_object_keys(t.metadata) AS k").
 		Where(metadataCatalogTenancy(query)).
 		OrderBy("entry").
@@ -72,12 +74,10 @@ func (r *MetadataCatalogRepository) Keys(
 func (r *MetadataCatalogRepository) Values(
 	ctx context.Context, query repositories.MetadataCatalogQuery,
 ) (repositories.MetadataCatalogResult, error) {
-	spec, ok := metadataCatalogTables[query.ResourceType]
-	if !ok {
-		return repositories.MetadataCatalogResult{}, fmt.Errorf("unknown metadata resource type: %s", query.ResourceType)
+	table, limit, err := metadataCatalogSource(query)
+	if err != nil {
+		return repositories.MetadataCatalogResult{}, err
 	}
-
-	limit := clampMetadataCatalogLimit(query.Limit)
 
 	// A value may be stored as a scalar or inside an array, so coerce to an
 	// array before expanding it and both shapes flatten to the same value list.
@@ -98,7 +98,7 @@ func (r *MetadataCatalogRepository) Values(
 	}
 
 	builder := psql.Select("DISTINCT v AS entry").
-		From(spec.table+" t").
+		From(table+" t").
 		JoinClause(lateral, query.Key, query.Key, query.Key).
 		Where(where).
 		OrderBy("entry").
