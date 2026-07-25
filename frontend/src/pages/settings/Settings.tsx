@@ -7,6 +7,7 @@ import {
   FolderKanban,
   Key,
   Shapes,
+  SlidersHorizontal,
   Users,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -81,6 +82,12 @@ const CUSTOMIZATION: SettingItem[] = [
     description: 'Create and manage custom categories for your artifacts.',
     icon: Shapes,
     href: '/settings/customization',
+  },
+  {
+    title: 'Search Settings',
+    description: 'Choose how search results are ranked for your team.',
+    icon: SlidersHorizontal,
+    href: '/settings/search',
   },
 ]
 
