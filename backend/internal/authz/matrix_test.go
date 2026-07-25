@@ -19,6 +19,7 @@ import (
 //	| Update team details                      |  yes  |  yes  |   no   |
 //	| Delete team                              |  yes  |   no  |   no   |
 //	| Transfer ownership                       |  yes  |   no  |   no   |
+//	| Update team settings (search ranking)    |  yes  |  yes  |   no   |
 //	| Invite members (as member/admin)         |  yes  |  yes  |   no   |
 //	| Remove members/admins                    |  yes  |  yes  |   no   |
 //	| Change member<->admin roles              |  yes  |  yes  |   no   |
@@ -38,6 +39,7 @@ var matrixSpec = []struct {
 	{TeamUpdate, true, true, false},
 	{TeamDelete, true, false, false},
 	{OwnershipTransfer, true, false, false},
+	{TeamSettingsUpdate, true, true, false},
 	{MemberInvite, true, true, false},
 	{MemberRemove, true, true, false},
 	{MemberRoleUpdate, true, true, false},
@@ -99,7 +101,7 @@ func TestRolePermissions_MatchesMatrixAndIsOrdered(t *testing.T) {
 		{
 			role: models.TeamMemberRoleOwner,
 			want: []Permission{
-				TeamUpdate, TeamDelete, OwnershipTransfer,
+				TeamUpdate, TeamDelete, OwnershipTransfer, TeamSettingsUpdate,
 				MemberInvite, MemberRemove, MemberRoleUpdate,
 				ProjectCreate, ProjectUpdate, ProjectDelete,
 				ResourceCreate, ResourceUpdateAny, ResourceDeleteOwn, ResourceDeleteAny,
@@ -109,7 +111,7 @@ func TestRolePermissions_MatchesMatrixAndIsOrdered(t *testing.T) {
 		{
 			role: models.TeamMemberRoleAdmin,
 			want: []Permission{
-				TeamUpdate,
+				TeamUpdate, TeamSettingsUpdate,
 				MemberInvite, MemberRemove, MemberRoleUpdate,
 				ProjectCreate, ProjectUpdate, ProjectDelete,
 				ResourceCreate, ResourceUpdateAny, ResourceDeleteOwn, ResourceDeleteAny,

@@ -53,6 +53,7 @@ Team:
         * `team.update` — change team name, slug or description.
         * `team.delete` — delete the team (owner only).
         * `team.transfer` — transfer ownership to another member (owner only).
+        * `team.settings.update` — change team-level configuration, such as search ranking.
         * `member.invite` — invite new members.
         * `member.remove` — remove members from the team.
         * `member.role.update` — change a member's role.
@@ -70,6 +71,7 @@ Team:
           - team.update
           - team.delete
           - team.transfer
+          - team.settings.update
           - member.invite
           - member.remove
           - member.role.update

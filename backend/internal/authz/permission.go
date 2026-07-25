@@ -26,6 +26,11 @@ const (
 	TeamDelete Permission = "team.delete"
 	// OwnershipTransfer covers transferring team ownership to another member.
 	OwnershipTransfer Permission = "team.transfer"
+	// TeamSettingsUpdate covers changing team-level configuration, such as the
+	// team's search ranking settings. Distinct from TeamUpdate, which covers the
+	// team's identity (name, slug, description); keeping them separate lets
+	// configuration and identity diverge without a breaking rename.
+	TeamSettingsUpdate Permission = "team.settings.update"
 
 	// MemberInvite covers inviting new members (as member or admin).
 	MemberInvite Permission = "member.invite"
@@ -63,6 +68,7 @@ var all = []Permission{
 	TeamUpdate,
 	TeamDelete,
 	OwnershipTransfer,
+	TeamSettingsUpdate,
 	MemberInvite,
 	MemberRemove,
 	MemberRoleUpdate,
