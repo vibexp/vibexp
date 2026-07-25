@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,5 +97,45 @@ func TestCheckRemovedSections(t *testing.T) {
 			}
 			assert.NoError(t, err)
 		})
+	}
+}
+
+// TestCheckRemovedSections_ReportsAllDeterministically guards the two properties
+// that make this check usable during a multi-section migration: every offending
+// section is named in one go (no restart-per-section discovery loop), and the
+// order is fixed rather than inherited from Go's randomized map iteration.
+func TestCheckRemovedSections_ReportsAllDeterministically(t *testing.T) {
+	// Stand-in entries: the real map has one member today, so the guarantee has
+	// to be exercised against a map that actually has several.
+	original := removedConfigSections
+	t.Cleanup(func() { removedConfigSections = original })
+	removedConfigSections = map[string]string{
+		"zeta":  "zeta guidance",
+		"alpha": "alpha guidance",
+		"mid":   "mid guidance",
+	}
+
+	parsed := map[string]interface{}{
+		"zeta":   map[string]interface{}{},
+		"alpha":  map[string]interface{}{},
+		"mid":    map[string]interface{}{},
+		"server": map[string]interface{}{},
+	}
+
+	first := checkRemovedSections("config.yaml", parsed)
+	require.Error(t, first)
+
+	msg := first.Error()
+	for _, section := range []string{"alpha", "mid", "zeta"} {
+		assert.Contains(t, msg, `"`+section+`"`, "every offending section must be reported")
+		assert.Contains(t, msg, section+" guidance", "each section brings its own guidance")
+	}
+	assert.Less(t, strings.Index(msg, "alpha"), strings.Index(msg, "mid"), "sections must be sorted")
+	assert.Less(t, strings.Index(msg, "mid"), strings.Index(msg, "zeta"), "sections must be sorted")
+
+	// Repeated calls must produce a byte-identical message; a randomized map
+	// range would eventually disagree with itself here.
+	for i := 0; i < 20; i++ {
+		assert.Equal(t, msg, checkRemovedSections("config.yaml", parsed).Error())
 	}
 }

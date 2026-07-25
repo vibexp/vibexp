@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -1060,21 +1061,34 @@ var removedConfigSections = map[string]string{
 		"Note this is NOT `auth.github` (the web-login OAuth client), which is unaffected.",
 }
 
-// checkRemovedSections fails startup when config.yaml still declares a section
-// that no longer exists.
+// checkRemovedSections fails startup when config.yaml still declares one or
+// more sections that no longer exist.
 //
 // It matches TOP-LEVEL keys only, which is what keeps `auth.github` — a
 // different credential set on a different code path — out of scope.
+//
+// Every offending section is reported at once, in a fixed order: map iteration
+// is randomized, and an operator mid-migration should not have to restart once
+// per removed section to discover them one at a time.
 func checkRemovedSections(path string, parsed map[string]interface{}) error {
-	for section, guidance := range removedConfigSections {
-		if _, present := parsed[section]; !present {
-			continue
+	found := make([]string, 0, len(removedConfigSections))
+	for section := range removedConfigSections {
+		if _, present := parsed[section]; present {
+			found = append(found, section)
 		}
-		return fmt.Errorf(
-			"config file %q declares the removed top-level section %q: %s",
-			path, section, guidance)
 	}
-	return nil
+	if len(found) == 0 {
+		return nil
+	}
+	sort.Strings(found)
+
+	details := make([]string, 0, len(found))
+	for _, section := range found {
+		details = append(details, fmt.Sprintf("%q: %s", section, removedConfigSections[section]))
+	}
+	return fmt.Errorf(
+		"config file %q declares removed top-level section(s) — %s",
+		path, strings.Join(details, " | "))
 }
 
 // Load reads, interpolates, validates, and returns the application configuration
