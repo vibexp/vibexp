@@ -1,5 +1,9 @@
 import { Route, Routes } from 'react-router-dom'
 
+import { Customization } from '@/pages/teams/settings/customization/Customization'
+import { EmbeddingProviders } from '@/pages/teams/settings/embedding-providers/EmbeddingProviders'
+import { ModelProviders } from '@/pages/teams/settings/model-providers/ModelProviders'
+import { SearchSettings } from '@/pages/teams/settings/search/SearchSettings'
 import { TeamSettings } from '@/pages/teams/settings/TeamSettings'
 import { TeamAnalyticsPage } from '@/pages/teams/TeamAnalyticsPage'
 import { TeamDetailsPage } from '@/pages/teams/TeamDetailsPage'
@@ -24,8 +28,18 @@ export function TeamRoutes({ team }: Readonly<{ team: Team }>) {
     <Routes>
       <Route index element={<TeamDetailsPage />} />
       <Route path="analytics" element={<TeamAnalyticsPage />} />
-      {/* `settings/*`, not `settings`: #540 and #541 nest pages underneath. */}
-      <Route path="settings/*" element={<TeamSettings team={team} />} />
+      <Route path="settings" element={<TeamSettings team={team} />} />
+      {/* The four team-scoped configuration pages, relocated in #540. They read
+          the team from `useTeam()`, which TeamScopeLayout has already pointed at
+          the URL's team — except SearchSettings, whose permission gating takes
+          the resolved team explicitly so it cannot depend on that sync. */}
+      <Route path="settings/search" element={<SearchSettings team={team} />} />
+      <Route path="settings/model-providers" element={<ModelProviders />} />
+      <Route
+        path="settings/embedding-providers"
+        element={<EmbeddingProviders />}
+      />
+      <Route path="settings/customization" element={<Customization />} />
       <Route path="*" element={<TeamNotFound />} />
     </Routes>
   )

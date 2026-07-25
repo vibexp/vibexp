@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
-import { ModelProviderDialog } from '@/pages/settings/model-providers/ModelProviderDialog'
+import { ModelProviderDialog } from '@/pages/teams/settings/model-providers/ModelProviderDialog'
 import type {
   CreateModelProviderRequest,
   ModelProviderResponse,

@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
 import type { TeamSearchSettings } from '@/services/searchSettingsService'
+import type { Team } from '@/services/teamService'
 
-// usePermissions is deliberately NOT mocked — it reads `currentTeam.permissions`
-// from the mocked TeamContext, so the fixtures below exercise the real gating.
+// usePermissions is deliberately NOT mocked — it reads the permissions off the
+// team the page passes it, so the fixtures below exercise the real gating.
 const mockUseTeam = jest.fn()
 
 jest.mock('@/contexts/useAuth', () => ({
@@ -81,10 +82,15 @@ const memberTeam = {
   },
 }
 
-const renderPage = () =>
+// #540: the page now takes the team TeamScopeLayout resolved from the URL, and
+// gates permissions on IT rather than on the ambient currentTeam. Tests pass the
+// team explicitly; by default it mirrors whichever context fixture is active.
+const asTeam = (ctx: typeof adminTeam) => ctx.currentTeam as unknown as Team
+
+const renderPage = (team: Team = asTeam(adminTeam)) =>
   render(
     <MemoryRouter>
-      <SearchSettings />
+      <SearchSettings team={team} />
     </MemoryRouter>
   )
 
@@ -422,7 +428,7 @@ describe('SearchSettings', () => {
         settings({ source: 'team', ...FAVOR_RECENT })
       )
 
-      renderPage()
+      renderPage(asTeam(memberTeam))
 
       expect(
         await screen.findByText(
@@ -447,6 +453,43 @@ describe('SearchSettings', () => {
 
       await openAdvanced(user)
       expect(screen.getByLabelText(/half-life \(days\)/i)).toBeDisabled()
+    })
+
+    // #540 AC: the permission must resolve against the team in the URL. These
+    // two cases fail if the page reverts to `usePermissions()` (ambient), which
+    // is exactly the silent degradation the issue flagged - and it would be
+    // invisible in production while the layout's sync happens to be up to date.
+    it('gates on the URL team, not the ambient team (ambient admin, URL member)', async () => {
+      mockUseTeam.mockReturnValue(adminTeam)
+      mockedService.getSearchSettings.mockResolvedValue(
+        settings({ source: 'team', ...FAVOR_RECENT })
+      )
+
+      renderPage(asTeam(memberTeam))
+
+      expect(
+        await screen.findByText(
+          'Only team owners and admins can change these settings.'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /save changes/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('gates on the URL team, not the ambient team (ambient member, URL admin)', async () => {
+      mockUseTeam.mockReturnValue(memberTeam)
+
+      renderPage(asTeam(adminTeam))
+
+      expect(
+        await screen.findByRole('button', { name: /save changes/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          'Only team owners and admins can change these settings.'
+        )
+      ).not.toBeInTheDocument()
     })
 
     it('lets an admin edit', async () => {

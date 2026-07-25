@@ -45,17 +45,13 @@ import { Prompts } from '@/pages/prompts/Prompts'
 import { PromptVersions } from '@/pages/prompts/PromptVersions'
 import { Search } from '@/pages/search/Search'
 import { APIKeys } from '@/pages/settings/api-keys/APIKeys'
-import { Customization } from '@/pages/settings/customization/Customization'
-import { EmbeddingProviders } from '@/pages/settings/embedding-providers/EmbeddingProviders'
 import { GitHubIntegration } from '@/pages/settings/integrations/github/GitHubIntegration'
-import { ModelProviders } from '@/pages/settings/model-providers/ModelProviders'
 import { NotificationPreferences } from '@/pages/settings/notifications/NotificationPreferences'
 import { ProjectCreate } from '@/pages/settings/projects/ProjectCreate'
 import { ProjectDetails } from '@/pages/settings/projects/ProjectDetails'
 import { ProjectEdit } from '@/pages/settings/projects/ProjectEdit'
 import { ProjectMigrate } from '@/pages/settings/projects/ProjectMigrate'
 import { Projects } from '@/pages/settings/projects/Projects'
-import { SearchSettings } from '@/pages/settings/search/SearchSettings'
 import { Settings } from '@/pages/settings/Settings'
 import { Showcase } from '@/pages/Showcase'
 import { Teams } from '@/pages/teams/Teams'
@@ -208,13 +204,6 @@ export function AppRoutes() {
         element={<NotificationPreferences />}
       />
       <Route path="settings/api-keys" element={<APIKeys />} />
-      <Route path="settings/customization" element={<Customization />} />
-      <Route
-        path="settings/embedding-providers"
-        element={<EmbeddingProviders />}
-      />
-      <Route path="settings/model-providers" element={<ModelProviders />} />
-      <Route path="settings/search" element={<SearchSettings />} />
       <Route path="settings/projects" element={<Projects />} />
       <Route path="settings/projects/create" element={<ProjectCreate />} />
       <Route path="settings/projects/edit/:slug" element={<ProjectEdit />} />

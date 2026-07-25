@@ -28,7 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
-import { EmbeddingProviderDialog } from '@/pages/settings/embedding-providers/EmbeddingProviderDialog'
+import { EmbeddingProviderDialog } from '@/pages/teams/settings/embedding-providers/EmbeddingProviderDialog'
 import type {
   CreateEmbeddingProviderRequest,
   EmbeddingCoverageItem,
