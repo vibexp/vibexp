@@ -179,7 +179,7 @@ func ProvideEmailProvider(cfg *config.Config, logger *slog.Logger) (external.Ema
 		return nil, err
 	}
 
-	logger.With("email_provider", emailProviderLabel(provider)).Info(msgEmailProviderInitialized)
+	logger.With("email_provider", implementations.ProviderLabel(provider)).Info(msgEmailProviderInitialized)
 	return provider, nil
 }
 
@@ -206,28 +206,6 @@ func emailProviderSpec(cfg *config.Config) implementations.ProviderSpec {
 		SendGrid: implementations.SendGridSpec{
 			APIKey: cfg.Email.SendGrid.APIKey,
 		},
-	}
-}
-
-// emailProviderLabel names the provider that was actually built, for the
-// startup log line. It reads the concrete type rather than re-deriving the
-// choice from config, so it cannot drift from the factory's selection — and it
-// reports "stub" for the credential-less fallback, which config alone does not
-// distinguish from "smtp".
-func emailProviderLabel(provider external.EmailProvider) string {
-	switch provider.(type) {
-	case *implementations.MailgunEmailProvider:
-		return "mailgun"
-	case *implementations.PostmarkEmailProvider:
-		return "postmark"
-	case *implementations.SendGridEmailProvider:
-		return "sendgrid"
-	case *implementations.SMTPEmailProvider:
-		return "smtp"
-	case *implementations.StubEmailProvider:
-		return "stub"
-	default:
-		return "unknown"
 	}
 }
 

@@ -245,6 +245,55 @@ func TestNewEmailProvider_UnknownTypeReportsRawValue(t *testing.T) {
 	assert.Contains(t, err.Error(), `"  SES  "`)
 }
 
+func TestProviderLabel_NamesWhatTheFactoryBuilt(t *testing.T) {
+	tests := []struct {
+		name         string
+		providerType string
+		want         string
+	}{
+		{"smtp", "smtp", "smtp"},
+		{"mailgun", "mailgun", "mailgun"},
+		{"postmark", "postmark", "postmark"},
+		{"sendgrid", "sendgrid", "sendgrid"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			provider, err := NewEmailProvider(validSpec(tc.providerType), discardLogger())
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, ProviderLabel(provider))
+		})
+	}
+}
+
+func TestProviderLabel_StubFallback(t *testing.T) {
+	spec := validSpec("smtp")
+	spec.SMTP.Host = ""
+	spec.SMTP.Port = ""
+
+	provider, err := NewEmailProvider(spec, discardLogger())
+	require.NoError(t, err)
+
+	// "stub" rather than "smtp" is the whole point: it tells an operator that
+	// nothing will actually be delivered.
+	assert.Equal(t, "stub", ProviderLabel(provider))
+}
+
+func TestProviderLabel_UnrecognisedProviderIsNotMislabelled(t *testing.T) {
+	// A provider type the label switch has not been taught about must not be
+	// reported as one of the known providers.
+	assert.Equal(t, "unknown", ProviderLabel(&unlabelledProvider{}))
+}
+
+// unlabelledProvider stands in for a provider added to the factory but not yet
+// to ProviderLabel.
+type unlabelledProvider struct{}
+
+func (unlabelledProvider) SendEmail(_ context.Context, _ *gomail.EmailMessage) error {
+	return nil
+}
+
 func TestStubEmailProvider_SendEmailDiscards(t *testing.T) {
 	stub := &StubEmailProvider{}
 

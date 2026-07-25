@@ -107,6 +107,32 @@ func NewEmailProvider(spec ProviderSpec, logger *slog.Logger) (external.EmailPro
 	}
 }
 
+// ProviderLabel names the provider that was actually built, for logging.
+//
+// It reads the concrete type rather than re-deriving the choice from a spec, so
+// it cannot disagree with NewEmailProvider about which provider is in use, and
+// it reports "stub" for the credential-less fallback — which a spec alone does
+// not distinguish from "smtp".
+//
+// Keep the cases below in step with NewEmailProvider's switch above: a provider
+// added there but not here logs as "unknown".
+func ProviderLabel(provider external.EmailProvider) string {
+	switch provider.(type) {
+	case *MailgunEmailProvider:
+		return "mailgun"
+	case *PostmarkEmailProvider:
+		return "postmark"
+	case *SendGridEmailProvider:
+		return "sendgrid"
+	case *SMTPEmailProvider:
+		return "smtp"
+	case *StubEmailProvider:
+		return "stub"
+	default:
+		return "unknown"
+	}
+}
+
 // StubEmailProvider is a no-op provider used when email is not configured.
 // It accepts and discards every message.
 type StubEmailProvider struct{}
