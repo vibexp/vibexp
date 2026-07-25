@@ -319,6 +319,17 @@ describe('Artifacts page — URL-synced filters (#523)', () => {
     expect(await screen.findByText('No artifacts yet')).toBeInTheDocument()
   })
 
+  it('ignores an empty type param rather than forwarding an empty string', async () => {
+    // `type` is an open string, so unlike `status` there is no enum coercion to
+    // absorb a junk value.
+    renderArtifacts('/artifacts?type=')
+
+    await waitFor(() => {
+      expect(artifactService.getArtifacts).toHaveBeenCalled()
+    })
+    expect(lastQuery().type).toBeUndefined()
+  })
+
   it('ignores a status outside the enum rather than forwarding it', async () => {
     renderArtifacts('/artifacts?status=nonsense')
 

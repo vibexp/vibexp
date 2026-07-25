@@ -110,7 +110,11 @@ export function Artifacts() {
   const page = Number(filters.page) || 1
   const sortOrder: 'asc' | 'desc' =
     filters.sort_order === 'asc' ? 'asc' : 'desc'
-  const type = filters.type === 'all' ? undefined : filters.type
+  // `type` is an open string (the team's registered types), so it has no enum
+  // coercion to absorb a junk value the way `status` does — an explicit `?type=`
+  // in the URL would otherwise be forwarded as an empty string.
+  const type =
+    filters.type === 'all' || filters.type === '' ? undefined : filters.type
   const status =
     filters.status === 'all' ? undefined : coerceStatus(filters.status)
 
