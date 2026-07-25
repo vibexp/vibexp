@@ -57,10 +57,10 @@ import { ProjectMigrate } from '@/pages/settings/projects/ProjectMigrate'
 import { Projects } from '@/pages/settings/projects/Projects'
 import { SearchSettings } from '@/pages/settings/search/SearchSettings'
 import { Settings } from '@/pages/settings/Settings'
-import { TeamAnalyticsPage } from '@/pages/settings/teams/TeamAnalyticsPage'
-import { TeamDetailsPage } from '@/pages/settings/teams/TeamDetailsPage'
-import { Teams } from '@/pages/settings/teams/Teams'
 import { Showcase } from '@/pages/Showcase'
+import { TeamAnalyticsPage } from '@/pages/teams/TeamAnalyticsPage'
+import { TeamDetailsPage } from '@/pages/teams/TeamDetailsPage'
+import { Teams } from '@/pages/teams/Teams'
 
 function ComingSoon({ title }: Readonly<{ title: string }>) {
   return (
@@ -228,12 +228,9 @@ export function AppRoutes() {
         path="settings/integrations/github"
         element={<GitHubIntegration />}
       />
-      <Route path="settings/teams" element={<Teams />} />
-      <Route path="settings/teams/:id" element={<TeamDetailsPage />} />
-      <Route
-        path="settings/teams/:id/analytics"
-        element={<TeamAnalyticsPage />}
-      />
+      <Route path="teams" element={<Teams />} />
+      <Route path="teams/:id" element={<TeamDetailsPage />} />
+      <Route path="teams/:id/analytics" element={<TeamAnalyticsPage />} />
       <Route path="settings/*" element={<ComingSoon title="Settings" />} />
       {/* `/admin/**` is NOT here: the instance-admin portal is a top-level
           branch in App.tsx with its own shell and no team/project providers

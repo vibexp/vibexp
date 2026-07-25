@@ -83,7 +83,7 @@ const COLLABORATION: SettingItem[] = [
     title: 'Teams',
     description: 'Manage your team memberships and collaborate with others.',
     icon: Users,
-    href: '/settings/teams',
+    href: '/teams',
   },
   {
     title: 'Projects',

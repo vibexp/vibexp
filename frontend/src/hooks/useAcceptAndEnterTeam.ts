@@ -32,7 +32,7 @@ export type AcceptAndEnterTeamFn = (
  * Hook that runs the full "accept invitation → enter team" flow:
  *   1. POST /invitations/{token}/accept
  *   2. Refresh the team list and switch the active team to the joined one
- *   3. Navigate to `/settings/teams/:id`
+ *   3. Navigate to `/teams/:id`
  *   4. Show a success toast
  *
  * Must be used inside `TeamProvider` because it depends on `useTeam`.
@@ -77,7 +77,7 @@ export function useAcceptAndEnterTeam(): AcceptAndEnterTeamFn {
 
         emitInvitationsChanged()
         toast.success(`Welcome to ${response.team_name}!`)
-        void navigate(`/settings/teams/${response.team_id}`)
+        void navigate(`/teams/${response.team_id}`)
 
         return {
           ok: true,

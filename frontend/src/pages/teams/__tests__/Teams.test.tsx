@@ -102,11 +102,11 @@ function buildInvitation(
 
 function renderTeams() {
   return render(
-    <MemoryRouter initialEntries={['/settings/teams']}>
+    <MemoryRouter initialEntries={['/teams']}>
       <Routes>
-        <Route path="/settings/teams" element={<Teams />} />
+        <Route path="/teams" element={<Teams />} />
         <Route
-          path="/settings/teams/:id"
+          path="/teams/:id"
           element={<div data-testid="team-details-probe">Team details</div>}
         />
       </Routes>

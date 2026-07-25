@@ -115,7 +115,7 @@ export function TeamAnalyticsPage() {
           variant="ghost"
           size="sm"
           onClick={() => {
-            void navigate('/settings/teams')
+            void navigate('/teams')
           }}
         >
           <ArrowLeft className="mr-2 size-4" />
@@ -138,7 +138,7 @@ export function TeamAnalyticsPage() {
         variant="ghost"
         size="sm"
         onClick={() => {
-          void navigate(`/settings/teams/${id}`)
+          void navigate(`/teams/${id}`)
         }}
       >
         <ArrowLeft className="mr-2 size-4" />

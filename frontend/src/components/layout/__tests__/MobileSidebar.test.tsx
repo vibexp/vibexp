@@ -121,6 +121,33 @@ describe('MobileSidebar', () => {
         screen.getByRole('link', { name: /^settings$/i })
       ).toBeInTheDocument()
     })
+
+    // #538: team management is a top-level destination, not a setting.
+    it('renders Teams as a nav link pointing at /teams', () => {
+      renderWithRouter()
+      expect(screen.getByRole('link', { name: /^teams$/i })).toHaveAttribute(
+        'href',
+        '/teams'
+      )
+    })
+
+    it.each(['/teams', '/teams/team-1', '/teams/team-1/analytics'])(
+      'marks Teams as the current page on %s',
+      path => {
+        renderWithRouter([path])
+        expect(screen.getByRole('link', { name: /^teams$/i })).toHaveAttribute(
+          'aria-current',
+          'page'
+        )
+      }
+    )
+
+    it('does not mark Teams as current on an unrelated route', () => {
+      renderWithRouter(['/settings'])
+      expect(
+        screen.getByRole('link', { name: /^teams$/i })
+      ).not.toHaveAttribute('aria-current')
+    })
   })
 
   // -------------------------------------------------------------------------

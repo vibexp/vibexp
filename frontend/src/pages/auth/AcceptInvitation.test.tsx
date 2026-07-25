@@ -354,7 +354,7 @@ describe('AcceptInvitation', () => {
       'vx_invitation_just_accepted',
       { team_id: 'team-123', team_name: 'Engineering' }
     )
-    expect(mockNavigate).toHaveBeenCalledWith('/settings/teams/team-123')
+    expect(mockNavigate).toHaveBeenCalledWith('/teams/team-123')
   })
 
   it('shows the "couldn\'t accept" alert when accept fails with a non-ApiError', async () => {

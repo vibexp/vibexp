@@ -125,7 +125,7 @@ describe('useAcceptAndEnterTeam', () => {
     expect(mockAcceptInvitation).toHaveBeenCalledWith('token-abc')
     expect(mockRefreshTeams).toHaveBeenCalled()
     expect(mockSetCurrentTeam).toHaveBeenCalledWith(joinedTeam)
-    expect(mockNavigate).toHaveBeenCalledWith('/settings/teams/team-123')
+    expect(mockNavigate).toHaveBeenCalledWith('/teams/team-123')
     expect(mockToastSuccess).toHaveBeenCalledWith('Welcome to Engineering!')
     expect(mockSessionStoreRemove).toHaveBeenCalled()
 
@@ -155,7 +155,7 @@ describe('useAcceptAndEnterTeam', () => {
 
     expect(mockGetTeamDetails).toHaveBeenCalledWith('team-999')
     expect(mockSetCurrentTeam).toHaveBeenCalledWith(joinedTeam)
-    expect(mockNavigate).toHaveBeenCalledWith('/settings/teams/team-999')
+    expect(mockNavigate).toHaveBeenCalledWith('/teams/team-999')
   })
 
   it('still navigates and toasts when the team lookup fails', async () => {
@@ -175,7 +175,7 @@ describe('useAcceptAndEnterTeam', () => {
     })
 
     expect(mockSetCurrentTeam).not.toHaveBeenCalled()
-    expect(mockNavigate).toHaveBeenCalledWith('/settings/teams/team-555')
+    expect(mockNavigate).toHaveBeenCalledWith('/teams/team-555')
     expect(mockToastSuccess).toHaveBeenCalledWith('Welcome to Lost Team!')
     expect(outcome).toEqual({
       ok: true,
