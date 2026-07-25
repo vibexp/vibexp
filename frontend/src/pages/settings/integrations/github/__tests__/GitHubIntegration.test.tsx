@@ -64,6 +64,29 @@ jest.mock('@/services/githubIntegrationService', () => ({
   },
 }))
 
+// The page now reads the team's own GitHub App (#484). Default it to a
+// configured team so the pre-existing install/repository tests keep exercising
+// what they were written for; the precondition tests below override it.
+jest.mock('@/services/githubAppConfigService', () => ({
+  ...jest.requireActual('@/services/githubAppConfigService'),
+  githubAppConfigService: {
+    getAppConfig: jest.fn(),
+    createAppConfig: jest.fn(),
+    updateAppConfig: jest.fn(),
+    deleteAppConfig: jest.fn(),
+    validateAppConfig: jest.fn(),
+    rotateWebhookToken: jest.fn(),
+  },
+}))
+
+jest.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({
+    can: jest.fn(() => true),
+    canDeleteResource: jest.fn(() => true),
+    canDeleteFeedContent: jest.fn(() => true),
+  }),
+}))
+
 jest.mock('@/contexts/TeamContext', () => {
   const currentTeam = { id: 'team-1', name: 'Test Team' }
   return {
@@ -107,6 +130,7 @@ jest.mock('@/utils/urlValidation', () => ({
 
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
+import { githubAppConfigService } from '@/services/githubAppConfigService'
 import { githubIntegrationService } from '@/services/githubIntegrationService'
 import { safeRedirect } from '@/utils/urlValidation'
 
@@ -115,6 +139,23 @@ import { GitHubIntegration } from '../GitHubIntegration'
 const { handleError } = useErrorHandler()
 
 const notInstalled: GitHubInstallationStatus = { installed: false }
+
+const appConfigured = {
+  id: 'cfg-1',
+  team_id: 'team-1',
+  app_id: '123456',
+  app_slug: 'acme-app',
+  client_id: 'Iv1.abc',
+  has_private_key: true,
+  has_client_secret: true,
+  has_webhook_secret: true,
+  webhook_url: 'https://vibexp.example.com/api/v1/webhooks/github/tok',
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+  version: 1,
+}
+
+const mockedGetAppConfig = githubAppConfigService.getAppConfig as jest.Mock
 
 const installed: GitHubInstallationStatus = {
   installed: true,
@@ -155,6 +196,69 @@ beforeEach(() => {
   ;(githubIntegrationService.getRepositories as jest.Mock).mockResolvedValue({
     repositories: [],
     total_count: 0,
+  })
+  mockedGetAppConfig.mockResolvedValue(appConfigured)
+})
+
+/**
+ * The precondition #484 adds: installing needs an App to install. Without one
+ * the install URL has no slug to point at and the callback 409s, so offering
+ * "Connect GitHub" to an unconfigured team is an action guaranteed to fail.
+ */
+describe('GitHubIntegration — GitHub App precondition', () => {
+  const notConfigured = () =>
+    new ApiError({
+      status: 409,
+      code: 'GITHUB_APP_NOT_CONFIGURED',
+      title: 'GitHub App Not Configured',
+      detail: 'This team has no GitHub App configured',
+      request_id: 'req-1',
+      type: 'about:blank',
+    } as ConstructorParameters<typeof ApiError>[0])
+
+  it('hides the install button and shows the setup guide when no App is configured', async () => {
+    mockedGetAppConfig.mockRejectedValue(notConfigured())
+
+    render(
+      <MemoryRouter>
+        <GitHubIntegration />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('Connect a GitHub App')).toBeVisible()
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: /Connect GitHub/i })
+      ).toBeNull()
+    })
+  })
+
+  it('does not report the 409 as an error — it is the empty state', async () => {
+    mockedGetAppConfig.mockRejectedValue(notConfigured())
+
+    render(
+      <MemoryRouter>
+        <GitHubIntegration />
+      </MemoryRouter>
+    )
+
+    await screen.findByText('Connect a GitHub App')
+    expect(handleError).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'Failed to load the GitHub App configuration'
+    )
+  })
+
+  it('offers the install button once an App is configured', async () => {
+    render(
+      <MemoryRouter>
+        <GitHubIntegration />
+      </MemoryRouter>
+    )
+
+    expect(
+      await screen.findByRole('button', { name: /Connect GitHub/i })
+    ).toBeVisible()
   })
 })
 

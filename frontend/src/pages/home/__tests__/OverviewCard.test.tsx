@@ -1,5 +1,5 @@
-import { FileText } from 'lucide-react'
 import { render, screen } from '@testing-library/react'
+import { FileText } from 'lucide-react'
 
 import { OverviewCard, type OverviewStat } from '../OverviewCard'
 

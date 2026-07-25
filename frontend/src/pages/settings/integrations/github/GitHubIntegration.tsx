@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useTeam } from '@/contexts/TeamContext'
 import { useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePermissions } from '@/hooks/usePermissions'
 import { toast } from '@/lib/toast'
 import type {
   GitHubInstallationStatus,
@@ -19,10 +20,12 @@ import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { ApiError } from '@/types/errors'
 import { safeRedirect } from '@/utils/urlValidation'
 
+import { GitHubAppConfigCard } from './app/GitHubAppConfigCard'
 import { GitHubConnectionCard } from './GitHubConnectionCard'
 import { GitHubInstallModal } from './GitHubInstallModal'
 import { GitHubRepositoryList } from './GitHubRepositoryList'
 import { GitHubUninstallStepDialog } from './GitHubUninstallStepDialog'
+import { useGitHubAppConfig } from './useGitHubAppConfig'
 import { useGitHubDisconnect } from './useGitHubDisconnect'
 
 const REPOS_PER_SERVER_PAGE = 100
@@ -33,8 +36,13 @@ export function GitHubIntegration() {
   const { currentTeam } = useTeam()
   const { trackEvent } = useAnalytics()
   const { handleError } = useErrorHandler()
+  const { can } = usePermissions()
+  const canManageApp = can('team.update')
 
   const [status, setStatus] = useState<GitHubInstallationStatus | null>(null)
+  const { appConfig, reload: loadAppConfig } = useGitHubAppConfig(
+    currentTeam?.id
+  )
   const [repositories, setRepositories] = useState<GitHubRepository[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingRepos, setIsLoadingRepos] = useState(false)
@@ -254,6 +262,10 @@ export function GitHubIntegration() {
     setShowInstallModal(true)
   }
 
+  // Distinguishes "loaded, and there is none" from "still loading": the install
+  // affordance must not flash in before the answer is known.
+  const hasAppConfig = Boolean(appConfig)
+
   const handleLaunchInstall = async () => {
     if (!currentTeam) return
     try {
@@ -274,6 +286,10 @@ export function GitHubIntegration() {
         title="GitHub Integration"
         description="Connect GitHub repositories to your team workspace."
         actions={
+          // Installing needs an App to install: without one the install URL has
+          // no slug to point at and the callback would 409. A team that has not
+          // registered an App must never be offered "Connect GitHub" (#484).
+          hasAppConfig &&
           !status?.installed && (
             <Button onClick={handleConnect}>
               <GitHubIcon className="mr-2 size-4" />
@@ -283,13 +299,24 @@ export function GitHubIntegration() {
         }
       />
 
-      <GitHubConnectionCard
-        status={status}
-        onDisconnect={() => {
-          setShowDisconnectDialog(true)
-        }}
-        isLoading={isLoading}
-      />
+      {appConfig !== undefined && (
+        <GitHubAppConfigCard
+          teamId={currentTeam?.id ?? ''}
+          config={appConfig}
+          canManage={canManageApp}
+          onChanged={loadAppConfig}
+        />
+      )}
+
+      {hasAppConfig && (
+        <GitHubConnectionCard
+          status={status}
+          onDisconnect={() => {
+            setShowDisconnectDialog(true)
+          }}
+          isLoading={isLoading}
+        />
+      )}
 
       {status?.installed && !status.suspended && (
         <div className="space-y-3">
