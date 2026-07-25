@@ -333,7 +333,7 @@ func newMaterializerHarness(t *testing.T) *materializerHarness {
 
 	importSvc := &GitHubAppService{
 		blueprintRepo: bpRepo,
-		githubClient:  gh,
+		clients:       resolverFor(gh),
 		attachmentSvc: attSvc,
 		logger:        newTestLogger(),
 	}
@@ -359,6 +359,7 @@ func newMaterializerHarness(t *testing.T) *materializerHarness {
 		CompanionItems:  []models.BlueprintImportCompanion{},
 	}
 	job := &blueprintImportJob{
+		client:         gh,
 		installationID: 1, userID: mzUserID, teamID: mzTeamID, projectID: mzProjectID, report: report,
 		repo: &models.GitHubRepository{
 			ID: 1, Name: "repo", FullName: "org/repo", HTMLURL: "https://github.com/org/repo",

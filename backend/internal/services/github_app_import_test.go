@@ -153,6 +153,39 @@ func (m *MockProjectRepository) ListGitURLToSlugByTeam(
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
+// staticGitHubAppResolver hands every team the same client. The existing
+// GitHubAppService tests are about service behaviour, not per-team credential
+// selection (that is covered in github_app_client_resolver_test.go), so they
+// keep passing a single mock client through this adapter.
+type staticGitHubAppResolver struct {
+	client      external.GitHubAppClient
+	appConfigID string
+	err         error
+	evicted     []string
+}
+
+func (r *staticGitHubAppResolver) ResolveForTeam(
+	_ context.Context, _ string,
+) (*ResolvedGitHubApp, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	id := r.appConfigID
+	if id == "" {
+		id = "app-config-1"
+	}
+	return &ResolvedGitHubApp{Client: r.client, AppConfigID: id}, nil
+}
+
+func (r *staticGitHubAppResolver) Evict(appConfigID string) {
+	r.evicted = append(r.evicted, appConfigID)
+}
+
+// resolverFor adapts a mock client into a resolver for the service constructor.
+func resolverFor(client external.GitHubAppClient) GitHubAppClientResolver {
+	return &staticGitHubAppResolver{client: client}
+}
+
 type MockGitHubAppClient struct {
 	mock.Mock
 }
@@ -519,7 +552,7 @@ func setupTestService(
 		installationRepo,
 		projectRepo,
 		blueprintRepo,
-		githubClient,
+		resolverFor(githubClient),
 		encryptionSvc,
 		nil, // attachmentSvc not needed
 		eventManager,
@@ -1454,7 +1487,7 @@ func TestGitHubAppService_ImportBlueprintsFromRepository(t *testing.T) {
 				installationRepo,
 				projectRepo,
 				blueprintRepo,
-				githubClient,
+				resolverFor(githubClient),
 				encryptionSvc,
 				nil, // attachmentSvc not needed
 				eventManager,
@@ -1693,7 +1726,7 @@ func TestGitHubAppService_ImportSingleFile_FrontMatter(t *testing.T) {
 				installationRepo,
 				projectRepo,
 				blueprintRepo,
-				githubClient,
+				resolverFor(githubClient),
 				encryptionSvc,
 				nil, // attachmentSvc not needed
 				eventManager,

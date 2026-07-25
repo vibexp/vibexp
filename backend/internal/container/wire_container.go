@@ -114,7 +114,6 @@ type WireContainer struct {
 	// External dependencies
 	identityRegistry *idp.Registry
 	smtpClient       external.EmailSender
-	githubAppClient  external.GitHubAppClient
 
 	// Event system
 	eventSystemDeps *providers.EventSystemDeps
@@ -465,10 +464,6 @@ func (c *WireContainer) IdentityProviderRegistry() *idp.Registry {
 
 func (c *WireContainer) EmailSender() external.EmailSender {
 	return c.smtpClient
-}
-
-func (c *WireContainer) GitHubAppClient() external.GitHubAppClient {
-	return c.githubAppClient
 }
 
 // Legacy method for database access

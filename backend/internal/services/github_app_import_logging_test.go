@@ -92,7 +92,7 @@ func newImportLoggingService(
 		installationRepo,
 		projectRepo,
 		blueprintRepo,
-		githubClient,
+		resolverFor(githubClient),
 		encryptionSvc,
 		nil, // attachmentSvc not needed
 		eventManager,

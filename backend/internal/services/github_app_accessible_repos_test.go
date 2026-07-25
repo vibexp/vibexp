@@ -25,7 +25,7 @@ func buildGitHubAppServiceForURLTest(
 		installationRepo,
 		nil, // projectRepo not needed
 		nil, // blueprintRepo not needed
-		githubClient,
+		resolverFor(githubClient),
 		nil, // encryptionSvc not needed
 		nil, // attachmentSvc not needed
 		nil, // eventManager not needed

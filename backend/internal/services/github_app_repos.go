@@ -31,18 +31,23 @@ func (s *GitHubAppService) GetAccessibleRepoURLs(ctx context.Context, teamID str
 		return map[string]bool{}, nil
 	}
 
-	return s.fetchAllRepoURLs(ctx, teamID, installation.InstallationID)
+	client, err := s.resolveClient(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.fetchAllRepoURLs(ctx, client, teamID, installation.InstallationID)
 }
 
 // fetchAllRepoURLs pages through all accessible repositories for an installation and
 // returns a set of normalized HTML URLs. A safety cap of maxRepoPages pages prevents
 // unbounded iteration if the API behaves unexpectedly.
 func (s *GitHubAppService) fetchAllRepoURLs(
-	ctx context.Context, teamID string, installationID int64,
+	ctx context.Context, client external.GitHubAppClient, teamID string, installationID int64,
 ) (map[string]bool, error) {
 	repoURLs := make(map[string]bool)
 	for page := 1; page <= maxRepoPages; page++ {
-		repos, _, err := s.githubClient.GetInstallationRepositories(ctx, installationID, page)
+		repos, _, err := client.GetInstallationRepositories(ctx, installationID, page)
 		if err != nil {
 			if errors.Is(err, external.ErrGitHubInstallationGone) {
 				s.removeGoneInstallation(ctx, teamID, installationID)
@@ -98,7 +103,12 @@ func (s *GitHubAppService) GetRepositories(
 		return nil, fmt.Errorf("failed to get installation: %w", err)
 	}
 
-	repos, totalCount, err := s.githubClient.GetInstallationRepositories(ctx, installation.InstallationID, page)
+	client, err := s.resolveClient(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+
+	repos, totalCount, err := client.GetInstallationRepositories(ctx, installation.InstallationID, page)
 	if err != nil {
 		if errors.Is(err, external.ErrGitHubInstallationGone) {
 			s.removeGoneInstallation(ctx, teamID, installation.InstallationID)

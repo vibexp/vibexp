@@ -133,7 +133,7 @@ func newSkillImportFixture(t *testing.T, storageConfigured bool) *skillImportFix
 
 	svc := &GitHubAppService{
 		blueprintRepo: bpRepo,
-		githubClient:  gh,
+		clients:       resolverFor(gh),
 		attachmentSvc: attSvc,
 		logger:        newTestLogger(),
 	}
@@ -148,6 +148,7 @@ func newSkillImportFixture(t *testing.T, storageConfigured bool) *skillImportFix
 		CompanionItems:  []models.BlueprintImportCompanion{},
 	}
 	job := &blueprintImportJob{
+		client:         gh,
 		installationID: 1,
 		userID:         "user-1",
 		teamID:         "team-1",

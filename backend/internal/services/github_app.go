@@ -29,8 +29,11 @@ type GitHubAppService struct {
 	installationRepo repositories.GitHubInstallationRepository
 	projectRepo      repositories.ProjectRepository
 	blueprintRepo    repositories.BlueprintRepository
-	githubClient     external.GitHubAppClient
-	encryptionSvc    EncryptionServiceInterface
+	// clients selects the GitHub App client by team at call time. It replaces a
+	// process-wide singleton: every method on a client closes over one App's
+	// credentials, so per-team Apps must be chosen per call (#480).
+	clients       GitHubAppClientResolver
+	encryptionSvc EncryptionServiceInterface
 	// attachmentSvc stores Agent Skill companion files as blueprint-owned
 	// attachments during multi-file skill import (#342). It is the authority on
 	// per-file/per-owner size limits, the safe-type allowlist, and
@@ -50,7 +53,7 @@ func NewGitHubAppService(
 	installationRepo repositories.GitHubInstallationRepository,
 	projectRepo repositories.ProjectRepository,
 	blueprintRepo repositories.BlueprintRepository,
-	githubClient external.GitHubAppClient,
+	clients GitHubAppClientResolver,
 	encryptionSvc EncryptionServiceInterface,
 	attachmentSvc AttachmentServiceInterface,
 	eventManager events.EventPublisher,
@@ -61,7 +64,7 @@ func NewGitHubAppService(
 		installationRepo: installationRepo,
 		projectRepo:      projectRepo,
 		blueprintRepo:    blueprintRepo,
-		githubClient:     githubClient,
+		clients:          clients,
 		encryptionSvc:    encryptionSvc,
 		attachmentSvc:    attachmentSvc,
 		eventManager:     eventManager,
@@ -109,9 +112,12 @@ func (s *GitHubAppService) DisconnectInstallation(ctx context.Context, userID, t
 		return fmt.Errorf("failed to delete installation: %w", err)
 	}
 
-	// Evict the cached GitHub client so stale credentials are not served
-	// after the installation is removed.
-	s.githubClient.EvictCachedClient(installation.InstallationID)
+	// Evict the per-installation transport so stale credentials are not served
+	// after the installation is removed. The App-level client stays cached: the
+	// App itself is untouched by a disconnect, only this installation is gone.
+	if resolved, resolveErr := s.clients.ResolveForTeam(ctx, teamID); resolveErr == nil {
+		resolved.Client.EvictCachedClient(installation.InstallationID)
+	}
 
 	// Emit event
 	payload := map[string]interface{}{
@@ -124,6 +130,20 @@ func (s *GitHubAppService) DisconnectInstallation(ctx context.Context, userID, t
 	}
 
 	return nil
+}
+
+// resolveClient returns the GitHub App client bound to this team's own App.
+// Every GitHub call goes through here, so a team without a configured App gets
+// ErrGitHubAppNotConfigured (a 409 the UI can act on) rather than a generic
+// failure from a stub client (#480).
+func (s *GitHubAppService) resolveClient(
+	ctx context.Context, teamID string,
+) (external.GitHubAppClient, error) {
+	resolved, err := s.clients.ResolveForTeam(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+	return resolved.Client, nil
 }
 
 // removeGoneInstallation deletes an installation record after GitHub reported
@@ -144,7 +164,9 @@ func (s *GitHubAppService) removeGoneInstallation(ctx context.Context, teamID st
 		logger.With("error", err).Error("Failed to remove gone GitHub installation")
 		return
 	}
-	s.githubClient.EvictCachedClient(installationID)
+	if resolved, resolveErr := s.clients.ResolveForTeam(ctx, teamID); resolveErr == nil {
+		resolved.Client.EvictCachedClient(installationID)
+	}
 	logger.Warn("Removed GitHub installation that no longer exists on GitHub; team must re-install the app")
 }
 
@@ -240,6 +262,7 @@ func (s *GitHubAppService) handleInstallationEvent(
 // Shared by HandleInstallationCallback.
 func newInstallationRecord(
 	teamID string,
+	appConfigID string,
 	installationID int64,
 	installationInfo *external.GitHubInstallationInfo,
 	encryptedToken string,
@@ -253,6 +276,7 @@ func newInstallationRecord(
 	return &models.GitHubInstallation{
 		ID:                   uuid.New().String(),
 		TeamID:               teamID,
+		AppConfigID:          appConfigID,
 		InstallationID:       installationID,
 		AccountLogin:         installationInfo.AccountLogin,
 		AccountType:          installationInfo.AccountType,

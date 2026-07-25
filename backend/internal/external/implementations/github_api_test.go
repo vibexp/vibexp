@@ -563,10 +563,6 @@ func TestEvictCachedClient(t *testing.T) {
 
 	_, ok := c.clientCache[7]
 	assert.False(t, ok, "eviction must remove the cached client")
-
-	assert.NotPanics(t, func() {
-		(&stubGitHubAppClient{}).EvictCachedClient(7)
-	}, "stub eviction is a no-op")
 }
 
 // TestFetchDirectoryRecursive_Caps exercises the maxFiles and depth guards

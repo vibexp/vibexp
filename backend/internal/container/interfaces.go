@@ -107,7 +107,6 @@ type Container interface {
 	// External dependencies
 	IdentityProviderRegistry() *idp.Registry
 	EmailSender() external.EmailSender
-	GitHubAppClient() external.GitHubAppClient
 
 	// Legacy method for database access (TODO: Remove once all handlers use repositories)
 	Database() *database.DB
