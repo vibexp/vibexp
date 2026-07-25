@@ -80,6 +80,14 @@ api-v1-team_id-integrations-github-install-url:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '409':
+        description: >-
+          Conflict - the team has no GitHub App configured, so there is no App slug to
+          build an install URL from. Register the team's App first.
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Internal server error
         content:
@@ -129,8 +137,11 @@ api-v1-team_id-integrations-github-callback:
                 example: "install"
               state:
                 type: string
-                description: HMAC-signed state parameter from the install URL (CSRF protection)
-                example: "team-id:0:1234567890:signature"
+                description: >-
+                  HMAC-signed state parameter from the install URL (CSRF protection). It is
+                  bound to the team's GitHub App config, so a state minted before the team
+                  replaced or rotated its App is no longer redeemable.
+                example: "team-id:app-config-id:0:1234567890:signature"
               code:
                 type: string
                 description: >-
@@ -150,7 +161,9 @@ api-v1-team_id-integrations-github-callback:
             schema:
               $ref: '../openapi.yaml#/components/schemas/GitHubCallbackResponse'
       '400':
-        description: Invalid request body, missing required fields, or invalid/expired state parameter
+        description: >-
+          Invalid request body, missing required fields, an invalid/expired state parameter,
+          or a state bound to a different installation or GitHub App than the team's current one
         content:
           application/problem+json:
             schema:
@@ -170,7 +183,9 @@ api-v1-team_id-integrations-github-callback:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '409':
-        description: Conflict - this GitHub organization is already connected to another team
+        description: >-
+          Conflict - this GitHub organization is already connected to another team, or the
+          team has no GitHub App configured to complete the installation against
         content:
           application/problem+json:
             schema:

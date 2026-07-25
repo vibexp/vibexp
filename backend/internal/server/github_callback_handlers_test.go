@@ -47,7 +47,8 @@ func TestHandleGitHubCallback_NewInstallation(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID, 0)
+	expectGitHubAppConfig(container)
+	state := srv.signGitHubState(githubTestTeamID, githubTestAppConfigID, 0)
 
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
@@ -85,7 +86,8 @@ func TestHandleGitHubCallback_Reconnect(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID, 0)
+	expectGitHubAppConfig(container)
+	state := srv.signGitHubState(githubTestTeamID, githubTestAppConfigID, 0)
 
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
@@ -122,7 +124,8 @@ func TestHandleGitHubCallback_CrossTeamConflict(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID, 0)
+	expectGitHubAppConfig(container)
+	state := srv.signGitHubState(githubTestTeamID, githubTestAppConfigID, 0)
 
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
@@ -160,7 +163,8 @@ func TestHandleGitHubCallback_InternalError(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID, 0)
+	expectGitHubAppConfig(container)
+	state := srv.signGitHubState(githubTestTeamID, githubTestAppConfigID, 0)
 
 	container.gitHubAppService.On(
 		"HandleInstallationCallback",
@@ -192,7 +196,7 @@ func TestHandleGitHubCallback_MissingInstallationID(t *testing.T) {
 	container, _ := newGitHubTestContainer(t)
 	srv := createGitHubTestServer(container)
 
-	state := srv.signGitHubState(githubTestTeamID, 0)
+	state := srv.signGitHubState(githubTestTeamID, githubTestAppConfigID, 0)
 
 	reqBody := map[string]interface{}{
 		"installation_id": 0, // zero = missing
