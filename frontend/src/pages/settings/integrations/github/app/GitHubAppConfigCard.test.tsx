@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import type { GitHubAppConfigResponse } from '@/services/githubAppConfigService'
+import { githubAppConfigService } from '@/services/githubAppConfigService'
 
 import { GitHubAppConfigCard } from './GitHubAppConfigCard'
 
@@ -175,5 +176,140 @@ describe('GitHubAppSetupGuide — organization deep link', () => {
       'href',
       'https://github.com/organizations/acme-inc/settings/apps/new'
     )
+  })
+})
+
+describe('GitHubAppConfigCard — actions', () => {
+  const service = githubAppConfigService as unknown as Record<string, jest.Mock>
+
+  it('rotates, refreshes, and re-discloses the new webhook URL', async () => {
+    const user = userEvent.setup()
+    service.rotateWebhookToken.mockResolvedValue({
+      ...config,
+      webhook_url: 'https://vibexp.example.com/api/v1/webhooks/github/new-tok',
+    })
+    const onChanged = jest.fn()
+    renderCard({ onChanged })
+
+    await user.click(screen.getByRole('button', { name: 'Rotate webhook URL' }))
+    const rotateDialog = await screen.findByRole('alertdialog')
+    await user.click(
+      within(rotateDialog).getByRole('button', { name: 'Rotate' })
+    )
+
+    await waitFor(() => {
+      expect(service.rotateWebhookToken).toHaveBeenCalled()
+    })
+    expect(onChanged).toHaveBeenCalled()
+    // The new URL is useless unless it is handed over — rotating without
+    // showing it would stop deliveries with no way to fix them.
+    expect(
+      await screen.findByText(
+        'https://vibexp.example.com/api/v1/webhooks/github/new-tok'
+      )
+    ).toBeVisible()
+  })
+
+  it('deletes and refreshes', async () => {
+    const user = userEvent.setup()
+    service.deleteAppConfig.mockResolvedValue(undefined)
+    const onChanged = jest.fn()
+    renderCard({ onChanged })
+
+    await user.click(screen.getByRole('button', { name: 'Remove' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Remove' }))
+
+    await waitFor(() => {
+      expect(service.deleteAppConfig).toHaveBeenCalled()
+    })
+    expect(onChanged).toHaveBeenCalled()
+  })
+
+  it('reports a failed verify with the mapped instruction', async () => {
+    const user = userEvent.setup()
+    service.validateAppConfig.mockResolvedValue({
+      is_valid: false,
+      message: 'nope',
+      details: { error_details: 'slug_mismatch' },
+    })
+    renderCard()
+
+    await user.click(screen.getByRole('button', { name: 'Verify' }))
+
+    const { toast } = jest.requireMock('@/lib/toast')
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        'The App slug does not match',
+        expect.objectContaining({
+          description: expect.stringContaining('public URL'),
+        })
+      )
+    })
+  })
+
+  it('reports a successful verify', async () => {
+    const user = userEvent.setup()
+    service.validateAppConfig.mockResolvedValue({
+      is_valid: true,
+      message: 'ok',
+    })
+    renderCard()
+
+    await user.click(screen.getByRole('button', { name: 'Verify' }))
+
+    const { toast } = jest.requireMock('@/lib/toast')
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('GitHub App verified')
+    })
+  })
+})
+
+describe('GitHubAppConfigCard — failure paths', () => {
+  const service = githubAppConfigService as unknown as Record<string, jest.Mock>
+  const toastOf = () => jest.requireMock('@/lib/toast').toast
+
+  it.each([
+    [
+      'rotateWebhookToken',
+      'Rotate webhook URL',
+      'Rotate',
+      'Could not rotate the webhook URL',
+    ],
+    ['deleteAppConfig', 'Remove', 'Remove', 'Could not remove the GitHub App'],
+  ])(
+    'reports a failed %s instead of appearing to succeed',
+    async (method, trigger, confirm, message) => {
+      const user = userEvent.setup()
+      service[method].mockRejectedValue(new Error('boom'))
+      const onChanged = jest.fn()
+      renderCard({ onChanged })
+
+      await user.click(screen.getByRole('button', { name: trigger }))
+      // Scope to the dialog: the trigger and the confirm can share a label,
+      // and the trigger is inert behind the modal.
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: confirm }))
+
+      await waitFor(() => {
+        expect(toastOf().error).toHaveBeenCalledWith(message)
+      })
+      // A failed mutation must not trigger a refetch that would imply it worked.
+      expect(onChanged).not.toHaveBeenCalled()
+    }
+  )
+
+  it('reports a verify that could not run at all', async () => {
+    const user = userEvent.setup()
+    service.validateAppConfig.mockRejectedValue(new Error('network'))
+    renderCard()
+
+    await user.click(screen.getByRole('button', { name: 'Verify' }))
+
+    await waitFor(() => {
+      expect(toastOf().error).toHaveBeenCalledWith(
+        'Could not verify the GitHub App'
+      )
+    })
   })
 })
