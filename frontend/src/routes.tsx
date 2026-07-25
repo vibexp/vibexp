@@ -55,6 +55,7 @@ import { ProjectDetails } from '@/pages/settings/projects/ProjectDetails'
 import { ProjectEdit } from '@/pages/settings/projects/ProjectEdit'
 import { ProjectMigrate } from '@/pages/settings/projects/ProjectMigrate'
 import { Projects } from '@/pages/settings/projects/Projects'
+import { SearchSettings } from '@/pages/settings/search/SearchSettings'
 import { Settings } from '@/pages/settings/Settings'
 import { TeamAnalyticsPage } from '@/pages/settings/teams/TeamAnalyticsPage'
 import { TeamDetailsPage } from '@/pages/settings/teams/TeamDetailsPage'
@@ -214,6 +215,7 @@ export function AppRoutes() {
         element={<EmbeddingProviders />}
       />
       <Route path="settings/model-providers" element={<ModelProviders />} />
+      <Route path="settings/search" element={<SearchSettings />} />
       <Route path="settings/projects" element={<Projects />} />
       <Route path="settings/projects/create" element={<ProjectCreate />} />
       <Route path="settings/projects/edit/:slug" element={<ProjectEdit />} />
