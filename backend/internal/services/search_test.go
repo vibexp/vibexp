@@ -37,10 +37,36 @@ func newTestSearchService(t *testing.T) (
 func newTestSearchServiceWithRanking(t *testing.T, ranking services.SearchRankingConfig) (
 	*services.SearchService, *repomocks.MockSearchRepository, *svcmocks.MockQueryEmbedder,
 ) {
+	return newTestSearchServiceWithResolver(t, staticRanking{cfg: ranking})
+}
+
+func newTestSearchServiceWithResolver(t *testing.T, settings services.SearchSettingsResolver) (
+	*services.SearchService, *repomocks.MockSearchRepository, *svcmocks.MockQueryEmbedder,
+) {
 	repo := repomocks.NewMockSearchRepository(t)
 	embedder := svcmocks.NewMockQueryEmbedder(t)
 	logger := slog.New(slog.DiscardHandler)
-	return services.NewSearchService(repo, embedder, logger, ranking), repo, embedder
+	return services.NewSearchService(repo, embedder, logger, settings), repo, embedder
+}
+
+// staticRanking resolves the same config for every team — the pre-#490
+// behaviour, which the bulk of this file's tests still assert against.
+type staticRanking struct{ cfg services.SearchRankingConfig }
+
+func (r staticRanking) Resolve(context.Context, string) services.SearchRankingConfig { return r.cfg }
+
+// perTeamRanking resolves a different config per team, standing in for two
+// teams with different stored profiles.
+type perTeamRanking struct {
+	byTeam   map[string]services.SearchRankingConfig
+	fallback services.SearchRankingConfig
+}
+
+func (r perTeamRanking) Resolve(_ context.Context, teamID string) services.SearchRankingConfig {
+	if cfg, ok := r.byTeam[teamID]; ok {
+		return cfg
+	}
+	return r.fallback
 }
 
 func validVector() []float32 {
@@ -530,6 +556,106 @@ func TestSearchService_Search_NoProvider_RankingEnabledReRanks(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Results, 2)
 	// Fresher row overtakes the slightly-more-relevant but stale row after re-ranking.
+	assert.Equal(t, "c-fresh", resp.Results[0].ChunkID)
+	assert.Equal(t, "c-stale", resp.Results[1].ChunkID)
+}
+
+// testTeamIDB is a second team, used to prove two teams get different ordering.
+const testTeamIDB = "660e8400-e29b-41d4-a716-446655440001"
+
+// twoTeamCandidates is one corpus: a stale-but-closer row and a fresh-but-farther
+// row. Which one wins is decided entirely by the ranking profile applied.
+func twoTeamCandidates(now time.Time) []models.SearchResultRow {
+	stale := now.Add(-360 * 24 * time.Hour)
+	return []models.SearchResultRow{
+		{EntityType: "prompt", EntityID: "p-stale", ChunkID: "c-stale", Distance: 0.30, CreatedAt: stale, UpdatedAt: stale},
+		{EntityType: "prompt", EntityID: "p-fresh", ChunkID: "c-fresh", Distance: 0.40, CreatedAt: now, UpdatedAt: now},
+	}
+}
+
+// TestSearchService_Search_PerTeamProfilesChangeOrdering is the test that proves
+// the feature: same query, same corpus, two teams with different stored
+// profiles, different result ordering.
+func TestSearchService_Search_PerTeamProfilesChangeOrdering(t *testing.T) {
+	relevanceOnly := enabledRanking()
+	relevanceOnly.WeightRelevance, relevanceOnly.WeightCreated, relevanceOnly.WeightUpdated = 1, 0, 0
+
+	recencyOnly := enabledRanking()
+	recencyOnly.WeightRelevance, recencyOnly.WeightCreated, recencyOnly.WeightUpdated = 0, 1, 0
+
+	svc, repo, embedder := newTestSearchServiceWithResolver(t, perTeamRanking{
+		byTeam: map[string]services.SearchRankingConfig{
+			testTeamID:  relevanceOnly,
+			testTeamIDB: recencyOnly,
+		},
+	})
+	now := time.Date(2026, 5, 26, 0, 0, 0, 0, time.UTC)
+	svc.SetClockForTest(func() time.Time { return now })
+	vec := validVector()
+	candidates := twoTeamCandidates(now)
+
+	for _, teamID := range []string{testTeamID, testTeamIDB} {
+		embedder.EXPECT().EmbedQuery(mock.Anything, teamID, "q").Return(vec, testEmbeddingModel, nil)
+		repo.EXPECT().
+			SearchSimilar(mock.Anything, teamID, vec, testEmbeddingModel, mock.Anything, "",
+				repositories.Page{Limit: 200, Offset: 0}).
+			Return(candidates, 2, nil)
+	}
+
+	search := func(teamID string) []string {
+		resp, err := svc.Search(context.Background(), teamID, &models.SearchRequest{
+			Query: "q", Page: 1, PerPage: 10,
+		})
+		require.NoError(t, err)
+		ids := make([]string, 0, len(resp.Results))
+		for _, r := range resp.Results {
+			ids = append(ids, r.ChunkID)
+		}
+		return ids
+	}
+
+	relevanceTeam := search(testTeamID)
+	recencyTeam := search(testTeamIDB)
+
+	assert.Equal(t, []string{"c-stale", "c-fresh"}, relevanceTeam,
+		"a relevance-only profile must order by distance")
+	assert.Equal(t, []string{"c-fresh", "c-stale"}, recencyTeam,
+		"a recency-only profile must put the fresher row first")
+	assert.NotEqual(t, relevanceTeam, recencyTeam,
+		"two teams with different profiles must not share an ordering")
+}
+
+// TestSearchService_Search_TeamWithoutOverrideMatchesInstanceDefaults is the
+// no-regression guard for existing deployments: a team with no stored row must
+// rank exactly as the instance defaults do. It drives the REAL resolver over a
+// repository reporting the (nil, nil) miss, so the fallback path is exercised
+// end to end rather than stubbed.
+func TestSearchService_Search_TeamWithoutOverrideMatchesInstanceDefaults(t *testing.T) {
+	settingsRepo := repomocks.NewMockTeamSearchSettingsRepository(t)
+	settingsRepo.EXPECT().Get(mock.Anything, testTeamID).Return(nil, nil)
+	resolver := services.NewTeamSearchSettingsResolver(
+		settingsRepo, enabledRanking(), slog.New(slog.DiscardHandler))
+
+	svc, repo, embedder := newTestSearchServiceWithResolver(t, resolver)
+	now := time.Date(2026, 5, 26, 0, 0, 0, 0, time.UTC)
+	svc.SetClockForTest(func() time.Time { return now })
+	vec := validVector()
+
+	embedder.EXPECT().EmbedQuery(mock.Anything, testTeamID, "q").Return(vec, testEmbeddingModel, nil)
+	repo.EXPECT().
+		SearchSimilar(mock.Anything, testTeamID, vec, testEmbeddingModel, mock.Anything, "",
+			repositories.Page{Limit: 200, Offset: 0}).
+		Return(twoTeamCandidates(now), 2, nil)
+
+	resp, err := svc.Search(context.Background(), testTeamID, &models.SearchRequest{
+		Query: "q", Page: 1, PerPage: 10,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Results, 2)
+	// Identical to TestSearchService_Search_RankingEnabled_PullsCandidateCapAndReRanks,
+	// which uses the same profile as a frozen config: the refactor changed where the
+	// config comes from, not what it does.
 	assert.Equal(t, "c-fresh", resp.Results[0].ChunkID)
 	assert.Equal(t, "c-stale", resp.Results[1].ChunkID)
 }

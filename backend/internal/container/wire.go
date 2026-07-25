@@ -127,6 +127,7 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideMemoryService,
 	providers.ProvideEmbeddingService,
 	providers.ProvideQueryEmbedder,
+	providers.ProvideSearchSettingsResolver,
 	providers.ProvideSearchService,
 	providers.ProvideEnvironmentService,
 	providers.ProvideEmbeddingProcessor,

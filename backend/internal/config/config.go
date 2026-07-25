@@ -588,16 +588,20 @@ func (c *Config) GetDeploymentEnvironment() string {
 	return "production"
 }
 
-// maxSearchRankHalfLifeDays caps the half-life at 100 years. This keeps the
-// days→time.Duration conversion (in ProvideSearchService) well clear of int64
+// MaxSearchRankHalfLifeDays caps the half-life at 100 years. This keeps the
+// days→time.Duration conversion (services.HalfLifeFromDays) well clear of int64
 // nanosecond overflow, which would otherwise wrap to a negative duration and
 // silently zero the recency contribution.
-const maxSearchRankHalfLifeDays = 36500
+//
+// Exported because it is the single definition shared by three enforcement
+// points: this validator, the team_search_settings CHECK constraints
+// (migration 012), and the per-team settings request validator.
+const MaxSearchRankHalfLifeDays = 36500
 
-// maxSearchRankCandidateCap bounds the re-rank candidate pool so a misconfigured
+// MaxSearchRankCandidateCap bounds the re-rank candidate pool so a misconfigured
 // cap cannot blow up per-query memory and sort cost (the cap becomes the SQL
 // LIMIT and the in-memory slice that is sorted on every ranked query).
-const maxSearchRankCandidateCap = 5000
+const MaxSearchRankCandidateCap = 5000
 
 // validateSearchRankingConfig rejects degenerate ranking parameters so a
 // misconfigured deployment fails fast at startup rather than silently producing
@@ -619,16 +623,16 @@ func validateSearchRankingConfig(cfg *Config) error {
 	if s.RankHalfLifeDays <= 0 {
 		return fmt.Errorf("search.rank_half_life_days must be positive, got %v", s.RankHalfLifeDays)
 	}
-	if s.RankHalfLifeDays > maxSearchRankHalfLifeDays {
+	if s.RankHalfLifeDays > MaxSearchRankHalfLifeDays {
 		return fmt.Errorf("search.rank_half_life_days must be <= %d, got %v",
-			maxSearchRankHalfLifeDays, s.RankHalfLifeDays)
+			MaxSearchRankHalfLifeDays, s.RankHalfLifeDays)
 	}
 	if s.RankCandidateCap < 1 {
 		return fmt.Errorf("search.rank_candidate_cap must be >= 1, got %d", s.RankCandidateCap)
 	}
-	if s.RankCandidateCap > maxSearchRankCandidateCap {
+	if s.RankCandidateCap > MaxSearchRankCandidateCap {
 		return fmt.Errorf("search.rank_candidate_cap must be <= %d, got %d",
-			maxSearchRankCandidateCap, s.RankCandidateCap)
+			MaxSearchRankCandidateCap, s.RankCandidateCap)
 	}
 	return nil
 }
