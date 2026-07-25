@@ -165,6 +165,36 @@ func TestGitHubAppConfigRepositoryIntegration_UniqueWebhookToken(t *testing.T) {
 	assert.Equal(t, "idx_github_app_configs_webhook_token", pqErr.Constraint)
 }
 
+// TestGitHubAppConfigRepositoryIntegration_EmptyStringsRejected pins the CHECK
+// constraints. NOT NULL alone accepts the empty string, and for these two
+// columns an empty value fails silently and cross-tenant rather than loudly:
+// an empty webhook_token would let an empty URL segment on the public webhook
+// route resolve a real team's config, and an empty app_id would trip
+// unique_github_app_id and tell the second writer the App is already taken.
+func TestGitHubAppConfigRepositoryIntegration_EmptyStringsRejected(t *testing.T) {
+	resetGitHubAppConfigTables(t)
+	ctx := context.Background()
+	repo := newIntegrationGitHubAppConfigRepo()
+
+	userID := insertTestUser(t)
+	teamID := insertTestTeam(t, userID)
+
+	blankToken := buildGitHubAppConfig(teamID, userID, "450001")
+	blankToken.WebhookToken = ""
+	require.Error(t, repo.Create(ctx, blankToken), "an empty webhook_token must be rejected")
+
+	blankAppID := buildGitHubAppConfig(teamID, userID, "")
+	require.Error(t, repo.Create(ctx, blankAppID), "an empty app_id must be rejected")
+
+	// The guard must survive an update, which is the likelier way to blank one:
+	// both columns are writable and a caller that omits one would otherwise
+	// clear it without complaint.
+	valid := buildGitHubAppConfig(teamID, userID, "450002")
+	require.NoError(t, repo.Create(ctx, valid))
+	valid.WebhookToken = ""
+	require.Error(t, repo.Update(ctx, valid), "an update must not be able to blank webhook_token")
+}
+
 func TestGitHubAppConfigRepositoryIntegration_UpdateOptimisticLocking(t *testing.T) {
 	resetGitHubAppConfigTables(t)
 	ctx := context.Background()

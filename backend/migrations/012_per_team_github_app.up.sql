@@ -57,6 +57,22 @@ ALTER TABLE public.github_app_configs
 CREATE UNIQUE INDEX idx_github_app_configs_webhook_token
     ON public.github_app_configs (webhook_token);
 
+-- NOT NULL does not bar the empty string, and both of these columns turn an
+-- empty value into a silent cross-tenant failure rather than an error:
+--   * webhook_token is a routing key on a PUBLIC, unauthenticated route. An
+--     empty token would let an empty URL segment resolve a real team's config.
+--   * an empty app_id would trip unique_github_app_id and report the misleading
+--     "already registered by another team" to the second writer.
+-- Both columns are writable through the optimistic-locked UPDATE, so a caller
+-- that omits one would otherwise blank it without complaint.
+ALTER TABLE public.github_app_configs
+    ADD CONSTRAINT github_app_configs_webhook_token_not_empty
+        CHECK (length(webhook_token) > 0);
+
+ALTER TABLE public.github_app_configs
+    ADD CONSTRAINT github_app_configs_app_id_not_empty
+        CHECK (length(app_id) > 0);
+
 COMMENT ON TABLE public.github_app_configs IS
     'Per-team GitHub App credentials. Replaces the instance-wide config.yaml App (#476).';
 
