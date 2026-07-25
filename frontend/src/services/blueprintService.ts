@@ -28,12 +28,9 @@ export type BlueprintSubtype = NonNullable<Blueprint['subtype']>
 export type BlueprintVersion = ResourceVersion
 export type BlueprintVersionListResponse = ResourceVersionListResponse
 
-// List query shapes, derived from the generated operations. These used to be a
-// hand-written interface with a `[key: \`metadata_${string}\`]` index signature,
-// because the `metadata_<key>` prefix convention could not be expressed in
-// OpenAPI. #520 replaced it with a single declared `metadata` param (a
-// JSON-encoded object of key -> string values), so the spec-first guarantee is
-// restored and the escape hatch is gone (#522).
+// List query shapes, derived entirely from the generated operations — no
+// hand-written escape hatch. Metadata filtering goes through the single
+// declared `metadata` param (a JSON-encoded object of key -> string values).
 export type BlueprintFilters = NonNullable<
   operations['listSpecLibraries']['parameters']['query']
 >

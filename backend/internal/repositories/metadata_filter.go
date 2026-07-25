@@ -21,8 +21,7 @@ const (
 	MaxMetadataFilterKeys = 10
 	// MaxMetadataFilterValues is the maximum number of values per key.
 	MaxMetadataFilterValues = 25
-	// MaxMetadataFilterKeyLength is the maximum length of a metadata key. It
-	// matches the cap isValidMetadataKey has always applied on the filter path,
+	// MaxMetadataFilterKeyLength is the maximum length of a metadata key. It is
 	// deliberately wider than the UI editor's own limit so that keys which are
 	// already stored (for example from a GitHub import) stay filterable.
 	MaxMetadataFilterKeyLength = 255

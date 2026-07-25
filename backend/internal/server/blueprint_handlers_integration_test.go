@@ -760,6 +760,58 @@ func TestHandleListBlueprints_Success(t *testing.T) {
 	mockBlueprintService.AssertExpectations(t)
 }
 
+// TestHandleListBlueprints_LegacyMetadataParamsAreInert is the blueprints half
+// of the #526 removal guard (the artifacts half lives in
+// artifact_handlers_test.go). A request still carrying the removed
+// metadata_<key> convention must be served as though the params were absent:
+// 200 with an empty MetadataFilter, never a 400.
+func TestHandleListBlueprints_LegacyMetadataParamsAreInert(t *testing.T) {
+	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
+
+	expectedResponse := &models.BlueprintListResponse{
+		Blueprints: []models.Blueprint{{ID: "spec-1", Slug: "spec-1", Title: "Blueprint 1"}},
+		TotalCount: 1,
+		Page:       1,
+		PerPage:    10,
+		TotalPages: 1,
+	}
+
+	mockBlueprintService.On(
+		"ListBlueprints",
+		"user-123",
+		mock.MatchedBy(func(filters services.BlueprintFilters) bool {
+			return len(filters.MetadataFilter) == 0
+		})).Return(expectedResponse, nil)
+
+	mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
+	mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
+	mockAPIKeyService.On("ValidateAPIKey", mock.Anything, "vxk_test_fake_key_for_testing").
+		Return(&models.APIKey{ID: "api-key-123", UserID: "user-123"}, nil)
+	mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", mock.AnythingOfType("string")).
+		Return(true, nil).Maybe()
+
+	cfg := &config.Config{}
+	logger := slog.New(slog.DiscardHandler)
+	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv.container = &MockBlueprintContainer{
+		BlueprintServiceMock: mockBlueprintService,
+		TeamServiceMock:      mockTeamService,
+		APIKeyServiceMock:    mockAPIKeyService,
+	}
+
+	req := createBlueprintAuthenticatedRequest(
+		"GET",
+		"/api/v1/550e8400-e29b-41d4-a716-446655440000/blueprints?metadata_env=production&metadata_team=backend",
+		"", "user-123",
+	)
+	rr := httptest.NewRecorder()
+
+	srv.router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	mockBlueprintService.AssertExpectations(t)
+}
+
 // TestHandleListBlueprints_EmptyResultConformsToSpec guards the issue #121 fix:
 // the empty blueprints list must serialize under the wire field name the spec
 // documents (`blueprints`). It reproduces the exact body the frontend crashed

@@ -103,9 +103,7 @@ api-v1-team_id-blueprints:
     summary: List spec libraries
     description: >-
       Retrieves all spec libraries for the authenticated user with optional
-      filtering and pagination. Use the `metadata` parameter to filter on
-      metadata; the undocumented `metadata_<key>` prefix convention is
-      deprecated and will be removed.
+      filtering and pagination.
     operationId: listSpecLibraries
     parameters:
       - name: team_id
@@ -275,8 +273,6 @@ api-v1-team_id-blueprints-project_id:
     summary: List spec libraries by project
     description: >-
       Retrieves spec libraries for a specific project with optional filtering.
-      Use the `metadata` parameter to filter on metadata; the undocumented
-      `metadata_<key>` prefix convention is deprecated and will be removed.
     operationId: listSpecLibrariesByProject
     parameters:
       - name: team_id

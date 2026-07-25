@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"strings"
 	"testing"
 	"time"
 
@@ -145,42 +144,6 @@ func TestBlueprintRepository_ListSquirrel(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM blueprints s .* ORDER BY s\.updated_at ASC LIMIT 10 OFFSET 0`).
 					WithArgs(blueprintListBaseArgs()...).
-					WillReturnRows(blueprintListOneRow(now))
-			},
-			expectTotal: 1,
-			expectCount: 1,
-		},
-		{
-			name: "metadata single key binds via ->> operator",
-			filters: repositories.BlueprintFilters{
-				TeamID: "team-123", Metadata: map[string]string{"env": "prod"}, Page: 1, Limit: 10,
-			},
-			setupMock: func(mock sqlmock.Sqlmock) {
-				args := append(blueprintListBaseArgs(), "env", "prod")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM blueprints s .*s\.metadata->>\$6 = \$7`).
-					WithArgs(args...).
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM blueprints s .*s\.metadata->>\$6 = \$7`).
-					WithArgs(args...).
-					WillReturnRows(blueprintListOneRow(now))
-			},
-			expectTotal: 1,
-			expectCount: 1,
-		},
-		{
-			name: "metadata multi-key binds in sorted key order",
-			filters: repositories.BlueprintFilters{
-				TeamID: "team-123", Metadata: map[string]string{"zeta": "z", "alpha": "a"}, Page: 1, Limit: 10,
-			},
-			setupMock: func(mock sqlmock.Sqlmock) {
-				// Sorted iteration guarantees alpha is bound before zeta regardless of
-				// map ordering, so the parameter sequence is deterministic.
-				args := append(blueprintListBaseArgs(), "alpha", "a", "zeta", "z")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM blueprints s .*s\.metadata->>\$6 = \$7 AND s\.metadata->>\$8 = \$9`).
-					WithArgs(args...).
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM blueprints s .*s\.metadata->>\$6 = \$7 AND s\.metadata->>\$8 = \$9`).
-					WithArgs(args...).
 					WillReturnRows(blueprintListOneRow(now))
 			},
 			expectTotal: 1,
@@ -344,33 +307,6 @@ func TestBlueprintRepository_List_RequiresTeamID(t *testing.T) {
 	assert.EqualError(t, err, "TeamID is required but was empty")
 	assert.Nil(t, blueprints)
 	assert.Zero(t, total)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-// TestBlueprintRepository_List_InvalidMetadataKey verifies an out-of-bounds
-// metadata key short-circuits before any query is issued.
-//
-// Since #519 "out of bounds" means length only — an injection-looking key is
-// legal input, because it is bound as a parameter.
-func TestBlueprintRepository_List_InvalidMetadataKey(t *testing.T) {
-	repo, mock, mockDB := setupBlueprintListTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
-
-	filters := repositories.BlueprintFilters{
-		TeamID:   "team-123",
-		Metadata: map[string]string{strings.Repeat("k", 256): "v"},
-		Page:     1, Limit: 10,
-	}
-
-	_, _, err := repo.List(context.Background(), "user-123", filters)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid metadata key")
-	// No query must have been issued before the validation failure.
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

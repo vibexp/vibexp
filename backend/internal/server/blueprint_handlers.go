@@ -785,8 +785,6 @@ func (s *Server) buildBlueprintFilters(
 		filters.ProjectID = query.Get("project_id")
 	}
 
-	filters.Metadata = extractMetadataFromQuery(query)
-
 	metadataFilter, ok := parseMetadataQueryParam(w, r)
 	if !ok {
 		return services.BlueprintFilters{}, false

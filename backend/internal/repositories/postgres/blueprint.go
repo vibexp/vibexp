@@ -51,19 +51,6 @@ type BlueprintRepository struct {
 	db *database.DB
 }
 
-// isValidMetadataKey bounds a metadata key used on the filter path.
-//
-// It used to additionally require ^[a-zA-Z0-9_-]+$. That was defence in depth
-// from a time the key was thought to reach fmt.Sprintf: every call site binds
-// the key as a SQL parameter, so the charset restriction bought no safety and
-// instead made a key that is perfectly writable — an imported one like
-// `spec.type` — permanently unfilterable (epic #519). Only the length bound
-// remains, and it is unchanged at 255 so nothing that was filterable stops
-// being so.
-func isValidMetadataKey(key string) bool {
-	return len(key) > 0 && len(key) <= repositories.MaxMetadataFilterKeyLength
-}
-
 // NewBlueprintRepository creates a new BlueprintRepository
 func NewBlueprintRepository(db *database.DB) repositories.BlueprintRepository {
 	return &BlueprintRepository{
@@ -445,12 +432,10 @@ func buildBlueprintListOrderByClause(filters repositories.BlueprintFilters) stri
 }
 
 // applyBlueprintFilters appends the optional filter conditions to the WHERE
-// clause. Metadata keys are validated against the allowlist and iterated in
-// sorted order so multi-key filters produce a deterministic, parameter-bound
-// query.
+// clause.
 func applyBlueprintFilters(
 	where squirrel.And, filters repositories.BlueprintFilters,
-) (squirrel.And, error) {
+) squirrel.And {
 	if filters.ProjectID != nil && *filters.ProjectID != "" {
 		where = append(where, squirrel.Eq{"s.project_id": *filters.ProjectID})
 	}
@@ -474,27 +459,11 @@ func applyBlueprintFilters(
 		))
 	}
 
-	return applyBlueprintMetadataFilters(where, filters)
-}
-
-// applyBlueprintMetadataFilters appends both metadata predicates: the legacy
-// per-key equality filter (removed in #526) and the JSONB containment filter.
-func applyBlueprintMetadataFilters(
-	where squirrel.And, filters repositories.BlueprintFilters,
-) (squirrel.And, error) {
-	for _, key := range sortedMetadataKeys(filters.Metadata) {
-		if !isValidMetadataKey(key) {
-			return nil, fmt.Errorf("invalid metadata key: %s (must be non-empty and at most %d characters)",
-				key, repositories.MaxMetadataFilterKeyLength)
-		}
-		where = append(where, squirrel.Expr("s.metadata->>? = ?", key, filters.Metadata[key]))
-	}
-
 	if containment := metadataContainment("s.metadata", filters.MetadataFilter); containment != nil {
 		where = append(where, containment)
 	}
 
-	return where, nil
+	return where
 }
 
 // clampBlueprintPaging converts the page/limit filters into squirrel's unsigned
@@ -531,10 +500,7 @@ func (r *BlueprintRepository) List(
 		teamReadAccess(teamID, userID),
 	}
 
-	where, err := applyBlueprintFilters(where, filters)
-	if err != nil {
-		return nil, 0, err
-	}
+	where = applyBlueprintFilters(where, filters)
 
 	totalCount, err := r.countList(ctx, where)
 	if err != nil {

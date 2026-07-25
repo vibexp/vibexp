@@ -176,7 +176,12 @@ func TestArtifactHandlers_QueryParameters(t *testing.T) {
 			"/api/v1/artifacts?sort_by=updated_at&sort_order=desc",
 			http.StatusUnauthorized,
 		},
-		{"List artifacts with metadata filter", "GET", "/api/v1/artifacts?metadata_key=value", http.StatusUnauthorized},
+		{
+			"List artifacts with metadata filter",
+			"GET",
+			`/api/v1/artifacts?metadata=%7B%22key%22%3A%5B%22value%22%5D%7D`,
+			http.StatusUnauthorized,
+		},
 		{"List artifacts with pagination", "GET", "/api/v1/artifacts?page=2&limit=10", http.StatusUnauthorized},
 		{"List artifacts with max limit", "GET", "/api/v1/artifacts?limit=100", http.StatusUnauthorized},
 		{
@@ -432,17 +437,21 @@ func TestArtifactHandlers_MetadataFiltering(t *testing.T) {
 		path     string
 		expected int
 	}{
-		{"Single metadata filter", "/api/v1/artifacts?metadata_env=production", http.StatusUnauthorized},
+		{"Single metadata filter", `/api/v1/artifacts?metadata=%7B%22env%22%3A%5B%22production%22%5D%7D`, http.StatusUnauthorized},
 		{
 			"Multiple metadata filters",
-			"/api/v1/artifacts?metadata_env=production&metadata_team=backend",
+			`/api/v1/artifacts?metadata=%7B%22env%22%3A%5B%22production%22%5D%2C%22team%22%3A%5B%22backend%22%5D%7D`,
 			http.StatusUnauthorized,
 		},
-		{"Metadata with special chars", "/api/v1/artifacts?metadata_version=1.0.0", http.StatusUnauthorized},
-		{"Metadata with spaces (encoded)", "/api/v1/artifacts?metadata_description=test%20value", http.StatusUnauthorized},
+		{"Metadata with special chars", `/api/v1/artifacts?metadata=%7B%22version%22%3A%5B%221.0.0%22%5D%7D`, http.StatusUnauthorized},
+		{
+			"Metadata with spaces (encoded)",
+			`/api/v1/artifacts?metadata=%7B%22description%22%3A%5B%22test%20value%22%5D%7D`,
+			http.StatusUnauthorized,
+		},
 		{
 			"Complex metadata filtering",
-			"/api/v1/artifacts?metadata_env=prod&metadata_region=us-east&project_name=test&status=active",
+			`/api/v1/artifacts?metadata=%7B%22env%22%3A%5B%22prod%22%5D%7D&project_name=test&status=active`,
 			http.StatusUnauthorized,
 		},
 	}
@@ -812,8 +821,14 @@ func TestHandleListArtifacts_WithPagination(t *testing.T) {
 	mockArtifactService.AssertExpectations(t)
 }
 
-// TestHandleListArtifacts_WithMetadataFilters tests metadata filtering
-func TestHandleListArtifacts_WithMetadataFilters(t *testing.T) {
+// TestHandleListArtifacts_LegacyMetadataParamsAreInert asserts the removed
+// metadata_<key> convention (#526) is IGNORED rather than rejected: the request
+// still succeeds and reaches the service with an empty MetadataFilter, exactly
+// as if the params had not been supplied.
+//
+// Inert, not erroring, is the deliberate contract — an old client or bookmarked
+// URL degrades to an unfiltered list instead of a 400.
+func TestHandleListArtifacts_LegacyMetadataParamsAreInert(t *testing.T) {
 	teamID := "550e8400-e29b-41d4-a716-446655440000"
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
 
@@ -826,7 +841,7 @@ func TestHandleListArtifacts_WithMetadataFilters(t *testing.T) {
 	}
 
 	mockArtifactService.On("ListArtifacts", "user-123", mock.MatchedBy(func(filters services.ArtifactFilters) bool {
-		return filters.Metadata["env"] == "production" && filters.Metadata["team"] == "backend" && filters.TeamID == teamID
+		return filters.TeamID == teamID && len(filters.MetadataFilter) == 0
 	})).Return(expectedResponse, nil)
 
 	mockContainer := &MockArtifactContainer{

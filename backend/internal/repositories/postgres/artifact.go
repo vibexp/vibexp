@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sort"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -263,10 +262,8 @@ func buildArtifactOrderByClause(filters repositories.ArtifactFilters) string {
 
 // applyArtifactFilters appends the optional filter conditions shared by List
 // and ListCrossTeam to the WHERE clause. The conditions and their triggers are
-// identical for both methods; only the base WHERE differs. Metadata keys are
-// validated against the allowlist and iterated in sorted order so multi-key
-// filters produce a deterministic, parameter-bound query.
-func applyArtifactFilters(where squirrel.And, filters repositories.ArtifactFilters) (squirrel.And, error) {
+// identical for both methods; only the base WHERE differs.
+func applyArtifactFilters(where squirrel.And, filters repositories.ArtifactFilters) squirrel.And {
 	if filters.ProjectID != nil && *filters.ProjectID != "" {
 		where = append(where, squirrel.Eq{"a.project_id": *filters.ProjectID})
 	}
@@ -277,19 +274,11 @@ func applyArtifactFilters(where squirrel.And, filters repositories.ArtifactFilte
 
 	where = applyArtifactStatusVisibility(where, filters)
 
-	for _, key := range sortedMetadataKeys(filters.Metadata) {
-		if !isValidMetadataKey(key) {
-			return nil, fmt.Errorf("invalid metadata key: %s (must be non-empty and at most %d characters)",
-				key, repositories.MaxMetadataFilterKeyLength)
-		}
-		where = append(where, squirrel.Expr("a.metadata->>? = ?", key, filters.Metadata[key]))
-	}
-
 	if containment := metadataContainment("a.metadata", filters.MetadataFilter); containment != nil {
 		where = append(where, containment)
 	}
 
-	return where, nil
+	return where
 }
 
 // applyArtifactStatusVisibility encodes the artifact lifecycle visibility rules
@@ -318,19 +307,6 @@ func applyArtifactStatusVisibility(
 	default:
 		return append(where, squirrel.NotEq{artifactStatusColumn: models.ArtifactStatusArchived})
 	}
-}
-
-// sortedMetadataKeys returns the metadata keys in sorted order so that
-// multi-key filters generate a deterministic query (the previous map-range
-// iteration was nondeterministic). The result set is identical regardless of
-// ordering, so this is a behaviour-preserving improvement.
-func sortedMetadataKeys(metadata map[string]string) []string {
-	keys := make([]string, 0, len(metadata))
-	for key := range metadata {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // clampArtifactPaging converts the page/limit filters into squirrel's unsigned
@@ -464,10 +440,7 @@ func (r *ArtifactRepository) ListCrossTeam(
 		teamRowReadAccess(artifactTeamIDColumn, userID),
 	}
 
-	where, err := applyArtifactFilters(where, filters)
-	if err != nil {
-		return nil, 0, err
-	}
+	where = applyArtifactFilters(where, filters)
 
 	totalCount, err := r.countArtifacts(ctx, where, true)
 	if err != nil {
@@ -500,10 +473,7 @@ func (r *ArtifactRepository) List(
 		teamReadAccess(teamID, userID),
 	}
 
-	where, err := applyArtifactFilters(where, filters)
-	if err != nil {
-		return nil, 0, err
-	}
+	where = applyArtifactFilters(where, filters)
 
 	totalCount, err := r.countArtifacts(ctx, where, false)
 	if err != nil {
