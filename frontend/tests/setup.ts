@@ -32,12 +32,6 @@ Object.defineProperty(globalThis, 'import', {
   writable: true,
 })
 
-// Vite-defined constants (from vite.config.ts define section)
-// In Jest tests, these default to disabled/empty
-global.__VITE_GTM_ID__ = ''
-global.__VITE_GTM_ENABLED__ = false
-global.__VITE_GA4_MEASUREMENT_ID__ = ''
-
 // Add TextEncoder/TextDecoder for Node.js environment
 if (typeof global.TextEncoder === 'undefined') {
   global.TextEncoder = TextEncoder
