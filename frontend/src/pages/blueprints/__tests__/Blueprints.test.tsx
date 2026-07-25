@@ -223,9 +223,8 @@ const lastQuery = () => {
   return calls[calls.length - 1][1] as Record<string, unknown>
 }
 
-function renderBlueprints(initialEntry = '/blueprints') {
-  currentSearch = ''
-  return render(
+function blueprintsTree(initialEntry: string) {
+  return (
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/blueprints" element={<Blueprints />} />
@@ -245,6 +244,11 @@ function renderBlueprints(initialEntry = '/blueprints') {
       <LocationProbe />
     </MemoryRouter>
   )
+}
+
+function renderBlueprints(initialEntry = '/blueprints') {
+  currentSearch = ''
+  return render(blueprintsTree(initialEntry))
 }
 
 describe('Blueprints page', () => {
@@ -597,6 +601,41 @@ describe('Blueprints page', () => {
         (blueprintService.getBlueprints as jest.Mock).mock.calls.length
       ).toBe(before + 1)
       expect(currentSearch).toContain('search=api')
+    })
+
+    it('a restoring persisted project does not clobber a shared link’s page', async () => {
+      // The restore is not a user action. Treating it as a project *change*
+      // would reset ?page=3 the moment the persisted selection arrived.
+      projectContextValue.isLoading = true
+      projectContextValue.currentProject = null
+
+      const { rerender } = renderBlueprints('/blueprints?page=3')
+      expect(blueprintService.getBlueprints).not.toHaveBeenCalled()
+
+      projectContextValue.isLoading = false
+      projectContextValue.currentProject = alphaProject
+      rerender(blueprintsTree('/blueprints?page=3'))
+
+      await waitFor(() => {
+        expect(blueprintService.getBlueprints).toHaveBeenCalled()
+      })
+      expect(lastQuery().page).toBe(3)
+      expect(lastQuery().project_id).toBe('p1')
+    })
+
+    it('switching project after load returns to page 1', async () => {
+      projectContextValue.currentProject = null
+      const { rerender } = renderBlueprints('/blueprints?page=3')
+      await waitFor(() => {
+        expect(lastQuery().page).toBe(3)
+      })
+
+      projectContextValue.currentProject = alphaProject
+      rerender(blueprintsTree('/blueprints?page=3'))
+
+      await waitFor(() => {
+        expect(lastQuery().page).toBe(1)
+      })
     })
 
     it('falls back to the default sort when the URL names an unknown column', async () => {

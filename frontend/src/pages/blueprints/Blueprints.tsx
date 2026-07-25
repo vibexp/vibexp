@@ -148,15 +148,25 @@ export function Blueprints() {
     }
   }, [searchInput, filters.search, setFilters])
 
-  // Changing the globally selected project returns to page 1 — but only on an
-  // actual change after first render, or restoring a persisted project would
-  // clobber the `?page=3` of a shared link.
-  const previousProjectRef = useRef<string | undefined>(projectId)
+  // Changing the globally selected project returns to page 1 — but a persisted
+  // project RESTORING is not a change, and treating it as one would clobber the
+  // `?page=3` of a shared link. So the guard is only armed once the restore has
+  // finished; seeding it on first render is not enough, because at that point
+  // the project is still undefined and the restore itself then looks like a
+  // change.
+  const previousProjectRef = useRef<string | undefined>(undefined)
+  const projectSyncArmedRef = useRef(false)
   useEffect(() => {
+    if (isProjectLoading) return
+    if (!projectSyncArmedRef.current) {
+      projectSyncArmedRef.current = true
+      previousProjectRef.current = projectId
+      return
+    }
     if (previousProjectRef.current === projectId) return
     previousProjectRef.current = projectId
     setFilters({ page: FILTER_DEFAULTS.page })
-  }, [projectId, setFilters])
+  }, [projectId, isProjectLoading, setFilters])
 
   useEffect(() => {
     // Wait for a persisted project selection to restore, so the first fetch is
