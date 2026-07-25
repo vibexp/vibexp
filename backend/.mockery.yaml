@@ -24,6 +24,7 @@ packages:
       ModelProviderServiceInterface:
       EmbeddingServiceInterface:
       Searcher:
+      SearchSettingsResolver:
       QueryEmbedder:
       SubscriptionServiceInterface:
       EmailServiceInterface:

@@ -2,7 +2,6 @@ package providers
 
 import (
 	"log/slog"
-	"time"
 
 	fcmmessaging "firebase.google.com/go/v4/messaging"
 
@@ -408,23 +407,35 @@ func ProvideEmbeddingProcessor(
 	)
 }
 
-// ProvideSearchService creates a new SearchService, wiring the recency-ranking
-// configuration from the typed Config.
-func ProvideSearchService(
-	repo repositories.SearchRepository,
-	embedder services.QueryEmbedder,
+// ProvideSearchSettingsResolver creates the per-team ranking resolver. The
+// recency-ranking configuration from the typed Config becomes the INSTANCE
+// DEFAULTS, returned for any team that has not stored an override of its own.
+func ProvideSearchSettingsResolver(
+	repo repositories.TeamSearchSettingsRepository,
 	logger *slog.Logger,
 	cfg *config.Config,
-) services.Searcher {
-	ranking := services.SearchRankingConfig{
+) services.SearchSettingsResolver {
+	defaults := services.SearchRankingConfig{
 		Enabled:         cfg.Search.RecencyRankingEnabled,
 		WeightRelevance: cfg.Search.RankWeightRelevance,
 		WeightCreated:   cfg.Search.RankWeightCreated,
 		WeightUpdated:   cfg.Search.RankWeightUpdated,
-		HalfLife:        time.Duration(cfg.Search.RankHalfLifeDays * float64(24*time.Hour)),
+		HalfLife:        services.HalfLifeFromDays(cfg.Search.RankHalfLifeDays),
 		CandidateCap:    cfg.Search.RankCandidateCap,
 	}
-	return services.NewSearchService(repo, embedder, logger, ranking)
+	return services.NewTeamSearchSettingsResolver(repo, defaults, logger)
+}
+
+// ProvideSearchService creates a new SearchService. Ranking is no longer baked
+// in at wire time: the service resolves it per search through the resolver, so
+// a team's stored profile takes effect without a restart.
+func ProvideSearchService(
+	repo repositories.SearchRepository,
+	embedder services.QueryEmbedder,
+	logger *slog.Logger,
+	settings services.SearchSettingsResolver,
+) services.Searcher {
+	return services.NewSearchService(repo, embedder, logger, settings)
 }
 
 // ProvideEnvironmentService creates a new EnvironmentService

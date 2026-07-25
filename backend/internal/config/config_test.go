@@ -640,11 +640,11 @@ func TestValidateSearchRankingConfig(t *testing.T) {
 			c.Search.RankWeightUpdated = 0
 		}, true},
 		{"zero half-life", func(c *Config) { c.Search.RankHalfLifeDays = 0 }, true},
-		{"half-life above ceiling", func(c *Config) { c.Search.RankHalfLifeDays = maxSearchRankHalfLifeDays + 1 }, true},
-		{"half-life at ceiling", func(c *Config) { c.Search.RankHalfLifeDays = maxSearchRankHalfLifeDays }, false},
+		{"half-life above ceiling", func(c *Config) { c.Search.RankHalfLifeDays = MaxSearchRankHalfLifeDays + 1 }, true},
+		{"half-life at ceiling", func(c *Config) { c.Search.RankHalfLifeDays = MaxSearchRankHalfLifeDays }, false},
 		{"zero candidate cap", func(c *Config) { c.Search.RankCandidateCap = 0 }, true},
-		{"candidate cap above ceiling", func(c *Config) { c.Search.RankCandidateCap = maxSearchRankCandidateCap + 1 }, true},
-		{"candidate cap at ceiling", func(c *Config) { c.Search.RankCandidateCap = maxSearchRankCandidateCap }, false},
+		{"candidate cap above ceiling", func(c *Config) { c.Search.RankCandidateCap = MaxSearchRankCandidateCap + 1 }, true},
+		{"candidate cap at ceiling", func(c *Config) { c.Search.RankCandidateCap = MaxSearchRankCandidateCap }, false},
 	}
 
 	for _, tt := range tests {

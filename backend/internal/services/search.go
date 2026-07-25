@@ -32,29 +32,30 @@ type SearchService struct {
 	repo     repositories.SearchRepository
 	embedder QueryEmbedder
 	logger   *slog.Logger
-	ranking  SearchRankingConfig
+	settings SearchSettingsResolver
 	// now returns the reference time for recency decay; overridable in tests.
 	now func() time.Time
 }
 
 var _ Searcher = (*SearchService)(nil)
 
-// NewSearchService creates a new SearchService. ranking controls result ordering:
-// when disabled the service preserves the historical relevance-only ordering. The
-// model used to filter stored embeddings comes from the query embedder per
-// request (the team's active provider), so query and document vectors stay
-// comparable.
+// NewSearchService creates a new SearchService. settings resolves the ranking
+// config that applies to the searching team, so ordering is per-team rather than
+// fixed for the process; when the resolved config is disabled the service
+// preserves the historical relevance-only ordering. The model used to filter
+// stored embeddings comes from the query embedder per request (the team's active
+// provider), so query and document vectors stay comparable.
 func NewSearchService(
 	repo repositories.SearchRepository,
 	embedder QueryEmbedder,
 	logger *slog.Logger,
-	ranking SearchRankingConfig,
+	settings SearchSettingsResolver,
 ) *SearchService {
 	return &SearchService{
 		repo:     repo,
 		embedder: embedder,
 		logger:   logger,
-		ranking:  ranking,
+		settings: settings,
 		now:      time.Now,
 	}
 }
@@ -77,7 +78,12 @@ func (s *SearchService) Search(
 		return nil, fmt.Errorf("SearchService.Search: failed to embed query: %w", err)
 	}
 
-	pageRows, total, err := s.fetchPage(ctx, teamID, vector, model, keyword, entityTypes, req)
+	// Resolved once per search, after the embedding step so a failed embed does
+	// not cost a settings lookup. Every ordering decision below uses this value
+	// rather than any process-wide config.
+	ranking := s.settings.Resolve(ctx, teamID)
+
+	pageRows, total, err := s.fetchPage(ctx, teamID, vector, model, keyword, entityTypes, req, ranking)
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +127,9 @@ func (s *SearchService) Search(
 // flag selects the full-text fallback (SearchKeyword) over semantic search
 // (SearchSimilar); both return the same SearchResultRow shape, so the ranking and
 // pagination logic below is identical for either path.
+//
+// ranking is the caller's already-resolved per-team config, passed in rather
+// than read from the service so a single search cannot straddle two profiles.
 func (s *SearchService) fetchPage(
 	ctx context.Context,
 	teamID string,
@@ -129,6 +138,7 @@ func (s *SearchService) fetchPage(
 	keyword bool,
 	entityTypes []string,
 	req *models.SearchRequest,
+	ranking SearchRankingConfig,
 ) ([]models.SearchResultRow, int, error) {
 	offset := (req.Page - 1) * req.PerPage
 
@@ -140,7 +150,7 @@ func (s *SearchService) fetchPage(
 		return s.repo.SearchSimilar(ctx, teamID, vector, model, entityTypes, req.ProjectID, page)
 	}
 
-	if !s.ranking.Enabled {
+	if !ranking.Enabled {
 		rows, total, err := fetch(req.PerPage, offset)
 		if err != nil {
 			return nil, 0, fmt.Errorf("SearchService.Search: %w", err)
@@ -148,12 +158,12 @@ func (s *SearchService) fetchPage(
 		return rows, total, nil
 	}
 
-	candidates, total, err := fetch(s.ranking.CandidateCap, 0)
+	candidates, total, err := fetch(ranking.CandidateCap, 0)
 	if err != nil {
 		return nil, 0, fmt.Errorf("SearchService.Search: %w", err)
 	}
 
-	ranked := rankCandidates(candidates, s.ranking, s.now())
+	ranked := rankCandidates(candidates, ranking, s.now())
 
 	// Only the candidate pool is re-ranked and therefore paginable; report the
 	// paginable count rather than the full match count so TotalCount/TotalPages
