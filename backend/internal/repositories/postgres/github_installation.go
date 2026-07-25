@@ -69,6 +69,25 @@ const githubInstallationColumnList = `id, team_id, app_config_id, installation_i
 	account_type, target_type, encrypted_access_token, token_expires_at, permissions, events,
 	suspended_at, created_at, updated_at`
 
+// The three read queries are package-level CONSTANTS, not strings assembled at
+// call time. Every part is a compile-time constant, so no caller input can
+// reach the SQL text — and building them here rather than inline keeps that
+// obvious to a reader (and to static analysis) instead of looking like dynamic
+// SQL construction.
+const (
+	getInstallationByTeamQuery = `SELECT ` + githubInstallationColumnList + `
+		FROM github_installations
+		WHERE team_id = $1`
+
+	getInstallationByIDQuery = `SELECT ` + githubInstallationColumnList + `
+		FROM github_installations
+		WHERE installation_id = $1`
+
+	getInstallationByAppConfigQuery = `SELECT ` + githubInstallationColumnList + `
+		FROM github_installations
+		WHERE app_config_id = $1 AND installation_id = $2`
+)
+
 // scanInstallation reads one row in githubInstallationColumnList order and
 // unmarshals the JSONB permissions blob.
 func scanInstallation(row rowScanner) (*models.GitHubInstallation, error) {
@@ -110,11 +129,7 @@ func (r *GitHubInstallationRepository) GetByTeamID(
 	ctx context.Context,
 	teamID string,
 ) (*models.GitHubInstallation, error) {
-	query := `SELECT ` + githubInstallationColumnList + `
-		FROM github_installations
-		WHERE team_id = $1`
-
-	return scanInstallation(r.db.QueryRowContext(ctx, query, teamID))
+	return scanInstallation(r.db.QueryRowContext(ctx, getInstallationByTeamQuery, teamID))
 }
 
 // GetByInstallationID retrieves a GitHub installation by installation ID.
@@ -127,11 +142,7 @@ func (r *GitHubInstallationRepository) GetByInstallationID(
 	ctx context.Context,
 	installationID int64,
 ) (*models.GitHubInstallation, error) {
-	query := `SELECT ` + githubInstallationColumnList + `
-		FROM github_installations
-		WHERE installation_id = $1`
-
-	return scanInstallation(r.db.QueryRowContext(ctx, query, installationID))
+	return scanInstallation(r.db.QueryRowContext(ctx, getInstallationByIDQuery, installationID))
 }
 
 // GetByAppConfigAndInstallationID retrieves an installation scoped to one App,
@@ -143,11 +154,8 @@ func (r *GitHubInstallationRepository) GetByAppConfigAndInstallationID(
 	appConfigID string,
 	installationID int64,
 ) (*models.GitHubInstallation, error) {
-	query := `SELECT ` + githubInstallationColumnList + `
-		FROM github_installations
-		WHERE app_config_id = $1 AND installation_id = $2`
-
-	return scanInstallation(r.db.QueryRowContext(ctx, query, appConfigID, installationID))
+	return scanInstallation(
+		r.db.QueryRowContext(ctx, getInstallationByAppConfigQuery, appConfigID, installationID))
 }
 
 // Update updates a GitHub installation
