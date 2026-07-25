@@ -259,6 +259,10 @@ func (b *BaseMockContainer) SearchService() services.Searcher {
 	return nil
 }
 
+func (b *BaseMockContainer) TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) EnvironmentService() *services.EnvironmentService {
 	return nil
 }

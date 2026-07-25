@@ -32,6 +32,7 @@ import (
 	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
+	teamsettingsgen "github.com/vibexp/vibexp/internal/server/gen/teamsettings"
 	typesgen "github.com/vibexp/vibexp/internal/server/gen/types"
 	"github.com/vibexp/vibexp/internal/services"
 	"github.com/vibexp/vibexp/internal/services/activities"
@@ -692,6 +693,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupTypesRoutes(r)
 		s.setupCommentsRoutes(r)
 		s.setupRelationsRoutes(r)
+		s.setupTeamSettingsRoutes(r)
 		s.setupBlueprintRoutes(r)
 		s.setupMemoriesRoutes(r)
 		s.setupProjectsRoutes(r)
@@ -918,6 +920,31 @@ func (s *Server) setupCommentsRoutes(r chi.Router) {
 		commentsgen.HandlerWithOptions(strict, commentsgen.ChiServerOptions{
 			BaseRouter:       gr,
 			ErrorHandlerFunc: s.commentsBindErrorHandler,
+		})
+	})
+}
+
+// setupTeamSettingsRoutes mounts the generated TeamSettings strict-server
+// handler under a team-validated group (epic #487), mirroring
+// setupRelationsRoutes. The tenancy middleware is what makes GET readable by any
+// team member; the two writes authorize further inside the service.
+func (s *Server) setupTeamSettingsRoutes(r chi.Router) {
+	strict := teamsettingsgen.NewStrictHandlerWithOptions(
+		&teamSettingsStrictServer{s: s},
+		nil,
+		teamsettingsgen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.teamSettingsBindErrorHandler,
+			ResponseErrorHandlerFunc: s.teamSettingsResponseErrorHandler,
+		},
+	)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		// The spec declares additionalProperties:false + all-required on the update
+		// body; oapi-codegen enforces neither, so this does (see the middleware).
+		gr.Use(s.requireCompleteSearchSettingsBody)
+		teamsettingsgen.HandlerWithOptions(strict, teamsettingsgen.ChiServerOptions{
+			BaseRouter:       gr,
+			ErrorHandlerFunc: s.teamSettingsBindErrorHandler,
 		})
 	})
 }
