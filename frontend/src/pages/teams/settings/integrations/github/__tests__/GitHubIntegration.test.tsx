@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 
 import type {
   GitHubInstallationStatus,
@@ -184,6 +184,22 @@ function renderPage(initialEntry = '/settings/integrations/github') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <GitHubIntegration />
+    </MemoryRouter>
+  )
+}
+
+/** Renders the page with a probe that exposes the current URL. */
+function renderPageWithLocation(initialEntry: string) {
+  const LocationProbe = () => {
+    const location = useLocation()
+    return (
+      <div data-testid="location">{`${location.pathname}${location.search}`}</div>
+    )
+  }
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <GitHubIntegration />
+      <LocationProbe />
     </MemoryRouter>
   )
 }
@@ -585,17 +601,19 @@ describe('GitHubIntegration — install callback via URL params', () => {
     })
   })
 
-  it('fires no request when GitHub returned no code', async () => {
+  it('explains a missing code instead of firing a doomed request', async () => {
     // The code is required by the callback since #463 (it is exchanged for a
-    // user token to prove the caller can access the installation), so posting
-    // without it is a guaranteed 400. #485 owns the user-facing message for
-    // this case; the guard is here so the doomed request is not sent.
+    // user token proving the caller can access the installation), so posting
+    // without it is a guaranteed 400. Say what to do rather than relay the
+    // server's rejection of a request we knew would fail.
     renderPage(
       '/settings/integrations/github?installation_id=12345678&setup_action=install&state=csrf-state'
     )
 
     await waitFor(() => {
-      expect(githubIntegrationService.getStatus).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('Start the install again')
+      )
     })
     expect(githubIntegrationService.handleCallback).not.toHaveBeenCalled()
   })
@@ -653,9 +671,56 @@ describe('GitHubIntegration — install callback via URL params', () => {
     renderPage(callbackUrl)
 
     await waitFor(() => {
-      expect(handleError).toHaveBeenCalledWith(
-        expect.any(ApiError),
-        'This GitHub organization is already connected to another team. Each GitHub org/account can only be connected to one team.'
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('disconnect it there first')
+      )
+    })
+  })
+
+  // A consumed authorization code is single-use: leaving it in the URL means a
+  // refresh replays it and the admin sees a failure for something that already
+  // succeeded.
+  it.each([
+    ['success', false],
+    ['failure', true],
+  ])(
+    'strips the callback params from the URL after %s',
+    async (_name, fails) => {
+      const mock = githubIntegrationService.handleCallback as jest.Mock
+      if (fails) mock.mockRejectedValue(new Error('boom'))
+      else mock.mockResolvedValue({ reconnected: false })
+
+      renderPageWithLocation(callbackUrl)
+
+      await waitFor(() => {
+        expect(githubIntegrationService.handleCallback).toHaveBeenCalled()
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe(
+          '/settings/integrations/github'
+        )
+      })
+    }
+  )
+
+  it('strips the params wherever the page is mounted, not at a fixed path', async () => {
+    // #541 relocates this page to /teams/:id/settings/integrations/github. The
+    // redirect derives from the current pathname precisely so that move does not
+    // silently start redirecting into a 404 — this test is what would catch it.
+    ;(githubIntegrationService.handleCallback as jest.Mock).mockResolvedValue({
+      reconnected: false,
+    })
+    const future =
+      '/teams/team-1/settings/integrations/github?installation_id=12345678&setup_action=install&state=csrf-state&code=gh-oauth-code'
+
+    renderPageWithLocation(future)
+
+    await waitFor(() => {
+      expect(githubIntegrationService.handleCallback).toHaveBeenCalled()
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/teams/team-1/settings/integrations/github'
       )
     })
   })
@@ -668,10 +733,40 @@ describe('GitHubIntegration — install callback via URL params', () => {
     renderPage(callbackUrl)
 
     await waitFor(() => {
-      expect(handleError).toHaveBeenCalledWith(
-        expect.any(Error),
-        'Failed to complete GitHub installation'
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('Please try again')
       )
+    })
+  })
+
+  // Every documented arm gets its own instruction; a shared "installation
+  // failed" leaves the admin with nothing to do but retry, which never helps
+  // for any of these (#485).
+  it.each([
+    [
+      'installation_not_authorized',
+      403,
+      /cannot administer this installation/i,
+    ],
+    ['GITHUB_APP_NOT_CONFIGURED', 409, /Register one under Settings/i],
+    ['github_user_auth_not_configured', 503, /Client ID and secret/i],
+  ])('maps %s to its own actionable message', async (code, status, match) => {
+    ;(githubIntegrationService.handleCallback as jest.Mock).mockRejectedValue(
+      new ApiError({
+        type: 'about:blank',
+        title: 'Error',
+        detail: 'detail',
+        status,
+        code,
+        request_id: 'req-1',
+        timestamp: '2026-01-15T10:30:00Z',
+      })
+    )
+
+    renderPage(callbackUrl)
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(match))
     })
   })
 })
