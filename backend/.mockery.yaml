@@ -55,6 +55,7 @@ packages:
       TeamMemberRepository:
       TeamInvitationRepository:
       TeamSubscriptionRepository:
+      TeamSearchSettingsRepository:
       PromptRepository:
       PromptReferenceRepository:
       PromptShareRepository:
