@@ -156,6 +156,54 @@ func (r *GitHubInstallationRepository) GetByInstallationID(
 	return installation, nil
 }
 
+// GetByAppConfigAndInstallationID retrieves an installation scoped to one App.
+func (r *GitHubInstallationRepository) GetByAppConfigAndInstallationID(
+	ctx context.Context,
+	appConfigID string,
+	installationID int64,
+) (*models.GitHubInstallation, error) {
+	installation := &models.GitHubInstallation{}
+	var permissionsJSON []byte
+
+	query := `
+		SELECT id, team_id, app_config_id, installation_id, account_login, account_type, target_type,
+			   encrypted_access_token, token_expires_at, permissions, events, suspended_at,
+			   created_at, updated_at
+		FROM github_installations
+		WHERE app_config_id = $1 AND installation_id = $2
+	`
+
+	err := r.db.QueryRowContext(ctx, query, appConfigID, installationID).Scan(
+		&installation.ID,
+		&installation.TeamID,
+		&installation.AppConfigID,
+		&installation.InstallationID,
+		&installation.AccountLogin,
+		&installation.AccountType,
+		&installation.TargetType,
+		&installation.EncryptedAccessToken,
+		&installation.TokenExpiresAt,
+		&permissionsJSON,
+		pq.Array(&installation.Events),
+		&installation.SuspendedAt,
+		&installation.CreatedAt,
+		&installation.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, mapNoRows(
+			fmt.Errorf("failed to get GitHub installation: %w", err),
+			repositories.ErrGitHubInstallationNotFound,
+		)
+	}
+
+	if err := json.Unmarshal(permissionsJSON, &installation.Permissions); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal permissions: %w", err)
+	}
+
+	return installation, nil
+}
+
 // Update updates a GitHub installation
 func (r *GitHubInstallationRepository) Update(ctx context.Context, installation *models.GitHubInstallation) error {
 	permissionsJSON, err := json.Marshal(installation.Permissions)

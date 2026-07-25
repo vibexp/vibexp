@@ -3,6 +3,7 @@ package errors
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
@@ -90,7 +91,7 @@ func WriteJSONError(w http.ResponseWriter, r *http.Request, apiErr *APIError) {
 
 	// Set instance to the request path if not already set
 	if apiErr.Instance == "" {
-		apiErr.Instance = r.URL.Path
+		apiErr.Instance = RedactSensitivePath(r.URL.Path)
 	}
 
 	// Log the error with context logger at severity matching HTTP status.
@@ -139,4 +140,27 @@ func NewAPIError(code string, title string, detail string, status int) *APIError
 		Code:      code,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}
+}
+
+// githubWebhookPathPrefix is the per-App webhook route whose final path segment
+// is an opaque routing token (#481).
+const githubWebhookPathPrefix = "/api/v1/webhooks/github/"
+
+// RedactSensitivePath strips secrets that live in a URL path.
+//
+// The GitHub webhook routing token grants the ability to submit
+// signature-checked deliveries, so it is a credential sitting in a path
+// segment. It must not reach an access log, an error-response `instance` field,
+// or anything else that echoes the request path — all of which are widely
+// readable and long-lived.
+//
+// It lives here rather than in the server package because BOTH the request
+// logger and the error responder echo r.URL.Path, and one definition is what
+// keeps them from diverging.
+func RedactSensitivePath(path string) string {
+	if strings.HasPrefix(path, githubWebhookPathPrefix) &&
+		len(path) > len(githubWebhookPathPrefix) {
+		return githubWebhookPathPrefix + "[redacted]"
+	}
+	return path
 }

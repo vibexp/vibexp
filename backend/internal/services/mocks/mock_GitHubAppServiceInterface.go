@@ -309,17 +309,17 @@ func (_c *MockGitHubAppServiceInterface_HandleInstallationCallback_Call) RunAndR
 	return _c
 }
 
-// HandleWebhookEvent provides a mock function with given fields: ctx, eventType, installationID, action
-func (_m *MockGitHubAppServiceInterface) HandleWebhookEvent(ctx context.Context, eventType string, installationID int64, action string) error {
-	ret := _m.Called(ctx, eventType, installationID, action)
+// HandleWebhookEvent provides a mock function with given fields: ctx, appConfigID, eventType, installationID, action
+func (_m *MockGitHubAppServiceInterface) HandleWebhookEvent(ctx context.Context, appConfigID string, eventType string, installationID int64, action string) error {
+	ret := _m.Called(ctx, appConfigID, eventType, installationID, action)
 
 	if len(ret) == 0 {
 		panic("no return value specified for HandleWebhookEvent")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, int64, string) error); ok {
-		r0 = rf(ctx, eventType, installationID, action)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, string) error); ok {
+		r0 = rf(ctx, appConfigID, eventType, installationID, action)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -334,16 +334,17 @@ type MockGitHubAppServiceInterface_HandleWebhookEvent_Call struct {
 
 // HandleWebhookEvent is a helper method to define mock.On call
 //   - ctx context.Context
+//   - appConfigID string
 //   - eventType string
 //   - installationID int64
 //   - action string
-func (_e *MockGitHubAppServiceInterface_Expecter) HandleWebhookEvent(ctx interface{}, eventType interface{}, installationID interface{}, action interface{}) *MockGitHubAppServiceInterface_HandleWebhookEvent_Call {
-	return &MockGitHubAppServiceInterface_HandleWebhookEvent_Call{Call: _e.mock.On("HandleWebhookEvent", ctx, eventType, installationID, action)}
+func (_e *MockGitHubAppServiceInterface_Expecter) HandleWebhookEvent(ctx interface{}, appConfigID interface{}, eventType interface{}, installationID interface{}, action interface{}) *MockGitHubAppServiceInterface_HandleWebhookEvent_Call {
+	return &MockGitHubAppServiceInterface_HandleWebhookEvent_Call{Call: _e.mock.On("HandleWebhookEvent", ctx, appConfigID, eventType, installationID, action)}
 }
 
-func (_c *MockGitHubAppServiceInterface_HandleWebhookEvent_Call) Run(run func(ctx context.Context, eventType string, installationID int64, action string)) *MockGitHubAppServiceInterface_HandleWebhookEvent_Call {
+func (_c *MockGitHubAppServiceInterface_HandleWebhookEvent_Call) Run(run func(ctx context.Context, appConfigID string, eventType string, installationID int64, action string)) *MockGitHubAppServiceInterface_HandleWebhookEvent_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(int64), args[3].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int64), args[4].(string))
 	})
 	return _c
 }
@@ -353,7 +354,7 @@ func (_c *MockGitHubAppServiceInterface_HandleWebhookEvent_Call) Return(_a0 erro
 	return _c
 }
 
-func (_c *MockGitHubAppServiceInterface_HandleWebhookEvent_Call) RunAndReturn(run func(context.Context, string, int64, string) error) *MockGitHubAppServiceInterface_HandleWebhookEvent_Call {
+func (_c *MockGitHubAppServiceInterface_HandleWebhookEvent_Call) RunAndReturn(run func(context.Context, string, string, int64, string) error) *MockGitHubAppServiceInterface_HandleWebhookEvent_Call {
 	_c.Call.Return(run)
 	return _c
 }

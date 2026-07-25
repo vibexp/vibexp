@@ -4,11 +4,16 @@
 
 api-v1-webhooks-github:
   post:
-    summary: Handle GitHub webhook events
+    summary: Retired — use the per-App webhook URL
     description: |
-      Receives and processes GitHub webhook events (e.g., push, installation changes).
-      This endpoint validates the webhook signature using the configured GitHub webhook secret.
-      This is a public endpoint — no authentication header is required; GitHub signs the payload.
+      **Retired (410 Gone).** This endpoint verified deliveries against a single
+      instance-wide webhook secret. Each team now registers its own GitHub App
+      with its own secret, so there is no single secret left to verify against
+      and this path cannot be made to work.
+
+      Each team's webhook URL is shown in its GitHub App settings; update it on
+      GitHub. This path is kept for a release or two so misdirected deliveries
+      get an explanation rather than a signature error.
     operationId: handleGitHubWebhook
     security: []
     requestBody:
@@ -20,16 +25,70 @@ api-v1-webhooks-github:
             description: GitHub webhook event payload (varies by event type)
             additionalProperties: true
     responses:
+      '410':
+        description: Endpoint retired; use the team's per-App webhook URL
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - Webhooks
+
+api-v1-webhooks-github-token:
+  parameters:
+    - name: token
+      in: path
+      required: true
+      description: >-
+        Opaque routing token identifying which team's GitHub App this delivery
+        belongs to. Minted as unpadded URL-safe base64, so it needs no
+        percent-encoding. Treat it as a secret: it selects the secret the
+        signature is verified against, and it is redacted from access logs.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{1,64}$'
+  post:
+    summary: Handle a GitHub webhook delivery for one team's App
+    description: |
+      Receives a GitHub webhook delivery for the App identified by the routing
+      token in the path. Each team registers its own GitHub App with its own
+      webhook secret, so the token is what selects which secret the
+      `X-Hub-Signature-256` HMAC is verified against.
+
+      Public and unauthenticated by necessity — GitHub posts with no session.
+      The token routes the delivery; the webhook secret authenticates it. The
+      payload is not parsed until the signature verifies, so no attacker-supplied
+      byte influences which key it is checked with.
+
+      An unknown or malformed token returns 404 with no detail, so the endpoint
+      cannot be used to discover which tokens exist.
+    operationId: handleGitHubWebhookByToken
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            description: GitHub webhook event payload (varies by event type)
+            additionalProperties: true
+    responses:
       '200':
-        description: Webhook received and processed successfully
+        description: Delivery accepted (or already processed — dedup by delivery id)
       '400':
-        description: Invalid payload or missing required headers
+        description: Unreadable body, unparseable payload, or missing installation reference
         content:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
-        description: Invalid webhook signature
+        description: Missing or invalid `X-Hub-Signature-256`
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Unknown or malformed routing token (deliberately indistinguishable)
         content:
           application/problem+json:
             schema:

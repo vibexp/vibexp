@@ -1070,6 +1070,8 @@ paths:
     $ref: "./paths/github.yaml#/api-v1-team_id-integrations-github-disconnect"
   /api/v1/webhooks/github:
     $ref: "./paths/webhooks.yaml#/api-v1-webhooks-github"
+  /api/v1/webhooks/github/{token}:
+    $ref: "./paths/webhooks.yaml#/api-v1-webhooks-github-token"
   /api/v1/{team_id}/feeds:
     $ref: "./paths/feeds.yaml#/api-v1-team_id-feeds"
   /api/v1/{team_id}/feeds/{feed_id}:

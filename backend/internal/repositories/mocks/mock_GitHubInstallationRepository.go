@@ -116,6 +116,66 @@ func (_c *MockGitHubInstallationRepository_Delete_Call) RunAndReturn(run func(co
 	return _c
 }
 
+// GetByAppConfigAndInstallationID provides a mock function with given fields: ctx, appConfigID, installationID
+func (_m *MockGitHubInstallationRepository) GetByAppConfigAndInstallationID(ctx context.Context, appConfigID string, installationID int64) (*models.GitHubInstallation, error) {
+	ret := _m.Called(ctx, appConfigID, installationID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByAppConfigAndInstallationID")
+	}
+
+	var r0 *models.GitHubInstallation
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) (*models.GitHubInstallation, error)); ok {
+		return rf(ctx, appConfigID, installationID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) *models.GitHubInstallation); ok {
+		r0 = rf(ctx, appConfigID, installationID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.GitHubInstallation)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int64) error); ok {
+		r1 = rf(ctx, appConfigID, installationID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByAppConfigAndInstallationID'
+type MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call struct {
+	*mock.Call
+}
+
+// GetByAppConfigAndInstallationID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - appConfigID string
+//   - installationID int64
+func (_e *MockGitHubInstallationRepository_Expecter) GetByAppConfigAndInstallationID(ctx interface{}, appConfigID interface{}, installationID interface{}) *MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call {
+	return &MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call{Call: _e.mock.On("GetByAppConfigAndInstallationID", ctx, appConfigID, installationID)}
+}
+
+func (_c *MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call) Run(run func(ctx context.Context, appConfigID string, installationID int64)) *MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call) Return(_a0 *models.GitHubInstallation, _a1 error) *MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call) RunAndReturn(run func(context.Context, string, int64) (*models.GitHubInstallation, error)) *MockGitHubInstallationRepository_GetByAppConfigAndInstallationID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByInstallationID provides a mock function with given fields: ctx, installationID
 func (_m *MockGitHubInstallationRepository) GetByInstallationID(ctx context.Context, installationID int64) (*models.GitHubInstallation, error) {
 	ret := _m.Called(ctx, installationID)

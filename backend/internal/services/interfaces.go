@@ -248,6 +248,10 @@ type GitHubAppConfigServiceInterface interface {
 	) (*models.ValidateGitHubAppResponse, error)
 	RotateWebhookToken(ctx context.Context, teamID, userID string,
 	) (*models.GitHubAppConfigResponse, error)
+	// ResolveWebhookToken maps an inbound webhook token to its App and secret.
+	// Unauthenticated by design: the public webhook route has no session, so the
+	// token routes and the secret authenticates.
+	ResolveWebhookToken(ctx context.Context, token string) (*WebhookDeliveryTarget, error)
 	// RotateWebhookSecret is the recovery path for a lost webhook secret, which
 	// is never readable after its one disclosure.
 	RotateWebhookSecret(ctx context.Context, teamID, userID string,
@@ -648,7 +652,12 @@ type GitHubAppServiceInterface interface {
 	GetAccessibleRepoURLs(ctx context.Context, teamID string) (map[string]bool, error)
 	DisconnectInstallation(ctx context.Context, userID, teamID string) error
 	RefreshInstallationToken(ctx context.Context, teamID string) error
-	HandleWebhookEvent(ctx context.Context, eventType string, installationID int64, action string) error
+	// HandleWebhookEvent processes a delivery, scoped to the App it arrived for.
+	// installation_id is unique per App, not globally (#477), so appConfigID is
+	// what keeps a delivery from mutating another team's installation.
+	HandleWebhookEvent(
+		ctx context.Context, appConfigID, eventType string, installationID int64, action string,
+	) error
 	ImportProjectFromRepository(ctx context.Context, userID, teamID string, repoID int64) (*models.Project, bool, error)
 	ImportBlueprintsFromRepository(
 		ctx context.Context, userID, teamID string, repoID int64,

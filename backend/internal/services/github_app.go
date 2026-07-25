@@ -199,17 +199,27 @@ func (s *GitHubAppService) RefreshInstallationToken(ctx context.Context, teamID 
 	return nil
 }
 
-// HandleWebhookEvent processes GitHub webhook events
+// HandleWebhookEvent processes a GitHub webhook delivery.
+//
+// appConfigID scopes the lookup to the App the delivery actually arrived for.
+// installation_id is only unique PER APP since #477 — two teams may install
+// their own Apps on the same GitHub org and get the same numeric id — so
+// resolving by installation_id alone would let a delivery for one team mutate
+// another team's installation.
 func (s *GitHubAppService) HandleWebhookEvent(
 	ctx context.Context,
+	appConfigID string,
 	eventType string,
 	installationID int64,
 	action string,
 ) error {
-	installation, err := s.installationRepo.GetByInstallationID(ctx, installationID)
+	installation, err := s.installationRepo.GetByAppConfigAndInstallationID(ctx, appConfigID, installationID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrGitHubInstallationNotFound) {
-			s.logger.With("installation_id", installationID).Warn("Installation not found for webhook event")
+			s.logger.With(
+				"installation_id", installationID,
+				"app_config_id", appConfigID,
+			).Warn("Installation not found for webhook event")
 			return nil
 		}
 		return fmt.Errorf("failed to get installation: %w", err)

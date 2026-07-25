@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/vibexp/vibexp/internal/config"
@@ -111,27 +112,36 @@ func TestProtectedEndpointUnauthorized(t *testing.T) {
 	}
 }
 
-func TestLegacyGitHubWebhookPathRedirect(t *testing.T) {
+// TestRetiredGitHubWebhookPathsReturnGone pins the retirement of both pre-#476
+// webhook endpoints. Neither can keep working: both verified against the
+// instance-wide secret that per-team Apps replace. 410 says the endpoint is gone,
+// where the old 308 would have redirected a delivery into a 401 that reads like
+// a secret mismatch and sends the operator hunting the wrong problem.
+func TestRetiredGitHubWebhookPathsReturnGone(t *testing.T) {
 	cfg := &config.Config{}
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
-	req, err := http.NewRequest("POST", "/api/v1/integrations/github/webhook", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, path := range []string{
+		"/api/v1/integrations/github/webhook",
+		"/api/v1/webhooks/github",
+	} {
+		t.Run(path, func(t *testing.T) {
+			req, err := http.NewRequest("POST", path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	rr := httptest.NewRecorder()
-	srv.ServeHTTP(rr, req)
+			rr := httptest.NewRecorder()
+			srv.ServeHTTP(rr, req)
 
-	if status := rr.Code; status != http.StatusPermanentRedirect {
-		t.Errorf("legacy webhook path should redirect: got %v want %v",
-			status, http.StatusPermanentRedirect)
-	}
-
-	location := rr.Header().Get("Location")
-	expected := "/api/v1/webhooks/github"
-	if location != expected {
-		t.Errorf("redirect location wrong: got %v want %v", location, expected)
+			if status := rr.Code; status != http.StatusGone {
+				t.Errorf("retired webhook path should be gone: got %v want %v",
+					status, http.StatusGone)
+			}
+			if body := rr.Body.String(); !strings.Contains(body, "own webhook URL") {
+				t.Errorf("410 body must point at the per-App URL, got: %s", body)
+			}
+		})
 	}
 }

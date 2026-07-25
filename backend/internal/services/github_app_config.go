@@ -309,6 +309,46 @@ func (s *GitHubAppConfigService) GetAppConfig(
 	return &response, nil
 }
 
+// WebhookDeliveryTarget is what an inbound webhook token resolves to: the App
+// the delivery belongs to, the team that owns it, and the secret its signature
+// must verify against.
+type WebhookDeliveryTarget struct {
+	AppConfigID string
+	TeamID      string
+	// #nosec G117 - resolved secret used to verify an inbound signature
+	WebhookSecret string
+}
+
+// ResolveWebhookToken resolves the opaque routing token in a webhook URL.
+//
+// This is deliberately unauthenticated: GitHub posts to a public route with no
+// session, so the token IS the routing credential and the webhook secret is
+// what authenticates the payload. It returns ErrGitHubAppNotConfigured for an
+// unknown token, which the handler answers with a bare 404 — telling a caller
+// whether a token exists would turn this into an enumeration oracle.
+func (s *GitHubAppConfigService) ResolveWebhookToken(
+	ctx context.Context, token string,
+) (*WebhookDeliveryTarget, error) {
+	config, err := s.repo.GetByWebhookToken(ctx, token)
+	if err != nil {
+		if errors.Is(err, repositories.ErrGitHubAppConfigNotFound) {
+			return nil, ErrGitHubAppNotConfigured
+		}
+		return nil, fmt.Errorf("failed to resolve webhook token: %w", err)
+	}
+
+	secret, err := s.decrypt(config.WebhookSecretEncrypted)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt webhook secret for App config %s: %w", config.ID, err)
+	}
+
+	return &WebhookDeliveryTarget{
+		AppConfigID:   config.ID,
+		TeamID:        config.TeamID,
+		WebhookSecret: secret,
+	}, nil
+}
+
 // UpdateAppConfig applies a partial edit under the repository's optimistic lock.
 func (s *GitHubAppConfigService) UpdateAppConfig(
 	ctx context.Context, teamID, userID string, req models.UpdateGitHubAppConfigRequest,
