@@ -1,9 +1,15 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"sort"
+	"strings"
 
 	apierrors "github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
@@ -160,4 +166,99 @@ func (s *Server) teamSettingsResponseErrorHandler(w http.ResponseWriter, r *http
 
 	s.logger.With("error", err).Error("TeamSettings strict handler failed")
 	apierrors.WriteJSONError(w, r, apierrors.NewInternalError(teamSettingsMsgInternalError))
+}
+
+// searchSettingsBodyFields is the exact set of JSON keys the update request
+// accepts — the five writable profile fields, and nothing else.
+var searchSettingsBodyFields = []string{
+	"recency_ranking_enabled",
+	"rank_weight_relevance",
+	"rank_weight_created",
+	"rank_weight_updated",
+	"rank_half_life_days",
+}
+
+// searchSettingsBodyProblem returns the 400 message for a decoded update body
+// that is not a complete, exact profile, or "" when the body is acceptable.
+// Split out of the middleware so the rule is a pure function over the decoded
+// keys, testable and simple on its own.
+func searchSettingsBodyProblem(fields map[string]json.RawMessage) string {
+	allowed := make(map[string]bool, len(searchSettingsBodyFields))
+	for _, f := range searchSettingsBodyFields {
+		allowed[f] = true
+	}
+
+	var unknown []string
+	for key := range fields {
+		if !allowed[key] {
+			unknown = append(unknown, key)
+		}
+	}
+	if len(unknown) > 0 {
+		sort.Strings(unknown)
+		return fmt.Sprintf(
+			"Unknown field(s): %s. Only %s may be set; rank_candidate_cap is instance-owned.",
+			strings.Join(unknown, ", "), strings.Join(searchSettingsBodyFields, ", "))
+	}
+
+	var missing []string
+	for _, f := range searchSettingsBodyFields {
+		if _, ok := fields[f]; !ok {
+			missing = append(missing, f)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Sprintf(
+			"Missing required field(s): %s. This endpoint replaces the whole profile, "+
+				"so every field must be supplied.", strings.Join(missing, ", "))
+	}
+
+	return ""
+}
+
+// requireCompleteSearchSettingsBody enforces on the wire what the spec declares
+// for UpdateTeamSearchSettingsRequest: `additionalProperties: false` and all five
+// fields required. oapi-codegen honours neither (the same gap that motivated
+// rejectUnknownAdminBodyFields for the Admin domain, #455), and here silence
+// would be worse than usual:
+//
+//   - an unknown key such as rank_candidate_cap would be dropped, so a caller
+//     could believe they had raised an instance-owned limit;
+//   - a MISSTYPED key means its real field is absent, and the generated struct's
+//     non-pointer float leaves it 0 — which passes validation as long as the
+//     other weights sum above zero. The team would end up with a profile blending
+//     their values and silent zeroes, which is exactly the partial override this
+//     epic's whole-row design forbids.
+//
+// Applied to PUT only; GET and DELETE carry no body.
+func (s *Server) requireCompleteSearchSettingsBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut || r.Body == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError("Failed to read request body"))
+			return
+		}
+		// Restore the body for the generated decoder regardless of the outcome.
+		r.Body = io.NopCloser(bytes.NewReader(raw))
+
+		// An empty or non-object body is the generated decoder's problem, not
+		// ours; let it produce its usual error.
+		var fields map[string]json.RawMessage
+		if len(bytes.TrimSpace(raw)) == 0 || json.Unmarshal(raw, &fields) != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if problem := searchSettingsBodyProblem(fields); problem != "" {
+			apierrors.WriteJSONError(w, r, apierrors.NewBadRequestError(problem))
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

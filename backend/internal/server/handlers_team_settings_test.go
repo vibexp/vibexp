@@ -56,6 +56,7 @@ func createTestTeamSettingsServer(svc services.TeamSearchSettingsServiceInterfac
 			ResponseErrorHandlerFunc: srv.teamSettingsResponseErrorHandler,
 		},
 	)
+	r.Use(srv.requireCompleteSearchSettingsBody)
 	teamsettingsgen.HandlerWithOptions(strict, teamsettingsgen.ChiServerOptions{
 		BaseRouter:       r,
 		ErrorHandlerFunc: srv.teamSettingsBindErrorHandler,
@@ -144,12 +145,12 @@ func TestUpdateTeamSearchSettings_StoresAndReportsTeamSource(t *testing.T) {
 	assert.EqualValues(t, 7, resp["rank_half_life_days"])
 }
 
-// rank_candidate_cap is instance-owned. The request schema has no such field, so
-// a body carrying it must not influence the stored profile or the response.
-func TestUpdateTeamSearchSettings_IgnoresCandidateCapInBody(t *testing.T) {
+// rank_candidate_cap is instance-owned and absent from the request schema, so a
+// body carrying it is rejected rather than silently dropped — a caller must not
+// be able to believe they raised an instance-wide limit.
+func TestUpdateTeamSearchSettings_RejectsCandidateCapInBody(t *testing.T) {
 	svc := servicesmocks.NewMockTeamSearchSettingsServiceInterface(t)
-	svc.EXPECT().Update(mock.Anything, testTeamSettingsUserID, testTeamSettingsTeamID,
-		mock.Anything).Return(sampleTeamView(), nil)
+	// No Update expectation: the request must never reach the service.
 
 	body := `{"recency_ranking_enabled":false,"rank_weight_relevance":0.9,` +
 		`"rank_weight_created":0.05,"rank_weight_updated":0.05,"rank_half_life_days":7,` +
@@ -160,11 +161,42 @@ func TestUpdateTeamSearchSettings_IgnoresCandidateCapInBody(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
-	var resp map[string]any
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.EqualValues(t, 200, resp["rank_candidate_cap"],
-		"the cap must stay the instance value, never the one supplied in the body")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "rank_candidate_cap")
+}
+
+// A mistyped field name means its real field is absent; the generated struct
+// would leave that weight at 0 and validation would still pass, silently storing
+// a profile the caller never asked for. The whole-row design forbids that.
+func TestUpdateTeamSearchSettings_RejectsPartialBody(t *testing.T) {
+	svc := servicesmocks.NewMockTeamSearchSettingsServiceInterface(t)
+
+	// rank_weight_relevance misspelled: without the guard it would store 0.
+	body := `{"recency_ranking_enabled":false,"rank_weight_relevence":0.9,` +
+		`"rank_weight_created":0.05,"rank_weight_updated":0.05,"rank_half_life_days":7}`
+
+	srv := createTestTeamSettingsServer(svc)
+	req := makeTeamSettingsRequest(http.MethodPut, teamSettingsPath, body)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "rank_weight_relevence", "the unknown key is named")
+}
+
+func TestUpdateTeamSearchSettings_RejectsMissingField(t *testing.T) {
+	svc := servicesmocks.NewMockTeamSearchSettingsServiceInterface(t)
+
+	body := `{"recency_ranking_enabled":false,"rank_weight_relevance":0.9,` +
+		`"rank_weight_created":0.05,"rank_weight_updated":0.05}`
+
+	srv := createTestTeamSettingsServer(svc)
+	req := makeTeamSettingsRequest(http.MethodPut, teamSettingsPath, body)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "rank_half_life_days")
 }
 
 func TestResetTeamSearchSettings_Returns204(t *testing.T) {

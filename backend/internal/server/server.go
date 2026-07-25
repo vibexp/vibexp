@@ -939,6 +939,9 @@ func (s *Server) setupTeamSettingsRoutes(r chi.Router) {
 	)
 	r.Group(func(gr chi.Router) {
 		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		// The spec declares additionalProperties:false + all-required on the update
+		// body; oapi-codegen enforces neither, so this does (see the middleware).
+		gr.Use(s.requireCompleteSearchSettingsBody)
 		teamsettingsgen.HandlerWithOptions(strict, teamsettingsgen.ChiServerOptions{
 			BaseRouter:       gr,
 			ErrorHandlerFunc: s.teamSettingsBindErrorHandler,
