@@ -144,6 +144,23 @@ func TestGitHubAppConfigService_Create(t *testing.T) {
 		assert.NotContains(t, token, "=", "RawURLEncoding must not pad")
 	})
 
+	// Both PEM spellings are a deliberate, tested guarantee — not an accident of
+	// whichever form the fixture happens to use. This leniency came from the
+	// deleted config.GetGitHubAppConfig (#483); the paste form is now its only
+	// home, and losing either form would silently reject valid keys operators
+	// already have on disk.
+	t.Run("accepts a raw PEM", func(t *testing.T) {
+		repo := mocks.NewMockGitHubAppConfigRepository(t)
+		svc := newAppConfigService(t, repo)
+		repo.EXPECT().Create(ctx, mock.Anything).Return(nil)
+
+		req := validCreateRequest(t)
+		require.Contains(t, req.PrivateKey, "-----BEGIN", "fixture must be raw PEM for this case")
+
+		_, err := svc.CreateAppConfig(ctx, testAppConfigTeamID, testAppConfigUserID, req)
+		assert.NoError(t, err, "a key pasted straight from the .pem file must work")
+	})
+
 	t.Run("accepts a base64-encoded PEM", func(t *testing.T) {
 		repo := mocks.NewMockGitHubAppConfigRepository(t)
 		svc := newAppConfigService(t, repo)

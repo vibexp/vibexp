@@ -2,17 +2,16 @@ package config
 
 import (
 	"crypto/rsa"
-	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/v2"
@@ -36,7 +35,6 @@ type Config struct {
 	Email      EmailConfig      `koanf:"email"`
 	Frontend   FrontendConfig   `koanf:"frontend"`
 	Search     SearchConfig     `koanf:"search"`
-	GitHub     GitHubConfig     `koanf:"github"`
 	Storage    StorageConfig    `koanf:"storage"`
 	GCP        GCPConfig        `koanf:"gcp"`
 	RateLimit  RateLimitConfig  `koanf:"rate_limit"`
@@ -382,24 +380,6 @@ type SearchConfig struct {
 	RankCandidateCap      int     `koanf:"rank_candidate_cap"`
 }
 
-// GitHubConfig holds GitHub App / integration settings (distinct from the
-// GitHub web-login client in auth.github).
-type GitHubConfig struct {
-	AppID         string `koanf:"app_id"`
-	AppSlug       string `koanf:"app_slug"`
-	AppPrivateKey string `koanf:"app_private_key"`
-	WebhookURL    string `koanf:"webhook_url"`
-	WebhookSecret string `koanf:"webhook_secret"`
-	// AppClientID / AppClientSecret are the GitHub App's OAuth credentials, used
-	// to exchange the `code` GitHub returns after an install for a *user* access
-	// token. That token is what shows the caller has access to the submitted
-	// installation (#463) — without it the install callback fails closed, so
-	// both must be set (and "Request user authorization (OAuth) during
-	// installation" enabled on the App) for the GitHub integration to work.
-	AppClientID     string `koanf:"app_client_id"`
-	AppClientSecret string `koanf:"app_client_secret"`
-}
-
 // StorageConfig holds resource-attachment storage settings.
 type StorageConfig struct {
 	// AttachmentsBucket is the GCS bucket backing artifact (and future resource)
@@ -500,7 +480,14 @@ func (c *Config) RuntimeFrontendEnv() map[string]string {
 	return out
 }
 
-// GitHubAppConfig holds parsed GitHub App configuration
+// GitHubAppConfig holds one GitHub App's parsed credentials.
+//
+// Despite living in this package it is no longer read from config.yaml: the
+// instance-wide `github:` section was removed in #483, and every value here now
+// comes from a team's own github_app_configs row, decrypted by
+// services.GitHubAppClientResolver. It stays here only because that is the type
+// external/implementations.NewGitHubAppClient already takes; relocating it to a
+// credentials-shaped home is a separate, purely mechanical move.
 type GitHubAppConfig struct {
 	AppID         string
 	PrivateKey    *rsa.PrivateKey
@@ -511,45 +498,6 @@ type GitHubAppConfig struct {
 	// client rejects installation callbacks rather than trusting them.
 	ClientID     string
 	ClientSecret string
-}
-
-// GetGitHubAppConfig returns the GitHub App configuration with parsed private key
-func (c *Config) GetGitHubAppConfig() (*GitHubAppConfig, error) {
-	if c.GitHub.AppID == "" || c.GitHub.AppPrivateKey == "" {
-		return nil, nil // No GitHub App configured
-	}
-
-	// Try to decode from base64 first (for easier config management).
-	// If decoding fails, treat it as raw PEM.
-	// This automatic fallback allows keys to be stored in either format.
-	privateKeyBytes := []byte(c.GitHub.AppPrivateKey)
-	isBase64Encoded := false
-	if decoded, err := base64.StdEncoding.DecodeString(c.GitHub.AppPrivateKey); err == nil {
-		// Successfully decoded from base64
-		privateKeyBytes = decoded
-		isBase64Encoded = true
-	}
-
-	// Log which format was detected (visible during startup)
-	if isBase64Encoded {
-		slog.Info("GitHub App private key loaded from base64-encoded format")
-	} else {
-		slog.Info("GitHub App private key loaded from raw PEM format")
-	}
-
-	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(privateKeyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse GitHub App private key: %w", err)
-	}
-
-	return &GitHubAppConfig{
-		AppID:         c.GitHub.AppID,
-		PrivateKey:    privateKey,
-		PrivateKeyPEM: privateKeyBytes, // Store PEM bytes for ghinstallation
-		WebhookSecret: c.GitHub.WebhookSecret,
-		ClientID:      c.GitHub.AppClientID,
-		ClientSecret:  c.GitHub.AppClientSecret,
-	}, nil
 }
 
 // GetDeploymentEnvironment determines the deployment environment from config.
@@ -1066,6 +1014,10 @@ func decode(path string) (*Config, error) {
 	}
 	interpolateNode(parsed)
 
+	if err := checkRemovedSections(path, parsed); err != nil {
+		return nil, err
+	}
+
 	k := koanf.New(".")
 	if err := k.Load(confmap.Provider(defaults(), "."), nil); err != nil {
 		return nil, fmt.Errorf("failed to load config defaults: %w", err)
@@ -1090,6 +1042,53 @@ func decode(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	return &cfg, nil
+}
+
+// removedConfigSections maps a deleted TOP-LEVEL config section to the guidance
+// an operator needs when their config.yaml still carries it.
+//
+// This exists because unknown keys are otherwise SILENT. config.schema.json is
+// `additionalProperties: false`, but that schema is a drift gate and an
+// editor aid — it is not consulted at runtime, and koanf/mapstructure ignore
+// keys with no matching field. Without this check an operator upgrading past
+// #483 would keep a `github:` block full of credentials that does nothing, and
+// conclude the integration is configured when it is not. Failing at boot is the
+// whole point: loud beats silently wrong.
+var removedConfigSections = map[string]string{
+	"github": "GitHub App credentials are now configured per team in the UI " +
+		"(Settings → Integrations → GitHub), not instance-wide. Delete the `github:` section " +
+		"from your config.yaml and re-register the App on each team. " +
+		"Note this is NOT `auth.github` (the web-login OAuth client), which is unaffected.",
+}
+
+// checkRemovedSections fails startup when config.yaml still declares one or
+// more sections that no longer exist.
+//
+// It matches TOP-LEVEL keys only, which is what keeps `auth.github` — a
+// different credential set on a different code path — out of scope.
+//
+// Every offending section is reported at once, in a fixed order: map iteration
+// is randomized, and an operator mid-migration should not have to restart once
+// per removed section to discover them one at a time.
+func checkRemovedSections(path string, parsed map[string]interface{}) error {
+	found := make([]string, 0, len(removedConfigSections))
+	for section := range removedConfigSections {
+		if _, present := parsed[section]; present {
+			found = append(found, section)
+		}
+	}
+	if len(found) == 0 {
+		return nil
+	}
+	sort.Strings(found)
+
+	details := make([]string, 0, len(found))
+	for _, section := range found {
+		details = append(details, fmt.Sprintf("%q: %s", section, removedConfigSections[section]))
+	}
+	return fmt.Errorf(
+		"config file %q declares removed top-level section(s) — %s",
+		path, strings.Join(details, " | "))
 }
 
 // Load reads, interpolates, validates, and returns the application configuration
