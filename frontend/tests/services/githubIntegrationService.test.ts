@@ -83,6 +83,9 @@ describe('GitHubIntegrationService', () => {
         installation_id: 42,
         state: 'signed-state',
         setup_action: 'install',
+        // Required since #463: the backend exchanges it for a user token to
+        // prove the caller can access the installation being bound.
+        code: 'gh-oauth-code',
       }
       mockGeneratedClient.POST.mockReturnValue(success({ reconnected: true }))
 

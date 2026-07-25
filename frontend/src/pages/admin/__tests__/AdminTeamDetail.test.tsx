@@ -20,6 +20,8 @@ const mockAdminService = adminService as jest.Mocked<typeof adminService>
 const team: AdminTeamDetailType = {
   id: 't1',
   name: 'Engineering',
+  slug: 'engineering',
+  is_personal: false,
   owner: { id: 'o1', email: 'owner@example.com', name: 'Owner' },
   created_at: '2026-01-01T00:00:00Z',
   members: [
