@@ -166,6 +166,8 @@ volumes:
 
 </details>
 
+> ⬆️ **Upgrading an existing deployment?** Check [`docs/UPGRADING.md`](docs/UPGRADING.md) — it lists the breaking changes that need a config edit before the new image will start.
+
 ---
 
 ## Connect your AI tools 🔌

@@ -145,9 +145,6 @@
         "search": {
           "$ref": "#/$defs/SearchConfig"
         },
-        "github": {
-          "$ref": "#/$defs/GitHubConfig"
-        },
         "storage": {
           "$ref": "#/$defs/StorageConfig"
         },
@@ -372,33 +369,6 @@
           "type": "string"
         },
         "redirect_uri": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "GitHubConfig": {
-      "properties": {
-        "app_id": {
-          "type": "string"
-        },
-        "app_slug": {
-          "type": "string"
-        },
-        "app_private_key": {
-          "type": "string"
-        },
-        "webhook_url": {
-          "type": "string"
-        },
-        "webhook_secret": {
-          "type": "string"
-        },
-        "app_client_id": {
-          "type": "string"
-        },
-        "app_client_secret": {
           "type": "string"
         }
       },

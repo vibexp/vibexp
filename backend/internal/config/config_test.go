@@ -2,10 +2,6 @@ package config
 
 import (
 	"bytes"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"log/slog"
 	"net"
 	"os"
@@ -139,14 +135,6 @@ search:
   rank_weight_updated: 0.15
   rank_half_life_days: 45
   rank_candidate_cap: 300
-github:
-  app_id: "123456"
-  app_slug: vibexp-app
-  app_private_key: "PEMDATA"
-  webhook_url: https://app.example.com/webhook
-  webhook_secret: wh-secret
-  app_client_id: Iv1.appclient
-  app_client_secret: app-client-secret
 storage:
   attachments_bucket: my-bucket
 gcp:
@@ -374,12 +362,7 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.InDelta(t, 45, cfg.Search.RankHalfLifeDays, 1e-9)
 	assert.Equal(t, 300, cfg.Search.RankCandidateCap)
 
-	// GitHub app, storage, gcp.
-	assert.Equal(t, "123456", cfg.GitHub.AppID)
-	assert.Equal(t, "vibexp-app", cfg.GitHub.AppSlug)
-	assert.Equal(t, "wh-secret", cfg.GitHub.WebhookSecret)
-	assert.Equal(t, "Iv1.appclient", cfg.GitHub.AppClientID)
-	assert.Equal(t, "app-client-secret", cfg.GitHub.AppClientSecret)
+	// Storage, gcp.
 	assert.Equal(t, "my-bucket", cfg.Storage.AttachmentsBucket)
 	assert.Equal(t, "my-project", cfg.GCP.ProjectID)
 	assert.Equal(t, "@my-project.iam.gserviceaccount.com", cfg.GCP.PubSubPushServiceAccountSuffix)
@@ -920,56 +903,6 @@ auth:
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.Contains(t, err.Error(), "mcp.resource_uri")
-}
-
-// TestGetGitHubAppConfig_CarriesOAuthCredentials pins that the GitHub App's
-// OAuth credentials reach the client that performs the install-callback
-// authority check (#463). Without them the client cannot verify the caller and
-// the callback fails closed, so a silent drop here would look like an outage.
-func TestGetGitHubAppConfig_CarriesOAuthCredentials(t *testing.T) {
-	cfg := &Config{GitHub: GitHubConfig{
-		AppID:           "123456",
-		AppPrivateKey:   newTestAppPrivateKeyPEM(t),
-		AppClientID:     "Iv1.appclient",
-		AppClientSecret: "app-client-secret",
-	}}
-
-	appCfg, err := cfg.GetGitHubAppConfig()
-
-	require.NoError(t, err)
-	require.NotNil(t, appCfg)
-	assert.Equal(t, "Iv1.appclient", appCfg.ClientID)
-	assert.Equal(t, "app-client-secret", appCfg.ClientSecret)
-}
-
-// TestGetGitHubAppConfig_OAuthCredentialsOptional verifies an App configured
-// without OAuth credentials still loads — the refusal happens at callback time
-// with a specific error, not at startup.
-func TestGetGitHubAppConfig_OAuthCredentialsOptional(t *testing.T) {
-	cfg := &Config{GitHub: GitHubConfig{
-		AppID:         "123456",
-		AppPrivateKey: newTestAppPrivateKeyPEM(t),
-	}}
-
-	appCfg, err := cfg.GetGitHubAppConfig()
-
-	require.NoError(t, err)
-	require.NotNil(t, appCfg)
-	assert.Empty(t, appCfg.ClientID)
-	assert.Empty(t, appCfg.ClientSecret)
-}
-
-// newTestAppPrivateKeyPEM returns a throwaway PEM-encoded RSA key, so
-// GetGitHubAppConfig gets past private-key parsing and the assertions can focus
-// on the fields under test.
-func newTestAppPrivateKeyPEM(t *testing.T) string {
-	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-	return string(pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key),
-	}))
 }
 
 // TestLoad_TrustedProxies covers the #465 knob: CIDR parsing, the

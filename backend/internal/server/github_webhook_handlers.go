@@ -3,7 +3,8 @@ package server
 // GitHub webhook payload shapes.
 //
 // The handler that used to live here verified every delivery against the
-// instance-wide config.GitHub.WebhookSecret. Per-team Apps each have their own
+// instance-wide GitHub webhook secret from config.yaml (a `github:` section
+// since deleted outright, #483). Per-team Apps each have their own
 // secret, so there is no single secret left to verify against, and the handler
 // was removed rather than left reachable (#481). Deliveries now arrive at
 // /api/v1/webhooks/github/{token}, where the routing token selects the App
