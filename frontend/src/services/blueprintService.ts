@@ -1,4 +1,4 @@
-import type { components, operations } from '@vibexp/api-client'
+import type { components } from '@vibexp/api-client'
 
 import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 import type {
@@ -28,10 +28,11 @@ export type BlueprintSubtype = NonNullable<Blueprint['subtype']>
 export type BlueprintVersion = ResourceVersion
 export type BlueprintVersionListResponse = ResourceVersionListResponse
 
-// The generated list query is narrower than what the backend accepts (it omits
-// `project_id`, `subtype`, `metadata_*`, and only documents `type: "general"`),
-// so the richer hand-written filter shape is kept and serialized directly. The
+// The generated list query still omits the legacy `metadata_*` prefix keys, so
+// the richer hand-written filter shape is kept and serialized directly; the
 // generated query serializer forwards every non-undefined key regardless.
+// (`type` is no longer narrower — #520 widened the generated enum to match
+// Blueprint['type'] — and #526 removes the `metadata_*` remnant entirely.)
 export interface BlueprintFilters {
   project_id?: string
   search?: string
@@ -55,13 +56,6 @@ export const BLUEPRINT_TYPE_SUBTYPES: Record<string, string[]> = {
   codex: ['rules', 'skills', 'agents-md'],
 }
 
-type ListQuery = NonNullable<
-  operations['listSpecLibraries']['parameters']['query']
->
-type ListByProjectQuery = NonNullable<
-  operations['listSpecLibrariesByProject']['parameters']['query']
->
-
 class BlueprintService {
   async getBlueprints(
     teamId: string,
@@ -71,7 +65,7 @@ class BlueprintService {
       generatedClient.GET('/api/v1/{team_id}/blueprints', {
         params: {
           path: { team_id: teamId },
-          query: filters as unknown as ListQuery,
+          query: filters,
         },
       })
     )
@@ -86,7 +80,7 @@ class BlueprintService {
       generatedClient.GET('/api/v1/{team_id}/blueprints/{project_id}', {
         params: {
           path: { team_id: teamId, project_id: projectId },
-          query: filters as unknown as ListByProjectQuery,
+          query: filters,
         },
       })
     )
