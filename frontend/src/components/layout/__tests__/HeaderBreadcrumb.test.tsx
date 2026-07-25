@@ -50,6 +50,30 @@ describe('HeaderBreadcrumb', () => {
     }
   )
 
+  // #545: the whole restructured tree resolves to a sensible label, and in
+  // particular a team-scoped settings path must read "Teams" rather than
+  // falling through to the personal "Settings" nav entry.
+  it.each([
+    '/teams/team-a/projects',
+    '/teams/team-a/projects/my-proj',
+    '/teams/team-a/projects/my-proj/edit',
+    '/teams/team-a/settings',
+    '/teams/team-a/settings/search',
+    '/teams/team-a/settings/integrations/github',
+  ])('resolves %s to "Teams", not "Settings"', path => {
+    renderAt(path)
+    expect(screen.getByText('Teams')).toBeInTheDocument()
+    expect(screen.queryByText('Settings')).not.toBeInTheDocument()
+  })
+
+  it.each(['/settings', '/settings/api-keys', '/settings/activities'])(
+    'still resolves the personal %s to "Settings"',
+    path => {
+      renderAt(path)
+      expect(screen.getByText('Settings')).toBeInTheDocument()
+    }
+  )
+
   it('no longer resolves the retired /settings/teams path to "Teams"', () => {
     // The route is deleted, not redirected (epic #536 decision 9) - it falls
     // back to the `/settings` prefix, which is what NotFound sits under.
