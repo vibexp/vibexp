@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
 )
 
@@ -33,16 +32,12 @@ func (f *fakeMailgunSender) Send(ctx context.Context, m *mailgun.Message) (strin
 }
 
 func TestNewMailgunEmailProvider_EmptySendingKey(t *testing.T) {
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			Mailgun: config.MailgunConfig{
-				Domain:     "mg.example.com",
-				SendingKey: "",
-			},
-		},
+	spec := MailgunSpec{
+		Domain:     "mg.example.com",
+		SendingKey: "",
 	}
 
-	provider, err := NewMailgunEmailProvider(cfg)
+	provider, err := NewMailgunEmailProvider(spec)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "MAILGUN_SENDING_KEY")
@@ -50,16 +45,12 @@ func TestNewMailgunEmailProvider_EmptySendingKey(t *testing.T) {
 }
 
 func TestNewMailgunEmailProvider_EmptyDomain(t *testing.T) {
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			Mailgun: config.MailgunConfig{
-				Domain:     "",
-				SendingKey: "key-abc123",
-			},
-		},
+	spec := MailgunSpec{
+		Domain:     "",
+		SendingKey: "key-abc123",
 	}
 
-	provider, err := NewMailgunEmailProvider(cfg)
+	provider, err := NewMailgunEmailProvider(spec)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "MAILGUN_DOMAIN")
@@ -76,15 +67,11 @@ func TestNewMailgunEmailProvider_DomainIsURL(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := &config.Config{
-				Email: config.EmailConfig{
-					Mailgun: config.MailgunConfig{
-						Domain:     tc.domain,
-						SendingKey: "key-abc123",
-					},
-				},
+			spec := MailgunSpec{
+				Domain:     tc.domain,
+				SendingKey: "key-abc123",
 			}
-			provider, err := NewMailgunEmailProvider(cfg)
+			provider, err := NewMailgunEmailProvider(spec)
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "bare domain")
 			assert.Nil(t, provider)
@@ -93,16 +80,12 @@ func TestNewMailgunEmailProvider_DomainIsURL(t *testing.T) {
 }
 
 func TestNewMailgunEmailProvider_ValidConfig(t *testing.T) {
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			Mailgun: config.MailgunConfig{
-				Domain:     "mg.example.com",
-				SendingKey: "key-abc123",
-			},
-		},
+	spec := MailgunSpec{
+		Domain:     "mg.example.com",
+		SendingKey: "key-abc123",
 	}
 
-	provider, err := NewMailgunEmailProvider(cfg)
+	provider, err := NewMailgunEmailProvider(spec)
 
 	require.NoError(t, err)
 	assert.NotNil(t, provider)
@@ -113,17 +96,13 @@ func TestNewMailgunEmailProvider_ValidConfig(t *testing.T) {
 
 func TestNewMailgunEmailProvider_WithBaseURL(t *testing.T) {
 	// Setting MAILGUN_BASE_URL to the EU endpoint should not error during construction.
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			Mailgun: config.MailgunConfig{
-				Domain:     "mg.example.com",
-				SendingKey: "key-abc123",
-				BaseURL:    "https://api.eu.mailgun.net/v3",
-			},
-		},
+	spec := MailgunSpec{
+		Domain:     "mg.example.com",
+		SendingKey: "key-abc123",
+		BaseURL:    "https://api.eu.mailgun.net/v3",
 	}
 
-	provider, err := NewMailgunEmailProvider(cfg)
+	provider, err := NewMailgunEmailProvider(spec)
 
 	require.NoError(t, err)
 	assert.NotNil(t, provider)
@@ -155,17 +134,13 @@ func TestNewMailgunEmailProvider_NormalizesBaseURL(t *testing.T) {
 	// The deployed prod misconfiguration was MAILGUN_BASE_URL=https://api.eu.mailgun.net
 	// (no /v3 suffix), causing mailgun-go to fail at send time. The provider must
 	// accept this value and normalize it rather than failing or passing it through.
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			Mailgun: config.MailgunConfig{
-				Domain:     "mg.example.com",
-				SendingKey: "key-abc123",
-				BaseURL:    "https://api.eu.mailgun.net",
-			},
-		},
+	spec := MailgunSpec{
+		Domain:     "mg.example.com",
+		SendingKey: "key-abc123",
+		BaseURL:    "https://api.eu.mailgun.net",
 	}
 
-	provider, err := NewMailgunEmailProvider(cfg)
+	provider, err := NewMailgunEmailProvider(spec)
 
 	require.NoError(t, err)
 	assert.NotNil(t, provider)

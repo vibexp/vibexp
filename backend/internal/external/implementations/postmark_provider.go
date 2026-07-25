@@ -8,7 +8,6 @@ import (
 	"github.com/darkrockmountain/gomail"
 	"github.com/mrz1836/postmark"
 
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
 )
 
@@ -32,15 +31,15 @@ type PostmarkEmailProvider struct {
 }
 
 // NewPostmarkEmailProvider creates a new Postmark email provider.
-// Required config: PostmarkServerToken.
-// Optional: PostmarkMessageStream — the Postmark message stream to send on
+// Required: ServerToken.
+// Optional: MessageStream — the Postmark message stream to send on
 // (defaults to "outbound", the default transactional stream).
-func NewPostmarkEmailProvider(cfg *config.Config) (external.EmailProvider, error) {
-	if cfg.Email.Postmark.ServerToken == "" {
+func NewPostmarkEmailProvider(spec PostmarkSpec) (external.EmailProvider, error) {
+	if spec.ServerToken == "" {
 		return nil, fmt.Errorf("postmark provider: POSTMARK_SERVER_TOKEN is required")
 	}
 
-	stream := strings.TrimSpace(cfg.Email.Postmark.MessageStream)
+	stream := strings.TrimSpace(spec.MessageStream)
 	if stream == "" {
 		stream = defaultPostmarkMessageStream
 	}
@@ -48,7 +47,7 @@ func NewPostmarkEmailProvider(cfg *config.Config) (external.EmailProvider, error
 	// Postmark separates the server token (used for sending) from the optional
 	// account token (used for account-level APIs); only the server token is
 	// needed to deliver email.
-	client := postmark.NewClient(cfg.Email.Postmark.ServerToken, "")
+	client := postmark.NewClient(spec.ServerToken, "")
 
 	return &PostmarkEmailProvider{sender: client, messageStream: stream}, nil
 }

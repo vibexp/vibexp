@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
 )
 
@@ -30,15 +29,11 @@ func (f *fakePostmarkSender) SendEmail(ctx context.Context, email postmark.Email
 }
 
 func TestNewPostmarkEmailProvider_EmptyServerToken(t *testing.T) {
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			Postmark: config.PostmarkConfig{
-				ServerToken: "",
-			},
-		},
+	spec := PostmarkSpec{
+		ServerToken: "",
 	}
 
-	provider, err := NewPostmarkEmailProvider(cfg)
+	provider, err := NewPostmarkEmailProvider(spec)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "POSTMARK_SERVER_TOKEN")
@@ -46,15 +41,11 @@ func TestNewPostmarkEmailProvider_EmptyServerToken(t *testing.T) {
 }
 
 func TestNewPostmarkEmailProvider_ValidConfig(t *testing.T) {
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			Postmark: config.PostmarkConfig{
-				ServerToken: "token-abc123",
-			},
-		},
+	spec := PostmarkSpec{
+		ServerToken: "token-abc123",
 	}
 
-	provider, err := NewPostmarkEmailProvider(cfg)
+	provider, err := NewPostmarkEmailProvider(spec)
 
 	require.NoError(t, err)
 	assert.NotNil(t, provider)
@@ -64,16 +55,12 @@ func TestNewPostmarkEmailProvider_ValidConfig(t *testing.T) {
 }
 
 func TestNewPostmarkEmailProvider_DefaultsMessageStream(t *testing.T) {
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			Postmark: config.PostmarkConfig{
-				ServerToken:   "token-abc123",
-				MessageStream: "",
-			},
-		},
+	spec := PostmarkSpec{
+		ServerToken:   "token-abc123",
+		MessageStream: "",
 	}
 
-	provider, err := NewPostmarkEmailProvider(cfg)
+	provider, err := NewPostmarkEmailProvider(spec)
 
 	require.NoError(t, err)
 	pm, ok := provider.(*PostmarkEmailProvider)
@@ -82,16 +69,12 @@ func TestNewPostmarkEmailProvider_DefaultsMessageStream(t *testing.T) {
 }
 
 func TestNewPostmarkEmailProvider_CustomMessageStream(t *testing.T) {
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			Postmark: config.PostmarkConfig{
-				ServerToken:   "token-abc123",
-				MessageStream: "broadcast",
-			},
-		},
+	spec := PostmarkSpec{
+		ServerToken:   "token-abc123",
+		MessageStream: "broadcast",
 	}
 
-	provider, err := NewPostmarkEmailProvider(cfg)
+	provider, err := NewPostmarkEmailProvider(spec)
 
 	require.NoError(t, err)
 	pm, ok := provider.(*PostmarkEmailProvider)

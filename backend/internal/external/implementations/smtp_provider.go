@@ -8,7 +8,6 @@ import (
 	"github.com/darkrockmountain/gomail"
 	gomailsmtp "github.com/darkrockmountain/gomail/providers/smtp"
 
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
 )
 
@@ -20,17 +19,17 @@ type SMTPEmailProvider struct {
 }
 
 // NewSMTPEmailProvider creates a new SMTP email provider using gomail library
-func NewSMTPEmailProvider(cfg *config.Config) (external.EmailProvider, error) {
-	port, err := strconv.Atoi(cfg.Email.SMTP.Port)
+func NewSMTPEmailProvider(spec SMTPSpec) (external.EmailProvider, error) {
+	port, err := strconv.Atoi(spec.Port)
 	if err != nil {
 		return nil, fmt.Errorf("invalid SMTP port: %w", err)
 	}
 
 	sender, err := gomailsmtp.NewSmtpEmailSender(
-		cfg.Email.SMTP.Host,
+		spec.Host,
 		port,
-		cfg.Email.SMTP.Username,
-		cfg.Email.SMTP.Password,
+		spec.Username,
+		spec.Password,
 		gomailsmtp.AUTH_PLAIN,
 	)
 	if err != nil {

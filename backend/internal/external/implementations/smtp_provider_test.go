@@ -6,57 +6,43 @@ import (
 
 	"github.com/darkrockmountain/gomail"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/vibexp/vibexp/internal/config"
 )
 
 func TestNewSMTPEmailProvider(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *config.Config
+		spec        SMTPSpec
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name: "Valid SMTP configuration",
-			config: &config.Config{
-				Email: config.EmailConfig{
-					SMTP: config.SMTPConfig{
-						Host:     "smtp.example.com",
-						Port:     "587",
-						Username: "test@example.com",
-						Password: "password123",
-					},
-				},
+			spec: SMTPSpec{
+				Host:     "smtp.example.com",
+				Port:     "587",
+				Username: "test@example.com",
+				Password: "password123",
 			},
 			expectError: false,
 		},
 		{
 			name: "Invalid SMTP port - non-numeric",
-			config: &config.Config{
-				Email: config.EmailConfig{
-					SMTP: config.SMTPConfig{
-						Host:     "smtp.example.com",
-						Port:     "invalid",
-						Username: "test@example.com",
-						Password: "password123",
-					},
-				},
+			spec: SMTPSpec{
+				Host:     "smtp.example.com",
+				Port:     "invalid",
+				Username: "test@example.com",
+				Password: "password123",
 			},
 			expectError: true,
 			errorMsg:    "invalid SMTP port",
 		},
 		{
 			name: "Empty SMTP port",
-			config: &config.Config{
-				Email: config.EmailConfig{
-					SMTP: config.SMTPConfig{
-						Host:     "smtp.example.com",
-						Port:     "",
-						Username: "test@example.com",
-						Password: "password123",
-					},
-				},
+			spec: SMTPSpec{
+				Host:     "smtp.example.com",
+				Port:     "",
+				Username: "test@example.com",
+				Password: "password123",
 			},
 			expectError: true,
 			errorMsg:    "invalid SMTP port",
@@ -65,7 +51,7 @@ func TestNewSMTPEmailProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider, err := NewSMTPEmailProvider(tt.config)
+			provider, err := NewSMTPEmailProvider(tt.spec)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -89,18 +75,14 @@ func TestSMTPEmailProvider_SendEmail(t *testing.T) {
 	// Note: This test validates the interface and error handling
 	// Actual SMTP sending requires live SMTP server or mocking at network level
 
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			SMTP: config.SMTPConfig{
-				Host:     "smtp.example.com",
-				Port:     "587",
-				Username: "test@example.com",
-				Password: "password123",
-			},
-		},
+	spec := SMTPSpec{
+		Host:     "smtp.example.com",
+		Port:     "587",
+		Username: "test@example.com",
+		Password: "password123",
 	}
 
-	provider, err := NewSMTPEmailProvider(cfg)
+	provider, err := NewSMTPEmailProvider(spec)
 	assert.NoError(t, err)
 	assert.NotNil(t, provider)
 
@@ -127,18 +109,14 @@ func TestSMTPEmailProvider_SendEmail(t *testing.T) {
 
 func TestSMTPEmailProvider_InterfaceCompliance(t *testing.T) {
 	// Verify that SMTPEmailProvider implements the EmailProvider interface
-	cfg := &config.Config{
-		Email: config.EmailConfig{
-			SMTP: config.SMTPConfig{
-				Host:     "smtp.example.com",
-				Port:     "587",
-				Username: "test@example.com",
-				Password: "password123",
-			},
-		},
+	spec := SMTPSpec{
+		Host:     "smtp.example.com",
+		Port:     "587",
+		Username: "test@example.com",
+		Password: "password123",
 	}
 
-	provider, err := NewSMTPEmailProvider(cfg)
+	provider, err := NewSMTPEmailProvider(spec)
 	assert.NoError(t, err)
 
 	// Check that it has the SendEmail method with correct signature

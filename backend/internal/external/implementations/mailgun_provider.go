@@ -8,7 +8,6 @@ import (
 	"github.com/darkrockmountain/gomail"
 	"github.com/mailgun/mailgun-go/v4"
 
-	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
 )
 
@@ -28,30 +27,30 @@ type MailgunEmailProvider struct {
 }
 
 // NewMailgunEmailProvider creates a new Mailgun email provider.
-// Required config: MailgunSendingKey, MailgunDomain.
-// Optional: MailgunBaseURL — when set, overrides the default US endpoint
+// Required: SendingKey, Domain.
+// Optional: BaseURL — when set, overrides the default US endpoint
 // (e.g. "https://api.eu.mailgun.net/v3" for EU customers). The version suffix
-// is normalized — if MailgunBaseURL is set without a /v2|/v3|/v4 suffix, /v3
+// is normalized — if BaseURL is set without a /v2|/v3|/v4 suffix, /v3
 // is appended automatically.
-// MailgunDomain must be a bare domain (e.g. mg.example.com), not a URL.
-func NewMailgunEmailProvider(cfg *config.Config) (external.EmailProvider, error) {
-	if cfg.Email.Mailgun.SendingKey == "" {
+// Domain must be a bare domain (e.g. mg.example.com), not a URL.
+func NewMailgunEmailProvider(spec MailgunSpec) (external.EmailProvider, error) {
+	if spec.SendingKey == "" {
 		return nil, fmt.Errorf("mailgun provider: MAILGUN_SENDING_KEY is required")
 	}
 
-	if cfg.Email.Mailgun.Domain == "" {
+	if spec.Domain == "" {
 		return nil, fmt.Errorf("mailgun provider: MAILGUN_DOMAIN is required")
 	}
 
-	if strings.Contains(cfg.Email.Mailgun.Domain, "://") || strings.HasSuffix(cfg.Email.Mailgun.Domain, "/") {
+	if strings.Contains(spec.Domain, "://") || strings.HasSuffix(spec.Domain, "/") {
 		return nil, fmt.Errorf(
 			"mailgun provider: MAILGUN_DOMAIN must be a bare domain (e.g. mg.example.com), not a URL; got %q",
-			cfg.Email.Mailgun.Domain,
+			spec.Domain,
 		)
 	}
 
-	mg := mailgun.NewMailgun(cfg.Email.Mailgun.Domain, cfg.Email.Mailgun.SendingKey)
-	if base := normalizeMailgunBaseURL(cfg.Email.Mailgun.BaseURL); base != "" {
+	mg := mailgun.NewMailgun(spec.Domain, spec.SendingKey)
+	if base := normalizeMailgunBaseURL(spec.BaseURL); base != "" {
 		mg.SetAPIBase(base)
 	}
 
