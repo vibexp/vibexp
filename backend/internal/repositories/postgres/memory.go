@@ -423,6 +423,12 @@ func buildMemorySearchWhereClause(
 	userID, metadataKey, metadataValue string, filters repositories.MemoryFilters,
 ) squirrel.Sqlizer {
 	where := squirrel.And{
+		// Tenancy first. Without these two the query scoped by user_id alone, so
+		// it ignored the {team_id} path param entirely and returned the caller's
+		// memories from EVERY team they belong to (#517). Every other memory
+		// query carries this pair; this one was missed.
+		squirrel.Eq{"team_id": filters.TeamID},
+		teamReadAccess(filters.TeamID, userID),
 		squirrel.Eq{"user_id": userID},
 		// metadata ->> ? has no `?` operator, so no `??` escaping is needed.
 		squirrel.Expr("metadata ->> ? = ?", metadataKey, metadataValue),
