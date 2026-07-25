@@ -14,7 +14,7 @@ import (
 // NotificationEmailSender is a narrow interface for sending notification emails.
 // It decouples the email channel from the full EmailService implementation.
 type NotificationEmailSender interface {
-	SendNotificationEmail(to, subject, htmlBody string) error
+	SendNotificationEmail(ctx context.Context, teamID, to, subject, htmlBody string) error
 }
 
 // EmailChannel delivers notifications via email.
@@ -77,8 +77,6 @@ func (c *EmailChannel) deliverInstant(
 	n *notifications.Notification,
 	user *models.User,
 ) notifications.DeliveryResult {
-	_ = ctx // used by caller for tracing; kept for interface consistency
-
 	subject := n.RenderedEmailSubject
 	if subject == "" {
 		subject = n.Title
@@ -90,7 +88,11 @@ func (c *EmailChannel) deliverInstant(
 		htmlBody = "<p>" + n.Body + "</p>"
 	}
 
-	if err := c.emailSender.SendNotificationEmail(user.Email, subject, htmlBody); err != nil {
+	// n.TeamID was previously discarded because the signature had nowhere to put
+	// it; the notification now goes out as the team it belongs to. An empty TeamID
+	// resolves to the instance sender.
+	if err := c.emailSender.SendNotificationEmail(
+		ctx, n.TeamID, user.Email, subject, htmlBody); err != nil {
 		if c.logger != nil {
 			c.logger.With(
 				"notification_id", n.ID,

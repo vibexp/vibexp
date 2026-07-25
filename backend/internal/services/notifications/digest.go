@@ -19,7 +19,7 @@ const digestEmailSubject = "Your vibexp daily digest"
 // DigestEmailSender is a narrow interface for sending digest notification emails.
 // services.EmailService satisfies this interface.
 type DigestEmailSender interface {
-	SendNotificationEmail(to, subject, htmlBody string) error
+	SendNotificationEmail(ctx context.Context, teamID, to, subject, htmlBody string) error
 }
 
 // DigestRunner flushes the notification_digest_queue by grouping pending rows
@@ -245,7 +245,11 @@ func (d *DigestRunner) sendDigestEmail(
 		return
 	}
 
-	if sendErr := d.emailSvc.SendNotificationEmail(user.Email, digestEmailSubject, htmlBody); sendErr != nil {
+	// A digest aggregates notifications from every team the user belongs to, so
+	// there is no single owning team and it sends from the instance provider. #505
+	// splits the digest per team; do not put a team ID here before then.
+	if sendErr := d.emailSvc.SendNotificationEmail(
+		ctx, "", user.Email, digestEmailSubject, htmlBody); sendErr != nil {
 		d.logger.With(
 			"user_id", user.ID,
 			"error", sendErr.Error(),

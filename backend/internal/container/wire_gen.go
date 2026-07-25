@@ -148,11 +148,13 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface)
 	gitHubAppClientResolver := providers.ProvideGitHubAppClientResolver(gitHubAppConfigRepository, encryptionServiceInterface, logger)
 	gitHubAppConfigServiceInterface := providers.ProvideGitHubAppConfigService(gitHubAppConfigRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, gitHubAppClientResolver)
+	teamEmailProviderRepository := providers.ProvideTeamEmailProviderRepository(db)
 	emailProvider, err := providers.ProvideEmailProvider(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
-	emailServiceInterface := providers.ProvideEmailService(emailProvider, cfg)
+	emailSenderResolver := providers.ProvideEmailSenderResolver(teamEmailProviderRepository, encryptionServiceInterface, emailProvider, cfg, logger)
+	emailServiceInterface := providers.ProvideEmailService(emailSenderResolver, cfg)
 	activityServiceDeps := providers.ActivityServiceDeps{
 		Repo:          activityRepository,
 		ProjectRepo:   projectRepository,
@@ -191,9 +193,7 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	teamSearchSettingsRepository := providers.ProvideTeamSearchSettingsRepository(db)
 	searchSettingsResolver := providers.ProvideSearchSettingsResolver(teamSearchSettingsRepository, logger, cfg)
 	searcher := providers.ProvideSearchService(searchRepository, queryEmbedder, logger, searchSettingsResolver)
-	teamEmailProviderRepository := providers.ProvideTeamEmailProviderRepository(db)
 	teamEmailProviderServiceInterface := providers.ProvideTeamEmailProviderService(teamEmailProviderRepository, userRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, logger)
-	emailSenderResolver := providers.ProvideEmailSenderResolver(teamEmailProviderRepository, encryptionServiceInterface, emailProvider, cfg, logger)
 	teamSearchSettingsServiceInterface := providers.ProvideTeamSearchSettingsService(teamSearchSettingsRepository, authorizationServiceInterface, cfg, logger)
 	environmentService := providers.ProvideEnvironmentService(cfg)
 	usageAndGrowthGetter := providers.ProvideBackofficeService(backofficeRepository)

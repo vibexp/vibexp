@@ -19,12 +19,19 @@ import (
 
 // mockDigestEmailSender is a simple test double for DigestEmailSender.
 type mockDigestEmailSender struct {
-	calls  int
-	lastTo string
-	err    error
+	calls int
+	// lastTeamID records what the digest attributed the send to. A digest spans
+	// every team the user belongs to, so it must stay empty (instance sender)
+	// until #505 splits it per team.
+	lastTeamID string
+	lastTo     string
+	err        error
 }
 
-func (m *mockDigestEmailSender) SendNotificationEmail(to, _, _ string) error {
+func (m *mockDigestEmailSender) SendNotificationEmail(
+	_ context.Context, teamID, to, _, _ string,
+) error {
+	m.lastTeamID = teamID
 	m.calls++
 	m.lastTo = to
 	return m.err
@@ -113,6 +120,12 @@ func TestDigestRunner_Run_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, emailSvc.calls, "expected exactly one email sent")
 	assert.Equal(t, "alice@example.com", emailSvc.lastTo)
+	// A digest aggregates notifications from every team the user belongs to, so it
+	// has no single owning team and sends from the instance provider. #505 splits
+	// it per team; until then an empty team ID here is deliberate, not an
+	// oversight.
+	assert.Empty(t, emailSvc.lastTeamID,
+		"a digest spans teams, so it must not be attributed to one (see #505)")
 }
 
 // --------------------------------------------------------------------------

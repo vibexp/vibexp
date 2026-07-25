@@ -22,6 +22,54 @@ func (_m *MockEmailSenderResolver) EXPECT() *MockEmailSenderResolver_Expecter {
 	return &MockEmailSenderResolver_Expecter{mock: &_m.Mock}
 }
 
+// RecordSendOutcome provides a mock function with given fields: ctx, sender, sendErr
+func (_m *MockEmailSenderResolver) RecordSendOutcome(ctx context.Context, sender *services.ResolvedEmailSender, sendErr error) error {
+	ret := _m.Called(ctx, sender, sendErr)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RecordSendOutcome")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *services.ResolvedEmailSender, error) error); ok {
+		r0 = rf(ctx, sender, sendErr)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockEmailSenderResolver_RecordSendOutcome_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordSendOutcome'
+type MockEmailSenderResolver_RecordSendOutcome_Call struct {
+	*mock.Call
+}
+
+// RecordSendOutcome is a helper method to define mock.On call
+//   - ctx context.Context
+//   - sender *services.ResolvedEmailSender
+//   - sendErr error
+func (_e *MockEmailSenderResolver_Expecter) RecordSendOutcome(ctx interface{}, sender interface{}, sendErr interface{}) *MockEmailSenderResolver_RecordSendOutcome_Call {
+	return &MockEmailSenderResolver_RecordSendOutcome_Call{Call: _e.mock.On("RecordSendOutcome", ctx, sender, sendErr)}
+}
+
+func (_c *MockEmailSenderResolver_RecordSendOutcome_Call) Run(run func(ctx context.Context, sender *services.ResolvedEmailSender, sendErr error)) *MockEmailSenderResolver_RecordSendOutcome_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*services.ResolvedEmailSender), args[2].(error))
+	})
+	return _c
+}
+
+func (_c *MockEmailSenderResolver_RecordSendOutcome_Call) Return(_a0 error) *MockEmailSenderResolver_RecordSendOutcome_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockEmailSenderResolver_RecordSendOutcome_Call) RunAndReturn(run func(context.Context, *services.ResolvedEmailSender, error) error) *MockEmailSenderResolver_RecordSendOutcome_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Resolve provides a mock function with given fields: ctx, teamID
 func (_m *MockEmailSenderResolver) Resolve(ctx context.Context, teamID string) (*services.ResolvedEmailSender, error) {
 	ret := _m.Called(ctx, teamID)

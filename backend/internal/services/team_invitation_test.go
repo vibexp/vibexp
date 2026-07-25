@@ -20,18 +20,24 @@ type MockEmailService struct {
 	mock.Mock
 }
 
-func (m *MockEmailService) SendTeamInvitation(invitation *models.TeamInvitation, teamName, inviterName string) error {
-	args := m.Called(invitation, teamName, inviterName)
+func (m *MockEmailService) SendTeamInvitation(
+	ctx context.Context, teamID string, invitation *models.TeamInvitation, teamName, inviterName string,
+) error {
+	args := m.Called(ctx, teamID, invitation, teamName, inviterName)
 	return args.Error(0)
 }
 
-func (m *MockEmailService) SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error {
-	args := m.Called(userName, userEmail, req)
+func (m *MockEmailService) SendSupportRequest(
+	ctx context.Context, userName, userEmail string, req *models.SupportRequest,
+) error {
+	args := m.Called(ctx, userName, userEmail, req)
 	return args.Error(0)
 }
 
-func (m *MockEmailService) SendNotificationEmail(to, subject, htmlBody string) error {
-	args := m.Called(to, subject, htmlBody)
+func (m *MockEmailService) SendNotificationEmail(
+	ctx context.Context, teamID, to, subject, htmlBody string,
+) error {
+	args := m.Called(ctx, teamID, to, subject, htmlBody)
 	return args.Error(0)
 }
 
@@ -211,9 +217,10 @@ func TestTeamInvitationService_InviteMembers_MultipleDuplicates(t *testing.T) {
 	})).Return(nil)
 
 	// Mock: Send email for new user — third arg must be the resolved name, not userID
-	mockEmailService.On("SendTeamInvitation", mock.MatchedBy(func(inv *models.TeamInvitation) bool {
-		return inv.InviteeEmail == "new@example.com"
-	}), "Test Team", "Inviter Name").Return(nil)
+	mockEmailService.On("SendTeamInvitation", mock.Anything, mock.Anything,
+		mock.MatchedBy(func(inv *models.TeamInvitation) bool {
+			return inv.InviteeEmail == "new@example.com"
+		}), "Test Team", "Inviter Name").Return(nil)
 
 	// Execute
 	invitations, err := service.InviteMembers(ctx, userID, teamID, emails, role)
@@ -305,7 +312,8 @@ func TestTeamInvitationService_InviteMembers_NoDuplicatesSuccess(t *testing.T) {
 	})).Return(nil)
 
 	// Mock: Send emails — third arg must be the resolved name, not userID
-	mockEmailService.On("SendTeamInvitation", mock.Anything, "Test Team", "Inviter Name").Return(nil)
+	mockEmailService.On("SendTeamInvitation", mock.Anything, mock.Anything,
+		mock.Anything, "Test Team", "Inviter Name").Return(nil)
 
 	// Execute
 	invitations, err := service.InviteMembers(ctx, userID, teamID, emails, role)
@@ -589,9 +597,10 @@ func TestTeamInvitationService_InviteMembers_NonPersonalWorkspace(t *testing.T) 
 	})).Return(nil)
 
 	// Mock: Send email successfully — third arg must be the resolved name, not userID
-	mockEmailService.On("SendTeamInvitation", mock.MatchedBy(func(inv *models.TeamInvitation) bool {
-		return inv.InviteeEmail == "newuser@example.com"
-	}), "My Team", "Inviter Name").Return(nil)
+	mockEmailService.On("SendTeamInvitation", mock.Anything, mock.Anything,
+		mock.MatchedBy(func(inv *models.TeamInvitation) bool {
+			return inv.InviteeEmail == "newuser@example.com"
+		}), "My Team", "Inviter Name").Return(nil)
 
 	// Execute
 	invitations, err := service.InviteMembers(ctx, userID, teamID, emails, role)
@@ -686,13 +695,16 @@ func captureInviterNameArg(emailService *MockEmailService, inviteeEmail string) 
 	captured := new(string)
 	emailService.On(
 		"SendTeamInvitation",
+		mock.Anything, // ctx
+		mock.Anything, // teamID
 		mock.MatchedBy(func(inv *models.TeamInvitation) bool {
 			return inv.InviteeEmail == inviteeEmail
 		}),
 		mock.AnythingOfType("string"),
 		mock.AnythingOfType("string"),
 	).Run(func(args mock.Arguments) {
-		*captured = args.String(2)
+		// Index 4: ctx, teamID, invitation, teamName, inviterName.
+		*captured = args.String(4)
 	}).Return(nil)
 	return captured
 }
@@ -831,6 +843,8 @@ func TestTeamInvitationService_InviteMembers_ResolvesInviterNameOncePerBatch(t *
 	// Email send: every invitee receives the same resolved name.
 	m.emailService.On(
 		"SendTeamInvitation",
+		mock.Anything, // ctx
+		mock.Anything, // teamID
 		mock.AnythingOfType("*models.TeamInvitation"),
 		"Test Team",
 		theName,

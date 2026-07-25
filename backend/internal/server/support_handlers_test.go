@@ -31,20 +31,24 @@ type MockEmailServiceForSupport struct {
 	mock.Mock
 }
 
-func (m *MockEmailServiceForSupport) SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error {
-	args := m.Called(userName, userEmail, req)
+func (m *MockEmailServiceForSupport) SendSupportRequest(
+	ctx context.Context, userName, userEmail string, req *models.SupportRequest,
+) error {
+	args := m.Called(ctx, userName, userEmail, req)
 	return args.Error(0)
 }
 
 func (m *MockEmailServiceForSupport) SendTeamInvitation(
-	invitation *models.TeamInvitation, teamName, inviterName string,
+	ctx context.Context, teamID string, invitation *models.TeamInvitation, teamName, inviterName string,
 ) error {
-	args := m.Called(invitation, teamName, inviterName)
+	args := m.Called(ctx, teamID, invitation, teamName, inviterName)
 	return args.Error(0)
 }
 
-func (m *MockEmailServiceForSupport) SendNotificationEmail(to, subject, htmlBody string) error {
-	args := m.Called(to, subject, htmlBody)
+func (m *MockEmailServiceForSupport) SendNotificationEmail(
+	ctx context.Context, teamID, to, subject, htmlBody string,
+) error {
+	args := m.Called(ctx, teamID, to, subject, htmlBody)
 	return args.Error(0)
 }
 
@@ -231,7 +235,7 @@ func TestHandleSupportMessage_IntegrationSuccess(t *testing.T) {
 	testUser := &models.User{ID: userID, Email: userEmail, Name: userName}
 	mockAuthService.On("GetUserByID", mock.Anything, userID).Return(testUser, nil)
 
-	mockEmailService.On("SendSupportRequest", userName, userEmail, mock.MatchedBy(func(req *models.SupportRequest) bool {
+	mockEmailService.On("SendSupportRequest", mock.Anything, userName, userEmail, mock.MatchedBy(func(req *models.SupportRequest) bool {
 		return req.Text == "This is a test support message for integration testing." &&
 			req.Acknowledgement == true
 	})).Return(nil)
@@ -266,7 +270,7 @@ func TestHandleSupportMessage_IntegrationWithoutAcknowledgement(t *testing.T) {
 	testUser := &models.User{ID: userID, Email: userEmail, Name: userName}
 	mockAuthService.On("GetUserByID", mock.Anything, userID).Return(testUser, nil)
 
-	mockEmailService.On("SendSupportRequest", userName, userEmail, mock.MatchedBy(func(req *models.SupportRequest) bool {
+	mockEmailService.On("SendSupportRequest", mock.Anything, userName, userEmail, mock.MatchedBy(func(req *models.SupportRequest) bool {
 		return req.Text == "Test message without acknowledgement request." &&
 			req.Acknowledgement == false &&
 			len(req.AdditionalInfo) == 2
@@ -325,7 +329,7 @@ func TestHandleSupportMessage_IntegrationEmailServiceError(t *testing.T) {
 	mockAuthService.On("GetUserByID", mock.Anything, userID).Return(testUser, nil)
 
 	// Mock email service to return error
-	mockEmailService.On("SendSupportRequest", userName, userEmail, mock.AnythingOfType("*models.SupportRequest")).
+	mockEmailService.On("SendSupportRequest", mock.Anything, userName, userEmail, mock.AnythingOfType("*models.SupportRequest")).
 		Return(assert.AnError)
 
 	req := httptest.NewRequest("POST", "/api/v1/support/message", strings.NewReader(validBody))
@@ -421,7 +425,7 @@ func TestHandleSupportMessage_ValidationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.shouldSucceed {
-				mockEmailService.On("SendSupportRequest", userName, userEmail, mock.AnythingOfType("*models.SupportRequest")).
+				mockEmailService.On("SendSupportRequest", mock.Anything, userName, userEmail, mock.AnythingOfType("*models.SupportRequest")).
 					Return(nil).Once()
 			}
 
@@ -468,7 +472,7 @@ func TestHandleSupportMessage_IntegrationWithAdditionalInfo(t *testing.T) {
 	testUser := &models.User{ID: userID, Email: userEmail, Name: userName}
 	mockAuthService.On("GetUserByID", mock.Anything, userID).Return(testUser, nil)
 
-	mockEmailService.On("SendSupportRequest", userName, userEmail, mock.MatchedBy(func(req *models.SupportRequest) bool {
+	mockEmailService.On("SendSupportRequest", mock.Anything, userName, userEmail, mock.MatchedBy(func(req *models.SupportRequest) bool {
 		return req.Text == "I need help with the subscription feature." &&
 			req.Acknowledgement == true &&
 			req.AdditionalInfo != nil &&

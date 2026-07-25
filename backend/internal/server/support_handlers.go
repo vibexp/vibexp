@@ -44,7 +44,7 @@ func (s *Server) handleSupportMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.sendSupportEmail(userName, userEmail, &req); err != nil {
+	if err := s.sendSupportEmail(r.Context(), userName, userEmail, &req); err != nil {
 		s.writeErrorResponse(
 			w, r,
 			vibexperrors.NewInternalError("Failed to send support request. Please try again later."),
@@ -102,10 +102,15 @@ func (s *Server) getUserName(ctx context.Context, userID, userEmail string) (str
 	return userName, nil
 }
 
-// sendSupportEmail sends the support request via email service
-func (s *Server) sendSupportEmail(userName, userEmail string, req *models.SupportRequest) error {
+// sendSupportEmail sends the support request via email service.
+//
+// Support mail is instance mail: it carries no team ID, so it always sends from
+// the instance provider even though the requester belongs to teams.
+func (s *Server) sendSupportEmail(
+	ctx context.Context, userName, userEmail string, req *models.SupportRequest,
+) error {
 	emailService := s.container.EmailService()
-	return emailService.SendSupportRequest(userName, userEmail, req)
+	return emailService.SendSupportRequest(ctx, userName, userEmail, req)
 }
 
 // writeErrorResponse writes an error response to the client
