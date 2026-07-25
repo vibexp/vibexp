@@ -26,6 +26,7 @@ import {
   searchSettingsService,
   type TeamSearchSettings,
 } from '@/services/searchSettingsService'
+import type { Team } from '@/services/teamService'
 
 import {
   describeValues,
@@ -310,9 +311,18 @@ function ActionFooter({
 // Page
 // ---------------------------------------------------------------------------
 
-export function SearchSettings() {
+/**
+ * `team` is the team `TeamScopeLayout` resolved from the URL (#540).
+ *
+ * Permissions MUST be read from it rather than from the ambient
+ * `currentTeam`: the layout syncs the two, but gating on the ambient value
+ * would mean this page's read-only state depends on that sync having already
+ * happened. `usePermissions` fails closed on `null`, so a missing team permits
+ * nothing.
+ */
+export function SearchSettings({ team }: Readonly<{ team: Team }>) {
   const { currentTeam } = useTeam()
-  const { can } = usePermissions()
+  const { can } = usePermissions(team)
   const canEdit = can('team.settings.update')
 
   const [settings, setSettings] = useState<TeamSearchSettings | null>(null)

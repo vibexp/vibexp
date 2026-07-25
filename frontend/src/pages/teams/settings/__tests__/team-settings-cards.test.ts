@@ -1,19 +1,45 @@
 import { teamSettingsCardsFor } from '../team-settings-cards'
 
 describe('teamSettingsCardsFor', () => {
-  it('has no cards yet — pages relocate here in #540 and #541', () => {
-    // Not a placeholder assertion: it pins the hub's empty state to a single
-    // data source, so #540/#541 extend this function and its test together
-    // rather than touching the page's markup.
-    expect(teamSettingsCardsFor('team-a')).toEqual([])
+  it('lists the four team-scoped configuration pages relocated in #540', () => {
+    expect(teamSettingsCardsFor('team-a').map(c => c.title)).toEqual([
+      'Search Settings',
+      'Model Providers',
+      'Embedding Providers',
+      'Artifact Types',
+    ])
   })
 
-  it('scopes every card it returns to the given team id', () => {
-    // Vacuous while the list is empty, and deliberately so: it fails the moment
-    // #540 adds a card whose href is not team-scoped, which is the mistake that
-    // would let the hub link into whichever team happened to be ambient.
-    for (const card of teamSettingsCardsFor('team-a')) {
-      expect(card.href).toContain('/teams/team-a/')
+  it('points each card at its own route segment', () => {
+    expect(teamSettingsCardsFor('team-a').map(c => c.href)).toEqual([
+      '/teams/team-a/settings/search',
+      '/teams/team-a/settings/model-providers',
+      '/teams/team-a/settings/embedding-providers',
+      '/teams/team-a/settings/customization',
+    ])
+  })
+
+  it('scopes every card href to the given team id', () => {
+    // The mistake this guards: an href missing the id would send the user to
+    // whichever team happened to be ambient - the exact problem epic #536
+    // exists to remove. Stays meaningful as #541 adds more cards.
+    for (const card of teamSettingsCardsFor('team-b')) {
+      expect(card.href).toMatch(/^\/teams\/team-b\/settings\//)
     }
+  })
+
+  it('keeps the "Artifact Types" title for the customization route', () => {
+    // `customization` is the route segment only; the user-facing name is
+    // Artifact Types, exactly as on the personal hub.
+    const card = teamSettingsCardsFor('team-a').find(c =>
+      c.href.endsWith('/customization')
+    )
+    expect(card?.title).toBe('Artifact Types')
+  })
+
+  it('gives every card a distinct icon', () => {
+    // Cards are visually indistinguishable if two share a glyph.
+    const icons = teamSettingsCardsFor('team-a').map(c => c.icon)
+    expect(new Set(icons).size).toBe(icons.length)
   })
 })

@@ -1,22 +1,50 @@
+import { Bot, Cpu, Shapes, SlidersHorizontal } from 'lucide-react'
+
 import type { SettingItem } from '@/components/settings/SettingsGrid'
 
 /**
- * The cards shown on the team settings hub, for one team (#539).
+ * The cards shown on the team settings hub, for one team (#539, populated #540).
  *
  * A sibling data module rather than a const inside `TeamSettings.tsx`, for the
  * same two reasons as `team-tabs.ts`: a `.tsx` exporting a component and a
  * value trips `react-refresh/only-export-components`, and keeping the data
  * separate makes it testable — and mockable — without rendering the page.
  *
- * **Empty today, by design.** Every team-scoped settings page still lives under
- * `/settings/**` until #540 (search, model providers, embedding providers,
- * artifact types) and #541 (GitHub integration) relocate them. Those issues each
- * add their entries here and nothing else on the hub has to change — that is the
- * point of routing the hub through the shared `SettingSection`.
+ * Icons and copy are carried over verbatim from `pages/settings/Settings.tsx` so
+ * the relocated cards are recognisably the same ones. "Artifact Types" keeps its
+ * title — `customization` is only the route segment.
+ *
+ * #541 adds GitHub integration here; #543 removes the corresponding cards from
+ * the personal hub.
  */
 export function teamSettingsCardsFor(teamId: string): SettingItem[] {
-  // Keep `teamId` in the signature: every future card's href is built from it,
-  // and #540/#541 should not have to change this function's shape to add one.
-  void teamId
-  return []
+  const base = `/teams/${teamId}/settings`
+  return [
+    {
+      title: 'Search Settings',
+      description: 'Choose how search results are ranked for your team.',
+      icon: SlidersHorizontal,
+      href: `${base}/search`,
+    },
+    {
+      title: 'Model Providers',
+      description:
+        'Configure OpenAI-compatible LLM providers for your AI applications.',
+      icon: Bot,
+      href: `${base}/model-providers`,
+    },
+    {
+      title: 'Embedding Providers',
+      description:
+        'Configure embedding vector providers for your AI applications.',
+      icon: Cpu,
+      href: `${base}/embedding-providers`,
+    },
+    {
+      title: 'Artifact Types',
+      description: 'Create and manage custom categories for your artifacts.',
+      icon: Shapes,
+      href: `${base}/customization`,
+    },
+  ]
 }

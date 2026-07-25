@@ -16,6 +16,25 @@ jest.mock('@/pages/teams/settings/TeamSettings', () => ({
     <div data-testid="settings">{team.name}</div>
   ),
 }))
+// The four configuration pages relocated in #540. Stubbed for the same reason:
+// this file tests the routing table, not the pages.
+jest.mock('@/pages/teams/settings/search/SearchSettings', () => ({
+  SearchSettings: ({ team }: { team: Team }) => (
+    <div data-testid="search">{team.name}</div>
+  ),
+}))
+jest.mock('@/pages/teams/settings/model-providers/ModelProviders', () => ({
+  ModelProviders: () => <div data-testid="model-providers" />,
+}))
+jest.mock(
+  '@/pages/teams/settings/embedding-providers/EmbeddingProviders',
+  () => ({
+    EmbeddingProviders: () => <div data-testid="embedding-providers" />,
+  })
+)
+jest.mock('@/pages/teams/settings/customization/Customization', () => ({
+  Customization: () => <div data-testid="customization" />,
+}))
 
 import { TeamRoutes } from '../TeamRoutes'
 
@@ -58,11 +77,32 @@ describe('TeamRoutes', () => {
     expect(screen.getByTestId('settings')).toHaveTextContent('Engineering')
   })
 
-  it('keeps the settings hub mounted on a nested settings path', () => {
-    // `settings/*`, not `settings`: #540 and #541 nest pages underneath, and a
-    // bare `settings` path would 404 every one of them.
+  // #540 replaced the `settings/*` splat with explicit children, so a nested
+  // settings path now renders its own page rather than the hub. That is the
+  // #539 tripwire firing by design, not a regression.
+  it.each([
+    ['/teams/team-a/settings/search', 'search'],
+    ['/teams/team-a/settings/model-providers', 'model-providers'],
+    ['/teams/team-a/settings/embedding-providers', 'embedding-providers'],
+    ['/teams/team-a/settings/customization', 'customization'],
+  ])('renders the relocated page at %s', (path, testId) => {
+    renderAt(path)
+    expect(screen.getByTestId(testId)).toBeInTheDocument()
+    expect(screen.queryByTestId('settings')).not.toBeInTheDocument()
+  })
+
+  it('passes the resolved team to SearchSettings for permission gating', () => {
+    // SearchSettings gates on the URL's team, so the route must hand it over
+    // rather than leaving it to read the ambient context.
     renderAt('/teams/team-a/settings/search')
-    expect(screen.getByTestId('settings')).toBeInTheDocument()
+    expect(screen.getByTestId('search')).toHaveTextContent('Engineering')
+  })
+
+  it('still 404s an unknown path under settings', () => {
+    renderAt('/teams/team-a/settings/nonsense')
+    expect(
+      screen.getByRole('heading', { level: 1, name: /page not found/i })
+    ).toBeInTheDocument()
   })
 
   it('renders an in-shell not-found for an unknown path under the scope', () => {
