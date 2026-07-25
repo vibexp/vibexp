@@ -11,9 +11,13 @@
 # hatch, with no bot-author exemption. Without it every Dependabot PR fails that
 # check.
 #
-# Grouping policy: development-dependency patches land as ONE PR per ecosystem
-# (tooling churn, low review value individually), while production dependencies
-# stay ungrouped so each one gets its own review and its own revert.
+# Grouping policy, in three tiers by how much individual review each bump earns:
+#   - development minor + patch  -> ONE PR per ecosystem (tooling churn, little
+#     review value individually; CI lint/type-check/test is the real gate)
+#   - production patch           -> ONE PR per ecosystem (advisory and bugfix
+#     drift, exactly the class that accumulated in #547)
+#   - production minor, and any major -> ungrouped, so each gets its own review
+#     and its own revert.
 version: 2
 
 updates:

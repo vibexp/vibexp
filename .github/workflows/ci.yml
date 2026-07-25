@@ -104,7 +104,11 @@ jobs:
       # gosec is held at v2.24.7 — the version this repo is green under, and the
       # one the pre-commit hook resolves to. v2.28.0 adds G124 (cookie attributes)
       # and G710 (open-redirect taint analysis), which flag 7 pre-existing
-      # findings; triaging those is tracked separately, not a silent CI break.
+      # findings on untouched code. Triaging those and lifting this pin is #553;
+      # until then the pin keeps this step gating regressions rather than failing
+      # on day one. Install the same versions locally — the pre-commit hooks run
+      # whatever `gosec`/`govulncheck` is on PATH, so a newer local build reports
+      # failures CI does not.
       - name: Install govulncheck and gosec
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
