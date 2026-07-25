@@ -147,6 +147,18 @@ func (r *teamEmailSenderResolver) teamSender(
 			"failed to build the email provider for team %s: %w", provider.TeamID, err)
 	}
 
+	// NewEmailProvider answers an SMTP spec with no host or port with the no-op
+	// stub, which is the right behaviour for an instance that has not configured
+	// mail — but for a team that HAS configured one it would accept and discard
+	// every message while reporting success. Validation keeps such a row out via
+	// the API, so reaching this means the row was written some other way; report
+	// it rather than silently dropping the team's mail (epic #499 decision 7).
+	if _, isStub := built.(*implementations.StubEmailProvider); isStub {
+		return nil, fmt.Errorf(
+			"team %s has an incomplete email provider configuration: it would discard messages silently",
+			provider.TeamID)
+	}
+
 	return &ResolvedEmailSender{
 		Provider:    built,
 		FromAddress: provider.FromAddress,

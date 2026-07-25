@@ -216,6 +216,32 @@ func TestResolve_RepositoryErrorIsNotAFallback(t *testing.T) {
 	assert.NotErrorIs(t, err, repositories.ErrTeamEmailProviderNotFound)
 }
 
+// The no-op stub is correct for an unconfigured INSTANCE, but for a team that has
+// configured a provider it would accept and discard every message while reporting
+// success. Validation keeps such a row out via the API, so this is the
+// defence-in-depth path for a row written some other way.
+func TestResolve_TeamRowThatWouldBuildTheStubIsAnError(t *testing.T) {
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+
+	row := storedTeamProvider(t, enc)
+	row.ProviderType = EmailProviderTypeSMTP
+	// Blank host is what makes NewEmailProvider hand back the stub.
+	row.Settings = json.RawMessage(`{"host": "", "port": ""}`)
+
+	repo := repomocks.NewMockTeamEmailProviderRepository(t)
+	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).Return(row, nil)
+
+	instance := &recordingProvider{}
+	resolver := newTestResolver(t, repo, enc, instance, instanceConfig())
+
+	resolved, err := resolver.Resolve(context.Background(), testProviderTeamID)
+
+	require.Error(t, err)
+	assert.Nil(t, resolved, "must not silently discard the team's mail")
+	assert.Contains(t, err.Error(), "discard messages silently")
+}
+
 // A row with an unrecognised provider type is reported, not silently rerouted.
 func TestResolve_UnsupportedRowTypeIsAnError(t *testing.T) {
 	enc, err := NewEncryptionService(testEncryptionKey)

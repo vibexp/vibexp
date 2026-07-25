@@ -501,21 +501,18 @@ func TestTeamEmailProvider_Test_DeliveryFailureIsAResult(t *testing.T) {
 	assert.Contains(t, result.Message, "Sending failed")
 }
 
-// A test send with no encryption service configured is a wiring fault, so it
-// surfaces as an error rather than a "your config is broken" result.
-func TestTeamEmailProvider_Test_NilEncryptionIsNotAResult(t *testing.T) {
-	svc := NewTeamEmailProviderService(
-		repomocks.NewMockTeamEmailProviderRepository(t),
-		repomocks.NewMockUserRepository(t), nil,
-		localDevProviderConfig(), permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
-
-	// Test builds the provider from the request's plaintext secret, so it never
-	// needs to decrypt — encryption is only required on the persistence path.
-	// Assert the documented behaviour rather than assuming.
+// A test send needs no encryption service: it builds the provider from the
+// request's plaintext secret and never stores or decrypts anything. Encryption is
+// required only on the persistence path.
+func TestTeamEmailProvider_Test_DoesNotRequireEncryption(t *testing.T) {
 	userRepo := repomocks.NewMockUserRepository(t)
 	userRepo.On("GetByID", mock.Anything, testProviderUserID).
 		Return(&models.User{ID: testProviderUserID, Email: "admin@example.com"}, nil)
-	svc.userRepo = userRepo
+
+	svc := NewTeamEmailProviderService(
+		repomocks.NewMockTeamEmailProviderRepository(t),
+		userRepo, nil,
+		localDevProviderConfig(), permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
 
 	req := validSMTPRequest()
 	req.Settings.SMTP.Port = "1"
@@ -523,9 +520,10 @@ func TestTeamEmailProvider_Test_NilEncryptionIsNotAResult(t *testing.T) {
 	result, err := svc.Test(context.Background(), testProviderUserID, testProviderTeamID,
 		models.TestTeamEmailProviderRequest{UpsertTeamEmailProviderRequest: req})
 
-	require.NoError(t, err)
+	require.NoError(t, err, "a nil encryption service must not block a test send")
 	require.NotNil(t, result)
-	assert.False(t, result.Success, "the send still fails, but not because of encryption")
+	assert.False(t, result.Success, "the send still fails, but on the refused dial")
+	assert.NotErrorIs(t, errors.New(result.Message), ErrEncryptionUnavailable)
 }
 
 // --- Config helpers ----------------------------------------------------------

@@ -476,17 +476,22 @@ func validateSecret(req models.UpsertTeamEmailProviderRequest, isCreate bool) []
 // than the one named, so a mismatched body is a validation error rather than a
 // field that is silently dropped.
 func validateSettingsBlocks(req models.UpsertTeamEmailProviderRequest, providerType string) []FieldError {
-	present := map[string]bool{
-		EmailProviderTypeSMTP:     req.Settings.SMTP != nil,
-		EmailProviderTypeMailgun:  req.Settings.Mailgun != nil,
-		EmailProviderTypePostmark: req.Settings.Postmark != nil,
+	// A slice, not a map: field errors reach the API response, so their order
+	// must not vary between identical requests.
+	blocks := []struct {
+		providerType string
+		present      bool
+	}{
+		{EmailProviderTypeSMTP, req.Settings.SMTP != nil},
+		{EmailProviderTypeMailgun, req.Settings.Mailgun != nil},
+		{EmailProviderTypePostmark, req.Settings.Postmark != nil},
 	}
 
 	var fields []FieldError
-	for blockType, isPresent := range present {
-		if isPresent && blockType != providerType {
+	for _, block := range blocks {
+		if block.present && block.providerType != providerType {
 			fields = append(fields, FieldError{
-				Field:   "settings." + blockType,
+				Field:   "settings." + block.providerType,
 				Message: fmt.Sprintf("must not be set when provider_type is %q", providerType),
 			})
 		}
