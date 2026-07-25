@@ -1,8 +1,6 @@
 import { PageHeader } from '@/components/PageHeader'
-import {
-  type SettingItem,
-  SettingSection,
-} from '@/components/settings/SettingsGrid'
+import { SettingSection } from '@/components/settings/SettingsGrid'
+import { teamSettingsCardsFor } from '@/pages/teams/settings/team-settings-cards'
 import type { Team } from '@/services/teamService'
 
 /**
@@ -19,7 +17,7 @@ import type { Team } from '@/services/teamService'
  * is expected at this point in epic #536, not a defect.
  */
 export function TeamSettings({ team }: Readonly<{ team: Team }>) {
-  const items: SettingItem[] = []
+  const items = teamSettingsCardsFor(team.id)
 
   return (
     <div className="space-y-8">

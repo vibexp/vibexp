@@ -144,6 +144,40 @@ describe('TeamScopeLayout', () => {
     expect(screen.queryByTestId('team-routes')).not.toBeInTheDocument()
   })
 
+  it('logs an unexpected failure instead of silently reading as "no access"', async () => {
+    // A 5xx or network error is also unrenderable, but it is NOT a permission
+    // problem - swallowing it would make an outage indistinguishable from being
+    // removed from a team.
+    const consoleError = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined)
+    teamContext.teams = [makeTeam({ id: 'other-team' })]
+    mockGetTeamDetails.mockRejectedValue(apiError(500, 'Server Error'))
+
+    renderAt('team-a')
+
+    expect(await screen.findByText(/team unavailable/i)).toBeInTheDocument()
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to resolve team for /teams/:id',
+      expect.anything()
+    )
+    consoleError.mockRestore()
+  })
+
+  it('does not log an expected 403 as an error', async () => {
+    const consoleError = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined)
+    teamContext.teams = [makeTeam({ id: 'other-team' })]
+    mockGetTeamDetails.mockRejectedValue(apiError(403, 'Forbidden'))
+
+    renderAt('team-a')
+
+    expect(await screen.findByText(/team unavailable/i)).toBeInTheDocument()
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
+  })
+
   it('syncs the ambient team to the URL team when they differ', async () => {
     const urlTeam = makeTeam({ id: 'team-b', name: 'Design' })
     teamContext.teams = [makeTeam({ id: 'team-a' }), urlTeam]
