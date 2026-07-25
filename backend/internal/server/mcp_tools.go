@@ -50,6 +50,7 @@ func (m *MCPToolsManager) AddAllTools(mcpServer *mcp.Server, userID string) {
 	m.addFeedTools(mcpServer, userID)
 	m.addSearchTools(mcpServer, userID)
 	m.addReadTools(mcpServer, userID)
+	m.addMetadataTools(mcpServer, userID)
 	m.addAttachmentTools(mcpServer, userID)
 	m.addLinkTools(mcpServer, userID)
 	m.addDeleteTools(mcpServer, userID)
@@ -122,6 +123,20 @@ func (m *MCPToolsManager) addReadTools(mcpServer *mcp.Server, userID string) {
 		ctx context.Context, req *mcp.CallToolRequest, params *ListResourcesParams,
 	) (*mcp.CallToolResult, any, error) {
 		return m.server.listResources(ctx, req, params, userID)
+	})
+}
+
+// addMetadataTools adds the metadata discovery tool, which tells an agent which
+// metadata keys and values a team actually uses so it can build a `metadata`
+// filter for list_resources instead of guessing.
+func (m *MCPToolsManager) addMetadataTools(mcpServer *mcp.Server, userID string) {
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        listResourceMetadataToolName,
+		Description: listResourceMetadataToolDescription,
+	}, func(
+		ctx context.Context, req *mcp.CallToolRequest, params *ListResourceMetadataParams,
+	) (*mcp.CallToolResult, any, error) {
+		return m.server.listResourceMetadata(ctx, req, params, userID)
 	})
 }
 

@@ -1,27 +1,8 @@
-export interface MCPTool {
-  name: string
-  description: string
-  inputSchema: {
-    type: string
-    properties: Record<
-      string,
-      {
-        type: string
-        description: string
-      }
-    >
-    required: string[]
-    additionalProperties: boolean
-  }
-}
+import type { MCPTool } from './mcp-tool-shared'
+import { TEAM_ID_DESCRIPTION } from './mcp-tool-shared'
+import { metadataTools } from './mcp-tools-metadata'
 
-/**
- * Shared description for the `team_id` parameter. Every team-scoped tool takes a
- * required `team_id` (a team UUID or slug); the two user-scoped tools
- * (`vibexp_io_get_user`, `vibexp_io_list_teams`) do not.
- */
-const TEAM_ID_DESCRIPTION =
-  'The team (UUID or slug) to operate within. Call vibexp_io_list_teams to discover valid identifiers.'
+export type { MCPTool } from './mcp-tool-shared'
 
 export const mcpTools: MCPTool[] = [
   {
@@ -275,11 +256,17 @@ export const mcpTools: MCPTool[] = [
           type: 'string',
           description: 'Filter by type (artifact and blueprint only).',
         },
+        metadata: {
+          type: 'object',
+          description:
+            'Filter by metadata: an object of key to array of string values, e.g. {"env":["prod","staging"],"scope":["backend"]}. Keys are combined with AND, values within a key with OR. An empty array means "the key exists". Array-valued metadata matches element-wise, and numeric or boolean values match their string form. At most 10 keys, 25 values per key, key length 255, value length 512.',
+        },
       },
       required: ['team_id', 'resource_type', 'project_id'],
       additionalProperties: false,
     },
   },
+  ...metadataTools,
   {
     name: 'vibexp_io_link_resources',
     description:

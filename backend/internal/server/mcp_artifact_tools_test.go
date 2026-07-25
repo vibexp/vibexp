@@ -668,6 +668,13 @@ type TestContainer struct {
 	AttachmentServiceMock     services.AttachmentServiceInterface
 	EmbeddingServiceMock      services.EmbeddingServiceInterface
 	RelationServiceMock       services.RelationServiceInterface
+	MetadataCatalogMock       services.MetadataCatalogServiceInterface
+}
+
+// MetadataCatalogService returns the configured metadata-catalog mock, used by
+// the metadata discovery tool.
+func (tc *TestContainer) MetadataCatalogService() services.MetadataCatalogServiceInterface {
+	return tc.MetadataCatalogMock
 }
 
 // RelationService returns the configured relation-service mock (nil by default,
