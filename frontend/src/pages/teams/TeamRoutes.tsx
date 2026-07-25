@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom'
 
 import { Customization } from '@/pages/teams/settings/customization/Customization'
 import { EmbeddingProviders } from '@/pages/teams/settings/embedding-providers/EmbeddingProviders'
+import { GitHubIntegration } from '@/pages/teams/settings/integrations/github/GitHubIntegration'
 import { ModelProviders } from '@/pages/teams/settings/model-providers/ModelProviders'
 import { SearchSettings } from '@/pages/teams/settings/search/SearchSettings'
 import { TeamSettings } from '@/pages/teams/settings/TeamSettings'
@@ -40,6 +41,10 @@ export function TeamRoutes({ team }: Readonly<{ team: Team }>) {
         element={<EmbeddingProviders />}
       />
       <Route path="settings/customization" element={<Customization />} />
+      <Route
+        path="settings/integrations/github"
+        element={<GitHubIntegration />}
+      />
       <Route path="*" element={<TeamNotFound />} />
     </Routes>
   )

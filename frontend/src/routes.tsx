@@ -45,7 +45,6 @@ import { Prompts } from '@/pages/prompts/Prompts'
 import { PromptVersions } from '@/pages/prompts/PromptVersions'
 import { Search } from '@/pages/search/Search'
 import { APIKeys } from '@/pages/settings/api-keys/APIKeys'
-import { GitHubIntegration } from '@/pages/settings/integrations/github/GitHubIntegration'
 import { NotificationPreferences } from '@/pages/settings/notifications/NotificationPreferences'
 import { ProjectCreate } from '@/pages/settings/projects/ProjectCreate'
 import { ProjectDetails } from '@/pages/settings/projects/ProjectDetails'
@@ -212,10 +211,6 @@ export function AppRoutes() {
         element={<ProjectMigrate />}
       />
       <Route path="settings/projects/:slug" element={<ProjectDetails />} />
-      <Route
-        path="settings/integrations/github"
-        element={<GitHubIntegration />}
-      />
       <Route path="teams" element={<Teams />} />
       {/* The `/*` is load-bearing: a bare `teams/:id` silently breaks every
           nested path. Mirrors App.tsx's `/admin/*` mount (#539). */}
