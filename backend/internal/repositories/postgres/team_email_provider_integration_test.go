@@ -150,6 +150,28 @@ func TestIntegrationTeamEmailProvider_Upsert_PreservesDeliveryHealth(t *testing.
 	require.NotNil(t, got.LastErrorAt)
 }
 
+// SendGrid's only configuration is its secret, so a caller legitimately leaves
+// Settings unset. The NOT NULL column's '{}' default cannot fire for a column the
+// INSERT names, so without normalisation this fails with a constraint violation.
+func TestIntegrationTeamEmailProvider_Upsert_NilSettings(t *testing.T) {
+	resetTeamEmailProviderTables(t)
+	repo := NewTeamEmailProviderRepository(integrationDB)
+	teamID := insertTestTeam(t, insertTestUser(t))
+	ctx := context.Background()
+
+	provider := &models.TeamEmailProvider{
+		TeamID:          teamID,
+		ProviderType:    "sendgrid",
+		SecretEncrypted: "base64-ciphertext",
+		FromAddress:     "hello@acme.test",
+	}
+	require.NoError(t, repo.Upsert(ctx, provider))
+
+	got, err := repo.GetByTeamID(ctx, teamID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{}`, string(got.Settings))
+}
+
 func TestIntegrationTeamEmailProvider_RecordSendResult(t *testing.T) {
 	resetTeamEmailProviderTables(t)
 	repo := NewTeamEmailProviderRepository(integrationDB)

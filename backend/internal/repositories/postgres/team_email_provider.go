@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -79,6 +80,15 @@ func (r *TeamEmailProviderRepository) GetByTeamID(
 func (r *TeamEmailProviderRepository) Upsert(
 	ctx context.Context, provider *models.TeamEmailProvider,
 ) error {
+	// The column is NOT NULL with a '{}' default, but a default only fires when
+	// the column is omitted from the INSERT — and this statement names it. So an
+	// absent Settings has to be normalised here or it reaches Postgres as NULL
+	// and fails the constraint. Providers whose only configuration is their
+	// secret (SendGrid) legitimately have no settings at all.
+	if len(provider.Settings) == 0 {
+		provider.Settings = json.RawMessage(`{}`)
+	}
+
 	query := `
 		INSERT INTO team_email_providers
 		(team_id, user_id, provider_type, settings, secret_encrypted,

@@ -158,6 +158,36 @@ func TestTeamEmailProviderRepository_Upsert_ConflictUpdateBumpsVersion(t *testin
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+// A provider whose only configuration is its secret (SendGrid) has no settings.
+// The column is NOT NULL and its '{}' default cannot fire for a named column, so
+// the repository must substitute an empty object rather than send NULL.
+func TestTeamEmailProviderRepository_Upsert_NilSettingsBecomesEmptyObject(t *testing.T) {
+	repo, mock := setupTeamEmailProviderTest(t)
+	now := time.Now().UTC()
+
+	provider := &models.TeamEmailProvider{
+		TeamID:          "team-1",
+		ProviderType:    "sendgrid",
+		SecretEncrypted: "enc-secret",
+		FromAddress:     "team@example.com",
+	}
+
+	mock.ExpectQuery("INSERT INTO team_email_providers (.+) ON CONFLICT \\(team_id\\) DO UPDATE").
+		WithArgs(
+			"team-1", nil, "sendgrid", json.RawMessage(`{}`),
+			"enc-secret", "team@example.com", nil, nil,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at", "version"}).
+			AddRow("prov-1", now, now, int64(1)))
+
+	err := repo.Upsert(context.Background(), provider)
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{}`, string(provider.Settings),
+		"the stored value must be reflected back on the struct")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestTeamEmailProviderRepository_Upsert_Error(t *testing.T) {
 	repo, mock := setupTeamEmailProviderTest(t)
 
