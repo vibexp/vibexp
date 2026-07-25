@@ -33,6 +33,9 @@ export const Workflow = createMockIcon('Workflow')
 export const RefreshCw = createMockIcon('RefreshCw')
 export const Activity = createMockIcon('Activity')
 export const Calendar = createMockIcon('Calendar')
+// lucide's own alias for Calendar; used where a local `Calendar` component
+// would shadow it.
+export const CalendarIcon = createMockIcon('CalendarIcon')
 export const ChevronLeft = createMockIcon('ChevronLeft')
 export const ChevronRight = createMockIcon('ChevronRight')
 export const ChevronUp = createMockIcon('ChevronUp')
