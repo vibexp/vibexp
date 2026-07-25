@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
+	repomocks "github.com/vibexp/vibexp/internal/repositories/mocks"
 )
 
 // MockEmailProvider is a mock implementation of external.EmailProvider
@@ -24,6 +27,48 @@ type MockEmailProvider struct {
 func (m *MockEmailProvider) SendEmail(ctx context.Context, message *gomail.EmailMessage) error {
 	args := m.Called(ctx, message)
 	return args.Error(0)
+}
+
+// stubSenderResolver stands in for the send-time resolver. It hands back a fixed
+// sender so these tests exercise message construction and error handling rather
+// than resolution, which has its own suite.
+type stubSenderResolver struct {
+	sender     *ResolvedEmailSender
+	resolveErr error
+	// recorded captures what RecordSendOutcome was told, so a test can assert that
+	// delivery health is stamped (and that an instance send is not attributed to a
+	// team).
+	recorded      bool
+	recordedTeam  string
+	recordedError error
+}
+
+func (r *stubSenderResolver) Resolve(context.Context, string) (*ResolvedEmailSender, error) {
+	if r.resolveErr != nil {
+		return nil, r.resolveErr
+	}
+	return r.sender, nil
+}
+
+func (r *stubSenderResolver) RecordSendOutcome(
+	_ context.Context, sender *ResolvedEmailSender, sendErr error,
+) error {
+	r.recorded = true
+	if sender != nil {
+		r.recordedTeam = sender.TeamID
+	}
+	r.recordedError = sendErr
+	return nil
+}
+
+// instanceResolver mirrors the production instance branch: the given provider and
+// the configured from-address, with no team attribution.
+func instanceResolver(provider external.EmailProvider) *stubSenderResolver {
+	return &stubSenderResolver{sender: &ResolvedEmailSender{
+		Provider:    provider,
+		FromAddress: "test@example.com",
+		Source:      EmailSenderSourceInstance,
+	}}
 }
 
 func createTestEmailService() *EmailService {
@@ -43,7 +88,7 @@ func createTestEmailService() *EmailService {
 	}
 	mockProvider := new(MockEmailProvider)
 	mockProvider.On("SendEmail", mock.Anything, mock.Anything).Return(nil)
-	return NewEmailService(mockProvider, cfg)
+	return NewEmailService(instanceResolver(mockProvider), cfg)
 }
 
 func TestNewEmailService(t *testing.T) {
@@ -59,11 +104,11 @@ func TestNewEmailService(t *testing.T) {
 	}
 
 	mockProvider := new(MockEmailProvider)
-	service := NewEmailService(mockProvider, cfg)
+	service := NewEmailService(instanceResolver(mockProvider), cfg)
 
 	assert.NotNil(t, service)
 	assert.Equal(t, cfg, service.cfg)
-	assert.NotNil(t, service.provider)
+	assert.NotNil(t, service.resolver)
 }
 
 //nolint:funlen // Test function requires comprehensive setup and assertions
@@ -120,9 +165,9 @@ func TestEmailService_sendEmail(t *testing.T) {
 				},
 			}
 			mockProvider := tt.setupMock()
-			service := NewEmailService(mockProvider, cfg)
+			service := NewEmailService(instanceResolver(mockProvider), cfg)
 
-			err := service.sendEmail(tt.to, tt.subject, tt.htmlBody, tt.textBody)
+			err := service.sendEmail(context.Background(), "", tt.to, tt.subject, tt.htmlBody, tt.textBody)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -326,9 +371,9 @@ func TestEmailService_SendSupportRequest(t *testing.T) {
 				},
 			}
 			mockProvider := tt.setupMock()
-			service := NewEmailService(mockProvider, cfg)
+			service := NewEmailService(instanceResolver(mockProvider), cfg)
 
-			err := service.SendSupportRequest(tt.userName, tt.userEmail, tt.request)
+			err := service.SendSupportRequest(context.Background(), tt.userName, tt.userEmail, tt.request)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -432,9 +477,9 @@ func TestEmailService_SendTeamInvitation(t *testing.T) {
 				},
 			}
 			mockProvider := tt.setupMock()
-			service := NewEmailService(mockProvider, cfg)
+			service := NewEmailService(instanceResolver(mockProvider), cfg)
 
-			err := service.SendTeamInvitation(tt.invitation, tt.teamName, tt.inviterName)
+			err := service.SendTeamInvitation(context.Background(), "team-1", tt.invitation, tt.teamName, tt.inviterName)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -591,13 +636,279 @@ func TestEmailService_SendEmail_UsesEmailFromAddress(t *testing.T) {
 					},
 				},
 			}
-			service := NewEmailService(mockProvider, cfg)
+			// A REAL resolver, not the stub: the from-address chain now lives in
+			// the resolver's instance branch, so driving it from cfg is what proves
+			// the configured address still reaches the outgoing message. An empty
+			// team ID short-circuits to the instance branch without a repository
+			// read, so the repo mock needs no expectations.
+			resolver := NewEmailSenderResolver(
+				repomocks.NewMockTeamEmailProviderRepository(t), nil,
+				mockProvider, cfg, slog.New(slog.DiscardHandler))
+			service := NewEmailService(resolver, cfg)
 
-			err := service.sendEmail("to@example.com", "Test Subject", "<p>body</p>", "body")
+			err := service.sendEmail(context.Background(), "", "to@example.com", "Test Subject", "<p>body</p>", "body")
 			assert.NoError(t, err)
 			require.NotNil(t, capturedMessage)
 			assert.Equal(t, tt.expectedFrom, capturedMessage.GetFrom())
 			mockProvider.AssertExpectations(t)
 		})
 	}
+}
+
+// --- Per-team sending (#504) ---------------------------------------------------
+
+// teamResolver mirrors the production team branch: the team's provider and its own
+// sender identity, attributed to the team so delivery health is recorded.
+func teamResolver(provider external.EmailProvider) *stubSenderResolver {
+	return &stubSenderResolver{sender: &ResolvedEmailSender{
+		Provider:    provider,
+		FromAddress: "hello@acme.test",
+		FromName:    "Acme Team",
+		ReplyTo:     "support@acme.test",
+		Source:      EmailSenderSourceTeam,
+		TeamID:      "team-1",
+	}}
+}
+
+func captureSentMessage(mockProvider *MockEmailProvider, sendErr error) **gomail.EmailMessage {
+	captured := new(*gomail.EmailMessage)
+	mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(msg *gomail.EmailMessage) bool {
+		*captured = msg
+		return true
+	})).Return(sendErr)
+	return captured
+}
+
+// A team with its own provider sends through it, as itself — including the
+// display name and Reply-To, neither of which the old send path could express.
+func TestEmailService_sendEmail_UsesTheTeamSenderIdentity(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	captured := captureSentMessage(mockProvider, nil)
+	resolver := teamResolver(mockProvider)
+
+	service := NewEmailService(resolver, &config.Config{})
+
+	err := service.sendEmail(
+		context.Background(), "team-1", "to@example.com", "Subject", "<p>body</p>", "body")
+
+	require.NoError(t, err)
+	require.NotNil(t, *captured)
+	// A BARE address: gomail validates this field with an email regex and
+	// silently yields "" for an RFC-5322 `"Name" <addr>` form, which would send
+	// with no From header at all. The configured from-name is deliberately not
+	// applied here — see the FromName test below.
+	assert.Equal(t, "hello@acme.test", (*captured).GetFrom())
+	// Reply-To is mapped by all four providers but was never populated before.
+	assert.Equal(t, "support@acme.test", (*captured).GetReplyTo())
+}
+
+func TestEmailService_sendEmail_BareAddressWhenNoFromName(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	captured := captureSentMessage(mockProvider, nil)
+	resolver := instanceResolver(mockProvider)
+
+	service := NewEmailService(resolver, &config.Config{})
+
+	require.NoError(t, service.sendEmail(
+		context.Background(), "", "to@example.com", "Subject", "<p>b</p>", "b"))
+	assert.Equal(t, "test@example.com", (*captured).GetFrom())
+	assert.Empty(t, (*captured).GetReplyTo())
+}
+
+// A configured from-name must NOT be folded into the From field. gomail validates
+// that field with a plain email regex and returns "" for anything else, so a
+// display name there would send mail with no From header at all — worse than not
+// showing the name. This pins the limitation so nobody "fixes" it by formatting
+// an RFC-5322 address here; carrying a display name properly means threading it
+// through all four providers.
+func TestEmailService_sendEmail_FromNameIsNotFoldedIntoFrom(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	captured := captureSentMessage(mockProvider, nil)
+
+	service := NewEmailService(teamResolver(mockProvider), &config.Config{})
+
+	require.NoError(t, service.sendEmail(
+		context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b"))
+
+	from := (*captured).GetFrom()
+	assert.Equal(t, "hello@acme.test", from)
+	assert.NotContains(t, from, "Acme Team")
+	assert.NotEmpty(t, from, "gomail drops a non-bare address, leaving no From at all")
+}
+
+// The caller's context reaches the provider, so a cancelled request no longer
+// leaves a send running detached on context.Background().
+func TestEmailService_sendEmail_PropagatesCallerContext(t *testing.T) {
+	type ctxKey string
+	const marker ctxKey = "marker"
+
+	mockProvider := new(MockEmailProvider)
+	var seen context.Context
+	mockProvider.On("SendEmail", mock.MatchedBy(func(ctx context.Context) bool {
+		seen = ctx
+		return true
+	}), mock.Anything).Return(nil)
+
+	service := NewEmailService(instanceResolver(mockProvider), &config.Config{})
+	ctx := context.WithValue(context.Background(), marker, "yes")
+
+	require.NoError(t, service.sendEmail(ctx, "", "to@example.com", "S", "<p>b</p>", "b"))
+	require.NotNil(t, seen)
+	assert.Equal(t, "yes", seen.Value(marker), "the caller's ctx must reach the provider")
+}
+
+// A team send is recorded against the team so the health banner can show it.
+func TestEmailService_sendEmail_RecordsTeamDeliveryOutcome(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		mockProvider := new(MockEmailProvider)
+		captureSentMessage(mockProvider, nil)
+		resolver := teamResolver(mockProvider)
+
+		service := NewEmailService(resolver, &config.Config{})
+		require.NoError(t, service.sendEmail(
+			context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b"))
+
+		assert.True(t, resolver.recorded, "a success must be stamped too, or health can never recover")
+		assert.Equal(t, "team-1", resolver.recordedTeam)
+		assert.NoError(t, resolver.recordedError)
+	})
+
+	t.Run("failure records the error and does not fall back to the instance provider", func(t *testing.T) {
+		mockProvider := new(MockEmailProvider)
+		captureSentMessage(mockProvider, fmt.Errorf("relay denied"))
+		resolver := teamResolver(mockProvider)
+
+		service := NewEmailService(resolver, &config.Config{})
+		err := service.sendEmail(context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b")
+
+		require.Error(t, err, "a failing team provider must surface, never silently re-send as the operator")
+		assert.Contains(t, err.Error(), "relay denied")
+		assert.True(t, resolver.recorded)
+		require.Error(t, resolver.recordedError)
+		// Exactly one send attempt: no instance retry (epic #499 decision 7).
+		mockProvider.AssertNumberOfCalls(t, "SendEmail", 1)
+	})
+}
+
+// An instance send has no team row to stamp, so it must not be attributed to
+// whichever team happened to be in scope.
+func TestEmailService_sendEmail_InstanceSendIsNotAttributedToATeam(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	captureSentMessage(mockProvider, nil)
+	resolver := instanceResolver(mockProvider)
+
+	service := NewEmailService(resolver, &config.Config{})
+	require.NoError(t, service.sendEmail(
+		context.Background(), "", "to@example.com", "S", "<p>b</p>", "b"))
+
+	assert.Empty(t, resolver.recordedTeam)
+}
+
+// A resolver failure aborts the send rather than falling back.
+func TestEmailService_sendEmail_ResolverFailureAborts(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	resolver := &stubSenderResolver{resolveErr: fmt.Errorf("cannot decrypt secret")}
+
+	service := NewEmailService(resolver, &config.Config{})
+	err := service.sendEmail(context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve the email sender")
+	mockProvider.AssertNotCalled(t, "SendEmail")
+}
+
+// Support mail is the operator's own correspondence: it must resolve with an empty
+// team ID no matter who sent the request, so it can never go out on a tenant's
+// credentials.
+func TestEmailService_SendSupportRequest_AlwaysResolvesInstance(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	mockProvider.On("SendEmail", mock.Anything, mock.Anything).Return(nil)
+
+	resolver := &recordingResolver{sender: &ResolvedEmailSender{
+		Provider:    mockProvider,
+		FromAddress: "ops@instance.test",
+		Source:      EmailSenderSourceInstance,
+	}}
+
+	service := NewEmailService(resolver, &config.Config{
+		Email:    config.EmailConfig{ContactRecipientAddress: "ops@instance.test"},
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+	})
+
+	err := service.SendSupportRequest(context.Background(), "Jane", "jane@acme.test",
+		&models.SupportRequest{Text: "Please help me with this problem."})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, resolver.teamIDs)
+	for _, teamID := range resolver.teamIDs {
+		assert.Empty(t, teamID, "support mail must never be attributed to a team")
+	}
+}
+
+// recordingResolver captures every team ID it is asked to resolve.
+type recordingResolver struct {
+	sender  *ResolvedEmailSender
+	teamIDs []string
+}
+
+func (r *recordingResolver) Resolve(_ context.Context, teamID string) (*ResolvedEmailSender, error) {
+	r.teamIDs = append(r.teamIDs, teamID)
+	return r.sender, nil
+}
+
+func (r *recordingResolver) RecordSendOutcome(context.Context, *ResolvedEmailSender, error) error {
+	return nil
+}
+
+// The invitation email is attributed to the inviting team.
+func TestEmailService_SendTeamInvitation_ResolvesWithTheTeam(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	mockProvider.On("SendEmail", mock.Anything, mock.Anything).Return(nil)
+	resolver := &recordingResolver{sender: &ResolvedEmailSender{
+		Provider:    mockProvider,
+		FromAddress: "hello@acme.test",
+		Source:      EmailSenderSourceTeam,
+		TeamID:      "team-42",
+	}}
+
+	service := NewEmailService(resolver, &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+	})
+
+	err := service.SendTeamInvitation(context.Background(), "team-42", &models.TeamInvitation{
+		InviteeEmail: "invitee@example.com",
+		Token:        "tok",
+		Role:         models.TeamMemberRoleMember,
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}, "Acme", "Boss")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"team-42"}, resolver.teamIDs)
+}
+
+// A team that has NOT configured a provider still gets its invitation sent — via
+// the instance provider, from the instance address. This is the fallback half of
+// the invitation path; the team half is covered above.
+func TestEmailService_SendTeamInvitation_UnconfiguredTeamUsesInstance(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	captured := captureSentMessage(mockProvider, nil)
+	resolver := instanceResolver(mockProvider)
+
+	service := NewEmailService(resolver, &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+	})
+
+	err := service.SendTeamInvitation(context.Background(), "team-without-provider",
+		&models.TeamInvitation{
+			InviteeEmail: "invitee@example.com",
+			Token:        "tok",
+			Role:         models.TeamMemberRoleMember,
+			ExpiresAt:    time.Now().Add(time.Hour),
+		}, "Acme", "Boss")
+
+	require.NoError(t, err)
+	assert.Equal(t, "test@example.com", (*captured).GetFrom(),
+		"an unconfigured team sends from the instance address")
+	// Nothing to stamp: there is no team row behind an instance send.
+	assert.Empty(t, resolver.recordedTeam)
 }

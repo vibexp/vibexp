@@ -26,21 +26,23 @@ type MockEmailServiceForSupportIntegration struct {
 }
 
 func (m *MockEmailServiceForSupportIntegration) SendSupportRequest(
-	userName, userEmail string, req *models.SupportRequest,
+	ctx context.Context, userName, userEmail string, req *models.SupportRequest,
 ) error {
-	args := m.Called(userName, userEmail, req)
+	args := m.Called(ctx, userName, userEmail, req)
 	return args.Error(0)
 }
 
 func (m *MockEmailServiceForSupportIntegration) SendTeamInvitation(
-	invitation *models.TeamInvitation, teamName, inviterName string,
+	ctx context.Context, teamID string, invitation *models.TeamInvitation, teamName, inviterName string,
 ) error {
-	args := m.Called(invitation, teamName, inviterName)
+	args := m.Called(ctx, teamID, invitation, teamName, inviterName)
 	return args.Error(0)
 }
 
-func (m *MockEmailServiceForSupportIntegration) SendNotificationEmail(to, subject, htmlBody string) error {
-	args := m.Called(to, subject, htmlBody)
+func (m *MockEmailServiceForSupportIntegration) SendNotificationEmail(
+	ctx context.Context, teamID, to, subject, htmlBody string,
+) error {
+	args := m.Called(ctx, teamID, to, subject, htmlBody)
 	return args.Error(0)
 }
 
@@ -123,8 +125,7 @@ func TestHandleSupportMessage_Success(t *testing.T) {
 
 	mockContainer.authService.On("GetUserByID", mock.Anything, "user-123").
 		Return(testUser, nil)
-	mockContainer.emailService.On("SendSupportRequest",
-		"Test User", "test@example.com",
+	mockContainer.emailService.On("SendSupportRequest", mock.Anything, "Test User", "test@example.com",
 		mock.AnythingOfType("*models.SupportRequest"),
 	).Return(nil)
 
@@ -164,8 +165,7 @@ func TestHandleSupportMessage_WithoutAcknowledgement(t *testing.T) {
 
 	mockContainer.authService.On("GetUserByID", mock.Anything, "user-123").
 		Return(testUser, nil)
-	mockContainer.emailService.On("SendSupportRequest",
-		"Test User", "test@example.com",
+	mockContainer.emailService.On("SendSupportRequest", mock.Anything, "Test User", "test@example.com",
 		mock.MatchedBy(func(req *models.SupportRequest) bool {
 			return !req.Acknowledgement
 		}),
@@ -200,8 +200,7 @@ func TestHandleSupportMessage_WithAdditionalInfo(t *testing.T) {
 
 	mockContainer.authService.On("GetUserByID", mock.Anything, "user-123").
 		Return(testUser, nil)
-	mockContainer.emailService.On("SendSupportRequest",
-		"Test User", "test@example.com",
+	mockContainer.emailService.On("SendSupportRequest", mock.Anything, "Test User", "test@example.com",
 		mock.MatchedBy(func(req *models.SupportRequest) bool {
 			return len(req.AdditionalInfo) > 0
 		}),
@@ -377,8 +376,7 @@ func TestHandleSupportMessage_EmailServiceError(t *testing.T) {
 
 	mockContainer.authService.On("GetUserByID", mock.Anything, "user-123").
 		Return(testUser, nil)
-	mockContainer.emailService.On("SendSupportRequest",
-		"Test User", "test@example.com",
+	mockContainer.emailService.On("SendSupportRequest", mock.Anything, "Test User", "test@example.com",
 		mock.AnythingOfType("*models.SupportRequest"),
 	).Return(assert.AnError)
 
@@ -417,8 +415,7 @@ func TestHandleSupportMessage_UserWithoutName(t *testing.T) {
 
 	mockContainer.authService.On("GetUserByID", mock.Anything, "user-123").
 		Return(testUser, nil)
-	mockContainer.emailService.On("SendSupportRequest",
-		"test@example.com", "test@example.com",
+	mockContainer.emailService.On("SendSupportRequest", mock.Anything, "test@example.com", "test@example.com",
 		mock.AnythingOfType("*models.SupportRequest"),
 	).Return(nil)
 

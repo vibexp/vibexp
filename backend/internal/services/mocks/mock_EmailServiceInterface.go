@@ -3,6 +3,8 @@
 package mocks
 
 import (
+	context "context"
+
 	mock "github.com/stretchr/testify/mock"
 	models "github.com/vibexp/vibexp/internal/models"
 )
@@ -20,17 +22,17 @@ func (_m *MockEmailServiceInterface) EXPECT() *MockEmailServiceInterface_Expecte
 	return &MockEmailServiceInterface_Expecter{mock: &_m.Mock}
 }
 
-// SendNotificationEmail provides a mock function with given fields: to, subject, htmlBody
-func (_m *MockEmailServiceInterface) SendNotificationEmail(to string, subject string, htmlBody string) error {
-	ret := _m.Called(to, subject, htmlBody)
+// SendNotificationEmail provides a mock function with given fields: ctx, teamID, to, subject, htmlBody
+func (_m *MockEmailServiceInterface) SendNotificationEmail(ctx context.Context, teamID string, to string, subject string, htmlBody string) error {
+	ret := _m.Called(ctx, teamID, to, subject, htmlBody)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SendNotificationEmail")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string) error); ok {
-		r0 = rf(to, subject, htmlBody)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string) error); ok {
+		r0 = rf(ctx, teamID, to, subject, htmlBody)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -44,16 +46,18 @@ type MockEmailServiceInterface_SendNotificationEmail_Call struct {
 }
 
 // SendNotificationEmail is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
 //   - to string
 //   - subject string
 //   - htmlBody string
-func (_e *MockEmailServiceInterface_Expecter) SendNotificationEmail(to interface{}, subject interface{}, htmlBody interface{}) *MockEmailServiceInterface_SendNotificationEmail_Call {
-	return &MockEmailServiceInterface_SendNotificationEmail_Call{Call: _e.mock.On("SendNotificationEmail", to, subject, htmlBody)}
+func (_e *MockEmailServiceInterface_Expecter) SendNotificationEmail(ctx interface{}, teamID interface{}, to interface{}, subject interface{}, htmlBody interface{}) *MockEmailServiceInterface_SendNotificationEmail_Call {
+	return &MockEmailServiceInterface_SendNotificationEmail_Call{Call: _e.mock.On("SendNotificationEmail", ctx, teamID, to, subject, htmlBody)}
 }
 
-func (_c *MockEmailServiceInterface_SendNotificationEmail_Call) Run(run func(to string, subject string, htmlBody string)) *MockEmailServiceInterface_SendNotificationEmail_Call {
+func (_c *MockEmailServiceInterface_SendNotificationEmail_Call) Run(run func(ctx context.Context, teamID string, to string, subject string, htmlBody string)) *MockEmailServiceInterface_SendNotificationEmail_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string))
 	})
 	return _c
 }
@@ -63,22 +67,22 @@ func (_c *MockEmailServiceInterface_SendNotificationEmail_Call) Return(_a0 error
 	return _c
 }
 
-func (_c *MockEmailServiceInterface_SendNotificationEmail_Call) RunAndReturn(run func(string, string, string) error) *MockEmailServiceInterface_SendNotificationEmail_Call {
+func (_c *MockEmailServiceInterface_SendNotificationEmail_Call) RunAndReturn(run func(context.Context, string, string, string, string) error) *MockEmailServiceInterface_SendNotificationEmail_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// SendSupportRequest provides a mock function with given fields: userName, userEmail, req
-func (_m *MockEmailServiceInterface) SendSupportRequest(userName string, userEmail string, req *models.SupportRequest) error {
-	ret := _m.Called(userName, userEmail, req)
+// SendSupportRequest provides a mock function with given fields: ctx, userName, userEmail, req
+func (_m *MockEmailServiceInterface) SendSupportRequest(ctx context.Context, userName string, userEmail string, req *models.SupportRequest) error {
+	ret := _m.Called(ctx, userName, userEmail, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SendSupportRequest")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, *models.SupportRequest) error); ok {
-		r0 = rf(userName, userEmail, req)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, *models.SupportRequest) error); ok {
+		r0 = rf(ctx, userName, userEmail, req)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -92,16 +96,17 @@ type MockEmailServiceInterface_SendSupportRequest_Call struct {
 }
 
 // SendSupportRequest is a helper method to define mock.On call
+//   - ctx context.Context
 //   - userName string
 //   - userEmail string
 //   - req *models.SupportRequest
-func (_e *MockEmailServiceInterface_Expecter) SendSupportRequest(userName interface{}, userEmail interface{}, req interface{}) *MockEmailServiceInterface_SendSupportRequest_Call {
-	return &MockEmailServiceInterface_SendSupportRequest_Call{Call: _e.mock.On("SendSupportRequest", userName, userEmail, req)}
+func (_e *MockEmailServiceInterface_Expecter) SendSupportRequest(ctx interface{}, userName interface{}, userEmail interface{}, req interface{}) *MockEmailServiceInterface_SendSupportRequest_Call {
+	return &MockEmailServiceInterface_SendSupportRequest_Call{Call: _e.mock.On("SendSupportRequest", ctx, userName, userEmail, req)}
 }
 
-func (_c *MockEmailServiceInterface_SendSupportRequest_Call) Run(run func(userName string, userEmail string, req *models.SupportRequest)) *MockEmailServiceInterface_SendSupportRequest_Call {
+func (_c *MockEmailServiceInterface_SendSupportRequest_Call) Run(run func(ctx context.Context, userName string, userEmail string, req *models.SupportRequest)) *MockEmailServiceInterface_SendSupportRequest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(*models.SupportRequest))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(*models.SupportRequest))
 	})
 	return _c
 }
@@ -111,22 +116,22 @@ func (_c *MockEmailServiceInterface_SendSupportRequest_Call) Return(_a0 error) *
 	return _c
 }
 
-func (_c *MockEmailServiceInterface_SendSupportRequest_Call) RunAndReturn(run func(string, string, *models.SupportRequest) error) *MockEmailServiceInterface_SendSupportRequest_Call {
+func (_c *MockEmailServiceInterface_SendSupportRequest_Call) RunAndReturn(run func(context.Context, string, string, *models.SupportRequest) error) *MockEmailServiceInterface_SendSupportRequest_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// SendTeamInvitation provides a mock function with given fields: invitation, teamName, inviterName
-func (_m *MockEmailServiceInterface) SendTeamInvitation(invitation *models.TeamInvitation, teamName string, inviterName string) error {
-	ret := _m.Called(invitation, teamName, inviterName)
+// SendTeamInvitation provides a mock function with given fields: ctx, teamID, invitation, teamName, inviterName
+func (_m *MockEmailServiceInterface) SendTeamInvitation(ctx context.Context, teamID string, invitation *models.TeamInvitation, teamName string, inviterName string) error {
+	ret := _m.Called(ctx, teamID, invitation, teamName, inviterName)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SendTeamInvitation")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*models.TeamInvitation, string, string) error); ok {
-		r0 = rf(invitation, teamName, inviterName)
+	if rf, ok := ret.Get(0).(func(context.Context, string, *models.TeamInvitation, string, string) error); ok {
+		r0 = rf(ctx, teamID, invitation, teamName, inviterName)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -140,16 +145,18 @@ type MockEmailServiceInterface_SendTeamInvitation_Call struct {
 }
 
 // SendTeamInvitation is a helper method to define mock.On call
+//   - ctx context.Context
+//   - teamID string
 //   - invitation *models.TeamInvitation
 //   - teamName string
 //   - inviterName string
-func (_e *MockEmailServiceInterface_Expecter) SendTeamInvitation(invitation interface{}, teamName interface{}, inviterName interface{}) *MockEmailServiceInterface_SendTeamInvitation_Call {
-	return &MockEmailServiceInterface_SendTeamInvitation_Call{Call: _e.mock.On("SendTeamInvitation", invitation, teamName, inviterName)}
+func (_e *MockEmailServiceInterface_Expecter) SendTeamInvitation(ctx interface{}, teamID interface{}, invitation interface{}, teamName interface{}, inviterName interface{}) *MockEmailServiceInterface_SendTeamInvitation_Call {
+	return &MockEmailServiceInterface_SendTeamInvitation_Call{Call: _e.mock.On("SendTeamInvitation", ctx, teamID, invitation, teamName, inviterName)}
 }
 
-func (_c *MockEmailServiceInterface_SendTeamInvitation_Call) Run(run func(invitation *models.TeamInvitation, teamName string, inviterName string)) *MockEmailServiceInterface_SendTeamInvitation_Call {
+func (_c *MockEmailServiceInterface_SendTeamInvitation_Call) Run(run func(ctx context.Context, teamID string, invitation *models.TeamInvitation, teamName string, inviterName string)) *MockEmailServiceInterface_SendTeamInvitation_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*models.TeamInvitation), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(*models.TeamInvitation), args[3].(string), args[4].(string))
 	})
 	return _c
 }
@@ -159,7 +166,7 @@ func (_c *MockEmailServiceInterface_SendTeamInvitation_Call) Return(_a0 error) *
 	return _c
 }
 
-func (_c *MockEmailServiceInterface_SendTeamInvitation_Call) RunAndReturn(run func(*models.TeamInvitation, string, string) error) *MockEmailServiceInterface_SendTeamInvitation_Call {
+func (_c *MockEmailServiceInterface_SendTeamInvitation_Call) RunAndReturn(run func(context.Context, string, *models.TeamInvitation, string, string) error) *MockEmailServiceInterface_SendTeamInvitation_Call {
 	_c.Call.Return(run)
 	return _c
 }

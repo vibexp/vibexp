@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/external"
@@ -43,6 +44,16 @@ type ResolvedEmailSender struct {
 // no-op), so this is new architecture rather than a clone of one.
 type EmailSenderResolver interface {
 	Resolve(ctx context.Context, teamID string) (*ResolvedEmailSender, error)
+	// RecordSendOutcome stamps the delivery health of one send attempt on the
+	// team's provider row. It is a no-op for an instance-sourced sender: the
+	// instance provider has no row to stamp, and its health is the operator's
+	// concern rather than a team's.
+	//
+	// It lives beside Resolve because only this type knows whether a sender came
+	// from a team row — pushing that decision to the caller would invite an
+	// instance send being recorded against whichever team happened to be in
+	// scope.
+	RecordSendOutcome(ctx context.Context, sender *ResolvedEmailSender, sendErr error) error
 }
 
 // teamEmailSenderResolver resolves a team's own provider, falling back to the
@@ -176,6 +187,21 @@ func (r *teamEmailSenderResolver) teamSender(
 		Source:      EmailSenderSourceTeam,
 		TeamID:      provider.TeamID,
 	}, nil
+}
+
+// RecordSendOutcome stamps delivery health for a team-sourced send and does
+// nothing for an instance-sourced one.
+//
+// Success is recorded as well as failure, not just failure: health is derived by
+// comparing last_success_at with last_error_at, so a provider that only ever
+// records failures could never be shown as recovered.
+func (r *teamEmailSenderResolver) RecordSendOutcome(
+	ctx context.Context, sender *ResolvedEmailSender, sendErr error,
+) error {
+	if sender == nil || sender.Source != EmailSenderSourceTeam || sender.TeamID == "" {
+		return nil
+	}
+	return r.repo.RecordSendResult(ctx, sender.TeamID, sendErr, time.Now().UTC())
 }
 
 func (r *teamEmailSenderResolver) decryptSecret(ciphertext string) (string, error) {

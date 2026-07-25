@@ -206,12 +206,17 @@ func ProvideGitHubAppConfigService(
 	return services.NewGitHubAppConfigService(repo, enc, authzSvc, clients, cfg.Frontend.BaseURL)
 }
 
-// ProvideEmailService creates a new EmailService
+// ProvideEmailService creates a new EmailService.
+//
+// It takes the sender RESOLVER rather than an EmailProvider: every send now picks
+// its provider per team, and the instance provider reaches the service as the
+// resolver's fallback. Injecting a provider directly would let a send bypass a
+// team's configuration.
 func ProvideEmailService(
-	provider external.EmailProvider,
+	resolver services.EmailSenderResolver,
 	cfg *config.Config,
 ) services.EmailServiceInterface {
-	return services.NewEmailService(provider, cfg)
+	return services.NewEmailService(resolver, cfg)
 }
 
 // ActivityServiceDeps groups the dependencies of ProvideActivityService. Wire

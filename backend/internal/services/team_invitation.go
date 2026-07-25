@@ -289,8 +289,11 @@ func (s *TeamInvitationService) createAndSendInvitation(
 		return nil, fmt.Errorf("failed to create invitation: %w", err)
 	}
 
-	// Send invitation email
-	if err := s.emailService.SendTeamInvitation(invitation, team.Name, inviterName); err != nil {
+	// Send invitation email as the inviting team: team.ID is already in scope here,
+	// so the invitation arrives from the team's own address when it has configured
+	// a provider.
+	if err := s.emailService.SendTeamInvitation(
+		ctx, team.ID, invitation, team.Name, inviterName); err != nil {
 		s.logger.With(
 			"service", logServiceVibeXPAPI,
 			"component", logComponentTeamInvitation,

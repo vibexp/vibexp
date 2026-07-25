@@ -310,10 +310,16 @@ type TeamEmailProviderServiceInterface interface {
 
 // EmailServiceInterface defines the interface for email operations
 type EmailServiceInterface interface {
-	SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error
-	SendTeamInvitation(invitation *models.TeamInvitation, teamName, inviterName string) error
-	// SendNotificationEmail sends a transactional notification email to the given address
-	SendNotificationEmail(to, subject, htmlBody string) error
+	// SendSupportRequest is instance mail by design: /api/v1/support has no team
+	// context, and support correspondence belongs to the operator, so it always
+	// sends from the instance provider and takes no team ID.
+	SendSupportRequest(ctx context.Context, userName, userEmail string, req *models.SupportRequest) error
+	// SendTeamInvitation sends as the inviting team when it has its own provider.
+	SendTeamInvitation(ctx context.Context, teamID string,
+		invitation *models.TeamInvitation, teamName, inviterName string) error
+	// SendNotificationEmail sends a transactional notification email on behalf of
+	// teamID; an empty teamID resolves to the instance sender.
+	SendNotificationEmail(ctx context.Context, teamID, to, subject, htmlBody string) error
 }
 
 // AgentServiceInterface defines the interface for agent operations

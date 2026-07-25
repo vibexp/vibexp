@@ -241,7 +241,8 @@ func TestHandleSendTeamInvitations_Conformance(t *testing.T) {
 		Return([]models.TeamInvitation{}, nil).Once()
 	m.invRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.TeamInvitation")).
 		Return(nil).Once()
-	m.email.On("SendTeamInvitation", mock.AnythingOfType("*models.TeamInvitation"), "Acme", "Boss").
+	m.email.On("SendTeamInvitation", mock.Anything, mock.Anything,
+		mock.AnythingOfType("*models.TeamInvitation"), "Acme", "Boss").
 		Return(nil).Once()
 
 	srv := newInvConfServer(m)

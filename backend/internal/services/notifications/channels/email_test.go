@@ -21,8 +21,10 @@ type mockEmailSender struct {
 	mock.Mock
 }
 
-func (m *mockEmailSender) SendNotificationEmail(to, subject, htmlBody string) error {
-	args := m.Called(to, subject, htmlBody)
+func (m *mockEmailSender) SendNotificationEmail(
+	ctx context.Context, teamID, to, subject, htmlBody string,
+) error {
+	args := m.Called(ctx, teamID, to, subject, htmlBody)
 	return args.Error(0)
 }
 
@@ -50,7 +52,8 @@ func TestEmailChannel_Deliver_Instant_Sends(t *testing.T) {
 	prefs := &models.NotificationTypePreference{Email: "instant"}
 
 	// Should use RenderedEmailSubject and RenderedEmailHTML, not Title/Body
-	sender.On("SendNotificationEmail", "user@example.com", "Rendered Subject", "<p>Rendered HTML</p>").Return(nil)
+	sender.On("SendNotificationEmail", mock.Anything, mock.Anything,
+		"user@example.com", "Rendered Subject", "<p>Rendered HTML</p>").Return(nil)
 
 	result := ch.Deliver(ctx, n, user, prefs)
 
@@ -69,7 +72,8 @@ func TestEmailChannel_Deliver_Instant_FallbackToTitleBody(t *testing.T) {
 	user := &models.User{ID: "user-1", Email: "user@example.com"}
 	prefs := &models.NotificationTypePreference{Email: "instant"}
 
-	sender.On("SendNotificationEmail", "user@example.com", "Subject", "<p>Body text</p>").Return(nil)
+	sender.On("SendNotificationEmail", mock.Anything, mock.Anything,
+		"user@example.com", "Subject", "<p>Body text</p>").Return(nil)
 
 	result := ch.Deliver(ctx, n, user, prefs)
 
@@ -87,7 +91,8 @@ func TestEmailChannel_Deliver_Instant_SendError(t *testing.T) {
 	user := &models.User{Email: "user@example.com"}
 	prefs := &models.NotificationTypePreference{Email: "instant"}
 
-	sender.On("SendNotificationEmail", mock.Anything, mock.Anything, mock.Anything).
+	sender.On("SendNotificationEmail", mock.Anything, mock.Anything, mock.Anything,
+		mock.Anything, mock.Anything).
 		Return(errors.New("smtp error"))
 
 	result := ch.Deliver(ctx, n, user, prefs)
@@ -178,4 +183,91 @@ func TestEmailChannel_DigestScheduledForNextMorning(t *testing.T) {
 	assert.True(t, capturedTime.After(time.Now().UTC()))
 	assert.Equal(t, 9, capturedTime.Hour())
 	assert.Equal(t, 0, capturedTime.Minute())
+}
+
+// The notification's TeamID must reach the email service so the message goes out
+// as the owning team. It was previously discarded because the signature had
+// nowhere to put it.
+func TestEmailChannel_Deliver_PassesTheNotificationTeamID(t *testing.T) {
+	ctx := context.Background()
+	sender := new(mockEmailSender)
+	digestRepo := new(repomocks.MockNotificationDigestQueueRepository)
+
+	ch := channels.NewEmailChannel(sender, digestRepo, nil)
+
+	n := &notifications.Notification{
+		ID:                   "n1",
+		TeamID:               "team-99",
+		Title:                "Subject",
+		Body:                 "Body text",
+		RenderedEmailSubject: "Rendered Subject",
+		RenderedEmailHTML:    "<p>Rendered HTML</p>",
+	}
+	user := &models.User{ID: "user-1", Email: "user@example.com"}
+	prefs := &models.NotificationTypePreference{Email: "instant"}
+
+	sender.On("SendNotificationEmail", mock.Anything, "team-99",
+		"user@example.com", "Rendered Subject", "<p>Rendered HTML</p>").Return(nil)
+
+	result := ch.Deliver(ctx, n, user, prefs)
+
+	assert.Equal(t, notifications.StatusSent, result.Status)
+	sender.AssertExpectations(t)
+}
+
+// A notification with no team resolves to the instance sender rather than being
+// misattributed.
+func TestEmailChannel_Deliver_EmptyTeamIDResolvesInstance(t *testing.T) {
+	ctx := context.Background()
+	sender := new(mockEmailSender)
+	digestRepo := new(repomocks.MockNotificationDigestQueueRepository)
+
+	ch := channels.NewEmailChannel(sender, digestRepo, nil)
+
+	n := &notifications.Notification{
+		ID:                   "n1",
+		TeamID:               "",
+		RenderedEmailSubject: "Rendered Subject",
+		RenderedEmailHTML:    "<p>Rendered HTML</p>",
+	}
+	user := &models.User{ID: "user-1", Email: "user@example.com"}
+	prefs := &models.NotificationTypePreference{Email: "instant"}
+
+	sender.On("SendNotificationEmail", mock.Anything, "",
+		"user@example.com", "Rendered Subject", "<p>Rendered HTML</p>").Return(nil)
+
+	result := ch.Deliver(ctx, n, user, prefs)
+
+	assert.Equal(t, notifications.StatusSent, result.Status)
+	sender.AssertExpectations(t)
+}
+
+// The caller's context reaches the email service, so a cancelled delivery is no
+// longer detached.
+func TestEmailChannel_Deliver_PropagatesContext(t *testing.T) {
+	type ctxKey string
+	const marker ctxKey = "marker"
+
+	sender := new(mockEmailSender)
+	digestRepo := new(repomocks.MockNotificationDigestQueueRepository)
+	ch := channels.NewEmailChannel(sender, digestRepo, nil)
+
+	n := &notifications.Notification{
+		ID:                   "n1",
+		TeamID:               "team-1",
+		RenderedEmailSubject: "S",
+		RenderedEmailHTML:    "<p>b</p>",
+	}
+	user := &models.User{ID: "user-1", Email: "user@example.com"}
+	prefs := &models.NotificationTypePreference{Email: "instant"}
+
+	sender.On("SendNotificationEmail", mock.MatchedBy(func(ctx context.Context) bool {
+		return ctx.Value(marker) == "yes"
+	}), "team-1", "user@example.com", "S", "<p>b</p>").Return(nil)
+
+	ctx := context.WithValue(context.Background(), marker, "yes")
+	result := ch.Deliver(ctx, n, user, prefs)
+
+	assert.Equal(t, notifications.StatusSent, result.Status)
+	sender.AssertExpectations(t)
 }

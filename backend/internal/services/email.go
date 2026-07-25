@@ -13,7 +13,6 @@ import (
 	"github.com/darkrockmountain/gomail"
 
 	"github.com/vibexp/vibexp/internal/config"
-	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -24,16 +23,20 @@ var templateFS embed.FS
 const emailBaseTemplate = "templates/email/base.html"
 
 type EmailService struct {
-	provider external.EmailProvider
+	// resolver decides, per send, which provider and sender identity to use: the
+	// owning team's when it has configured one, otherwise the instance's. There is
+	// no directly injected provider any more — every send goes through here, so a
+	// team's configuration cannot be bypassed.
+	resolver EmailSenderResolver
 	cfg      *config.Config
 }
 
 // Ensure EmailService implements EmailServiceInterface
 var _ EmailServiceInterface = (*EmailService)(nil)
 
-func NewEmailService(provider external.EmailProvider, cfg *config.Config) *EmailService {
+func NewEmailService(resolver EmailSenderResolver, cfg *config.Config) *EmailService {
 	return &EmailService{
-		provider: provider,
+		resolver: resolver,
 		cfg:      cfg,
 	}
 }
@@ -60,16 +63,23 @@ func (es *EmailService) appBaseURL() string {
 	return strings.TrimRight(es.cfg.Frontend.BaseURL, "/")
 }
 
-// SendSupportRequest sends a support request from an authenticated user
-func (es *EmailService) SendSupportRequest(userName, userEmail string, req *models.SupportRequest) error {
+// SendSupportRequest sends a support request from an authenticated user.
+//
+// Support mail is INSTANCE mail, not team mail: it goes to the operator, from the
+// operator, and /api/v1/support carries no team context. It therefore resolves
+// with an empty team ID deliberately — routing it through a team's provider would
+// send the operator's own correspondence on a tenant's credentials.
+func (es *EmailService) SendSupportRequest(
+	ctx context.Context, userName, userEmail string, req *models.SupportRequest,
+) error {
 	// Send notification email to the configured admin recipient.
-	if err := es.sendSupportNotificationToAdmin(userName, userEmail, req); err != nil {
+	if err := es.sendSupportNotificationToAdmin(ctx, userName, userEmail, req); err != nil {
 		return fmt.Errorf("failed to send admin notification: %w", err)
 	}
 
 	// Send acknowledgement to user if requested
 	if req.Acknowledgement {
-		if err := es.sendSupportAcknowledgement(userName, userEmail, req); err != nil {
+		if err := es.sendSupportAcknowledgement(ctx, userName, userEmail, req); err != nil {
 			// Log but don't fail - admin notification was sent
 			slog.With("error", err).Warn("Failed to send acknowledgement email")
 		}
@@ -78,52 +88,81 @@ func (es *EmailService) SendSupportRequest(userName, userEmail string, req *mode
 	return nil
 }
 
-func (es *EmailService) sendEmail(to, subject, htmlBody, textBody string) error {
-	// Resolve the from address: prefer EmailFromAddress, fall back to SMTPUsername
-	// for backwards compatibility when EMAIL_PROVIDER=smtp.
-	from := es.cfg.Email.FromAddress
-	if from == "" {
-		from = es.cfg.Email.SMTP.Username
+// sendEmail delivers one message on behalf of teamID.
+//
+// teamID selects the sender: a team that has configured its own provider sends
+// through it and as itself, and any other value (including empty) falls back to
+// the instance provider. Mail that is not attributable to a team — support
+// requests — passes an empty teamID deliberately.
+//
+// A failure is never retried through the instance provider (epic #499 decision
+// 7): silently re-sending a team's mail from the operator's address is worse than
+// a visible failure.
+func (es *EmailService) sendEmail(ctx context.Context, teamID, to, subject, htmlBody, textBody string) error {
+	sender, err := es.resolver.Resolve(ctx, teamID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve the email sender: %w", err)
 	}
 
-	// Build gomail EmailMessage
 	message := gomail.NewFullEmailMessage(
-		from,         // from
-		[]string{to}, // to
+		// A BARE address only. gomail validates this field with a plain
+		// email regex and silently substitutes "" for anything else, so an
+		// RFC-5322 `"Name" <addr>` form here would send with NO From header at
+		// all. The resolved FromName therefore cannot be applied at this layer —
+		// carrying it would mean threading a display name through all four
+		// providers, which the gomail surface has no field for.
+		sender.FromAddress,
+		[]string{to},
 		subject,
 		nil, // cc
 		nil, // bcc
-		"",  // replyTo
+		sender.ReplyTo,
 		textBody,
 		htmlBody,
 		nil, // attachments
 	)
 
-	// Send via provider
-	ctx := context.Background()
-	err := es.provider.SendEmail(ctx, message)
-	if err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
+	// The caller's ctx reaches the provider, so a cancelled request no longer
+	// leaves a send running detached.
+	sendErr := sender.Provider.SendEmail(ctx, message)
+
+	// Record the outcome before returning either way: health is derived by
+	// comparing the success and failure timestamps, so a provider that only
+	// recorded failures could never be shown as recovered. A bookkeeping failure
+	// must not mask the send result, so it is logged rather than returned.
+	if recordErr := es.resolver.RecordSendOutcome(ctx, sender, sendErr); recordErr != nil {
+		slog.With("team_id", sender.TeamID, "error", recordErr).
+			Warn("Failed to record the email delivery outcome")
 	}
 
-	es.logEmailSent(to, subject, htmlBody, textBody)
+	if sendErr != nil {
+		return fmt.Errorf("failed to send email: %w", sendErr)
+	}
+
+	es.logEmailSent(to, subject, htmlBody, textBody, sender)
 
 	return nil
 }
 
 // logEmailSent logs successful email sending
-func (es *EmailService) logEmailSent(to, subject, htmlBody, textBody string) {
+func (es *EmailService) logEmailSent(to, subject, htmlBody, textBody string, sender *ResolvedEmailSender) {
 	slog.With(
 		"to", to,
 		"subject", subject,
 		"email_backend", es.cfg.Email.Provider,
+		// Which provider actually handled the message, so an operator reading the
+		// logs can tell a team send from an instance send.
+		"email_sender_source", sender.Source,
+		"team_id", sender.TeamID,
 		"text_body", textBody != "",
 		"html_body", htmlBody != "",
 		"multipart", textBody != "" && htmlBody != "",
 	).Info("Email sent successfully")
 }
 
-func (es *EmailService) sendSupportNotificationToAdmin(userName, userEmail string, req *models.SupportRequest) error {
+func (es *EmailService) sendSupportNotificationToAdmin(
+	ctx context.Context, userName, userEmail string, req *models.SupportRequest,
+) error {
 	subject := fmt.Sprintf("New Support Request from %s", userEmail)
 
 	// Build additional info for both HTML and text
@@ -171,10 +210,13 @@ func (es *EmailService) sendSupportNotificationToAdmin(userName, userEmail strin
 		return fmt.Errorf("failed to render text template: %w", err)
 	}
 
-	return es.sendEmail(es.adminRecipient(), subject, htmlBody, textBody)
+	// Empty team ID: instance sender (see SendSupportRequest).
+	return es.sendEmail(ctx, "", es.adminRecipient(), subject, htmlBody, textBody)
 }
 
-func (es *EmailService) sendSupportAcknowledgement(userName, userEmail string, req *models.SupportRequest) error {
+func (es *EmailService) sendSupportAcknowledgement(
+	ctx context.Context, userName, userEmail string, req *models.SupportRequest,
+) error {
 	subject := "Thank you for contacting VibeXP Support"
 
 	// Extract first name from full name
@@ -214,16 +256,21 @@ func (es *EmailService) sendSupportAcknowledgement(userName, userEmail string, r
 		return fmt.Errorf("failed to render text template: %w", err)
 	}
 
-	return es.sendEmail(userEmail, subject, htmlBody, textBody)
+	// Empty team ID: instance sender (see SendSupportRequest).
+	return es.sendEmail(ctx, "", userEmail, subject, htmlBody, textBody)
 }
 
-// SendNotificationEmail sends a transactional notification email to the given address
-func (es *EmailService) SendNotificationEmail(to, subject, htmlBody string) error {
-	return es.sendEmail(to, subject, htmlBody, "")
+// SendNotificationEmail sends a transactional notification email on behalf of
+// teamID. An empty teamID resolves to the instance sender.
+func (es *EmailService) SendNotificationEmail(ctx context.Context, teamID, to, subject, htmlBody string) error {
+	return es.sendEmail(ctx, teamID, to, subject, htmlBody, "")
 }
 
-// SendTeamInvitation sends a team invitation email
-func (es *EmailService) SendTeamInvitation(invitation *models.TeamInvitation, teamName, inviterName string) error {
+// SendTeamInvitation sends a team invitation email from the inviting team, so the
+// recipient sees the team they are being invited to rather than the operator.
+func (es *EmailService) SendTeamInvitation(
+	ctx context.Context, teamID string, invitation *models.TeamInvitation, teamName, inviterName string,
+) error {
 	subject := fmt.Sprintf("You have been invited to join %s on VibeXP", teamName)
 
 	// Build accept URL
@@ -269,7 +316,7 @@ func (es *EmailService) SendTeamInvitation(invitation *models.TeamInvitation, te
 		return fmt.Errorf("failed to render text template: %w", err)
 	}
 
-	return es.sendEmail(invitation.InviteeEmail, subject, htmlBody, textBody)
+	return es.sendEmail(ctx, teamID, invitation.InviteeEmail, subject, htmlBody, textBody)
 }
 
 // renderTemplateFromFS renders an HTML template from the embedded filesystem
