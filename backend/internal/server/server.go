@@ -686,6 +686,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupActivitiesRoutes(r)
 		s.setupAgentsRoutes(r)
 		s.setupGitHubIntegrationRoutes(r)
+		s.mountGitHubAppConfigRoutes(r)
 		// CLI-accessible resources (previously in flexible auth group)
 		s.setupPromptsRoutes(r)
 		s.setupArtifactsRoutes(r)
@@ -1225,6 +1226,44 @@ func (s *Server) setupGitHubIntegrationRoutes(r chi.Router) {
 		r.Post("/import-blueprints", s.handleGitHubImportBlueprints)
 		r.Delete("/disconnect", s.handleGitHubDisconnect)
 	})
+}
+
+// setupGitHubAppConfigRoutes registers the per-team GitHub App configuration
+// operations (#479) onto an already-mounted router. It deliberately registers
+// only the verbs — the prefix and teamValidationMiddleware are applied by the
+// caller — so handler tests can mount this exact function and therefore cover
+// the real route table rather than a hand-copied one. That is the provider
+// convention (see setupModelProvidersRoutes).
+func (s *Server) setupGitHubAppConfigRoutes(r chi.Router) {
+	r.Get("/", s.handleGetGitHubAppConfig)
+	r.Post("/", s.handleCreateGitHubAppConfig)
+	r.Put("/", s.handleUpdateGitHubAppConfig)
+	r.Delete("/", s.handleDeleteGitHubAppConfig)
+	r.Post("/validate", s.handleValidateGitHubAppConfig)
+	r.Post("/rotate-webhook-token", s.handleRotateGitHubAppWebhookToken)
+}
+
+// githubAppConfigMountPrefixes are the two paths the App configuration surface
+// is served on: the integrations prefix groups it with the rest of the GitHub
+// integration, and the settings prefix is what the SPA calls.
+//
+// The literal "/app" segment sits beside the integrations mount's existing
+// "/status", "/install-url" and friends — chi matches literal path segments
+// before wildcards, so there is no shadowing.
+var githubAppConfigMountPrefixes = []string{
+	"/api/v1/{team_id}/integrations/github/app",
+	"/api/v1/{team_id}/settings/github-app",
+}
+
+// mountGitHubAppConfigRoutes applies the prefixes and team-membership
+// middleware. The owner/admin check lives in the service, not here.
+func (s *Server) mountGitHubAppConfigRoutes(r chi.Router) {
+	for _, prefix := range githubAppConfigMountPrefixes {
+		r.Route(prefix, func(r chi.Router) {
+			r.Use(s.teamValidationMiddleware())
+			s.setupGitHubAppConfigRoutes(r)
+		})
+	}
 }
 
 func (s *Server) setupAIToolsRoutes(r chi.Router) {

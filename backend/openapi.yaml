@@ -279,6 +279,20 @@ components:
       $ref: "./schemas/model-providers.yaml#/ValidateModelProviderRequest"
     ValidateModelProviderResponse:
       $ref: "./schemas/model-providers.yaml#/ValidateModelProviderResponse"
+    GitHubAppConfig:
+      $ref: "./schemas/github-app-config.yaml#/GitHubAppConfig"
+    GitHubAppConfigResponse:
+      $ref: "./schemas/github-app-config.yaml#/GitHubAppConfigResponse"
+    CreateGitHubAppConfigResponse:
+      $ref: "./schemas/github-app-config.yaml#/CreateGitHubAppConfigResponse"
+    CreateGitHubAppConfigRequest:
+      $ref: "./schemas/github-app-config.yaml#/CreateGitHubAppConfigRequest"
+    UpdateGitHubAppConfigRequest:
+      $ref: "./schemas/github-app-config.yaml#/UpdateGitHubAppConfigRequest"
+    ValidateGitHubAppConfigResponse:
+      $ref: "./schemas/github-app-config.yaml#/ValidateGitHubAppConfigResponse"
+    ValidateGitHubAppConfigDetails:
+      $ref: "./schemas/github-app-config.yaml#/ValidateGitHubAppConfigDetails"
 
     # Import resource usage schemas
     ResourceUsageItem:
@@ -1208,6 +1222,18 @@ paths:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-validate"
   /api/v1/{team_id}/settings/embedding-providers/embeddings:
     $ref: "./paths/embedding-providers.yaml#/api-v1-settings-embedding-providers-embeddings"
+  /api/v1/{team_id}/integrations/github/app:
+    $ref: "./paths/github-app-config.yaml#/api-v1-github-app"
+  /api/v1/{team_id}/integrations/github/app/validate:
+    $ref: "./paths/github-app-config.yaml#/api-v1-github-app-validate"
+  /api/v1/{team_id}/integrations/github/app/rotate-webhook-token:
+    $ref: "./paths/github-app-config.yaml#/api-v1-github-app-rotate-webhook-token"
+  /api/v1/{team_id}/settings/github-app:
+    $ref: "./paths/github-app-config.yaml#/api-v1-github-app"
+  /api/v1/{team_id}/settings/github-app/validate:
+    $ref: "./paths/github-app-config.yaml#/api-v1-github-app-validate"
+  /api/v1/{team_id}/settings/github-app/rotate-webhook-token:
+    $ref: "./paths/github-app-config.yaml#/api-v1-github-app-rotate-webhook-token"
   /api/v1/{team_id}/model-providers:
     $ref: "./paths/model-providers.yaml#/api-v1-model-providers"
   /api/v1/{team_id}/model-providers/{id}:
@@ -1270,6 +1296,8 @@ tags:
     description: Embedding provider configuration endpoints
   - name: Model Providers
     description: Model provider (bring-your-own OpenAI-compatible LLM) configuration endpoints
+  - name: GitHub App Configuration
+    description: Per-team GitHub App registration, validation and webhook-token rotation
   - name: Subscriptions
     description: Subscription and billing endpoints
   - name: Support

@@ -21,10 +21,20 @@ const providerPermissionMessage = "You do not have permission to manage this tea
 // "create failed" 500 — the caller needs to know it is a role problem, and the
 // operator needs the distinction in logs.
 func writeIfPermissionDenied(w http.ResponseWriter, r *http.Request, err error) bool {
+	return writeIfPermissionDeniedWithMessage(w, r, err, providerPermissionMessage)
+}
+
+// writeIfPermissionDeniedWithMessage is writeIfPermissionDenied for surfaces
+// whose 403 needs to name something other than provider settings. The message
+// is the only thing that varies — the mapping and the "check this first" rule
+// are identical, so they stay in one place.
+func writeIfPermissionDeniedWithMessage(
+	w http.ResponseWriter, r *http.Request, err error, message string,
+) bool {
 	if !stderrors.Is(err, services.ErrPermissionDenied) {
 		return false
 	}
-	errors.WriteJSONError(w, r, errors.NewForbiddenError(providerPermissionMessage))
+	errors.WriteJSONError(w, r, errors.NewForbiddenError(message))
 	return true
 }
 
