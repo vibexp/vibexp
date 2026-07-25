@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -178,18 +177,6 @@ func isAllowedMemoryStatus(status string) bool {
 }
 
 // parseMemoryFilters parses query parameters into MemoryFilters
-// legacyMemoryMetadataPair reads the single metadata_key/metadata_value pair.
-// Superseded by the `metadata` filter; removed in #526.
-func legacyMemoryMetadataPair(query url.Values) (metadataKey, metadataValue *string) {
-	if key := query.Get("metadata_key"); key != "" {
-		metadataKey = &key
-		if value := query.Get("metadata_value"); value != "" {
-			metadataValue = &value
-		}
-	}
-	return metadataKey, metadataValue
-}
-
 func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (services.MemoryFilters, bool) {
 	query := r.URL.Query()
 
@@ -203,8 +190,6 @@ func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (
 	pagination := validatePaginationParams(query.Get("page"), query.Get("limit"))
 
 	search := query.Get("search")
-
-	metadataKey, metadataValue := legacyMemoryMetadataPair(query)
 
 	var projectID *string
 	if pid := query.Get("project_id"); pid != "" {
@@ -236,8 +221,6 @@ func parseMemoryFilters(w http.ResponseWriter, r *http.Request, teamID string) (
 		TeamID:         teamID,
 		ProjectID:      projectID,
 		Search:         search,
-		MetadataKey:    metadataKey,
-		MetadataValue:  metadataValue,
 		MetadataFilter: metadataFilter,
 		Status:         status,
 		SortBy:         sortBy,
@@ -491,49 +474,6 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeNoContent(w)
-}
-
-func (s *Server) handleSearchMemoriesByMetadata(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(contextKeyUserID).(string)
-	teamID := chi.URLParam(r, "team_id") // Already validated by middleware
-
-	s.logger.With(
-		"service", serverLogServiceName,
-		"handler", "handleSearchMemoriesByMetadata",
-		"user_id", userID,
-		"team_id", teamID,
-	).Info("Search memories by metadata request received")
-
-	metadataKey := r.URL.Query().Get("metadata_key")
-	metadataValue := r.URL.Query().Get("metadata_value")
-
-	if metadataKey == "" || metadataValue == "" {
-		writeErrorResponse(
-			w, nil, "validation_error",
-			"Both metadata_key and metadata_value are required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	filters, ok := parseMemoryFilters(w, r, teamID)
-	if !ok {
-		return
-	}
-
-	response, err := s.container.MemoryService().SearchMemoriesByMetadata(userID, metadataKey, metadataValue, filters)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleSearchMemoriesByMetadata",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to search memories by metadata")
-		writeErrorResponse(w, nil, "internal_error", "Failed to search memories", http.StatusInternalServerError)
-		return
-	}
-
-	writeOK(w, response, s.logger)
 }
 
 // validateProjectBelongsToTeam checks that the given projectID is accessible by userID

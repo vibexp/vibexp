@@ -56,8 +56,6 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	projectID := "project-x"
-	metaKey := "env"
-	metaValue := "prod"
 	draftStatus := "draft"
 
 	oneRow := func() *sqlmock.Rows {
@@ -168,23 +166,6 @@ func TestMemoryRepository_List_SquirrelMigration(t *testing.T) {
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM memories m .* AND m\.project_id = \$6 AND m\.status <> \$7`).
-					WithArgs(args...).
-					WillReturnRows(oneRow())
-			},
-			expectTotal: 1,
-			expectCount: 1,
-		},
-		{
-			name: "MetadataKey and MetadataValue bind two args via ->> operator",
-			filters: repositories.MemoryFilters{
-				TeamID: "team-123", MetadataKey: &metaKey, MetadataValue: &metaValue, Page: 1, Limit: 10,
-			},
-			setupMock: func() {
-				args := append(memoryListBaseArgs(), "env", "prod", "archived")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM memories m .* AND m\.metadata ->> \$6 = \$7 AND m\.status <> \$8`).
-					WithArgs(args...).
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM memories m .* AND m\.metadata ->> \$6 = \$7 AND m\.status <> \$8`).
 					WithArgs(args...).
 					WillReturnRows(oneRow())
 			},

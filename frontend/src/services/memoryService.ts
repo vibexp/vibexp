@@ -128,32 +128,6 @@ class MemoryService {
       )
     )
   }
-
-  async searchMemoriesByMetadata(
-    teamId: string,
-    filters: MemoryFilters
-  ): Promise<MemoryListResponse> {
-    if (!filters.metadata_key || !filters.metadata_value) {
-      throw new Error(
-        'metadata_key and metadata_value are required for metadata search'
-      )
-    }
-
-    return unwrap(
-      generatedClient.GET('/api/v1/{team_id}/memories/search', {
-        params: {
-          path: { team_id: teamId },
-          query: {
-            metadata_key: filters.metadata_key,
-            metadata_value: filters.metadata_value,
-            search: filters.search,
-            page: filters.page,
-            limit: filters.limit,
-          },
-        },
-      })
-    )
-  }
 }
 
 export const memoryService = new MemoryService()

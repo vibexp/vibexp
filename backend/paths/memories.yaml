@@ -66,16 +66,6 @@ api-v1-team_id-memories:
         description: Search in memory text
         schema:
           type: string
-      - name: metadata_key
-        in: query
-        description: Filter by metadata key
-        schema:
-          type: string
-      - name: metadata_value
-        in: query
-        description: Filter by metadata value (requires metadata_key)
-        schema:
-          type: string
       - name: metadata
         in: query
         description: >-
@@ -149,87 +139,6 @@ api-v1-team_id-memories:
     tags:
       - Memories
 
-api-v1-team_id-memories-search:
-  get:
-    summary: Search memories by metadata
-    description: Searches memories by specific metadata key-value pairs within the specified team
-    operationId: searchMemoriesByMetadata
-    parameters:
-      - name: team_id
-        in: path
-        required: true
-        description: Team ID
-        schema:
-          type: string
-          format: uuid
-      - name: project_id
-        in: query
-        description: Filter memories by project ID
-        schema:
-          type: string
-          format: uuid
-      - name: metadata_key
-        in: query
-        required: true
-        description: Metadata key to search for
-        schema:
-          type: string
-      - name: metadata_value
-        in: query
-        required: true
-        description: Metadata value to search for
-        schema:
-          type: string
-      - name: search
-        in: query
-        description: Additional text search in memory content
-        schema:
-          type: string
-      - name: status
-        in: query
-        description: >-
-          Filter by lifecycle status. When omitted, archived memories are hidden
-          (active and draft are returned); an explicit value returns only that
-          status. Returns 400 for unknown values.
-        schema:
-          type: string
-          enum: [active, draft, archived]
-      - name: page
-        in: query
-        description: Page number
-        schema:
-          type: integer
-          minimum: 1
-          default: 1
-      - name: limit
-        in: query
-        description: Items per page
-        schema:
-          type: integer
-          minimum: 1
-          maximum: 100
-          default: 50
-    responses:
-      '200':
-        description: Memories found successfully
-        content:
-          application/json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/MemoryListResponse'
-      '400':
-        description: Missing required parameters
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '401':
-        description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-    tags:
-      - Memories
 
 api-v1-team_id-memories-id:
   get:

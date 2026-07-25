@@ -63,6 +63,30 @@ jest.mock('@/services/memoryService', () => ({
   },
 }))
 
+// Only the catalog client is mocked; parseMetadataFilter/serializeMetadataFilter
+// stay real, since the URL round-trip is exactly what these tests assert.
+jest.mock('@/services/metadataService', () => {
+  const actual = jest.requireActual<
+    typeof import('@/services/metadataService')
+  >('@/services/metadataService')
+  return {
+    ...actual,
+    metadataService: { listKeys: jest.fn(), listValues: jest.fn() },
+  }
+})
+
+// MetadataFilter is a Radix Popover + cmdk; jsdom lacks these layout APIs.
+beforeAll(() => {
+  global.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+  Element.prototype.scrollIntoView = jest.fn()
+  Element.prototype.hasPointerCapture = jest.fn()
+  Element.prototype.releasePointerCapture = jest.fn()
+})
+
 jest.mock('@/services/projectService', () => ({
   projectService: {
     getProjects: jest.fn(),
@@ -128,6 +152,7 @@ jest.mock('@/hooks/useErrorHandler', () => ({
 import React from 'react'
 
 import { memoryService } from '@/services/memoryService'
+import { metadataService } from '@/services/metadataService'
 import { projectService } from '@/services/projectService'
 
 import { Memories } from '../Memories'
@@ -184,9 +209,9 @@ function setTeamPermissions(permissions: string[]) {
   }
 }
 
-function renderMemories() {
+function renderMemories(initialEntry = '/memories') {
   return render(
-    <MemoryRouter initialEntries={['/memories']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/memories" element={<Memories />} />
         <Route
@@ -209,6 +234,14 @@ function renderMemories() {
 describe('Memories page', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    ;(metadataService.listKeys as jest.Mock).mockResolvedValue({
+      keys: ['tags', 'env'],
+      truncated: false,
+    })
+    ;(metadataService.listValues as jest.Mock).mockResolvedValue({
+      values: ['alpha', 'beta'],
+      truncated: false,
+    })
     setTeamPermissions([])
     mockProjectState.currentProject = null
     mockProjectState.isLoading = false
@@ -320,21 +353,20 @@ describe('Memories page', () => {
       ).toBeInTheDocument()
     })
 
-    it('scopes the fetch to the header-selected project and tailors the empty state', async () => {
+    it('scopes the fetch to the header-selected project, but that alone is not a filter', async () => {
+      // The project comes from the global header selector, not this page's
+      // filter bar, so counting it would promise a `Clear filters` that cannot
+      // clear it (#524, matching #522/#523).
       mockProjectState.currentProject = { id: 'proj-1', name: 'Alpha Project' }
 
       renderMemories()
 
       await waitFor(() => {
-        expect(
-          screen.getByText('No memories match your filters')
-        ).toBeInTheDocument()
+        expect(screen.getByText('No memories yet')).toBeInTheDocument()
       })
       expect(
-        screen.getByText(
-          'No memories in Alpha Project. Create one to get started.'
-        )
-      ).toBeInTheDocument()
+        screen.queryByRole('button', { name: 'Clear filters' })
+      ).not.toBeInTheDocument()
       expect(memoryService.getMemories).toHaveBeenCalledWith(
         'team-1',
         expect.objectContaining({ project_id: 'proj-1' })
@@ -349,25 +381,27 @@ describe('Memories page', () => {
       expect(memoryService.getMemories).not.toHaveBeenCalled()
     })
 
-    it('suggests clearing the filters when search and project are both set', async () => {
-      mockProjectState.currentProject = { id: 'proj-1', name: 'Alpha Project' }
-
+    it('offers a way out of a filtered-empty result', async () => {
       renderMemories()
-      await screen.findByText('No memories match your filters')
+      await screen.findByText('No memories yet')
 
       const user = userEvent.setup()
-      await user.type(screen.getByPlaceholderText('Search memories…'), 'zzz')
+      await user.type(screen.getByLabelText('Search memories'), 'zzz')
 
       await waitFor(
         () => {
           expect(
-            screen.getByText(
-              'Try a different search term or clear the filters.'
-            )
+            screen.getByText('No memories match your filters')
           ).toBeInTheDocument()
         },
         { timeout: 2000 }
       )
+      expect(
+        screen.getByText('Try a different search, status or metadata setting.')
+      ).toBeInTheDocument()
+      expect(
+        screen.getAllByRole('button', { name: 'Clear filters' }).length
+      ).toBeGreaterThan(0)
     })
 
     it('still renders the list when the projects fetch fails', async () => {
@@ -413,6 +447,107 @@ describe('Memories page', () => {
     })
   })
 
+  describe('URL-synced filters (#524)', () => {
+    const lastQuery = () => {
+      const { calls } = (memoryService.getMemories as jest.Mock).mock
+      return calls[calls.length - 1][1] as Record<string, unknown>
+    }
+
+    it('keeps defaults out of the URL and sends no filter params', async () => {
+      renderMemories()
+
+      await waitFor(() => {
+        expect(memoryService.getMemories).toHaveBeenCalled()
+      })
+      expect(lastQuery()).toEqual(
+        expect.objectContaining({
+          page: 1,
+          limit: 20,
+          search: undefined,
+          status: undefined,
+          metadata: undefined,
+          sort_order: 'desc',
+        })
+      )
+    })
+
+    it('rehydrates search, status and metadata from the URL', async () => {
+      renderMemories(
+        '/memories?search=deploy&status=draft&metadata=%7B%22tags%22%3A%5B%22alpha%22%5D%7D&page=2'
+      )
+
+      await waitFor(() => {
+        expect(memoryService.getMemories).toHaveBeenCalled()
+      })
+      const query = lastQuery()
+      expect(query.search).toBe('deploy')
+      expect(query.status).toBe('draft')
+      expect(query.metadata).toBe('{"tags":["alpha"]}')
+      expect(query.page).toBe(2)
+      expect(screen.getByLabelText('Search memories')).toHaveValue('deploy')
+    })
+
+    it('ignores a malformed metadata param instead of sending garbage', async () => {
+      renderMemories('/memories?metadata=not-json')
+
+      await waitFor(() => {
+        expect(memoryService.getMemories).toHaveBeenCalled()
+      })
+      expect(lastQuery().metadata).toBeUndefined()
+      expect(screen.queryByTestId('metadata-chip-tags')).not.toBeInTheDocument()
+    })
+
+    it('ignores a status outside the enum rather than forwarding it', async () => {
+      renderMemories('/memories?status=nonsense')
+
+      await waitFor(() => {
+        expect(memoryService.getMemories).toHaveBeenCalled()
+      })
+      expect(lastQuery().status).toBeUndefined()
+    })
+
+    it('committing a metadata chip resets to page 1', async () => {
+      renderMemories('/memories?page=4')
+      await waitFor(() => {
+        expect(lastQuery().page).toBe(4)
+      })
+
+      const user = userEvent.setup()
+      await user.click(
+        screen.getByRole('combobox', { name: 'Filter memories by metadata' })
+      )
+      await user.click(await screen.findByText('tags'))
+      await user.click(await screen.findByText('alpha'))
+      await user.click(
+        screen.getByRole('button', { name: 'Apply tags filter' })
+      )
+
+      await waitFor(() => {
+        expect(lastQuery().metadata).toBe('{"tags":["alpha"]}')
+      })
+      expect(lastQuery().page).toBe(1)
+    })
+
+    it('Clear filters empties the URL, the search box and the chips', async () => {
+      renderMemories(
+        '/memories?search=nope&status=draft&metadata=%7B%22tags%22%3A%5B%22alpha%22%5D%7D'
+      )
+      await screen.findByText('No memories match your filters')
+
+      const user = userEvent.setup()
+      const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+      await user.click(clear)
+
+      await waitFor(() => {
+        expect(lastQuery().search).toBeUndefined()
+      })
+      expect(lastQuery().status).toBeUndefined()
+      expect(lastQuery().metadata).toBeUndefined()
+      expect(screen.getByLabelText('Search memories')).toHaveValue('')
+      expect(screen.queryByTestId('metadata-chip-tags')).not.toBeInTheDocument()
+    })
+  })
+
   describe('filters', () => {
     it('re-fetches with the debounced search term', async () => {
       renderMemories()
@@ -450,65 +585,37 @@ describe('Memories page', () => {
       })
     })
 
-    it('filters the visible rows by the selected tag (client-side)', async () => {
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
-        buildListResponse([
-          buildMemory({ metadata: { tags: ['alpha'] } }),
-          buildMemory({
-            id: 'mem-2',
-            text: 'Beta-tagged memory',
-            metadata: { tags: ['beta'] },
-          }),
-        ])
-      )
-
-      renderMemories()
-      await screen.findByText('Remember the deploy checklist')
-
-      const user = userEvent.setup()
-      await user.click(screen.getByRole('button', { name: 'alpha' }))
+    it('filters by tag SERVER-side through the metadata param (#518)', async () => {
+      // The old tag Select filtered in the browser over only the loaded page,
+      // so a match on page 2 was invisible and the footer count disagreed with
+      // the server total. Tags live at metadata.tags, so this is now just a
+      // metadata filter.
+      renderMemories('/memories?metadata=%7B%22tags%22%3A%5B%22alpha%22%5D%7D')
 
       await waitFor(() => {
-        expect(screen.queryByText('Beta-tagged memory')).not.toBeInTheDocument()
+        expect(memoryService.getMemories).toHaveBeenCalledWith(
+          'team-1',
+          expect.objectContaining({ metadata: '{"tags":["alpha"]}' })
+        )
       })
-      expect(
-        screen.getByText('Remember the deploy checklist')
-      ).toBeInTheDocument()
+      expect(screen.getByTestId('metadata-chip-tags')).toHaveTextContent(
+        'tags: alpha'
+      )
     })
 
-    it('resets the selected tag when a re-fetch drops it from the list', async () => {
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
-        buildListResponse([
-          buildMemory({ metadata: { tags: ['alpha'] } }),
-          buildMemory({
-            id: 'mem-2',
-            text: 'Beta-tagged memory',
-            metadata: { tags: ['beta'] },
-          }),
-        ])
-      )
+    it('the footer count matches the server total, not a client-filtered subset', async () => {
+      ;(memoryService.getMemories as jest.Mock).mockResolvedValue({
+        ...buildListResponse([buildMemory({ metadata: { tags: ['alpha'] } })]),
+        total_count: 42,
+        total_pages: 3,
+      })
 
-      renderMemories()
+      renderMemories('/memories?metadata=%7B%22tags%22%3A%5B%22alpha%22%5D%7D')
       await screen.findByText('Remember the deploy checklist')
 
-      const user = userEvent.setup()
-      await user.click(screen.getByRole('button', { name: 'alpha' }))
-      await waitFor(() => {
-        expect(screen.queryByText('Beta-tagged memory')).not.toBeInTheDocument()
-      })
-
-      // The next fetch returns rows without the selected tag — the stale tag
-      // filter must clear itself instead of hiding everything.
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
-        buildListResponse([
-          buildMemory({ id: 'mem-3', text: 'Untagged memory' }),
-        ])
-      )
-      await user.click(screen.getByRole('button', { name: 'Draft' }))
-
-      await waitFor(() => {
-        expect(screen.getByText('Untagged memory')).toBeInTheDocument()
-      })
+      // Previously the footer printed displayedMemories.length against the
+      // server total — two different result sets (#518).
+      expect(screen.getByText(/42/)).toBeInTheDocument()
     })
   })
 

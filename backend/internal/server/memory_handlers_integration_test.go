@@ -165,7 +165,6 @@ func createMemoryTestServer(container *MockMemoryContainer) *Server {
 	r.Route("/api/v1/{team_id}/memories", func(r chi.Router) {
 		r.Post("/", srv.handleCreateMemory)
 		r.Get("/", srv.handleListMemories)
-		r.Get("/search", srv.handleSearchMemoriesByMetadata)
 		r.Get("/{id}", srv.handleGetMemory)
 		r.Put("/{id}", srv.handleUpdateMemory)
 		r.Delete("/{id}", srv.handleDeleteMemory)
@@ -614,128 +613,6 @@ func TestHandleDeleteMemory_NotFound(t *testing.T) {
 	srv.handleDeleteMemory(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
-}
-
-// TestHandleSearchMemoriesByMetadata_Success tests successful metadata search with mocked service
-func TestHandleSearchMemoriesByMetadata_Success(t *testing.T) {
-	mockContainer := newMockMemoryContainer(t)
-
-	now := time.Now()
-	expectedResponse := &models.MemoryListResponse{
-		Memories: []models.Memory{
-			{
-				ID:        "memory-1",
-				UserID:    "test-user-123",
-				Text:      "Memory with metadata",
-				Metadata:  map[string]interface{}{"category": "work"},
-				CreatedAt: now,
-				UpdatedAt: now,
-			},
-		},
-		TotalCount: 1,
-		Page:       1,
-		PerPage:    20,
-		TotalPages: 1,
-	}
-
-	mockContainer.memoryService.On(
-		"SearchMemoriesByMetadata",
-		"test-user-123",
-		"category",
-		"work",
-		mock.MatchedBy(func(filters services.MemoryFilters) bool {
-			return filters.Page == 1 && filters.Limit == 10
-		}),
-	).Return(expectedResponse, nil)
-
-	srv := createMemoryTestServer(mockContainer)
-	req := makeMemoryAuthenticatedRequest(
-		"GET",
-		"/api/v1/team-123/memories/search?metadata_key=category&metadata_value=work",
-		nil,
-		"test-user-123",
-	)
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
-	w := httptest.NewRecorder()
-
-	srv.handleSearchMemoriesByMetadata(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	var response models.MemoryListResponse
-	err := json.NewDecoder(w.Body).Decode(&response)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, response.TotalCount)
-	assert.Equal(t, "work", response.Memories[0].Metadata["category"])
-
-	mockContainer.memoryService.AssertExpectations(t)
-}
-
-// TestHandleSearchMemoriesByMetadata_MissingParameters tests metadata search with missing required params
-func TestHandleSearchMemoriesByMetadata_MissingParameters(t *testing.T) {
-	mockContainer := newMockMemoryContainer(t)
-	srv := createMemoryTestServer(mockContainer)
-
-	tests := []struct {
-		name  string
-		query string
-	}{
-		{"missing both params", ""},
-		{"missing value", "?metadata_key=category"},
-		{"missing key", "?metadata_value=work"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := makeMemoryAuthenticatedRequest("GET", "/api/v1/team-123/memories/search"+tt.query, nil, "test-user-123")
-			req = addRouteParams(req, map[string]string{"team_id": "team-123"})
-			w := httptest.NewRecorder()
-			srv.handleSearchMemoriesByMetadata(w, req)
-
-			assert.Equal(t, http.StatusBadRequest, w.Code)
-		})
-	}
-}
-
-// TestHandleSearchMemoriesByMetadata_WithPagination tests metadata search with pagination
-func TestHandleSearchMemoriesByMetadata_WithPagination(t *testing.T) {
-	mockContainer := newMockMemoryContainer(t)
-
-	expectedResponse := &models.MemoryListResponse{
-		Memories:   []models.Memory{},
-		TotalCount: 0,
-		Page:       2,
-		PerPage:    10,
-		TotalPages: 0,
-	}
-
-	mockContainer.memoryService.On(
-		"SearchMemoriesByMetadata",
-		"test-user-123",
-		"category",
-		"work",
-		mock.MatchedBy(func(filters services.MemoryFilters) bool {
-			return filters.Page == 2 && filters.Limit == 10
-		}),
-	).Return(expectedResponse, nil)
-
-	srv := createMemoryTestServer(mockContainer)
-	url := "/api/v1/team-123/memories/search?metadata_key=category&metadata_value=work&page=2&limit=10"
-	req := makeMemoryAuthenticatedRequest("GET", url, nil, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
-	w := httptest.NewRecorder()
-
-	srv.handleSearchMemoriesByMetadata(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	var response models.MemoryListResponse
-	err := json.NewDecoder(w.Body).Decode(&response)
-	assert.NoError(t, err)
-	assert.Equal(t, 2, response.Page)
-	assert.Equal(t, 10, response.PerPage)
-
-	mockContainer.memoryService.AssertExpectations(t)
 }
 
 // TestHandleListMemories_SortBy tests list memories with valid sort_by parameters

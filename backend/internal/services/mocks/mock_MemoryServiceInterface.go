@@ -431,67 +431,6 @@ func (_c *MockMemoryServiceInterface_RestoreMemoryVersion_Call) RunAndReturn(run
 	return _c
 }
 
-// SearchMemoriesByMetadata provides a mock function with given fields: userID, metadataKey, metadataValue, filters
-func (_m *MockMemoryServiceInterface) SearchMemoriesByMetadata(userID string, metadataKey string, metadataValue string, filters services.MemoryFilters) (*models.MemoryListResponse, error) {
-	ret := _m.Called(userID, metadataKey, metadataValue, filters)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SearchMemoriesByMetadata")
-	}
-
-	var r0 *models.MemoryListResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string, services.MemoryFilters) (*models.MemoryListResponse, error)); ok {
-		return rf(userID, metadataKey, metadataValue, filters)
-	}
-	if rf, ok := ret.Get(0).(func(string, string, string, services.MemoryFilters) *models.MemoryListResponse); ok {
-		r0 = rf(userID, metadataKey, metadataValue, filters)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.MemoryListResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(string, string, string, services.MemoryFilters) error); ok {
-		r1 = rf(userID, metadataKey, metadataValue, filters)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockMemoryServiceInterface_SearchMemoriesByMetadata_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SearchMemoriesByMetadata'
-type MockMemoryServiceInterface_SearchMemoriesByMetadata_Call struct {
-	*mock.Call
-}
-
-// SearchMemoriesByMetadata is a helper method to define mock.On call
-//   - userID string
-//   - metadataKey string
-//   - metadataValue string
-//   - filters services.MemoryFilters
-func (_e *MockMemoryServiceInterface_Expecter) SearchMemoriesByMetadata(userID interface{}, metadataKey interface{}, metadataValue interface{}, filters interface{}) *MockMemoryServiceInterface_SearchMemoriesByMetadata_Call {
-	return &MockMemoryServiceInterface_SearchMemoriesByMetadata_Call{Call: _e.mock.On("SearchMemoriesByMetadata", userID, metadataKey, metadataValue, filters)}
-}
-
-func (_c *MockMemoryServiceInterface_SearchMemoriesByMetadata_Call) Run(run func(userID string, metadataKey string, metadataValue string, filters services.MemoryFilters)) *MockMemoryServiceInterface_SearchMemoriesByMetadata_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(services.MemoryFilters))
-	})
-	return _c
-}
-
-func (_c *MockMemoryServiceInterface_SearchMemoriesByMetadata_Call) Return(_a0 *models.MemoryListResponse, _a1 error) *MockMemoryServiceInterface_SearchMemoriesByMetadata_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockMemoryServiceInterface_SearchMemoriesByMetadata_Call) RunAndReturn(run func(string, string, string, services.MemoryFilters) (*models.MemoryListResponse, error)) *MockMemoryServiceInterface_SearchMemoriesByMetadata_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // UpdateMemory provides a mock function with given fields: userID, teamID, memoryID, req
 func (_m *MockMemoryServiceInterface) UpdateMemory(userID string, teamID string, memoryID string, req *models.UpdateMemoryRequest) (*models.Memory, error) {
 	ret := _m.Called(userID, teamID, memoryID, req)

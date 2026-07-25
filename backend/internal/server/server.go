@@ -1123,7 +1123,6 @@ func (s *Server) setupMemoriesRoutes(r chi.Router) {
 		r.Use(s.memoryTeamValidationMiddleware()) // Validate team_id from URL and team access
 		r.Post("/", s.handleCreateMemory)
 		r.Get("/", s.handleListMemories)
-		r.Get("/search", s.handleSearchMemoriesByMetadata)
 		r.With(s.recordResourceAccess(resourceTypeMemory)).Get("/{id}", s.handleGetMemory)
 		r.Put("/{id}", s.handleUpdateMemory)
 		r.Delete("/{id}", s.handleDeleteMemory)
