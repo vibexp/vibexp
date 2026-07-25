@@ -1,23 +1,23 @@
-import {
-  Activity,
-  Bell,
-  Bot,
-  Cpu,
-  FolderKanban,
-  Key,
-  Shapes,
-  SlidersHorizontal,
-  Users,
-} from 'lucide-react'
+import { Activity, Bell, Key, Users } from 'lucide-react'
 
-import { GitHubIcon } from '@/components/icons/GitHubIcon'
 import { PageHeader } from '@/components/PageHeader'
 import {
   type SettingItem,
   SettingSection,
 } from '@/components/settings/SettingsGrid'
+import { useTeam } from '@/contexts/TeamContext'
 
-const GENERAL: SettingItem[] = [
+/**
+ * Genuinely personal settings — every destination here is user-scoped at the
+ * API layer (`/activities`, `/preferences`, `/settings/api-keys`).
+ *
+ * Everything team-scoped moved out under `/teams/:id/**` during epic #536:
+ * teams (#538), search / model providers / embedding providers / artifact types
+ * (#540), GitHub integration (#541) and projects (#542). Adding a card here
+ * whose destination acts on a team is the regression this page's test guards
+ * against — it asserts the exact set.
+ */
+const ACCOUNT: SettingItem[] = [
   {
     title: 'Activities',
     description:
@@ -31,9 +31,6 @@ const GENERAL: SettingItem[] = [
     icon: Bell,
     href: '/settings/notifications',
   },
-]
-
-const INTEGRATION: SettingItem[] = [
   {
     title: 'API Keys',
     description:
@@ -41,70 +38,37 @@ const INTEGRATION: SettingItem[] = [
     icon: Key,
     href: '/settings/api-keys',
   },
-  {
-    title: 'Embedding Providers',
-    description:
-      'Configure embedding vector providers for your AI applications.',
-    icon: Cpu,
-    href: '/settings/embedding-providers',
-  },
-  {
-    title: 'Model Providers',
-    description:
-      'Configure OpenAI-compatible LLM providers for your AI applications.',
-    icon: Bot,
-    href: '/settings/model-providers',
-  },
-  {
-    title: 'GitHub Integration',
-    description: 'Connect GitHub repositories to your team workspace.',
-    icon: GitHubIcon,
-    href: '/settings/integrations/github',
-  },
-]
-
-const CUSTOMIZATION: SettingItem[] = [
-  {
-    title: 'Artifact Types',
-    description: 'Create and manage custom categories for your artifacts.',
-    icon: Shapes,
-    href: '/settings/customization',
-  },
-  {
-    title: 'Search Settings',
-    description: 'Choose how search results are ranked for your team.',
-    icon: SlidersHorizontal,
-    href: '/settings/search',
-  },
-]
-
-const COLLABORATION: SettingItem[] = [
-  {
-    title: 'Teams',
-    description: 'Manage your team memberships and collaborate with others.',
-    icon: Users,
-    href: '/teams',
-  },
-  {
-    title: 'Projects',
-    description:
-      'Organize your artifacts, blueprints, and resources into projects.',
-    icon: FolderKanban,
-    href: '/settings/projects',
-  },
 ]
 
 export function Settings() {
+  const { currentTeam, isLoading } = useTeam()
+
+  // Named after the team so the destination is unambiguous — this is the one
+  // card on the page that leaves the personal scope.
+  const teamPointer: SettingItem[] =
+    !isLoading && currentTeam
+      ? [
+          {
+            title: 'Team settings',
+            description: `Configure search, providers, integrations and artifact types for ${currentTeam.name}.`,
+            icon: Users,
+            href: `/teams/${currentTeam.id}/settings`,
+          },
+        ]
+      : []
+
   return (
     <div className="space-y-8">
       <PageHeader
         title="Settings"
-        description="Manage your account settings and configurations."
+        description="Manage your personal account settings. Team configuration lives under each team."
       />
-      <SettingSection title="General" items={GENERAL} />
-      <SettingSection title="Integration" items={INTEGRATION} />
-      <SettingSection title="Customization" items={CUSTOMIZATION} />
-      <SettingSection title="Collaboration" items={COLLABORATION} />
+      <SettingSection title="Account" items={ACCOUNT} />
+      {/* Hidden while the team list hydrates and when there is no team at all:
+          a pointer built from a null team would link to /teams/undefined. */}
+      {teamPointer.length > 0 && (
+        <SettingSection title="Team" items={teamPointer} />
+      )}
     </div>
   )
 }
