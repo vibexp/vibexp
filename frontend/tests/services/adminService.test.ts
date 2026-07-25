@@ -10,6 +10,7 @@ import type {
   AdminProjectDetail,
   AdminProjectListResponse,
   AdminTeamListResponse,
+  AdminUserDetail,
 } from '../../src/services/adminService'
 
 // Mock the generated client; `unwrap` stays real so these exercise the same
@@ -200,6 +201,219 @@ describe('getProject', () => {
   })
 })
 
+const activeUser: AdminUserDetail = {
+  id: 'u1',
+  email: 'ada@example.com',
+  name: 'Ada',
+  idp_provider: 'google',
+  status: 'active',
+  created_at: '2026-01-01T00:00:00Z',
+  memberships: [],
+}
+
+describe('listUsers', () => {
+  it('forwards every filter, sort and pagination param', async () => {
+    mockGeneratedClient.GET.mockReturnValue(
+      success({
+        users: [],
+        total_count: 0,
+        page: 1,
+        per_page: 20,
+        total_pages: 0,
+      })
+    )
+
+    await adminService.listUsers({
+      page: 2,
+      limit: 20,
+      search: 'ada',
+      status: 'suspended',
+      idp_provider: 'google',
+      created_from: '2026-07-01T00:00:00.000Z',
+      created_to: '2026-07-24T23:59:59.999Z',
+      sort_by: 'team_count',
+      sort_order: 'asc',
+    })
+
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/admin/users',
+      {
+        params: {
+          query: {
+            page: 2,
+            limit: 20,
+            search: 'ada',
+            status: 'suspended',
+            idp_provider: 'google',
+            created_from: '2026-07-01T00:00:00.000Z',
+            created_to: '2026-07-24T23:59:59.999Z',
+            sort_by: 'team_count',
+            sort_order: 'asc',
+          },
+        },
+      }
+    )
+  })
+})
+
+describe('the user mutations', () => {
+  it('creates a user, omitting an unset provider', async () => {
+    mockGeneratedClient.POST.mockReturnValue(success(activeUser))
+
+    await adminService.createUser({ email: 'ada@example.com', name: 'Ada' })
+
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/admin/users',
+      { body: { email: 'ada@example.com', name: 'Ada' } }
+    )
+  })
+
+  it('updates the name via PATCH', async () => {
+    mockGeneratedClient.PATCH.mockReturnValue(
+      success({ ...activeUser, name: 'Ada L' })
+    )
+
+    const result = await adminService.updateUser('u1', { name: 'Ada L' })
+
+    expect(mockGeneratedClient.PATCH).toHaveBeenCalledWith(
+      '/api/v1/admin/users/{id}',
+      { params: { path: { id: 'u1' } }, body: { name: 'Ada L' } }
+    )
+    expect(result.name).toBe('Ada L')
+  })
+
+  it('suspends and reactivates through their own endpoints', async () => {
+    mockGeneratedClient.POST.mockReturnValue(
+      success({ ...activeUser, status: 'suspended' })
+    )
+    const suspended = await adminService.suspendUser('u1')
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/admin/users/{id}/suspend',
+      { params: { path: { id: 'u1' } } }
+    )
+    expect(suspended.status).toBe('suspended')
+
+    mockGeneratedClient.POST.mockReturnValue(success(activeUser))
+    await adminService.reactivateUser('u1')
+    expect(mockGeneratedClient.POST).toHaveBeenCalledWith(
+      '/api/v1/admin/users/{id}/reactivate',
+      { params: { path: { id: 'u1' } } }
+    )
+  })
+})
+
+describe('deleteUser', () => {
+  const noContent = {
+    ok: true,
+    status: 204,
+    statusText: 'No Content',
+  } as Response
+
+  it('reports a successful delete', async () => {
+    mockGeneratedClient.DELETE.mockReturnValue(
+      Promise.resolve({ data: undefined, response: noContent })
+    )
+
+    await expect(adminService.deleteUser('u1')).resolves.toEqual({
+      deleted: true,
+    })
+    expect(mockGeneratedClient.DELETE).toHaveBeenCalledWith(
+      '/api/v1/admin/users/{id}',
+      { params: { path: { id: 'u1' } } }
+    )
+  })
+
+  it('returns the 409 refusal as data, with its blockers intact', async () => {
+    // The whole reason deleteUser bypasses `unwrap`: the 409 body is
+    // application/json + AdminUserDeleteBlockedResponse, not problem details, so
+    // unwrap's isProblemDetails check fails and it would collapse the response to
+    // a generic ApiError — discarding `blockers`, the one thing the dialog needs.
+    const refusal = {
+      message: 'This user owns shared teams with other members.',
+      blockers: [
+        { team_id: 't1', team_name: 'Acme Engineering', member_count: 4 },
+      ],
+    }
+    mockGeneratedClient.DELETE.mockReturnValue(
+      Promise.resolve({
+        error: refusal,
+        response: {
+          ok: false,
+          status: 409,
+          statusText: 'Conflict',
+        } as Response,
+      })
+    )
+
+    const result = await adminService.deleteUser('u1')
+
+    expect(result).toEqual({ deleted: false, refusal })
+    if (!('refusal' in result)) throw new Error('expected a refusal')
+    expect(result.refusal.blockers[0].team_name).toBe('Acme Engineering')
+    expect(result.refusal.blockers[0].member_count).toBe(4)
+  })
+
+  it('reports a refusal with no blockers, which is how self-targeting arrives', async () => {
+    // The same 409 covers "you cannot delete yourself / a config admin", where
+    // blockers is empty. An empty list must not read as "nothing is blocking it".
+    mockGeneratedClient.DELETE.mockReturnValue(
+      Promise.resolve({
+        error: { message: 'You cannot delete your own account.', blockers: [] },
+        response: {
+          ok: false,
+          status: 409,
+          statusText: 'Conflict',
+        } as Response,
+      })
+    )
+
+    const result = await adminService.deleteUser('u1')
+
+    expect(result.deleted).toBe(false)
+  })
+
+  it('throws for a 409 whose body is not the documented shape', async () => {
+    // Failing loudly beats reporting a refusal the response never described.
+    mockGeneratedClient.DELETE.mockReturnValue(
+      Promise.resolve({
+        error: { detail: 'nope' },
+        response: {
+          ok: false,
+          status: 409,
+          statusText: 'Conflict',
+        } as Response,
+      })
+    )
+
+    await expect(adminService.deleteUser('u1')).rejects.toThrow()
+  })
+
+  it('throws for a non-409 failure, like any other call', async () => {
+    mockGeneratedClient.DELETE.mockReturnValue(
+      Promise.resolve({
+        error: {
+          type: 'about:blank',
+          title: 'Not Found',
+          status: 404,
+          detail: 'user not found',
+          code: 'NOT_FOUND',
+          request_id: 'r1',
+          timestamp: '2026-07-25T00:00:00Z',
+        },
+        response: {
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+        } as Response,
+      })
+    )
+
+    await expect(adminService.deleteUser('missing')).rejects.toThrow(
+      'user not found'
+    )
+  })
+})
+
 describe('the other admin reads', () => {
   it('gets instance stats', async () => {
     mockGeneratedClient.GET.mockReturnValue(
@@ -229,7 +443,7 @@ describe('the other admin reads', () => {
       })
     )
 
-    await adminService.listUsers(3, 20)
+    await adminService.listUsers({ page: 3, limit: 20 })
 
     expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
       '/api/v1/admin/users',

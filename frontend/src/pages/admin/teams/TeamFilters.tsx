@@ -1,9 +1,4 @@
-import { Search } from 'lucide-react'
-
-import { Button } from '@/components/ui/button'
 import type { DateRangeValue } from '@/components/ui/date-range'
-import { DateRangePicker } from '@/components/ui/date-range-picker'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -11,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { AdminFilterBar } from '@/pages/admin/AdminFilterBar'
 
 /**
  * The three states of the personal/shared filter.
@@ -46,20 +42,16 @@ export function TeamFilters({
   hasActiveFilters,
 }: Readonly<TeamFiltersProps>) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative min-w-[240px] max-w-[420px] flex-1">
-        <Search className="text-muted-foreground absolute left-2.5 top-1/2 size-4 -translate-y-1/2" />
-        <Input
-          value={searchInput}
-          onChange={event => {
-            onSearchInputChange(event.target.value)
-          }}
-          placeholder="Search name, slug, or owner email…"
-          aria-label="Search teams"
-          className="pl-8"
-        />
-      </div>
-
+    <AdminFilterBar
+      searchInput={searchInput}
+      onSearchInputChange={onSearchInputChange}
+      searchPlaceholder="Search name, slug, or owner email…"
+      searchLabel="Search teams"
+      created={created}
+      onCreatedChange={onCreatedChange}
+      onClear={onClear}
+      hasActiveFilters={hasActiveFilters}
+    >
       <Select
         value={kind}
         onValueChange={value => {
@@ -75,19 +67,6 @@ export function TeamFilters({
           <SelectItem value="personal">Personal only</SelectItem>
         </SelectContent>
       </Select>
-
-      <DateRangePicker
-        value={created}
-        onChange={onCreatedChange}
-        placeholder="Created any time"
-        ariaLabel="Filter by creation date"
-      />
-
-      {hasActiveFilters && (
-        <Button variant="ghost" size="sm" onClick={onClear}>
-          Clear filters
-        </Button>
-      )}
-    </div>
+    </AdminFilterBar>
   )
 }
