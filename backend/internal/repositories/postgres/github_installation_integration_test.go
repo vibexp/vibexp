@@ -17,15 +17,32 @@ import (
 )
 
 // resetGitHubInstallationTables clears github_installations plus the parent
-// rows this suite seeds (teams hang off users; github_installations hangs off
-// teams with ON DELETE CASCADE). resetIntegrationTables only covers
-// users/api_keys/user_preferences, so the table under test is listed
-// explicitly.
+// rows this suite seeds (teams hang off users; github_app_configs and
+// github_installations hang off teams with ON DELETE CASCADE).
+// resetIntegrationTables only covers users/api_keys/user_preferences, so the
+// tables under test are listed explicitly.
 func resetGitHubInstallationTables(t *testing.T) {
 	t.Helper()
 	_, err := integrationDB.ExecContext(context.Background(),
-		"TRUNCATE TABLE users, teams, github_installations CASCADE")
+		"TRUNCATE TABLE users, teams, github_app_configs, github_installations CASCADE")
 	require.NoError(t, err)
+}
+
+// insertTestGitHubAppConfig seeds a team's own GitHub App (#477). Every
+// installation now hangs off one, so a test that creates an installation must
+// create its App first. appID must be unique instance-wide (unique_github_app_id).
+func insertTestGitHubAppConfig(t *testing.T, teamID, appID string) string {
+	t.Helper()
+	id := uuid.New().String()
+	_, err := integrationDB.ExecContext(context.Background(),
+		`INSERT INTO github_app_configs
+		 (id, team_id, app_id, app_slug, client_id,
+		  private_key_encrypted, client_secret_encrypted, webhook_secret_encrypted, webhook_token)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		id, teamID, appID, "app-"+appID, "Iv1."+appID,
+		"enc-pk", "enc-cs", "enc-ws", "tok-"+id)
+	require.NoError(t, err)
+	return id
 }
 
 func newIntegrationGitHubInstallationRepo() repositories.GitHubInstallationRepository {
@@ -34,10 +51,11 @@ func newIntegrationGitHubInstallationRepo() repositories.GitHubInstallationRepos
 
 // buildGitHubInstallation returns an installation row for teamID carrying a
 // distinctive permissions/events payload so round-trip fidelity is observable.
-func buildGitHubInstallation(teamID string, installationID int64) *models.GitHubInstallation {
+func buildGitHubInstallation(teamID, appConfigID string, installationID int64) *models.GitHubInstallation {
 	return &models.GitHubInstallation{
 		ID:                   uuid.New().String(),
 		TeamID:               teamID,
+		AppConfigID:          appConfigID,
 		InstallationID:       installationID,
 		AccountLogin:         "octo-org",
 		AccountType:          "Organization",
@@ -56,8 +74,9 @@ func TestGitHubInstallationRepositoryIntegration_CreateAndGetRoundTrip(t *testin
 
 	userID := insertTestUser(t)
 	teamID := insertTestTeam(t, userID)
+	appConfigID := insertTestGitHubAppConfig(t, teamID, "1001")
 
-	inst := buildGitHubInstallation(teamID, 1001)
+	inst := buildGitHubInstallation(teamID, appConfigID, 1001)
 	require.NoError(t, repo.Create(ctx, inst))
 	assert.False(t, inst.CreatedAt.IsZero(), "Create must write back the DB-assigned created_at")
 	assert.False(t, inst.UpdatedAt.IsZero(), "Create must write back the DB-assigned updated_at")
@@ -66,6 +85,7 @@ func TestGitHubInstallationRepositoryIntegration_CreateAndGetRoundTrip(t *testin
 	require.NoError(t, err)
 	assert.Equal(t, inst.ID, byTeam.ID)
 	assert.Equal(t, teamID, byTeam.TeamID)
+	assert.Equal(t, appConfigID, byTeam.AppConfigID, "the App binding must survive the round-trip")
 	assert.Equal(t, int64(1001), byTeam.InstallationID)
 	assert.Equal(t, inst.AccountLogin, byTeam.AccountLogin)
 	assert.Equal(t, inst.AccountType, byTeam.AccountType)
@@ -83,7 +103,12 @@ func TestGitHubInstallationRepositoryIntegration_CreateAndGetRoundTrip(t *testin
 	assert.Equal(t, byTeam, byInstallation, "both lookups must return the same row")
 }
 
-func TestGitHubInstallationRepositoryIntegration_UniqueInstallationID(t *testing.T) {
+// TestGitHubInstallationRepositoryIntegration_InstallationIDIsUniquePerApp pins
+// the constraint swap made by #477. The global UNIQUE(installation_id) is gone:
+// with per-team Apps, two teams installing THEIR OWN App on the same GitHub org
+// legitimately produce the same installation_id, and that must now succeed.
+// Uniqueness moved to (app_config_id, installation_id).
+func TestGitHubInstallationRepositoryIntegration_InstallationIDIsUniquePerApp(t *testing.T) {
 	resetGitHubInstallationTables(t)
 	ctx := context.Background()
 	repo := newIntegrationGitHubInstallationRepo()
@@ -91,19 +116,104 @@ func TestGitHubInstallationRepositoryIntegration_UniqueInstallationID(t *testing
 	userID := insertTestUser(t)
 	teamA := insertTestTeam(t, userID)
 	teamB := insertTestTeam(t, userID)
+	appA := insertTestGitHubAppConfig(t, teamA, "2001")
+	appB := insertTestGitHubAppConfig(t, teamB, "2002")
 
-	require.NoError(t, repo.Create(ctx, buildGitHubInstallation(teamA, 2001)))
+	require.NoError(t, repo.Create(ctx, buildGitHubInstallation(teamA, appA, 2001)))
 
-	err := repo.Create(ctx, buildGitHubInstallation(teamB, 2001))
-	require.Error(t, err, "the same installation_id must not attach to a second team")
-	pqErr := uniqueViolation(err)
-	require.NotNil(t, pqErr, "the failure must be the real UNIQUE(installation_id) constraint, got: %v", err)
-	assert.Equal(t, "github_installations_installation_id_key", pqErr.Constraint)
+	// Previously a UNIQUE(installation_id) violation; now the supported case.
+	require.NoError(t, repo.Create(ctx, buildGitHubInstallation(teamB, appB, 2001)),
+		"two teams may install their own Apps on the same GitHub account")
 
-	// The winner is untouched.
-	got, err := repo.GetByInstallationID(ctx, 2001)
+	// The same App may not record the same installation twice. Which constraint
+	// name Postgres reports is not pinned here: one App per team
+	// (unique_team_github_app) makes app_config_id functionally determine
+	// team_id, so the pre-existing unique_team_installation is violated by the
+	// same row and may be the index reported first. The schema assertion below
+	// is what proves the constraint swap actually happened.
+	err := repo.Create(ctx, buildGitHubInstallation(teamA, appA, 2001))
+	require.Error(t, err, "one App must not record the same installation_id twice")
+	require.NotNil(t, uniqueViolation(err), "expected a unique violation, got: %v", err)
+
+	// Each team still resolves to its own row via the team-scoped read. The
+	// un-scoped GetByInstallationID is now ambiguous across Apps by design;
+	// making it App-aware belongs to the resolver work (#480).
+	gotA, err := repo.GetByTeamID(ctx, teamA)
 	require.NoError(t, err)
-	assert.Equal(t, teamA, got.TeamID)
+	assert.Equal(t, appA, gotA.AppConfigID)
+	gotB, err := repo.GetByTeamID(ctx, teamB)
+	require.NoError(t, err)
+	assert.Equal(t, appB, gotB.AppConfigID)
+}
+
+// TestGitHubInstallationRepositoryIntegration_ConstraintSwap asserts the schema
+// directly, because the two uniqueness rules overlap in practice: a behavioural
+// test cannot distinguish unique_app_installation from the pre-existing
+// unique_team_installation while one App per team is enforced. Reading
+// pg_constraint is the only way to prove 012 both added the new constraint and
+// removed the global one it replaces.
+func TestGitHubInstallationRepositoryIntegration_ConstraintSwap(t *testing.T) {
+	ctx := context.Background()
+
+	constraintExists := func(name string) bool {
+		var count int
+		err := integrationDB.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM pg_constraint
+			 WHERE conrelid = 'public.github_installations'::regclass AND conname = $1`,
+			name).Scan(&count)
+		require.NoError(t, err)
+		return count > 0
+	}
+
+	assert.True(t, constraintExists("unique_app_installation"),
+		"012 must add UNIQUE (app_config_id, installation_id)")
+	assert.False(t, constraintExists("github_installations_installation_id_key"),
+		"012 must drop the global UNIQUE (installation_id): two teams may install their own Apps on the same org")
+	assert.True(t, constraintExists("fk_installations_app_config"),
+		"installations must be bound to the App that created them")
+}
+
+// TestGitHubInstallationRepositoryIntegration_AppConfigCascade proves the
+// ON DELETE CASCADE on fk_installations_app_config: removing a team's App
+// disconnects the installations made through it, which is what makes deleting a
+// config a complete disconnect rather than a half-broken state.
+func TestGitHubInstallationRepositoryIntegration_AppConfigCascade(t *testing.T) {
+	resetGitHubInstallationTables(t)
+	ctx := context.Background()
+	repo := newIntegrationGitHubInstallationRepo()
+
+	userID := insertTestUser(t)
+	teamID := insertTestTeam(t, userID)
+	appConfigID := insertTestGitHubAppConfig(t, teamID, "2501")
+
+	require.NoError(t, repo.Create(ctx, buildGitHubInstallation(teamID, appConfigID, 2501)))
+
+	_, err := integrationDB.ExecContext(ctx, "DELETE FROM github_app_configs WHERE id = $1", appConfigID)
+	require.NoError(t, err)
+
+	_, err = repo.GetByTeamID(ctx, teamID)
+	assert.ErrorIs(t, err, repositories.ErrGitHubInstallationNotFound,
+		"deleting the App config must cascade to its installations")
+}
+
+// TestGitHubInstallationRepositoryIntegration_AppConfigIDIsRequired pins the
+// NOT NULL on app_config_id: an installation with no owning App is exactly the
+// orphan state #477 exists to make unrepresentable.
+func TestGitHubInstallationRepositoryIntegration_AppConfigIDIsRequired(t *testing.T) {
+	resetGitHubInstallationTables(t)
+	ctx := context.Background()
+
+	userID := insertTestUser(t)
+	teamID := insertTestTeam(t, userID)
+
+	_, err := integrationDB.ExecContext(ctx,
+		`INSERT INTO github_installations
+		 (id, team_id, installation_id, account_login, account_type, target_type,
+		  encrypted_access_token, token_expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		uuid.New().String(), teamID, int64(2601), "octo-org", "Organization", "organization",
+		"enc", time.Now().UTC().Add(time.Hour))
+	require.Error(t, err, "app_config_id must be NOT NULL")
 }
 
 // TestGitHubInstallationRepositoryIntegration_ReinstallFlow exercises the
@@ -117,12 +227,13 @@ func TestGitHubInstallationRepositoryIntegration_ReinstallFlow(t *testing.T) {
 
 	userID := insertTestUser(t)
 	teamID := insertTestTeam(t, userID)
+	appConfigID := insertTestGitHubAppConfig(t, teamID, "3001")
 
-	first := buildGitHubInstallation(teamID, 3001)
+	first := buildGitHubInstallation(teamID, appConfigID, 3001)
 	require.NoError(t, repo.Create(ctx, first))
 	require.NoError(t, repo.Delete(ctx, teamID))
 
-	second := buildGitHubInstallation(teamID, 3001)
+	second := buildGitHubInstallation(teamID, appConfigID, 3001)
 	second.AccountLogin = "octo-org-reinstalled"
 	require.NoError(t, repo.Create(ctx, second), "reinstall with the same installation_id must succeed after delete")
 
@@ -139,8 +250,9 @@ func TestGitHubInstallationRepositoryIntegration_UpdateRoundTrip(t *testing.T) {
 
 	userID := insertTestUser(t)
 	teamID := insertTestTeam(t, userID)
+	appConfigID := insertTestGitHubAppConfig(t, teamID, "4001")
 
-	inst := buildGitHubInstallation(teamID, 4001)
+	inst := buildGitHubInstallation(teamID, appConfigID, 4001)
 	require.NoError(t, repo.Create(ctx, inst))
 	createdUpdatedAt := inst.UpdatedAt
 
@@ -183,7 +295,7 @@ func TestGitHubInstallationRepositoryIntegration_UpdateMissingRowIsNotFound(t *t
 	resetGitHubInstallationTables(t)
 	repo := newIntegrationGitHubInstallationRepo()
 
-	ghost := buildGitHubInstallation(uuid.New().String(), 4999)
+	ghost := buildGitHubInstallation(uuid.New().String(), uuid.New().String(), 4999)
 	err := repo.Update(context.Background(), ghost)
 	assert.ErrorIs(t, err, repositories.ErrGitHubInstallationNotFound)
 }
@@ -195,8 +307,9 @@ func TestGitHubInstallationRepositoryIntegration_DeleteThenRedeleteIsNotFound(t 
 
 	userID := insertTestUser(t)
 	teamID := insertTestTeam(t, userID)
+	appConfigID := insertTestGitHubAppConfig(t, teamID, "5001")
 
-	require.NoError(t, repo.Create(ctx, buildGitHubInstallation(teamID, 5001)))
+	require.NoError(t, repo.Create(ctx, buildGitHubInstallation(teamID, appConfigID, 5001)))
 	require.NoError(t, repo.Delete(ctx, teamID))
 
 	_, err := repo.GetByTeamID(ctx, teamID)
@@ -214,8 +327,10 @@ func TestGitHubInstallationRepositoryIntegration_TeamTenancy(t *testing.T) {
 	userID := insertTestUser(t)
 	installedTeam := insertTestTeam(t, userID)
 	otherTeam := insertTestTeam(t, userID)
+	installedApp := insertTestGitHubAppConfig(t, installedTeam, "6001")
+	otherApp := insertTestGitHubAppConfig(t, otherTeam, "6002")
 
-	inst := buildGitHubInstallation(installedTeam, 6001)
+	inst := buildGitHubInstallation(installedTeam, installedApp, 6001)
 	require.NoError(t, repo.Create(ctx, inst))
 
 	// Another team never sees a foreign installation.
@@ -227,7 +342,7 @@ func TestGitHubInstallationRepositoryIntegration_TeamTenancy(t *testing.T) {
 	assert.ErrorIs(t, err, repositories.ErrGitHubInstallationNotFound)
 
 	// Once the other team installs too, each team resolves only its own row.
-	otherInst := buildGitHubInstallation(otherTeam, 6002)
+	otherInst := buildGitHubInstallation(otherTeam, otherApp, 6002)
 	require.NoError(t, repo.Create(ctx, otherInst))
 
 	got, err := repo.GetByTeamID(ctx, installedTeam)

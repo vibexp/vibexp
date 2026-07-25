@@ -33,9 +33,9 @@ func (r *GitHubInstallationRepository) Create(ctx context.Context, installation 
 
 	query := `
 		INSERT INTO github_installations (
-			id, team_id, installation_id, account_login, account_type, target_type,
+			id, team_id, app_config_id, installation_id, account_login, account_type, target_type,
 			encrypted_access_token, token_expires_at, permissions, events, suspended_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING created_at, updated_at
 	`
 
@@ -43,6 +43,7 @@ func (r *GitHubInstallationRepository) Create(ctx context.Context, installation 
 		ctx, query,
 		installation.ID,
 		installation.TeamID,
+		installation.AppConfigID,
 		installation.InstallationID,
 		installation.AccountLogin,
 		installation.AccountType,
@@ -70,7 +71,7 @@ func (r *GitHubInstallationRepository) GetByTeamID(
 	var permissionsJSON []byte
 
 	query := `
-		SELECT id, team_id, installation_id, account_login, account_type, target_type,
+		SELECT id, team_id, app_config_id, installation_id, account_login, account_type, target_type,
 			   encrypted_access_token, token_expires_at, permissions, events, suspended_at,
 			   created_at, updated_at
 		FROM github_installations
@@ -80,6 +81,7 @@ func (r *GitHubInstallationRepository) GetByTeamID(
 	err := r.db.QueryRowContext(ctx, query, teamID).Scan(
 		&installation.ID,
 		&installation.TeamID,
+		&installation.AppConfigID,
 		&installation.InstallationID,
 		&installation.AccountLogin,
 		&installation.AccountType,
@@ -116,7 +118,7 @@ func (r *GitHubInstallationRepository) GetByInstallationID(
 	var permissionsJSON []byte
 
 	query := `
-		SELECT id, team_id, installation_id, account_login, account_type, target_type,
+		SELECT id, team_id, app_config_id, installation_id, account_login, account_type, target_type,
 			   encrypted_access_token, token_expires_at, permissions, events, suspended_at,
 			   created_at, updated_at
 		FROM github_installations
@@ -126,6 +128,7 @@ func (r *GitHubInstallationRepository) GetByInstallationID(
 	err := r.db.QueryRowContext(ctx, query, installationID).Scan(
 		&installation.ID,
 		&installation.TeamID,
+		&installation.AppConfigID,
 		&installation.InstallationID,
 		&installation.AccountLogin,
 		&installation.AccountType,
@@ -162,14 +165,15 @@ func (r *GitHubInstallationRepository) Update(ctx context.Context, installation 
 
 	query := `
 		UPDATE github_installations
-		SET installation_id = $1, account_login = $2, account_type = $3, target_type = $4,
-			encrypted_access_token = $5, token_expires_at = $6, permissions = $7,
-			events = $8, suspended_at = $9, updated_at = NOW()
-		WHERE id = $10
+		SET app_config_id = $1, installation_id = $2, account_login = $3, account_type = $4,
+			target_type = $5, encrypted_access_token = $6, token_expires_at = $7,
+			permissions = $8, events = $9, suspended_at = $10, updated_at = NOW()
+		WHERE id = $11
 	`
 
 	result, err := r.db.ExecContext(
 		ctx, query,
+		installation.AppConfigID,
 		installation.InstallationID,
 		installation.AccountLogin,
 		installation.AccountType,
