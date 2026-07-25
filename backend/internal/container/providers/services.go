@@ -193,6 +193,18 @@ func ProvideModelProviderService(
 	return services.NewModelProviderService(repo, enc, cfg, authzSvc)
 }
 
+// ProvideGitHubAppConfigService creates a new GitHubAppConfigService. The
+// frontend base URL is what the webhook URL shown to the admin is built from, so
+// it must be the instance's PUBLIC origin — the same value the OAuth flows use.
+func ProvideGitHubAppConfigService(
+	repo repositories.GitHubAppConfigRepository,
+	enc services.EncryptionServiceInterface,
+	cfg *config.Config,
+	authzSvc services.AuthorizationServiceInterface,
+) services.GitHubAppConfigServiceInterface {
+	return services.NewGitHubAppConfigService(repo, enc, authzSvc, cfg.Frontend.BaseURL)
+}
+
 // ProvideEmailService creates a new EmailService
 func ProvideEmailService(
 	provider external.EmailProvider,

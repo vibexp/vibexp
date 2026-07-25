@@ -227,6 +227,33 @@ type EmbeddingProviderServiceInterface interface {
 // ModelProviderServiceInterface defines the interface for model provider
 // operations (per-team, bring-your-own OpenAI-compatible LLM config). Issue #110
 // ships only config storage + a validate probe; no runtime consumer is wired.
+// GitHubAppConfigServiceInterface owns a team's own GitHub App credentials
+// (#478). Every mutating method is gated on authz.TeamSettingsUpdate
+// (owner/admin) -- an App registration is team configuration, not team identity
+// -- and so is ValidateAppConfig, which makes the server perform an
+// authenticated outbound call on the team's behalf.
+type GitHubAppConfigServiceInterface interface {
+	// CreateAppConfig registers the team's App. The webhook secret is generated
+	// server-side and disclosed exactly once, in the returned payload.
+	CreateAppConfig(ctx context.Context, teamID, userID string,
+		req models.CreateGitHubAppConfigRequest) (*models.GitHubAppConfigCreated, error)
+	// GetAppConfig returns the config with has_* masks in place of secrets.
+	GetAppConfig(ctx context.Context, teamID string) (*models.GitHubAppConfigResponse, error)
+	UpdateAppConfig(ctx context.Context, teamID, userID string,
+		req models.UpdateGitHubAppConfigRequest) (*models.GitHubAppConfigResponse, error)
+	DeleteAppConfig(ctx context.Context, teamID, userID string) error
+	// ValidateAppConfig proves the stored credentials work by calling GET /app.
+	// A failed probe is reported in the response body, not as an error.
+	ValidateAppConfig(ctx context.Context, teamID, userID string,
+	) (*models.ValidateGitHubAppResponse, error)
+	RotateWebhookToken(ctx context.Context, teamID, userID string,
+	) (*models.GitHubAppConfigResponse, error)
+	// RotateWebhookSecret is the recovery path for a lost webhook secret, which
+	// is never readable after its one disclosure.
+	RotateWebhookSecret(ctx context.Context, teamID, userID string,
+	) (*models.GitHubAppConfigCreated, error)
+}
+
 type ModelProviderServiceInterface interface {
 	CreateModelProvider(ctx context.Context, teamID, userID string, req models.CreateModelProviderRequest,
 	) (*models.ModelProvider, error)

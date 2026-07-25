@@ -148,6 +148,52 @@ func NewProviderAlreadyExistsError(providerName string) *APIError {
 	return NewAPIError(CodeProviderAlreadyExists, GetErrorTitle(CodeProviderAlreadyExists), detail, http.StatusConflict)
 }
 
+// NewGitHubAppNotConfiguredError reports that the team has no GitHub App. It is
+// a 409 rather than a 404: the endpoint exists and the team is addressable, it
+// is simply not in a state that can serve the request.
+func NewGitHubAppNotConfiguredError() *APIError {
+	return NewAPIError(
+		CodeGitHubAppNotConfigured,
+		GetErrorTitle(CodeGitHubAppNotConfigured),
+		"This team has no GitHub App configured",
+		http.StatusConflict,
+	)
+}
+
+// NewGitHubAppAlreadyRegisteredError reports that another team already
+// registered this App. A GitHub App has exactly one hook_url, so two teams
+// sharing one would leave the second team's webhook dead.
+func NewGitHubAppAlreadyRegisteredError() *APIError {
+	return NewAPIError(
+		CodeGitHubAppAlreadyRegistered,
+		GetErrorTitle(CodeGitHubAppAlreadyRegistered),
+		"This GitHub App is already registered by another team",
+		http.StatusConflict,
+	)
+}
+
+// NewGitHubAppConfigExistsError reports that the team already has an App
+// configured. One App per team is the design; edit the existing config instead.
+func NewGitHubAppConfigExistsError() *APIError {
+	return NewAPIError(
+		CodeGitHubAppConfigExists,
+		GetErrorTitle(CodeGitHubAppConfigExists),
+		"This team already has a GitHub App configured",
+		http.StatusConflict,
+	)
+}
+
+// NewGitHubAppConfigConflictError reports a lost optimistic-lock race. Nothing
+// was mutated; the caller should re-read and retry.
+func NewGitHubAppConfigConflictError() *APIError {
+	return NewAPIError(
+		CodeGitHubAppConfigConflict,
+		GetErrorTitle(CodeGitHubAppConfigConflict),
+		"The GitHub App configuration was modified concurrently; reload and try again",
+		http.StatusConflict,
+	)
+}
+
 // NewProviderCreateFailedError creates an embedding provider creation failed error
 func NewProviderCreateFailedError(detail string) *APIError {
 	if detail == "" {

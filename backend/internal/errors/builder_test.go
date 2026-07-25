@@ -234,6 +234,41 @@ func embeddingProviderBuilderScenarios() []builderContractScenario {
 	}
 
 	return []builderContractScenario{
+		// The GitHub App builders are all 409s on purpose: each says the request
+		// is well-formed but the team is not in a state that can serve it. A
+		// 404 would wrongly imply the endpoint or team does not exist.
+		{
+			name:       "github app not configured",
+			build:      NewGitHubAppNotConfiguredError,
+			wantStatus: http.StatusConflict,
+			wantCode:   "GITHUB_APP_NOT_CONFIGURED",
+			wantTitle:  "GitHub App Not Configured",
+			wantDetail: "This team has no GitHub App configured",
+		},
+		{
+			name:       "github app already registered by another team",
+			build:      NewGitHubAppAlreadyRegisteredError,
+			wantStatus: http.StatusConflict,
+			wantCode:   "GITHUB_APP_ALREADY_REGISTERED",
+			wantTitle:  "GitHub App Already Registered",
+			wantDetail: "This GitHub App is already registered by another team",
+		},
+		{
+			name:       "github app config already exists for this team",
+			build:      NewGitHubAppConfigExistsError,
+			wantStatus: http.StatusConflict,
+			wantCode:   "GITHUB_APP_CONFIG_EXISTS",
+			wantTitle:  "GitHub App Already Configured",
+			wantDetail: "This team already has a GitHub App configured",
+		},
+		{
+			name:       "github app config optimistic-lock conflict",
+			build:      NewGitHubAppConfigConflictError,
+			wantStatus: http.StatusConflict,
+			wantCode:   "GITHUB_APP_CONFIG_CONFLICT",
+			wantTitle:  "GitHub App Configuration Conflict",
+			wantDetail: "The GitHub App configuration was modified concurrently; reload and try again",
+		},
 		{
 			name:       "provider not found with id",
 			build:      func() *APIError { return NewProviderNotFoundError("prov-1") },

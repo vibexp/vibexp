@@ -35,6 +35,7 @@ type WireContainer struct {
 	specLibraryRepo         repositories.BlueprintRepository
 	embeddingProviderRepo   repositories.EmbeddingProviderRepository
 	modelProviderRepo       repositories.ModelProviderRepository
+	githubAppConfigRepo     repositories.GitHubAppConfigRepository
 	activityRepo            repositories.ActivityRepository
 	resourceAccessRepo      repositories.ResourceAccessRepository
 	claudeCodeHooksRepo     repositories.ClaudeCodeHooksRepository
@@ -74,6 +75,7 @@ type WireContainer struct {
 	specLibraryService        services.BlueprintServiceInterface
 	embeddingProviderService  services.EmbeddingProviderServiceInterface
 	modelProviderService      services.ModelProviderServiceInterface
+	githubAppConfigService    services.GitHubAppConfigServiceInterface
 	emailService              services.EmailServiceInterface
 	activityService           activities.ActivityService
 	resourceAccessService     resourceaccess.ResourceAccessService
@@ -190,6 +192,10 @@ func (c *WireContainer) EmbeddingProviderRepository() repositories.EmbeddingProv
 
 func (c *WireContainer) ModelProviderRepository() repositories.ModelProviderRepository {
 	return c.modelProviderRepo
+}
+
+func (c *WireContainer) GitHubAppConfigRepository() repositories.GitHubAppConfigRepository {
+	return c.githubAppConfigRepo
 }
 
 func (c *WireContainer) ActivityRepository() repositories.ActivityRepository {
@@ -315,6 +321,10 @@ func (c *WireContainer) EmbeddingProviderService() services.EmbeddingProviderSer
 
 func (c *WireContainer) ModelProviderService() services.ModelProviderServiceInterface {
 	return c.modelProviderService
+}
+
+func (c *WireContainer) GitHubAppConfigService() services.GitHubAppConfigServiceInterface {
+	return c.githubAppConfigService
 }
 
 func (c *WireContainer) EmailService() services.EmailServiceInterface {

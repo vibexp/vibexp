@@ -83,6 +83,11 @@ func ProvideModelProviderRepository(db *database.DB) repositories.ModelProviderR
 	return postgres.NewModelProviderRepository(db)
 }
 
+// ProvideGitHubAppConfigRepository creates a new GitHubAppConfigRepository
+func ProvideGitHubAppConfigRepository(db *database.DB) repositories.GitHubAppConfigRepository {
+	return postgres.NewGitHubAppConfigRepository(db)
+}
+
 // ProvideActivityRepository creates a new ActivityRepository
 func ProvideActivityRepository(db *database.DB) repositories.ActivityRepository {
 	return postgres.NewActivityRepository(db)

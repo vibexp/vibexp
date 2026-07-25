@@ -53,6 +53,12 @@ const (
 	CodeProviderLastDeleteBlocked = "PROVIDER_LAST_DELETE_BLOCKED"
 	CodeProviderValidationFailed  = "PROVIDER_VALIDATION_FAILED"
 
+	// GitHub App configuration errors
+	CodeGitHubAppNotConfigured     = "GITHUB_APP_NOT_CONFIGURED"
+	CodeGitHubAppAlreadyRegistered = "GITHUB_APP_ALREADY_REGISTERED"
+	CodeGitHubAppConfigExists      = "GITHUB_APP_CONFIG_EXISTS"
+	CodeGitHubAppConfigConflict    = "GITHUB_APP_CONFIG_CONFLICT"
+
 	// Model provider errors
 	CodeModelProviderNotFound          = "MODEL_PROVIDER_NOT_FOUND"
 	CodeModelProviderAlreadyExists     = "MODEL_PROVIDER_ALREADY_EXISTS"
@@ -99,6 +105,10 @@ var errorTitles = map[string]string{
 	CodeProviderDeleteFailed:           "Embedding Provider Deletion Failed",
 	CodeProviderLastDeleteBlocked:      "Cannot Delete Last Embedding Provider",
 	CodeProviderValidationFailed:       "Embedding Provider Validation Failed",
+	CodeGitHubAppNotConfigured:         "GitHub App Not Configured",
+	CodeGitHubAppAlreadyRegistered:     "GitHub App Already Registered",
+	CodeGitHubAppConfigExists:          "GitHub App Already Configured",
+	CodeGitHubAppConfigConflict:        "GitHub App Configuration Conflict",
 	CodeModelProviderNotFound:          "Model Provider Not Found",
 	CodeModelProviderAlreadyExists:     "Model Provider Already Exists",
 	CodeModelProviderCreateFailed:      "Model Provider Creation Failed",

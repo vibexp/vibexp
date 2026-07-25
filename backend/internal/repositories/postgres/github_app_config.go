@@ -56,6 +56,8 @@ func mapGitHubAppConfigUniqueViolation(err error) error {
 		return repositories.ErrGitHubAppAlreadyRegistered
 	case strings.Contains(pqErr.Constraint, "unique_team_github_app"):
 		return repositories.ErrGitHubAppConfigTeamTaken
+	case strings.Contains(pqErr.Constraint, "idx_github_app_configs_webhook_token"):
+		return repositories.ErrGitHubAppWebhookTokenTaken
 	default:
 		return err
 	}
