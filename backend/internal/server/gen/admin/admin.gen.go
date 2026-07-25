@@ -477,7 +477,9 @@ type AdminTeamDetail struct {
 	Members []AdminTeamMember `json:"members"`
 	Name    string            `json:"name"`
 
-	// Owner The owning user of a team.
+	// Owner A user shown as the responsible party for a resource: the owner of a team, or
+	// the creator of a project (#453). The shape is id/email/name in both cases;
+	// which relationship it represents is stated on the referencing property.
 	Owner AdminTeamOwner `json:"owner"`
 
 	// Slug URL-safe team identifier.
@@ -496,7 +498,9 @@ type AdminTeamListItem struct {
 	MemberCount int64  `json:"member_count"`
 	Name        string `json:"name"`
 
-	// Owner The owning user of a team.
+	// Owner A user shown as the responsible party for a resource: the owner of a team, or
+	// the creator of a project (#453). The shape is id/email/name in both cases;
+	// which relationship it represents is stated on the referencing property.
 	Owner AdminTeamOwner `json:"owner"`
 
 	// Slug URL-safe team identifier.
@@ -535,7 +539,9 @@ type AdminTeamMembership struct {
 	TeamName string             `json:"team_name"`
 }
 
-// AdminTeamOwner The owning user of a team.
+// AdminTeamOwner A user shown as the responsible party for a resource: the owner of a team, or
+// the creator of a project (#453). The shape is id/email/name in both cases;
+// which relationship it represents is stated on the referencing property.
 type AdminTeamOwner struct {
 	Email openapi_types.Email `json:"email"`
 	Id    openapi_types.UUID  `json:"id"`

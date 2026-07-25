@@ -20290,7 +20290,10 @@ components:
             $ref: '#/components/schemas/AdminTeamMembership'
     AdminTeamOwner:
       type: object
-      description: The owning user of a team.
+      description: |
+        A user shown as the responsible party for a resource: the owner of a team, or
+        the creator of a project (#453). The shape is id/email/name in both cases;
+        which relationship it represents is stated on the referencing property.
       required:
         - id
         - email

@@ -307,3 +307,19 @@ func TestAdminProjectRoutes_NonAdminGets404(t *testing.T) {
 		})
 	}
 }
+
+// TestListAdminProjects_MalformedTeamIDReturns400 pins that a non-UUID team_id is
+// rejected by the binder rather than silently becoming a filter that matches
+// nothing — which would look like "this team has no projects".
+func TestListAdminProjects_MalformedTeamIDReturns400(t *testing.T) {
+	// No service expectation: the request must not reach it.
+	mockAdmin := servicesmocks.NewMockAdminServiceInterface(t)
+	srv := newAdminTestServer(&config.Config{}, &adminMockContainer{adminService: mockAdmin})
+
+	req := httptest.NewRequest("GET", "/api/v1/admin/projects?team_id=not-a-uuid", nil)
+	rr := httptest.NewRecorder()
+	mountAdminStrictRouter(srv).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
+}
