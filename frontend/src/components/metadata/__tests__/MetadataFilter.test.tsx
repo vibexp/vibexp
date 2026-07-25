@@ -130,6 +130,16 @@ describe('MetadataFilter', () => {
     )
   })
 
+  it('renders a key-exists filter as "any" rather than a blank chip', () => {
+    // [] is the backend's "the key exists" form, which a page can restore from
+    // the URL even though this component never emits it.
+    render(<MetadataFilter {...baseProps({ value: { env: [] } })} />)
+
+    expect(screen.getByTestId('metadata-chip-env')).toHaveTextContent(
+      'env: any'
+    )
+  })
+
   it('removing a chip omits that key entirely', async () => {
     const user = userEvent.setup()
     const onChange = jest.fn()

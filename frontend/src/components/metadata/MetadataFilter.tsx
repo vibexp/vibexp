@@ -218,7 +218,11 @@ export function MetadataFilter({
           data-testid={`metadata-chip-${key}`}
         >
           <span>
-            {key}: {value[key].join(', ')}
+            {/* An empty array is the backend's "key exists" form, which a page
+                may restore from the URL — render it as such, not as a blank. */}
+            {value[key].length > 0
+              ? `${key}: ${value[key].join(', ')}`
+              : `${key}: any`}
           </span>
           <button
             type="button"

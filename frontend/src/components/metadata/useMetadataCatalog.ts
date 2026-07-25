@@ -123,10 +123,13 @@ export function useMetadataCatalog({
     const trimmed = valueQuery.trim()
     const requestId = ++valuesRequestIdRef.current
 
-    timerRef.current = setTimeout(() => {
-      setValuesLoading(true)
-      setValuesError(null)
+    // Enter the loading state NOW, not when the timer fires: for the whole
+    // debounce window values is still [], so the list would otherwise render
+    // "No values found" before the request has even started.
+    setValuesLoading(true)
+    setValuesError(null)
 
+    timerRef.current = setTimeout(() => {
       metadataService
         .listValues(currentTeam.id, {
           resource_type: resourceType,

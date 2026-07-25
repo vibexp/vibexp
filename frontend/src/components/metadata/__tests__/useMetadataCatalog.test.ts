@@ -91,6 +91,18 @@ describe('useMetadataCatalog', () => {
     })
   })
 
+  test('is loading for the whole debounce window, not just the request', () => {
+    const { result } = renderCatalog()
+
+    act(() => {
+      result.current.selectKey('env')
+    })
+
+    // Before the fix this was false while values was still [], so the popover
+    // rendered "No values found" for 300ms before the request even started.
+    expect(result.current.valuesLoading).toBe(true)
+  })
+
   test('rapid typing produces one request, not one per keystroke', async () => {
     const { result } = renderCatalog()
 
