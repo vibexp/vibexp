@@ -987,6 +987,20 @@ type AdminTeamFilters struct {
 	Limit       int
 }
 
+// AdminProjectFilters narrows and orders the instance-wide admin project
+// listing. Nil pointer fields mean "no filter"; SortBy/SortOrder are allowlisted
+// in the repository.
+type AdminProjectFilters struct {
+	Search      *string
+	TeamID      *string
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+	SortBy      string
+	SortOrder   string
+	Page        int
+	Limit       int
+}
+
 // AdminRepository defines instance-level administrative data access for the
 // /api/v1/admin surface. Reads are instance-wide (unscoped), unlike the
 // team/user-scoped repositories.
@@ -1041,6 +1055,15 @@ type AdminRepository interface {
 	// when no user with that id exists. Identity fields are IdP-owned and are
 	// deliberately not representable here.
 	UpdateUserName(ctx context.Context, id, name string) (bool, error)
+	// ListProjects returns a page of projects matching the filters with their team
+	// and owner, plus the total count of the filtered set. filters.Page/Limit are
+	// already clamped.
+	ListProjects(
+		ctx context.Context, filters AdminProjectFilters,
+	) ([]models.AdminProjectListItem, int, error)
+	// GetProjectDetail returns one project with its team, owner and per-type
+	// resource counts, or (nil, nil) when no project with that id exists.
+	GetProjectDetail(ctx context.Context, id string) (*models.AdminProjectDetail, error)
 	// DeleteUserIfUnblocked hard-deletes a user, but ONLY after confirming in the
 	// same transaction that they own no shared team with other members — deleting
 	// such a user would cascade that team away and take its members' data with it.

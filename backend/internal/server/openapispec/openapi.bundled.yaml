@@ -9992,6 +9992,165 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/projects:
+    get:
+      summary: List instance projects
+      description: |
+        Returns a paginated, instance-wide listing of projects with each project's
+        owning team and its creator. Supports case-insensitive search, typed
+        filters, and allowlisted sorting; filters combine with AND and the
+        pagination envelope reflects the filtered set.
+
+        `owner` is the project's creator (`projects.user_id`), which is not
+        necessarily the owning team's owner.
+
+        Instance-admin only; non-admin and unauthenticated requests receive 404.
+      operationId: listAdminProjects
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 1-based page number
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          description: Case-insensitive substring match over the project name and slug.
+          required: false
+          schema:
+            type: string
+        - name: team_id
+          in: query
+          description: Narrow to projects belonging to one team.
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: created_from
+          in: query
+          description: Only projects created at or after this instant (inclusive).
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: created_to
+          in: query
+          description: Only projects created at or before this instant (inclusive).
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: sort_by
+          in: query
+          description: Column to sort by. Ties are always broken by project id so paging is stable.
+          required: false
+          schema:
+            type: string
+            enum:
+              - created_at
+              - name
+            default: created_at
+        - name: sort_order
+          in: query
+          description: Sort direction.
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        '200':
+          description: A page of projects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProjectListResponse'
+        '400':
+          description: Bad request — a query parameter is malformed or outside its enum
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — the caller is not an instance admin (surface not advertised)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/admin/projects/{id}:
+    get:
+      summary: Get an instance project
+      description: |
+        Returns one project with its owning team, its creator, and how many of each
+        PROJECT-SCOPED resource type it contains (prompts, artifacts, memories,
+        blueprints). Agents and feeds are not included because they are team-scoped
+        and have no project association.
+
+        Instance-admin only; non-admin and unauthenticated requests receive 404, as
+        does an unknown project id.
+      operationId: getAdminProject
+      tags:
+        - Admin
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Project id (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The project with its team, owner and resource counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProjectDetail'
+        '400':
+          description: Bad request — malformed project id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found — unknown project id, or the caller is not an instance admin
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/{team_id}/comments:
     get:
       summary: List a resource's comments
@@ -20131,7 +20290,10 @@ components:
             $ref: '#/components/schemas/AdminTeamMembership'
     AdminTeamOwner:
       type: object
-      description: The owning user of a team.
+      description: |
+        A user shown as the responsible party for a resource: the owner of a team, or
+        the creator of a project (#453). The shape is id/email/name in both cases;
+        which relationship it represents is stated on the referencing property.
       required:
         - id
         - email
@@ -20655,6 +20817,169 @@ components:
             to sign in with (e.g. "google", "oidc"). Informational only — it does not
             pre-link an IdP identity, which is established on first sign-in.
           example: oidc
+    AdminProjectTeam:
+      type: object
+      description: The team a project belongs to.
+      required:
+        - id
+        - name
+        - slug
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Acme Engineering
+        slug:
+          type: string
+          example: acme-engineering
+    AdminProjectListItem:
+      type: object
+      description: One project in the instance-wide admin project listing.
+      required:
+        - id
+        - name
+        - slug
+        - team
+        - owner
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Platform
+        slug:
+          type: string
+          example: platform
+        team:
+          $ref: '#/components/schemas/AdminProjectTeam'
+        owner:
+          allOf:
+            - $ref: '#/components/schemas/AdminTeamOwner'
+          description: |
+            The project's creator (projects.user_id). This is NOT necessarily the
+            owning team's owner — a project carries both a team and a creating user,
+            and the two can differ.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AdminProjectListResponse:
+      type: object
+      description: A page of the instance-wide project listing.
+      required:
+        - projects
+        - total_count
+        - page
+        - per_page
+        - total_pages
+      properties:
+        projects:
+          type: array
+          description: Projects on this page.
+          items:
+            $ref: '#/components/schemas/AdminProjectListItem'
+        total_count:
+          type: integer
+          description: Total number of projects matching the filters.
+          example: 30
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 20
+        total_pages:
+          type: integer
+          example: 2
+    AdminProjectResourceCounts:
+      type: object
+      description: |
+        How many of each PROJECT-SCOPED resource type the project contains.
+
+        Only these four types belong to a project. Agents and feeds are deliberately
+        absent: neither table has a project_id column (both are team-scoped), so
+        reporting zero for them would read as "this project has no agents" rather
+        than "agents do not belong to projects".
+      required:
+        - prompts
+        - artifacts
+        - memories
+        - blueprints
+      properties:
+        prompts:
+          type: integer
+          format: int64
+          example: 12
+        artifacts:
+          type: integer
+          format: int64
+          example: 4
+        memories:
+          type: integer
+          format: int64
+          example: 27
+        blueprints:
+          type: integer
+          format: int64
+          example: 3
+    AdminProjectDetail:
+      type: object
+      description: A single project with its team, owner and resource counts (GET /api/v1/admin/projects/{id}).
+      required:
+        - id
+        - name
+        - slug
+        - description
+        - git_url
+        - homepage
+        - team
+        - owner
+        - resource_counts
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Platform
+        slug:
+          type: string
+          example: platform
+        description:
+          type: string
+          description: Empty string when unset (the column defaults to '').
+          example: Core platform work
+        git_url:
+          type: string
+          description: Empty string when unset.
+          example: https://github.com/acme/platform
+        homepage:
+          type: string
+          description: Empty string when unset.
+          example: https://platform.acme.dev
+        team:
+          $ref: '#/components/schemas/AdminProjectTeam'
+        owner:
+          allOf:
+            - $ref: '#/components/schemas/AdminTeamOwner'
+          description: The project's creator (projects.user_id); see AdminProjectListItem.owner.
+        resource_counts:
+          $ref: '#/components/schemas/AdminProjectResourceCounts'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     ProjectResponse:
       allOf:
         - $ref: '#/components/schemas/Project'

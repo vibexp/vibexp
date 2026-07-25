@@ -823,6 +823,17 @@ components:
     # Admin user creation (#462)
     AdminUserCreateRequest:
       $ref: "./schemas/admin.yaml#/AdminUserCreateRequest"
+    # Admin projects (#453)
+    AdminProjectTeam:
+      $ref: "./schemas/admin.yaml#/AdminProjectTeam"
+    AdminProjectListItem:
+      $ref: "./schemas/admin.yaml#/AdminProjectListItem"
+    AdminProjectListResponse:
+      $ref: "./schemas/admin.yaml#/AdminProjectListResponse"
+    AdminProjectResourceCounts:
+      $ref: "./schemas/admin.yaml#/AdminProjectResourceCounts"
+    AdminProjectDetail:
+      $ref: "./schemas/admin.yaml#/AdminProjectDetail"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
@@ -1147,6 +1158,10 @@ paths:
     $ref: "./paths/admin.yaml#/api-v1-admin-users-id-suspend"
   /api/v1/admin/users/{id}/reactivate:
     $ref: "./paths/admin.yaml#/api-v1-admin-users-id-reactivate"
+  /api/v1/admin/projects:
+    $ref: "./paths/admin.yaml#/api-v1-admin-projects"
+  /api/v1/admin/projects/{id}:
+    $ref: "./paths/admin.yaml#/api-v1-admin-projects-id"
   /api/v1/{team_id}/comments:
     $ref: "./paths/comments.yaml#/api-v1-team_id-comments"
   /api/v1/{team_id}/comments/recent:

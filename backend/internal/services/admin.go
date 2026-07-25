@@ -69,6 +69,14 @@ type AdminServiceInterface interface {
 	// self-signup uses. Returns *ErrAdminUserEmailTaken (handler: 409) when the
 	// email is already registered.
 	CreateUser(ctx context.Context, req AdminUserCreateRequest) (*models.AdminUserDetail, error)
+	// ListProjects returns a page of projects matching the filters with pagination
+	// metadata over the filtered set. filters.Page/Limit are clamped.
+	ListProjects(
+		ctx context.Context, filters repositories.AdminProjectFilters,
+	) (models.AdminProjectList, error)
+	// GetProjectDetail returns one project with its team, owner and resource
+	// counts, or (nil, nil) when no project with that id exists (handler: 404).
+	GetProjectDetail(ctx context.Context, id string) (*models.AdminProjectDetail, error)
 }
 
 // AdminService implements AdminServiceInterface.

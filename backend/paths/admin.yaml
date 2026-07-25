@@ -747,3 +747,164 @@ api-v1-admin-users-id-reactivate:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-projects:
+  get:
+    summary: List instance projects
+    description: |
+      Returns a paginated, instance-wide listing of projects with each project's
+      owning team and its creator. Supports case-insensitive search, typed
+      filters, and allowlisted sorting; filters combine with AND and the
+      pagination envelope reflects the filtered set.
+
+      `owner` is the project's creator (`projects.user_id`), which is not
+      necessarily the owning team's owner.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404.
+    operationId: listAdminProjects
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: page
+        in: query
+        description: 1-based page number
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: limit
+        in: query
+        description: Items per page
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: search
+        in: query
+        description: Case-insensitive substring match over the project name and slug.
+        required: false
+        schema:
+          type: string
+      - name: team_id
+        in: query
+        description: Narrow to projects belonging to one team.
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: created_from
+        in: query
+        description: Only projects created at or after this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: created_to
+        in: query
+        description: Only projects created at or before this instant (inclusive).
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: sort_by
+        in: query
+        description: Column to sort by. Ties are always broken by project id so paging is stable.
+        required: false
+        schema:
+          type: string
+          enum:
+            - created_at
+            - name
+          default: created_at
+      - name: sort_order
+        in: query
+        description: Sort direction.
+        required: false
+        schema:
+          type: string
+          enum:
+            - asc
+            - desc
+          default: desc
+    responses:
+      '200':
+        description: A page of projects
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminProjectListResponse'
+      '400':
+        description: Bad request — a query parameter is malformed or outside its enum
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — the caller is not an instance admin (surface not advertised)
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+
+api-v1-admin-projects-id:
+  get:
+    summary: Get an instance project
+    description: |
+      Returns one project with its owning team, its creator, and how many of each
+      PROJECT-SCOPED resource type it contains (prompts, artifacts, memories,
+      blueprints). Agents and feeds are not included because they are team-scoped
+      and have no project association.
+
+      Instance-admin only; non-admin and unauthenticated requests receive 404, as
+      does an unknown project id.
+    operationId: getAdminProject
+    tags:
+      - Admin
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Project id (UUID)
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: The project with its team, owner and resource counts
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/AdminProjectDetail'
+      '400':
+        description: Bad request — malformed project id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '404':
+        description: Not found — unknown project id, or the caller is not an instance admin
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
