@@ -1,4 +1,4 @@
-import type { components } from '@vibexp/api-client'
+import type { components, operations } from '@vibexp/api-client'
 
 import { generatedClient, unwrap } from '../lib/apiClientGenerated'
 import type {
@@ -28,24 +28,18 @@ export type BlueprintSubtype = NonNullable<Blueprint['subtype']>
 export type BlueprintVersion = ResourceVersion
 export type BlueprintVersionListResponse = ResourceVersionListResponse
 
-// The generated list query still omits the legacy `metadata_*` prefix keys, so
-// the richer hand-written filter shape is kept and serialized directly; the
-// generated query serializer forwards every non-undefined key regardless.
-// (`type` is no longer narrower — #520 widened the generated enum to match
-// Blueprint['type'] — and #526 removes the `metadata_*` remnant entirely.)
-export interface BlueprintFilters {
-  project_id?: string
-  search?: string
-  status?: 'active' | 'expired'
-  type?: BlueprintType
-  subtype?: BlueprintSubtype
-  sort_by?: 'created_at' | 'updated_at' | 'title'
-  sort_order?: 'asc' | 'desc'
-  page?: number
-  limit?: number // Max 100
-  // Metadata filtering support - dynamic keys with "metadata_" prefix
-  [key: `metadata_${string}`]: string | undefined
-}
+// List query shapes, derived from the generated operations. These used to be a
+// hand-written interface with a `[key: \`metadata_${string}\`]` index signature,
+// because the `metadata_<key>` prefix convention could not be expressed in
+// OpenAPI. #520 replaced it with a single declared `metadata` param (a
+// JSON-encoded object of key -> string values), so the spec-first guarantee is
+// restored and the escape hatch is gone (#522).
+export type BlueprintFilters = NonNullable<
+  operations['listSpecLibraries']['parameters']['query']
+>
+export type BlueprintFiltersByProject = NonNullable<
+  operations['listSpecLibrariesByProject']['parameters']['query']
+>
 
 // Type-to-subtype mapping for blueprint types
 export const BLUEPRINT_TYPE_SUBTYPES: Record<string, string[]> = {

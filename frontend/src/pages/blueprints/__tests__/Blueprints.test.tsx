@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 import type {
   Blueprint,
@@ -65,6 +65,30 @@ jest.mock('@/services/blueprintService', () => ({
   },
 }))
 
+// Only the catalog client is mocked; parseMetadataFilter/serializeMetadataFilter
+// stay real, since the URL round-trip is exactly what these tests assert.
+jest.mock('@/services/metadataService', () => {
+  const actual = jest.requireActual<
+    typeof import('@/services/metadataService')
+  >('@/services/metadataService')
+  return {
+    ...actual,
+    metadataService: { listKeys: jest.fn(), listValues: jest.fn() },
+  }
+})
+
+// Radix Popover + cmdk (MetadataFilter) need layout APIs jsdom lacks.
+beforeAll(() => {
+  global.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+  Element.prototype.scrollIntoView = jest.fn()
+  Element.prototype.hasPointerCapture = jest.fn()
+  Element.prototype.releasePointerCapture = jest.fn()
+})
+
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
 jest.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
@@ -123,6 +147,7 @@ jest.mock('@/hooks/useErrorHandler', () => {
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { blueprintService } from '@/services/blueprintService'
+import { metadataService } from '@/services/metadataService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 
 import { Blueprints } from '../Blueprints'
@@ -185,9 +210,23 @@ function rowOf(title: string): HTMLElement {
   return row as HTMLElement
 }
 
-function renderBlueprints() {
+let currentSearch = ''
+
+function LocationProbe() {
+  currentSearch = useLocation().search
+  return null
+}
+
+/** The filter object of the most recent getBlueprints call. */
+const lastQuery = () => {
+  const { calls } = (blueprintService.getBlueprints as jest.Mock).mock
+  return calls[calls.length - 1][1] as Record<string, unknown>
+}
+
+function renderBlueprints(initialEntry = '/blueprints') {
+  currentSearch = ''
   return render(
-    <MemoryRouter initialEntries={['/blueprints']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/blueprints" element={<Blueprints />} />
         <Route
@@ -203,6 +242,7 @@ function renderBlueprints() {
           element={<div data-testid="edit-probe">Blueprint edit probe</div>}
         />
       </Routes>
+      <LocationProbe />
     </MemoryRouter>
   )
 }
@@ -219,6 +259,14 @@ describe('Blueprints page', () => {
     ;(blueprintService.deleteBlueprint as jest.Mock).mockResolvedValue(
       undefined
     )
+    ;(metadataService.listKeys as jest.Mock).mockResolvedValue({
+      keys: ['env', 'team'],
+      truncated: false,
+    })
+    ;(metadataService.listValues as jest.Mock).mockResolvedValue({
+      values: ['prod', 'staging'],
+      truncated: false,
+    })
   })
 
   describe('data states', () => {
@@ -319,10 +367,24 @@ describe('Blueprints page', () => {
       ).toBeInTheDocument()
     })
 
-    it('shows the filtered empty state when a project is selected', async () => {
+    it('a selected project alone is NOT a page filter', async () => {
+      // The project comes from the global header selector, not this page's
+      // filter bar, so counting it would promise a `Clear filters` that cannot
+      // clear it (#522).
       projectContextValue.currentProject = alphaProject
 
       renderBlueprints()
+
+      await waitFor(() => {
+        expect(screen.getByText('No blueprints yet')).toBeInTheDocument()
+      })
+      expect(
+        screen.queryByRole('button', { name: 'Clear filters' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows the filtered empty state when a page filter is applied', async () => {
+      renderBlueprints('/blueprints?search=nope')
 
       await waitFor(() => {
         expect(
@@ -330,7 +392,7 @@ describe('Blueprints page', () => {
         ).toBeInTheDocument()
       })
       expect(
-        screen.getByText('Try different search or filter settings.')
+        screen.getByText('Try different search, type or metadata settings.')
       ).toBeInTheDocument()
     })
   })
@@ -401,6 +463,181 @@ describe('Blueprints page', () => {
           expect.objectContaining({ project_id: 'p1' })
         )
       })
+    })
+  })
+
+  describe('URL-synced filters (#522)', () => {
+    it('keeps defaults out of the URL and sends no filter params', async () => {
+      renderBlueprints()
+
+      await waitFor(() => {
+        expect(blueprintService.getBlueprints).toHaveBeenCalled()
+      })
+      expect(lastQuery()).toEqual(
+        expect.objectContaining({
+          page: 1,
+          limit: 20,
+          search: undefined,
+          type: undefined,
+          metadata: undefined,
+          sort_by: 'updated_at',
+          sort_order: 'desc',
+        })
+      )
+      expect(currentSearch).toBe('')
+    })
+
+    it('rehydrates search, type and metadata from the URL on mount', async () => {
+      renderBlueprints(
+        '/blueprints?search=api&type=cursor&metadata=%7B%22env%22%3A%5B%22prod%22%5D%7D&page=3'
+      )
+
+      await waitFor(() => {
+        expect(blueprintService.getBlueprints).toHaveBeenCalled()
+      })
+      const query = lastQuery()
+      expect(query.search).toBe('api')
+      expect(query.type).toBe('cursor')
+      // The param goes on the wire as the raw JSON object, encoded exactly once.
+      expect(query.metadata).toBe('{"env":["prod"]}')
+      expect(query.page).toBe(3)
+      // A shared link must reproduce the filter bar, not just the query.
+      expect(
+        screen.getByRole('textbox', { name: 'Search blueprints' })
+      ).toHaveValue('api')
+      expect(screen.getByTestId('metadata-chip-env')).toHaveTextContent(
+        'env: prod'
+      )
+    })
+
+    it('ignores a malformed metadata param instead of sending garbage', async () => {
+      renderBlueprints('/blueprints?metadata=not-json')
+
+      await waitFor(() => {
+        expect(blueprintService.getBlueprints).toHaveBeenCalled()
+      })
+      expect(lastQuery().metadata).toBeUndefined()
+      expect(screen.queryByTestId('metadata-chip-env')).not.toBeInTheDocument()
+      // Nothing filtered means the virgin empty state, not the filtered one.
+      expect(await screen.findByText('No blueprints yet')).toBeInTheDocument()
+    })
+
+    it('ignores a metadata param whose values are not string arrays', async () => {
+      renderBlueprints('/blueprints?metadata=%7B%22env%22%3A%22prod%22%7D')
+
+      await waitFor(() => {
+        expect(blueprintService.getBlueprints).toHaveBeenCalled()
+      })
+      expect(lastQuery().metadata).toBeUndefined()
+    })
+
+    it('committing a metadata chip sends the JSON param and resets to page 1', async () => {
+      renderBlueprints('/blueprints?page=4')
+      await waitFor(() => {
+        expect(lastQuery().page).toBe(4)
+      })
+
+      const user = userEvent.setup()
+      await user.click(
+        screen.getByRole('combobox', { name: 'Filter blueprints by metadata' })
+      )
+      await user.click(await screen.findByText('env'))
+      await user.click(await screen.findByText('prod'))
+      await user.click(screen.getByRole('button', { name: 'Apply env filter' }))
+
+      await waitFor(() => {
+        expect(lastQuery().metadata).toBe('{"env":["prod"]}')
+      })
+      // Page 4 of a narrowed result set is usually empty.
+      expect(lastQuery().page).toBe(1)
+      expect(currentSearch).toContain('metadata=')
+    })
+
+    it('removing the chip drops the param entirely', async () => {
+      renderBlueprints(
+        '/blueprints?metadata=%7B%22env%22%3A%5B%22prod%22%5D%7D'
+      )
+      await waitFor(() => {
+        expect(lastQuery().metadata).toBe('{"env":["prod"]}')
+      })
+
+      const user = userEvent.setup()
+      await user.click(
+        screen.getByRole('button', { name: 'Remove env filter' })
+      )
+
+      await waitFor(() => {
+        expect(lastQuery().metadata).toBeUndefined()
+      })
+      expect(currentSearch).not.toContain('metadata')
+    })
+
+    it('debounces the search box into a single request and one URL write', async () => {
+      renderBlueprints()
+      await waitFor(() => {
+        expect(blueprintService.getBlueprints).toHaveBeenCalled()
+      })
+      const before = (blueprintService.getBlueprints as jest.Mock).mock.calls
+        .length
+
+      const user = userEvent.setup()
+      await user.type(
+        screen.getByRole('textbox', { name: 'Search blueprints' }),
+        'api'
+      )
+
+      await waitFor(
+        () => {
+          expect(lastQuery().search).toBe('api')
+        },
+        { timeout: 2000 }
+      )
+      // Three keystrokes must not become three requests.
+      expect(
+        (blueprintService.getBlueprints as jest.Mock).mock.calls.length
+      ).toBe(before + 1)
+      expect(currentSearch).toContain('search=api')
+    })
+
+    it('falls back to the default sort when the URL names an unknown column', async () => {
+      renderBlueprints('/blueprints?sort_by=owner_email')
+
+      await waitFor(() => {
+        expect(blueprintService.getBlueprints).toHaveBeenCalled()
+      })
+      expect(lastQuery().sort_by).toBe('updated_at')
+    })
+
+    it('ignores a type outside the enum rather than forwarding it', async () => {
+      renderBlueprints('/blueprints?type=not-a-type')
+
+      await waitFor(() => {
+        expect(blueprintService.getBlueprints).toHaveBeenCalled()
+      })
+      expect(lastQuery().type).toBeUndefined()
+    })
+
+    it('Clear filters empties the URL, the search box and the chips', async () => {
+      renderBlueprints(
+        '/blueprints?search=nope&type=cursor&metadata=%7B%22env%22%3A%5B%22prod%22%5D%7D'
+      )
+      await screen.findByText('No blueprints match your filters')
+
+      const user = userEvent.setup()
+      const [clear] = screen.getAllByRole('button', { name: 'Clear filters' })
+      await user.click(clear)
+
+      await waitFor(() => {
+        expect(lastQuery().search).toBeUndefined()
+      })
+      expect(lastQuery().type).toBeUndefined()
+      expect(lastQuery().metadata).toBeUndefined()
+      expect(currentSearch).toBe('')
+      // Stale text would re-commit on the next debounce tick and undo the clear.
+      expect(
+        screen.getByRole('textbox', { name: 'Search blueprints' })
+      ).toHaveValue('')
+      expect(screen.queryByTestId('metadata-chip-env')).not.toBeInTheDocument()
     })
   })
 
