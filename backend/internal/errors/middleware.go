@@ -18,7 +18,7 @@ func RecoveryMiddleware(logger *slog.Logger) func(next http.Handler) http.Handle
 						"middleware", "RecoveryMiddleware",
 						"panic", rvr,
 						"stack", string(debug.Stack()),
-						"path", r.URL.Path,
+						"path", RedactSensitivePath(r.URL.Path),
 						"method", r.Method,
 					)
 

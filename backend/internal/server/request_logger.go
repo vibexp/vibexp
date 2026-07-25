@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/vibexp/vibexp/internal/contextkeys"
+	apierrors "github.com/vibexp/vibexp/internal/errors"
 )
 
 // requestCompletedMsg is the access-log message emitted once per request at a
@@ -31,7 +32,7 @@ func RequestIDMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 			// Create request-scoped logger with request context
 			reqLogger := logger.With(
 				"request_id", requestID,
-				"path", r.URL.Path,
+				"path", apierrors.RedactSensitivePath(r.URL.Path),
 				"method", r.Method,
 			)
 
@@ -85,7 +86,7 @@ func structuredRequestLogger(logger *slog.Logger) func(http.Handler) http.Handle
 
 			entry := contextkeys.GetLoggerFromContext(r.Context()).With(
 				"method", r.Method,
-				"path", r.URL.Path,
+				"path", apierrors.RedactSensitivePath(r.URL.Path),
 				"status", status,
 				"latency_ms", latencyMs,
 				"bytes", ww.BytesWritten(),

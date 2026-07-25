@@ -367,3 +367,43 @@ func TestGitHubInstallationRepository_Delete(t *testing.T) {
 		})
 	}
 }
+
+// TestGitHubInstallationRepository_GetByAppConfigAndInstallationID covers the
+// App-scoped read that webhook dispatch depends on: the App id must be bound
+// into the query, or a delivery could resolve another team's installation.
+func TestGitHubInstallationRepository_GetByAppConfigAndInstallationID(t *testing.T) {
+	t.Run("found", func(t *testing.T) {
+		repo, mock, mockDB := newGitHubInstallationMockRepo(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectQuery(`FROM github_installations\s+WHERE app_config_id = \$1 AND installation_id = \$2`).
+			WithArgs("cfg-1", int64(4242)).
+			WillReturnRows(githubInstallationHappyRows())
+
+		got, err := repo.GetByAppConfigAndInstallationID(context.Background(), "cfg-1", 4242)
+		require.NoError(t, err)
+		assertHappyGitHubInstallation(t, got)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("wrong app config yields not-found", func(t *testing.T) {
+		repo, mock, mockDB := newGitHubInstallationMockRepo(t)
+		defer func() {
+			if closeErr := mockDB.Close(); closeErr != nil {
+				t.Logf("Failed to close mock DB: %v", closeErr)
+			}
+		}()
+
+		mock.ExpectQuery(`FROM github_installations`).
+			WithArgs("cfg-someone-else", int64(4242)).
+			WillReturnError(sql.ErrNoRows)
+
+		_, err := repo.GetByAppConfigAndInstallationID(context.Background(), "cfg-someone-else", 4242)
+		assert.ErrorIs(t, err, repositories.ErrGitHubInstallationNotFound)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}

@@ -274,6 +274,41 @@ func TestGitHubAppConfigRepositoryIntegration_DeleteAndUnknownReads(t *testing.T
 	assert.ErrorIs(t, err, repositories.ErrGitHubAppConfigNotFound)
 }
 
+// TestGitHubAppConfigRepositoryIntegration_RotationInvalidatesOldToken is the
+// guarantee that makes webhook-token rotation worth having: a rotated-away token
+// must stop resolving IMMEDIATELY. If a leaked token kept working after
+// rotation, rotation would be theatre — the whole point is that the operator can
+// revoke a token they believe is compromised.
+func TestGitHubAppConfigRepositoryIntegration_RotationInvalidatesOldToken(t *testing.T) {
+	resetGitHubAppConfigTables(t)
+	ctx := context.Background()
+	repo := newIntegrationGitHubAppConfigRepo()
+
+	userID := insertTestUser(t)
+	teamID := insertTestTeam(t, userID)
+
+	config := buildGitHubAppConfig(teamID, userID, "950001")
+	oldToken := config.WebhookToken
+	require.NoError(t, repo.Create(ctx, config))
+
+	// Sanity: the token resolves before rotation.
+	resolved, err := repo.GetByWebhookToken(ctx, oldToken)
+	require.NoError(t, err)
+	assert.Equal(t, config.ID, resolved.ID)
+
+	newToken := "rotated-" + uuid.New().String()
+	config.WebhookToken = newToken
+	require.NoError(t, repo.Update(ctx, config))
+
+	_, err = repo.GetByWebhookToken(ctx, oldToken)
+	assert.ErrorIs(t, err, repositories.ErrGitHubAppConfigNotFound,
+		"the rotated-away token must stop resolving immediately")
+
+	rotated, err := repo.GetByWebhookToken(ctx, newToken)
+	require.NoError(t, err)
+	assert.Equal(t, config.ID, rotated.ID, "the new token must resolve to the same App")
+}
+
 // TestGitHubAppConfigRepositoryIntegration_TeamTenancy is the load-bearing test
 // of this issue: these rows hold a team's GitHub credentials, so a read that
 // forgets its team_id predicate is a cross-tenant credential leak.

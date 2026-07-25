@@ -546,13 +546,17 @@ func (s *Server) setupPublicRoutes() {
 	}
 	s.router.Get(mcpAuthorizationServerMetadataPath, s.handleMCPAuthorizationServerMetadata)
 	s.setupTestRoutes()
-	s.router.Post("/api/v1/webhooks/github", s.handleGitHubWebhook)
-	// Redirect legacy/misconfigured webhook path to the correct public endpoint.
-	// GitHub App may be configured with the wrong URL; this 308 redirect ensures
-	// webhook events are not silently dropped while the configuration is corrected.
-	s.router.Post("/api/v1/integrations/github/webhook", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/api/v1/webhooks/github", http.StatusPermanentRedirect)
-	})
+	// Per-App webhook delivery (#481): the routing token in the path selects
+	// which App's secret the signature is verified against. Public and
+	// unauthenticated by necessity — GitHub posts with no session.
+	s.router.Post("/api/v1/webhooks/github/{token}", s.handleGitHubWebhookByToken)
+
+	// The pre-#476 endpoints are retired, not redirected. Both verified against
+	// the instance-wide secret that per-team Apps replace, so they cannot keep
+	// working; 410 says so plainly instead of failing as a 401 that looks like a
+	// secret mismatch. Keep for a release or two, then delete.
+	s.router.Post("/api/v1/webhooks/github", s.handleRetiredGitHubWebhook)
+	s.router.Post("/api/v1/integrations/github/webhook", s.handleRetiredGitHubWebhook)
 	s.router.With(s.pubSubOIDCMiddleware).Post("/internal/jobs/notifications/retention", s.handleNotificationRetentionJob)
 	s.router.With(s.pubSubOIDCMiddleware).Post("/internal/jobs/notifications/digest", s.handleNotificationDigestJob)
 	s.router.With(s.pubSubOIDCMiddleware).Post("/internal/jobs/activities/retention", s.handleActivityRetentionJob)

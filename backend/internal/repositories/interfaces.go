@@ -1234,6 +1234,13 @@ type GitHubInstallationRepository interface {
 	Create(ctx context.Context, installation *models.GitHubInstallation) error
 	GetByTeamID(ctx context.Context, teamID string) (*models.GitHubInstallation, error)
 	GetByInstallationID(ctx context.Context, installationID int64) (*models.GitHubInstallation, error)
+	// GetByAppConfigAndInstallationID resolves an installation within ONE App.
+	// installation_id is only unique per App since #477, so a webhook delivery
+	// must be matched against the App it arrived for — otherwise a delivery for
+	// team A could mutate team B's installation when the numeric ids collide.
+	GetByAppConfigAndInstallationID(
+		ctx context.Context, appConfigID string, installationID int64,
+	) (*models.GitHubInstallation, error)
 	Update(ctx context.Context, installation *models.GitHubInstallation) error
 	Delete(ctx context.Context, teamID string) error
 }

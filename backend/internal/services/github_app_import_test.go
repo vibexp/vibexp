@@ -42,6 +42,18 @@ func (m *MockGitHubInstallationRepository) GetByTeamID(
 	return args.Get(0).(*models.GitHubInstallation), args.Error(1)
 }
 
+func (m *MockGitHubInstallationRepository) GetByAppConfigAndInstallationID(
+	ctx context.Context,
+	appConfigID string,
+	installationID int64,
+) (*models.GitHubInstallation, error) {
+	args := m.Called(ctx, appConfigID, installationID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.GitHubInstallation), args.Error(1)
+}
+
 func (m *MockGitHubInstallationRepository) GetByInstallationID(
 	ctx context.Context,
 	installationID int64,
