@@ -88,6 +88,7 @@ type WireContainer struct {
 	teamEmailProviderService  services.TeamEmailProviderServiceInterface
 	emailSenderResolver       services.EmailSenderResolver
 	teamSearchSettingsService services.TeamSearchSettingsServiceInterface
+	metadataCatalogService    services.MetadataCatalogServiceInterface
 	environmentService        *services.EnvironmentService
 	resourceUsageService      services.ResourceUsageServiceInterface
 	featureFlagService        *feature_flags.FeatureFlagService
@@ -373,6 +374,10 @@ func (c *WireContainer) EmailSenderResolver() services.EmailSenderResolver {
 
 func (c *WireContainer) TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface {
 	return c.teamSearchSettingsService
+}
+
+func (c *WireContainer) MetadataCatalogService() services.MetadataCatalogServiceInterface {
+	return c.metadataCatalogService
 }
 
 func (c *WireContainer) SearchService() services.Searcher {

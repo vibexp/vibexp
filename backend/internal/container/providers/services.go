@@ -454,6 +454,15 @@ func ProvideEmailSenderResolver(
 	return services.NewEmailSenderResolver(repo, enc, instanceProvider, cfg, logger)
 }
 
+// ProvideMetadataCatalogService creates the metadata catalog service, which
+// backs the metadata key/value discovery endpoints (epic #519).
+func ProvideMetadataCatalogService(
+	repo repositories.MetadataCatalogRepository,
+	logger *slog.Logger,
+) services.MetadataCatalogServiceInterface {
+	return services.NewMetadataCatalogService(repo, logger)
+}
+
 // ProvideTeamSearchSettingsService creates the team search settings service.
 // It receives the deployment `search:` config, which is both the fallback for a
 // team with no stored profile and the instance_defaults reported on every read.

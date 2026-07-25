@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
@@ -52,18 +51,17 @@ type BlueprintRepository struct {
 	db *database.DB
 }
 
-// metadataKeyPattern validates metadata keys to prevent SQL injection.
-// The pattern allows only alphanumeric characters, underscores, and hyphens,
-// explicitly excluding SQL special characters (quotes, semicolons, etc.).
-// This makes it safe to use the key in fmt.Sprintf for JSON field access.
-var metadataKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-
-// isValidMetadataKey validates that a metadata key only contains safe characters.
-// Returns true only if the key:
-// - Is non-empty and max 255 chars (to prevent DoS)
-// - Matches the strict alphanumeric pattern (prevents SQL injection)
+// isValidMetadataKey bounds a metadata key used on the filter path.
+//
+// It used to additionally require ^[a-zA-Z0-9_-]+$. That was defence in depth
+// from a time the key was thought to reach fmt.Sprintf: every call site binds
+// the key as a SQL parameter, so the charset restriction bought no safety and
+// instead made a key that is perfectly writable — an imported one like
+// `spec.type` — permanently unfilterable (epic #519). Only the length bound
+// remains, and it is unchanged at 255 so nothing that was filterable stops
+// being so.
 func isValidMetadataKey(key string) bool {
-	return len(key) > 0 && len(key) <= 255 && metadataKeyPattern.MatchString(key)
+	return len(key) > 0 && len(key) <= repositories.MaxMetadataFilterKeyLength
 }
 
 // NewBlueprintRepository creates a new BlueprintRepository
@@ -476,11 +474,24 @@ func applyBlueprintFilters(
 		))
 	}
 
+	return applyBlueprintMetadataFilters(where, filters)
+}
+
+// applyBlueprintMetadataFilters appends both metadata predicates: the legacy
+// per-key equality filter (removed in #526) and the JSONB containment filter.
+func applyBlueprintMetadataFilters(
+	where squirrel.And, filters repositories.BlueprintFilters,
+) (squirrel.And, error) {
 	for _, key := range sortedMetadataKeys(filters.Metadata) {
 		if !isValidMetadataKey(key) {
-			return nil, fmt.Errorf("invalid metadata key: %s (must contain only alphanumeric, underscore, or hyphen)", key)
+			return nil, fmt.Errorf("invalid metadata key: %s (must be non-empty and at most %d characters)",
+				key, repositories.MaxMetadataFilterKeyLength)
 		}
 		where = append(where, squirrel.Expr("s.metadata->>? = ?", key, filters.Metadata[key]))
+	}
+
+	if containment := metadataContainment("s.metadata", filters.MetadataFilter); containment != nil {
+		where = append(where, containment)
 	}
 
 	return where, nil

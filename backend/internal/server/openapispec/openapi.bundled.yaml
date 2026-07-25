@@ -122,6 +122,8 @@ tags:
     description: Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)
   - name: Relations
     description: Typed, directed edges between artifacts, memories, prompts, and blueprints
+  - name: Metadata
+    description: Discovery of the metadata keys and values in use, backing the metadata filters on the list endpoints
   - name: TeamSettings
     description: Team-level configuration, starting with per-team search ranking settings
   - name: Admin
@@ -769,6 +771,12 @@ paths:
           description: Search in title, description, and content
           schema:
             type: string
+        - name: metadata
+          in: query
+          description: 'Filter by metadata as a JSON object of key to array of string values. Keys are combined with AND, values within a key with OR, and an empty array means "the key exists". Values match metadata stored as a scalar or as an array, and numeric/boolean values are matched by their string form. At most 10 keys, 25 values per key, key length 255, value length 512. Example: {"env":["prod","staging"],"team":["core"]}'
+          schema:
+            type: string
+          example: '{"env":["prod","staging"]}'
         - name: sort_by
           in: query
           description: Sort field
@@ -808,6 +816,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactListResponse'
+        '400':
+          description: Invalid query parameter (for example a malformed `metadata` filter)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
           content:
@@ -895,6 +909,12 @@ paths:
           description: Search in title, description, and content
           schema:
             type: string
+        - name: metadata
+          in: query
+          description: 'Filter by metadata as a JSON object of key to array of string values. Keys are combined with AND, values within a key with OR, and an empty array means "the key exists". Values match metadata stored as a scalar or as an array, and numeric/boolean values are matched by their string form. At most 10 keys, 25 values per key, key length 255, value length 512. Example: {"env":["prod","staging"],"team":["core"]}'
+          schema:
+            type: string
+          example: '{"env":["prod","staging"]}'
         - name: sort_by
           in: query
           description: Sort field
@@ -934,6 +954,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArtifactListResponse'
+        '400':
+          description: Invalid query parameter (for example a malformed `metadata` filter)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
           content:
@@ -1991,6 +2017,12 @@ paths:
           description: Filter by metadata value (requires metadata_key)
           schema:
             type: string
+        - name: metadata
+          in: query
+          description: 'Filter by metadata as a JSON object of key to array of string values. Keys are combined with AND, values within a key with OR, and an empty array means "the key exists". Values match metadata stored as a scalar or as an array, and numeric/boolean values are matched by their string form. At most 10 keys, 25 values per key, key length 255, value length 512. Example: {"env":["prod","staging"],"team":["core"]}'
+          schema:
+            type: string
+          example: '{"env":["prod","staging"]}'
         - name: status
           in: query
           description: Filter by lifecycle status. When omitted, archived memories are hidden (active and draft are returned); an explicit value returns only that status. Returns 400 for unknown values.
@@ -2040,6 +2072,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MemoryListResponse'
+        '400':
+          description: Invalid query parameter (for example an unknown `status` or `sort_by` value, or a malformed `metadata` filter)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
           content:
@@ -2632,7 +2670,7 @@ paths:
         - Blueprints
     get:
       summary: List spec libraries
-      description: 'Retrieves all spec libraries for the authenticated user with optional filtering and pagination. Metadata filtering is dynamic: any query parameter named `metadata_<key>` filters on that metadata field, e.g. `metadata_env=prod` matches spec libraries whose metadata `env` equals `prod`. Multiple `metadata_*` parameters are combined (AND).'
+      description: Retrieves all spec libraries for the authenticated user with optional filtering and pagination. Use the `metadata` parameter to filter on metadata; the undocumented `metadata_<key>` prefix convention is deprecated and will be removed.
       operationId: listSpecLibraries
       parameters:
         - name: team_id
@@ -2670,6 +2708,10 @@ paths:
             type: string
             enum:
               - general
+              - claude-code
+              - claude
+              - cursor
+              - codex
             example: general
         - name: subtype
           in: query
@@ -2694,6 +2736,12 @@ paths:
           schema:
             type: string
             example: openapi
+        - name: metadata
+          in: query
+          description: 'Filter by metadata as a JSON object of key to array of string values. Keys are combined with AND, values within a key with OR, and an empty array means "the key exists". Values match metadata stored as a scalar or as an array, and numeric/boolean values are matched by their string form. At most 10 keys, 25 values per key, key length 255, value length 512. Example: {"env":["prod","staging"],"team":["core"]}'
+          schema:
+            type: string
+          example: '{"env":["prod","staging"]}'
         - name: sort_by
           in: query
           description: Sort field
@@ -2735,6 +2783,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BlueprintListResponse'
+        '400':
+          description: Invalid query parameter (for example a malformed `metadata` filter)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
           content:
@@ -2795,7 +2849,7 @@ paths:
   /api/v1/{team_id}/blueprints/{project_id}:
     get:
       summary: List spec libraries by project
-      description: 'Retrieves spec libraries for a specific project with optional filtering. Metadata filtering is dynamic: any query parameter named `metadata_<key>` filters on that metadata field, e.g. `metadata_env=prod` matches spec libraries whose metadata `env` equals `prod`. Multiple `metadata_*` parameters are combined (AND).'
+      description: Retrieves spec libraries for a specific project with optional filtering. Use the `metadata` parameter to filter on metadata; the undocumented `metadata_<key>` prefix convention is deprecated and will be removed.
       operationId: listSpecLibrariesByProject
       parameters:
         - name: team_id
@@ -2827,6 +2881,10 @@ paths:
             type: string
             enum:
               - general
+              - claude-code
+              - claude
+              - cursor
+              - codex
         - name: subtype
           in: query
           description: Filter by subtype category
@@ -2848,6 +2906,12 @@ paths:
           description: Search in title, description, and content
           schema:
             type: string
+        - name: metadata
+          in: query
+          description: 'Filter by metadata as a JSON object of key to array of string values. Keys are combined with AND, values within a key with OR, and an empty array means "the key exists". Values match metadata stored as a scalar or as an array, and numeric/boolean values are matched by their string form. At most 10 keys, 25 values per key, key length 255, value length 512. Example: {"env":["prod","staging"],"team":["core"]}'
+          schema:
+            type: string
+          example: '{"env":["prod","staging"]}'
         - name: sort_by
           in: query
           description: Sort field
@@ -11292,6 +11356,170 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Embedding Providers
+  /api/v1/{team_id}/metadata/keys:
+    get:
+      summary: List the metadata keys in use
+      description: Returns the distinct metadata keys present on the caller's rows of the requested resource type, optionally narrowed to a single project. Use it to populate the key side of a metadata filter.
+      operationId: getMetadataKeys
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          description: Team identifier
+          schema:
+            type: string
+            format: uuid
+        - name: resource_type
+          in: query
+          required: true
+          description: Which resource type's metadata to enumerate
+          schema:
+            type: string
+            enum:
+              - artifacts
+              - blueprints
+              - memories
+        - name: project_id
+          in: query
+          required: false
+          description: Narrow the catalog to a single project
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of keys to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Metadata keys retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetadataKeysResponse'
+        '400':
+          description: Invalid or missing query parameter
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller is not a member of the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Metadata
+  /api/v1/{team_id}/metadata/values:
+    get:
+      summary: List the values stored under a metadata key
+      description: Returns the distinct values stored under one metadata key on the caller's rows of the requested resource type. Values held in an array are flattened and non-string scalars are rendered in their text form, so the result is directly usable as filter input. Supply `q` for typeahead.
+      operationId: getMetadataValues
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          description: Team identifier
+          schema:
+            type: string
+            format: uuid
+        - name: resource_type
+          in: query
+          required: true
+          description: Which resource type's metadata to enumerate
+          schema:
+            type: string
+            enum:
+              - artifacts
+              - blueprints
+              - memories
+        - name: key
+          in: query
+          required: true
+          description: The metadata key whose values to enumerate
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+        - name: project_id
+          in: query
+          required: false
+          description: Narrow the catalog to a single project
+          schema:
+            type: string
+            format: uuid
+        - name: q
+          in: query
+          required: false
+          description: Case-insensitive substring filter for typeahead
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of values to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Metadata values retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetadataValuesResponse'
+        '400':
+          description: Invalid or missing query parameter
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller is not a member of the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - Metadata
   /api/v1/{team_id}/settings/search:
     parameters:
       - name: team_id
@@ -21640,6 +21868,43 @@ components:
         - page
         - per_page
         - total_pages
+    MetadataKeysResponse:
+      type: object
+      required:
+        - keys
+        - truncated
+      properties:
+        keys:
+          type: array
+          description: Distinct metadata keys present on the caller's rows of the requested resource type, in ascending order.
+          items:
+            type: string
+          example:
+            - env
+            - owner
+            - spec.type
+        truncated:
+          type: boolean
+          description: True when more distinct keys exist than the requested limit returned.
+          example: false
+    MetadataValuesResponse:
+      type: object
+      required:
+        - values
+        - truncated
+      properties:
+        values:
+          type: array
+          description: Distinct values stored under the requested key, in ascending order. Values held in an array are flattened, and non-string scalars are rendered in their text form. Keys whose value is a JSON object are skipped, since they have no meaningful value list.
+          items:
+            type: string
+          example:
+            - prod
+            - staging
+        truncated:
+          type: boolean
+          description: True when more distinct values exist than the requested limit returned.
+          example: false
     TeamSearchSettings:
       type: object
       description: |

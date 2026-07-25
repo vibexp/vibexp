@@ -267,6 +267,10 @@ func (b *BaseMockContainer) TeamSearchSettingsService() services.TeamSearchSetti
 	return nil
 }
 
+func (b *BaseMockContainer) MetadataCatalogService() services.MetadataCatalogServiceInterface {
+	return nil
+}
+
 func (b *BaseMockContainer) TeamEmailProviderService() services.TeamEmailProviderServiceInterface {
 	return nil
 }

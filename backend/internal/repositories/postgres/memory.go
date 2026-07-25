@@ -183,6 +183,10 @@ func buildMemoryListWhereClause(userID string, filters repositories.MemoryFilter
 		))
 	}
 
+	if containment := metadataContainment("m.metadata", filters.MetadataFilter); containment != nil {
+		where = append(where, containment)
+	}
+
 	return applyMemoryStatusVisibility(where, "m.status", filters)
 }
 

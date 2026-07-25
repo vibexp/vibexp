@@ -53,14 +53,16 @@ type MemoryFilters struct {
 	Search        string
 	MetadataKey   *string
 	MetadataValue *string
-	Status        *string
-	UserID        string
-	TeamID        string
-	ProjectID     *string
-	SortBy        string
-	SortOrder     string
-	Page          int
-	Limit         int
+	// MetadataFilter is the parsed `metadata` query parameter (epic #519).
+	MetadataFilter repositories.MetadataFilter
+	Status         *string
+	UserID         string
+	TeamID         string
+	ProjectID      *string
+	SortBy         string
+	SortOrder      string
+	Page           int
+	Limit          int
 }
 
 func (s *MemoryService) CreateMemory(userID, teamID string, req *models.CreateMemoryRequest) (*models.Memory, error) {
@@ -126,16 +128,17 @@ func (s *MemoryService) ListMemories(userID string, filters MemoryFilters) (*mod
 	}
 
 	repoFilters := repositories.MemoryFilters{
-		Search:        filters.Search,
-		MetadataKey:   filters.MetadataKey,
-		MetadataValue: filters.MetadataValue,
-		Status:        filters.Status,
-		TeamID:        filters.TeamID,
-		ProjectID:     filters.ProjectID,
-		SortBy:        filters.SortBy,
-		SortOrder:     filters.SortOrder,
-		Page:          filters.Page,
-		Limit:         filters.Limit,
+		Search:         filters.Search,
+		MetadataKey:    filters.MetadataKey,
+		MetadataValue:  filters.MetadataValue,
+		MetadataFilter: filters.MetadataFilter,
+		Status:         filters.Status,
+		TeamID:         filters.TeamID,
+		ProjectID:      filters.ProjectID,
+		SortBy:         filters.SortBy,
+		SortOrder:      filters.SortOrder,
+		Page:           filters.Page,
+		Limit:          filters.Limit,
 	}
 
 	memories, totalCount, err := s.repo.List(ctx, userID, repoFilters)

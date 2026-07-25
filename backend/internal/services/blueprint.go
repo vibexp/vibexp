@@ -176,8 +176,10 @@ type BlueprintFilters struct {
 	SortBy    string
 	SortOrder string
 	Metadata  map[string]string
-	Page      int
-	Limit     int
+	// MetadataFilter is the parsed `metadata` query parameter (epic #519).
+	MetadataFilter repositories.MetadataFilter
+	Page           int
+	Limit          int
 }
 
 // buildBlueprintFromRequest constructs a Blueprint from a create request with defaults
@@ -367,17 +369,18 @@ func (s *BlueprintService) ListBlueprints(
 	}
 
 	repoFilters := repositories.BlueprintFilters{
-		ProjectID: projectID,
-		Status:    status,
-		Type:      blueprintType,
-		Subtype:   subtype,
-		TeamID:    filters.TeamID,
-		Search:    filters.Search,
-		SortBy:    filters.SortBy,
-		SortOrder: filters.SortOrder,
-		Metadata:  filters.Metadata,
-		Page:      filters.Page,
-		Limit:     filters.Limit,
+		ProjectID:      projectID,
+		Status:         status,
+		Type:           blueprintType,
+		Subtype:        subtype,
+		TeamID:         filters.TeamID,
+		Search:         filters.Search,
+		SortBy:         filters.SortBy,
+		SortOrder:      filters.SortOrder,
+		Metadata:       filters.Metadata,
+		MetadataFilter: filters.MetadataFilter,
+		Page:           filters.Page,
+		Limit:          filters.Limit,
 	}
 
 	blueprints, totalCount, err := s.repo.List(context.Background(), userID, repoFilters)

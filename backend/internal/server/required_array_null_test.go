@@ -182,6 +182,8 @@ var adHocRequiredArrayAllowlist = map[string]string{
 	"TypeListResponse":                 "generated strict-server type (internal/server/gen/types); handler builds via make(...,0) — handlers_types.go toGenTypes",
 	"CommentListResponse":              "generated strict-server type (internal/server/gen/comments); handler builds via make(...,0) — handlers_comments.go toGenCommentListResponse",
 	"RelationListResponse":             "generated strict-server type (internal/server/gen/relations); handler builds via make(...,0) — handlers_relations.go toGenRelationListResponse",
+	"MetadataKeysResponse":             "generated strict-server type (internal/server/gen/metadata); handler coerces nil->[] via make(...,0) — handlers_metadata.go metadataEntries",
+	"MetadataValuesResponse":           "generated strict-server type (internal/server/gen/metadata); handler coerces nil->[] via make(...,0) — handlers_metadata.go metadataEntries",
 	"AdminUserListResponse":            "generated strict-server type (internal/server/gen/admin); handler builds users via make(...,0) — handlers_admin.go toGenAdminUserList",
 	"AdminUserDetail":                  "generated strict-server type (internal/server/gen/admin); handler builds memberships via make(...,0) — handlers_admin.go toGenAdminUserDetail",
 	"AdminTeamListResponse":            "generated strict-server type (internal/server/gen/admin); handler builds teams via make(...,0) — handlers_admin.go toGenAdminTeamList",

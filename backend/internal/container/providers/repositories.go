@@ -176,6 +176,11 @@ func ProvideTeamSearchSettingsRepository(db *database.DB) repositories.TeamSearc
 	return postgres.NewTeamSearchSettingsRepository(db)
 }
 
+// ProvideMetadataCatalogRepository creates a new MetadataCatalogRepository
+func ProvideMetadataCatalogRepository(db *database.DB) repositories.MetadataCatalogRepository {
+	return postgres.NewMetadataCatalogRepository(db)
+}
+
 // ProvideTeamRepository creates a new TeamRepository
 func ProvideTeamRepository(db *database.DB) repositories.TeamRepository {
 	return postgres.NewTeamRepository(db)

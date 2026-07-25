@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"strings"
 	"testing"
 	"time"
 
@@ -228,6 +229,57 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 					WithArgs(args...).
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 				mock.ExpectQuery(`FROM artifacts a .*a\.metadata->>\$7 = \$8 AND a\.metadata->>\$9 = \$10`).
+					WithArgs(args...).
+					WillReturnRows(artifactListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name: "List metadata filter renders containment probes, keys ANDed values ORed",
+			filters: repositories.ArtifactFilters{
+				TeamID: "team-123",
+				MetadataFilter: repositories.MetadataFilter{
+					"env": {"prod", "staging"}, "team": {"core"},
+				},
+				Page: 1, Limit: 10,
+			},
+			setupMock: func(mock sqlmock.Sqlmock) {
+				// Each value probes both the scalar and the single-element-array
+				// shape, since containment is type-strict; keys bind in sorted order.
+				// Numbering starts at $7 because the default path also binds
+				// "archived" for the hide-archived predicate.
+				args := append(artifactListDefaultArgs(),
+					`{"env":"prod"}`, `{"env":["prod"]}`,
+					`{"env":"staging"}`, `{"env":["staging"]}`,
+					`{"team":"core"}`, `{"team":["core"]}`,
+				)
+				pattern := `a\.metadata @> \$7::jsonb OR a\.metadata @> \$8::jsonb ` +
+					`OR a\.metadata @> \$9::jsonb OR a\.metadata @> \$10::jsonb\) ` +
+					`AND \(a\.metadata @> \$11::jsonb OR a\.metadata @> \$12::jsonb\)`
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*` + pattern).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM artifacts a .*` + pattern).
+					WithArgs(args...).
+					WillReturnRows(artifactListOneRow(now))
+			},
+			expectTotal: 1,
+			expectCount: 1,
+		},
+		{
+			name: "List metadata filter with no values renders jsonb_exists",
+			filters: repositories.ArtifactFilters{
+				TeamID:         "team-123",
+				MetadataFilter: repositories.MetadataFilter{"env": {}},
+				Page:           1, Limit: 10,
+			},
+			setupMock: func(mock sqlmock.Sqlmock) {
+				args := append(artifactListDefaultArgs(), "env")
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*jsonb_exists\(a\.metadata, \$7\)`).
+					WithArgs(args...).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+				mock.ExpectQuery(`FROM artifacts a .*jsonb_exists\(a\.metadata, \$7\)`).
 					WithArgs(args...).
 					WillReturnRows(artifactListOneRow(now))
 			},
@@ -502,15 +554,19 @@ func TestArtifactRepository_List_RequiresTeamID(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestArtifactRepository_ListSquirrel_InvalidMetadataKey verifies an invalid
-// metadata key short-circuits before any query is issued, for both methods.
+// TestArtifactRepository_ListSquirrel_InvalidMetadataKey verifies an
+// out-of-bounds metadata key short-circuits before any query is issued, for
+// both methods.
+//
+// Since #519 "out of bounds" means length only — an injection-looking key is
+// legal input, because it is bound as a parameter.
 func TestArtifactRepository_ListSquirrel_InvalidMetadataKey(t *testing.T) {
 	tests := []struct {
 		name      string
 		crossTeam bool
 	}{
-		{name: "List rejects invalid metadata key", crossTeam: false},
-		{name: "ListCrossTeam rejects invalid metadata key", crossTeam: true},
+		{name: "List rejects an over-long metadata key", crossTeam: false},
+		{name: "ListCrossTeam rejects an over-long metadata key", crossTeam: true},
 	}
 
 	for _, tt := range tests {
@@ -524,7 +580,7 @@ func TestArtifactRepository_ListSquirrel_InvalidMetadataKey(t *testing.T) {
 
 			filters := repositories.ArtifactFilters{
 				TeamID:   "team-123",
-				Metadata: map[string]string{"bad key'; DROP TABLE artifacts; --": "v"},
+				Metadata: map[string]string{strings.Repeat("k", 256): "v"},
 				Page:     1, Limit: 10,
 			}
 

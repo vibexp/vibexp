@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -209,7 +210,10 @@ func TestUpdateOnReimport_WritesProvenance(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestList_InvalidMetadataKey tests SQL injection protection
+// TestList_InvalidMetadataKey tests the metadata-key bound on the list path.
+//
+// Since #519 only length is enforced; injection-looking keys are legal input
+// because they are bound as parameters, never formatted into SQL.
 //
 //nolint:funlen // Test function with comprehensive test cases
 func TestList_InvalidMetadataKey(t *testing.T) {
@@ -226,19 +230,24 @@ func TestList_InvalidMetadataKey(t *testing.T) {
 		shouldError bool
 	}{
 		{
-			name:        "SQL injection attempt with semicolon",
+			name:        "SQL injection text is a legal key (bound as a parameter)",
 			metadataKey: "key'; DROP TABLE blueprints; --",
-			shouldError: true,
+			shouldError: false,
 		},
 		{
-			name:        "SQL injection with quotes",
+			name:        "Quotes are a legal key",
 			metadataKey: "key' OR '1'='1",
-			shouldError: true,
+			shouldError: false,
 		},
 		{
-			name:        "Invalid special characters",
+			name:        "Special characters are a legal key",
 			metadataKey: "key@#$%",
-			shouldError: true,
+			shouldError: false,
+		},
+		{
+			name:        "Dotted key from an import is filterable",
+			metadataKey: "spec.type",
+			shouldError: false,
 		},
 		{
 			name:        "Empty key",
@@ -409,7 +418,15 @@ func TestList_MetadataKeyBoundAsParameter(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestIsValidMetadataKey tests the validation function directly
+// TestIsValidMetadataKey tests the validation function directly.
+//
+// Since #519 the only rule is a length bound. The old ^[a-zA-Z0-9_-]+$
+// allowlist was dropped: keys are bound as SQL parameters at every call site,
+// so the charset restriction bought no safety while making keys that are
+// perfectly writable — `spec.type` from a GitHub import, say — permanently
+// unfilterable. The quote/semicolon cases below are therefore VALID now; that
+// they are safe is asserted at the SQL level in
+// TestMetadataContainment_QuotesAreEscapedNotInterpolated.
 func TestIsValidMetadataKey(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -420,12 +437,15 @@ func TestIsValidMetadataKey(t *testing.T) {
 		{"Valid with underscore", "valid_key", true},
 		{"Valid with hyphen", "valid-key", true},
 		{"Valid mixed", "Valid_Key-123", true},
+		{"Dotted key from an import", "spec.type", true},
+		{"Namespaced key", "vibexp:source", true},
+		{"Key at the length cap", strings.Repeat("k", 255), true},
 		{"Empty string", "", false},
 		{"Too long", string(make([]byte, 256)), false},
-		{"SQL injection", "key'; DROP TABLE", false},
-		{"Special chars", "key@#$", false},
-		{"Spaces", "key with spaces", false},
-		{"Quotes", "key'value", false},
+		{"SQL injection text is a legal key", "key'; DROP TABLE", true},
+		{"Special chars", "key@#$", true},
+		{"Spaces", "key with spaces", true},
+		{"Quotes", "key'value", true},
 	}
 
 	for _, tc := range testCases {

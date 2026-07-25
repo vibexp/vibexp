@@ -84,6 +84,7 @@ type Container interface {
 	TeamEmailProviderService() services.TeamEmailProviderServiceInterface
 	EmailSenderResolver() services.EmailSenderResolver
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
+	MetadataCatalogService() services.MetadataCatalogServiceInterface
 	EnvironmentService() *services.EnvironmentService
 	ResourceUsageService() services.ResourceUsageServiceInterface
 	BackofficeService() services.UsageAndGrowthGetter
