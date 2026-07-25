@@ -17,6 +17,9 @@ import { TeamProvider } from '@/contexts/TeamContext'
 import { useAuth } from '@/contexts/useAuth'
 import { usePageTracking } from '@/hooks'
 import { ThemeProvider } from '@/lib/theme'
+import { AdminRoutes } from '@/pages/admin/AdminRoutes'
+import { AdminShell } from '@/pages/admin/AdminShell'
+import { RequireInstanceAdmin } from '@/pages/admin/RequireInstanceAdmin'
 import { AcceptInvitation } from '@/pages/auth/AcceptInvitation'
 import { AuthCallback } from '@/pages/auth/AuthCallback'
 import { OAuthConsentPage } from '@/pages/auth/OAuthConsentPage'
@@ -75,6 +78,29 @@ function MainApp() {
   )
 }
 
+/**
+ * The instance-admin portal (epic #450).
+ *
+ * A sibling of `MainApp`, not a route inside it: everything under `/admin` is
+ * instance-scoped, so it deliberately mounts **no** `TeamProvider` or
+ * `ProjectProvider` and not the team-scoped `Layout`. Only `Root` + `AuthGate`
+ * are shared, then `RequireInstanceAdmin` fails closed for everyone else.
+ */
+function AdminApp() {
+  return (
+    <Root>
+      <AuthGate>
+        <RequireInstanceAdmin>
+          <AdminShell>
+            <AdminRoutes />
+          </AdminShell>
+        </RequireInstanceAdmin>
+      </AuthGate>
+      <Toaster />
+    </Root>
+  )
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -125,6 +151,9 @@ function App() {
                       </BareLayout>
                     }
                   />
+                  {/* Must precede the catch-all, which would otherwise swallow
+                      /admin into the team-scoped MainApp shell. */}
+                  <Route path="/admin/*" element={<AdminApp />} />
                   <Route path="/*" element={<MainApp />} />
                 </Routes>
                 <AlertContainer />

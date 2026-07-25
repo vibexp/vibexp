@@ -2,13 +2,6 @@ import { Route, Routes } from 'react-router-dom'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Activities } from '@/pages/activities/Activities'
-import { AdminLayout } from '@/pages/admin/AdminLayout'
-import { AdminStats } from '@/pages/admin/AdminStats'
-import { AdminTeamDetail } from '@/pages/admin/AdminTeamDetail'
-import { AdminTeams } from '@/pages/admin/AdminTeams'
-import { AdminUserDetail } from '@/pages/admin/AdminUserDetail'
-import { AdminUsers } from '@/pages/admin/AdminUsers'
-import { RequireInstanceAdmin } from '@/pages/admin/RequireInstanceAdmin'
 import { AgentChat } from '@/pages/agents/AgentChat'
 import { AgentConversations } from '@/pages/agents/AgentConversations'
 import { AgentDetails } from '@/pages/agents/AgentDetails'
@@ -240,20 +233,9 @@ export function AppRoutes() {
         element={<TeamAnalyticsPage />}
       />
       <Route path="settings/*" element={<ComingSoon title="Settings" />} />
-      <Route
-        path="admin"
-        element={
-          <RequireInstanceAdmin>
-            <AdminLayout />
-          </RequireInstanceAdmin>
-        }
-      >
-        <Route index element={<AdminStats />} />
-        <Route path="users" element={<AdminUsers />} />
-        <Route path="users/:id" element={<AdminUserDetail />} />
-        <Route path="teams" element={<AdminTeams />} />
-        <Route path="teams/:id" element={<AdminTeamDetail />} />
-      </Route>
+      {/* `/admin/**` is NOT here: the instance-admin portal is a top-level
+          branch in App.tsx with its own shell and no team/project providers
+          (#456). */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   )
