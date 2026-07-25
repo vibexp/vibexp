@@ -18,6 +18,7 @@ import { AdminRoutes } from '@/pages/admin/AdminRoutes'
 import { AdminShell } from '@/pages/admin/AdminShell'
 import { RequireInstanceAdmin } from '@/pages/admin/RequireInstanceAdmin'
 import type {
+  AdminDashboardOverview,
   AdminProjectDetail,
   AdminProjectListResponse,
   AdminStatsResponse,
@@ -35,6 +36,8 @@ jest.mock('@/contexts/useAuth', () => ({
 jest.mock('@/services/adminService', () => ({
   adminService: {
     getStats: jest.fn(),
+    getDashboardOverview: jest.fn(),
+    getDashboardTimeseries: jest.fn(),
     listUsers: jest.fn(),
     listTeams: jest.fn(),
     getUser: jest.fn(),
@@ -60,6 +63,24 @@ const mockAdminService = adminService as jest.Mocked<typeof adminService>
 
 const stats: AdminStatsResponse = {
   counts: { users: 42, teams: 7, prompts: 3, artifacts: 5, memories: 9 },
+  version: '1.2.3',
+}
+
+const overview: AdminDashboardOverview = {
+  counts: {
+    users: 42,
+    teams: 7,
+    projects: 30,
+    prompts: 3,
+    artifacts: 5,
+    memories: 9,
+    blueprints: 2,
+    agents: 1,
+    feeds: 4,
+    api_keys: 6,
+  },
+  breakdowns: [],
+  system_health: { database_size_bytes: 1024, tables: [] },
   version: '1.2.3',
 }
 
@@ -162,6 +183,19 @@ const adminNav = () =>
 beforeEach(() => {
   jest.clearAllMocks()
   mockAdminService.getStats.mockResolvedValue(stats)
+  mockAdminService.getDashboardOverview.mockResolvedValue(overview)
+  mockAdminService.getDashboardTimeseries.mockResolvedValue({
+    from: '2026-06-25T00:00:00Z',
+    to: '2026-07-25T00:00:00Z',
+    granularity: 'day',
+    growth: [],
+    sign_ins: [],
+    access_by_source: [],
+    data_window: {
+      sign_ins_earliest_retained_at: '2026-04-26T00:00:00Z',
+      access_by_source_earliest_retained_at: '2026-04-26T00:00:00Z',
+    },
+  })
   mockAdminService.listUsers.mockResolvedValue(emptyUsers)
   mockAdminService.listTeams.mockResolvedValue(emptyTeams)
   mockAdminService.getUser.mockResolvedValue(userDetail)
@@ -178,8 +212,9 @@ it('renders the Dashboard at /admin inside the admin shell', async () => {
     screen.getByRole('heading', { name: 'Dashboard', level: 1 })
   ).toBeInTheDocument()
   expect(adminNav()).toBeInTheDocument()
-  // The index page loaded: its version stat resolved.
-  expect(await screen.findByText('1.2.3')).toBeInTheDocument()
+  // The dashboard loaded: a totals card and the backend version resolved.
+  expect(await screen.findByText('42')).toBeInTheDocument()
+  expect(screen.getByText(/Backend version 1\.2\.3/)).toBeInTheDocument()
 })
 
 it.each([
@@ -263,5 +298,5 @@ it('shows no admin content while the identity is still resolving', () => {
   renderAt('/admin')
 
   expect(adminNav()).not.toBeInTheDocument()
-  expect(mockAdminService.getStats).not.toHaveBeenCalled()
+  expect(mockAdminService.getDashboardOverview).not.toHaveBeenCalled()
 })
