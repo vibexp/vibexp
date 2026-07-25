@@ -160,6 +160,12 @@ const (
 	// user_id; the affected account is the entity_id.
 	ActivityTypeAdminUserSuspended   = "admin_user_suspended"
 	ActivityTypeAdminUserReactivated = "admin_user_reactivated"
+	ActivityTypeAdminUserUpdated     = "admin_user_updated"
+	// ActivityTypeAdminUserDeleted is recorded against the ACTING ADMIN, never
+	// the deleted user: an activities row owned by the target would cascade away
+	// with them (activities.user_id is ON DELETE CASCADE), erasing the audit
+	// trail of the deletion at the moment it happens.
+	ActivityTypeAdminUserDeleted = "admin_user_deleted"
 )
 
 // Entity Type Constants

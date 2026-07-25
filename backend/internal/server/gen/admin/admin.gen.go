@@ -242,6 +242,16 @@ type AdminDataWindow struct {
 	SignInsEarliestRetainedAt time.Time `json:"sign_ins_earliest_retained_at"`
 }
 
+// AdminDeleteBlocker One reason a user cannot be deleted: a shared team they own that still has
+// other members. Ownership must be transferred before the account can be
+// removed.
+type AdminDeleteBlocker struct {
+	// MemberCount How many members the team has, including the owner.
+	MemberCount int64              `json:"member_count"`
+	TeamId      openapi_types.UUID `json:"team_id"`
+	TeamName    string             `json:"team_name"`
+}
+
 // AdminEntityBreakdown A GROUP BY over one status/type column of one entity table.
 type AdminEntityBreakdown struct {
 	// Buckets One entry per distinct value, most frequent first.
@@ -452,6 +462,16 @@ type AdminTimeseriesResponse struct {
 // AdminTimeseriesResponseGranularity Bucket size actually used.
 type AdminTimeseriesResponseGranularity string
 
+// AdminUserDeleteBlockedResponse Returned with 409 when a hard delete is refused. NOTHING was deleted: the
+// user and every listed team still exist.
+type AdminUserDeleteBlockedResponse struct {
+	// Blockers Every shared team blocking the delete.
+	Blockers []AdminDeleteBlocker `json:"blockers"`
+
+	// Message Human-readable summary of why the delete was refused.
+	Message string `json:"message"`
+}
+
 // AdminUserDetail A single user with their team memberships (GET /api/v1/admin/users/{id}).
 type AdminUserDetail struct {
 	CreatedAt time.Time           `json:"created_at"`
@@ -520,6 +540,15 @@ type AdminUserListResponse struct {
 
 	// Users Users on this page, newest first.
 	Users []AdminUserListItem `json:"users"`
+}
+
+// AdminUserUpdateRequest Fields an instance admin may change on a user. Deliberately minimal: email
+// and the identity-provider fields (idp_provider, idp_subject) are owned by the
+// upstream IdP and are not editable here — sending them is a 400 rather than a
+// silent no-op.
+type AdminUserUpdateRequest struct {
+	// Name The user's display name.
+	Name string `json:"name"`
 }
 
 // ErrorResponse RFC 9457 Problem Details for HTTP APIs
@@ -666,6 +695,9 @@ type ListAdminUsersParamsSortBy string
 // ListAdminUsersParamsSortOrder defines parameters for ListAdminUsers.
 type ListAdminUsersParamsSortOrder string
 
+// UpdateAdminUserJSONRequestBody defines body for UpdateAdminUser for application/json ContentType.
+type UpdateAdminUserJSONRequestBody = AdminUserUpdateRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get admin dashboard overview
@@ -686,9 +718,15 @@ type ServerInterface interface {
 	// List instance users
 	// (GET /api/v1/admin/users)
 	ListAdminUsers(w http.ResponseWriter, r *http.Request, params ListAdminUsersParams)
+	// Delete an instance user
+	// (DELETE /api/v1/admin/users/{id})
+	DeleteAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Get an instance user
 	// (GET /api/v1/admin/users/{id})
 	GetAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update an instance user
+	// (PATCH /api/v1/admin/users/{id})
+	UpdateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Reactivate a suspended user
 	// (POST /api/v1/admin/users/{id}/reactivate)
 	ReactivateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -737,9 +775,21 @@ func (_ Unimplemented) ListAdminUsers(w http.ResponseWriter, r *http.Request, pa
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Delete an instance user
+// (DELETE /api/v1/admin/users/{id})
+func (_ Unimplemented) DeleteAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get an instance user
 // (GET /api/v1/admin/users/{id})
 func (_ Unimplemented) GetAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update an instance user
+// (PATCH /api/v1/admin/users/{id})
+func (_ Unimplemented) UpdateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1186,6 +1236,40 @@ func (siw *ServerInterfaceWrapper) ListAdminUsers(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminUser(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetAdminUser operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminUser(w http.ResponseWriter, r *http.Request) {
 
@@ -1211,6 +1295,40 @@ func (siw *ServerInterfaceWrapper) GetAdminUser(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminUser(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminUser(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1420,7 +1538,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/users", wrapper.ListAdminUsers)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v1/admin/users/{id}", wrapper.DeleteAdminUser)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/users/{id}", wrapper.GetAdminUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/admin/users/{id}", wrapper.UpdateAdminUser)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/admin/users/{id}/reactivate", wrapper.ReactivateAdminUser)
@@ -1772,6 +1896,78 @@ func (response ListAdminUsers500ApplicationProblemPlusJSONResponse) VisitListAdm
 	return err
 }
 
+type DeleteAdminUserRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type DeleteAdminUserResponseObject interface {
+	VisitDeleteAdminUserResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminUser204Response struct {
+}
+
+func (response DeleteAdminUser204Response) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminUser400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminUser400ApplicationProblemPlusJSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUser404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminUser404ApplicationProblemPlusJSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUser409JSONResponse AdminUserDeleteBlockedResponse
+
+func (response DeleteAdminUser409JSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUser500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response DeleteAdminUser500ApplicationProblemPlusJSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminUserRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -1811,6 +2007,71 @@ func (response GetAdminUser404ApplicationProblemPlusJSONResponse) VisitGetAdminU
 type GetAdminUser500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response GetAdminUser500ApplicationProblemPlusJSONResponse) VisitGetAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminUserRequestObject struct {
+	Id   openapi_types.UUID `json:"id"`
+	Body *UpdateAdminUserJSONRequestBody
+}
+
+type UpdateAdminUserResponseObject interface {
+	VisitUpdateAdminUserResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminUser200JSONResponse AdminUserDetail
+
+func (response UpdateAdminUser200JSONResponse) VisitUpdateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminUser400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminUser400ApplicationProblemPlusJSONResponse) VisitUpdateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminUser404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminUser404ApplicationProblemPlusJSONResponse) VisitUpdateAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminUser500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response UpdateAdminUser500ApplicationProblemPlusJSONResponse) VisitUpdateAdminUserResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1984,9 +2245,15 @@ type StrictServerInterface interface {
 	// List instance users
 	// (GET /api/v1/admin/users)
 	ListAdminUsers(ctx context.Context, request ListAdminUsersRequestObject) (ListAdminUsersResponseObject, error)
+	// Delete an instance user
+	// (DELETE /api/v1/admin/users/{id})
+	DeleteAdminUser(ctx context.Context, request DeleteAdminUserRequestObject) (DeleteAdminUserResponseObject, error)
 	// Get an instance user
 	// (GET /api/v1/admin/users/{id})
 	GetAdminUser(ctx context.Context, request GetAdminUserRequestObject) (GetAdminUserResponseObject, error)
+	// Update an instance user
+	// (PATCH /api/v1/admin/users/{id})
+	UpdateAdminUser(ctx context.Context, request UpdateAdminUserRequestObject) (UpdateAdminUserResponseObject, error)
 	// Reactivate a suspended user
 	// (POST /api/v1/admin/users/{id}/reactivate)
 	ReactivateAdminUser(ctx context.Context, request ReactivateAdminUserRequestObject) (ReactivateAdminUserResponseObject, error)
@@ -2176,6 +2443,32 @@ func (sh *strictHandler) ListAdminUsers(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// DeleteAdminUser operation middleware
+func (sh *strictHandler) DeleteAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteAdminUserRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminUser(ctx, request.(DeleteAdminUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminUserResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetAdminUser operation middleware
 func (sh *strictHandler) GetAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request GetAdminUserRequestObject
@@ -2195,6 +2488,39 @@ func (sh *strictHandler) GetAdminUser(w http.ResponseWriter, r *http.Request, id
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminUserResponseObject); ok {
 		if err := validResponse.VisitGetAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminUser operation middleware
+func (sh *strictHandler) UpdateAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request UpdateAdminUserRequestObject
+
+	request.Id = id
+
+	var body UpdateAdminUserJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminUser(ctx, request.(UpdateAdminUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminUserResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminUserResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

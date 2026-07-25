@@ -813,6 +813,13 @@ components:
       $ref: "./schemas/admin.yaml#/AdminDataWindow"
     AdminTimeseriesResponse:
       $ref: "./schemas/admin.yaml#/AdminTimeseriesResponse"
+    # Admin user mutations (#455)
+    AdminUserUpdateRequest:
+      $ref: "./schemas/admin.yaml#/AdminUserUpdateRequest"
+    AdminDeleteBlocker:
+      $ref: "./schemas/admin.yaml#/AdminDeleteBlocker"
+    AdminUserDeleteBlockedResponse:
+      $ref: "./schemas/admin.yaml#/AdminUserDeleteBlockedResponse"
 
 # No new component aliases required.
 # openapi.yaml already imports all needed schemas (lines ~220-234):
