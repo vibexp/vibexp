@@ -19147,6 +19147,512 @@
         ]
       }
     },
+    "/api/v1/{team_id}/email-provider": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team that owns the email provider configuration.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get the team's effective email configuration",
+        "description": "Returns the email configuration in force for the team.\n\nThis **always returns 200**, never 404. A team without its own provider is\ninheriting the instance provider, which is a valid state the caller needs\ndescribed — it reports `configured: false`, `source: \"instance\"` and the\ninstance's `effective_from_address`.\n\nReadable by any team member: the response carries no credential, and\n`effective_from_address` is already in the From: header of every mail those\nmembers receive.\n",
+        "operationId": "getTeamEmailProvider",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The email configuration in force for the team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEmailProviderResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Settings"
+        ]
+      },
+      "put": {
+        "summary": "Configure the team's email provider",
+        "description": "Creates or replaces the team's email provider. Idempotent: the same body\napplied twice leaves one row and returns 200 both times.\n\n`secret` is required the first time. On a team that already has a provider,\nomit it to keep the stored credential; sending an empty string is rejected\nrather than treated as \"clear\", because a provider without a credential\ncannot send and silently disabling a team's mail is worse than an error.\n\nA team-supplied `settings.smtp.host` or `settings.mailgun.base_url` that\nresolves into a reserved network range is rejected before anything is\nstored or dialled.\n",
+        "operationId": "upsertTeamEmailProvider",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTeamEmailProviderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEmailProviderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON body (`BAD_REQUEST`), or an invalid configuration (`TEAM_EMAIL_PROVIDER_VALIDATION_FAILED` with `validation_errors`) — an unknown provider type, a missing or mismatched settings block, an empty `secret`, a malformed address, or a destination that is not allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - configuring the team's email provider requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Settings"
+        ]
+      },
+      "delete": {
+        "summary": "Remove the team's email provider",
+        "description": "Deletes the team's provider, so the team reverts to the instance provider.\nA subsequent GET reports `source: \"instance\"`.\n\nDeleting when the team has no provider of its own returns 409 rather than\n404: the endpoint exists and the team is addressable, it is simply not in a\nstate that can serve the request.\n",
+        "operationId": "deleteTeamEmailProvider",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Provider removed; the team now uses the instance provider"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - configuring the team's email provider requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The team has no email provider of its own (`TEAM_EMAIL_PROVIDER_NOT_CONFIGURED`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/email-provider/test": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team that owns the email provider configuration.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Send a test email with a candidate configuration",
+        "description": "Sends a real message using the configuration **in this request body**, not\nthe stored one, so credentials can be verified before they are saved. The\nbody therefore always requires `secret`.\n\nThe recipient is **always the acting user's own account email**. It cannot\nbe supplied by the caller, so this endpoint cannot be used to send mail to\nthird parties.\n\nA failed send is reported in the body with `is_valid: false` and a fixed\n`details.error_details` category, not as an HTTP error. A 500 means an\ninternal fault, not a bad configuration.\n\nAuthorized as a mutation, because it makes the server perform an outbound\nsend with team-supplied credentials.\n",
+        "operationId": "testTeamEmailProvider",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTeamEmailProviderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test outcome (successful or not)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEmailProviderTestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON body (`BAD_REQUEST`), or an invalid configuration (`TEAM_EMAIL_PROVIDER_VALIDATION_FAILED` with `validation_errors`). `secret` is always required here, since there is no stored credential to fall back on",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - testing the team's email provider requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/settings/email-provider": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team that owns the email provider configuration.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get the team's effective email configuration",
+        "description": "Returns the email configuration in force for the team.\n\nThis **always returns 200**, never 404. A team without its own provider is\ninheriting the instance provider, which is a valid state the caller needs\ndescribed — it reports `configured: false`, `source: \"instance\"` and the\ninstance's `effective_from_address`.\n\nReadable by any team member: the response carries no credential, and\n`effective_from_address` is already in the From: header of every mail those\nmembers receive.\n",
+        "operationId": "getTeamEmailProvider",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The email configuration in force for the team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEmailProviderResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Settings"
+        ]
+      },
+      "put": {
+        "summary": "Configure the team's email provider",
+        "description": "Creates or replaces the team's email provider. Idempotent: the same body\napplied twice leaves one row and returns 200 both times.\n\n`secret` is required the first time. On a team that already has a provider,\nomit it to keep the stored credential; sending an empty string is rejected\nrather than treated as \"clear\", because a provider without a credential\ncannot send and silently disabling a team's mail is worse than an error.\n\nA team-supplied `settings.smtp.host` or `settings.mailgun.base_url` that\nresolves into a reserved network range is rejected before anything is\nstored or dialled.\n",
+        "operationId": "upsertTeamEmailProvider",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTeamEmailProviderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEmailProviderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON body (`BAD_REQUEST`), or an invalid configuration (`TEAM_EMAIL_PROVIDER_VALIDATION_FAILED` with `validation_errors`) — an unknown provider type, a missing or mismatched settings block, an empty `secret`, a malformed address, or a destination that is not allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - configuring the team's email provider requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Settings"
+        ]
+      },
+      "delete": {
+        "summary": "Remove the team's email provider",
+        "description": "Deletes the team's provider, so the team reverts to the instance provider.\nA subsequent GET reports `source: \"instance\"`.\n\nDeleting when the team has no provider of its own returns 409 rather than\n404: the endpoint exists and the team is addressable, it is simply not in a\nstate that can serve the request.\n",
+        "operationId": "deleteTeamEmailProvider",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Provider removed; the team now uses the instance provider"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - configuring the team's email provider requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The team has no email provider of its own (`TEAM_EMAIL_PROVIDER_NOT_CONFIGURED`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/v1/{team_id}/settings/email-provider/test": {
+      "parameters": [
+        {
+          "name": "team_id",
+          "in": "path",
+          "required": true,
+          "description": "Team that owns the email provider configuration.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Send a test email with a candidate configuration",
+        "description": "Sends a real message using the configuration **in this request body**, not\nthe stored one, so credentials can be verified before they are saved. The\nbody therefore always requires `secret`.\n\nThe recipient is **always the acting user's own account email**. It cannot\nbe supplied by the caller, so this endpoint cannot be used to send mail to\nthird parties.\n\nA failed send is reported in the body with `is_valid: false` and a fixed\n`details.error_details` category, not as an HTTP error. A 500 means an\ninternal fault, not a bad configuration.\n\nAuthorized as a mutation, because it makes the server perform an outbound\nsend with team-supplied credentials.\n",
+        "operationId": "testTeamEmailProvider",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "CookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTeamEmailProviderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test outcome (successful or not)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEmailProviderTestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON body (`BAD_REQUEST`), or an invalid configuration (`TEAM_EMAIL_PROVIDER_VALIDATION_FAILED` with `validation_errors`). `secret` is always required here, since there is no stored credential to fall back on",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - testing the team's email provider requires team owner/admin (`FORBIDDEN`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
     "/api/v1/{team_id}/model-providers": {
       "parameters": [
         {
@@ -24934,6 +25440,262 @@
             "example": "invalid_credentials"
           }
         }
+      },
+      "SMTPProviderSettings": {
+        "type": "object",
+        "description": "Non-secret SMTP settings. The password is the provider's secret.",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "SMTP server hostname.",
+            "example": "smtp.acme.test"
+          },
+          "port": {
+            "type": "string",
+            "description": "SMTP port, as a string. Must parse to 1-65535.",
+            "example": "587"
+          },
+          "username": {
+            "type": "string",
+            "description": "SMTP username, when the server requires authentication.",
+            "example": "mailer@acme.test"
+          }
+        },
+        "required": [
+          "host",
+          "port"
+        ]
+      },
+      "MailgunProviderSettings": {
+        "type": "object",
+        "description": "Non-secret Mailgun settings. The sending key is the provider's secret.",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "The Mailgun sending domain. Must be a bare domain, not a URL.",
+            "example": "mg.acme.test"
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Optional API base URL, to select a non-US region (for example https://api.eu.mailgun.net/v3). A missing /v2|/v3|/v4 suffix is normalised to /v3.",
+            "example": "https://api.eu.mailgun.net/v3"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "PostmarkProviderSettings": {
+        "type": "object",
+        "description": "Non-secret Postmark settings. The server token is the provider's secret.",
+        "properties": {
+          "message_stream": {
+            "type": "string",
+            "description": "Postmark message stream to send on. Defaults to \"outbound\", the default transactional stream.",
+            "example": "outbound"
+          }
+        }
+      },
+      "TeamEmailProviderSettings": {
+        "type": "object",
+        "description": "Per-type non-secret settings. Exactly the block matching `provider_type` may be present; a block belonging to another type is rejected rather than ignored. SendGrid has no block — its only configuration is its API key, which is the secret.",
+        "properties": {
+          "smtp": {
+            "$ref": "#/components/schemas/SMTPProviderSettings"
+          },
+          "mailgun": {
+            "$ref": "#/components/schemas/MailgunProviderSettings"
+          },
+          "postmark": {
+            "$ref": "#/components/schemas/PostmarkProviderSettings"
+          }
+        }
+      },
+      "UpsertTeamEmailProviderRequest": {
+        "type": "object",
+        "description": "The team's email provider configuration. This is an upsert, so the same body creates or replaces.",
+        "properties": {
+          "provider_type": {
+            "type": "string",
+            "description": "Which provider to send through. Matched case-insensitively.",
+            "enum": [
+              "smtp",
+              "mailgun",
+              "postmark",
+              "sendgrid"
+            ],
+            "example": "mailgun"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/TeamEmailProviderSettings"
+          },
+          "secret": {
+            "type": "string",
+            "description": "The provider's single credential (SMTP password, Mailgun sending key, Postmark server token, or SendGrid API key). Required when configuring a provider for the first time.\nOn a team that already has a provider, OMIT this field to keep the stored credential — it is never returned, so a client cannot resend it. An explicitly empty string is rejected: a provider with no credential cannot send, so clearing it would silently disable the team's mail.",
+            "example": "key-abc123"
+          },
+          "from_address": {
+            "type": "string",
+            "format": "email",
+            "description": "The address the team's mail is sent from.",
+            "example": "hello@acme.test"
+          },
+          "from_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional display name shown beside the from address.",
+            "example": "Acme Team"
+          },
+          "reply_to": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Optional Reply-To address.",
+            "example": "support@acme.test"
+          }
+        },
+        "required": [
+          "provider_type",
+          "from_address"
+        ]
+      },
+      "TeamEmailProviderResponse": {
+        "type": "object",
+        "description": "The email configuration in force for a team — its own provider, or the instance provider it inherits. This is never a 404: a team without its own provider is inheriting one, which is a state the caller needs described.\nNo field here can carry the credential; `has_credential` reports only that one is stored.",
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "description": "Whether the team has its own provider configured.",
+            "example": true
+          },
+          "source": {
+            "type": "string",
+            "description": "Which provider will actually send: the team's own, or the instance provider from the deployment configuration.",
+            "enum": [
+              "team",
+              "instance"
+            ],
+            "example": "team"
+          },
+          "effective_from_address": {
+            "type": "string",
+            "description": "The address mail will actually be sent from — the team's when configured, otherwise the instance's.",
+            "example": "hello@acme.test"
+          },
+          "provider_type": {
+            "type": "string",
+            "nullable": true,
+            "description": "The team's provider type, or null when the team inherits the instance provider.",
+            "enum": [
+              "smtp",
+              "mailgun",
+              "postmark",
+              "sendgrid",
+              null
+            ],
+            "example": "mailgun"
+          },
+          "has_credential": {
+            "type": "boolean",
+            "description": "Whether a credential is stored for the team's provider. The credential itself is never returned.",
+            "example": true
+          },
+          "from_address": {
+            "type": "string",
+            "description": "The team's configured from address. Absent when inheriting the instance provider.",
+            "example": "hello@acme.test"
+          },
+          "from_name": {
+            "type": "string",
+            "nullable": true,
+            "description": "The team's configured display name.",
+            "example": "Acme Team"
+          },
+          "reply_to": {
+            "type": "string",
+            "nullable": true,
+            "description": "The team's configured Reply-To address.",
+            "example": "support@acme.test"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/TeamEmailProviderSettings"
+          },
+          "is_healthy": {
+            "type": "boolean",
+            "description": "Whether the last observed send succeeded. Derived by comparing last_success_at with last_error_at, so a recovered provider is healthy even though last_error is still populated.",
+            "example": true
+          },
+          "last_success_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When a send through the team's provider last succeeded."
+          },
+          "last_error": {
+            "type": "string",
+            "nullable": true,
+            "description": "The last delivery error. Deliberately retained after recovery for diagnosis, so its presence alone does not mean the provider is broken — use is_healthy.",
+            "example": "smtp: connection refused"
+          },
+          "last_error_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the last delivery error occurred."
+          }
+        },
+        "required": [
+          "configured",
+          "source",
+          "effective_from_address",
+          "provider_type",
+          "has_credential"
+        ]
+      },
+      "TeamEmailProviderTestDetails": {
+        "type": "object",
+        "description": "Fixed-category detail for a failed test send. The real upstream error is logged server-side only.",
+        "properties": {
+          "error_details": {
+            "type": "string",
+            "description": "Why the test failed: `configuration_invalid` when the provider could not be built at all (nothing was dialled), `send_failed` when it was built but delivery failed. Absent on success.",
+            "enum": [
+              "configuration_invalid",
+              "send_failed"
+            ],
+            "example": "send_failed"
+          }
+        }
+      },
+      "TeamEmailProviderTestResponse": {
+        "type": "object",
+        "description": "Outcome of a test send. A failed send is reported here with `is_valid: false`, not as an HTTP error — the caller asked whether the configuration works, and \"no, because X\" is a successful answer.",
+        "properties": {
+          "is_valid": {
+            "type": "boolean",
+            "description": "Whether the test message was accepted by the provider.",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable outcome, safe to show to an admin.",
+            "example": "Sending failed: dial tcp 127.0.0.1:1: connect: connection refused"
+          },
+          "recipient": {
+            "type": "string",
+            "description": "Where the test message was sent. Always the acting user's own account email — this endpoint never accepts a caller-supplied recipient, so it cannot be used to send mail to third parties.",
+            "example": "admin@acme.test"
+          },
+          "details": {
+            "$ref": "#/components/schemas/TeamEmailProviderTestDetails"
+          }
+        },
+        "required": [
+          "is_valid",
+          "message",
+          "recipient",
+          "details"
+        ]
       },
       "ResourceUsageItem": {
         "type": "object",

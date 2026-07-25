@@ -130,6 +130,66 @@ func (_c *MockTeamEmailProviderServiceInterface_Get_Call) RunAndReturn(run func(
 	return _c
 }
 
+// GetEffective provides a mock function with given fields: ctx, userID, teamID
+func (_m *MockTeamEmailProviderServiceInterface) GetEffective(ctx context.Context, userID string, teamID string) (*models.TeamEmailProviderEffective, error) {
+	ret := _m.Called(ctx, userID, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetEffective")
+	}
+
+	var r0 *models.TeamEmailProviderEffective
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (*models.TeamEmailProviderEffective, error)); ok {
+		return rf(ctx, userID, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) *models.TeamEmailProviderEffective); ok {
+		r0 = rf(ctx, userID, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.TeamEmailProviderEffective)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, userID, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTeamEmailProviderServiceInterface_GetEffective_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEffective'
+type MockTeamEmailProviderServiceInterface_GetEffective_Call struct {
+	*mock.Call
+}
+
+// GetEffective is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID string
+//   - teamID string
+func (_e *MockTeamEmailProviderServiceInterface_Expecter) GetEffective(ctx interface{}, userID interface{}, teamID interface{}) *MockTeamEmailProviderServiceInterface_GetEffective_Call {
+	return &MockTeamEmailProviderServiceInterface_GetEffective_Call{Call: _e.mock.On("GetEffective", ctx, userID, teamID)}
+}
+
+func (_c *MockTeamEmailProviderServiceInterface_GetEffective_Call) Run(run func(ctx context.Context, userID string, teamID string)) *MockTeamEmailProviderServiceInterface_GetEffective_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockTeamEmailProviderServiceInterface_GetEffective_Call) Return(_a0 *models.TeamEmailProviderEffective, _a1 error) *MockTeamEmailProviderServiceInterface_GetEffective_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTeamEmailProviderServiceInterface_GetEffective_Call) RunAndReturn(run func(context.Context, string, string) (*models.TeamEmailProviderEffective, error)) *MockTeamEmailProviderServiceInterface_GetEffective_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Test provides a mock function with given fields: ctx, userID, teamID, req
 func (_m *MockTeamEmailProviderServiceInterface) Test(ctx context.Context, userID string, teamID string, req models.TestTeamEmailProviderRequest) (*models.TeamEmailProviderTestResult, error) {
 	ret := _m.Called(ctx, userID, teamID, req)

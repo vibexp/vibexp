@@ -616,3 +616,126 @@ func TestTeamEmailProvider_Upsert_NilEncryptionFailsClosed(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrEncryptionUnavailable)
 }
+
+// --- GetEffective ------------------------------------------------------------
+
+// A team with no row reports the instance fallback, not an error: the settings
+// endpoint must be able to describe "you are inheriting" rather than 404.
+func TestTeamEmailProvider_GetEffective_InstanceFallback(t *testing.T) {
+	repo := repomocks.NewMockTeamEmailProviderRepository(t)
+	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
+		Return(nil, repositories.ErrTeamEmailProviderNotFound)
+
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+	cfg := localDevProviderConfig()
+	cfg.Email.FromAddress = "noreply@instance.test"
+
+	svc := NewTeamEmailProviderService(
+		repo, repomocks.NewMockUserRepository(t), enc, cfg,
+		permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
+
+	effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
+
+	require.NoError(t, err, "inheriting the instance provider is not a failure")
+	assert.False(t, effective.Configured)
+	assert.Equal(t, "instance", effective.Source)
+	assert.Equal(t, "noreply@instance.test", effective.EffectiveFromAddress)
+	assert.Nil(t, effective.ProviderType)
+	assert.False(t, effective.HasCredential)
+}
+
+// The instance from-address chain must fall back to the SMTP username, matching
+// EmailService.sendEmail.
+func TestTeamEmailProvider_GetEffective_InstanceFromAddressChain(t *testing.T) {
+	repo := repomocks.NewMockTeamEmailProviderRepository(t)
+	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
+		Return(nil, repositories.ErrTeamEmailProviderNotFound)
+
+	enc, err := NewEncryptionService(testEncryptionKey)
+	require.NoError(t, err)
+	cfg := localDevProviderConfig()
+	cfg.Email.FromAddress = ""
+	cfg.Email.SMTP.Username = "smtp-user@instance.test"
+
+	svc := NewTeamEmailProviderService(
+		repo, repomocks.NewMockUserRepository(t), enc, cfg,
+		permissiveProviderAuthz{}, slog.New(slog.DiscardHandler))
+
+	effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
+
+	require.NoError(t, err)
+	assert.Equal(t, "smtp-user@instance.test", effective.EffectiveFromAddress)
+}
+
+func TestTeamEmailProvider_GetEffective_TeamConfigured(t *testing.T) {
+	fromName := "Acme"
+	stored := &models.TeamEmailProvider{
+		TeamID:          testProviderTeamID,
+		ProviderType:    EmailProviderTypeMailgun,
+		Settings:        json.RawMessage(`{"domain":"mg.acme.test"}`),
+		SecretEncrypted: "ciphertext",
+		FromAddress:     "hello@acme.test",
+		FromName:        &fromName,
+	}
+
+	repo := repomocks.NewMockTeamEmailProviderRepository(t)
+	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).Return(stored, nil)
+
+	svc := newTestTeamEmailProviderService(t, repo, repomocks.NewMockUserRepository(t),
+		permissiveProviderAuthz{})
+
+	effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
+
+	require.NoError(t, err)
+	assert.True(t, effective.Configured)
+	assert.Equal(t, "team", effective.Source)
+	assert.Equal(t, "hello@acme.test", effective.EffectiveFromAddress)
+	require.NotNil(t, effective.ProviderType)
+	assert.Equal(t, EmailProviderTypeMailgun, *effective.ProviderType)
+	assert.True(t, effective.HasCredential)
+	require.NotNil(t, effective.IsHealthy)
+	assert.True(t, *effective.IsHealthy, "a provider that has not failed is healthy")
+}
+
+// A real repository failure must surface, not masquerade as the instance fallback
+// — otherwise a DB blip would silently reroute the team's mail in the UI.
+func TestTeamEmailProvider_GetEffective_RepositoryErrorSurfaces(t *testing.T) {
+	repo := repomocks.NewMockTeamEmailProviderRepository(t)
+	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).
+		Return(nil, errors.New("connection reset"))
+
+	svc := newTestTeamEmailProviderService(t, repo, repomocks.NewMockUserRepository(t),
+		permissiveProviderAuthz{})
+
+	effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
+
+	require.Error(t, err)
+	assert.Nil(t, effective)
+}
+
+// The effective view must never carry the credential, even though it is built
+// from a row that has one.
+func TestTeamEmailProvider_GetEffective_NeverSerializesTheSecret(t *testing.T) {
+	stored := &models.TeamEmailProvider{
+		TeamID:          testProviderTeamID,
+		ProviderType:    EmailProviderTypeSendGrid,
+		Settings:        json.RawMessage(`{}`),
+		SecretEncrypted: "SUPER-SECRET-CIPHERTEXT",
+		FromAddress:     "hello@acme.test",
+	}
+
+	repo := repomocks.NewMockTeamEmailProviderRepository(t)
+	repo.On("GetByTeamID", mock.Anything, testProviderTeamID).Return(stored, nil)
+
+	svc := newTestTeamEmailProviderService(t, repo, repomocks.NewMockUserRepository(t),
+		permissiveProviderAuthz{})
+
+	effective, err := svc.GetEffective(context.Background(), testProviderUserID, testProviderTeamID)
+	require.NoError(t, err)
+
+	encoded, err := json.Marshal(effective)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "SUPER-SECRET-CIPHERTEXT")
+	assert.Contains(t, string(encoded), `"has_credential":true`)
+}

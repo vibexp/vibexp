@@ -1,0 +1,273 @@
+# Per-team email provider schemas (#503, epic #499).
+#
+# Secret discipline, enforced by the shape of these schemas rather than by
+# convention:
+#   * `secret` appears ONLY on request schemas. No response schema has a field
+#     able to carry it, so a handler cannot leak one by forgetting to mask.
+#   * Every read exposes `has_credential` instead of the value.
+#   * `effective_from_address` is deliberately readable by any team member: it is
+#     already in the From: header of every mail this instance sends them.
+#
+# The request body mirrors the nested shape of the `email:` config block (one
+# required provider_type plus per-type objects) rather than using a oneOf
+# discriminator, which generators handle inconsistently.
+
+SMTPProviderSettings:
+  type: object
+  description: Non-secret SMTP settings. The password is the provider's secret.
+  properties:
+    host:
+      type: string
+      description: SMTP server hostname.
+      example: "smtp.acme.test"
+    port:
+      type: string
+      description: SMTP port, as a string. Must parse to 1-65535.
+      example: "587"
+    username:
+      type: string
+      description: SMTP username, when the server requires authentication.
+      example: "mailer@acme.test"
+  required:
+    - host
+    - port
+
+MailgunProviderSettings:
+  type: object
+  description: Non-secret Mailgun settings. The sending key is the provider's secret.
+  properties:
+    domain:
+      type: string
+      description: >-
+        The Mailgun sending domain. Must be a bare domain, not a URL.
+      example: "mg.acme.test"
+    base_url:
+      type: string
+      description: >-
+        Optional API base URL, to select a non-US region (for example
+        https://api.eu.mailgun.net/v3). A missing /v2|/v3|/v4 suffix is
+        normalised to /v3.
+      example: "https://api.eu.mailgun.net/v3"
+  required:
+    - domain
+
+PostmarkProviderSettings:
+  type: object
+  description: >-
+    Non-secret Postmark settings. The server token is the provider's secret.
+  properties:
+    message_stream:
+      type: string
+      description: >-
+        Postmark message stream to send on. Defaults to "outbound", the default
+        transactional stream.
+      example: "outbound"
+
+TeamEmailProviderSettings:
+  type: object
+  description: >-
+    Per-type non-secret settings. Exactly the block matching `provider_type` may
+    be present; a block belonging to another type is rejected rather than
+    ignored. SendGrid has no block — its only configuration is its API key,
+    which is the secret.
+  properties:
+    smtp:
+      $ref: '../openapi.yaml#/components/schemas/SMTPProviderSettings'
+    mailgun:
+      $ref: '../openapi.yaml#/components/schemas/MailgunProviderSettings'
+    postmark:
+      $ref: '../openapi.yaml#/components/schemas/PostmarkProviderSettings'
+
+UpsertTeamEmailProviderRequest:
+  type: object
+  description: >-
+    The team's email provider configuration. This is an upsert, so the same body
+    creates or replaces.
+  properties:
+    provider_type:
+      type: string
+      description: Which provider to send through. Matched case-insensitively.
+      enum:
+        - smtp
+        - mailgun
+        - postmark
+        - sendgrid
+      example: "mailgun"
+    settings:
+      $ref: '../openapi.yaml#/components/schemas/TeamEmailProviderSettings'
+    secret:
+      type: string
+      description: >-
+        The provider's single credential (SMTP password, Mailgun sending key,
+        Postmark server token, or SendGrid API key). Required when configuring a
+        provider for the first time.
+
+        On a team that already has a provider, OMIT this field to keep the stored
+        credential — it is never returned, so a client cannot resend it. An
+        explicitly empty string is rejected: a provider with no credential cannot
+        send, so clearing it would silently disable the team's mail.
+      example: "key-abc123"
+    from_address:
+      type: string
+      format: email
+      description: The address the team's mail is sent from.
+      example: "hello@acme.test"
+    from_name:
+      type: string
+      nullable: true
+      description: Optional display name shown beside the from address.
+      example: "Acme Team"
+    reply_to:
+      type: string
+      format: email
+      nullable: true
+      description: Optional Reply-To address.
+      example: "support@acme.test"
+  required:
+    - provider_type
+    - from_address
+
+TeamEmailProviderResponse:
+  type: object
+  description: >-
+    The email configuration in force for a team — its own provider, or the
+    instance provider it inherits. This is never a 404: a team without its own
+    provider is inheriting one, which is a state the caller needs described.
+
+    No field here can carry the credential; `has_credential` reports only that
+    one is stored.
+  properties:
+    configured:
+      type: boolean
+      description: Whether the team has its own provider configured.
+      example: true
+    source:
+      type: string
+      description: >-
+        Which provider will actually send: the team's own, or the instance
+        provider from the deployment configuration.
+      enum:
+        - team
+        - instance
+      example: "team"
+    effective_from_address:
+      type: string
+      description: >-
+        The address mail will actually be sent from — the team's when configured,
+        otherwise the instance's.
+      example: "hello@acme.test"
+    provider_type:
+      type: string
+      nullable: true
+      description: >-
+        The team's provider type, or null when the team inherits the instance
+        provider.
+      enum:
+        - smtp
+        - mailgun
+        - postmark
+        - sendgrid
+        - null
+      example: "mailgun"
+    has_credential:
+      type: boolean
+      description: >-
+        Whether a credential is stored for the team's provider. The credential
+        itself is never returned.
+      example: true
+    from_address:
+      type: string
+      description: >-
+        The team's configured from address. Absent when inheriting the instance
+        provider.
+      example: "hello@acme.test"
+    from_name:
+      type: string
+      nullable: true
+      description: The team's configured display name.
+      example: "Acme Team"
+    reply_to:
+      type: string
+      nullable: true
+      description: The team's configured Reply-To address.
+      example: "support@acme.test"
+    settings:
+      $ref: '../openapi.yaml#/components/schemas/TeamEmailProviderSettings'
+    is_healthy:
+      type: boolean
+      description: >-
+        Whether the last observed send succeeded. Derived by comparing
+        last_success_at with last_error_at, so a recovered provider is healthy
+        even though last_error is still populated.
+      example: true
+    last_success_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When a send through the team's provider last succeeded.
+    last_error:
+      type: string
+      nullable: true
+      description: >-
+        The last delivery error. Deliberately retained after recovery for
+        diagnosis, so its presence alone does not mean the provider is broken —
+        use is_healthy.
+      example: "smtp: connection refused"
+    last_error_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the last delivery error occurred.
+  required:
+    - configured
+    - source
+    - effective_from_address
+    - provider_type
+    - has_credential
+
+TeamEmailProviderTestDetails:
+  type: object
+  description: >-
+    Fixed-category detail for a failed test send. The real upstream error is
+    logged server-side only.
+  properties:
+    error_details:
+      type: string
+      description: >-
+        Why the test failed: `configuration_invalid` when the provider could not
+        be built at all (nothing was dialled), `send_failed` when it was built
+        but delivery failed. Absent on success.
+      enum:
+        - configuration_invalid
+        - send_failed
+      example: "send_failed"
+
+TeamEmailProviderTestResponse:
+  type: object
+  description: >-
+    Outcome of a test send. A failed send is reported here with
+    `is_valid: false`, not as an HTTP error — the caller asked whether the
+    configuration works, and "no, because X" is a successful answer.
+  properties:
+    is_valid:
+      type: boolean
+      description: Whether the test message was accepted by the provider.
+      example: false
+    message:
+      type: string
+      description: Human-readable outcome, safe to show to an admin.
+      example: "Sending failed: dial tcp 127.0.0.1:1: connect: connection refused"
+    recipient:
+      type: string
+      description: >-
+        Where the test message was sent. Always the acting user's own account
+        email — this endpoint never accepts a caller-supplied recipient, so it
+        cannot be used to send mail to third parties.
+      example: "admin@acme.test"
+    details:
+      $ref: '../openapi.yaml#/components/schemas/TeamEmailProviderTestDetails'
+  required:
+    - is_valid
+    - message
+    - recipient
+    - details

@@ -282,6 +282,10 @@ type TeamEmailProviderServiceInterface interface {
 	// Get returns the team's provider, or repositories.ErrTeamEmailProviderNotFound
 	// when the team inherits the instance provider.
 	Get(ctx context.Context, userID, teamID string) (*models.TeamEmailProvider, error)
+	// GetEffective reports the configuration in force — the team's own provider
+	// or the instance fallback. It never reports not-found: inheriting the
+	// instance provider is a valid state, not an absence.
+	GetEffective(ctx context.Context, userID, teamID string) (*models.TeamEmailProviderEffective, error)
 	// Upsert validates, encrypts and stores the team's provider. An omitted
 	// secret keeps the stored one; an empty secret is a validation error.
 	Upsert(ctx context.Context, userID, teamID string,

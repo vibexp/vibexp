@@ -687,6 +687,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupAgentsRoutes(r)
 		s.setupGitHubIntegrationRoutes(r)
 		s.mountGitHubAppConfigRoutes(r)
+		s.mountTeamEmailProviderRoutes(r)
 		// CLI-accessible resources (previously in flexible auth group)
 		s.setupPromptsRoutes(r)
 		s.setupArtifactsRoutes(r)
@@ -1262,6 +1263,39 @@ func (s *Server) mountGitHubAppConfigRoutes(r chi.Router) {
 		r.Route(prefix, func(r chi.Router) {
 			r.Use(s.teamValidationMiddleware())
 			s.setupGitHubAppConfigRoutes(r)
+		})
+	}
+}
+
+// setupTeamEmailProviderRoutes registers the per-team email provider operations
+// (#503) onto an already-mounted router. It registers only the verbs — the prefix
+// and teamValidationMiddleware are applied by the caller — so handler tests can
+// mount this exact function and therefore cover the real route table rather than a
+// hand-copied one. That is the provider convention.
+func (s *Server) setupTeamEmailProviderRoutes(r chi.Router) {
+	r.Get("/", s.handleGetTeamEmailProvider)
+	r.Put("/", s.handleUpsertTeamEmailProvider)
+	r.Delete("/", s.handleDeleteTeamEmailProvider)
+	r.Post("/test", s.handleTestTeamEmailProvider)
+}
+
+// teamEmailProviderMountPrefixes are the two paths the email provider surface is
+// served on: the bare prefix for CLI and API clients, and the settings prefix the
+// SPA calls. A team has at most one provider, so this is a singleton
+// sub-resource — there is no id segment and no list operation.
+var teamEmailProviderMountPrefixes = []string{
+	"/api/v1/{team_id}/email-provider",
+	"/api/v1/{team_id}/settings/email-provider",
+}
+
+// mountTeamEmailProviderRoutes applies the prefixes and team-membership
+// middleware. The owner/admin check lives in the service, not here, so GET stays
+// available to any member while the writes are gated.
+func (s *Server) mountTeamEmailProviderRoutes(r chi.Router) {
+	for _, prefix := range teamEmailProviderMountPrefixes {
+		r.Route(prefix, func(r chi.Router) {
+			r.Use(s.teamValidationMiddleware())
+			s.setupTeamEmailProviderRoutes(r)
 		})
 	}
 }

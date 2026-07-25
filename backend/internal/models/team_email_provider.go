@@ -114,6 +114,18 @@ type TestTeamEmailProviderRequest struct {
 	UpsertTeamEmailProviderRequest
 }
 
+// Error categories reported by a test send. A fixed set, so a client can branch
+// on the outcome without parsing prose and the real upstream error stays
+// server-side.
+const (
+	// TeamEmailProviderErrConfigInvalid means the configuration could not build
+	// a provider at all — nothing was dialled.
+	TeamEmailProviderErrConfigInvalid = "configuration_invalid"
+	// TeamEmailProviderErrSendFailed means the provider was built but the
+	// delivery attempt failed (refused connection, rejected credentials, ...).
+	TeamEmailProviderErrSendFailed = "send_failed"
+)
+
 // TeamEmailProviderTestResult is the outcome of a test send. A delivery failure
 // is a result, not an error: the caller asked "does this configuration work?"
 // and "no, because X" is a successful answer.
@@ -123,6 +135,106 @@ type TeamEmailProviderTestResult struct {
 	// admin which mailbox to check.
 	Recipient string `json:"recipient"`
 	Message   string `json:"message"`
+	// ErrorDetails is one of the TeamEmailProviderErr* categories, or empty on
+	// success.
+	ErrorDetails string `json:"error_details,omitempty"`
+}
+
+// TeamEmailProviderTestDetails carries the fixed error category of a test send,
+// mirroring the provider-validation response shape.
+type TeamEmailProviderTestDetails struct {
+	ErrorDetails string `json:"error_details,omitempty"`
+}
+
+// TeamEmailProviderTestResponse is the API view of a test send.
+type TeamEmailProviderTestResponse struct {
+	IsValid bool   `json:"is_valid"`
+	Message string `json:"message"`
+	// Recipient is where the test message was sent — always the acting user's
+	// own account email, never a caller-supplied address.
+	Recipient string                       `json:"recipient"`
+	Details   TeamEmailProviderTestDetails `json:"details"`
+}
+
+// NewTeamEmailProviderTestResponse maps a service test result onto its API view.
+func NewTeamEmailProviderTestResponse(result *TeamEmailProviderTestResult) *TeamEmailProviderTestResponse {
+	return &TeamEmailProviderTestResponse{
+		IsValid:   result.Success,
+		Message:   result.Message,
+		Recipient: result.Recipient,
+		Details:   TeamEmailProviderTestDetails{ErrorDetails: result.ErrorDetails},
+	}
+}
+
+// TeamEmailProviderEffective is what GET returns: the configuration actually in
+// force for a team, whether it is the team's own or the instance fallback.
+//
+// This read NEVER 404s. "No row" is a meaningful, valid state — it means the team
+// inherits the instance provider — so reporting it as a missing resource would be
+// wrong and would make the fallback invisible to the UI.
+//
+// EffectiveFromAddress is safe to disclose to any team member: it is already in
+// the From: header of every mail they receive from this instance.
+type TeamEmailProviderEffective struct {
+	// Configured is true when the team has its own provider row.
+	Configured bool `json:"configured"`
+	// Source is "team" or "instance" — which provider will actually send.
+	Source string `json:"source"`
+	// EffectiveFromAddress is the address mail will actually come from.
+	EffectiveFromAddress string `json:"effective_from_address"`
+	// ProviderType is the team's provider type, or null when inheriting.
+	ProviderType *string `json:"provider_type"`
+	// HasCredential reports that a secret is stored, without disclosing it.
+	HasCredential bool `json:"has_credential"`
+
+	// The remaining fields describe the team's own row and are omitted entirely
+	// when the team inherits the instance provider.
+	FromAddress *string         `json:"from_address,omitempty"`
+	FromName    *string         `json:"from_name,omitempty"`
+	ReplyTo     *string         `json:"reply_to,omitempty"`
+	Settings    json.RawMessage `json:"settings,omitempty"`
+	IsHealthy   *bool           `json:"is_healthy,omitempty"`
+	// LastSuccessAt, LastError and LastErrorAt drive the health banner. LastError
+	// can be set while the provider is healthy again — see IsHealthy.
+	LastSuccessAt *time.Time `json:"last_success_at,omitempty"`
+	LastError     *string    `json:"last_error,omitempty"`
+	LastErrorAt   *time.Time `json:"last_error_at,omitempty"`
+}
+
+// NewTeamEmailProviderEffectiveInstance builds the GET view for a team with no
+// provider of its own.
+func NewTeamEmailProviderEffectiveInstance(instanceFromAddress string) *TeamEmailProviderEffective {
+	return &TeamEmailProviderEffective{
+		Configured:           false,
+		Source:               "instance",
+		EffectiveFromAddress: instanceFromAddress,
+		ProviderType:         nil,
+		HasCredential:        false,
+	}
+}
+
+// NewTeamEmailProviderEffectiveTeam builds the GET view for a team using its own
+// provider. The encrypted secret is never copied across — only the has_credential
+// boolean derived from it.
+func NewTeamEmailProviderEffectiveTeam(provider *TeamEmailProvider) *TeamEmailProviderEffective {
+	providerType := provider.ProviderType
+	healthy := provider.IsHealthy()
+
+	return &TeamEmailProviderEffective{
+		Configured:           true,
+		Source:               "team",
+		EffectiveFromAddress: provider.FromAddress,
+		ProviderType:         &providerType,
+		HasCredential:        provider.SecretEncrypted != "",
+		FromAddress:          &provider.FromAddress,
+		FromName:             provider.FromName,
+		ReplyTo:              provider.ReplyTo,
+		Settings:             provider.Settings,
+		IsHealthy:            &healthy,
+		LastSuccessAt:        provider.LastSuccessAt,
+		LastError:            provider.LastError,
+		LastErrorAt:          provider.LastErrorAt,
+	}
 }
 
 // TeamEmailProviderResponse is the API view of a team's provider: the entity
