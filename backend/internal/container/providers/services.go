@@ -201,8 +201,9 @@ func ProvideGitHubAppConfigService(
 	enc services.EncryptionServiceInterface,
 	cfg *config.Config,
 	authzSvc services.AuthorizationServiceInterface,
+	clients services.GitHubAppClientResolver,
 ) services.GitHubAppConfigServiceInterface {
-	return services.NewGitHubAppConfigService(repo, enc, authzSvc, cfg.Frontend.BaseURL)
+	return services.NewGitHubAppConfigService(repo, enc, authzSvc, clients, cfg.Frontend.BaseURL)
 }
 
 // ProvideEmailService creates a new EmailService

@@ -36,6 +36,12 @@ type GitHubAppConfigService struct {
 	repo  repositories.GitHubAppConfigRepository
 	enc   EncryptionServiceInterface
 	authz AuthorizationServiceInterface
+	// clients is the per-team client cache, notified when a config is deleted.
+	// Credential EDITS need no notification — the cache keys on the config's
+	// version, so a bumped version invalidates itself. A DELETE has no new
+	// version to observe, so it must be pushed. Optional: nil simply means no
+	// cache to notify (#480).
+	clients GitHubAppClientResolver
 	// apiBaseURL is the GitHub API root the validate probe targets. It is not
 	// caller-supplied and not configurable — the field exists only so tests can
 	// point the probe at an httptest fake.
@@ -87,12 +93,14 @@ func NewGitHubAppConfigService(
 	repo repositories.GitHubAppConfigRepository,
 	enc EncryptionServiceInterface,
 	authzSvc AuthorizationServiceInterface,
+	clients GitHubAppClientResolver,
 	webhookBaseURL string,
 ) *GitHubAppConfigService {
 	return &GitHubAppConfigService{
 		repo:           repo,
 		enc:            enc,
 		authz:          authzSvc,
+		clients:        clients,
 		apiBaseURL:     githubAPIBaseURL,
 		httpClient:     &http.Client{Timeout: validateGitHubAppTimeout},
 		webhookBaseURL: strings.TrimRight(webhookBaseURL, "/"),
@@ -414,6 +422,14 @@ func (s *GitHubAppConfigService) DeleteAppConfig(ctx context.Context, teamID, us
 		}
 		return fmt.Errorf("failed to delete GitHub App config: %w", err)
 	}
+
+	// Drop the cached client for an App that no longer exists. A resolve would
+	// fail on the missing row anyway, so this is about not holding credentials
+	// in memory after they were deleted.
+	if s.clients != nil {
+		s.clients.Evict(config.ID)
+	}
+
 	return nil
 }
 

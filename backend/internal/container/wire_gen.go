@@ -146,7 +146,8 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	}
 	embeddingProviderServiceInterface := providers.ProvideEmbeddingProviderService(embeddingProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface)
 	modelProviderServiceInterface := providers.ProvideModelProviderService(modelProviderRepository, encryptionServiceInterface, cfg, authorizationServiceInterface)
-	gitHubAppConfigServiceInterface := providers.ProvideGitHubAppConfigService(gitHubAppConfigRepository, encryptionServiceInterface, cfg, authorizationServiceInterface)
+	gitHubAppClientResolver := providers.ProvideGitHubAppClientResolver(gitHubAppConfigRepository, encryptionServiceInterface, logger)
+	gitHubAppConfigServiceInterface := providers.ProvideGitHubAppConfigService(gitHubAppConfigRepository, encryptionServiceInterface, cfg, authorizationServiceInterface, gitHubAppClientResolver)
 	emailProvider, err := providers.ProvideEmailProvider(cfg, logger)
 	if err != nil {
 		return nil, err
@@ -215,7 +216,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 	teamInvitationService := providers.ProvideTeamInvitationService(teamInvitationServiceDeps)
 	projectServiceInterface := providers.ProvideProjectService(projectRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger)
 	projectMigrationServiceInterface := providers.ProvideProjectMigrationService(db, projectRepository, logger)
-	gitHubAppClientResolver := providers.ProvideGitHubAppClientResolver(gitHubAppConfigRepository, encryptionServiceInterface, logger)
 	gitHubAppServiceInterface := providers.ProvideGitHubAppService(gitHubInstallationRepository, projectRepository, blueprintRepository, gitHubAppClientResolver, encryptionServiceInterface, attachmentServiceInterface, eventManager, authorizationServiceInterface, logger)
 	feedServiceInterface := providers.ProvideFeedService(feedRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger)
 	feedItemServiceInterface := providers.ProvideFeedItemService(feedItemRepository, feedItemReplyRepository, projectRepository, teamServiceInterface, authorizationServiceInterface, eventManager, logger)

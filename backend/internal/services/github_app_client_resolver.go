@@ -183,6 +183,13 @@ func (r *githubAppClientResolver) store(appConfigID string, version int64, clien
 	defer r.mu.Unlock()
 
 	if existing, ok := r.cache[appConfigID]; ok {
+		// Two resolves racing across a credential edit can finish out of order:
+		// the one that read the OLD version may store last. Keeping the newer
+		// entry means that race costs nothing, rather than a wasted rebuild on
+		// the next call.
+		if entry, _ := existing.Value.(*cachedGitHubAppClient); entry.version > version {
+			return
+		}
 		r.removeElement(existing)
 	}
 
