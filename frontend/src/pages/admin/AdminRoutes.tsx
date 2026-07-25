@@ -1,5 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 
+import { AdminProjectDetail } from '@/pages/admin/AdminProjectDetail'
+import { AdminProjects } from '@/pages/admin/AdminProjects'
 import { AdminStats } from '@/pages/admin/AdminStats'
 import { AdminTeamDetail } from '@/pages/admin/AdminTeamDetail'
 import { AdminTeams } from '@/pages/admin/AdminTeams'
@@ -14,9 +16,8 @@ import { AdminUsers } from '@/pages/admin/AdminUsers'
  * the migrated pages keep their exact paths — `/admin`, `/admin/users`,
  * `/admin/users/:id`, `/admin/teams`, `/admin/teams/:id`.
  *
- * `/admin/projects` has a nav entry already (admin-nav.ts) but no route until
- * #461 adds the pages; until then it falls through to the catch-all below rather
- * than rendering a blank shell.
+ * `/admin/projects` and `/admin/projects/:id` were added in #461, completing the
+ * four sections the sidebar advertises.
  */
 export function AdminRoutes() {
   return (
@@ -26,6 +27,8 @@ export function AdminRoutes() {
       <Route path="users/:id" element={<AdminUserDetail />} />
       <Route path="teams" element={<AdminTeams />} />
       <Route path="teams/:id" element={<AdminTeamDetail />} />
+      <Route path="projects" element={<AdminProjects />} />
+      <Route path="projects/:id" element={<AdminProjectDetail />} />
       <Route path="*" element={<AdminNotFound />} />
     </Routes>
   )

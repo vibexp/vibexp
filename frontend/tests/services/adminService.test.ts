@@ -6,7 +6,11 @@
  * client is invisible in a page test that mocks the service. These assertions are
  * about exactly what reaches `generatedClient`.
  */
-import type { AdminTeamListResponse } from '../../src/services/adminService'
+import type {
+  AdminProjectDetail,
+  AdminProjectListResponse,
+  AdminTeamListResponse,
+} from '../../src/services/adminService'
 
 // Mock the generated client; `unwrap` stays real so these exercise the same
 // success/error resolution production uses.
@@ -101,6 +105,98 @@ describe('listTeams', () => {
 
     expect(result.total_count).toBe(7)
     expect(result.total_pages).toBe(1)
+  })
+})
+
+const emptyProjectPage: AdminProjectListResponse = {
+  projects: [],
+  total_count: 0,
+  page: 1,
+  per_page: 20,
+  total_pages: 0,
+}
+
+describe('listProjects', () => {
+  it('forwards every filter, sort and pagination param to the query', async () => {
+    mockGeneratedClient.GET.mockReturnValue(success(emptyProjectPage))
+
+    await adminService.listProjects({
+      page: 2,
+      limit: 20,
+      search: 'plat',
+      team_id: 'team-1',
+      created_from: '2026-07-01T00:00:00.000Z',
+      created_to: '2026-07-24T23:59:59.999Z',
+      sort_by: 'name',
+      sort_order: 'asc',
+    })
+
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/admin/projects',
+      {
+        params: {
+          query: {
+            page: 2,
+            limit: 20,
+            search: 'plat',
+            team_id: 'team-1',
+            created_from: '2026-07-01T00:00:00.000Z',
+            created_to: '2026-07-24T23:59:59.999Z',
+            sort_by: 'name',
+            sort_order: 'asc',
+          },
+        },
+      }
+    )
+  })
+
+  it('returns the envelope untouched', async () => {
+    mockGeneratedClient.GET.mockReturnValue(
+      success({ ...emptyProjectPage, total_count: 30, total_pages: 2 })
+    )
+
+    const result = await adminService.listProjects({ page: 1, limit: 20 })
+
+    expect(result.total_count).toBe(30)
+    expect(result.total_pages).toBe(2)
+  })
+})
+
+describe('getProject', () => {
+  it('sends the id as a path param and returns the counts', async () => {
+    const project: AdminProjectDetail = {
+      id: 'p1',
+      name: 'Platform',
+      slug: 'platform',
+      description: '',
+      git_url: '',
+      homepage: '',
+      team: { id: 't1', name: 'Engineering', slug: 'engineering' },
+      owner: { id: 'u1', email: 'creator@example.com', name: 'Creator' },
+      resource_counts: {
+        prompts: 12,
+        artifacts: 4,
+        memories: 27,
+        blueprints: 3,
+      },
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-02T00:00:00Z',
+    }
+    mockGeneratedClient.GET.mockReturnValue(success(project))
+
+    const result = await adminService.getProject('p1')
+
+    expect(mockGeneratedClient.GET).toHaveBeenCalledWith(
+      '/api/v1/admin/projects/{id}',
+      { params: { path: { id: 'p1' } } }
+    )
+    // Distinct values so a transposed mapping cannot pass.
+    expect(result.resource_counts).toEqual({
+      prompts: 12,
+      artifacts: 4,
+      memories: 27,
+      blueprints: 3,
+    })
   })
 })
 

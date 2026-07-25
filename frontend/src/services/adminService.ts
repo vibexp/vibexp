@@ -33,6 +33,19 @@ export type AdminTeamListParams = NonNullable<
   operations['listAdminTeams']['parameters']['query']
 >
 
+export type AdminProjectTeam = components['schemas']['AdminProjectTeam']
+export type AdminProjectListItem = components['schemas']['AdminProjectListItem']
+export type AdminProjectListResponse =
+  components['schemas']['AdminProjectListResponse']
+export type AdminProjectResourceCounts =
+  components['schemas']['AdminProjectResourceCounts']
+export type AdminProjectDetail = components['schemas']['AdminProjectDetail']
+
+/** Query parameters for the instance-wide project listing (#453). */
+export type AdminProjectListParams = NonNullable<
+  operations['listAdminProjects']['parameters']['query']
+>
+
 class AdminService {
   /** Instance-wide counts + running backend version (GET /admin/stats). */
   async getStats(): Promise<AdminStatsResponse> {
@@ -75,6 +88,31 @@ class AdminService {
   async getTeam(id: string): Promise<AdminTeamDetail> {
     return unwrap(
       generatedClient.GET('/api/v1/admin/teams/{id}', {
+        params: { path: { id } },
+      })
+    )
+  }
+
+  /**
+   * One page of the instance-wide project listing.
+   *
+   * Filters, sort and pagination are server-side, so the envelope's totals
+   * describe the filtered set.
+   */
+  async listProjects(
+    params: AdminProjectListParams
+  ): Promise<AdminProjectListResponse> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/projects', {
+        params: { query: params },
+      })
+    )
+  }
+
+  /** A single project with its team, creator and per-type resource counts. */
+  async getProject(id: string): Promise<AdminProjectDetail> {
+    return unwrap(
+      generatedClient.GET('/api/v1/admin/projects/{id}', {
         params: { path: { id } },
       })
     )

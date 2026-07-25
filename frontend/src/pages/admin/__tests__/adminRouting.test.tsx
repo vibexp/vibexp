@@ -18,6 +18,8 @@ import { AdminRoutes } from '@/pages/admin/AdminRoutes'
 import { AdminShell } from '@/pages/admin/AdminShell'
 import { RequireInstanceAdmin } from '@/pages/admin/RequireInstanceAdmin'
 import type {
+  AdminProjectDetail,
+  AdminProjectListResponse,
   AdminStatsResponse,
   AdminTeamDetail,
   AdminTeamListResponse,
@@ -37,6 +39,8 @@ jest.mock('@/services/adminService', () => ({
     listTeams: jest.fn(),
     getUser: jest.fn(),
     getTeam: jest.fn(),
+    listProjects: jest.fn(),
+    getProject: jest.fn(),
   },
 }))
 
@@ -83,6 +87,28 @@ const userDetail: AdminUserDetail = {
   status: 'active',
   created_at: '2026-01-01T00:00:00Z',
   memberships: [],
+}
+
+const emptyProjects: AdminProjectListResponse = {
+  projects: [],
+  total_count: 0,
+  page: 1,
+  per_page: 20,
+  total_pages: 0,
+}
+
+const projectDetail: AdminProjectDetail = {
+  id: 'p1',
+  name: 'Platform',
+  slug: 'platform',
+  description: '',
+  git_url: '',
+  homepage: '',
+  team: { id: 't1', name: 'Engineering', slug: 'engineering' },
+  owner: { id: 'u1', email: 'creator@example.com', name: 'Creator' },
+  resource_counts: { prompts: 1, artifacts: 0, memories: 0, blueprints: 0 },
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-02T00:00:00Z',
 }
 
 const teamDetail: AdminTeamDetail = {
@@ -140,6 +166,8 @@ beforeEach(() => {
   mockAdminService.listTeams.mockResolvedValue(emptyTeams)
   mockAdminService.getUser.mockResolvedValue(userDetail)
   mockAdminService.getTeam.mockResolvedValue(teamDetail)
+  mockAdminService.listProjects.mockResolvedValue(emptyProjects)
+  mockAdminService.getProject.mockResolvedValue(projectDetail)
 })
 
 it('renders the Dashboard at /admin inside the admin shell', async () => {
@@ -157,6 +185,9 @@ it('renders the Dashboard at /admin inside the admin shell', async () => {
 it.each([
   ['/admin/users', 'Users'],
   ['/admin/teams', 'Teams'],
+  // #456 added the Projects nav entry, which rendered the in-shell 404 until
+  // #461 added the route it points at.
+  ['/admin/projects', 'Projects'],
 ])('renders %s inside the admin shell', async (path, heading) => {
   asAdmin()
   renderAt(path)
@@ -170,6 +201,7 @@ it.each([
 it.each([
   ['/admin/users/u1', 'Alice'],
   ['/admin/teams/t1', 'Engineering'],
+  ['/admin/projects/p1', 'Platform'],
 ])(
   'routes %s to its detail page, not to the app catch-all',
   async (path, shown) => {
