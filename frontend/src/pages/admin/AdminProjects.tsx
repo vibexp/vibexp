@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { UsersRound } from 'lucide-react'
+import { FolderKanban } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -9,29 +9,24 @@ import {
   listPageStatus,
   ListTable,
 } from '@/components/patterns/list-page'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/time'
-import type { TeamKindFilter } from '@/pages/admin/teams/TeamFilters'
-import { TeamFilters } from '@/pages/admin/teams/TeamFilters'
+import { ProjectFilters } from '@/pages/admin/projects/ProjectFilters'
 import { useAdminListFilters } from '@/pages/admin/useAdminListFilters'
-import type { AdminTeamListItem } from '@/services/adminService'
+import type { AdminProjectListItem } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 const PAGE_SIZE = 20
 
-const SORTABLE_KEYS = ['name', 'member_count', 'created_at'] as const
+/** #453 allows sorting by these two only; anything else is a 400. */
+const SORTABLE_KEYS = ['name', 'created_at'] as const
 type SortKey = (typeof SORTABLE_KEYS)[number]
 
-/**
- * Filter defaults. Every value here is omitted from the URL, so an unfiltered
- * page has a clean address bar (see `useUrlFilters`).
- */
 const FILTER_DEFAULTS = {
   page: '1',
   search: '',
-  kind: 'all',
+  team_id: '',
   created_from: '',
   created_to: '',
   sort_by: 'created_at',
@@ -39,7 +34,7 @@ const FILTER_DEFAULTS = {
 }
 
 interface State {
-  teams: AdminTeamListItem[]
+  projects: AdminProjectListItem[]
   loading: boolean
   error: string | null
   page: number
@@ -48,7 +43,7 @@ interface State {
 }
 
 const INITIAL: State = {
-  teams: [],
+  projects: [],
   loading: true,
   error: null,
   page: 1,
@@ -56,20 +51,8 @@ const INITIAL: State = {
   total: 0,
 }
 
-/**
- * Maps the tri-state UI filter onto the optional `is_personal` boolean.
- *
- * `undefined` for "all" is the whole point: sending `is_personal=false` would
- * mean "shared only" and silently hide every personal workspace.
- */
-function isPersonalParam(kind: string): boolean | undefined {
-  if (kind === 'personal') return true
-  if (kind === 'shared') return false
-  return undefined
-}
-
-/** Instance-wide teams list: server-side filtering, sorting and pagination (#460). */
-export function AdminTeams() {
+/** Instance-wide projects list: server-side filtering, sorting, pagination (#461). */
+export function AdminProjects() {
   const navigate = useNavigate()
   const {
     filters,
@@ -91,7 +74,7 @@ export function AdminTeams() {
     defaults: FILTER_DEFAULTS,
     sortableKeys: SORTABLE_KEYS,
     defaultSort: 'created_at',
-    filterKeys: ['kind'],
+    filterKeys: ['team_id'],
   })
   const [state, setState] = useState<State>(INITIAL)
 
@@ -99,11 +82,11 @@ export function AdminTeams() {
     let cancelled = false
     setState(prev => ({ ...prev, loading: true, error: null }))
     adminService
-      .listTeams({
+      .listProjects({
         page,
         limit: PAGE_SIZE,
         search: filters.search || undefined,
-        is_personal: isPersonalParam(filters.kind),
+        team_id: filters.team_id || undefined,
         created_from: createdFrom,
         created_to: createdTo,
         sort_by: sortBy,
@@ -112,7 +95,7 @@ export function AdminTeams() {
       .then(response => {
         if (cancelled) return
         setState({
-          teams: response.teams,
+          projects: response.projects,
           loading: false,
           error: null,
           page: response.page,
@@ -125,7 +108,7 @@ export function AdminTeams() {
         setState(prev => ({
           ...prev,
           loading: false,
-          error: getErrorMessage(err, 'Failed to load teams'),
+          error: getErrorMessage(err, 'Failed to load projects'),
         }))
       })
     return () => {
@@ -136,30 +119,21 @@ export function AdminTeams() {
   }, [
     page,
     filters.search,
-    filters.kind,
+    filters.team_id,
     createdFrom,
     createdTo,
     sortBy,
     sortOrder,
   ])
 
-  const columns = useMemo<ColumnDef<AdminTeamListItem>[]>(
+  const columns = useMemo<ColumnDef<AdminProjectListItem>[]>(
     () => [
       {
         accessorKey: 'name',
         header: 'Name',
         cell: ({ row }) => (
           <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{row.original.name}</span>
-              {/* Without this the personal/shared filter is unverifiable — the
-                  admin cannot see which rows are which. */}
-              {row.original.is_personal && (
-                <Badge variant="secondary" className="font-normal">
-                  Personal
-                </Badge>
-              )}
-            </div>
+            <span className="text-sm font-medium">{row.original.name}</span>
             <span className="text-muted-foreground text-xs">
               {row.original.slug}
             </span>
@@ -167,21 +141,20 @@ export function AdminTeams() {
         ),
       },
       {
+        id: 'team',
+        header: 'Team',
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.team.name}</span>
+        ),
+      },
+      {
+        // The project's creator (projects.user_id), NOT the owning team's owner.
+        // The two can differ, which is why Team and Owner are separate columns.
         id: 'owner',
         header: 'Owner',
         cell: ({ row }) => (
           <span className="text-muted-foreground text-sm">
             {row.original.owner.email}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'member_count',
-        header: 'Members',
-        meta: { align: 'right' },
-        cell: ({ row }) => (
-          <span className="text-sm tabular-nums">
-            {row.original.member_count}
           </span>
         ),
       },
@@ -199,8 +172,8 @@ export function AdminTeams() {
   )
 
   const handleRowClick = useCallback(
-    (row: AdminTeamListItem) => {
-      void navigate(`/admin/teams/${row.id}`)
+    (row: AdminProjectListItem) => {
+      void navigate(`/admin/projects/${row.id}`)
     },
     [navigate]
   )
@@ -208,19 +181,19 @@ export function AdminTeams() {
   const status = listPageStatus(
     state.loading,
     state.error,
-    state.teams.length === 0
+    state.projects.length === 0
   )
 
   return (
     <ListPage>
       <ListPage.Container>
         <ListPage.Filters>
-          <TeamFilters
+          <ProjectFilters
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}
-            kind={filters.kind as TeamKindFilter}
-            onKindChange={value => {
-              setFilters({ kind: value })
+            teamId={filters.team_id}
+            onTeamIdChange={value => {
+              setFilters({ team_id: value })
             }}
             created={created}
             onCreatedChange={setCreated}
@@ -231,17 +204,14 @@ export function AdminTeams() {
 
         <ListPage.Body
           status={status}
-          errorTitle="Failed to load teams"
+          errorTitle="Failed to load projects"
           errorMessage={state.error}
           empty={
-            // Two distinct empty states: "nothing exists" is a fact about the
-            // instance, "nothing matches" is a fact about the filters, and only
-            // the second one has a way out.
             hasActiveFilters ? (
               <EmptyState
-                icon={UsersRound}
-                title="No teams match your filters"
-                description="Try a different search, team type, or date range."
+                icon={FolderKanban}
+                title="No projects match your filters"
+                description="Try a different search, team, or date range."
                 actions={
                   <Button variant="outline" onClick={handleClear}>
                     Clear filters
@@ -250,15 +220,15 @@ export function AdminTeams() {
               />
             ) : (
               <EmptyState
-                icon={UsersRound}
-                title="No teams yet"
-                description="Teams appear here once they are created on this instance."
+                icon={FolderKanban}
+                title="No projects yet"
+                description="Projects appear here once teams create them."
               />
             )
           }
         >
           <ListTable
-            rows={state.teams}
+            rows={state.projects}
             columns={columns}
             sortableKeys={SORTABLE_KEYS}
             sortKey={sortBy}
@@ -272,9 +242,9 @@ export function AdminTeams() {
             status === 'loading' || status === 'error'
               ? undefined
               : {
-                  visible: state.teams.length,
+                  visible: state.projects.length,
                   total: state.total,
-                  noun: 'team',
+                  noun: 'project',
                 }
           }
           pagination={{
