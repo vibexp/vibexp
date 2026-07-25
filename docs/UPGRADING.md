@@ -54,7 +54,30 @@ database, so each team connects its own GitHub App to its own organization.
    registered by one team only**. Teams that need separate integrations need
    separate GitHub Apps.
 
-4. **Re-connect the installation** on each team after registering the App.
+4. **Repoint the webhook.** Each team's webhook URL now carries a routing token
+   identifying which App a delivery belongs to:
+
+   ```
+   https://vibexp.example.com/api/v1/webhooks/github/<routing-token>
+   ```
+
+   The pre-release endpoints are **retired and answer `410 Gone`**:
+
+   - `POST /api/v1/webhooks/github`
+   - `POST /api/v1/integrations/github/webhook`
+
+   They return 410 rather than redirecting: both verified deliveries against the
+   instance-wide secret that no longer exists, so a redirect would land them on
+   an authentication failure that reads like a secret mismatch. They are removed
+   entirely in a later release.
+
+   The routing token sits in the URL path, so an upstream proxy that logs full
+   request paths will record it. VibeXP redacts it from its own logs and error
+   responses but cannot redact yours. It is a routing key, not the signing
+   secret — a leaked token alone cannot forge a delivery, since the payload
+   signature is still verified against the App's webhook secret.
+
+5. **Re-connect the installation** on each team after registering the App.
 
 ### Blast radius
 
@@ -62,3 +85,11 @@ Small in practice: the UI connect flow had been failing since the caller-authori
 hardening (the SPA never relayed GitHub's `code`), so most instances have no
 working installation to lose. Existing installation rows were already cleared by
 the accompanying migration.
+
+### Full guides
+
+- [Migrating to per-team GitHub Apps](https://docs.vibexp.io/user-guide/self-hosting/github-app-migration/)
+  — this checklist in full, with before/after YAML and the exact startup error.
+- [GitHub App setup](https://docs.vibexp.io/user-guide/integrations/github-app/)
+  — the per-team walkthrough: permissions, events, the webhook round trip,
+  rotation, and troubleshooting.
