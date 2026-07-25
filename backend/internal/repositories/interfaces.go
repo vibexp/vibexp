@@ -180,6 +180,12 @@ var (
 	// ModelProviderRepository.GetDefault when the team has no default provider.
 	ErrDefaultModelProviderNotFound = errors.New("no default model provider found")
 
+	// ErrTeamEmailProviderNotFound is returned by TeamEmailProviderRepository
+	// reads and deletes when the team has no email provider row. For reads this
+	// is the ordinary case, not a fault: it means the team has not overridden the
+	// instance provider, and the caller falls back to it (epic #499 decision 2).
+	ErrTeamEmailProviderNotFound = errors.New("team email provider not found")
+
 	// ErrFeedNotFound is returned by FeedRepository lookups/updates/deletes when no
 	// feed row matches the given identifier for the team.
 	ErrFeedNotFound = errors.New("feed not found")
@@ -1257,6 +1263,38 @@ type GitHubAppConfigRepository interface {
 	// webhook route has no team context until this lookup supplies it. Returns
 	// ErrGitHubAppConfigNotFound for an unknown token.
 	GetByWebhookToken(ctx context.Context, token string) (*models.GitHubAppConfig, error)
+}
+
+// TeamEmailProviderRepository defines the data access operations for a team's
+// own outbound email provider (#501, epic #499).
+//
+// The table holds at most one row per team, so every method is keyed on teamID
+// rather than a row id — there is no provider to address independently of its
+// team, and an under-scoped query here would hand another team's mail
+// credentials out. The repository stores whatever ciphertext it is handed and
+// never encrypts or decrypts.
+type TeamEmailProviderRepository interface {
+	// GetByTeamID returns the team's provider, or ErrTeamEmailProviderNotFound
+	// when the team has none — which means "inherits the instance provider",
+	// not "broken".
+	GetByTeamID(ctx context.Context, teamID string) (*models.TeamEmailProvider, error)
+	// Upsert creates or replaces the team's provider in one statement, keyed on
+	// team_id, bumping Version and refreshing ID/CreatedAt/UpdatedAt on the
+	// passed struct. Calling it twice for a team updates in place; it can never
+	// produce a second row.
+	Upsert(ctx context.Context, provider *models.TeamEmailProvider) error
+	// Delete removes the team's provider, reverting it to the instance
+	// provider. Returns ErrTeamEmailProviderNotFound when there was nothing to
+	// delete.
+	Delete(ctx context.Context, teamID string) error
+	// RecordSendResult stamps the outcome of one send attempt: last_success_at
+	// when sendErr is nil, otherwise last_error and last_error_at. It writes
+	// only those health columns and deliberately does NOT bump Version, so it
+	// can never clobber a concurrent configuration change. A success does not
+	// clear the previous error — current health is derived by comparing the two
+	// timestamps (see models.TeamEmailProvider.IsHealthy), which keeps the last
+	// failure readable after recovery.
+	RecordSendResult(ctx context.Context, teamID string, sendErr error, at time.Time) error
 }
 
 // FeedRepository defines the interface for feed data access operations
