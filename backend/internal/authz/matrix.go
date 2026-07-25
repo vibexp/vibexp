@@ -16,40 +16,45 @@ import "github.com/vibexp/vibexp/internal/models"
 //     including agents carrying encrypted credentials (decision D1).
 //   - Member has ResourceDeleteOwn but not ResourceDeleteAny, and no
 //     FeedItemDeleteAny: members delete only what they authored.
+//   - Member has no TeamSettingsUpdate: changing team-level configuration
+//     (e.g. search ranking) affects everyone in the team, so it stays with
+//     owner and admin.
 //
 // Viewing the team, its members and its stats is not represented here: it
 // carries no role dimension (every member may view), and tenancy is enforced
 // by teamValidationMiddleware.
 var rolePermissions = map[models.TeamMemberRole]map[Permission]bool{
 	models.TeamMemberRoleOwner: {
-		TeamUpdate:        true,
-		TeamDelete:        true,
-		OwnershipTransfer: true,
-		MemberInvite:      true,
-		MemberRemove:      true,
-		MemberRoleUpdate:  true,
-		ProjectCreate:     true,
-		ProjectUpdate:     true,
-		ProjectDelete:     true,
-		ResourceCreate:    true,
-		ResourceUpdateAny: true,
-		ResourceDeleteOwn: true,
-		ResourceDeleteAny: true,
-		FeedItemDeleteAny: true,
+		TeamUpdate:         true,
+		TeamDelete:         true,
+		OwnershipTransfer:  true,
+		TeamSettingsUpdate: true,
+		MemberInvite:       true,
+		MemberRemove:       true,
+		MemberRoleUpdate:   true,
+		ProjectCreate:      true,
+		ProjectUpdate:      true,
+		ProjectDelete:      true,
+		ResourceCreate:     true,
+		ResourceUpdateAny:  true,
+		ResourceDeleteOwn:  true,
+		ResourceDeleteAny:  true,
+		FeedItemDeleteAny:  true,
 	},
 	models.TeamMemberRoleAdmin: {
-		TeamUpdate:        true,
-		MemberInvite:      true,
-		MemberRemove:      true,
-		MemberRoleUpdate:  true,
-		ProjectCreate:     true,
-		ProjectUpdate:     true,
-		ProjectDelete:     true,
-		ResourceCreate:    true,
-		ResourceUpdateAny: true,
-		ResourceDeleteOwn: true,
-		ResourceDeleteAny: true,
-		FeedItemDeleteAny: true,
+		TeamUpdate:         true,
+		TeamSettingsUpdate: true,
+		MemberInvite:       true,
+		MemberRemove:       true,
+		MemberRoleUpdate:   true,
+		ProjectCreate:      true,
+		ProjectUpdate:      true,
+		ProjectDelete:      true,
+		ResourceCreate:     true,
+		ResourceUpdateAny:  true,
+		ResourceDeleteOwn:  true,
+		ResourceDeleteAny:  true,
+		FeedItemDeleteAny:  true,
 	},
 	models.TeamMemberRoleMember: {
 		ResourceCreate:    true,
