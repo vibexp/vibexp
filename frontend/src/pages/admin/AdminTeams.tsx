@@ -11,16 +11,10 @@ import {
 } from '@/components/patterns/list-page'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { DateRangeValue } from '@/components/ui/date-range'
-import {
-  fromDateParam,
-  rangeToInstants,
-  toDateParam,
-} from '@/components/ui/date-range'
-import { useUrlFilters } from '@/hooks/useUrlFilters'
 import { formatDate } from '@/lib/time'
 import type { TeamKindFilter } from '@/pages/admin/teams/TeamFilters'
 import { TeamFilters } from '@/pages/admin/teams/TeamFilters'
+import { useAdminListFilters } from '@/pages/admin/useAdminListFilters'
 import type { AdminTeamListItem } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
@@ -43,8 +37,6 @@ const FILTER_DEFAULTS = {
   sort_by: 'created_at',
   sort_order: 'desc',
 }
-
-type Filters = typeof FILTER_DEFAULTS
 
 interface State {
   teams: AdminTeamListItem[]
@@ -76,56 +68,32 @@ function isPersonalParam(kind: string): boolean | undefined {
   return undefined
 }
 
-function isSortKey(value: string): value is SortKey {
-  return (SORTABLE_KEYS as readonly string[]).includes(value)
-}
-
 /** Instance-wide teams list: server-side filtering, sorting and pagination (#460). */
 export function AdminTeams() {
   const navigate = useNavigate()
-  const { filters, setFilters, resetFilters } = useUrlFilters<Filters>({
-    ...FILTER_DEFAULTS,
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    page,
+    setPage,
+    sortBy,
+    sortOrder,
+    created,
+    setCreated,
+    createdFrom,
+    createdTo,
+    hasActiveFilters,
+    handleSortChange,
+    handleClear,
+  } = useAdminListFilters<SortKey>({
+    defaults: FILTER_DEFAULTS,
+    sortableKeys: SORTABLE_KEYS,
+    defaultSort: 'created_at',
+    filterKeys: ['kind'],
   })
   const [state, setState] = useState<State>(INITIAL)
-  // Uncommitted text in the search box, debounced into the URL below, so a
-  // keystroke fires neither a request nor a history entry.
-  const [searchInput, setSearchInput] = useState(filters.search)
-
-  const created: DateRangeValue = useMemo(
-    () => ({
-      from: fromDateParam(filters.created_from),
-      to: fromDateParam(filters.created_to),
-    }),
-    [filters.created_from, filters.created_to]
-  )
-
-  const page = Number(filters.page) || 1
-  const sortBy = isSortKey(filters.sort_by) ? filters.sort_by : 'created_at'
-  const sortOrder = filters.sort_order === 'asc' ? 'asc' : 'desc'
-
-  const hasActiveFilters =
-    filters.search !== '' ||
-    filters.kind !== 'all' ||
-    filters.created_from !== '' ||
-    filters.created_to !== ''
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (searchInput !== filters.search) {
-        setFilters({ search: searchInput })
-      }
-    }, 400)
-    return () => {
-      clearTimeout(t)
-    }
-  }, [searchInput, filters.search, setFilters])
-
-  // Instants, not calendar days: the upper bound has to be local end-of-day or a
-  // single-day filter matches nothing.
-  const { from: createdFrom, to: createdTo } = useMemo(
-    () => rangeToInstants(created),
-    [created]
-  )
 
   useEffect(() => {
     let cancelled = false
@@ -237,24 +205,6 @@ export function AdminTeams() {
     [navigate]
   )
 
-  const handleSortChange = useCallback(
-    (key: SortKey) => {
-      // Clicking the active column flips direction; a new column starts
-      // descending, the useful default for both dates and counts.
-      setFilters(
-        key === sortBy
-          ? { sort_order: sortOrder === 'asc' ? 'desc' : 'asc' }
-          : { sort_by: key, sort_order: 'desc' }
-      )
-    },
-    [setFilters, sortBy, sortOrder]
-  )
-
-  const handleClear = useCallback(() => {
-    setSearchInput('')
-    resetFilters()
-  }, [resetFilters])
-
   const status = listPageStatus(
     state.loading,
     state.error,
@@ -273,12 +223,7 @@ export function AdminTeams() {
               setFilters({ kind: value })
             }}
             created={created}
-            onCreatedChange={value => {
-              setFilters({
-                created_from: value.from ? toDateParam(value.from) : '',
-                created_to: value.to ? toDateParam(value.to) : '',
-              })
-            }}
+            onCreatedChange={setCreated}
             onClear={handleClear}
             hasActiveFilters={hasActiveFilters}
           />
@@ -335,9 +280,7 @@ export function AdminTeams() {
           pagination={{
             page: state.page,
             totalPages: state.totalPages,
-            onPageChange: next => {
-              setFilters({ page: String(next) })
-            },
+            onPageChange: setPage,
           }}
           hideCount={status === 'loading'}
         />

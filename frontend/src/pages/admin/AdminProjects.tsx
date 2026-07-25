@@ -10,15 +10,9 @@ import {
   ListTable,
 } from '@/components/patterns/list-page'
 import { Button } from '@/components/ui/button'
-import type { DateRangeValue } from '@/components/ui/date-range'
-import {
-  fromDateParam,
-  rangeToInstants,
-  toDateParam,
-} from '@/components/ui/date-range'
-import { useUrlFilters } from '@/hooks/useUrlFilters'
 import { formatDate } from '@/lib/time'
 import { ProjectFilters } from '@/pages/admin/projects/ProjectFilters'
+import { useAdminListFilters } from '@/pages/admin/useAdminListFilters'
 import type { AdminProjectListItem } from '@/services/adminService'
 import { adminService } from '@/services/adminService'
 import { getErrorMessage } from '@/utils/errorHandling'
@@ -39,8 +33,6 @@ const FILTER_DEFAULTS = {
   sort_order: 'desc',
 }
 
-type Filters = typeof FILTER_DEFAULTS
-
 interface State {
   projects: AdminProjectListItem[]
   loading: boolean
@@ -59,52 +51,32 @@ const INITIAL: State = {
   total: 0,
 }
 
-function isSortKey(value: string): value is SortKey {
-  return (SORTABLE_KEYS as readonly string[]).includes(value)
-}
-
 /** Instance-wide projects list: server-side filtering, sorting, pagination (#461). */
 export function AdminProjects() {
   const navigate = useNavigate()
-  const { filters, setFilters, resetFilters } = useUrlFilters<Filters>({
-    ...FILTER_DEFAULTS,
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    page,
+    setPage,
+    sortBy,
+    sortOrder,
+    created,
+    setCreated,
+    createdFrom,
+    createdTo,
+    hasActiveFilters,
+    handleSortChange,
+    handleClear,
+  } = useAdminListFilters<SortKey>({
+    defaults: FILTER_DEFAULTS,
+    sortableKeys: SORTABLE_KEYS,
+    defaultSort: 'created_at',
+    filterKeys: ['team_id'],
   })
   const [state, setState] = useState<State>(INITIAL)
-  const [searchInput, setSearchInput] = useState(filters.search)
-
-  const created: DateRangeValue = useMemo(
-    () => ({
-      from: fromDateParam(filters.created_from),
-      to: fromDateParam(filters.created_to),
-    }),
-    [filters.created_from, filters.created_to]
-  )
-
-  const page = Number(filters.page) || 1
-  const sortBy = isSortKey(filters.sort_by) ? filters.sort_by : 'created_at'
-  const sortOrder = filters.sort_order === 'asc' ? 'asc' : 'desc'
-
-  const hasActiveFilters =
-    filters.search !== '' ||
-    filters.team_id !== '' ||
-    filters.created_from !== '' ||
-    filters.created_to !== ''
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (searchInput !== filters.search) {
-        setFilters({ search: searchInput })
-      }
-    }, 400)
-    return () => {
-      clearTimeout(t)
-    }
-  }, [searchInput, filters.search, setFilters])
-
-  const { from: createdFrom, to: createdTo } = useMemo(
-    () => rangeToInstants(created),
-    [created]
-  )
 
   useEffect(() => {
     let cancelled = false
@@ -140,6 +112,8 @@ export function AdminProjects() {
         }))
       })
     return () => {
+      // Guards the debounced-search race: a slow response for an earlier filter
+      // must not overwrite the results of a newer one.
       cancelled = true
     }
   }, [
@@ -204,22 +178,6 @@ export function AdminProjects() {
     [navigate]
   )
 
-  const handleSortChange = useCallback(
-    (key: SortKey) => {
-      setFilters(
-        key === sortBy
-          ? { sort_order: sortOrder === 'asc' ? 'desc' : 'asc' }
-          : { sort_by: key, sort_order: 'desc' }
-      )
-    },
-    [setFilters, sortBy, sortOrder]
-  )
-
-  const handleClear = useCallback(() => {
-    setSearchInput('')
-    resetFilters()
-  }, [resetFilters])
-
   const status = listPageStatus(
     state.loading,
     state.error,
@@ -238,12 +196,7 @@ export function AdminProjects() {
               setFilters({ team_id: value })
             }}
             created={created}
-            onCreatedChange={value => {
-              setFilters({
-                created_from: value.from ? toDateParam(value.from) : '',
-                created_to: value.to ? toDateParam(value.to) : '',
-              })
-            }}
+            onCreatedChange={setCreated}
             onClear={handleClear}
             hasActiveFilters={hasActiveFilters}
           />
@@ -297,9 +250,7 @@ export function AdminProjects() {
           pagination={{
             page: state.page,
             totalPages: state.totalPages,
-            onPageChange: next => {
-              setFilters({ page: String(next) })
-            },
+            onPageChange: setPage,
           }}
           hideCount={status === 'loading'}
         />

@@ -385,6 +385,17 @@ describe('empty states', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('counts a domain filter alone as filtered, with no search term', async () => {
+    // Without this the team-type filter would show the "no teams yet" state,
+    // which says the instance is empty and offers no way back.
+    renderTeams('/admin/teams?kind=shared')
+
+    expect(
+      await screen.findByText('No teams match your filters')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No teams yet')).not.toBeInTheDocument()
+  })
+
   it('offers a way out of a filtered-empty result', async () => {
     renderTeams('/admin/teams?search=nope&kind=shared')
 

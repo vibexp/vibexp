@@ -435,6 +435,25 @@ describe('empty states', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('counts a domain filter alone as filtered, with no search term', async () => {
+    // Without this the team filter would show the "no projects yet" state, which
+    // says the instance is empty and offers no way back.
+    renderProjects('/admin/projects?team_id=t1')
+
+    expect(
+      await screen.findByText('No projects match your filters')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No projects yet')).not.toBeInTheDocument()
+  })
+
+  it('counts a date range alone as filtered', async () => {
+    renderProjects('/admin/projects?created_from=2026-07-01')
+
+    expect(
+      await screen.findByText('No projects match your filters')
+    ).toBeInTheDocument()
+  })
+
   it('offers a way out of a filtered-empty result', async () => {
     renderProjects('/admin/projects?search=nope&team_id=t1')
 
