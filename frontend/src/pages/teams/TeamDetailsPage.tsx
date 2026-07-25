@@ -1,6 +1,5 @@
 import {
   ArrowLeft,
-  BarChart3,
   Calendar,
   Crown,
   Edit,
@@ -308,21 +307,12 @@ export function TeamDetailsPage() {
         Back to Teams
       </Button>
 
+      {/* No Analytics action here: the team tab bar owns that navigation as of
+          #539, and two controls for one destination is the inconsistency this
+          epic exists to remove. */}
       <PageHeader
         title={team.name}
         description="Team details and member management"
-        actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              void navigate(`/teams/${team.id}/analytics`)
-            }}
-          >
-            <BarChart3 className="mr-2 size-4" />
-            Analytics
-          </Button>
-        }
       />
 
       {team.is_personal ? (

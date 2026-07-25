@@ -58,9 +58,8 @@ import { Projects } from '@/pages/settings/projects/Projects'
 import { SearchSettings } from '@/pages/settings/search/SearchSettings'
 import { Settings } from '@/pages/settings/Settings'
 import { Showcase } from '@/pages/Showcase'
-import { TeamAnalyticsPage } from '@/pages/teams/TeamAnalyticsPage'
-import { TeamDetailsPage } from '@/pages/teams/TeamDetailsPage'
 import { Teams } from '@/pages/teams/Teams'
+import { TeamScopeLayout } from '@/pages/teams/TeamScopeLayout'
 
 function ComingSoon({ title }: Readonly<{ title: string }>) {
   return (
@@ -229,8 +228,9 @@ export function AppRoutes() {
         element={<GitHubIntegration />}
       />
       <Route path="teams" element={<Teams />} />
-      <Route path="teams/:id" element={<TeamDetailsPage />} />
-      <Route path="teams/:id/analytics" element={<TeamAnalyticsPage />} />
+      {/* The `/*` is load-bearing: a bare `teams/:id` silently breaks every
+          nested path. Mirrors App.tsx's `/admin/*` mount (#539). */}
+      <Route path="teams/:id/*" element={<TeamScopeLayout />} />
       <Route path="settings/*" element={<ComingSoon title="Settings" />} />
       {/* `/admin/**` is NOT here: the instance-admin portal is a top-level
           branch in App.tsx with its own shell and no team/project providers
