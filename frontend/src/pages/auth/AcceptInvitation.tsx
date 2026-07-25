@@ -91,7 +91,7 @@ export function AcceptInvitation() {
         team_id: response.team_id,
         team_name: response.team_name,
       })
-      void navigate(`/settings/teams/${response.team_id}`)
+      void navigate(`/teams/${response.team_id}`)
     } catch (err) {
       console.error('Failed to accept invitation:', err)
       const view = mapInvitationError(err)

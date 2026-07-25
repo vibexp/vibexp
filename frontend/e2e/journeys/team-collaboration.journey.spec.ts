@@ -35,8 +35,8 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       ).toBeVisible({ timeout: 5000 })
 
       // Navigate to the Teams settings page.
-      await authenticatedPage.goto('/settings/teams')
-      await authenticatedPage.waitForURL('/settings/teams', { timeout: 10000 })
+      await authenticatedPage.goto('/teams')
+      await authenticatedPage.waitForURL('/teams', { timeout: 10000 })
 
       // Should see teams heading
       await expect(
@@ -47,7 +47,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     test('should display default personal workspace', async ({
       freshUserPage,
     }) => {
-      await freshUserPage.goto('/settings/teams')
+      await freshUserPage.goto('/teams')
 
       // New users should have a personal workspace by default
       await expect(
@@ -58,7 +58,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
 
   test.describe('Team Creation', () => {
     test('should show create team button', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
 
       // Should see Create Team button
       await expect(
@@ -69,7 +69,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     })
 
     test('should create new team', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
 
       // Click Create Team and wait for the dialog's name field to be actionable.
       await authenticatedPage.click('[data-testid="create-team-button"]')
@@ -98,7 +98,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     })
 
     test('should auto-generate team slug', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
         authenticatedPage.locator('[data-testid="team-name-input"]')
@@ -121,7 +121,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     })
 
     test('should require team name', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
         authenticatedPage.locator('[data-testid="submit-create-team-button"]')
@@ -140,7 +140,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
   test.describe('Team Details and Management', () => {
     test('should view team details', async ({ authenticatedPage }) => {
       // Create a team first
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
         authenticatedPage.locator('[data-testid="team-name-input"]')
@@ -161,7 +161,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     })
 
     test('should display team member count', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
 
       // Should see member count for each team
       await expect(
@@ -170,7 +170,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     })
 
     test('should show team owner badge', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
 
       // Creator should be owner
       await expect(authenticatedPage.getByText(/owner|admin/i)).toBeVisible()
@@ -180,7 +180,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
   test.describe('Team Member Invitation', () => {
     test('should have invite members button', async ({ authenticatedPage }) => {
       // Create team and navigate to details
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
         authenticatedPage.locator('[data-testid="team-name-input"]')
@@ -206,7 +206,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // This used to be wrapped in `if (count() > 0)` guards, so a missing team
       // or a missing Invite button made the test pass while asserting nothing —
       // the same silent-pass class of gap that let #251 ship (#252).
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await authenticatedPage.fill(
         '[data-testid="team-name-input"]',
@@ -230,11 +230,9 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     test('should require valid email for invitation', async ({
       authenticatedPage,
     }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
 
-      const firstTeam = authenticatedPage
-        .locator('a[href*="/settings/teams/"]')
-        .first()
+      const firstTeam = authenticatedPage.locator('a[href*="/teams/"]').first()
 
       if ((await firstTeam.count()) > 0) {
         await firstTeam.click()
@@ -296,7 +294,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
 
     test('should switch between teams', async ({ authenticatedPage }) => {
       // Create a second team
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
         authenticatedPage.locator('[data-testid="team-name-input"]')
@@ -324,7 +322,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     test('should persist team context across navigation', async ({
       authenticatedPage,
     }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
         authenticatedPage.locator('[data-testid="team-name-input"]')
@@ -365,7 +363,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       authenticatedPage,
     }) => {
       // Create team, switch to it, create a prompt
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
         authenticatedPage.locator('[data-testid="team-name-input"]')
@@ -448,11 +446,9 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
 
   test.describe('Team Member Management', () => {
     test('should list team members', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
 
-      const firstTeam = authenticatedPage
-        .locator('a[href*="/settings/teams/"]')
-        .first()
+      const firstTeam = authenticatedPage.locator('a[href*="/teams/"]').first()
 
       if ((await firstTeam.count()) > 0) {
         await firstTeam.click()
@@ -468,11 +464,9 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     })
 
     test('should display member roles', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
 
-      const firstTeam = authenticatedPage
-        .locator('a[href*="/settings/teams/"]')
-        .first()
+      const firstTeam = authenticatedPage.locator('a[href*="/teams/"]').first()
 
       if ((await firstTeam.count()) > 0) {
         await firstTeam.click()
@@ -490,7 +484,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       authenticatedPage,
     }) => {
       // Create a team to delete
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
         authenticatedPage.locator('[data-testid="team-name-input"]')
@@ -516,7 +510,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     test('should confirm before deleting team', async ({
       authenticatedPage,
     }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
         authenticatedPage.locator('[data-testid="team-name-input"]')

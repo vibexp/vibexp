@@ -84,9 +84,9 @@ beforeEach(() => {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/settings/teams/team-1']}>
+    <MemoryRouter initialEntries={['/teams/team-1']}>
       <Routes>
-        <Route path="/settings/teams/:id" element={<TeamDetailsPage />} />
+        <Route path="/teams/:id" element={<TeamDetailsPage />} />
       </Routes>
     </MemoryRouter>
   )

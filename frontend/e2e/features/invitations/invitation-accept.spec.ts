@@ -141,7 +141,7 @@ test.describe('Team Invitation Accept', () => {
       // assertion could pass for a user who was somehow already in the team.
       expect(await memberTeamNames(invitee.page)).not.toContain(teamName)
 
-      await invitee.page.goto('/settings/teams')
+      await invitee.page.goto('/teams')
 
       // The team NAME must render. It was silently "" before #251 (the lookup ran
       // through TeamService.GetTeam, which requires a membership a pending invitee
@@ -155,6 +155,15 @@ test.describe('Team Invitation Accept', () => {
         .first()
       await expect(acceptButton).toBeVisible({ timeout: 15000 })
       await acceptButton.click()
+
+      // #538 moved the post-accept landing route from /settings/teams/:id to
+      // /teams/:id. This is a once-per-user flow that cannot be retried, so a
+      // missed rewrite would silently drop new members on NotFound - assert the
+      // URL rather than trusting the membership check below to imply it.
+      await expect(invitee.page).toHaveURL(
+        /\/teams\/[0-9a-fA-F-]{36}(?:[?#].*)?$/,
+        { timeout: 15000 }
+      )
 
       // Assert real membership rather than a transient toast: the invitee is now
       // in the team, and the invitation is consumed.
@@ -220,6 +229,15 @@ test.describe('Team Invitation Accept', () => {
         .getByRole('button', { name: /^accept(\s+invitation)?$/i })
         .first()
         .click()
+
+      // Same #538 landing-route assertion as the banner flow above, but this
+      // path runs through AcceptInvitation.tsx rather than
+      // useAcceptAndEnterTeam - two separate navigate() call sites, so both
+      // need covering.
+      await expect(invitee.page).toHaveURL(
+        /\/teams\/[0-9a-fA-F-]{36}(?:[?#].*)?$/,
+        { timeout: 15000 }
+      )
 
       await expect
         .poll(async () => await memberTeamNames(invitee!.page), {

@@ -152,7 +152,7 @@ describe('PendingInvitationsBanner', () => {
     expect(review).toBeInTheDocument()
   })
 
-  it('navigates to /settings/teams when "Review" is clicked', async () => {
+  it('navigates to /teams when "Review" is clicked', async () => {
     const user = userEvent.setup()
     mockGetPendingInvitations.mockResolvedValueOnce([
       buildInvitation({ id: 'inv-1' }),
@@ -164,7 +164,7 @@ describe('PendingInvitationsBanner', () => {
     const review = await screen.findByRole('button', { name: /^review$/i })
     await user.click(review)
 
-    expect(mockNavigate).toHaveBeenCalledWith('/settings/teams')
+    expect(mockNavigate).toHaveBeenCalledWith('/teams')
   })
 
   it('calls useAcceptAndEnterTeam with the invitation token on Accept', async () => {

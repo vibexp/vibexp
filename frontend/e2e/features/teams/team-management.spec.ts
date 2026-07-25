@@ -9,8 +9,8 @@ test.describe('Team Management', () => {
     test('should display teams list in settings', async ({
       authenticatedPage,
     }) => {
-      // Navigate to settings/teams (adjust URL based on actual route)
-      await authenticatedPage.goto('/settings/teams')
+      // Navigate to the top-level teams page (#538).
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       // Verify teams page is displayed
@@ -20,7 +20,7 @@ test.describe('Team Management', () => {
     test('should show Private Workspace as default team', async ({
       authenticatedPage,
     }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       // Look for Private Workspace
@@ -42,7 +42,7 @@ test.describe('Team Management', () => {
 
   test.describe('Team Creation', () => {
     test('should create new team with name', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       // Look for "Create Team" button
@@ -81,7 +81,7 @@ test.describe('Team Management', () => {
     test('should validate team name is required', async ({
       authenticatedPage,
     }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       const createButton = authenticatedPage.locator(
@@ -109,7 +109,7 @@ test.describe('Team Management', () => {
     test('should display newly created team in list', async ({
       authenticatedPage,
     }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       const createButton = authenticatedPage.locator(
@@ -146,7 +146,7 @@ test.describe('Team Management', () => {
   test.describe('Team Editing', () => {
     test('should edit team name', async ({ authenticatedPage }) => {
       // First create a team
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       const createButton = authenticatedPage.locator(
@@ -208,7 +208,7 @@ test.describe('Team Management', () => {
     test('should view team details (members, resources)', async ({
       authenticatedPage,
     }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       // Click on a team to view details
@@ -232,7 +232,7 @@ test.describe('Team Management', () => {
       authenticatedPage,
     }) => {
       // Create a team first
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       const createButton = authenticatedPage.locator(
@@ -294,7 +294,7 @@ test.describe('Team Management', () => {
     test('should prevent deletion of Private Workspace', async ({
       authenticatedPage,
     }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       // Try to find delete button for Private Workspace
@@ -311,7 +311,7 @@ test.describe('Team Management', () => {
     })
 
     test('should show team member count', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/settings/teams')
+      await authenticatedPage.goto('/teams')
       await authenticatedPage.waitForLoadState('networkidle')
 
       // Look for member count indicators

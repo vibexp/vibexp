@@ -147,7 +147,7 @@ export function Teams() {
   }, [loadData])
 
   const handleRowClick = (team: Team) => {
-    void navigate(`/settings/teams/${team.id}`)
+    void navigate(`/teams/${team.id}`)
   }
 
   const handleAcceptInvitation = async (invitation: PendingTeamInvitation) => {

@@ -41,12 +41,9 @@ const mockStats: TeamStats = {
 
 function renderPage(id = 'team-1') {
   return render(
-    <MemoryRouter initialEntries={[`/settings/teams/${id}/analytics`]}>
+    <MemoryRouter initialEntries={[`/teams/${id}/analytics`]}>
       <Routes>
-        <Route
-          path="/settings/teams/:id/analytics"
-          element={<TeamAnalyticsPage />}
-        />
+        <Route path="/teams/:id/analytics" element={<TeamAnalyticsPage />} />
       </Routes>
     </MemoryRouter>
   )

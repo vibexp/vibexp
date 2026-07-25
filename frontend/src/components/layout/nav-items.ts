@@ -10,6 +10,7 @@ import {
   Server,
   Settings as SettingsIcon,
   Users,
+  UsersRound,
   Wrench,
 } from 'lucide-react'
 
@@ -71,6 +72,10 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'System',
     items: [
       { label: 'MCP Server', href: '/mcp-servers/vibexp-mcp', icon: Server },
+      // `UsersRound`, not `Users`: the Agents entry above already uses `Users`,
+      // and the collapsed icon rail (md-lg) shows icons only - two identical
+      // glyphs would be indistinguishable there.
+      { label: 'Teams', href: '/teams', icon: UsersRound },
       { label: 'Settings', href: '/settings', icon: SettingsIcon },
     ],
   },

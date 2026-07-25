@@ -270,7 +270,7 @@ export function TeamDetailsPage() {
           variant="ghost"
           size="sm"
           onClick={() => {
-            void navigate('/settings/teams')
+            void navigate('/teams')
           }}
         >
           <ArrowLeft className="mr-2 size-4" />
@@ -301,7 +301,7 @@ export function TeamDetailsPage() {
         variant="ghost"
         size="sm"
         onClick={() => {
-          void navigate('/settings/teams')
+          void navigate('/teams')
         }}
       >
         <ArrowLeft className="mr-2 size-4" />
@@ -316,7 +316,7 @@ export function TeamDetailsPage() {
             variant="outline"
             size="sm"
             onClick={() => {
-              void navigate(`/settings/teams/${team.id}/analytics`)
+              void navigate(`/teams/${team.id}/analytics`)
             }}
           >
             <BarChart3 className="mr-2 size-4" />
@@ -333,7 +333,7 @@ export function TeamDetailsPage() {
             Your private workspace for private projects and resources. Private
             workspace doesn&apos;t allow to invite members. You can create a
             separate team to share resources from{' '}
-            <a href="/settings/teams" className="underline hover:no-underline">
+            <a href="/teams" className="underline hover:no-underline">
               here
             </a>
             {'.'}
@@ -455,7 +455,7 @@ export function TeamDetailsPage() {
             setShowDeleteModal(false)
           }}
           onSuccess={() => {
-            void navigate('/settings/teams')
+            void navigate('/teams')
           }}
         />
       )}

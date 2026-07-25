@@ -124,7 +124,7 @@ export function PendingInvitationsBanner() {
         <MultipleInvitationsBanner
           count={visible.length}
           onReview={() => {
-            void navigate('/settings/teams')
+            void navigate('/teams')
           }}
           onDismiss={dismissAll}
         />
