@@ -13,7 +13,6 @@ import (
 	"github.com/darkrockmountain/gomail"
 
 	"github.com/vibexp/vibexp/internal/config"
-	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -125,7 +124,7 @@ func (es *EmailService) sendEmail(ctx context.Context, teamID, to, subject, html
 
 	// The caller's ctx reaches the provider, so a cancelled request no longer
 	// leaves a send running detached.
-	sendErr := es.provider(sender).SendEmail(ctx, message)
+	sendErr := sender.Provider.SendEmail(ctx, message)
 
 	// Record the outcome before returning either way: health is derived by
 	// comparing the success and failure timestamps, so a provider that only
@@ -143,12 +142,6 @@ func (es *EmailService) sendEmail(ctx context.Context, teamID, to, subject, html
 	es.logEmailSent(to, subject, htmlBody, textBody, sender)
 
 	return nil
-}
-
-// provider is a tiny accessor so the send path reads as one statement; the
-// resolved sender always carries the provider to use.
-func (es *EmailService) provider(sender *ResolvedEmailSender) external.EmailProvider {
-	return sender.Provider
 }
 
 // logEmailSent logs successful email sending

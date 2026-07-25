@@ -885,3 +885,30 @@ func TestEmailService_SendTeamInvitation_ResolvesWithTheTeam(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"team-42"}, resolver.teamIDs)
 }
+
+// A team that has NOT configured a provider still gets its invitation sent — via
+// the instance provider, from the instance address. This is the fallback half of
+// the invitation path; the team half is covered above.
+func TestEmailService_SendTeamInvitation_UnconfiguredTeamUsesInstance(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	captured := captureSentMessage(mockProvider, nil)
+	resolver := instanceResolver(mockProvider)
+
+	service := NewEmailService(resolver, &config.Config{
+		Frontend: config.FrontendConfig{BaseURL: "https://app.example.com"},
+	})
+
+	err := service.SendTeamInvitation(context.Background(), "team-without-provider",
+		&models.TeamInvitation{
+			InviteeEmail: "invitee@example.com",
+			Token:        "tok",
+			Role:         models.TeamMemberRoleMember,
+			ExpiresAt:    time.Now().Add(time.Hour),
+		}, "Acme", "Boss")
+
+	require.NoError(t, err)
+	assert.Equal(t, "test@example.com", (*captured).GetFrom(),
+		"an unconfigured team sends from the instance address")
+	// Nothing to stamp: there is no team row behind an instance send.
+	assert.Empty(t, resolver.recordedTeam)
+}
