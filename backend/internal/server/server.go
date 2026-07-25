@@ -686,6 +686,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupActivitiesRoutes(r)
 		s.setupAgentsRoutes(r)
 		s.setupGitHubIntegrationRoutes(r)
+		s.setupGitHubAppConfigRoutes(r)
 		// CLI-accessible resources (previously in flexible auth group)
 		s.setupPromptsRoutes(r)
 		s.setupArtifactsRoutes(r)
@@ -1225,6 +1226,32 @@ func (s *Server) setupGitHubIntegrationRoutes(r chi.Router) {
 		r.Post("/import-blueprints", s.handleGitHubImportBlueprints)
 		r.Delete("/disconnect", s.handleGitHubDisconnect)
 	})
+}
+
+// setupGitHubAppConfigRoutes mounts the per-team GitHub App configuration
+// surface (#479) under BOTH prefixes, mirroring the provider convention: the
+// integrations prefix groups it with the rest of the GitHub integration, and
+// the settings prefix is what the SPA calls. Both validate team membership from
+// the {team_id} segment; the owner/admin check lives in the service.
+//
+// The literal "/app" segment is registered on the integrations mount, which
+// already has "/status", "/install-url" and friends — chi matches literal path
+// segments before wildcards, so there is no shadowing.
+func (s *Server) setupGitHubAppConfigRoutes(r chi.Router) {
+	for _, prefix := range []string{
+		"/api/v1/{team_id}/integrations/github/app",
+		"/api/v1/{team_id}/settings/github-app",
+	} {
+		r.Route(prefix, func(r chi.Router) {
+			r.Use(s.teamValidationMiddleware())
+			r.Get("/", s.handleGetGitHubAppConfig)
+			r.Post("/", s.handleCreateGitHubAppConfig)
+			r.Put("/", s.handleUpdateGitHubAppConfig)
+			r.Delete("/", s.handleDeleteGitHubAppConfig)
+			r.Post("/validate", s.handleValidateGitHubAppConfig)
+			r.Post("/rotate-webhook-token", s.handleRotateGitHubAppWebhookToken)
+		})
+	}
 }
 
 func (s *Server) setupAIToolsRoutes(r chi.Router) {
