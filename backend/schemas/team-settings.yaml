@@ -1,0 +1,161 @@
+# Team-level settings schemas (epic #487) — referenced from ../openapi.yaml.
+#
+# The search ranking settings are a per-team SINGLETON: a team either stores a
+# complete ranking profile or stores nothing and inherits the instance defaults
+# from config.yaml. There is deliberately no partial override, so every value
+# field is required on both the response and the update request.
+
+TeamSearchSettingsValues:
+  type: object
+  description: >
+    A complete search ranking profile. The three weights are normalized by their
+    sum at ranking time, so they need not pre-sum to 1.
+  required:
+    - recency_ranking_enabled
+    - rank_weight_relevance
+    - rank_weight_created
+    - rank_weight_updated
+    - rank_half_life_days
+  properties:
+    recency_ranking_enabled:
+      type: boolean
+      description: >
+        When false, results keep relevance-only ordering. When true they are
+        re-ranked by a weighted blend of relevance and freshness.
+      example: true
+    rank_weight_relevance:
+      type: number
+      format: double
+      minimum: 0
+      description: Weight of semantic relevance. Expected to be the dominant weight.
+      example: 0.5
+    rank_weight_created:
+      type: number
+      format: double
+      minimum: 0
+      description: Weight of how recently the resource was created.
+      example: 0.3
+    rank_weight_updated:
+      type: number
+      format: double
+      minimum: 0
+      description: Weight of how recently the resource was updated.
+      example: 0.2
+    rank_half_life_days:
+      type: number
+      format: double
+      exclusiveMinimum: true
+      minimum: 0
+      maximum: 36500
+      description: >
+        Half-life in days for the exponential freshness decay applied to both
+        created_at and updated_at. An item exactly one half-life old scores 0.5.
+      example: 90
+
+TeamSearchSettings:
+  type: object
+  description: >
+    The search ranking settings in effect for a team, with enough context for a
+    client to render the whole settings surface from this one response: the
+    effective values, where they came from, the instance defaults to preview a
+    reset against, and the instance-owned candidate cap.
+  required:
+    - source
+    - recency_ranking_enabled
+    - rank_weight_relevance
+    - rank_weight_created
+    - rank_weight_updated
+    - rank_half_life_days
+    - instance_defaults
+    - rank_candidate_cap
+  properties:
+    source:
+      type: string
+      enum:
+        - instance
+        - team
+      description: >
+        Where the effective values come from. `instance` means the team has no
+        override and inherits the deployment defaults; `team` means the team has
+        stored its own profile.
+      example: instance
+    recency_ranking_enabled:
+      type: boolean
+      description: Effective value — the team's when source is `team`, otherwise the instance default.
+    rank_weight_relevance:
+      type: number
+      format: double
+      description: Effective value — the team's when source is `team`, otherwise the instance default.
+    rank_weight_created:
+      type: number
+      format: double
+      description: Effective value — the team's when source is `team`, otherwise the instance default.
+    rank_weight_updated:
+      type: number
+      format: double
+      description: Effective value — the team's when source is `team`, otherwise the instance default.
+    rank_half_life_days:
+      type: number
+      format: double
+      description: Effective value — the team's when source is `team`, otherwise the instance default.
+    instance_defaults:
+      $ref: '../openapi.yaml#/components/schemas/TeamSearchSettingsValues'
+      description: >
+        The deployment-wide defaults from config.yaml, so a client can preview
+        what "reset to defaults" would produce without a second request. Equal to
+        the effective values when source is `instance`.
+    rank_candidate_cap:
+      type: integer
+      description: >
+        How many top-by-relevance rows are pulled and re-ranked in memory per
+        query. Instance-owned and NOT team-configurable — one team must not be
+        able to raise the whole deployment's per-query cost. Exposed so clients
+        can explain why pagination is clamped to this many results when recency
+        ranking is on.
+
+        Deliberately NOT marked `readOnly`: the update request uses a separate
+        schema that has no such field, which is what actually makes the cap
+        unsettable. Marking it readOnly additionally makes oapi-codegen emit it
+        as an optional pointer, which would let a required field serialize as
+        absent.
+      example: 200
+
+UpdateTeamSearchSettingsRequest:
+  type: object
+  description: >
+    A complete replacement ranking profile for the team. There is no partial
+    update: every field is required, and the whole profile is stored or replaced
+    atomically. `rank_candidate_cap` is deliberately absent — it is instance-owned.
+  additionalProperties: false
+  required:
+    - recency_ranking_enabled
+    - rank_weight_relevance
+    - rank_weight_created
+    - rank_weight_updated
+    - rank_half_life_days
+  properties:
+    recency_ranking_enabled:
+      type: boolean
+      example: true
+    rank_weight_relevance:
+      type: number
+      format: double
+      minimum: 0
+      example: 0.5
+    rank_weight_created:
+      type: number
+      format: double
+      minimum: 0
+      example: 0.3
+    rank_weight_updated:
+      type: number
+      format: double
+      minimum: 0
+      example: 0.2
+    rank_half_life_days:
+      type: number
+      format: double
+      exclusiveMinimum: true
+      minimum: 0
+      maximum: 36500
+      example: 90

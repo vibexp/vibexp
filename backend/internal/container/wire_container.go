@@ -63,48 +63,49 @@ type WireContainer struct {
 	deviceTokenRepo         repositories.DeviceTokenRepository
 
 	// Services
-	authService              services.AuthServiceInterface
-	apiKeyService            services.APIKeyServiceInterface
-	promptService            services.PromptServiceInterface
-	promptGalleryService     services.PromptGalleryServiceInterface
-	promptShareService       *services.PromptShareService
-	artifactService          services.ArtifactServiceInterface
-	attachmentService        services.AttachmentServiceInterface
-	typeService              services.TypeServiceInterface
-	specLibraryService       services.BlueprintServiceInterface
-	embeddingProviderService services.EmbeddingProviderServiceInterface
-	modelProviderService     services.ModelProviderServiceInterface
-	emailService             services.EmailServiceInterface
-	activityService          activities.ActivityService
-	resourceAccessService    resourceaccess.ResourceAccessService
-	agentService             services.AgentServiceInterface
-	agentCardFetcher         services.CardFetcher
-	agentInvocationService   services.AgentInvocationServiceInterface
-	memoryService            services.MemoryServiceInterface
-	embeddingService         services.EmbeddingServiceInterface
-	searchService            services.Searcher
-	environmentService       *services.EnvironmentService
-	resourceUsageService     services.ResourceUsageServiceInterface
-	featureFlagService       *feature_flags.FeatureFlagService
-	backofficeService        services.UsageAndGrowthGetter
-	adminService             services.AdminServiceInterface
-	embeddingBackfillService services.EmbeddingBackfiller
-	embeddingStatusService   services.EmbeddingCoverageGetter
-	userPreferencesService   services.UserPreferencesServiceInterface
-	authorizationService     services.AuthorizationServiceInterface
-	teamService              services.TeamServiceInterface
-	teamInvitationService    *services.TeamInvitationService
-	projectService           services.ProjectServiceInterface
-	projectMigrationService  services.ProjectMigrationServiceInterface
-	githubAppService         services.GitHubAppServiceInterface
-	feedService              services.FeedServiceInterface
-	feedItemService          services.FeedItemServiceInterface
-	feedItemReplyService     services.FeedItemReplyServiceInterface
-	commentService           services.CommentServiceInterface
-	relationService          services.RelationServiceInterface
-	relationSeedService      services.RelationSeedServiceInterface
-	notificationService      notifications.NotificationServiceInterface
-	digestRunner             *notifications.DigestRunner
+	authService               services.AuthServiceInterface
+	apiKeyService             services.APIKeyServiceInterface
+	promptService             services.PromptServiceInterface
+	promptGalleryService      services.PromptGalleryServiceInterface
+	promptShareService        *services.PromptShareService
+	artifactService           services.ArtifactServiceInterface
+	attachmentService         services.AttachmentServiceInterface
+	typeService               services.TypeServiceInterface
+	specLibraryService        services.BlueprintServiceInterface
+	embeddingProviderService  services.EmbeddingProviderServiceInterface
+	modelProviderService      services.ModelProviderServiceInterface
+	emailService              services.EmailServiceInterface
+	activityService           activities.ActivityService
+	resourceAccessService     resourceaccess.ResourceAccessService
+	agentService              services.AgentServiceInterface
+	agentCardFetcher          services.CardFetcher
+	agentInvocationService    services.AgentInvocationServiceInterface
+	memoryService             services.MemoryServiceInterface
+	embeddingService          services.EmbeddingServiceInterface
+	searchService             services.Searcher
+	teamSearchSettingsService services.TeamSearchSettingsServiceInterface
+	environmentService        *services.EnvironmentService
+	resourceUsageService      services.ResourceUsageServiceInterface
+	featureFlagService        *feature_flags.FeatureFlagService
+	backofficeService         services.UsageAndGrowthGetter
+	adminService              services.AdminServiceInterface
+	embeddingBackfillService  services.EmbeddingBackfiller
+	embeddingStatusService    services.EmbeddingCoverageGetter
+	userPreferencesService    services.UserPreferencesServiceInterface
+	authorizationService      services.AuthorizationServiceInterface
+	teamService               services.TeamServiceInterface
+	teamInvitationService     *services.TeamInvitationService
+	projectService            services.ProjectServiceInterface
+	projectMigrationService   services.ProjectMigrationServiceInterface
+	githubAppService          services.GitHubAppServiceInterface
+	feedService               services.FeedServiceInterface
+	feedItemService           services.FeedItemServiceInterface
+	feedItemReplyService      services.FeedItemReplyServiceInterface
+	commentService            services.CommentServiceInterface
+	relationService           services.RelationServiceInterface
+	relationSeedService       services.RelationSeedServiceInterface
+	notificationService       notifications.NotificationServiceInterface
+	digestRunner              *notifications.DigestRunner
 
 	// External dependencies
 	identityRegistry *idp.Registry
@@ -346,6 +347,10 @@ func (c *WireContainer) MemoryService() services.MemoryServiceInterface {
 
 func (c *WireContainer) EmbeddingService() services.EmbeddingServiceInterface {
 	return c.embeddingService
+}
+
+func (c *WireContainer) TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface {
+	return c.teamSearchSettingsService
 }
 
 func (c *WireContainer) SearchService() services.Searcher {

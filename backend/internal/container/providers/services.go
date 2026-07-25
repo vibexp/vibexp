@@ -407,6 +407,18 @@ func ProvideEmbeddingProcessor(
 	)
 }
 
+// ProvideTeamSearchSettingsService creates the team search settings service.
+// It receives the deployment `search:` config, which is both the fallback for a
+// team with no stored profile and the instance_defaults reported on every read.
+func ProvideTeamSearchSettingsService(
+	repo repositories.TeamSearchSettingsRepository,
+	authzService services.AuthorizationServiceInterface,
+	cfg *config.Config,
+	logger *slog.Logger,
+) services.TeamSearchSettingsServiceInterface {
+	return services.NewTeamSearchSettingsService(repo, authzService, cfg.Search, logger)
+}
+
 // ProvideSearchSettingsResolver creates the per-team ranking resolver. The
 // recency-ranking configuration from the typed Config becomes the INSTANCE
 // DEFAULTS, returned for any team that has not stored an override of its own.

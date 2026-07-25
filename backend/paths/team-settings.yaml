@@ -1,0 +1,156 @@
+# Team settings path items (epic #487) — referenced from ../openapi.yaml.
+#
+# The first team-level settings SINGLETON in VibeXP. The neighbouring
+# /settings/embedding-providers and /settings/model-providers surfaces are
+# collections of rows; this one is a single optional profile per team, so it is
+# modelled as GET / PUT (upsert) / DELETE (revert to instance defaults) on one
+# resource rather than as a collection.
+
+api-v1-team_id-settings-search:
+  parameters:
+    - name: team_id
+      in: path
+      required: true
+      description: Team identifier
+      schema:
+        type: string
+        format: uuid
+
+  get:
+    summary: Get the team's search ranking settings
+    description: >
+      Returns the search ranking settings in effect for the team, together with
+      their provenance (`source`), the instance defaults, and the instance-owned
+      candidate cap. A team that has never overridden the settings gets
+      `source: instance` and the deployment defaults. Any member of the team may
+      read them.
+    operationId: getTeamSearchSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '200':
+        description: Settings retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamSearchSettings'
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller is not a member of the team
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to read the team's search settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - TeamSettings
+
+  put:
+    summary: Override the team's search ranking settings
+    description: >
+      Stores a complete ranking profile for the team, replacing any previous one.
+      There is no partial update — the whole profile is required, and the team
+      either owns all of it or (after a reset) none of it. Requires the
+      `team.settings.update` permission, held by owners and admins.
+    operationId: updateTeamSearchSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/UpdateTeamSearchSettingsRequest'
+    responses:
+      '200':
+        description: Settings stored successfully; the response reports source `team`
+        content:
+          application/json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/TeamSearchSettings'
+      '400':
+        description: >
+          Invalid ranking parameters — a negative weight, all weights zero, or a
+          half-life outside (0, 36500]
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller's role does not grant team.settings.update
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to store the team's search settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - TeamSettings
+
+  delete:
+    summary: Reset the team's search ranking settings to the instance defaults
+    description: >
+      Drops the team's stored profile so it inherits the deployment defaults
+      again. Resetting a team that has no override is a no-op and still returns
+      204. Requires the `team.settings.update` permission.
+    operationId: resetTeamSearchSettings
+    security:
+      - ApiKeyAuth: []
+      - CookieAuth: []
+    responses:
+      '204':
+        description: Settings reset (no content); the team now inherits the instance defaults
+      '400':
+        description: Invalid team_id
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '403':
+        description: Caller's role does not grant team.settings.update
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+      '500':
+        description: Failed to reset the team's search settings
+        content:
+          application/problem+json:
+            schema:
+              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
+    tags:
+      - TeamSettings

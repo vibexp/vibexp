@@ -80,6 +80,7 @@ type Container interface {
 	MemoryService() services.MemoryServiceInterface
 	EmbeddingService() services.EmbeddingServiceInterface
 	SearchService() services.Searcher
+	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
 	EnvironmentService() *services.EnvironmentService
 	ResourceUsageService() services.ResourceUsageServiceInterface
 	BackofficeService() services.UsageAndGrowthGetter

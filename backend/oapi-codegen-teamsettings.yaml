@@ -1,0 +1,17 @@
+# oapi-codegen configuration for the TeamSettings domain (epic #487), a
+# spec-first strict-server domain. Following the same convention as
+# oapi-codegen-relations.yaml, it generates into its OWN package under
+# internal/server/gen/teamsettings so its StrictServerInterface mounts
+# independently of the other spec-first domains.
+#
+# Regenerate with: make backend-generate-openapi-server
+# CI fails the PR if this output is stale relative to the spec.
+package: teamsettingsgen
+output: internal/server/gen/teamsettings/teamsettings.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output-options:
+  include-tags:
+    - TeamSettings

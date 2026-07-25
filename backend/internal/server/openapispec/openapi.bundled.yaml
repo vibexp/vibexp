@@ -120,6 +120,8 @@ tags:
     description: Team-visible comments on artifacts, memories, prompts, and blueprints (REST-only, no MCP)
   - name: Relations
     description: Typed, directed edges between artifacts, memories, prompts, and blueprints
+  - name: TeamSettings
+    description: Team-level configuration, starting with per-team search ranking settings
   - name: Admin
     description: Instance-level administration (instance-admin only; non-admins get 404). REST-only, no MCP.
   - name: User
@@ -11228,6 +11230,141 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Embedding Providers
+  /api/v1/{team_id}/settings/search:
+    parameters:
+      - name: team_id
+        in: path
+        required: true
+        description: Team identifier
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get the team's search ranking settings
+      description: |
+        Returns the search ranking settings in effect for the team, together with their provenance (`source`), the instance defaults, and the instance-owned candidate cap. A team that has never overridden the settings gets `source: instance` and the deployment defaults. Any member of the team may read them.
+      operationId: getTeamSearchSettings
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamSearchSettings'
+        '400':
+          description: Invalid team_id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller is not a member of the team
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to read the team's search settings
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - TeamSettings
+    put:
+      summary: Override the team's search ranking settings
+      description: |
+        Stores a complete ranking profile for the team, replacing any previous one. There is no partial update — the whole profile is required, and the team either owns all of it or (after a reset) none of it. Requires the `team.settings.update` permission, held by owners and admins.
+      operationId: updateTeamSearchSettings
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeamSearchSettingsRequest'
+      responses:
+        '200':
+          description: Settings stored successfully; the response reports source `team`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamSearchSettings'
+        '400':
+          description: |
+            Invalid ranking parameters — a negative weight, all weights zero, or a half-life outside (0, 36500]
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller's role does not grant team.settings.update
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to store the team's search settings
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - TeamSettings
+    delete:
+      summary: Reset the team's search ranking settings to the instance defaults
+      description: |
+        Drops the team's stored profile so it inherits the deployment defaults again. Resetting a team that has no override is a no-op and still returns 204. Requires the `team.settings.update` permission.
+      operationId: resetTeamSearchSettings
+      security:
+        - ApiKeyAuth: []
+        - CookieAuth: []
+      responses:
+        '204':
+          description: Settings reset (no content); the team now inherits the instance defaults
+        '400':
+          description: Invalid team_id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller's role does not grant team.settings.update
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to reset the team's search settings
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      tags:
+        - TeamSettings
   /api/v1/{team_id}/settings/embedding-providers:
     parameters:
       - name: team_id
@@ -20099,6 +20236,137 @@ components:
         - page
         - per_page
         - total_pages
+    TeamSearchSettings:
+      type: object
+      description: |
+        The search ranking settings in effect for a team, with enough context for a client to render the whole settings surface from this one response: the effective values, where they came from, the instance defaults to preview a reset against, and the instance-owned candidate cap.
+      required:
+        - source
+        - recency_ranking_enabled
+        - rank_weight_relevance
+        - rank_weight_created
+        - rank_weight_updated
+        - rank_half_life_days
+        - instance_defaults
+        - rank_candidate_cap
+      properties:
+        source:
+          type: string
+          enum:
+            - instance
+            - team
+          description: |
+            Where the effective values come from. `instance` means the team has no override and inherits the deployment defaults; `team` means the team has stored its own profile.
+          example: instance
+        recency_ranking_enabled:
+          type: boolean
+          description: Effective value — the team's when source is `team`, otherwise the instance default.
+        rank_weight_relevance:
+          type: number
+          format: double
+          description: Effective value — the team's when source is `team`, otherwise the instance default.
+        rank_weight_created:
+          type: number
+          format: double
+          description: Effective value — the team's when source is `team`, otherwise the instance default.
+        rank_weight_updated:
+          type: number
+          format: double
+          description: Effective value — the team's when source is `team`, otherwise the instance default.
+        rank_half_life_days:
+          type: number
+          format: double
+          description: Effective value — the team's when source is `team`, otherwise the instance default.
+        instance_defaults:
+          $ref: '#/components/schemas/TeamSearchSettingsValues'
+          description: |
+            The deployment-wide defaults from config.yaml, so a client can preview what "reset to defaults" would produce without a second request. Equal to the effective values when source is `instance`.
+        rank_candidate_cap:
+          type: integer
+          description: |
+            How many top-by-relevance rows are pulled and re-ranked in memory per query. Instance-owned and NOT team-configurable — one team must not be able to raise the whole deployment's per-query cost. Exposed so clients can explain why pagination is clamped to this many results when recency ranking is on.
+            Deliberately NOT marked `readOnly`: the update request uses a separate schema that has no such field, which is what actually makes the cap unsettable. Marking it readOnly additionally makes oapi-codegen emit it as an optional pointer, which would let a required field serialize as absent.
+          example: 200
+    TeamSearchSettingsValues:
+      type: object
+      description: |
+        A complete search ranking profile. The three weights are normalized by their sum at ranking time, so they need not pre-sum to 1.
+      required:
+        - recency_ranking_enabled
+        - rank_weight_relevance
+        - rank_weight_created
+        - rank_weight_updated
+        - rank_half_life_days
+      properties:
+        recency_ranking_enabled:
+          type: boolean
+          description: |
+            When false, results keep relevance-only ordering. When true they are re-ranked by a weighted blend of relevance and freshness.
+          example: true
+        rank_weight_relevance:
+          type: number
+          format: double
+          minimum: 0
+          description: Weight of semantic relevance. Expected to be the dominant weight.
+          example: 0.5
+        rank_weight_created:
+          type: number
+          format: double
+          minimum: 0
+          description: Weight of how recently the resource was created.
+          example: 0.3
+        rank_weight_updated:
+          type: number
+          format: double
+          minimum: 0
+          description: Weight of how recently the resource was updated.
+          example: 0.2
+        rank_half_life_days:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          maximum: 36500
+          description: |
+            Half-life in days for the exponential freshness decay applied to both created_at and updated_at. An item exactly one half-life old scores 0.5.
+          example: 90
+    UpdateTeamSearchSettingsRequest:
+      type: object
+      description: |
+        A complete replacement ranking profile for the team. There is no partial update: every field is required, and the whole profile is stored or replaced atomically. `rank_candidate_cap` is deliberately absent — it is instance-owned.
+      additionalProperties: false
+      required:
+        - recency_ranking_enabled
+        - rank_weight_relevance
+        - rank_weight_created
+        - rank_weight_updated
+        - rank_half_life_days
+      properties:
+        recency_ranking_enabled:
+          type: boolean
+          example: true
+        rank_weight_relevance:
+          type: number
+          format: double
+          minimum: 0
+          example: 0.5
+        rank_weight_created:
+          type: number
+          format: double
+          minimum: 0
+          example: 0.3
+        rank_weight_updated:
+          type: number
+          format: double
+          minimum: 0
+          example: 0.2
+        rank_half_life_days:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+          maximum: 36500
+          example: 90
     AdminInstanceCounts:
       type: object
       description: Instance-wide totals for the top-level entities (unscoped counts).
