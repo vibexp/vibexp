@@ -1,4 +1,4 @@
-.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
+.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
@@ -278,6 +278,12 @@ frontend-test:
 # consumed by the SonarCloud scan in ci-sonar.yml)
 frontend-test-coverage:
 	cd frontend && npm run test:coverage
+
+# Audit production frontend dependencies (npm audit --omit=dev, with the
+# documented allowlist in frontend/scripts/audit-deps.js). Run by CI and by the
+# `frontend dependency audit` pre-commit hook.
+frontend-audit:
+	cd frontend && npm run audit:deps
 
 # Build the frontend for production
 frontend-build:

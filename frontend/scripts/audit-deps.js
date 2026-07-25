@@ -7,10 +7,40 @@
  * dependency except the packages named in ALLOWLIST below, so a real advisory in
  * anything else still fails the build.
  *
- * Run by the `frontend dependency audit` pre-commit hook, which fires only when
- * `package-lock.json` changes. No CI workflow invokes it, so this is the only
- * place production advisories are checked — one more reason the allowlist below
- * has to stay honest about what it is letting through.
+ * Run by the `frontend dependency audit` pre-commit hook (which fires only when
+ * `package-lock.json` changes) and, since #547, by `make frontend-audit` in the
+ * CI frontend job — so the gate applies to every contributor, not only those who
+ * installed pre-commit. The allowlist below still has to stay honest about what
+ * it is letting through.
+ *
+ * ---------------------------------------------------------------------------
+ * Why `npm audit` still reports a `brace-expansion` advisory (and why that is
+ * deliberate — do NOT "fix" it) — #547
+ * ---------------------------------------------------------------------------
+ * GHSA-mh99-v99m-4gvg declares `brace-expansion` vulnerable at `<= 5.0.7`, with
+ * its only patched release at 5.0.8. Read as a semver range that also matches
+ * the independent `1.x` and `2.x` lines vendored under `minimatch@3.1.5`
+ * (eslint) and `minimatch@9.0.9` (jest) — neither of which has, or will get, a
+ * release above 5.0.7.
+ *
+ * The 5.x line IS patched here, via the version-scoped override
+ * `"brace-expansion@5.0.0 - 5.0.7": "^5.0.8"` in package.json. The residual
+ * 1.x/2.x entries are left alone on purpose:
+ *
+ *   - they are dev-only (eslint/jest tooling), outside this gate's `--omit=dev`
+ *     scope, and unreachable from the shipped SPA bundle;
+ *   - bumping them to 1.1.16 / 2.1.2 fixes GHSA-3jxr-9vmj-r5cp but leaves
+ *     GHSA-mh99 still matching. npm then loses its "fix available" path and
+ *     reports the entire eslint + jest subtree instead — the advisory count goes
+ *     from 3 to 26 with no route back;
+ *   - a BLANKET `"brace-expansion": "^5.0.8"` override is worse still: v5 is a
+ *     tshy dual build exporting `{ expand, ... }`, not a callable, while
+ *     `minimatch@3.x` does `var expand = require('brace-expansion')` and calls
+ *     it. Plain globs keep working, so it lands as a silent landmine that only
+ *     fires on a brace pattern (`**\/*.{ts,tsx}`) in an eslint or jest config.
+ *
+ * The real resolution is upstream: eslint moving off `minimatch@3` and jest off
+ * `minimatch@9`. Until then this is a knowingly-accepted dev-tree advisory.
  */
 
 import { execFileSync } from 'child_process'
