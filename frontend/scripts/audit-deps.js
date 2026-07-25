@@ -7,8 +7,10 @@
  * dependency except the packages named in ALLOWLIST below, so a real advisory in
  * anything else still fails the build.
  *
- * Run by the `frontend dependency audit` pre-commit hook (on `package-lock.json`
- * changes) and by CI, via `npm run audit:deps`.
+ * Run by the `frontend dependency audit` pre-commit hook, which fires only when
+ * `package-lock.json` changes. No CI workflow invokes it, so this is the only
+ * place production advisories are checked — one more reason the allowlist below
+ * has to stay honest about what it is letting through.
  */
 
 import { execFileSync } from 'child_process'
