@@ -150,7 +150,7 @@ func TestGitHubInstallationRepositoryIntegration_InstallationIDIsUniquePerApp(t 
 // directly, because the two uniqueness rules overlap in practice: a behavioural
 // test cannot distinguish unique_app_installation from the pre-existing
 // unique_team_installation while one App per team is enforced. Reading
-// pg_constraint is the only way to prove 012 both added the new constraint and
+// pg_constraint is the only way to prove 013 both added the new constraint and
 // removed the global one it replaces.
 func TestGitHubInstallationRepositoryIntegration_ConstraintSwap(t *testing.T) {
 	ctx := context.Background()
@@ -166,9 +166,9 @@ func TestGitHubInstallationRepositoryIntegration_ConstraintSwap(t *testing.T) {
 	}
 
 	assert.True(t, constraintExists("unique_app_installation"),
-		"012 must add UNIQUE (app_config_id, installation_id)")
+		"013 must add UNIQUE (app_config_id, installation_id)")
 	assert.False(t, constraintExists("github_installations_installation_id_key"),
-		"012 must drop the global UNIQUE (installation_id): two teams may install their own Apps on the same org")
+		"013 must drop the global UNIQUE (installation_id): two teams may install their own Apps on the same org")
 	assert.True(t, constraintExists("fk_installations_app_config"),
 		"installations must be bound to the App that created them")
 }

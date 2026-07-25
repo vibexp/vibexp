@@ -1,4 +1,4 @@
--- Reverse 012_per_team_github_app (#477).
+-- Reverse 013_per_team_github_app (#477).
 --
 -- LOSSY IN BOTH DIRECTIONS. The up migration deleted every github_installations
 -- row and this cannot restore them. It also deletes the rows created since,
@@ -6,7 +6,7 @@
 -- drops along with github_app_configs, so they would be unusable in the
 -- pre-#477 world exactly as the old rows were unusable in the new one. Deleting
 -- them is also what makes the global installation_id UNIQUE re-addable -- two
--- teams installing their own App on the same org is legal after 012 and would
+-- teams installing their own App on the same org is legal after 013 and would
 -- otherwise make this migration fail on the restored constraint.
 
 DELETE FROM public.github_installations;
