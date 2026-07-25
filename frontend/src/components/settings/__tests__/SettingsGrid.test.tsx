@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Bell, Key } from 'lucide-react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -69,14 +69,44 @@ describe('SettingSection', () => {
     expect(screen.getByText('api keys')).toBeInTheDocument()
   })
 
-  it('navigates to the item href on Space', () => {
+  it('navigates to the item href on Space and suppresses the default scroll', () => {
     renderSection()
 
-    fireEvent.keyDown(screen.getByRole('button', { name: /API Keys/ }), {
-      key: ' ',
-    })
+    // Space on a focused element scrolls the page, so the handler must cancel
+    // the event as well as navigate. Asserting navigation alone would stay
+    // green if the preventDefault() call were removed.
+    const event = createEvent.keyDown(
+      screen.getByRole('button', { name: /API Keys/ }),
+      { key: ' ' }
+    )
+    fireEvent(screen.getByRole('button', { name: /API Keys/ }), event)
 
+    expect(event.defaultPrevented).toBe(true)
     expect(screen.getByText('api keys')).toBeInTheDocument()
+  })
+
+  it('suppresses the default action on Enter too', () => {
+    renderSection()
+
+    const event = createEvent.keyDown(
+      screen.getByRole('button', { name: /API Keys/ }),
+      { key: 'Enter' }
+    )
+    fireEvent(screen.getByRole('button', { name: /API Keys/ }), event)
+
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('does not suppress the default action for other keys', () => {
+    renderSection()
+
+    const event = createEvent.keyDown(
+      screen.getByRole('button', { name: /API Keys/ }),
+      { key: 'a' }
+    )
+    fireEvent(screen.getByRole('button', { name: /API Keys/ }), event)
+
+    expect(event.defaultPrevented).toBe(false)
   })
 
   it('ignores other keys', () => {
