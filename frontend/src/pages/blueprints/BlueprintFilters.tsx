@@ -1,7 +1,6 @@
 import { Search } from 'lucide-react'
 
-import { MetadataFilter } from '@/components/metadata/MetadataFilter'
-import { useMetadataCatalog } from '@/components/metadata/useMetadataCatalog'
+import { MetadataFilterField } from '@/components/metadata/MetadataFilterField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -42,14 +41,6 @@ export function BlueprintFilters({
   onClear,
   hasActiveFilters,
 }: Readonly<BlueprintFiltersProps>) {
-  // The catalog is this bar's own concern: MetadataFilter stays fetch-free so
-  // it can move into the design system, and the page stays free of catalog
-  // state it never reads.
-  const catalog = useMetadataCatalog({
-    resourceType: 'blueprints',
-    projectId,
-  })
-
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-[240px] max-w-[480px] flex-1">
@@ -85,22 +76,12 @@ export function BlueprintFilters({
         </SelectContent>
       </Select>
 
-      <MetadataFilter
+      <MetadataFilterField
+        resourceType="blueprints"
+        projectId={projectId}
         value={metadata}
         onChange={onMetadataChange}
         ariaLabel="Filter blueprints by metadata"
-        keys={catalog.keys}
-        keysLoading={catalog.keysLoading}
-        keysError={catalog.keysError}
-        onOpenCatalog={catalog.loadKeys}
-        activeKey={catalog.activeKey}
-        onSelectKey={catalog.selectKey}
-        values={catalog.values}
-        valuesLoading={catalog.valuesLoading}
-        valuesError={catalog.valuesError}
-        valuesTruncated={catalog.valuesTruncated}
-        valueQuery={catalog.valueQuery}
-        onValueQueryChange={catalog.setValueQuery}
       />
 
       {hasActiveFilters && onClear && (

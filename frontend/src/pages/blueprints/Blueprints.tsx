@@ -1,5 +1,5 @@
 import { BookOpen, Plus } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -15,17 +15,13 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
-import { useUrlFilters } from '@/hooks/useUrlFilters'
+import { useResourceListFilters } from '@/hooks/useResourceListFilters'
+import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { BlueprintFilters } from '@/pages/blueprints/BlueprintFilters'
 import { buildBlueprintsColumns } from '@/pages/blueprints/blueprintsColumns'
 import type { Blueprint } from '@/services/blueprintService'
 import { blueprintService } from '@/services/blueprintService'
-import {
-  parseMetadataFilter,
-  serializeMetadataFilter,
-} from '@/services/metadataService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import { getErrorMessage } from '@/utils/errorHandling'
 
 type BlueprintSortKey = 'title' | 'updated_at'
 
@@ -43,7 +39,6 @@ const BLUEPRINT_TYPES: readonly string[] = [
 ]
 
 const PAGE_SIZE = 20
-const SEARCH_DEBOUNCE_MS = 500
 
 /**
  * Filter defaults. Every value here is omitted from the URL, so an unfiltered
@@ -60,24 +55,6 @@ const FILTER_DEFAULTS = {
   metadata: '',
   sort_by: 'updated_at',
   sort_order: 'desc',
-}
-
-interface State {
-  blueprints: Blueprint[]
-  loading: boolean
-  error: string | null
-  totalPages: number
-  currentPage: number
-  total: number
-}
-
-const INITIAL: State = {
-  blueprints: [],
-  loading: true,
-  error: null,
-  totalPages: 0,
-  currentPage: 1,
-  total: 0,
 }
 
 function isSortKey(value: string): value is BlueprintSortKey {
@@ -101,13 +78,36 @@ export function Blueprints() {
   const { currentProject, isLoading: isProjectLoading } = useProject()
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
+  const handleErrorRef = useCallback(
+    (error: unknown) => {
+      handleError(error, 'Failed to load blueprints')
+    },
+    [handleError]
+  )
   const { trackEvent } = useAnalytics()
 
-  const { filters, setFilters, resetFilters } = useUrlFilters(FILTER_DEFAULTS)
+  const projectId = currentProject?.id
 
-  const [state, setState] = useState<State>(INITIAL)
-  // Uncommitted text in the search box, debounced into the URL below.
-  const [searchInput, setSearchInput] = useState(filters.search)
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    page,
+    setPage,
+    sortOrder,
+    metadata,
+    metadataParam,
+    setMetadata,
+    hasActiveFilters,
+    handleClear,
+  } = useResourceListFilters({
+    defaults: FILTER_DEFAULTS,
+    filterKeys: ['type'],
+    projectId,
+    isProjectLoading,
+  })
+
   const [blueprintToDelete, setBlueprintToDelete] = useState<Blueprint | null>(
     null
   )
@@ -115,69 +115,15 @@ export function Blueprints() {
   // Bumped after a delete to re-run the fetch effect without duplicating it.
   const [reloadToken, setReloadToken] = useState(0)
 
-  const projectId = currentProject?.id
-
-  const page = Number(filters.page) || 1
   const sortBy: BlueprintSortKey = isSortKey(filters.sort_by)
     ? filters.sort_by
     : 'updated_at'
-  const sortOrder: 'asc' | 'desc' =
-    filters.sort_order === 'asc' ? 'asc' : 'desc'
   const type = filters.type === 'all' ? undefined : coerceType(filters.type)
 
-  const metadata = useMemo(
-    () => parseMetadataFilter(filters.metadata),
-    [filters.metadata]
-  )
-  // The re-serialized canonical string is both the fetch dep and the request
-  // value, so a malformed URL param is never forwarded and the effect does not
-  // re-run merely because the parsed object is referentially new.
-  const metadataParam = useMemo(
-    () => serializeMetadataFilter(metadata),
-    [metadata]
-  )
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchInput !== filters.search) {
-        setFilters({ search: searchInput })
-      }
-    }, SEARCH_DEBOUNCE_MS)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [searchInput, filters.search, setFilters])
-
-  // Changing the globally selected project returns to page 1 — but a persisted
-  // project RESTORING is not a change, and treating it as one would clobber the
-  // `?page=3` of a shared link. So the guard is only armed once the restore has
-  // finished; seeding it on first render is not enough, because at that point
-  // the project is still undefined and the restore itself then looks like a
-  // change.
-  const previousProjectRef = useRef<string | undefined>(undefined)
-  const projectSyncArmedRef = useRef(false)
-  useEffect(() => {
-    if (isProjectLoading) return
-    if (!projectSyncArmedRef.current) {
-      projectSyncArmedRef.current = true
-      previousProjectRef.current = projectId
-      return
-    }
-    if (previousProjectRef.current === projectId) return
-    previousProjectRef.current = projectId
-    setFilters({ page: FILTER_DEFAULTS.page })
-  }, [projectId, isProjectLoading, setFilters])
-
-  useEffect(() => {
-    // Wait for a persisted project selection to restore, so the first fetch is
-    // already scoped instead of flashing unfiltered results.
-    if (!currentTeam || isProjectLoading) return
-
-    let cancelled = false
-    setState(prev => ({ ...prev, loading: true, error: null }))
-
-    blueprintService
-      .getBlueprints(currentTeam.id, {
+  const load = useCallback(async () => {
+    const response = await blueprintService.getBlueprints(
+      currentTeam?.id ?? '',
+      {
         page,
         limit: PAGE_SIZE,
         search: filters.search || undefined,
@@ -186,46 +132,33 @@ export function Blueprints() {
         project_id: projectId,
         sort_by: sortBy,
         sort_order: sortOrder,
-      })
-      .then(response => {
-        if (cancelled) return
-        setState({
-          blueprints: response.blueprints,
-          loading: false,
-          error: null,
-          totalPages: response.total_pages,
-          currentPage: page,
-          total: response.total_count,
-        })
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          error: getErrorMessage(error, 'Failed to fetch blueprints'),
-        }))
-        handleError(error, 'Failed to load blueprints')
-      })
-
-    return () => {
-      // Guards the debounced-search race: a slow response for an earlier filter
-      // must not overwrite the results of a newer one.
-      cancelled = true
+      }
+    )
+    return {
+      items: response.blueprints,
+      totalPages: response.total_pages,
+      total: response.total_count,
     }
   }, [
-    currentTeam,
-    isProjectLoading,
-    projectId,
+    currentTeam?.id,
     page,
     filters.search,
     type,
     metadataParam,
+    projectId,
     sortBy,
     sortOrder,
-    reloadToken,
-    handleError,
   ])
+
+  const state = useResourceListQuery({
+    // Wait for a persisted project selection to restore, so the first fetch is
+    // already scoped instead of flashing unfiltered results.
+    ready: !!currentTeam && !isProjectLoading,
+    load,
+    reloadToken,
+    errorFallback: 'Failed to fetch blueprints',
+    onError: handleErrorRef,
+  })
 
   useEffect(() => {
     trackEvent({
@@ -233,25 +166,6 @@ export function Blueprints() {
       properties: { action_context: 'view' },
     })
   }, [trackEvent])
-
-  const hasActiveFilters =
-    filters.search !== '' ||
-    filters.type !== FILTER_DEFAULTS.type ||
-    Object.keys(metadata).length > 0
-
-  const handleClear = useCallback(() => {
-    // Stale text left in the box would be re-committed on the next debounce
-    // tick and undo the clear.
-    setSearchInput('')
-    resetFilters()
-  }, [resetFilters])
-
-  const handleMetadataChange = useCallback(
-    (next: Record<string, string[]>) => {
-      setFilters({ metadata: serializeMetadataFilter(next) ?? '' })
-    },
-    [setFilters]
-  )
 
   const handleDelete = async () => {
     if (!blueprintToDelete || !currentTeam) return
@@ -299,7 +213,7 @@ export function Blueprints() {
   const status = listPageStatus(
     state.loading,
     state.error,
-    state.blueprints.length === 0
+    state.items.length === 0
   )
 
   return (
@@ -329,7 +243,7 @@ export function Blueprints() {
               setFilters({ type: value ?? FILTER_DEFAULTS.type })
             }}
             metadata={metadata}
-            onMetadataChange={handleMetadataChange}
+            onMetadataChange={setMetadata}
             projectId={projectId}
             onClear={handleClear}
             hasActiveFilters={hasActiveFilters}
@@ -375,7 +289,7 @@ export function Blueprints() {
           }
         >
           <ListTable
-            rows={state.blueprints}
+            rows={state.items}
             columns={columns}
             sortableKeys={BLUEPRINT_SORTABLE_KEYS}
             sortKey={sortBy}
@@ -389,17 +303,15 @@ export function Blueprints() {
             status === 'loading' || status === 'error'
               ? undefined
               : {
-                  visible: state.blueprints.length,
+                  visible: state.items.length,
                   total: state.total,
                   noun: 'blueprint',
                 }
           }
           pagination={{
-            page: state.currentPage,
+            page,
             totalPages: state.totalPages,
-            onPageChange: next => {
-              setFilters({ page: String(next) })
-            },
+            onPageChange: setPage,
           }}
           hideCount={status === 'loading'}
         />

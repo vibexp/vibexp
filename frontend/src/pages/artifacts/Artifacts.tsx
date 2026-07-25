@@ -15,28 +15,49 @@ import { useTeam } from '@/contexts/TeamContext'
 import { useAlerts, useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useResourceListFilters } from '@/hooks/useResourceListFilters'
+import { useResourceListQuery } from '@/hooks/useResourceListQuery'
 import { useTypes } from '@/hooks/useTypes'
 import { ArtifactFilters } from '@/pages/artifacts/ArtifactFilters'
 import { buildArtifactsColumns } from '@/pages/artifacts/artifactsColumns'
-import type {
-  Artifact,
-  ArtifactFilters as ArtifactFiltersType,
-} from '@/services/artifactService'
+import { ARTIFACT_STATUS_OPTIONS } from '@/pages/artifacts/artifactStatus'
+import type { Artifact } from '@/services/artifactService'
 import { artifactService } from '@/services/artifactService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
-import { getErrorMessage } from '@/utils/errorHandling'
 
 type ArtifactSortKey = 'updated_at'
 
 const ARTIFACT_SORTABLE_KEYS: readonly ArtifactSortKey[] = ['updated_at']
 
-interface State {
-  artifacts: Artifact[]
-  loading: boolean
-  error: string | null
-  totalPages: number
-  currentPage: number
-  total: number
+const PAGE_SIZE = 20
+
+/**
+ * Filter defaults. Every value here is omitted from the URL, so an unfiltered
+ * page has a clean address bar (see `useUrlFilters`).
+ *
+ * `project_id` is deliberately absent: it comes from the global header project
+ * selector, not this page's filter bar, so it is neither page-shareable nor
+ * something `Clear filters` could clear.
+ */
+const FILTER_DEFAULTS = {
+  page: '1',
+  search: '',
+  type: 'all',
+  status: 'all',
+  metadata: '',
+  sort_by: 'updated_at',
+  sort_order: 'desc',
+}
+
+/**
+ * The API rejects a `status` outside its enum with a 400, so the page must not
+ * forward whatever the URL happens to contain. `type` needs no such guard: it
+ * is an open string matched against the team's registered types, not an enum.
+ */
+function coerceStatus(value: string): Artifact['status'] | undefined {
+  return ARTIFACT_STATUS_OPTIONS.some(option => option.value === value)
+    ? (value as Artifact['status'])
+    : undefined
 }
 
 export function Artifacts() {
@@ -47,85 +68,88 @@ export function Artifacts() {
   const { types } = useTypes('artifacts')
   const { showSuccess } = useAlerts()
   const { handleError } = useErrorHandler()
+  const handleErrorRef = useCallback(
+    (error: unknown) => {
+      handleError(error, 'Failed to load artifacts')
+    },
+    [handleError]
+  )
   const { trackEvent } = useAnalytics()
 
-  const [state, setState] = useState<State>({
-    artifacts: [],
-    loading: true,
-    error: null,
-    totalPages: 0,
-    currentPage: 1,
-    total: 0,
+  const projectId = currentProject?.id
+
+  const {
+    filters,
+    setFilters,
+    searchInput,
+    setSearchInput,
+    page,
+    setPage,
+    sortOrder,
+    metadata,
+    metadataParam,
+    setMetadata,
+    hasActiveFilters,
+    handleClear,
+  } = useResourceListFilters({
+    defaults: FILTER_DEFAULTS,
+    filterKeys: ['type', 'status'],
+    projectId,
+    isProjectLoading,
   })
-  const [filters, setFilters] = useState<ArtifactFiltersType>(() => ({
-    search: '',
-    page: 1,
-    limit: 20,
-    sort_by: 'updated_at',
-    sort_order: 'desc',
-    project_id: currentProject?.id,
-  }))
-  const [searchInput, setSearchInput] = useState('')
+
   const [artifactToDelete, setArtifactToDelete] = useState<Artifact | null>(
     null
   )
   const [deleting, setDeleting] = useState(false)
+  // Bumped after a delete to re-run the fetch effect without duplicating it.
+  const [reloadToken, setReloadToken] = useState(0)
 
-  const fetchArtifacts = useCallback(
-    async (current: ArtifactFiltersType) => {
-      // Wait for a persisted project selection to restore, so the first fetch
-      // is already scoped instead of flashing unfiltered results.
-      if (!currentTeam || isProjectLoading) return
-      setState(prev => ({ ...prev, loading: true, error: null }))
-      const response = await artifactService.getArtifacts(
-        currentTeam.id,
-        current
-      )
-      setState({
-        artifacts: response.artifacts,
-        loading: false,
-        error: null,
-        totalPages: response.total_pages,
-        currentPage: current.page ?? 1,
-        total: response.total_count,
-      })
-    },
-    [currentTeam, isProjectLoading]
-  )
+  // `type` is an open string (the team's registered types), so it has no enum
+  // coercion to absorb a junk value the way `status` does — an explicit `?type=`
+  // in the URL would otherwise be forwarded as an empty string.
+  const type =
+    filters.type === 'all' || filters.type === '' ? undefined : filters.type
+  const status =
+    filters.status === 'all' ? undefined : coerceStatus(filters.status)
 
-  useEffect(() => {
-    fetchArtifacts(filters).catch((error: unknown) => {
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: getErrorMessage(error, 'Failed to fetch artifacts'),
-      }))
-      handleError(error, 'Failed to load artifacts')
+  const load = useCallback(async () => {
+    const response = await artifactService.getArtifacts(currentTeam?.id ?? '', {
+      page,
+      limit: PAGE_SIZE,
+      search: filters.search || undefined,
+      type,
+      status,
+      metadata: metadataParam,
+      project_id: projectId,
+      sort_by: 'updated_at',
+      sort_order: sortOrder,
     })
-  }, [fetchArtifacts, filters, handleError])
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setFilters(prev =>
-        prev.search === searchInput
-          ? prev
-          : { ...prev, search: searchInput, page: 1 }
-      )
-    }, 500)
-    return () => {
-      clearTimeout(t)
+    return {
+      items: response.artifacts,
+      totalPages: response.total_pages,
+      total: response.total_count,
     }
-  }, [searchInput])
+  }, [
+    currentTeam?.id,
+    page,
+    filters.search,
+    type,
+    status,
+    metadataParam,
+    projectId,
+    sortOrder,
+  ])
 
-  // Keep the list scoped to the globally selected project (header selector).
-  const projectId = currentProject?.id
-  useEffect(() => {
-    setFilters(prev =>
-      prev.project_id === projectId
-        ? prev
-        : { ...prev, project_id: projectId, page: 1 }
-    )
-  }, [projectId])
+  const state = useResourceListQuery({
+    // Wait for a persisted project selection to restore, so the first fetch is
+    // already scoped instead of flashing unfiltered results.
+    ready: !!currentTeam && !isProjectLoading,
+    load,
+    reloadToken,
+    errorFallback: 'Failed to fetch artifacts',
+    onError: handleErrorRef,
+  })
 
   useEffect(() => {
     trackEvent({
@@ -144,7 +168,7 @@ export function Artifacts() {
         artifactToDelete.slug
       )
       showSuccess('Artifact deleted successfully', 'Success')
-      void fetchArtifacts(filters)
+      setReloadToken(token => token + 1)
     } catch (error) {
       handleError(error, 'Failed to delete artifact')
     } finally {
@@ -153,21 +177,16 @@ export function Artifacts() {
     }
   }
 
-  const sortKey = (filters.sort_by ?? 'updated_at') as ArtifactSortKey
-  const sortDir = filters.sort_order ?? 'desc'
-
-  const handleSortChange = useCallback((key: ArtifactSortKey) => {
-    setFilters(prev => {
-      if (key === prev.sort_by) {
-        return {
-          ...prev,
-          sort_order: prev.sort_order === 'asc' ? 'desc' : 'asc',
-          page: 1,
-        }
-      }
-      return { ...prev, sort_by: key, sort_order: 'desc', page: 1 }
-    })
-  }, [])
+  const handleSortChange = useCallback(
+    (key: ArtifactSortKey) => {
+      // Only one sortable column today, so a click always flips direction.
+      setFilters({
+        sort_by: key,
+        sort_order: sortOrder === 'asc' ? 'desc' : 'asc',
+      })
+    },
+    [setFilters, sortOrder]
+  )
 
   const typeNames = useMemo(
     () => new Map(types.map(t => [t.slug, t.name])),
@@ -185,10 +204,10 @@ export function Artifacts() {
     [navigate, typeNames, canDeleteResource]
   )
 
-  const status = listPageStatus(
+  const listStatus = listPageStatus(
     state.loading,
     state.error,
-    state.artifacts.length === 0
+    state.items.length === 0
   )
 
   return (
@@ -213,75 +232,86 @@ export function Artifacts() {
           <ArtifactFilters
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}
-            type={filters.type}
+            type={type}
             onTypeChange={value => {
-              setFilters(prev => ({ ...prev, type: value, page: 1 }))
+              setFilters({ type: value ?? FILTER_DEFAULTS.type })
             }}
-            status={filters.status}
+            status={status}
             onStatusChange={value => {
-              setFilters(prev => ({ ...prev, status: value, page: 1 }))
+              setFilters({ status: value ?? FILTER_DEFAULTS.status })
             }}
+            metadata={metadata}
+            onMetadataChange={setMetadata}
+            projectId={projectId}
+            onClear={handleClear}
+            hasActiveFilters={hasActiveFilters}
           />
         </ListPage.Filters>
 
         <ListPage.Body
-          status={status}
+          status={listStatus}
           errorTitle="Failed to load artifacts"
           errorMessage={state.error}
           empty={
-            <EmptyState
-              icon={Package}
-              title={
-                filters.search || filters.project_id
-                  ? 'No artifacts match your filters'
-                  : 'No artifacts yet'
-              }
-              description={
-                filters.search || filters.project_id
-                  ? 'Try different search or filter settings.'
-                  : 'Create your first artifact to save AI-generated content.'
-              }
-              actions={
-                <Button
-                  onClick={() => {
-                    void navigate('/artifacts/new')
-                  }}
-                >
-                  <Plus className="mr-2 size-4" />
-                  New artifact
-                </Button>
-              }
-            />
+            // Two distinct empty states: "nothing exists" is a fact about the
+            // team, "nothing matches" is a fact about the filters, and only the
+            // second one has a way out.
+            hasActiveFilters ? (
+              <EmptyState
+                icon={Package}
+                title="No artifacts match your filters"
+                description="Try different search, type, status or metadata settings."
+                actions={
+                  <Button variant="outline" onClick={handleClear}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={Package}
+                title="No artifacts yet"
+                description="Create your first artifact to save AI-generated content."
+                actions={
+                  <Button
+                    onClick={() => {
+                      void navigate('/artifacts/new')
+                    }}
+                  >
+                    <Plus className="mr-2 size-4" />
+                    New artifact
+                  </Button>
+                }
+              />
+            )
           }
         >
           <ListTable
-            rows={state.artifacts}
+            rows={state.items}
             columns={columns}
             sortableKeys={ARTIFACT_SORTABLE_KEYS}
-            sortKey={sortKey}
-            sortDir={sortDir}
+            sortKey="updated_at"
+            sortDir={sortOrder}
             onSortChange={handleSortChange}
           />
         </ListPage.Body>
 
         <ListPage.Footer
           count={
-            status === 'loading' || status === 'error'
+            listStatus === 'loading' || listStatus === 'error'
               ? undefined
               : {
-                  visible: state.artifacts.length,
+                  visible: state.items.length,
                   total: state.total,
                   noun: 'artifact',
                 }
           }
           pagination={{
-            page: state.currentPage,
+            page,
             totalPages: state.totalPages,
-            onPageChange: page => {
-              setFilters(prev => ({ ...prev, page }))
-            },
+            onPageChange: setPage,
           }}
-          hideCount={status === 'loading'}
+          hideCount={listStatus === 'loading'}
         />
       </ListPage.Container>
 

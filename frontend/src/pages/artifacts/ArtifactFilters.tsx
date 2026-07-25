@@ -1,5 +1,7 @@
 import { Search } from 'lucide-react'
 
+import { MetadataFilterField } from '@/components/metadata/MetadataFilterField'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -11,14 +13,24 @@ import {
 import { useTypes } from '@/hooks/useTypes'
 import { ARTIFACT_STATUS_OPTIONS } from '@/pages/artifacts/artifactStatus'
 import type { Artifact } from '@/services/artifactService'
+import type { MetadataFilterValue } from '@/services/metadataService'
 
-interface Props {
+export interface ArtifactFiltersProps {
+  /** Uncommitted search text; the page debounces it into the URL. */
   searchInput: string
   onSearchInputChange: (value: string) => void
   type: Artifact['type'] | undefined
   onTypeChange: (value: Artifact['type'] | undefined) => void
   status: Artifact['status'] | undefined
   onStatusChange: (value: Artifact['status'] | undefined) => void
+  /** Committed metadata filter; one chip per key. */
+  metadata: MetadataFilterValue
+  onMetadataChange: (value: MetadataFilterValue) => void
+  /** Narrows the metadata catalog to the globally selected project. */
+  projectId?: string
+  /** Shown only while at least one filter is applied. */
+  onClear?: () => void
+  hasActiveFilters: boolean
 }
 
 // Project filtering moved to the global header project selector (useProject).
@@ -29,7 +41,12 @@ export function ArtifactFilters({
   onTypeChange,
   status,
   onStatusChange,
-}: Readonly<Props>) {
+  metadata,
+  onMetadataChange,
+  projectId,
+  onClear,
+  hasActiveFilters,
+}: Readonly<ArtifactFiltersProps>) {
   const { types } = useTypes('artifacts')
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -41,6 +58,7 @@ export function ArtifactFilters({
             onSearchInputChange(e.target.value)
           }}
           placeholder="Search artifacts…"
+          aria-label="Search artifacts"
           className="pl-8"
         />
       </div>
@@ -50,7 +68,7 @@ export function ArtifactFilters({
           onTypeChange(value === 'all' ? undefined : value)
         }}
       >
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-[150px]" aria-label="Filter by type">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -72,6 +90,7 @@ export function ArtifactFilters({
       >
         <SelectTrigger
           className="w-[150px]"
+          aria-label="Filter by status"
           data-testid="artifact-status-filter"
         >
           <SelectValue />
@@ -85,6 +104,20 @@ export function ArtifactFilters({
           ))}
         </SelectContent>
       </Select>
+
+      <MetadataFilterField
+        resourceType="artifacts"
+        projectId={projectId}
+        value={metadata}
+        onChange={onMetadataChange}
+        ariaLabel="Filter artifacts by metadata"
+      />
+
+      {hasActiveFilters && onClear && (
+        <Button variant="outline" onClick={onClear}>
+          Clear filters
+        </Button>
+      )}
     </div>
   )
 }
