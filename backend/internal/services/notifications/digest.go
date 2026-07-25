@@ -13,7 +13,9 @@ import (
 	"github.com/vibexp/vibexp/internal/repositories"
 )
 
-// digestEmailSubject is the subject line used for all daily digest emails.
+// digestEmailSubject is the base subject line for daily digest emails, and the
+// complete subject for the teamless group. A team's digest appends its team name
+// (see digestSubjectForTeam) so a user receiving several can tell them apart.
 const digestEmailSubject = "Your vibexp daily digest"
 
 // DigestEmailSender is a narrow interface for sending digest notification emails.
@@ -327,11 +329,15 @@ func (d *DigestRunner) sendTeamDigestEmail(
 
 // digestSubjectForTeam names the team in the subject so a user receiving several
 // digests can tell them apart. The teamless group keeps the plain subject.
+//
+// The separator is deliberately ASCII: a team name may already contain non-ASCII
+// characters, but there is no reason to make EVERY team digest subject require
+// MIME encoded-word handling to survive a strict SMTP server.
 func digestSubjectForTeam(teamName string) string {
 	if teamName == "" {
 		return digestEmailSubject
 	}
-	return digestEmailSubject + " — " + teamName
+	return digestEmailSubject + " - " + teamName
 }
 
 // groupDigestByTeam buckets a user's queue rows by the team of the notification
