@@ -223,3 +223,65 @@ type AdminDeleteBlocker struct {
 	TeamName    string
 	MemberCount int64
 }
+
+// AdminProjectTeam is the team a project belongs to, as shown in the admin
+// project views.
+type AdminProjectTeam struct {
+	ID   string
+	Name string
+	Slug string
+}
+
+// AdminProjectListItem is one row of the instance-wide admin project listing
+// (GET /api/v1/admin/projects).
+//
+// Owner is the project's own user_id (its creator), NOT the owning team's
+// owner_id — projects carries both team_id and user_id and the two can differ.
+type AdminProjectListItem struct {
+	ID        string
+	Name      string
+	Slug      string
+	Team      AdminProjectTeam
+	Owner     AdminTeamOwner
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// AdminProjectList is a page of the admin project listing plus pagination
+// metadata computed over the filtered set.
+type AdminProjectList struct {
+	Projects   []AdminProjectListItem
+	TotalCount int
+	Page       int
+	PerPage    int
+	TotalPages int
+}
+
+// AdminProjectResourceCounts is how many of each resource type live in a project.
+//
+// It covers exactly the four types that ARE project-scoped. `agents` and `feeds`
+// are deliberately absent: neither table has a project_id column (they are
+// team-scoped), so reporting a count for them would imply "this project has no
+// agents" when the truth is "agents do not belong to projects".
+type AdminProjectResourceCounts struct {
+	Prompts    int64
+	Artifacts  int64
+	Memories   int64
+	Blueprints int64
+}
+
+// AdminProjectDetail is the per-project admin view
+// (GET /api/v1/admin/projects/{id}).
+type AdminProjectDetail struct {
+	ID             string
+	Name           string
+	Slug           string
+	Description    string
+	GitURL         string
+	Homepage       string
+	Team           AdminProjectTeam
+	Owner          AdminTeamOwner
+	ResourceCounts AdminProjectResourceCounts
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}

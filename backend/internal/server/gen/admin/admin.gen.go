@@ -100,6 +100,42 @@ func (e GetAdminDashboardTimeseriesParamsGranularity) Valid() bool {
 	}
 }
 
+// Defines values for ListAdminProjectsParamsSortBy.
+const (
+	ListAdminProjectsParamsSortByCreatedAt ListAdminProjectsParamsSortBy = "created_at"
+	ListAdminProjectsParamsSortByName      ListAdminProjectsParamsSortBy = "name"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminProjectsParamsSortBy enum.
+func (e ListAdminProjectsParamsSortBy) Valid() bool {
+	switch e {
+	case ListAdminProjectsParamsSortByCreatedAt:
+		return true
+	case ListAdminProjectsParamsSortByName:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminProjectsParamsSortOrder.
+const (
+	ListAdminProjectsParamsSortOrderAsc  ListAdminProjectsParamsSortOrder = "asc"
+	ListAdminProjectsParamsSortOrderDesc ListAdminProjectsParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminProjectsParamsSortOrder enum.
+func (e ListAdminProjectsParamsSortOrder) Valid() bool {
+	switch e {
+	case ListAdminProjectsParamsSortOrderAsc:
+		return true
+	case ListAdminProjectsParamsSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAdminTeamsParamsSortBy.
 const (
 	ListAdminTeamsParamsSortByCreatedAt   ListAdminTeamsParamsSortBy = "created_at"
@@ -159,22 +195,22 @@ func (e ListAdminUsersParamsStatus) Valid() bool {
 
 // Defines values for ListAdminUsersParamsSortBy.
 const (
-	ListAdminUsersParamsSortByCreatedAt ListAdminUsersParamsSortBy = "created_at"
-	ListAdminUsersParamsSortByEmail     ListAdminUsersParamsSortBy = "email"
-	ListAdminUsersParamsSortByName      ListAdminUsersParamsSortBy = "name"
-	ListAdminUsersParamsSortByTeamCount ListAdminUsersParamsSortBy = "team_count"
+	CreatedAt ListAdminUsersParamsSortBy = "created_at"
+	Email     ListAdminUsersParamsSortBy = "email"
+	Name      ListAdminUsersParamsSortBy = "name"
+	TeamCount ListAdminUsersParamsSortBy = "team_count"
 )
 
 // Valid indicates whether the value is a known member of the ListAdminUsersParamsSortBy enum.
 func (e ListAdminUsersParamsSortBy) Valid() bool {
 	switch e {
-	case ListAdminUsersParamsSortByCreatedAt:
+	case CreatedAt:
 		return true
-	case ListAdminUsersParamsSortByEmail:
+	case Email:
 		return true
-	case ListAdminUsersParamsSortByName:
+	case Name:
 		return true
-	case ListAdminUsersParamsSortByTeamCount:
+	case TeamCount:
 		return true
 	default:
 		return false
@@ -183,16 +219,16 @@ func (e ListAdminUsersParamsSortBy) Valid() bool {
 
 // Defines values for ListAdminUsersParamsSortOrder.
 const (
-	ListAdminUsersParamsSortOrderAsc  ListAdminUsersParamsSortOrder = "asc"
-	ListAdminUsersParamsSortOrderDesc ListAdminUsersParamsSortOrder = "desc"
+	Asc  ListAdminUsersParamsSortOrder = "asc"
+	Desc ListAdminUsersParamsSortOrder = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListAdminUsersParamsSortOrder enum.
 func (e ListAdminUsersParamsSortOrder) Valid() bool {
 	switch e {
-	case ListAdminUsersParamsSortOrderAsc:
+	case Asc:
 		return true
-	case ListAdminUsersParamsSortOrderDesc:
+	case Desc:
 		return true
 	default:
 		return false
@@ -308,6 +344,88 @@ type AdminInstanceCounts struct {
 
 	// Users Total number of user accounts.
 	Users int64 `json:"users"`
+}
+
+// AdminProjectDetail A single project with its team, owner and resource counts (GET /api/v1/admin/projects/{id}).
+type AdminProjectDetail struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// Description Empty string when unset (the column defaults to '').
+	Description string `json:"description"`
+
+	// GitUrl Empty string when unset.
+	GitUrl string `json:"git_url"`
+
+	// Homepage Empty string when unset.
+	Homepage string             `json:"homepage"`
+	Id       openapi_types.UUID `json:"id"`
+	Name     string             `json:"name"`
+
+	// Owner The project's creator (projects.user_id); see AdminProjectListItem.owner.
+	Owner AdminTeamOwner `json:"owner"`
+
+	// ResourceCounts How many of each PROJECT-SCOPED resource type the project contains.
+	//
+	// Only these four types belong to a project. Agents and feeds are deliberately
+	// absent: neither table has a project_id column (both are team-scoped), so
+	// reporting zero for them would read as "this project has no agents" rather
+	// than "agents do not belong to projects".
+	ResourceCounts AdminProjectResourceCounts `json:"resource_counts"`
+	Slug           string                     `json:"slug"`
+
+	// Team The team a project belongs to.
+	Team      AdminProjectTeam `json:"team"`
+	UpdatedAt time.Time        `json:"updated_at"`
+}
+
+// AdminProjectListItem One project in the instance-wide admin project listing.
+type AdminProjectListItem struct {
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+	Name      string             `json:"name"`
+
+	// Owner The project's creator (projects.user_id). This is NOT necessarily the
+	// owning team's owner — a project carries both a team and a creating user,
+	// and the two can differ.
+	Owner AdminTeamOwner `json:"owner"`
+	Slug  string         `json:"slug"`
+
+	// Team The team a project belongs to.
+	Team      AdminProjectTeam `json:"team"`
+	UpdatedAt time.Time        `json:"updated_at"`
+}
+
+// AdminProjectListResponse A page of the instance-wide project listing.
+type AdminProjectListResponse struct {
+	Page    int `json:"page"`
+	PerPage int `json:"per_page"`
+
+	// Projects Projects on this page.
+	Projects []AdminProjectListItem `json:"projects"`
+
+	// TotalCount Total number of projects matching the filters.
+	TotalCount int `json:"total_count"`
+	TotalPages int `json:"total_pages"`
+}
+
+// AdminProjectResourceCounts How many of each PROJECT-SCOPED resource type the project contains.
+//
+// Only these four types belong to a project. Agents and feeds are deliberately
+// absent: neither table has a project_id column (both are team-scoped), so
+// reporting zero for them would read as "this project has no agents" rather
+// than "agents do not belong to projects".
+type AdminProjectResourceCounts struct {
+	Artifacts  int64 `json:"artifacts"`
+	Blueprints int64 `json:"blueprints"`
+	Memories   int64 `json:"memories"`
+	Prompts    int64 `json:"prompts"`
+}
+
+// AdminProjectTeam The team a project belongs to.
+type AdminProjectTeam struct {
+	Id   openapi_types.UUID `json:"id"`
+	Name string             `json:"name"`
+	Slug string             `json:"slug"`
 }
 
 // AdminSourcePoint A count for one access source within one time bucket.
@@ -637,6 +755,39 @@ type GetAdminDashboardTimeseriesParams struct {
 // GetAdminDashboardTimeseriesParamsGranularity defines parameters for GetAdminDashboardTimeseries.
 type GetAdminDashboardTimeseriesParamsGranularity string
 
+// ListAdminProjectsParams defines parameters for ListAdminProjects.
+type ListAdminProjectsParams struct {
+	// Page 1-based page number
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// Limit Items per page
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Search Case-insensitive substring match over the project name and slug.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// TeamId Narrow to projects belonging to one team.
+	TeamId *openapi_types.UUID `form:"team_id,omitempty" json:"team_id,omitempty"`
+
+	// CreatedFrom Only projects created at or after this instant (inclusive).
+	CreatedFrom *time.Time `form:"created_from,omitempty" json:"created_from,omitempty"`
+
+	// CreatedTo Only projects created at or before this instant (inclusive).
+	CreatedTo *time.Time `form:"created_to,omitempty" json:"created_to,omitempty"`
+
+	// SortBy Column to sort by. Ties are always broken by project id so paging is stable.
+	SortBy *ListAdminProjectsParamsSortBy `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+
+	// SortOrder Sort direction.
+	SortOrder *ListAdminProjectsParamsSortOrder `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+}
+
+// ListAdminProjectsParamsSortBy defines parameters for ListAdminProjects.
+type ListAdminProjectsParamsSortBy string
+
+// ListAdminProjectsParamsSortOrder defines parameters for ListAdminProjects.
+type ListAdminProjectsParamsSortOrder string
+
 // ListAdminTeamsParams defines parameters for ListAdminTeams.
 type ListAdminTeamsParams struct {
 	// Page 1-based page number
@@ -723,6 +874,12 @@ type ServerInterface interface {
 	// Get admin dashboard time series
 	// (GET /api/v1/admin/dashboard/timeseries)
 	GetAdminDashboardTimeseries(w http.ResponseWriter, r *http.Request, params GetAdminDashboardTimeseriesParams)
+	// List instance projects
+	// (GET /api/v1/admin/projects)
+	ListAdminProjects(w http.ResponseWriter, r *http.Request, params ListAdminProjectsParams)
+	// Get an instance project
+	// (GET /api/v1/admin/projects/{id})
+	GetAdminProject(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(w http.ResponseWriter, r *http.Request)
@@ -768,6 +925,18 @@ func (_ Unimplemented) GetAdminDashboardOverview(w http.ResponseWriter, r *http.
 // Get admin dashboard time series
 // (GET /api/v1/admin/dashboard/timeseries)
 func (_ Unimplemented) GetAdminDashboardTimeseries(w http.ResponseWriter, r *http.Request, params GetAdminDashboardTimeseriesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List instance projects
+// (GET /api/v1/admin/projects)
+func (_ Unimplemented) ListAdminProjects(w http.ResponseWriter, r *http.Request, params ListAdminProjectsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get an instance project
+// (GET /api/v1/admin/projects/{id})
+func (_ Unimplemented) GetAdminProject(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -920,6 +1089,172 @@ func (siw *ServerInterfaceWrapper) GetAdminDashboardTimeseries(w http.ResponseWr
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminDashboardTimeseries(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminProjects operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminProjects(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminProjectsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "team_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "team_id", r.URL.Query(), &params.TeamId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "team_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "team_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_from", r.URL.Query(), &params.CreatedFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "created_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "created_to", r.URL.Query(), &params.CreatedTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "created_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "created_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_by" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_by", r.URL.Query(), &params.SortBy, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_by"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_by", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort_order" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort_order", r.URL.Query(), &params.SortOrder, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort_order"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort_order", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminProjects(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminProject operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProject(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ApiKeyAuthScopes, []string{})
+
+	ctx = context.WithValue(ctx, CookieAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminProject(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1574,6 +1909,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/admin/dashboard/timeseries", wrapper.GetAdminDashboardTimeseries)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/projects", wrapper.ListAdminProjects)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/projects/{id}", wrapper.GetAdminProject)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/stats", wrapper.GetAdminStats)
 	})
 	r.Group(func(r chi.Router) {
@@ -1709,6 +2050,134 @@ func (response GetAdminDashboardTimeseries404ApplicationProblemPlusJSONResponse)
 type GetAdminDashboardTimeseries500ApplicationProblemPlusJSONResponse ErrorResponse
 
 func (response GetAdminDashboardTimeseries500ApplicationProblemPlusJSONResponse) VisitGetAdminDashboardTimeseriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminProjectsRequestObject struct {
+	Params ListAdminProjectsParams
+}
+
+type ListAdminProjectsResponseObject interface {
+	VisitListAdminProjectsResponse(w http.ResponseWriter) error
+}
+
+type ListAdminProjects200JSONResponse AdminProjectListResponse
+
+func (response ListAdminProjects200JSONResponse) VisitListAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminProjects400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminProjects400ApplicationProblemPlusJSONResponse) VisitListAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminProjects404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminProjects404ApplicationProblemPlusJSONResponse) VisitListAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminProjects500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response ListAdminProjects500ApplicationProblemPlusJSONResponse) VisitListAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminProjectResponseObject interface {
+	VisitGetAdminProjectResponse(w http.ResponseWriter) error
+}
+
+type GetAdminProject200JSONResponse AdminProjectDetail
+
+func (response GetAdminProject200JSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProject400ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProject400ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProject404ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProject404ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProject500ApplicationProblemPlusJSONResponse ErrorResponse
+
+func (response GetAdminProject500ApplicationProblemPlusJSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2362,6 +2831,12 @@ type StrictServerInterface interface {
 	// Get admin dashboard time series
 	// (GET /api/v1/admin/dashboard/timeseries)
 	GetAdminDashboardTimeseries(ctx context.Context, request GetAdminDashboardTimeseriesRequestObject) (GetAdminDashboardTimeseriesResponseObject, error)
+	// List instance projects
+	// (GET /api/v1/admin/projects)
+	ListAdminProjects(ctx context.Context, request ListAdminProjectsRequestObject) (ListAdminProjectsResponseObject, error)
+	// Get an instance project
+	// (GET /api/v1/admin/projects/{id})
+	GetAdminProject(ctx context.Context, request GetAdminProjectRequestObject) (GetAdminProjectResponseObject, error)
 	// Get instance statistics
 	// (GET /api/v1/admin/stats)
 	GetAdminStats(ctx context.Context, request GetAdminStatsRequestObject) (GetAdminStatsResponseObject, error)
@@ -2466,6 +2941,58 @@ func (sh *strictHandler) GetAdminDashboardTimeseries(w http.ResponseWriter, r *h
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminDashboardTimeseriesResponseObject); ok {
 		if err := validResponse.VisitGetAdminDashboardTimeseriesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminProjects operation middleware
+func (sh *strictHandler) ListAdminProjects(w http.ResponseWriter, r *http.Request, params ListAdminProjectsParams) {
+	var request ListAdminProjectsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminProjects(ctx, request.(ListAdminProjectsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminProjects")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminProjectsResponseObject); ok {
+		if err := validResponse.VisitListAdminProjectsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminProject operation middleware
+func (sh *strictHandler) GetAdminProject(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminProjectRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminProject(ctx, request.(GetAdminProjectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminProject")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminProjectResponseObject); ok {
+		if err := validResponse.VisitGetAdminProjectResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

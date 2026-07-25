@@ -322,6 +322,65 @@ func (_c *MockAdminServiceInterface_GetInstanceCounts_Call) RunAndReturn(run fun
 	return _c
 }
 
+// GetProjectDetail provides a mock function with given fields: ctx, id
+func (_m *MockAdminServiceInterface) GetProjectDetail(ctx context.Context, id string) (*models.AdminProjectDetail, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProjectDetail")
+	}
+
+	var r0 *models.AdminProjectDetail
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.AdminProjectDetail, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.AdminProjectDetail); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AdminProjectDetail)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_GetProjectDetail_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProjectDetail'
+type MockAdminServiceInterface_GetProjectDetail_Call struct {
+	*mock.Call
+}
+
+// GetProjectDetail is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id string
+func (_e *MockAdminServiceInterface_Expecter) GetProjectDetail(ctx interface{}, id interface{}) *MockAdminServiceInterface_GetProjectDetail_Call {
+	return &MockAdminServiceInterface_GetProjectDetail_Call{Call: _e.mock.On("GetProjectDetail", ctx, id)}
+}
+
+func (_c *MockAdminServiceInterface_GetProjectDetail_Call) Run(run func(ctx context.Context, id string)) *MockAdminServiceInterface_GetProjectDetail_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectDetail_Call) Return(_a0 *models.AdminProjectDetail, _a1 error) *MockAdminServiceInterface_GetProjectDetail_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_GetProjectDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminProjectDetail, error)) *MockAdminServiceInterface_GetProjectDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetTeamDetail provides a mock function with given fields: ctx, id
 func (_m *MockAdminServiceInterface) GetTeamDetail(ctx context.Context, id string) (*models.AdminTeamDetail, error) {
 	ret := _m.Called(ctx, id)
@@ -436,6 +495,63 @@ func (_c *MockAdminServiceInterface_GetUserDetail_Call) Return(_a0 *models.Admin
 }
 
 func (_c *MockAdminServiceInterface_GetUserDetail_Call) RunAndReturn(run func(context.Context, string) (*models.AdminUserDetail, error)) *MockAdminServiceInterface_GetUserDetail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListProjects provides a mock function with given fields: ctx, filters
+func (_m *MockAdminServiceInterface) ListProjects(ctx context.Context, filters repositories.AdminProjectFilters) (models.AdminProjectList, error) {
+	ret := _m.Called(ctx, filters)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListProjects")
+	}
+
+	var r0 models.AdminProjectList
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminProjectFilters) (models.AdminProjectList, error)); ok {
+		return rf(ctx, filters)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, repositories.AdminProjectFilters) models.AdminProjectList); ok {
+		r0 = rf(ctx, filters)
+	} else {
+		r0 = ret.Get(0).(models.AdminProjectList)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, repositories.AdminProjectFilters) error); ok {
+		r1 = rf(ctx, filters)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAdminServiceInterface_ListProjects_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListProjects'
+type MockAdminServiceInterface_ListProjects_Call struct {
+	*mock.Call
+}
+
+// ListProjects is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filters repositories.AdminProjectFilters
+func (_e *MockAdminServiceInterface_Expecter) ListProjects(ctx interface{}, filters interface{}) *MockAdminServiceInterface_ListProjects_Call {
+	return &MockAdminServiceInterface_ListProjects_Call{Call: _e.mock.On("ListProjects", ctx, filters)}
+}
+
+func (_c *MockAdminServiceInterface_ListProjects_Call) Run(run func(ctx context.Context, filters repositories.AdminProjectFilters)) *MockAdminServiceInterface_ListProjects_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(repositories.AdminProjectFilters))
+	})
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ListProjects_Call) Return(_a0 models.AdminProjectList, _a1 error) *MockAdminServiceInterface_ListProjects_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAdminServiceInterface_ListProjects_Call) RunAndReturn(run func(context.Context, repositories.AdminProjectFilters) (models.AdminProjectList, error)) *MockAdminServiceInterface_ListProjects_Call {
 	_c.Call.Return(run)
 	return _c
 }

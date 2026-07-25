@@ -169,3 +169,88 @@ func TestAdminService_GetTeamDetail(t *testing.T) {
 func newReadOnlyAdminService(repo repositories.AdminRepository) AdminServiceInterface {
 	return NewAdminService(repo, nil, nil)
 }
+
+// TestAdminService_ListProjects_ClampsAndComputesPages mirrors the users/teams
+// pagination contract: page/limit clamped, envelope from the FILTERED total.
+func TestAdminService_ListProjects_ClampsAndComputesPages(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	// page 0 -> 1, limit 0 -> default 20.
+	repo.On("ListProjects", mock.Anything, repositories.AdminProjectFilters{Page: 1, Limit: 20}).
+		Return([]models.AdminProjectListItem{{ID: "p1"}}, 45, nil)
+
+	got, err := newReadOnlyAdminService(repo).ListProjects(
+		context.Background(), repositories.AdminProjectFilters{})
+	require.NoError(t, err)
+	assert.Equal(t, 1, got.Page)
+	assert.Equal(t, 20, got.PerPage)
+	assert.Equal(t, 45, got.TotalCount)
+	assert.Equal(t, 3, got.TotalPages) // ceil(45/20)
+	assert.Len(t, got.Projects, 1)
+}
+
+// TestAdminService_ListProjects_ForwardsFilters pins that everything except
+// page/limit reaches the repository untouched.
+func TestAdminService_ListProjects_ForwardsFilters(t *testing.T) {
+	search := "plat"
+	teamID := "t1"
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	want := repositories.AdminProjectFilters{
+		Search: &search, TeamID: &teamID, CreatedFrom: &from,
+		SortBy: "name", SortOrder: "asc", Page: 1, Limit: 20,
+	}
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("ListProjects", mock.Anything, want).
+		Return([]models.AdminProjectListItem{{ID: "p1"}}, 1, nil)
+
+	got, err := newReadOnlyAdminService(repo).ListProjects(context.Background(),
+		repositories.AdminProjectFilters{
+			Search: &search, TeamID: &teamID, CreatedFrom: &from,
+			SortBy: "name", SortOrder: "asc",
+		})
+	require.NoError(t, err)
+	assert.Equal(t, 1, got.TotalCount)
+	assert.Equal(t, 1, got.TotalPages)
+}
+
+func TestAdminService_ListProjects_LimitCapped(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("ListProjects", mock.Anything, repositories.AdminProjectFilters{Page: 2, Limit: 100}).
+		Return([]models.AdminProjectListItem{}, 0, nil)
+
+	got, err := newReadOnlyAdminService(repo).ListProjects(context.Background(),
+		repositories.AdminProjectFilters{Page: 2, Limit: 500})
+	require.NoError(t, err)
+	assert.Equal(t, 100, got.PerPage)
+	assert.Equal(t, 0, got.TotalPages)
+}
+
+func TestAdminService_ListProjects_Error(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("ListProjects", mock.Anything, mock.Anything).Return(nil, 0, errors.New("boom"))
+
+	_, err := newReadOnlyAdminService(repo).ListProjects(
+		context.Background(), repositories.AdminProjectFilters{Page: 1, Limit: 20})
+	require.Error(t, err)
+}
+
+func TestAdminService_GetProjectDetail(t *testing.T) {
+	want := &models.AdminProjectDetail{ID: "p1", Name: "Platform"}
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("GetProjectDetail", mock.Anything, "p1").Return(want, nil)
+
+	got, err := newReadOnlyAdminService(repo).GetProjectDetail(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+// TestAdminService_GetProjectDetail_NotFound passes (nil, nil) through so the
+// handler can 404.
+func TestAdminService_GetProjectDetail_NotFound(t *testing.T) {
+	repo := repomocks.NewMockAdminRepository(t)
+	repo.On("GetProjectDetail", mock.Anything, "missing").Return(nil, nil)
+
+	got, err := newReadOnlyAdminService(repo).GetProjectDetail(context.Background(), "missing")
+	require.NoError(t, err)
+	assert.Nil(t, got)
+}
