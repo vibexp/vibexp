@@ -5,7 +5,7 @@
  * Useful for testing error states, subscription flows, and external service interactions.
  */
 
-import { Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 export interface SubscriptionProduct {
   id: string
