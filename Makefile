@@ -53,8 +53,10 @@ backend-test-coverage:
 	cd backend && go test -race -coverprofile=coverage.out ./... -timeout=60s
 	cd backend && go tool cover -html=coverage.out -o coverage.html
 
-# Single-execution full suite (unit + integration-tagged) with coverage — used
-# by CI's Build & Test job (#390) so integration-covered code counts in Sonar.
+# Single-execution full suite (unit + integration-tagged) with coverage. CI no
+# longer uses this — it shards into backend-test-unit-coverage and
+# backend-test-integration-coverage (#638) — but it is kept as the documented
+# LOCAL one-shot, and as the reference the two halves are checked against.
 # Needs a reachable Postgres (docker-compose locally, service container in CI);
 # override the target database with POSTGRES_TEST_DSN. The longer timeout
 # covers the integration harness's one-time migration bootstrap.
@@ -73,32 +75,36 @@ backend-test-coverage-integration:
 backend-test-unit-coverage:
 	cd backend && go test -race -coverprofile=coverage-unit.out ./... -timeout=120s
 
-# Tagged: exactly the two packages that carry `//go:build integration` files.
-# Both need a reachable Postgres (docker-compose locally, service container in
-# CI); override the target database with POSTGRES_TEST_DSN. The longer timeout
-# covers the integration harness's one-time migration bootstrap.
+# The packages that carry `//go:build integration` files — the SINGLE source of
+# truth for both the target below and the guard after it, so the two can never
+# disagree. Note each package owns its own test database (see the respective
+# main_integration_test.go); do NOT set POSTGRES_TEST_DSN across both, that
+# points them at one database and reintroduces the collision they avoid.
+INTEGRATION_TAGGED_PKGS := internal/repositories/postgres internal/services/projectmigration
+INTEGRATION_TEST_PATTERNS := $(addprefix ./,$(addsuffix /...,$(INTEGRATION_TAGGED_PKGS)))
+
+# Tagged half. Needs a reachable Postgres (docker-compose locally, service
+# container in CI). The longer timeout covers the integration harness's one-time
+# migration bootstrap.
 backend-test-integration-coverage:
 	cd backend && go test -race -tags=integration -coverprofile=coverage-integration.out \
-		./internal/repositories/postgres/... ./internal/services/projectmigration/... -timeout=300s
+		$(INTEGRATION_TEST_PATTERNS) -timeout=300s
 
-# The sharding above is only exhaustive while that package list matches reality.
+# The sharding is only exhaustive while INTEGRATION_TAGGED_PKGS matches reality.
 # Add a `//go:build integration` file to a THIRD package and its tagged tests
 # would silently stop running in CI — green, and never executed. This gate makes
-# that a build failure instead. Update both this list and the target above
-# together.
-INTEGRATION_TAGGED_PKGS := internal/repositories/postgres internal/services/projectmigration
-
+# that a build failure instead.
 backend-check-integration-shard:
 	@cd backend && actual=$$(grep -rl '//go:build integration' --include='*.go' . \
 		| sed 's|^\./||; s|/[^/]*$$||' | sort -u); \
 	expected=$$(printf '%s\n' $(INTEGRATION_TAGGED_PKGS) | sort -u); \
 	if [ "$$actual" != "$$expected" ]; then \
 		echo "❌ integration-tagged packages have changed — the CI shard would miss tests."; \
-		echo "   expected (INTEGRATION_TAGGED_PKGS + backend-test-integration-coverage):"; \
+		echo "   expected (INTEGRATION_TAGGED_PKGS):"; \
 		printf '     %s\n' $$expected; \
 		echo "   actually tagged in the tree:"; \
 		printf '     %s\n' $$actual; \
-		echo "   Fix: update INTEGRATION_TAGGED_PKGS and backend-test-integration-coverage in the Makefile."; \
+		echo "   Fix: update INTEGRATION_TAGGED_PKGS in the Makefile (the test target derives from it)."; \
 		exit 1; \
 	fi; \
 	echo "✅ integration-tagged packages match the CI shard."

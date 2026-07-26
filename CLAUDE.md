@@ -60,9 +60,9 @@ These artifacts are **generated and committed**. Change the *source*, run the re
 | Artifact | Committed paths | Regenerate with | Gate |
 |---|---|---|---|
 | oapi-codegen strict-server bindings (one package per spec-first domain) | `backend/internal/server/gen/**/*.gen.go` | `make backend-generate-openapi-server` | CI (`openapi` job) |
-| mockery mocks (~124 files) | `backend/**/mocks/mock_*.go` | `make backend-mock-generate` | CI (`Build & Test` job) |
-| Wire DI bindings | `backend/internal/container/wire_gen.go` | `make backend-wire-gen` | CI (`Build & Test` job) |
-| Config JSON schema | `backend/config.schema.json` | `make backend-generate-config-schema` | CI (`Build & Test` job) |
+| mockery mocks (~124 files) | `backend/**/mocks/mock_*.go` | `make backend-mock-generate` | CI (`unit` job) |
+| Wire DI bindings | `backend/internal/container/wire_gen.go` | `make backend-wire-gen` | CI (`unit` job) |
+| Config JSON schema | `backend/config.schema.json` | `make backend-generate-config-schema` | CI (`unit` job) |
 | Embedded OpenAPI bundle (served at `/openapi.{yaml,json}`) | `backend/internal/server/openapispec/openapi.bundled.{yaml,json}` | `make backend-generate-openapi-bundle` | CI (`openapi` job) + pre-commit |
 | JS + Go API clients | *not in this repo* | automatic on merge to `main` | see the API change flow below |
 

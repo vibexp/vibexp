@@ -26,17 +26,24 @@ name: CI
 #
 # CACHING (issue #638). `actions/setup-go`'s built-in cache keys on Go version +
 # `go.sum` hash ONLY. `go.sum` rarely moves, so the key hit on every run and the
-# action therefore NEVER saved — the restored blob was populated once, long ago,
-# held no `-race -cover` artifacts for this repo's own packages, and every run
-# recompiled all of them (126s of silence before the first `ok` line). So
-# `cache: false` everywhere, plus explicit caches:
-#   * module cache  -> stable `go.sum` key, plain actions/cache (save+restore).
-#   * build cache   -> `go.sum` + commit SHA with a restore-keys ladder, and
-#     restore/save split so ONLY pushes to main save. The entry is ~500MB; a
-#     per-run save would exhaust the 10GB repo cache limit in ~20 runs. PR
-#     branches read main's cache, which is what makes them warm.
-# `unit` is the single saver of the Go build cache: it compiles the whole module
-# in the `-race -cover` mode the test step actually uses.
+# action therefore NEVER saved: the restored blob was whatever one run wrote long
+# ago. It held the compiled stdlib and third-party dependencies (which is why
+# `make backend-build` took 3s and gosec 44s), but NONE of this repo's own
+# packages in `-race -cover` mode — so the test step recompiled all of them every
+# run, the 126s of silence before the first `ok` line.
+#
+# Replacing it therefore has to preserve the dependency floor, not just add the
+# missing part. MEASURED on this PR's first run, with `cache: false` and no entry
+# yet saved under the new keys: `Build` 3s -> 146s, gosec 44s -> 173s,
+# golangci-lint 81s -> 224s. Hence:
+#   * module cache -> stable `go.sum` key, plain actions/cache (save+restore).
+#   * build cache  -> `go.sum` + commit SHA with a restore-keys ladder. ONE
+#     namespace shared by every Go job, because `unit` compiles the module both
+#     plain and with `-race -cover`, making its entry a superset. Restored by
+#     unit/integration/security/lint/openapi; saved by `unit` alone, on pushes to
+#     main plus on a total cache miss (the cold-start escape hatch — see the step
+#     comment). The entry is ~500MB, so an unconditional per-run save would
+#     exhaust the 10GB repo cache limit in ~20 runs.
 
 on:
   pull_request:
@@ -110,13 +117,14 @@ jobs:
             go-mod-${{ runner.os }}-1.25.12-
 
       - name: Restore Go build cache
+        id: go-build-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/go-build
-          key: go-build-test-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-build-test-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
-            go-build-test-${{ runner.os }}-1.25.12-
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
 
       - name: Download dependencies
         run: make backend-download-deps
@@ -169,15 +177,26 @@ jobs:
           path: backend/coverage-unit.out
           retention-days: 1
 
-      # The single saver of the Go build cache — this job compiled the entire
-      # module in the `-race -cover` mode the test step uses. Saving from PR
-      # branches too would burn the 10GB repo budget in ~20 runs.
+      # The single saver of the Go build cache. This job is the right one: it
+      # compiles the module BOTH plain (`make backend-build`) and with
+      # `-race -cover` (the test step), so its cache is a superset that also
+      # serves lint/security/integration.
+      #
+      # Saved on pushes to main, and additionally on a TOTAL cache miss
+      # (`cache-matched-key` empty — not even the loosest restore-key hit). That
+      # second condition is what removes the cold-start cliff: without it, the
+      # very first runs after this lands, or after the cache is evicted, have no
+      # entry to restore and every Go job pays a full cold compile. It cannot run
+      # away — once any entry exists the restore-keys ladder always matches, so
+      # PR runs stop saving again.
       - name: Save Go build cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: >-
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          steps.go-build-cache.outputs.cache-matched-key == ''
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/go-build
-          key: go-build-test-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
 
   integration:
     name: Integration Test
@@ -221,15 +240,16 @@ jobs:
           restore-keys: |
             go-mod-${{ runner.os }}-1.25.12-
 
-      # Restore-only: `unit` owns saving this cache (see the header).
+      # Restore-only: `unit` owns saving this cache (see the header). Its entry
+      # holds the `-race -cover` artifacts this job's test compile needs.
       - name: Restore Go build cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.cache/go-build
-          key: go-build-test-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-build-test-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
-            go-build-test-${{ runner.os }}-1.25.12-
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
 
       - name: Download dependencies
         run: make backend-download-deps
@@ -278,6 +298,18 @@ jobs:
           key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
           restore-keys: |
             go-mod-${{ runner.os }}-1.25.12-
+
+      # govulncheck and gosec both load and type-check the whole module, so they
+      # need the compiled dependency artifacts as much as the test job does —
+      # restore-only, `unit` owns saving.
+      - name: Restore Go build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
 
       # Keyed on the two PINNED versions, so the 32s `go install` is paid once
       # per pin bump rather than once per run. Bumping either version below
@@ -342,8 +374,20 @@ jobs:
           restore-keys: |
             go-mod-${{ runner.os }}-1.25.12-
 
-      # golangci-lint keeps its own build + analysis cache here. It is what
-      # makes a warm run cheap; the job cached nothing before #638.
+      # golangci-lint type-checks the whole module, so it needs GOCACHE just as
+      # much as the build does — restore-only, `unit` owns saving.
+      - name: Restore Go build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
+
+      # golangci-lint also keeps its own analysis cache here, separate from
+      # GOCACHE. It is what makes a warm run cheap; the job cached nothing
+      # before #638.
       - name: Cache golangci-lint analysis cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -426,6 +470,17 @@ jobs:
           restore-keys: |
             go-mod-${{ runner.os }}-1.25.12-
 
+      # The strict-server drift check builds oapi-codegen via `go tool`.
+      # Restore-only: `unit` owns saving.
+      - name: Restore Go build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
+
       # make backend-validate-openapi shells out to `npx @apidevtools/swagger-cli`
       # which resolves and runs the validator on demand — no project install needed.
       - name: Validate OpenAPI specification
@@ -433,14 +488,14 @@ jobs:
 
       # Regenerate the embedded bundle served at /openapi.{yaml,json} (#139) and
       # fail if it drifts from the committed files — same gate as the config
-      # schema. Runs here (not Build & Test) because it needs Node/npx for redocly.
+      # schema. Runs here (not the `unit` job) because it needs Node/npx for redocly.
       - name: Check embedded OpenAPI bundle drift
         run: make backend-openapi-bundle-check
 
       # Regenerate the strict-server bindings from the bundled spec and fail if
       # they drift from the committed files — the gate the
       # backend-generate-openapi-server comment always claimed existed but which
-      # was never actually wired up (#635). Runs here rather than in Build & Test
+      # was never actually wired up (#635). Runs here rather than in the `unit` job
       # because bundling needs Node/npx for redocly.
       - name: Check OpenAPI strict-server drift
         run: make backend-openapi-server-check
