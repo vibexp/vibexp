@@ -238,6 +238,26 @@ describe('Teams page', () => {
 
       expect(screen.getByTestId('team-details-probe')).toBeInTheDocument()
     })
+
+    it('exposes a stable test hook on every team row', async () => {
+      // The e2e suite opens a team through `[data-testid="team-row-link"]`.
+      // Before #559 it selected `a[href*="/teams/"]`, which matches nothing
+      // here — the name cell is a <button>, not a link — so three journey
+      // tests silently asserted nothing for as long as they existed. This
+      // guards the replacement hook: dropping it in a refactor must fail a
+      // fast unit test rather than quietly re-hollow the e2e suite, which
+      // only runs on demand (ci-e2e.yml is workflow_dispatch-only).
+      ;(teamService.getTeams as jest.Mock).mockResolvedValue([
+        buildTeam(),
+        buildTeam({ id: 'team-2', name: 'Design', slug: 'design' }),
+      ])
+
+      renderTeams()
+
+      expect(await screen.findByText('Design')).toBeInTheDocument()
+      expect(screen.getAllByTestId('team-row-link')).toHaveLength(2)
+      expect(screen.getAllByTestId('team-row')).toHaveLength(2)
+    })
   })
 
   describe('create team modal', () => {

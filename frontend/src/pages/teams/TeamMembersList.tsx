@@ -328,7 +328,11 @@ export function TeamMembersList({
     <>
       <Card>
         <CardContent className="p-4">
-          <DataTable columns={columns} data={members} />
+          <DataTable
+            columns={columns}
+            data={members}
+            rowTestId={() => 'team-member-row'}
+          />
         </CardContent>
       </Card>
 

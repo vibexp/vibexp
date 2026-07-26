@@ -49,6 +49,11 @@ function buildColumns(onRowClick: (team: Team) => void): ColumnDef<Team>[] {
       cell: ({ row }) => (
         <button
           type="button"
+          // The e2e hook for opening a team. The row itself has no click
+          // handler — this button does — and the list renders no anchor, so a
+          // href-based selector matches nothing (#559). Asserted in
+          // Teams.test.tsx so a refactor cannot silently drop it.
+          data-testid="team-row-link"
           className="flex flex-col text-left"
           onClick={() => {
             onRowClick(row.original)
@@ -264,7 +269,11 @@ export function Teams() {
             ) : (
               <Card>
                 <CardContent className="p-4">
-                  <DataTable columns={columns} data={teams} />
+                  <DataTable
+                    columns={columns}
+                    data={teams}
+                    rowTestId={() => 'team-row'}
+                  />
                 </CardContent>
               </Card>
             )}
