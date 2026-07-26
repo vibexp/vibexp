@@ -137,7 +137,17 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       ).toBeVisible({ timeout: 10000 })
     })
 
-    test('should auto-generate team slug', async ({ authenticatedPage }) => {
+    // The slug is derived server-side and the SPA never surfaces it:
+    // CreateTeamModal renders only name + description (`CreateTeamModal.tsx`),
+    // no teams route or page displays a slug, and `/teams/:id` routes on the
+    // team id. So there is no selector this test could be pointed at — it was
+    // passing purely because its `count() > 0` guard skipped the whole body
+    // (#607). Skipped explicitly, with the precondition named, so the report
+    // says "skipped" instead of "passed"; unskip if the UI ever exposes a slug
+    // field.
+    test.skip('should auto-generate team slug', async ({
+      authenticatedPage,
+    }) => {
       await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
@@ -147,17 +157,14 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       const teamName = 'My New Team With Spaces'
       await authenticatedPage.fill('[data-testid="team-name-input"]', teamName)
 
-      // Check if slug is auto-generated
       const slugInput = authenticatedPage.locator(
         'input[placeholder*="slug"], input[name="slug"]'
       )
 
-      if ((await slugInput.count()) > 0) {
-        // Wait for the slug to be derived from the name rather than sleeping.
-        await expect(slugInput.first()).not.toHaveValue('', { timeout: 5000 })
-        const slugValue = await slugInput.first().inputValue()
-        expect(slugValue.toLowerCase()).toContain('team')
-      }
+      // Wait for the slug to be derived from the name rather than sleeping.
+      await expect(slugInput.first()).not.toHaveValue('', { timeout: 5000 })
+      const slugValue = await slugInput.first().inputValue()
+      expect(slugValue.toLowerCase()).toContain('team')
     })
 
     test('should require team name', async ({ authenticatedPage }) => {
@@ -570,12 +577,25 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
         timeout: 10000,
       })
 
-      // Click on the team
-      await authenticatedPage.click('text=Team to Delete')
+      // Click on the team. Selected by its test hook: the list renders no
+      // anchor and a bare text selector also matches the header team switcher
+      // (#559, #597).
+      await authenticatedPage
+        .locator('[data-testid="team-row-link"]', { hasText: 'Team to Delete' })
+        .click()
+      await authenticatedPage.waitForURL(/\/teams\/[0-9a-f-]+$/, {
+        timeout: 10000,
+      })
 
-      // Should see delete option
+      // Since #670 delete is a menu item in the scope header's overflow menu,
+      // so it is not in the DOM until the menu is opened — and it carries role
+      // `menuitem`, not `button`. This test kept asserting the pre-#670 shape
+      // and was red on main until #681.
+      await authenticatedPage
+        .locator('[data-testid="team-actions-menu"]')
+        .click()
       await expect(
-        authenticatedPage.getByRole('button', { name: /delete team/i })
+        authenticatedPage.locator('[data-testid="delete-team-button"]')
       ).toBeVisible({ timeout: 10000 })
     })
 
@@ -596,38 +616,38 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
         timeout: 10000,
       })
 
-      await authenticatedPage.click(`text=${teamName}`)
+      await authenticatedPage
+        .locator('[data-testid="team-row-link"]', { hasText: teamName })
+        .click()
+      await authenticatedPage.waitForURL(/\/teams\/[0-9a-f-]+$/, {
+        timeout: 10000,
+      })
 
       // Click delete. Selected by its test hook rather than by text: since
       // #544 the header team switcher renders the current team's name while
       // disabled, so `button:has-text("Delete Team")` also matches the switcher
       // for a team whose name contains that substring - which this fixture's
-      // does. The sibling test above avoids it by using getByRole, since the
-      // switcher carries role="combobox".
+      // does.
       //
       // Since #666 delete sits in the scope header's overflow menu, so the menu
       // is opened first — the item is not in the DOM until then.
       await authenticatedPage
         .locator('[data-testid="team-actions-menu"]')
         .click()
+
+      // Unconditional (#607): the fixture's user owns this team, so the delete
+      // item MUST be there. Swallowing the wait and gating the click on
+      // `count() > 0` meant a missing menu item passed as a green test.
       const deleteButton = authenticatedPage.locator(
         '[data-testid="delete-team-button"]'
       )
-      await deleteButton
-        .first()
-        .waitFor({ state: 'visible', timeout: 10000 })
-        .catch(() => {})
+      await expect(deleteButton).toBeVisible({ timeout: 10000 })
+      await deleteButton.click()
 
-      if ((await deleteButton.count()) > 0) {
-        await deleteButton.click()
-
-        // Should see confirmation dialog
-        await expect(
-          authenticatedPage
-            .getByText(/are you sure|confirm|permanently/i)
-            .first()
-        ).toBeVisible({ timeout: 10000 })
-      }
+      // Should see confirmation dialog
+      await expect(
+        authenticatedPage.getByText(/are you sure|confirm|permanently/i).first()
+      ).toBeVisible({ timeout: 10000 })
     })
   })
 })
