@@ -24,7 +24,7 @@ type MockEmailProvider struct {
 	mock.Mock
 }
 
-func (m *MockEmailProvider) SendEmail(ctx context.Context, message *gomail.EmailMessage) error {
+func (m *MockEmailProvider) SendEmail(ctx context.Context, message *external.OutgoingMessage) error {
 	args := m.Called(ctx, message)
 	return args.Error(0)
 }
@@ -413,7 +413,8 @@ func TestEmailService_SendTeamInvitation(t *testing.T) {
 			inviterName: "Team Lead",
 			setupMock: func() *MockEmailProvider {
 				mockProvider := new(MockEmailProvider)
-				mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(msg *gomail.EmailMessage) bool {
+				mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(out *external.OutgoingMessage) bool {
+					msg := out.Message
 					// Verify the email is sent to the invitee
 					return msg.GetTo()[0] == "newmember@example.com"
 				})).Return(nil).Once()
@@ -623,7 +624,8 @@ func TestEmailService_SendEmail_UsesEmailFromAddress(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedMessage *gomail.EmailMessage
 			mockProvider := new(MockEmailProvider)
-			mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(msg *gomail.EmailMessage) bool {
+			mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(out *external.OutgoingMessage) bool {
+				msg := out.Message
 				capturedMessage = msg
 				return true
 			})).Return(nil)
@@ -670,9 +672,21 @@ func teamResolver(provider external.EmailProvider) *stubSenderResolver {
 	}}
 }
 
+// captureSentOutgoing captures the whole OutgoingMessage, for the assertions
+// about what travels beside the gomail message.
+func captureSentOutgoing(mockProvider *MockEmailProvider, sendErr error) **external.OutgoingMessage {
+	captured := new(*external.OutgoingMessage)
+	mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(out *external.OutgoingMessage) bool {
+		*captured = out
+		return true
+	})).Return(sendErr)
+	return captured
+}
+
 func captureSentMessage(mockProvider *MockEmailProvider, sendErr error) **gomail.EmailMessage {
 	captured := new(*gomail.EmailMessage)
-	mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(msg *gomail.EmailMessage) bool {
+	mockProvider.On("SendEmail", mock.Anything, mock.MatchedBy(func(out *external.OutgoingMessage) bool {
+		msg := out.Message
 		*captured = msg
 		return true
 	})).Return(sendErr)
@@ -715,12 +729,12 @@ func TestEmailService_sendEmail_BareAddressWhenNoFromName(t *testing.T) {
 	assert.Empty(t, (*captured).GetReplyTo())
 }
 
-// A configured from-name must NOT be folded into the From field. gomail validates
-// that field with a plain email regex and returns "" for anything else, so a
-// display name there would send mail with no From header at all — worse than not
-// showing the name. This pins the limitation so nobody "fixes" it by formatting
-// an RFC-5322 address here; carrying a display name properly means threading it
-// through all four providers.
+// A configured from-name must NOT be folded into gomail's From field. gomail
+// validates that field with a plain email regex and returns "" for anything
+// else, so a display name there would send mail with no From header at all —
+// worse than not showing the name. Since #549 the name IS delivered, but on the
+// OutgoingMessage beside this field rather than inside it; this test pins the
+// field itself so nobody "simplifies" the two back into one.
 func TestEmailService_sendEmail_FromNameIsNotFoldedIntoFrom(t *testing.T) {
 	mockProvider := new(MockEmailProvider)
 	captured := captureSentMessage(mockProvider, nil)
@@ -911,4 +925,39 @@ func TestEmailService_SendTeamInvitation_UnconfiguredTeamUsesInstance(t *testing
 		"an unconfigured team sends from the instance address")
 	// Nothing to stamp: there is no team row behind an instance send.
 	assert.Empty(t, resolver.recordedTeam)
+}
+
+// The resolved display name reaches the provider, which is the whole point of
+// #549 — the From address stays bare, and the name rides alongside it.
+func TestEmailService_sendEmail_ForwardsTheResolvedFromName(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	captured := captureSentOutgoing(mockProvider, nil)
+
+	service := NewEmailService(teamResolver(mockProvider), &config.Config{})
+
+	require.NoError(t, service.sendEmail(
+		context.Background(), "team-1", "to@example.com", "S", "<p>b</p>", "b"))
+
+	out := *captured
+	require.NotNil(t, out)
+	assert.Equal(t, "Acme Team", out.FromName)
+	assert.Equal(t, "hello@acme.test", out.Message.GetFrom())
+	assert.Equal(t, `"Acme Team" <hello@acme.test>`, out.FromHeader())
+}
+
+// A sender with no display name — the instance branch — must still produce a
+// bare From, not net/mail's "<addr>" form.
+func TestEmailService_sendEmail_NoFromNameStaysBare(t *testing.T) {
+	mockProvider := new(MockEmailProvider)
+	captured := captureSentOutgoing(mockProvider, nil)
+
+	service := NewEmailService(instanceResolver(mockProvider), &config.Config{})
+
+	require.NoError(t, service.sendEmail(
+		context.Background(), "", "to@example.com", "S", "<p>b</p>", "b"))
+
+	out := *captured
+	require.NotNil(t, out)
+	assert.Empty(t, out.FromName)
+	assert.Equal(t, "test@example.com", out.FromHeader())
 }

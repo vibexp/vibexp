@@ -83,7 +83,7 @@ func TestSendGridEmailProvider_SendEmail_MapsAllFields(t *testing.T) {
 		[]gomail.Attachment{*attachment},
 	)
 
-	err := provider.SendEmail(context.Background(), message)
+	err := provider.SendEmail(context.Background(), outgoing(message, ""))
 
 	require.NoError(t, err)
 	sent := fake.lastMessage
@@ -132,7 +132,7 @@ func TestSendGridEmailProvider_SendEmail_OmitsEmptyOptionalParts(t *testing.T) {
 		"Subject", nil, nil, "", "Plain only", "", nil,
 	)
 
-	err := provider.SendEmail(context.Background(), message)
+	err := provider.SendEmail(context.Background(), outgoing(message, ""))
 
 	require.NoError(t, err)
 	sent := fake.lastMessage
@@ -156,7 +156,7 @@ func TestSendGridEmailProvider_SendEmail_ContextPropagation(t *testing.T) {
 		"Test", nil, nil, "", "text", "<p>html</p>", nil,
 	)
 
-	err := provider.SendEmail(ctx, message)
+	err := provider.SendEmail(ctx, outgoing(message, ""))
 
 	require.NoError(t, err)
 	assert.Equal(t, "abc-123", fake.lastCtx.Value(ctxKey("trace")), "ctx values must be preserved end-to-end")
@@ -174,7 +174,7 @@ func TestSendGridEmailProvider_SendEmail_TransportError(t *testing.T) {
 		"Test Subject", nil, nil, "", "text", "<p>html</p>", nil,
 	)
 
-	err := provider.SendEmail(context.Background(), message)
+	err := provider.SendEmail(context.Background(), outgoing(message, ""))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, sendErr, "underlying transport error must be wrapped with %w")
@@ -193,9 +193,45 @@ func TestSendGridEmailProvider_SendEmail_Non2xxStatus(t *testing.T) {
 		"Test Subject", nil, nil, "", "text", "<p>html</p>", nil,
 	)
 
-	err := provider.SendEmail(context.Background(), message)
+	err := provider.SendEmail(context.Background(), outgoing(message, ""))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "401")
 	assert.Contains(t, err.Error(), "unauthorized")
+}
+
+// TestSendGridEmailProvider_SendEmail_AppliesFromName asserts the RAW name, not
+// an RFC 5322 value: SendGrid takes the display name as its own JSON field and
+// builds the header itself, so handing it a pre-quoted value would show the
+// quoting to the recipient.
+func TestSendGridEmailProvider_SendEmail_AppliesFromName(t *testing.T) {
+	tests := []struct {
+		name     string
+		fromName string
+		wantName string
+	}{
+		{name: "no name", fromName: "", wantName: ""},
+		{name: "whitespace-only name", fromName: "   ", wantName: ""},
+		{name: "plain name", fromName: "Acme Team", wantName: "Acme Team"},
+		{name: "name is trimmed", fromName: "  Acme Team  ", wantName: "Acme Team"},
+		{name: "comma is not escaped by us", fromName: "Acme, Inc.", wantName: "Acme, Inc."},
+		{name: "non-ASCII is passed through", fromName: "Ünïcodé Tëam", wantName: "Ünïcodé Tëam"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &fakeSendgridSender{resp: okResponse()}
+			provider := &SendGridEmailProvider{sender: fake}
+
+			require.NoError(t, provider.SendEmail(
+				context.Background(),
+				outgoing(testMessage(), tt.fromName),
+			))
+
+			require.NotNil(t, fake.lastMessage)
+			require.NotNil(t, fake.lastMessage.From)
+			assert.Equal(t, tt.wantName, fake.lastMessage.From.Name)
+			assert.Equal(t, "hello@acme.test", fake.lastMessage.From.Address)
+		})
+	}
 }

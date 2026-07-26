@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/darkrockmountain/gomail"
-
 	"github.com/vibexp/vibexp/internal/external"
 )
 
@@ -138,6 +136,6 @@ func ProviderLabel(provider external.EmailProvider) string {
 type StubEmailProvider struct{}
 
 // SendEmail discards the message and reports success.
-func (s *StubEmailProvider) SendEmail(_ context.Context, _ *gomail.EmailMessage) error {
+func (s *StubEmailProvider) SendEmail(_ context.Context, _ *external.OutgoingMessage) error {
 	return nil
 }

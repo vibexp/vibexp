@@ -3,6 +3,8 @@ package external
 import (
 	"context"
 	"errors"
+	"net/mail"
+	"strings"
 	"time"
 
 	"github.com/darkrockmountain/gomail"
@@ -26,9 +28,56 @@ var ErrGitHubUserAuthNotConfigured = errors.New("github app user authorization i
 // different app).
 var ErrGitHubUserCodeInvalid = errors.New("github authorization code is invalid or expired")
 
+// OutgoingMessage is one message on its way to a provider: the gomail message
+// plus the sender metadata gomail's own struct has no field for.
+//
+// It exists because gomail.EmailMessage carries the From address only, and
+// validates it with a plain email regex (GetFrom returns "" for anything that
+// is not a bare address). Folding a display name into that field therefore
+// produces a message with NO From header at all. Anything the providers need
+// beyond a bare address travels here instead.
+type OutgoingMessage struct {
+	// Message is the message body and addressing. Its From stays a bare,
+	// gomail-valid address on every path.
+	Message *gomail.EmailMessage
+	// FromName is the display name to show alongside the From address. Empty
+	// means send a bare address, exactly as before this field existed.
+	FromName string
+}
+
+// FromHeader returns the value for the message's From header: the bare address
+// when there is no display name, otherwise the RFC 5322 `"Name" <addr>` form.
+//
+// Encoding goes through net/mail.Address, never string concatenation. That is
+// what makes a team-controlled display name safe: Address.String quotes
+// specials, RFC 2047-encodes non-ASCII, and base64-encodes any CR/LF, so a name
+// cannot inject a second header. Callers that hand the name to a provider SDK
+// with its own name field (SendGrid) should use SanitizedFromName instead and
+// let the SDK encode.
+//
+// The empty-name result is deliberately the bare address rather than
+// mail.Address{Name: ""}.String(), which yields "<addr>" — a different byte
+// sequence from what every provider received before this existed.
+func (m *OutgoingMessage) FromHeader() string {
+	address := m.Message.GetFrom()
+
+	name := m.SanitizedFromName()
+	if name == "" || address == "" {
+		return address
+	}
+
+	return (&mail.Address{Name: name, Address: address}).String()
+}
+
+// SanitizedFromName returns the display name trimmed of surrounding whitespace,
+// which is the form both FromHeader and the name-aware provider SDKs use.
+func (m *OutgoingMessage) SanitizedFromName() string {
+	return strings.TrimSpace(m.FromName)
+}
+
 // EmailProvider defines the interface for email delivery providers
 type EmailProvider interface {
-	SendEmail(ctx context.Context, message *gomail.EmailMessage) error
+	SendEmail(ctx context.Context, message *OutgoingMessage) error
 }
 
 // EmailSender defines the interface for SMTP operations (DEPRECATED: Use EmailProvider instead)

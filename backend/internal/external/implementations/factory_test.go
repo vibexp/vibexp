@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/logging/logtest"
 )
 
@@ -290,14 +291,17 @@ func TestProviderLabel_UnrecognisedProviderIsNotMislabelled(t *testing.T) {
 // to ProviderLabel.
 type unlabelledProvider struct{}
 
-func (unlabelledProvider) SendEmail(_ context.Context, _ *gomail.EmailMessage) error {
+func (unlabelledProvider) SendEmail(_ context.Context, _ *external.OutgoingMessage) error {
 	return nil
 }
 
 func TestStubEmailProvider_SendEmailDiscards(t *testing.T) {
 	stub := &StubEmailProvider{}
 
-	assert.NoError(t, stub.SendEmail(context.Background(), gomail.NewEmailMessage(
-		"from@example.com", []string{"to@example.com"}, "subject", "body",
-	)))
+	assert.NoError(t, stub.SendEmail(context.Background(), &external.OutgoingMessage{
+		Message: gomail.NewEmailMessage(
+			"from@example.com", []string{"to@example.com"}, "subject", "body",
+		),
+		FromName: "Acme Team",
+	}))
 }

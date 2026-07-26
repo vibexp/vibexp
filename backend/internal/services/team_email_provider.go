@@ -14,6 +14,7 @@ import (
 
 	"github.com/vibexp/vibexp/internal/authz"
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/external/implementations"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
@@ -301,18 +302,7 @@ func (s *TeamEmailProviderService) Test(
 		}, nil
 	}
 
-	message := gomail.NewFullEmailMessage(
-		strings.TrimSpace(req.FromAddress),
-		[]string{recipient},
-		testEmailSubject,
-		nil, nil,
-		optionalValue(req.ReplyTo),
-		testEmailBodyText,
-		testEmailBodyHTML,
-		nil,
-	)
-
-	if sendErr := provider.SendEmail(ctx, message); sendErr != nil {
+	if sendErr := provider.SendEmail(ctx, testMessageFor(req, recipient)); sendErr != nil {
 		return &models.TeamEmailProviderTestResult{
 			Success:      false,
 			Recipient:    recipient,
@@ -326,6 +316,27 @@ func (s *TeamEmailProviderService) Test(
 		Recipient: recipient,
 		Message:   "Test email sent to " + recipient,
 	}, nil
+}
+
+// testMessageFor builds the test send for req, addressed to recipient.
+//
+// It carries the request's display name as well as its address, so what a team
+// previews is what its real mail will look like — and, like every other send,
+// the gomail From field stays a bare address while the name travels beside it.
+func testMessageFor(req models.TestTeamEmailProviderRequest, recipient string) *external.OutgoingMessage {
+	return &external.OutgoingMessage{
+		Message: gomail.NewFullEmailMessage(
+			strings.TrimSpace(req.FromAddress),
+			[]string{recipient},
+			testEmailSubject,
+			nil, nil,
+			optionalValue(req.ReplyTo),
+			testEmailBodyText,
+			testEmailBodyHTML,
+			nil,
+		),
+		FromName: optionalValue(req.FromName),
+	}
 }
 
 // actingUserEmail resolves the recipient of a test send. Fixing it to the acting
