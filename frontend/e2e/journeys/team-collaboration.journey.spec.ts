@@ -142,12 +142,15 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     // no teams route or page displays a slug, and `/teams/:id` routes on the
     // team id. So there is no selector this test could be pointed at — it was
     // passing purely because its `count() > 0` guard skipped the whole body
-    // (#607). Skipped explicitly, with the precondition named, so the report
-    // says "skipped" instead of "passed"; unskip if the UI ever exposes a slug
-    // field.
-    test.skip('should auto-generate team slug', async ({
-      authenticatedPage,
-    }) => {
+    // (#607). Skipped via the annotation form rather than `test.skip(title,
+    // fn)` so the reason travels into the report instead of living only here;
+    // drop the skip if the UI ever exposes a slug field.
+    test('should auto-generate team slug', async ({ authenticatedPage }) => {
+      test.skip(
+        true,
+        'CreateTeamModal renders only name + description — the server-derived slug is never surfaced in the SPA (#607)'
+      )
+
       await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
