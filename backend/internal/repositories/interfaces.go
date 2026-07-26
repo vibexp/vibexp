@@ -320,16 +320,8 @@ type UserRepository interface {
 	// GetByIDPSubject looks up a user by the (idp_provider, idp_subject) tuple
 	// populated by the provider-agnostic auth flow.
 	GetByIDPSubject(ctx context.Context, provider, subject string) (*models.User, error)
-	GetByStripeCustomerID(ctx context.Context, stripeCustomerID string) (*models.User, error)
 	Create(ctx context.Context, user *models.User) error
 	Update(ctx context.Context, user *models.User) error
-	UpdateSubscriptionStatus(ctx context.Context, userID, status string, plan *string) error
-	UpdateSubscriptionStatusWithTrial(ctx context.Context, userID, status string, plan *string, trialEnd *time.Time) error
-	UpdateSubscriptionWithCancellation(
-		ctx context.Context, userID, status string, plan *string, trialEnd *time.Time, canceledAt *time.Time,
-	) error
-	UpdateStripeCustomerID(ctx context.Context, userID, customerID string) error
-	UpdateTrialEndsAt(ctx context.Context, userID string, trialEndsAt *time.Time) error
 	UpdateDefaultTeamID(ctx context.Context, userID, teamID string) error
 	MarkOnboardingCompleted(ctx context.Context, userID string) error
 	// GetNamesByIDs returns a map of userID → display name (or email when name is blank)

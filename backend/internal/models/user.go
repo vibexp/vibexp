@@ -6,16 +6,13 @@ import (
 
 // UserBasicInfo is a safe, minimal DTO that exposes only non-sensitive user
 // fields over the MCP protocol. Sensitive fields (GoogleID, IDPProvider,
-// IDPSubject, StripeCustomerID, SubscriptionCanceledAt, Version) are
-// intentionally excluded.
+// IDPSubject, Version) are intentionally excluded.
 type UserBasicInfo struct {
 	ID                  string    `json:"id"`
 	Email               string    `json:"email"`
 	Name                string    `json:"name"`
 	AvatarURL           *string   `json:"avatar_url,omitempty"`
 	DefaultTeamID       *string   `json:"default_team_id,omitempty"`
-	SubscriptionStatus  string    `json:"subscription_status"`
-	SubscriptionPlan    *string   `json:"subscription_plan,omitempty"`
 	OnboardingCompleted bool      `json:"onboarding_completed"`
 	CreatedAt           time.Time `json:"created_at"`
 }
@@ -29,33 +26,26 @@ func NewUserBasicInfo(u *User) *UserBasicInfo {
 		Name:                u.Name,
 		AvatarURL:           u.AvatarURL,
 		DefaultTeamID:       u.DefaultTeamID,
-		SubscriptionStatus:  u.SubscriptionStatus,
-		SubscriptionPlan:    u.SubscriptionPlan,
 		OnboardingCompleted: u.OnboardingCompleted,
 		CreatedAt:           u.CreatedAt,
 	}
 }
 
 type User struct {
-	ID                     string     `json:"id" db:"id"`
-	GoogleID               *string    `json:"google_id,omitempty" db:"google_id"`
-	IDPProvider            *string    `json:"idp_provider,omitempty" db:"idp_provider"`
-	IDPSubject             *string    `json:"idp_subject,omitempty" db:"idp_subject"`
-	Email                  string     `json:"email" db:"email"`
-	Name                   string     `json:"name" db:"name"`
-	AvatarURL              *string    `json:"avatar_url" db:"avatar_url"`
-	StripeCustomerID       *string    `json:"stripe_customer_id,omitempty" db:"stripe_customer_id"`
-	SubscriptionStatus     string     `json:"subscription_status" db:"subscription_status"`
-	TrialEndsAt            *time.Time `json:"trial_ends_at,omitempty" db:"trial_ends_at"`
-	SubscriptionPlan       *string    `json:"subscription_plan,omitempty" db:"subscription_plan"`
-	SubscriptionCanceledAt *time.Time `json:"-" db:"subscription_canceled_at"`
-	DefaultTeamID          *string    `json:"default_team_id,omitempty" db:"default_team_id"`
-	Status                 string     `json:"status" db:"status"`
-	OnboardingCompleted    bool       `json:"onboarding_completed" db:"onboarding_completed"`
-	OnboardingCompletedAt  *time.Time `json:"onboarding_completed_at,omitempty" db:"onboarding_completed_at"`
-	CreatedAt              time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt              time.Time  `json:"updated_at" db:"updated_at"`
-	Version                int64      `json:"version" db:"version"`
+	ID                    string     `json:"id" db:"id"`
+	GoogleID              *string    `json:"google_id,omitempty" db:"google_id"`
+	IDPProvider           *string    `json:"idp_provider,omitempty" db:"idp_provider"`
+	IDPSubject            *string    `json:"idp_subject,omitempty" db:"idp_subject"`
+	Email                 string     `json:"email" db:"email"`
+	Name                  string     `json:"name" db:"name"`
+	AvatarURL             *string    `json:"avatar_url" db:"avatar_url"`
+	DefaultTeamID         *string    `json:"default_team_id,omitempty" db:"default_team_id"`
+	Status                string     `json:"status" db:"status"`
+	OnboardingCompleted   bool       `json:"onboarding_completed" db:"onboarding_completed"`
+	OnboardingCompletedAt *time.Time `json:"onboarding_completed_at,omitempty" db:"onboarding_completed_at"`
+	CreatedAt             time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at" db:"updated_at"`
+	Version               int64      `json:"version" db:"version"`
 }
 
 // CurrentUserResponse is the GET /api/v1/auth/me payload: the authenticated

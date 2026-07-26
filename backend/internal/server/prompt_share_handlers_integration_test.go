@@ -70,46 +70,11 @@ func (m *mockUserRepository) GetByIDPSubject(ctx context.Context, provider, subj
 	return nil, nil
 }
 
-func (m *mockUserRepository) GetByStripeCustomerID(ctx context.Context, stripeCustomerID string) (*models.User, error) {
-	return nil, nil
-}
-
 func (m *mockUserRepository) Create(ctx context.Context, user *models.User) error {
 	return nil
 }
 
 func (m *mockUserRepository) Update(ctx context.Context, user *models.User) error {
-	return nil
-}
-
-func (m *mockUserRepository) UpdateSubscriptionStatus(ctx context.Context, userID, status string, plan *string) error {
-	return nil
-}
-
-func (m *mockUserRepository) UpdateSubscriptionStatusWithTrial(
-	ctx context.Context,
-	userID, status string,
-	plan *string,
-	trialEnd *time.Time,
-) error {
-	return nil
-}
-
-func (m *mockUserRepository) UpdateSubscriptionWithCancellation(
-	ctx context.Context,
-	userID, status string,
-	plan *string,
-	trialEnd *time.Time,
-	canceledAt *time.Time,
-) error {
-	return nil
-}
-
-func (m *mockUserRepository) UpdateStripeCustomerID(ctx context.Context, userID, customerID string) error {
-	return nil
-}
-
-func (m *mockUserRepository) UpdateTrialEndsAt(ctx context.Context, userID string, trialEndsAt *time.Time) error {
 	return nil
 }
 
