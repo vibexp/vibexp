@@ -223,8 +223,6 @@ func TestHandleCreateMemory_Success(t *testing.T) {
 		}, nil)
 
 	// Mock service expectations (team validation is done by middleware, not tested here)
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "test-user-123", "memory").
-		Return(true, nil)
 	mockContainer.memoryService.On(
 		"CreateMemory",
 		"test-user-123",
@@ -260,7 +258,6 @@ func TestHandleCreateMemory_Success(t *testing.T) {
 	assert.Equal(t, "work", response.Metadata["category"])
 
 	mockContainer.memoryService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleCreateMemory_ValidationError tests memory creation with invalid input
@@ -291,36 +288,6 @@ func TestHandleCreateMemory_ValidationError(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 		})
 	}
-}
-
-// TestHandleCreateMemory_ResourceLimitExceeded tests memory creation when resource limit is exceeded
-func TestHandleCreateMemory_ResourceLimitExceeded(t *testing.T) {
-	mockContainer := newMockMemoryContainer(t)
-
-	// Mock project repository: project belongs to the correct team
-	mockContainer.projectRepository.On("GetByID", mock.Anything, "test-user-123", testHandlerProjectID).
-		Return(&models.Project{
-			ID:     testHandlerProjectID,
-			UserID: "test-user-123",
-			TeamID: "team-123",
-		}, nil)
-
-	// Mock resource limit exceeded
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "test-user-123", "memory").
-		Return(false, nil)
-
-	srv := createMemoryTestServer(mockContainer)
-	reqBody := map[string]interface{}{
-		"project_id": testHandlerProjectID,
-		"text":       "Test memory text",
-	}
-	req := makeMemoryAuthenticatedRequest("POST", "/api/v1/team-123/memories", reqBody, "test-user-123")
-	req = addRouteParams(req, map[string]string{"team_id": "team-123"})
-	w := httptest.NewRecorder()
-
-	srv.handleCreateMemory(w, req)
-
-	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
 // TestHandleGetMemory_Success tests successful memory retrieval with mocked service
@@ -502,8 +469,6 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 		Version:   2,
 	}
 
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "test-user-123", "memory").
-		Return(true, nil)
 	mockContainer.memoryService.On(
 		"UpdateMemory",
 		"test-user-123",
@@ -536,15 +501,12 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 	assert.Equal(t, "Updated memory text", response.Text)
 
 	mockContainer.memoryService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleUpdateMemory_NotFound tests memory update when memory doesn't exist
 func TestHandleUpdateMemory_NotFound(t *testing.T) {
 	mockContainer := newMockMemoryContainer(t)
 
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "test-user-123", "memory").
-		Return(true, nil)
 	mockContainer.memoryService.On("UpdateMemory", "test-user-123", mock.Anything, "nonexistent-123", mock.Anything).
 		Return(nil, repositories.ErrMemoryNotFound)
 
@@ -802,8 +764,6 @@ func TestHandleUpdateMemory_OnlyProjectID(t *testing.T) {
 		UpdatedAt: now,
 	}
 
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "test-user-123", "memory").
-		Return(true, nil)
 	mockContainer.memoryService.On(
 		"UpdateMemory",
 		"test-user-123",

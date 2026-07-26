@@ -137,9 +137,6 @@ func TestHandleCreateBlueprint_Success(t *testing.T) {
 	mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
 		Return(true, nil)
 
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
-		Return(true, nil)
-
 	mockBlueprintService.On(
 		"CreateBlueprint",
 		"user-123",
@@ -202,7 +199,6 @@ func TestHandleCreateBlueprint_Success(t *testing.T) {
 
 	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
-	mockResourceService.AssertExpectations(t)
 }
 
 // TestHandleCreateBlueprint_PathErrors covers the #339 error mappings: a
@@ -232,8 +228,6 @@ func TestHandleCreateBlueprint_PathErrors(t *testing.T) {
 			mockAPIKeyService.On("ValidateAPIKey", mock.Anything, "vxk_test_fake_key_for_testing").
 				Return(&models.APIKey{ID: "api-key-123", UserID: "user-123"}, nil)
 			mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
-				Return(true, nil)
-			mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
 				Return(true, nil)
 			mockBlueprintService.On("CreateBlueprint", "user-123", "550e8400-e29b-41d4-a716-446655440000",
 				mock.Anything).Return(nil, tc.svcErr)
@@ -329,40 +323,6 @@ func TestHandleCreateBlueprint_ValidationError(t *testing.T) {
 	}
 }
 
-// TestHandleCreateBlueprint_ResourceLimitExceeded tests resource limit exceeded
-func TestHandleCreateBlueprint_ResourceLimitExceeded(t *testing.T) {
-	srv, _, mockResourceService := setupTestServerForBlueprint(t, func(
-		specLibSvc *servicesmocks.MockBlueprintServiceInterface,
-		resourceSvc *servicesmocks.MockResourceUsageServiceInterface,
-		teamSvc *servicesmocks.MockTeamServiceInterface,
-	) {
-		resourceSvc.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
-			Return(false, nil)
-		teamSvc.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
-			Return(true, nil)
-	})
-
-	reqBody := `{
-		"project_id": "550e8400-e29b-41d4-a716-446655440000",
-		"slug": "test-slug",
-		"title": "New Blueprint",
-		"content": "New Spec Content"
-	}`
-
-	req := createBlueprintAuthenticatedRequest(
-		"POST",
-		"/api/v1/550e8400-e29b-41d4-a716-446655440000/blueprints",
-		reqBody,
-		"user-123",
-	)
-	rr := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-	mockResourceService.AssertExpectations(t)
-}
-
 // TestHandleCreateBlueprint_ServiceError tests service errors
 func TestHandleCreateBlueprint_ServiceError(t *testing.T) {
 	srv, mockBlueprintService, _ := setupTestServerForBlueprint(t, func(
@@ -370,8 +330,6 @@ func TestHandleCreateBlueprint_ServiceError(t *testing.T) {
 		resourceSvc *servicesmocks.MockResourceUsageServiceInterface,
 		teamSvc *servicesmocks.MockTeamServiceInterface,
 	) {
-		resourceSvc.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
-			Return(true, nil)
 		specLibSvc.On("CreateBlueprint", "user-123", "550e8400-e29b-41d4-a716-446655440000", mock.Anything).
 			Return((*models.Blueprint)(nil), errors.New("blueprint already exists"))
 		teamSvc.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
@@ -507,7 +465,6 @@ func TestHandleCreateBlueprint_ValidTypes(t *testing.T) {
 				mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
 					Return(true, nil)
 
-				mockRes.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").Return(true, nil)
 				now := time.Now()
 				createdSpec := &models.Blueprint{
 					ID: "spec-123", ProjectID: "shared", UserID: "user-123", CreatedAt: now, UpdatedAt: now,
@@ -1005,9 +962,6 @@ func TestHandleUpdateBlueprint_Success(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
-		Return(true, nil)
-
 	mockBlueprintService.On(
 		"UpdateBlueprintByProjectIDAndSlugInTeam",
 		"user-123",
@@ -1051,7 +1005,6 @@ func TestHandleUpdateBlueprint_Success(t *testing.T) {
 	assert.Equal(t, "Updated Title", response.Title)
 	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
-	mockResourceService.AssertExpectations(t)
 }
 
 // TestHandleUpdateBlueprint_NotFound tests update on non-existent blueprint
@@ -1071,9 +1024,6 @@ func TestHandleUpdateBlueprint_NotFound(t *testing.T) {
 	// Mock team membership validation
 	mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", mock.AnythingOfType("string")).
 		Return(true, nil).Maybe()
-
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
-		Return(true, nil)
 
 	mockBlueprintService.On(
 		"UpdateBlueprintByProjectIDAndSlugInTeam",
@@ -1121,8 +1071,6 @@ func TestHandleUpdateBlueprint_InvalidPath(t *testing.T) {
 		Return(&models.APIKey{ID: "api-key-123", UserID: "user-123"}, nil)
 	mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", mock.AnythingOfType("string")).
 		Return(true, nil).Maybe()
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
-		Return(true, nil)
 	mockBlueprintService.On("UpdateBlueprintByProjectIDAndSlugInTeam",
 		"user-123", "550e8400-e29b-41d4-a716-446655440000",
 		"550e8400-e29b-41d4-a716-446655440000", "s",
@@ -1166,9 +1114,6 @@ func TestHandleUpdateBlueprint_ValidationError(t *testing.T) {
 	// Mock team membership validation
 	mockTeamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", mock.AnythingOfType("string")).
 		Return(true, nil).Maybe()
-
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
-		Return(true, nil)
 
 	mockContainer := &MockBlueprintContainer{
 		BlueprintServiceMock:     mockBlueprintService,
@@ -1586,17 +1531,15 @@ func TestHandleCreateBlueprint_SubtypeValidation(t *testing.T) {
 // runSubtypeValidationTest is a helper for subtype validation tests
 func runSubtypeValidationTest(t *testing.T, body string, expectedStatus int, errorMessage string) {
 	t.Helper()
-	srv, mockBlueprintService, mockResourceUsageService := setupTestServerForBlueprint(t,
+	srv, mockBlueprintService, _ := setupTestServerForBlueprint(t,
 		func(specLibSvc *servicesmocks.MockBlueprintServiceInterface,
 			resourceUsageSvc *servicesmocks.MockResourceUsageServiceInterface,
 			mockTeam *servicesmocks.MockTeamServiceInterface) {
-			// Only set up CheckResourceLimit expectation for success cases
+			// Only set up service expectations for success cases
 			if expectedStatus == http.StatusCreated {
 				mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
 					Return(true, nil)
 
-				resourceUsageSvc.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
-					Return(true, nil)
 				specLibSvc.On("CreateBlueprint", "user-123", "550e8400-e29b-41d4-a716-446655440000", mock.Anything).
 					Return(&models.Blueprint{ID: "spec-1"}, nil)
 			}
@@ -1622,18 +1565,14 @@ func runSubtypeValidationTest(t *testing.T, body string, expectedStatus int, err
 	}
 
 	mockBlueprintService.AssertExpectations(t)
-	mockResourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleUpdateBlueprint_SubtypeValidationOnTypeChange tests subtype validation on type change
 func TestHandleUpdateBlueprint_SubtypeValidationOnTypeChange(t *testing.T) {
-	srv, mockBlueprintService, mockResourceUsageService := setupTestServerForBlueprint(t,
+	srv, mockBlueprintService, _ := setupTestServerForBlueprint(t,
 		func(specLibSvc *servicesmocks.MockBlueprintServiceInterface,
 			resourceUsageSvc *servicesmocks.MockResourceUsageServiceInterface,
 			mockTeam *servicesmocks.MockTeamServiceInterface) {
-			// Resource limit check happens before validation
-			resourceUsageSvc.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").
-				Return(true, nil)
 			// No service expectations because validation should fail before service call
 		})
 
@@ -1655,7 +1594,6 @@ func TestHandleUpdateBlueprint_SubtypeValidationOnTypeChange(t *testing.T) {
 	assert.Contains(t, errResp["detail"], "Subtype cannot be set for type 'general'")
 
 	mockBlueprintService.AssertExpectations(t)
-	mockResourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleListBlueprintsByProject_Success tests successful blueprint listing by project
@@ -2010,7 +1948,6 @@ func TestHandleCreateBlueprint_NewTypes(t *testing.T) {
 				mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
 					Return(true, nil)
 
-				mockRes.On("CheckResourceLimit", mock.Anything, "user-123", "blueprint").Return(true, nil)
 				now := time.Now()
 				createdSpec := &models.Blueprint{
 					ID: "spec-123", ProjectID: "shared", UserID: "user-123", CreatedAt: now, UpdatedAt: now,

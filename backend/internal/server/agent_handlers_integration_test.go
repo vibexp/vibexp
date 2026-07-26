@@ -384,10 +384,6 @@ func TestHandleCreateAgent_Success(t *testing.T) {
 		UpdatedAt:   time.Now(),
 	}
 
-	// Mock resource limit check
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-123", "agent").
-		Return(true, nil)
-
 	// Mock the default-team lookup - setup default team mock
 	setupDefaultTeamMock(mockContainer, "user-123", "team-123")
 
@@ -419,7 +415,6 @@ func TestHandleCreateAgent_Success(t *testing.T) {
 	assert.Equal(t, expectedAgent.CardURL, response.CardURL)
 
 	mockContainer.agentService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 	mockContainer.authService.AssertExpectations(t)
 }
 
@@ -435,8 +430,6 @@ func TestHandleCreateAgent_NameConflict(t *testing.T) {
 		Status:  "active",
 	}
 
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-123", "agent").
-		Return(true, nil)
 	setupDefaultTeamMock(mockContainer, "user-123", "team-123")
 	mockContainer.agentService.On("CreateAgent", mock.Anything, "user-123", "team-123", mock.Anything).
 		Return((*models.Agent)(nil), fmt.Errorf("failed to create agent: %w", repositories.ErrAgentNameConflict))
@@ -508,38 +501,6 @@ func TestHandleCreateAgent_ValidationError(t *testing.T) {
 			assert.Contains(t, response, "request_id")
 		})
 	}
-}
-
-// TestHandleCreateAgent_ResourceLimitExceeded tests create agent when resource limit exceeded
-func TestHandleCreateAgent_ResourceLimitExceeded(t *testing.T) {
-	mockContainer := newMockAgentContainer(t)
-
-	reqBody := &models.CreateAgentRequest{
-		Name:    "New Agent",
-		CardURL: "http://example.com/agent.json",
-	}
-
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-123", "agent").
-		Return(false, nil)
-
-	setupDefaultTeamMock(mockContainer, "user-123", "team-123")
-
-	srv := createTestAgentServer(mockContainer)
-	req := makeAgentAuthenticatedRequest("POST", "/api/v1/team-123/agents", reqBody, "user-123")
-	w := httptest.NewRecorder()
-
-	srv.ServeHTTP(w, req)
-	specconformance.AssertConformsToSpec(t, req, w)
-
-	assert.Equal(t, http.StatusForbidden, w.Code)
-
-	var response map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	assert.NoError(t, err)
-
-	assert.Equal(t, "RESOURCE_LIMIT_EXCEEDED", response["code"])
-
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleUpdateAgent_Success tests successful agent update

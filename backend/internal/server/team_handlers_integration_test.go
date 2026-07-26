@@ -370,9 +370,6 @@ func TestHandleCreateTeam_Success(t *testing.T) {
 		UpdatedAt:   time.Now(),
 	}
 
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-789", mock.Anything).
-		Return(true, nil)
-
 	mockContainer.teamService.On("CreateTeam", mock.Anything, "user-789", &createReq).
 		Return(expectedTeam, nil)
 
@@ -402,7 +399,6 @@ func TestHandleCreateTeam_Success(t *testing.T) {
 	assert.Equal(t, "Team description", response.Description)
 
 	mockContainer.teamService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 	mockContainer.projectService.AssertExpectations(t)
 }
 
@@ -427,9 +423,6 @@ func TestHandleCreateTeam_DefaultProjectFailure(t *testing.T) {
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-789", mock.Anything).
-		Return(true, nil)
 
 	mockContainer.teamService.On("CreateTeam", mock.Anything, "user-789", &createReq).
 		Return(expectedTeam, nil)
@@ -459,7 +452,6 @@ func TestHandleCreateTeam_DefaultProjectFailure(t *testing.T) {
 	assert.Equal(t, "Team description", response.Description)
 
 	mockContainer.teamService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 	mockContainer.projectService.AssertExpectations(t)
 }
 
@@ -746,37 +738,6 @@ func TestHandleRemoveTeamMember_Success(t *testing.T) {
 	specconformance.AssertConformsToSpec(t, req, w)
 
 	mockContainer.teamService.AssertExpectations(t)
-}
-
-// TestHandleCreateTeam_ResourceLimitExceeded tests team creation when resource limit is exceeded
-func TestHandleCreateTeam_ResourceLimitExceeded(t *testing.T) {
-	mockContainer := newMockTeamContainer(t)
-
-	createReq := models.CreateTeamRequest{
-		Name:        "New Team",
-		Description: "Team description",
-	}
-
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-limit", mock.Anything).
-		Return(false, nil)
-
-	srv := createTestTeamServer(mockContainer)
-
-	reqBody, err := json.Marshal(createReq)
-	assert.NoError(t, err)
-
-	req := httptest.NewRequest("POST", "/api/v1/teams", bytes.NewReader(reqBody))
-	req.Header.Set("Content-Type", "application/json")
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, "user-limit"))
-	w := httptest.NewRecorder()
-
-	srv.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusForbidden, w.Code)
-	specconformance.AssertConformsToSpec(t, req, w)
-	assert.Contains(t, w.Body.String(), "RESOURCE_LIMIT_EXCEEDED")
-
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleListTeams_ServiceError tests error handling when service fails

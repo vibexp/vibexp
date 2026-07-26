@@ -801,39 +801,6 @@ func (m *mockAgentExecRepo) ListConversations(
 	return args.Get(0).([]models.ConversationSummary), args.Int(1), args.Error(2)
 }
 
-func TestCheckResourceLimit(t *testing.T) {
-	// The open-source build has no paid tiers or quotas: CheckResourceLimit
-	// always permits the operation regardless of resource type or usage.
-	service := NewResourceUsageService(ResourceUsageServiceDeps{
-		UserRepo:             new(mockUserRepo),
-		PromptRepo:           new(mockPromptRepo),
-		ArtifactRepo:         new(mockArtifactRepo),
-		MemoryRepo:           new(mockMemoryRepo),
-		AgentRepo:            new(mockAgentRepo),
-		AgentExecRepo:        new(mockAgentExecRepo),
-		SpecLibraryRepo:      new(mockSpecLibraryRepo),
-		TeamRepo:             new(mockTeamRepo),
-		TeamMemberRepo:       new(mockTeamMemberRepo),
-		TeamSubscriptionRepo: new(mockTeamSubscriptionRepo),
-		FeedRepo:             new(mockFeedRepo),
-		FeedItemRepo:         new(mockFeedItemRepo),
-		FeedItemReplyRepo:    new(mockFeedItemReplyRepo),
-		Logger:               slog.New(slog.DiscardHandler),
-	})
-
-	for _, resourceType := range []string{
-		events.ResourceTypePrompt,
-		events.ResourceTypeArtifact,
-		events.ResourceTypeMemory,
-		events.ResourceTypeBlueprint,
-		events.ResourceTypeTeam,
-	} {
-		allowed, err := service.CheckResourceLimit(context.Background(), "test-user-id", resourceType)
-		assert.NoError(t, err)
-		assert.True(t, allowed)
-	}
-}
-
 func TestNormalizePlanName_StripePlans(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -1858,8 +1825,6 @@ func TestGetTeamQuotaContribution_InactiveSubscriptionExcluded(t *testing.T) {
 	teamSubscriptionRepo.AssertExpectations(t)
 }
 
-// TestCheckResourceLimit_WithTeamQuota tests quota aggregation (individual + team)
-//
 // TestGetResourceUsage_WithTeamQuotaBreakdown tests that GetResourceUsage returns quota breakdown
 //
 //nolint:funlen // Table-driven test with multiple quota aggregation scenarios

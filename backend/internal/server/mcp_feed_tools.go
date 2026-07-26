@@ -11,7 +11,6 @@ import (
 
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
-	"github.com/vibexp/vibexp/pkg/events"
 )
 
 // excerptMaxLen is the maximum character length for reply/memory excerpts in list responses.
@@ -255,30 +254,6 @@ func (s *Server) postToFeed(
 		}, nil, nil
 	}
 
-	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeedItem)
-	if err != nil {
-		slog.Error(
-			"Failed to check feed item resource limit",
-			"tool", "vibexp_io_post_to_feed",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		)
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "Failed to check resource limit"},
-			},
-			IsError: true,
-		}, nil, nil
-	}
-	if !allowed {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "You have reached the maximum number of feed items allowed for your subscription plan"},
-			},
-			IsError: true,
-		}, nil, nil
-	}
-
 	req := &models.CreateFeedItemRequest{
 		Title:           params.Title,
 		Content:         params.Content,
@@ -351,30 +326,6 @@ func (s *Server) replyToFeedItem(
 	var assistantNamePtr *string
 	if assistantName != "" {
 		assistantNamePtr = &assistantName
-	}
-
-	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeedItem)
-	if err != nil {
-		slog.Error(
-			"Failed to check feed item resource limit",
-			"tool", "vibexp_io_reply_to_feed_item",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		)
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "Failed to check resource limit"},
-			},
-			IsError: true,
-		}, nil, nil
-	}
-	if !allowed {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "You have reached the maximum number of feed items allowed for your subscription plan"},
-			},
-			IsError: true,
-		}, nil, nil
 	}
 
 	req := &models.CreateFeedItemReplyRequest{

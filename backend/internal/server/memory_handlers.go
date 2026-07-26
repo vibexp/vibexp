@@ -95,10 +95,6 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.checkMemoryResourceLimit(w, r, userID) {
-		return
-	}
-
 	memory, err := s.container.MemoryService().CreateMemory(userID, teamID, &req)
 	if err != nil {
 		s.handleCreateMemoryError(w, userID, err)
@@ -113,37 +109,6 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeCreated(w, memory, s.logger)
-}
-
-func (s *Server) checkMemoryResourceLimit(w http.ResponseWriter, r *http.Request, userID string) bool {
-	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(r.Context(), userID, "memory")
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleCreateMemory",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to check resource limit")
-		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
-		return false
-	}
-
-	if !allowed {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleCreateMemory",
-			"user_id", userID,
-			"resource_type", "memory",
-		).Warn("User has reached their memory limit")
-		writeErrorResponse(
-			w, nil, "resource_limit_exceeded",
-			"You have reached the maximum number of memories allowed for your subscription plan",
-			http.StatusForbidden,
-		)
-		return false
-	}
-
-	return true
 }
 
 func (s *Server) logMemoryError(handler, userID, memoryID string, err error, msg string) {
@@ -317,11 +282,6 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 		"team_id", teamID,
 		"memory_id", memoryID,
 	).Info("Update memory request received")
-
-	// Check resource limit before allowing update
-	if !s.checkMemoryResourceLimit(w, r, userID) {
-		return
-	}
 
 	var req models.UpdateMemoryRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {

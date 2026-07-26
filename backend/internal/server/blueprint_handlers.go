@@ -53,10 +53,6 @@ func (s *Server) handleCreateBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.checkBlueprintResourceLimit(w, r.Context(), userID) {
-		return
-	}
-
 	blueprint, err := s.container.BlueprintService().CreateBlueprint(userID, teamID, &req)
 	if err != nil {
 		s.handleCreateBlueprintError(w, userID, err)
@@ -232,10 +228,6 @@ func (s *Server) handleUpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 		"project_id", decodedProjectID,
 		"slug", decodedSlug,
 	).Info("Update blueprint request received")
-
-	if !s.checkBlueprintResourceLimit(w, r.Context(), userID) {
-		return
-	}
 
 	var req models.UpdateBlueprintRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
@@ -578,38 +570,6 @@ func (s *Server) validateBlueprintStatus(w http.ResponseWriter, status *string) 
 		writeErrorResponse(w, nil, "validation_error", "Status must be one of: active, expired", http.StatusBadRequest)
 		return false
 	}
-	return true
-}
-
-// checkBlueprintResourceLimit checks if user has reached their blueprint resource limit
-func (s *Server) checkBlueprintResourceLimit(w http.ResponseWriter, ctx context.Context, userID string) bool {
-	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, "blueprint")
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkBlueprintResourceLimit",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to check resource limit")
-		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
-		return false
-	}
-
-	if !allowed {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkBlueprintResourceLimit",
-			"user_id", userID,
-			"resource_type", "blueprint",
-		).Warn("User has reached their blueprint limit")
-		writeErrorResponse(
-			w, nil, "resource_limit_exceeded",
-			"You have reached the maximum number of blueprints allowed for your subscription plan",
-			http.StatusForbidden,
-		)
-		return false
-	}
-
 	return true
 }
 

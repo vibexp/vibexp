@@ -12,7 +12,6 @@ import (
 
 // ResourceUsageServiceInterface defines methods for resource usage service
 type ResourceUsageServiceInterface interface {
-	CheckResourceLimit(ctx context.Context, userID, resourceType string) (bool, error)
 	GetResourceUsage(ctx context.Context, userID string) (*models.ResourceUsageResponse, error)
 }
 
@@ -70,13 +69,6 @@ func NewResourceUsageService(deps ResourceUsageServiceDeps) *ResourceUsageServic
 		feedItemReplyRepo:    deps.FeedItemReplyRepo,
 		logger:               deps.Logger,
 	}
-}
-
-// CheckResourceLimit reports whether the user may create another resource of the
-// given type. The open-source build has no paid tiers or quotas, so every
-// resource type is unlimited and this always allows the operation.
-func (s *ResourceUsageService) CheckResourceLimit(_ context.Context, _, _ string) (bool, error) {
-	return true, nil
 }
 
 // getResourceCount gets the count of a specific resource type for a user

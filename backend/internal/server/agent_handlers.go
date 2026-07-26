@@ -43,7 +43,7 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.validateCreateAgentRequest(w, r, &req) || !s.checkAgentResourceLimit(w, r, r.Context(), userID) {
+	if !s.validateCreateAgentRequest(w, r, &req) {
 		return
 	}
 
@@ -724,39 +724,6 @@ func (s *Server) validateCreateAgentRequest(
 
 	if err := models.ValidateAgentCredentials(req.Credentials); err != nil {
 		writeErrorResponse(w, nil, "validation_error", err.Error(), http.StatusBadRequest)
-		return false
-	}
-
-	return true
-}
-
-// checkAgentResourceLimit checks if the user has reached their agent resource limit
-func (s *Server) checkAgentResourceLimit(
-	w http.ResponseWriter, _ *http.Request, ctx context.Context, userID string,
-) bool {
-	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, "agent")
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkAgentResourceLimit",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to check resource limit")
-		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
-		return false
-	}
-
-	if !allowed {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkAgentResourceLimit",
-			"user_id", userID,
-			"resource_type", "agent",
-		).Warn("User has reached their agent limit")
-		writeErrorResponse(w, nil, "resource_limit_exceeded",
-			"You have reached the maximum number of agents allowed for your subscription plan",
-			http.StatusForbidden,
-		)
 		return false
 	}
 

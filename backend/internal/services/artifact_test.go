@@ -28,11 +28,6 @@ type MockResourceUsageService struct {
 	mock.Mock
 }
 
-func (m *MockResourceUsageService) CheckResourceLimit(ctx context.Context, userID, resourceType string) (bool, error) {
-	args := m.Called(ctx, userID, resourceType)
-	return args.Bool(0), args.Error(1)
-}
-
 func (m *MockResourceUsageService) TrackResourceCreation(
 	ctx context.Context, userID, resourceType, resourceID string,
 ) error {
@@ -264,9 +259,6 @@ func TestArtifactService_CreateArtifact(t *testing.T) {
 
 			// Setup repository expectations
 			tt.setup(repo)
-
-			// Note: TrackResourceCreation was removed as part of resource tracking simplification
-			// Resource limits are now checked directly in handlers via CheckResourceLimit
 
 			service := NewArtifactService(ArtifactServiceDeps{
 				Repo:              repo,

@@ -402,10 +402,6 @@ func TestHandleCreatePrompt_Success(t *testing.T) {
 	mockContainer.teamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", teamID).
 		Return(true, nil)
 
-	// Mock resource limit check
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-123", "prompt").
-		Return(true, nil)
-
 	mockContainer.promptService.On(
 		"CreatePrompt",
 		"user-123",
@@ -432,7 +428,6 @@ func TestHandleCreatePrompt_Success(t *testing.T) {
 	assert.Equal(t, expectedPrompt.Slug, response.Slug)
 
 	mockContainer.promptService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleCreatePrompt_ValidationError tests create prompt with validation errors
@@ -498,42 +493,6 @@ func TestHandleCreatePrompt_ValidationError(t *testing.T) {
 	}
 }
 
-// TestHandleCreatePrompt_ResourceLimitExceeded tests create prompt when resource limit exceeded
-func TestHandleCreatePrompt_ResourceLimitExceeded(t *testing.T) {
-	mockContainer := newMockPromptContainer(t)
-
-	reqBody := &models.CreatePromptRequest{
-		Name:      "New Prompt",
-		Slug:      "new-prompt",
-		Body:      "This is a new prompt body",
-		ProjectID: "project-123",
-	}
-
-	// Mock team access validation
-	mockContainer.teamService.On(
-		"IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000",
-	).Return(true, nil)
-
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-123", "prompt").
-		Return(false, nil)
-
-	srv := createTestServer(mockContainer)
-	req := makeAuthenticatedRequest("POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/prompts", reqBody, "user-123")
-	w := httptest.NewRecorder()
-
-	srv.router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusForbidden, w.Code)
-
-	var response map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	assert.NoError(t, err)
-
-	assert.Equal(t, "RESOURCE_LIMIT_EXCEEDED", response["code"])
-
-	mockContainer.resourceUsageService.AssertExpectations(t)
-}
-
 // TestHandleCreatePrompt_Conflict tests create prompt with duplicate slug
 func TestHandleCreatePrompt_Conflict(t *testing.T) {
 	mockContainer := newMockPromptContainer(t)
@@ -548,9 +507,6 @@ func TestHandleCreatePrompt_Conflict(t *testing.T) {
 	// Mock team access validation
 	teamID := "550e8400-e29b-41d4-a716-446655440000"
 	mockContainer.teamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", teamID).
-		Return(true, nil)
-
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-123", "prompt").
 		Return(true, nil)
 
 	mockContainer.promptService.On("CreatePrompt", "user-123", teamID, mock.Anything).
@@ -571,7 +527,6 @@ func TestHandleCreatePrompt_Conflict(t *testing.T) {
 	assert.Equal(t, "RESOURCE_EXISTS", response["code"])
 
 	mockContainer.promptService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleUpdatePrompt_Success tests successful prompt update
@@ -598,9 +553,6 @@ func TestHandleUpdatePrompt_Success(t *testing.T) {
 		UpdatedAt:   time.Now(),
 	}
 
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-123", "prompt").
-		Return(true, nil)
-
 	mockContainer.promptService.On("UpdatePromptBySlug", "user-123", mock.Anything, "test-slug", mock.Anything).
 		Return(updatedPrompt, nil)
 
@@ -622,7 +574,6 @@ func TestHandleUpdatePrompt_Success(t *testing.T) {
 	assert.Equal(t, updatedPrompt.Status, response.Status)
 
 	mockContainer.promptService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleUpdatePrompt_NotFound tests update non-existent prompt
@@ -634,9 +585,6 @@ func TestHandleUpdatePrompt_NotFound(t *testing.T) {
 	reqBody := &models.UpdatePromptRequest{
 		Name: &newName,
 	}
-
-	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-123", "prompt").
-		Return(true, nil)
 
 	mockContainer.promptService.On("UpdatePromptBySlug", "user-123", mock.Anything, "non-existent", mock.Anything).
 		Return((*models.Prompt)(nil), repositories.ErrPromptNotFound)
@@ -658,7 +606,6 @@ func TestHandleUpdatePrompt_NotFound(t *testing.T) {
 	assert.Equal(t, "RESOURCE_NOT_FOUND", response["code"])
 
 	mockContainer.promptService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleDeletePrompt_Success tests successful prompt deletion

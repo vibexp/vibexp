@@ -13,7 +13,6 @@ import (
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/repositories"
 	"github.com/vibexp/vibexp/internal/services"
-	"github.com/vibexp/vibexp/pkg/events"
 )
 
 // Response and log messages shared across the feed handlers.
@@ -52,10 +51,6 @@ func (s *Server) handleCreateFeed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.validateCreateFeedRequest(w, &req) {
-		return
-	}
-
-	if !s.checkFeedResourceLimit(w, r.Context(), userID) {
 		return
 	}
 
@@ -210,10 +205,6 @@ func (s *Server) handleCreateFeedItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.validateCreateFeedItemRequest(w, &req) {
-		return
-	}
-
-	if !s.checkFeedItemResourceLimit(w, r.Context(), userID) {
 		return
 	}
 
@@ -808,76 +799,6 @@ func (s *Server) handleFeedItemGetError(w http.ResponseWriter, handler, userID, 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Resource limit helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-// checkFeedResourceLimit checks if user has reached their feed resource limit.
-// Returns true if the operation is allowed, false if the limit has been exceeded or an error occurred.
-func (s *Server) checkFeedResourceLimit(w http.ResponseWriter, ctx context.Context, userID string) bool {
-	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeed)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkFeedResourceLimit",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to check feed resource limit")
-		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
-		return false
-	}
-
-	if !allowed {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkFeedResourceLimit",
-			"user_id", userID,
-			"resource_type", events.ResourceTypeFeed,
-		).Warn("User has reached their feed limit")
-		writeErrorResponse(
-			w, nil, "resource_limit_exceeded",
-			"You have reached the maximum number of feeds allowed for your subscription plan",
-			http.StatusForbidden,
-		)
-		return false
-	}
-
-	return true
-}
-
-// checkFeedItemResourceLimit checks if user has reached their feed item resource limit.
-// Returns true if the operation is allowed, false if the limit has been exceeded or an error occurred.
-func (s *Server) checkFeedItemResourceLimit(w http.ResponseWriter, ctx context.Context, userID string) bool {
-	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, events.ResourceTypeFeedItem)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkFeedItemResourceLimit",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to check feed item resource limit")
-		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
-		return false
-	}
-
-	if !allowed {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkFeedItemResourceLimit",
-			"user_id", userID,
-			"resource_type", events.ResourceTypeFeedItem,
-		).Warn("User has reached their feed item limit")
-		writeErrorResponse(
-			w, nil, "resource_limit_exceeded",
-			"You have reached the maximum number of feed items allowed for your subscription plan",
-			http.StatusForbidden,
-		)
-		return false
-	}
-
-	return true
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Feed item reply handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -911,10 +832,6 @@ func (s *Server) handleCreateFeedItemReply(w http.ResponseWriter, r *http.Reques
 	}
 
 	if !s.validateCreateFeedItemReplyRequest(w, &req) {
-		return
-	}
-
-	if !s.checkFeedItemResourceLimit(w, r.Context(), userID) {
 		return
 	}
 
