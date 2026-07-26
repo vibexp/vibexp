@@ -1,9 +1,50 @@
-import { test, expect } from '../../fixtures/auth'
+import { test, expect, type Page } from '../../fixtures/auth'
 
 /**
  * Feature Tests: Team Management
  * Tests creating, viewing, editing, and deleting teams
+ *
+ * Every test here asserts unconditionally (#607). The previous version wrapped
+ * each body in a count-based `if` guard, which made a test that could not find
+ * its own subject report green — indistinguishable from a passing one.
  */
+
+/** The personal team every fresh user is provisioned with. */
+const PRIVATE_WORKSPACE = 'Private Workspace'
+
+/**
+ * Drive the real create-team flow and return once the new team is in the list.
+ *
+ * The `authenticatedPage` fixture mints a fresh user per test, so the only
+ * pre-existing team is the Private Workspace — anything a test asserts on it
+ * must create first.
+ */
+async function createTeam(page: Page, name: string): Promise<void> {
+  await page.goto('/teams')
+  await page.click('[data-testid="create-team-button"]')
+
+  const nameInput = page.locator('[data-testid="team-name-input"]')
+  await expect(nameInput).toBeVisible({ timeout: 10000 })
+  await nameInput.fill(name)
+
+  await page.click('[data-testid="submit-create-team-button"]')
+
+  // The list reloads after creation; waiting on the row (rather than a fixed
+  // timeout) is also what makes a failed creation fail the test.
+  await expect(teamRow(page, name)).toBeVisible({ timeout: 10000 })
+}
+
+/** The list row button that opens a team — the only clickable the table renders. */
+function teamRow(page: Page, name: string) {
+  return page.locator('[data-testid="team-row-link"]', { hasText: name })
+}
+
+/** Open a team from the list and wait for its detail route. */
+async function openTeam(page: Page, name: string): Promise<void> {
+  await teamRow(page, name).click()
+  await page.waitForURL(/\/teams\/[0-9a-f-]+$/, { timeout: 10000 })
+}
+
 test.describe('Team Management', () => {
   test.describe('Team Display', () => {
     test('should display teams list in settings', async ({
@@ -11,219 +52,122 @@ test.describe('Team Management', () => {
     }) => {
       // Navigate to the top-level teams page (#538).
       await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
 
-      // Verify teams page is displayed
-      await expect(authenticatedPage.locator('body')).toBeVisible()
+      // The page header and the one team every user starts with. Asserting the
+      // list actually rendered — not merely that a <body> exists.
+      await expect(
+        authenticatedPage.getByRole('heading', { name: 'Teams', level: 1 })
+      ).toBeVisible({ timeout: 10000 })
+      await expect(teamRow(authenticatedPage, PRIVATE_WORKSPACE)).toBeVisible({
+        timeout: 10000,
+      })
     })
 
     test('should show Private Workspace as default team', async ({
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
 
-      // Look for Private Workspace
-      const privateWorkspace = authenticatedPage.locator(
-        'text=/Private Workspace|private-workspace/i'
-      )
-      const hasPrivateWorkspace = await privateWorkspace
-        .isVisible()
-        .catch(() => false)
-
-      if (hasPrivateWorkspace) {
-        await expect(privateWorkspace).toBeVisible()
-      } else {
-        // Private Workspace might be shown in header/nav instead
-        await expect(authenticatedPage.locator('body')).toBeVisible()
-      }
+      // A fresh user is provisioned with exactly this team, so its absence is
+      // a real failure rather than a reason to skip the assertion.
+      await expect(teamRow(authenticatedPage, PRIVATE_WORKSPACE)).toBeVisible({
+        timeout: 10000,
+      })
     })
   })
 
   test.describe('Team Creation', () => {
     test('should create new team with name', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
+      const teamName = `Test Team ${Date.now()}`
+      await createTeam(authenticatedPage, teamName)
 
-      // Look for "Create Team" button
-      const createButton = authenticatedPage.locator(
-        '[data-testid="create-team-button"]'
-      )
-
-      if ((await createButton.count()) > 0) {
-        await createButton.click()
-        await authenticatedPage.waitForTimeout(1000)
-
-        // Fill team name
-        const teamNameInput = authenticatedPage.locator(
-          '[data-testid="team-name-input"]'
-        )
-
-        if ((await teamNameInput.count()) > 0) {
-          const teamName = `Test Team ${Date.now()}`
-          await teamNameInput.fill(teamName)
-
-          // Submit
-          const submitButton = authenticatedPage.locator(
-            '[data-testid="submit-create-team-button"]'
-          )
-          await submitButton.click()
-          await authenticatedPage.waitForTimeout(2000)
-
-          // Verify creation
-          await expect(
-            authenticatedPage.locator(`text=${teamName}`).first()
-          ).toBeVisible({ timeout: 5000 })
-        }
-      }
+      await expect(teamRow(authenticatedPage, teamName)).toBeVisible()
     })
 
     test('should validate team name is required', async ({
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
+      await authenticatedPage.click('[data-testid="create-team-button"]')
 
-      const createButton = authenticatedPage.locator(
-        '[data-testid="create-team-button"]'
+      const submitButton = authenticatedPage.locator(
+        '[data-testid="submit-create-team-button"]'
       )
+      await expect(submitButton).toBeVisible({ timeout: 10000 })
 
-      if ((await createButton.count()) > 0) {
-        await createButton.click()
-        await authenticatedPage.waitForTimeout(1000)
+      // Submit with an empty name.
+      await submitButton.click()
 
-        // Try to submit without name
-        const submitButton = authenticatedPage.locator(
-          '[data-testid="submit-create-team-button"]'
-        )
-        if ((await submitButton.count()) > 0) {
-          await submitButton.click()
-          await authenticatedPage.waitForTimeout(1000)
+      // CreateTeamModal validates client-side and renders the message inline.
+      await expect(
+        authenticatedPage.getByText('Team name is required')
+      ).toBeVisible({ timeout: 5000 })
 
-          // Should show validation error or stay on form
-          await expect(authenticatedPage.locator('body')).toBeVisible()
-        }
-      }
+      // And the dialog must stay open — a closed dialog would mean the empty
+      // team was accepted.
+      await expect(
+        authenticatedPage.locator('[data-testid="team-name-input"]')
+      ).toBeVisible()
     })
 
     test('should display newly created team in list', async ({
       authenticatedPage,
     }) => {
+      const teamName = `List Team ${Date.now()}`
+      await createTeam(authenticatedPage, teamName)
+
+      // Reload rather than trusting the post-create render: this test is about
+      // the team being persisted and listed, not about the optimistic update.
       await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
-
-      const createButton = authenticatedPage.locator(
-        '[data-testid="create-team-button"]'
-      )
-
-      if ((await createButton.count()) > 0) {
-        await createButton.click()
-        await authenticatedPage.waitForTimeout(1000)
-
-        const teamNameInput = authenticatedPage.locator(
-          '[data-testid="team-name-input"]'
-        )
-
-        if ((await teamNameInput.count()) > 0) {
-          const teamName = `List Team ${Date.now()}`
-          await teamNameInput.fill(teamName)
-
-          const submitButton = authenticatedPage.locator(
-            '[data-testid="submit-create-team-button"]'
-          )
-          await submitButton.click()
-          await authenticatedPage.waitForTimeout(2000)
-
-          // Verify in list
-          await expect(
-            authenticatedPage.locator(`text=${teamName}`).first()
-          ).toBeVisible({ timeout: 5000 })
-        }
-      }
+      await expect(teamRow(authenticatedPage, teamName)).toBeVisible({
+        timeout: 10000,
+      })
     })
   })
 
   test.describe('Team Editing', () => {
     test('should edit team name', async ({ authenticatedPage }) => {
-      // First create a team
-      await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
+      const originalName = `Edit Team ${Date.now()}`
+      await createTeam(authenticatedPage, originalName)
 
-      const createButton = authenticatedPage.locator(
-        '[data-testid="create-team-button"]'
-      )
+      // "Edit team" lives on the team's own page (TeamScopeHeader), not on the
+      // list — the previous selector looked for it on /teams, where it can
+      // never exist.
+      await openTeam(authenticatedPage, originalName)
 
-      if ((await createButton.count()) > 0) {
-        await createButton.click()
-        await authenticatedPage.waitForTimeout(1000)
+      await authenticatedPage.getByRole('button', { name: 'Edit team' }).click()
 
-        const teamNameInput = authenticatedPage.locator(
-          '[data-testid="team-name-input"]'
-        )
+      // EditTeamModal's field is keyed by id, not by the create modal's testid.
+      const editNameInput = authenticatedPage.locator('#team-name')
+      await expect(editNameInput).toBeVisible({ timeout: 10000 })
 
-        if ((await teamNameInput.count()) > 0) {
-          const originalName = `Edit Team ${Date.now()}`
-          await teamNameInput.fill(originalName)
+      const updatedName = `${originalName} Updated`
+      await editNameInput.fill(updatedName)
+      await authenticatedPage
+        .getByRole('button', { name: 'Update Team' })
+        .click()
 
-          const submitButton = authenticatedPage.locator(
-            '[data-testid="submit-create-team-button"]'
-          )
-          await submitButton.click()
-          await authenticatedPage.waitForTimeout(2000)
-
-          // Now edit the team
-          const editButton = authenticatedPage.locator(
-            'button:has-text("Edit"), a:has-text("Edit")'
-          )
-
-          if ((await editButton.count()) > 0) {
-            await editButton.first().click()
-            await authenticatedPage.waitForTimeout(1000)
-
-            const editNameInput = authenticatedPage.locator(
-              '[data-testid="team-name-input"]'
-            )
-
-            if ((await editNameInput.count()) > 0) {
-              const updatedName = `${originalName} (Updated)`
-              await editNameInput.clear()
-              await editNameInput.fill(updatedName)
-
-              const saveButton = authenticatedPage.locator(
-                'button:has-text("Save"), button:has-text("Update"), button[type="submit"]'
-              )
-              await saveButton.click()
-              await authenticatedPage.waitForTimeout(2000)
-
-              // Verify update
-              await expect(
-                authenticatedPage.locator(`text=${updatedName}`).first()
-              ).toBeVisible({ timeout: 5000 })
-            }
-          }
-        }
-      }
+      // The scope header reflects the new name once the update lands.
+      await expect(
+        authenticatedPage.getByRole('heading', { name: updatedName, level: 1 })
+      ).toBeVisible({ timeout: 10000 })
     })
 
     test('should view team details (members, resources)', async ({
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
 
-      // Click on a team to view details
-      const teamLink = authenticatedPage
-        .locator('a, button')
-        .filter({ hasText: /Team|Workspace/ })
-        .first()
+      await openTeam(authenticatedPage, PRIVATE_WORKSPACE)
 
-      if ((await teamLink.count()) > 0) {
-        await teamLink.click()
-        await authenticatedPage.waitForTimeout(1000)
-
-        // Verify we're on a detail/settings page
-        await expect(authenticatedPage.locator('body')).toBeVisible()
-      }
+      // Landing on the detail route is only half of it — assert the page
+      // actually rendered the team, so a blank error page fails the test.
+      await expect(
+        authenticatedPage.getByRole('heading', {
+          name: PRIVATE_WORKSPACE,
+          level: 1,
+        })
+      ).toBeVisible({ timeout: 10000 })
     })
   })
 
@@ -231,105 +175,78 @@ test.describe('Team Management', () => {
     test('should delete team with confirmation', async ({
       authenticatedPage,
     }) => {
-      // Create a team first
-      await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
+      const teamName = `Delete Team ${Date.now()}`
+      await createTeam(authenticatedPage, teamName)
 
-      const createButton = authenticatedPage.locator(
-        '[data-testid="create-team-button"]'
-      )
+      // Open the team's details page, then delete it from there (deletion
+      // lives on the details page, not the list).
+      await openTeam(authenticatedPage, teamName)
 
-      if ((await createButton.count()) > 0) {
-        await createButton.click()
-        await authenticatedPage.waitForTimeout(1000)
+      // Delete lives in the scope header's overflow menu since #666, so it
+      // has to be opened before the item exists in the DOM.
+      await authenticatedPage
+        .locator('[data-testid="team-actions-menu"]')
+        .click()
+      await authenticatedPage
+        .locator('[data-testid="delete-team-button"]')
+        .click()
 
-        const teamNameInput = authenticatedPage.locator(
-          '[data-testid="team-name-input"]'
-        )
+      // Confirm deletion in the DeleteTeamModal (a regular Dialog)
+      const confirmDialog = authenticatedPage.locator('[role="dialog"]')
+      await expect(confirmDialog).toBeVisible({ timeout: 5000 })
 
-        if ((await teamNameInput.count()) > 0) {
-          const teamName = `Delete Team ${Date.now()}`
-          await teamNameInput.fill(teamName)
+      await authenticatedPage
+        .locator('[data-testid="confirm-delete-team-button"]')
+        .click()
 
-          const submitButton = authenticatedPage.locator(
-            '[data-testid="submit-create-team-button"]'
-          )
-          await submitButton.click()
+      // Should navigate back to the teams list after deletion
+      await expect(authenticatedPage).toHaveURL(/\/teams$/, {
+        timeout: 10000,
+      })
 
-          // Wait for the list to finish reloading and show the new team before
-          // navigating (clicking mid-reload aborts the details fetch).
-          const teamLink = authenticatedPage.getByRole('button', {
-            name: teamName,
-          })
-          await expect(teamLink).toBeVisible({ timeout: 10000 })
-          await authenticatedPage.waitForLoadState('networkidle')
-
-          // Open the new team's details page, then delete it from there
-          // (deletion lives on the details page, not the list).
-          await teamLink.click()
-          await authenticatedPage.waitForURL(/\/teams\/[0-9a-f-]+$/, {
-            timeout: 10000,
-          })
-
-          // Delete lives in the scope header's overflow menu since #666, so it
-          // has to be opened before the item exists in the DOM.
-          await authenticatedPage
-            .locator('[data-testid="team-actions-menu"]')
-            .click()
-          await authenticatedPage
-            .locator('[data-testid="delete-team-button"]')
-            .click()
-
-          // Confirm deletion in the DeleteTeamModal (a regular Dialog)
-          const confirmDialog = authenticatedPage.locator('[role="dialog"]')
-          await expect(confirmDialog).toBeVisible({ timeout: 5000 })
-
-          await authenticatedPage
-            .locator('[data-testid="confirm-delete-team-button"]')
-            .click()
-
-          // Should navigate back to the teams list after deletion
-          await expect(authenticatedPage).toHaveURL(/\/teams$/, {
-            timeout: 10000,
-          })
-        }
-      }
+      // And the team must actually be gone, not merely navigated away from.
+      await expect(teamRow(authenticatedPage, teamName)).toHaveCount(0, {
+        timeout: 10000,
+      })
     })
 
     test('should prevent deletion of Private Workspace', async ({
       authenticatedPage,
     }) => {
       await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
+      await openTeam(authenticatedPage, PRIVATE_WORKSPACE)
 
-      // Try to find delete button for Private Workspace
-      // It should either not exist or be disabled
-      const privateWorkspaceRow = authenticatedPage.locator(
-        'text=/Private Workspace/i'
-      )
+      // Positive gate first: without it, the negative assertion below would
+      // also pass against a page that never rendered (#415).
+      await expect(
+        authenticatedPage.getByRole('heading', {
+          name: PRIVATE_WORKSPACE,
+          level: 1,
+        })
+      ).toBeVisible({ timeout: 10000 })
+      await expect(
+        authenticatedPage.getByRole('button', { name: 'Edit team' })
+      ).toBeVisible()
 
-      if ((await privateWorkspaceRow.count()) > 0) {
-        // Look for delete button near Private Workspace
-        // It should not exist or be disabled
-        await expect(authenticatedPage.locator('body')).toBeVisible()
-      }
+      // TeamScopeHeader gates delete AND transfer on `!team.is_personal`, and
+      // the overflow menu only renders when one of them is available — so a
+      // personal team must expose no actions menu at all, hence no delete.
+      await expect(
+        authenticatedPage.locator('[data-testid="team-actions-menu"]')
+      ).toHaveCount(0)
     })
 
     test('should show team member count', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/teams')
-      await authenticatedPage.waitForLoadState('networkidle')
+      const teamName = `Members Team ${Date.now()}`
+      await createTeam(authenticatedPage, teamName)
 
-      // Look for member count indicators
-      const memberCount = authenticatedPage.locator(
-        'text=/[0-9]+ member|member/i'
-      )
-
-      if ((await memberCount.count()) > 0) {
-        await expect(memberCount.first()).toBeVisible()
-      } else {
-        // Member count might not be displayed
-        await expect(authenticatedPage.locator('body')).toBeVisible()
-      }
+      // The Members column renders the count for a real team (and "-" for the
+      // personal one). The creator is its only member.
+      const row = authenticatedPage.getByRole('row', {
+        name: new RegExp(teamName),
+      })
+      await expect(row).toBeVisible({ timeout: 10000 })
+      await expect(row.getByText(/^\d+$/)).toBeVisible()
     })
   })
 })
