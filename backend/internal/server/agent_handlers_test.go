@@ -21,15 +21,15 @@ func TestAgentHandlers_Unauthorized(t *testing.T) {
 		path     string
 		expected int
 	}{
-		{"Create Agent - Unauthorized", "POST", "/api/v1/agents", http.StatusUnauthorized},
-		{"List Agents - Unauthorized", "GET", "/api/v1/agents", http.StatusUnauthorized},
-		{"Get Agent Stats - Unauthorized", "GET", "/api/v1/agents/stats", http.StatusUnauthorized},
-		{"Get Agent - Unauthorized", "GET", "/api/v1/agents/123", http.StatusUnauthorized},
-		{"Update Agent - Unauthorized", "PUT", "/api/v1/agents/123", http.StatusUnauthorized},
-		{"Delete Agent - Unauthorized", "DELETE", "/api/v1/agents/123", http.StatusUnauthorized},
-		{"Start Agent Execution - Unauthorized", "POST", "/api/v1/agents/123/executions", http.StatusUnauthorized},
-		{"Complete Agent Execution - Unauthorized", "PUT", "/api/v1/agents/executions/456", http.StatusUnauthorized},
-		{"Get Agent Execution - Unauthorized", "GET", "/api/v1/agents/executions/456", http.StatusUnauthorized},
+		{"Create Agent - Unauthorized", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", http.StatusUnauthorized},
+		{"List Agents - Unauthorized", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", http.StatusUnauthorized},
+		{"Get Agent Stats - Unauthorized", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/stats", http.StatusUnauthorized},
+		{"Get Agent - Unauthorized", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/123", http.StatusUnauthorized},
+		{"Update Agent - Unauthorized", "PUT", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/123", http.StatusUnauthorized},
+		{"Delete Agent - Unauthorized", "DELETE", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/123", http.StatusUnauthorized},
+		{"Start Agent Execution - Unauthorized", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/123/executions", http.StatusUnauthorized},
+		{"Complete Agent Execution - Unauthorized", "PUT", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/executions/456", http.StatusUnauthorized},
+		{"Get Agent Execution - Unauthorized", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/executions/456", http.StatusUnauthorized},
 	}
 
 	for _, tt := range tests {
@@ -85,7 +85,7 @@ func TestCreateAgent_BadRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := strings.NewReader(tt.body)
-			req, err := http.NewRequest("POST", "/api/v1/agents", body)
+			req, err := http.NewRequest("POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", body)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,7 +127,7 @@ func TestUpdateAgent_BadRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := strings.NewReader(tt.body)
-			req, err := http.NewRequest("PUT", "/api/v1/agents/123", body)
+			req, err := http.NewRequest("PUT", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/123", body)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -163,7 +163,7 @@ func TestStartAgentExecution_BadRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := strings.NewReader(tt.body)
-			req, err := http.NewRequest("POST", "/api/v1/agents/123/executions", body)
+			req, err := http.NewRequest("POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/123/executions", body)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -204,7 +204,7 @@ func TestCompleteAgentExecution_BadRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := strings.NewReader(tt.body)
-			req, err := http.NewRequest("PUT", "/api/v1/agents/executions/456", body)
+			req, err := http.NewRequest("PUT", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/executions/456", body)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -233,18 +233,18 @@ func TestAgentHandlers_QueryParameters(t *testing.T) {
 		path     string
 		expected int
 	}{
-		{"List agents with status filter", "GET", "/api/v1/agents?status=active", http.StatusUnauthorized},
-		{"List agents with search", "GET", "/api/v1/agents?search=test", http.StatusUnauthorized},
-		{"List agents with pagination", "GET", "/api/v1/agents?page=1&limit=5", http.StatusUnauthorized},
+		{"List agents with status filter", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/?status=active", http.StatusUnauthorized},
+		{"List agents with search", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/?search=test", http.StatusUnauthorized},
+		{"List agents with pagination", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/?page=1&limit=5", http.StatusUnauthorized},
 		{
 			"List agents with all filters",
 			"GET",
-			"/api/v1/agents?status=active&search=test&page=2&limit=10",
+			"/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/?status=active&search=test&page=2&limit=10",
 			http.StatusUnauthorized,
 		},
-		{"List agents with invalid page", "GET", "/api/v1/agents?page=0", http.StatusUnauthorized},
-		{"List agents with invalid limit", "GET", "/api/v1/agents?limit=0", http.StatusUnauthorized},
-		{"List agents with limit too high", "GET", "/api/v1/agents?limit=101", http.StatusUnauthorized},
+		{"List agents with invalid page", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/?page=0", http.StatusUnauthorized},
+		{"List agents with invalid limit", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/?limit=0", http.StatusUnauthorized},
+		{"List agents with limit too high", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/?limit=101", http.StatusUnauthorized},
 	}
 
 	for _, tt := range tests {
@@ -277,10 +277,10 @@ func TestAgentHandlers_InvalidPaths(t *testing.T) {
 		path     string
 		expected int
 	}{
-		{"Invalid agent path", "GET", "/api/v1/agents/invalid/path", http.StatusUnauthorized},
-		{"Method not allowed", "PATCH", "/api/v1/agents", http.StatusUnauthorized},
-		{"Invalid execution path", "GET", "/api/v1/agents/123/executions/invalid", http.StatusUnauthorized},
-		{"Method not allowed on execution", "PATCH", "/api/v1/agents/executions/456", http.StatusUnauthorized},
+		{"Invalid agent path", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/invalid/path", http.StatusUnauthorized},
+		{"Method not allowed", "PATCH", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", http.StatusUnauthorized},
+		{"Invalid execution path", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/123/executions/invalid", http.StatusUnauthorized},
+		{"Method not allowed on execution", "PATCH", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/executions/456", http.StatusUnauthorized},
 	}
 
 	for _, tt := range tests {
@@ -313,11 +313,11 @@ func TestAgentHandlers_ContentTypeValidation(t *testing.T) {
 		contentType string
 		expected    int
 	}{
-		{"Create agent without content type", "POST", "/api/v1/agents", "", http.StatusUnauthorized},
-		{"Create agent with wrong content type", "POST", "/api/v1/agents", "text/plain", http.StatusUnauthorized},
-		{"Update agent without content type", "PUT", "/api/v1/agents/123", "", http.StatusUnauthorized},
-		{"Start execution without content type", "POST", "/api/v1/agents/123/executions", "", http.StatusUnauthorized},
-		{"Complete execution without content type", "PUT", "/api/v1/agents/executions/456", "", http.StatusUnauthorized},
+		{"Create agent without content type", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", "", http.StatusUnauthorized},
+		{"Create agent with wrong content type", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", "text/plain", http.StatusUnauthorized},
+		{"Update agent without content type", "PUT", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/123", "", http.StatusUnauthorized},
+		{"Start execution without content type", "POST", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/123/executions", "", http.StatusUnauthorized},
+		{"Complete execution without content type", "PUT", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/executions/456", "", http.StatusUnauthorized},
 	}
 
 	for _, tt := range tests {
@@ -355,11 +355,11 @@ func TestAgentHandlers_AuthorizationHeaders(t *testing.T) {
 		authorization string
 		expected      int
 	}{
-		{"Missing authorization header", "GET", "/api/v1/agents", "", http.StatusUnauthorized},
-		{"Invalid Bearer format", "GET", "/api/v1/agents", "InvalidBearer token", http.StatusUnauthorized},
-		{"Missing Bearer prefix", "GET", "/api/v1/agents", "token-without-bearer-prefix", http.StatusUnauthorized},
-		{"Empty Bearer token", "GET", "/api/v1/agents", "Bearer ", http.StatusUnauthorized},
-		{"Invalid token format", "GET", "/api/v1/agents", "Bearer invalid-token", http.StatusUnauthorized},
+		{"Missing authorization header", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", "", http.StatusUnauthorized},
+		{"Invalid Bearer format", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", "InvalidBearer token", http.StatusUnauthorized},
+		{"Missing Bearer prefix", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", "token-without-bearer-prefix", http.StatusUnauthorized},
+		{"Empty Bearer token", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", "Bearer ", http.StatusUnauthorized},
+		{"Invalid token format", "GET", "/api/v1/550e8400-e29b-41d4-a716-446655440000/agents/", "Bearer invalid-token", http.StatusUnauthorized},
 	}
 
 	for _, tt := range tests {

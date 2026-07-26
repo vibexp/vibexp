@@ -177,20 +177,25 @@ func TestQueryParamRejectedOnNonMCPPaths(t *testing.T) {
 		method string
 		path   string
 	}{
+		// Every path here must be a REGISTERED route. An unrouted path 404s before the
+		// auth middleware runs, which would make the assertion below pass vacuously.
+		// The two hook endpoints this table used to cover were deleted in #613; they
+		// only kept returning 401 because the resource-usage group matched the
+		// `/api/v1` prefix, and #649 removed that group.
 		{
 			name:   "GET /api/v1/auth/me with api_key query param",
 			method: http.MethodGet,
 			path:   "/api/v1/auth/me?api_key=" + mcpKey,
 		},
 		{
-			name:   "POST /api/v1/cursor-ide/hooks with api_key query param",
-			method: http.MethodPost,
-			path:   "/api/v1/cursor-ide/hooks?api_key=" + mcpKey,
+			name:   "GET /api/v1/{team_id}/projects/ with api_key query param",
+			method: http.MethodGet,
+			path:   "/api/v1/550e8400-e29b-41d4-a716-446655440000/projects/?api_key=" + mcpKey,
 		},
 		{
-			name:   "POST /api/v1/claude-code/hooks with api_key query param",
+			name:   "POST /api/v1/{team_id}/artifacts/ with api_key query param",
 			method: http.MethodPost,
-			path:   "/api/v1/claude-code/hooks?api_key=" + mcpKey,
+			path:   "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/?api_key=" + mcpKey,
 		},
 	}
 

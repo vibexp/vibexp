@@ -4954,48 +4954,6 @@
         ]
       }
     },
-    "/api/v1/resource-usage": {
-      "get": {
-        "summary": "Get resource usage statistics",
-        "description": "Returns resource usage information for the authenticated user",
-        "operationId": "getResourceUsage",
-        "responses": {
-          "200": {
-            "description": "Resource usage information",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResourceUsageResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - JWT token missing or invalid",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - subscription required or invalid",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Subscriptions"
-        ]
-      }
-    },
     "/api/v1/{team_id}/prompts": {
       "post": {
         "summary": "Create a new prompt",
@@ -24872,61 +24830,6 @@
           "recipient",
           "details"
         ]
-      },
-      "ResourceUsageItem": {
-        "type": "object",
-        "properties": {
-          "resource_type": {
-            "type": "string",
-            "description": "Type of resource (e.g., prompt, memory, artifact)",
-            "example": "prompt"
-          },
-          "count": {
-            "type": "integer",
-            "description": "Current usage count",
-            "example": 5
-          },
-          "limit": {
-            "type": "integer",
-            "description": "Maximum allowed for the subscription plan",
-            "example": 20
-          },
-          "percentage": {
-            "type": "integer",
-            "description": "Usage percentage",
-            "example": 25
-          }
-        }
-      },
-      "ResourceUsageResponse": {
-        "type": "object",
-        "properties": {
-          "user_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "ID of the user",
-            "example": "f3a1b20c-e2d3-4e4f-a5f6-d7c8b9a0b1c2"
-          },
-          "period_start": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Start of the subscription period",
-            "example": "2025-10-01T00:00:00Z"
-          },
-          "period_end": {
-            "type": "string",
-            "format": "date-time",
-            "description": "End of the subscription period",
-            "example": "2025-10-31T23:59:59Z"
-          },
-          "resources": {
-            "type": "array",
-            "description": "List of resource usage items",
-            "items": {
-              "$ref": "#/components/schemas/ResourceUsageItem"
-            }
-          }
-        }
       },
       "SupportRequest": {
         "type": "object",

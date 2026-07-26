@@ -482,18 +482,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.router.ServeHTTP(w, r)
 }
 
-func (s *Server) setupResourceUsageRoutes(r chi.Router) {
-	resourceUsageService := s.container.ResourceUsageService()
-	// Skip if resource usage service is not available
-	if resourceUsageService == nil {
-		s.logger.Warn("Resource usage service not available, skipping route setup")
-		return
-	}
-
-	handler := NewResourceUsageHandler(resourceUsageService, s.logger)
-	r.Get("/resource-usage", handler.GetResourceUsage)
-}
-
 func (s *Server) setupRoutes() {
 	s.setupPublicRoutes()
 	s.setupBackofficeRoutes()
@@ -1350,8 +1338,10 @@ func (s *Server) mountTeamEmailProviderRoutes(r chi.Router) {
 	}
 }
 
-// setupFlexibleAuthRoutes registers endpoints that accept either a cookie session
-// or an API key.
+// setupFlexibleAuthRoutes registers the authenticated endpoints that opt out of IP
+// rate limiting. Since #649 removed the resource-usage group, the MCP mount is the
+// only one left — it authenticates via AuthKit bearer JWTs, not the cookie-or-API-key
+// flexibleAuthMiddleware the function is named for.
 //
 // These routes are intentionally NOT IP-rate-limited. The MCP mount is the reason:
 // it opens a long-lived SSE stream plus rapid tool calls from authenticated
@@ -1370,14 +1360,6 @@ func (s *Server) setupFlexibleAuthRoutes() {
 	// A GET here opens a long-lived SSE stream excluded from the latency histogram;
 	// if this mount path changes, update mcpStreamRoutePrefix to match.
 	s.setupMCPRoutes()
-
-	// Resource usage routes - protected with flexible auth (cookie session or API key)
-	s.router.Group(func(r chi.Router) {
-		r.Use(s.flexibleAuthMiddleware)
-		r.Route("/api/v1", func(r chi.Router) {
-			s.setupResourceUsageRoutes(r)
-		})
-	})
 }
 
 // teamValidationMiddleware validates team_id from URL path and team access

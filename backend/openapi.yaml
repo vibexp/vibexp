@@ -312,12 +312,6 @@ components:
     TeamEmailProviderTestResponse:
       $ref: "./schemas/team-email-provider.yaml#/TeamEmailProviderTestResponse"
 
-    # Import resource usage schemas
-    ResourceUsageItem:
-      $ref: "./schemas/resource-usage.yaml#/ResourceUsageItem"
-    ResourceUsageResponse:
-      $ref: "./schemas/resource-usage.yaml#/ResourceUsageResponse"
-
     # Import support schemas
     SupportRequest:
       $ref: "./schemas/support.yaml#/SupportRequest"
@@ -953,8 +947,6 @@ paths:
     $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-versions-version_number"
   /api/v1/{team_id}/blueprints/{project_id}/{slug}/versions/{version_number}/restore:
     $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-versions-version_number-restore"
-  /api/v1/resource-usage:
-    $ref: "./paths/subscriptions.yaml#/api-v1-resource-usage"
   /api/v1/{team_id}/prompts:
     $ref: "./paths/prompts.yaml#/api-v1-team_id-prompts"
   /api/v1/{team_id}/prompts/labels:
