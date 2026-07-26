@@ -75,11 +75,8 @@ func (m *MockResourceRBACContainer) BlueprintService() services.BlueprintService
 func createTestResourceRBACServer(t *testing.T, c *MockResourceRBACContainer) *Server {
 	t.Helper()
 
-	// The create paths check a resource limit and validate the project before
-	// reaching the service.
+	// The create paths validate the project before reaching the service.
 	usage := svcmocks.NewMockResourceUsageServiceInterface(t)
-	usage.EXPECT().CheckResourceLimit(mock.Anything, mock.Anything, mock.Anything).
-		Return(true, nil).Maybe()
 	c.resourceUsageService = usage
 
 	projectRepo := repomocks.NewMockProjectRepository(t)

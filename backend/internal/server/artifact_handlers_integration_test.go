@@ -207,8 +207,6 @@ func TestHandleCreateArtifact_Success(t *testing.T) {
 	}
 
 	// Mock resource limit check
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "artifact").
-		Return(true, nil)
 
 	// Note: team_id now comes from URL parameter (validated by middleware), no longer from user's default team
 	teamID := "550e8400-e29b-41d4-a716-446655440000"
@@ -307,8 +305,6 @@ func TestHandleCreateArtifact_ValidationError(t *testing.T) {
 	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 
 	// Mock resource limit check - always allow
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "artifact").
-		Return(true, nil).Maybe()
 
 	mockContainer := &MockArtifactContainer{
 		ArtifactServiceMock:      mockArtifactService,
@@ -366,42 +362,6 @@ func TestHandleCreateArtifact_ValidationError(t *testing.T) {
 	}
 }
 
-// TestHandleCreateArtifact_ResourceLimitExceeded tests resource limit exceeded
-func TestHandleCreateArtifact_ResourceLimitExceeded(t *testing.T) {
-	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
-
-	// Mock resource limit check - limit exceeded
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "artifact").
-		Return(false, nil)
-
-	mockContainer := &MockArtifactContainer{
-		ArtifactServiceMock:      mockArtifactService,
-		ResourceUsageServiceMock: mockResourceService,
-	}
-
-	cfg := &config.Config{}
-	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
-	srv.container = mockContainer
-
-	reqBody := `{
-		"slug": "new-slug",
-		"project_id": "550e8400-e29b-41d4-a716-446655440000", "slug": "test-slug", "title": "New Artifact",
-		"content": "New Content"
-	}`
-
-	url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts"
-	req := createAuthenticatedRequest("POST", url, reqBody, "user-123")
-	req = addURLParams(req, map[string]string{"team_id": "550e8400-e29b-41d4-a716-446655440000"})
-	rr := httptest.NewRecorder()
-
-	srv.handleCreateArtifact(rr, req)
-
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-	mockResourceService.AssertExpectations(t)
-}
-
 // TestHandleUpdateArtifact_Success tests successful artifact update
 func TestHandleUpdateArtifact_Success(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
@@ -421,8 +381,6 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 	}
 
 	// Mock resource limit check
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "artifact").
-		Return(true, nil)
 
 	mockArtifactService.On(
 		"UpdateArtifactByProjectIDAndSlugInTeam",
@@ -475,8 +433,6 @@ func TestHandleUpdateArtifact_NotFound(t *testing.T) {
 	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 
 	// Mock resource limit check
-	mockResourceService.On("CheckResourceLimit", mock.Anything, "user-123", "artifact").
-		Return(true, nil)
 
 	mockArtifactService.On(
 		"UpdateArtifactByProjectIDAndSlugInTeam",

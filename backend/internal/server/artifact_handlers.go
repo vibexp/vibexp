@@ -55,10 +55,6 @@ func (s *Server) handleCreateArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.checkArtifactResourceLimit(w, r.Context(), userID) {
-		return
-	}
-
 	artifact, err := s.container.ArtifactService().CreateArtifact(userID, teamID, &req)
 	if err != nil {
 		s.handleCreateArtifactError(w, userID, err)
@@ -233,11 +229,6 @@ func (s *Server) handleUpdateArtifact(w http.ResponseWriter, r *http.Request) {
 		"project_id", decodedProjectID,
 		"slug", decodedSlug,
 	).Info("Update artifact request received")
-
-	// Check resource limit before allowing update
-	if !s.checkArtifactResourceLimit(w, r.Context(), userID) {
-		return
-	}
 
 	var req models.UpdateArtifactRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
@@ -693,38 +684,6 @@ func (s *Server) validateArtifactStatus(w http.ResponseWriter, status *string) b
 			"Status must be one of: active, draft, archived", http.StatusBadRequest)
 		return false
 	}
-}
-
-// checkArtifactResourceLimit checks if user has reached their artifact resource limit
-func (s *Server) checkArtifactResourceLimit(w http.ResponseWriter, ctx context.Context, userID string) bool {
-	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(ctx, userID, "artifact")
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkArtifactResourceLimit",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to check resource limit")
-		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
-		return false
-	}
-
-	if !allowed {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "checkArtifactResourceLimit",
-			"user_id", userID,
-			"resource_type", "artifact",
-		).Warn("User has reached their artifact limit")
-		writeErrorResponse(
-			w, nil, "resource_limit_exceeded",
-			"You have reached the maximum number of artifacts allowed for your subscription plan",
-			http.StatusForbidden,
-		)
-		return false
-	}
-
-	return true
 }
 
 // handleCreateArtifactError handles errors from artifact creation

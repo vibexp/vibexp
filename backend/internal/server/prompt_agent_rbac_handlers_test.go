@@ -60,10 +60,7 @@ func createTestPromptAgentServer(
 ) *Server {
 	t.Helper()
 
-	// Both create paths check a resource limit before reaching the service.
 	usage := svcmocks.NewMockResourceUsageServiceInterface(t)
-	usage.EXPECT().CheckResourceLimit(mock.Anything, mock.Anything, mock.Anything).
-		Return(true, nil).Maybe()
 
 	r := chi.NewRouter()
 	srv := &Server{

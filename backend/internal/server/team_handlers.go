@@ -13,7 +13,6 @@ import (
 	"github.com/vibexp/vibexp/internal/errors"
 	"github.com/vibexp/vibexp/internal/models"
 	"github.com/vibexp/vibexp/internal/services"
-	"github.com/vibexp/vibexp/pkg/events"
 )
 
 const (
@@ -43,32 +42,6 @@ func (s *Server) handleCreateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.validateCreateTeamRequest(w, &req) {
-		return
-	}
-
-	// Check resource limit
-	canCreate, err := s.container.ResourceUsageService().CheckResourceLimit(r.Context(), userID, events.ResourceTypeTeam)
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleCreateTeam",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to check team creation limit")
-		writeErrorResponse(w, nil, "internal_error", "Failed to check team creation limit", http.StatusInternalServerError)
-		return
-	}
-	if !canCreate {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleCreateTeam",
-			"user_id", userID,
-		).Warn("Team creation limit exceeded")
-		writeErrorResponse(
-			w, nil, "resource_limit_exceeded",
-			"You have reached your team creation limit for your current plan",
-			http.StatusForbidden,
-		)
 		return
 	}
 

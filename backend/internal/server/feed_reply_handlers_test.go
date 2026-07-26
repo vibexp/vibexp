@@ -194,7 +194,7 @@ func TestHandleCreateFeedItemReply(t *testing.T) {
 			var mockResourceSvc *servicesmocks.MockResourceUsageServiceInterface
 			needsResourceCheck := tt.itemID == feedTestItemID && tt.wantStatus != http.StatusBadRequest
 			if needsResourceCheck {
-				mockResourceSvc = newAllowedResourceUsageMock(t)
+				mockResourceSvc = newResourceUsageMock(t)
 			}
 
 			rc := &MockFeedReplyContainer{

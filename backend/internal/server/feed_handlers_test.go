@@ -75,13 +75,10 @@ func newFeedTestServer(t *testing.T, fc *MockFeedContainer) *Server {
 	return srv
 }
 
-// newAllowedResourceUsageMock returns a ResourceUsageService mock that allows any resource limit check.
-func newAllowedResourceUsageMock(t *testing.T) *servicesmocks.MockResourceUsageServiceInterface {
+// newResourceUsageMock returns a ResourceUsageService mock for the container wiring.
+func newResourceUsageMock(t *testing.T) *servicesmocks.MockResourceUsageServiceInterface {
 	t.Helper()
-	m := servicesmocks.NewMockResourceUsageServiceInterface(t)
-	m.On("CheckResourceLimit", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string")).
-		Return(true, nil).Maybe()
-	return m
+	return servicesmocks.NewMockResourceUsageServiceInterface(t)
 }
 
 // addFeedURLParams sets chi route params on the request context.
@@ -195,7 +192,7 @@ func TestFeedHandlers_Unauthorized(t *testing.T) {
 
 func TestHandleCreateFeed_Success(t *testing.T) {
 	mockFeedSvc := servicesmocks.NewMockFeedServiceInterface(t)
-	mockResourceSvc := newAllowedResourceUsageMock(t)
+	mockResourceSvc := newResourceUsageMock(t)
 	feed := sampleFeed()
 
 	mockFeedSvc.On("CreateFeed", mock.Anything, feedTestUserID, feedTestTeamID,
@@ -276,7 +273,7 @@ func TestHandleCreateFeed_DescriptionTooLong(t *testing.T) {
 
 func TestHandleCreateFeed_DuplicateName_Returns409(t *testing.T) {
 	mockFeedSvc := servicesmocks.NewMockFeedServiceInterface(t)
-	mockResourceSvc := newAllowedResourceUsageMock(t)
+	mockResourceSvc := newResourceUsageMock(t)
 	mockFeedSvc.On("CreateFeed", mock.Anything, feedTestUserID, feedTestTeamID, mock.Anything).
 		Return((*models.Feed)(nil), errors.New("feed already exists"))
 
@@ -294,7 +291,7 @@ func TestHandleCreateFeed_DuplicateName_Returns409(t *testing.T) {
 
 func TestHandleCreateFeed_NotTeamMember_Returns403(t *testing.T) {
 	mockFeedSvc := servicesmocks.NewMockFeedServiceInterface(t)
-	mockResourceSvc := newAllowedResourceUsageMock(t)
+	mockResourceSvc := newResourceUsageMock(t)
 	mockFeedSvc.On("CreateFeed", mock.Anything, feedTestUserID, feedTestTeamID, mock.Anything).
 		Return((*models.Feed)(nil), errors.New("user is not a member of the specified team"))
 
@@ -601,7 +598,7 @@ func TestHandleDeleteFeed_NotFound(t *testing.T) {
 
 func TestHandleCreateFeedItem_Success(t *testing.T) {
 	mockItemSvc := servicesmocks.NewMockFeedItemServiceInterface(t)
-	mockResourceSvc := newAllowedResourceUsageMock(t)
+	mockResourceSvc := newResourceUsageMock(t)
 	item := sampleFeedItem()
 
 	mockItemSvc.On("CreateFeedItem", mock.Anything, feedTestUserID, feedTestTeamID, feedTestFeedID,
@@ -715,7 +712,7 @@ func TestHandleCreateFeedItem_InvalidProjectID(t *testing.T) {
 
 func TestHandleCreateFeedItem_CrossTeamProject_Returns403(t *testing.T) {
 	mockItemSvc := servicesmocks.NewMockFeedItemServiceInterface(t)
-	mockResourceSvc := newAllowedResourceUsageMock(t)
+	mockResourceSvc := newResourceUsageMock(t)
 	mockItemSvc.On("CreateFeedItem", mock.Anything, feedTestUserID, feedTestTeamID, feedTestFeedID, mock.Anything).
 		Return((*models.FeedItem)(nil), errors.New("project does not belong to the specified team"))
 
@@ -734,7 +731,7 @@ func TestHandleCreateFeedItem_CrossTeamProject_Returns403(t *testing.T) {
 
 func TestHandleCreateFeedItem_ProjectNotFound_Returns400(t *testing.T) {
 	mockItemSvc := servicesmocks.NewMockFeedItemServiceInterface(t)
-	mockResourceSvc := newAllowedResourceUsageMock(t)
+	mockResourceSvc := newResourceUsageMock(t)
 	mockItemSvc.On("CreateFeedItem", mock.Anything, feedTestUserID, feedTestTeamID, feedTestFeedID, mock.Anything).
 		Return((*models.FeedItem)(nil), errors.New("project not found"))
 
@@ -1553,7 +1550,7 @@ func TestFeedCrossTeamIsolation(t *testing.T) {
 			name: "CreateFeedItem cross-team returns 403",
 			run: func(srv *Server) *httptest.ResponseRecorder {
 				mockItemSvc := servicesmocks.NewMockFeedItemServiceInterface(t)
-				mockResourceSvc := newAllowedResourceUsageMock(t)
+				mockResourceSvc := newResourceUsageMock(t)
 				mockItemSvc.On("CreateFeedItem", mock.Anything, userInTeamA, teamBID, feedTestFeedID, mock.Anything).
 					Return((*models.FeedItem)(nil), errors.New("user is not a member of the specified team"))
 				srv.container = &MockFeedContainer{
@@ -1629,7 +1626,7 @@ func TestHandleCreateFeed_PermissionDenied_Returns403(t *testing.T) {
 
 	srv := newFeedTestServer(t, &MockFeedContainer{
 		FeedServiceMock:          mockFeedSvc,
-		ResourceUsageServiceMock: newAllowedResourceUsageMock(t),
+		ResourceUsageServiceMock: newResourceUsageMock(t),
 	})
 
 	req := authenticatedFeedRequest(http.MethodPost,

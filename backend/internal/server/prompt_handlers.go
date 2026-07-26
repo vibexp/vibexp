@@ -44,8 +44,6 @@ func writeErrorResponse(w http.ResponseWriter, r *http.Request, errorType, messa
 		apiErr = errors.NewResourceExistsError("resource", message)
 	case "internal_error":
 		apiErr = errors.NewInternalError(message)
-	case "resource_limit_exceeded":
-		apiErr = errors.NewResourceLimitExceededError(message)
 	case "forbidden":
 		apiErr = errors.NewForbiddenError(message)
 	case "unauthorized":
@@ -97,36 +95,6 @@ func validateCreatePromptRequest(req *models.CreatePromptRequest, w http.Respons
 	}
 	if req.Status != "" && req.Status != "draft" && req.Status != "published" {
 		writeErrorResponse(w, nil, "validation_error", "Status must be either 'draft' or 'published'", http.StatusBadRequest)
-		return false
-	}
-	return true
-}
-
-func (s *Server) checkPromptResourceLimit(w http.ResponseWriter, r *http.Request, userID string) bool {
-	allowed, err := s.container.ResourceUsageService().CheckResourceLimit(r.Context(), userID, "prompt")
-	if err != nil {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleCreatePrompt",
-			"user_id", userID,
-			"error", fmt.Sprintf("%+v", err),
-		).Error("Failed to check resource limit")
-		writeErrorResponse(w, nil, "internal_error", "Failed to check resource limit", http.StatusInternalServerError)
-		return false
-	}
-
-	if !allowed {
-		s.logger.With(
-			"service", serverLogServiceName,
-			"handler", "handleCreatePrompt",
-			"user_id", userID,
-			"resource_type", "prompt",
-		).Warn("User has reached their prompt limit")
-		writeErrorResponse(
-			w, nil, "resource_limit_exceeded",
-			"You have reached the maximum number of prompts allowed for your subscription plan",
-			http.StatusForbidden,
-		)
 		return false
 	}
 	return true
@@ -211,7 +179,7 @@ func (s *Server) handleCreatePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !validateCreatePromptRequest(&req, w) || !s.checkPromptResourceLimit(w, r, userID) {
+	if !validateCreatePromptRequest(&req, w) {
 		return
 	}
 
@@ -506,11 +474,6 @@ func (s *Server) handleUpdatePrompt(w http.ResponseWriter, r *http.Request) {
 		"team_id", teamID,
 		"prompt_slug", promptSlug,
 	).Info("Update prompt request received")
-
-	// Check resource limit before allowing update
-	if !s.checkPromptResourceLimit(w, r, userID) {
-		return
-	}
 
 	var req models.UpdatePromptRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {

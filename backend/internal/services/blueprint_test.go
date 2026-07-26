@@ -249,9 +249,6 @@ func TestBlueprintService_CreateBlueprint(t *testing.T) {
 			// Setup repository expectations
 			tt.setup(repo)
 
-			// Note: TrackResourceCreation was removed as part of resource tracking simplification
-			// Resource limits are now checked directly in handlers via CheckResourceLimit
-
 			service := NewBlueprintService(BlueprintServiceDeps{
 				Repo:              repo,
 				TeamService:       nil,
