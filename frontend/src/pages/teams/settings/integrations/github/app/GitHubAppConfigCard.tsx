@@ -120,7 +120,7 @@ export function GitHubAppConfigCard({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <GitHubAppSetupGuide />
+            <GitHubAppSetupGuide teamId={teamId} />
             {canManage ? (
               <Button
                 onClick={() => {
