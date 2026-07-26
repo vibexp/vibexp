@@ -465,7 +465,9 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // completed and came back empty. A bare `not.toBeVisible()` would also
       // pass against a list that never loaded — which is exactly how the
       // previous version of this test managed to assert nothing at all.
-      await expect(authenticatedPage.getByText('No prompts yet')).toBeVisible({
+      // Matched case-insensitively on purpose: this gate is load-bearing, and
+      // #595 is this repo's example of exact-case copy matching breaking a spec.
+      await expect(authenticatedPage.getByText(/no prompts yet/i)).toBeVisible({
         timeout: 10000,
       })
 

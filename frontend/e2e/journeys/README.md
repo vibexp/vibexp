@@ -267,7 +267,7 @@ referenced here have since been consolidated as noted above.
 9. Manage team members and roles
 10. Leave or delete team
 
-**Test Coverage**: 19 test cases
+**Test Coverage**: 21 test cases
 
 **Key Validations**:
 
