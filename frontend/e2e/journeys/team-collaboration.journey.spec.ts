@@ -359,10 +359,33 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
   })
 
   test.describe('Resource Sharing Within Team', () => {
-    test('should see team resources in team context', async ({
+    /**
+     * Cross-team isolation, proven on ONE user session (#415).
+     *
+     * This was two tests. Because the `authenticatedPage` fixture provisions a
+     * fresh user per test, the old "should not see team resources in personal
+     * workspace" test asserted the absence of a prompt created by the *previous*
+     * test — i.e. by a different user, for whom it had never existed in any
+     * workspace. That assertion passed trivially and would have kept passing
+     * with team scoping completely removed. Creating the resource and checking
+     * its absence in another context within the same session is what actually
+     * exercises the scoping.
+     */
+    test('team resources are visible in team context and absent from the personal workspace', async ({
       authenticatedPage,
     }) => {
-      // Create team, switch to it, create a prompt
+      // Longest test in this file: it drives two workspace contexts in one
+      // session. It measures ~4s locally against the e2e stack, but it is also
+      // the one test here whose budget a slow CI runner could genuinely
+      // threaten, so give it explicit headroom rather than the shared 30s.
+      test.setTimeout(60_000)
+
+      // Unique per run so the closing absence assertion cannot be satisfied —
+      // or defeated — by a leftover from another run or retry (same pattern as
+      // the teardown test below).
+      const promptName = `Team Shared Prompt ${Date.now()}`
+
+      // --- Team context: create the team, switch to it, create the prompt ----
       await authenticatedPage.goto('/teams')
       await authenticatedPage.click('[data-testid="create-team-button"]')
       await expect(
@@ -396,7 +419,7 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       ).toHaveText(/resource sharing team/i, { timeout: 10000 })
       await authenticatedPage.fill(
         'input[placeholder*="Enter prompt name"]',
-        'Team Shared Prompt'
+        promptName
       )
       await authenticatedPage.fill(
         'textarea[placeholder*="Write your prompt here"]',
@@ -408,21 +431,14 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
         timeout: 10000,
       })
 
-      // Go to prompts list
+      // The prompt is listed in the team it was created in.
       await authenticatedPage.goto('/prompts')
       await authenticatedPage.waitForLoadState('networkidle')
+      await expect(authenticatedPage.getByText(promptName).first()).toBeVisible(
+        { timeout: 10000 }
+      )
 
-      // Should see the team prompt
-      await expect(
-        authenticatedPage.getByText('Team Shared Prompt').first()
-      ).toBeVisible({ timeout: 10000 })
-    })
-
-    test('should not see team resources in personal workspace', async ({
-      authenticatedPage,
-    }) => {
-      // Assuming team prompt was created in previous test
-      // Switch back to personal workspace
+      // --- Personal workspace: the same prompt must NOT be listed ------------
       await authenticatedPage.goto('/')
       await authenticatedPage.click('[data-testid="team-switcher"]')
       await authenticatedPage.click('text=Private Workspace')
@@ -433,14 +449,30 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
         authenticatedPage.locator('[data-testid="current-team-name"]')
       ).toHaveText(/private workspace/i, { timeout: 10000 })
 
-      // Navigate to prompts
       await authenticatedPage.goto('/prompts')
       await authenticatedPage.waitForLoadState('networkidle')
 
-      // Team prompt should not be visible
+      // Re-confirm on the list page itself: the full-page navigation re-hydrates
+      // the team context from storage, and this list request must be the
+      // personal workspace's, not the team's.
       await expect(
-        authenticatedPage.getByText('Team Shared Prompt')
-      ).not.toBeVisible()
+        authenticatedPage.locator('[data-testid="current-team-name"]')
+      ).toHaveText(/private workspace/i, { timeout: 10000 })
+
+      // Positive proof that the list rendered for this workspace before any
+      // absence is asserted: the fresh user's personal workspace owns no
+      // prompts, so the list's own empty state is the signal that the request
+      // completed and came back empty. A bare `not.toBeVisible()` would also
+      // pass against a list that never loaded — which is exactly how the
+      // previous version of this test managed to assert nothing at all.
+      // Matched case-insensitively on purpose: this gate is load-bearing, and
+      // #595 is this repo's example of exact-case copy matching breaking a spec.
+      await expect(authenticatedPage.getByText(/no prompts yet/i)).toBeVisible({
+        timeout: 10000,
+      })
+
+      // The team-scoped prompt is not visible outside its team.
+      await expect(authenticatedPage.getByText(promptName)).not.toBeVisible()
     })
   })
 
