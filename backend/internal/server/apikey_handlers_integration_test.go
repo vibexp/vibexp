@@ -183,14 +183,14 @@ func TestHandleCreateAPIKey_Success(t *testing.T) {
 
 	reqBody := &models.CreateAPIKeyRequest{
 		Name:             "New API Key",
-		IntegrationCodes: []string{"ai_tools", "cli", "mcp_server"},
+		IntegrationCodes: []string{"cli", "mcp_server"},
 	}
 
 	expectedAPIKey := &models.APIKey{
 		ID:           "key-new",
 		Name:         "New API Key",
 		KeyPrefix:    "ak_newkey",
-		Integrations: []string{"ai_tools", "cli", "mcp_server"},
+		Integrations: []string{"cli", "mcp_server"},
 		UserID:       "user-123",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -199,7 +199,7 @@ func TestHandleCreateAPIKey_Success(t *testing.T) {
 
 	mockContainer.apiKeyService.On(
 		"GenerateAPIKey", mock.Anything, "user-123", "New API Key",
-		[]string{"ai_tools", "cli", "mcp_server"},
+		[]string{"cli", "mcp_server"},
 	).Return(expectedAPIKey, fullKey, nil)
 
 	srv := createTestAPIKeyServer(mockContainer)
@@ -216,7 +216,7 @@ func TestHandleCreateAPIKey_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "key-new", response.APIKey.ID)
 	assert.Equal(t, "New API Key", response.APIKey.Name)
-	assert.Equal(t, []string{"ai_tools", "cli", "mcp_server"}, []string(response.APIKey.Integrations))
+	assert.Equal(t, []string{"cli", "mcp_server"}, []string(response.APIKey.Integrations))
 	assert.Equal(t, "ak_newkey", response.KeyPrefix)
 	assert.Equal(t, fullKey, response.FullKey)
 
@@ -236,7 +236,7 @@ func TestHandleCreateAPIKey_ValidationError(t *testing.T) {
 			name: "Missing name",
 			reqBody: &models.CreateAPIKeyRequest{
 				Name:             "",
-				IntegrationCodes: []string{"ai_tools", "cli", "mcp_server"},
+				IntegrationCodes: []string{"cli", "mcp_server"},
 			},
 			expectedError: "API key name is required",
 		},
@@ -244,7 +244,7 @@ func TestHandleCreateAPIKey_ValidationError(t *testing.T) {
 			name: "Name too long",
 			reqBody: &models.CreateAPIKeyRequest{
 				Name:             string(make([]byte, 256)), // 256 characters
-				IntegrationCodes: []string{"ai_tools", "cli", "mcp_server"},
+				IntegrationCodes: []string{"cli", "mcp_server"},
 			},
 			expectedError: "API key name too long",
 		},
@@ -326,12 +326,12 @@ func TestHandleCreateAPIKey_ServiceError(t *testing.T) {
 
 	reqBody := &models.CreateAPIKeyRequest{
 		Name:             "New API Key",
-		IntegrationCodes: []string{"ai_tools", "cli", "mcp_server"},
+		IntegrationCodes: []string{"cli", "mcp_server"},
 	}
 
 	mockContainer.apiKeyService.On(
 		"GenerateAPIKey", mock.Anything, "user-123", "New API Key",
-		[]string{"ai_tools", "cli", "mcp_server"},
+		[]string{"cli", "mcp_server"},
 	).Return((*models.APIKey)(nil), "", errors.New("database error"))
 
 	srv := createTestAPIKeyServer(mockContainer)

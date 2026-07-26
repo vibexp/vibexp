@@ -20,11 +20,10 @@ APIKey:
       items:
         type: string
         enum:
-          - ai_tools
           - cli
           - mcp_server
       description: Array of integration codes this API key can access
-      example: ["ai_tools", "cli"]
+      example: ["cli", "mcp_server"]
     is_legacy:
       type: boolean
       description: Whether this is a legacy API key (pre-multi-integration)
@@ -33,17 +32,16 @@ APIKey:
       type: string
       nullable: true
       description: Notes about the migration from legacy system
-      example: "Migrated from usage_type: ai_tools"
+      example: "Migrated from usage_type: cli"
     usage_type:
       type: string
       enum:
-        - ai_tools
         - cli
         - mcp
         - everything
       deprecated: true
       description: "DEPRECATED: Legacy field for backward compatibility. Use 'integrations' instead."
-      example: "ai_tools"
+      example: "cli"
     last_used_at:
       type: string
       format: date-time
@@ -83,13 +81,12 @@ CreateAPIKeyRequest:
       items:
         type: string
         enum:
-          - ai_tools
           - cli
           - mcp_server
       minItems: 1
       uniqueItems: true
       description: Array of integration codes to grant access to
-      example: ["ai_tools", "cli"]
+      example: ["cli", "mcp_server"]
   required:
     - name
     - integration_codes

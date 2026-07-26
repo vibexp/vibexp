@@ -106,8 +106,6 @@ func (aks *APIKeyService) GenerateAPIKeyLegacy(
 	// Map legacy usage type to integration codes
 	var integrationCodes []string
 	switch usageType {
-	case models.UsageTypeAITools:
-		integrationCodes = []string{models.IntegrationCodeAITools}
 	case models.UsageTypeCLI:
 		integrationCodes = []string{models.IntegrationCodeCLI}
 	case models.UsageTypeMCP:
@@ -190,9 +188,8 @@ func (aks *APIKeyService) ValidateAPIKeyForIntegration(
 	if apiKey.IsLegacy && apiKey.UsageType != "" {
 		// Map legacy usage types to integration codes
 		legacyMapping := map[string]string{
-			models.UsageTypeAITools: models.IntegrationCodeAITools,
-			models.UsageTypeCLI:     models.IntegrationCodeCLI,
-			models.UsageTypeMCP:     models.IntegrationCodeMCPServer,
+			models.UsageTypeCLI: models.IntegrationCodeCLI,
+			models.UsageTypeMCP: models.IntegrationCodeMCPServer,
 		}
 
 		if apiKey.UsageType == models.UsageTypeEverything {

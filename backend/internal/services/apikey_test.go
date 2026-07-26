@@ -61,7 +61,7 @@ func TestAPIKeyService_GenerateAPIKey_New(t *testing.T) {
 						apiKey.Name == "test-key" &&
 						apiKey.KeyHash != "" &&
 						apiKey.KeyPrefix != "" &&
-						len(apiKey.Integrations) == 3 // everything maps to all integrations
+						len(apiKey.Integrations) == 2 // everything maps to all integrations
 				})).Return(nil).Run(func(args mock.Arguments) {
 					apiKey := args.Get(1).(*models.APIKey)
 					apiKey.ID = "api-key-123"
@@ -72,7 +72,7 @@ func TestAPIKeyService_GenerateAPIKey_New(t *testing.T) {
 				assert.NotNil(t, key)
 				assert.Equal(t, "user-123", key.UserID)
 				assert.Equal(t, "test-key", key.Name)
-				assert.Len(t, key.Integrations, 3) // everything maps to all 3 integrations
+				assert.Len(t, key.Integrations, 2) // everything maps to all 2 surviving integrations
 				assert.True(t, strings.HasPrefix(fullKey, "vxk_"))
 				assert.Len(t, fullKey, 68) // vxk_ + 64 hex chars (32 bytes)
 				assert.True(t, strings.HasPrefix(key.KeyPrefix, "vxk_"))
@@ -81,31 +81,15 @@ func TestAPIKeyService_GenerateAPIKey_New(t *testing.T) {
 			},
 		},
 		{
-			name:      "successful generation with ai_tools type",
-			userID:    "user-123",
-			keyName:   "test-key",
-			usageType: "ai_tools",
-			setupMocks: func(mockRepo *mocks.MockAPIKeyRepository) {
-				mockRepo.On("GetValidIntegrationCodes", context.Background()).
-					Return(models.ValidIntegrationCodes(), nil)
-				mockRepo.On("Create", context.Background(), mock.MatchedBy(func(apiKey *models.APIKey) bool {
-					return apiKey.UserID == "user-123" &&
-						apiKey.Name == "test-key" &&
-						len(apiKey.Integrations) == 1 &&
-						apiKey.Integrations[0] == "ai_tools"
-				})).Return(nil).Run(func(args mock.Arguments) {
-					apiKey := args.Get(1).(*models.APIKey)
-					apiKey.ID = "api-key-123"
-				})
-			},
-			expectError: false,
-			validateKey: func(t *testing.T, key *models.APIKey, fullKey string) {
-				assert.NotNil(t, key)
-				assert.Equal(t, []string{"ai_tools"}, []string(key.Integrations))
-				assert.True(t, strings.HasPrefix(fullKey, "vxk_"))
-				assert.Len(t, fullKey, 68) // vxk_ + 64 hex chars
-				assert.True(t, strings.HasPrefix(key.KeyPrefix, "vxk_"))
-			},
+			// The ai_tools usage type was retired with the hook feature (#614), so the
+			// legacy generator must now reject it rather than mint a scoped key.
+			name:        "ai_tools usage type is rejected after removal",
+			userID:      "user-123",
+			keyName:     "test-key",
+			usageType:   "ai_tools",
+			setupMocks:  func(_ *mocks.MockAPIKeyRepository) {},
+			expectError: true,
+			errorMsg:    "invalid usage type: ai_tools",
 		},
 		{
 			name:      "successful generation with cli type",
@@ -404,14 +388,14 @@ func TestAPIKeyService_ValidateAPIKeyForIntegration(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	legacyKeyAITools := &models.APIKey{
+	legacyKeyMCP := &models.APIKey{
 		ID:        "legacy-key-2",
 		UserID:    "user-123",
-		Name:      "Legacy AI Tools Key",
+		Name:      "Legacy MCP Key",
 		KeyHash:   "legacy-hash-2",
 		KeyPrefix: "vxk_leg",
 		IsLegacy:  true,
-		UsageType: models.UsageTypeAITools,
+		UsageType: models.UsageTypeMCP,
 		CreatedAt: time.Now(),
 	}
 
@@ -427,12 +411,12 @@ func TestAPIKeyService_ValidateAPIKeyForIntegration(t *testing.T) {
 		{
 			name:            "successful validation with permission",
 			key:             "test-key",
-			integrationCode: models.IntegrationCodeAITools,
+			integrationCode: models.IntegrationCodeMCPServer,
 			setupMocks: func(mockRepo *mocks.MockAPIKeyRepository) {
 				ctx := context.Background()
 				mockRepo.On("GetByKeyHash", ctx, mock.AnythingOfType("string")).Return(testKey, nil)
 				mockRepo.On("UpdateLastUsed", ctx, "key-123", mock.AnythingOfType("time.Time")).Return(nil)
-				mockRepo.On("HasIntegrationPermission", ctx, "key-123", models.IntegrationCodeAITools).
+				mockRepo.On("HasIntegrationPermission", ctx, "key-123", models.IntegrationCodeMCPServer).
 					Return(true, nil)
 			},
 			expectError: false,
@@ -455,7 +439,7 @@ func TestAPIKeyService_ValidateAPIKeyForIntegration(t *testing.T) {
 		{
 			name:            "key not found",
 			key:             "invalid-key",
-			integrationCode: models.IntegrationCodeAITools,
+			integrationCode: models.IntegrationCodeMCPServer,
 			setupMocks: func(mockRepo *mocks.MockAPIKeyRepository) {
 				mockRepo.On("GetByKeyHash", context.Background(), mock.AnythingOfType("string")).Return(nil, assert.AnError)
 			},
@@ -474,22 +458,22 @@ func TestAPIKeyService_ValidateAPIKeyForIntegration(t *testing.T) {
 			expectedKey: legacyKeyEverything,
 		},
 		{
-			name:            "legacy key with ai_tools type - matching integration",
-			key:             "legacy-key-ai",
-			integrationCode: models.IntegrationCodeAITools,
+			name:            "legacy key with mcp type - matching integration",
+			key:             "legacy-key-mcp",
+			integrationCode: models.IntegrationCodeMCPServer,
 			setupMocks: func(mockRepo *mocks.MockAPIKeyRepository) {
-				mockRepo.On("GetByKeyHash", context.Background(), mock.AnythingOfType("string")).Return(legacyKeyAITools, nil)
+				mockRepo.On("GetByKeyHash", context.Background(), mock.AnythingOfType("string")).Return(legacyKeyMCP, nil)
 				mockRepo.On("UpdateLastUsed", context.Background(), "legacy-key-2", mock.AnythingOfType("time.Time")).Return(nil)
 			},
 			expectError: false,
-			expectedKey: legacyKeyAITools,
+			expectedKey: legacyKeyMCP,
 		},
 		{
-			name:            "legacy key with ai_tools type - non-matching integration",
-			key:             "legacy-key-ai",
+			name:            "legacy key with mcp type - non-matching integration",
+			key:             "legacy-key-mcp",
 			integrationCode: models.IntegrationCodeCLI,
 			setupMocks: func(mockRepo *mocks.MockAPIKeyRepository) {
-				mockRepo.On("GetByKeyHash", context.Background(), mock.AnythingOfType("string")).Return(legacyKeyAITools, nil)
+				mockRepo.On("GetByKeyHash", context.Background(), mock.AnythingOfType("string")).Return(legacyKeyMCP, nil)
 				mockRepo.On("UpdateLastUsed", context.Background(), "legacy-key-2", mock.AnythingOfType("time.Time")).Return(nil)
 			},
 			expectError: true,
@@ -498,12 +482,12 @@ func TestAPIKeyService_ValidateAPIKeyForIntegration(t *testing.T) {
 		{
 			name:            "permission check error",
 			key:             "test-key",
-			integrationCode: models.IntegrationCodeAITools,
+			integrationCode: models.IntegrationCodeMCPServer,
 			setupMocks: func(mockRepo *mocks.MockAPIKeyRepository) {
 				ctx := context.Background()
 				mockRepo.On("GetByKeyHash", ctx, mock.AnythingOfType("string")).Return(testKey, nil)
 				mockRepo.On("UpdateLastUsed", ctx, "key-123", mock.AnythingOfType("time.Time")).Return(nil)
-				mockRepo.On("HasIntegrationPermission", ctx, "key-123", models.IntegrationCodeAITools).
+				mockRepo.On("HasIntegrationPermission", ctx, "key-123", models.IntegrationCodeMCPServer).
 					Return(false, assert.AnError)
 			},
 			expectError: true,
@@ -542,7 +526,7 @@ func TestAPIKeyService_NilServiceCheck(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("GenerateAPIKey with nil service", func(t *testing.T) {
-		key, fullKey, err := service.GenerateAPIKey(ctx, "user-123", "test-key", []string{"ai_tools"})
+		key, fullKey, err := service.GenerateAPIKey(ctx, "user-123", "test-key", []string{"cli"})
 		assert.Error(t, err)
 		assert.Nil(t, key)
 		assert.Empty(t, fullKey)
@@ -564,7 +548,7 @@ func TestAPIKeyService_NilServiceCheck(t *testing.T) {
 	})
 
 	t.Run("ValidateAPIKeyForIntegration with nil service", func(t *testing.T) {
-		key, err := service.ValidateAPIKeyForIntegration(ctx, "test-key", models.IntegrationCodeAITools)
+		key, err := service.ValidateAPIKeyForIntegration(ctx, "test-key", models.IntegrationCodeMCPServer)
 		assert.Error(t, err)
 		assert.Nil(t, key)
 		assert.Contains(t, err.Error(), "APIKeyService is nil")
@@ -584,7 +568,7 @@ func TestAPIKeyService_NilRepoCheck(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("GenerateAPIKey with nil repo", func(t *testing.T) {
-		key, fullKey, err := service.GenerateAPIKey(ctx, "user-123", "test-key", []string{"ai_tools"})
+		key, fullKey, err := service.GenerateAPIKey(ctx, "user-123", "test-key", []string{"cli"})
 		assert.Error(t, err)
 		assert.Nil(t, key)
 		assert.Empty(t, fullKey)
@@ -606,7 +590,7 @@ func TestAPIKeyService_NilRepoCheck(t *testing.T) {
 	})
 
 	t.Run("ValidateAPIKeyForIntegration with nil repo", func(t *testing.T) {
-		key, err := service.ValidateAPIKeyForIntegration(ctx, "test-key", models.IntegrationCodeAITools)
+		key, err := service.ValidateAPIKeyForIntegration(ctx, "test-key", models.IntegrationCodeMCPServer)
 		assert.Error(t, err)
 		assert.Nil(t, key)
 		assert.Contains(t, err.Error(), "apiKeyRepo is nil")
