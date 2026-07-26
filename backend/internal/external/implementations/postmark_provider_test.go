@@ -103,7 +103,7 @@ func TestPostmarkEmailProvider_SendEmail_MapsAllFields(t *testing.T) {
 		[]gomail.Attachment{*attachment},
 	)
 
-	err := provider.SendEmail(context.Background(), message)
+	err := provider.SendEmail(context.Background(), outgoing(message, ""))
 
 	require.NoError(t, err)
 	sent := fake.lastEmail
@@ -135,7 +135,7 @@ func TestPostmarkEmailProvider_SendEmail_OmitsEmptyOptionalFields(t *testing.T) 
 		"Subject", nil, nil, "", "text", "<p>html</p>", nil,
 	)
 
-	err := provider.SendEmail(context.Background(), message)
+	err := provider.SendEmail(context.Background(), outgoing(message, ""))
 
 	require.NoError(t, err)
 	assert.Empty(t, fake.lastEmail.Cc)
@@ -156,7 +156,7 @@ func TestPostmarkEmailProvider_SendEmail_ContextPropagation(t *testing.T) {
 		"Test", nil, nil, "", "text", "<p>html</p>", nil,
 	)
 
-	err := provider.SendEmail(ctx, message)
+	err := provider.SendEmail(ctx, outgoing(message, ""))
 
 	require.NoError(t, err)
 	assert.Equal(t, "abc-123", fake.lastCtx.Value(ctxKey("trace")), "ctx values must be preserved end-to-end")
@@ -175,8 +175,24 @@ func TestPostmarkEmailProvider_SendEmail_Error(t *testing.T) {
 		"Test Subject", nil, nil, "", "text", "<p>html</p>", nil,
 	)
 
-	err := provider.SendEmail(context.Background(), message)
+	err := provider.SendEmail(context.Background(), outgoing(message, ""))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, sendErr, "underlying error must be wrapped with %w")
+}
+
+func TestPostmarkEmailProvider_SendEmail_AppliesFromName(t *testing.T) {
+	for _, tt := range fromNameCases {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &fakePostmarkSender{}
+			provider := &PostmarkEmailProvider{sender: fake, messageStream: defaultPostmarkMessageStream}
+
+			require.NoError(t, provider.SendEmail(
+				context.Background(),
+				outgoing(testMessage(), tt.fromName),
+			))
+
+			assert.Equal(t, tt.wantHeader, fake.lastEmail.From)
+		})
+	}
 }

@@ -990,3 +990,37 @@ func TestTeamEmailProvider_Upsert_ExistingLookupFailure(t *testing.T) {
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrTeamEmailProviderValidation)
 }
+
+// A test send previews the team's real sender identity, display name included —
+// otherwise a team configures from_name, sends itself a test, and sees a bare
+// address, which reads as the feature being broken.
+func TestTestMessageFor_CarriesTheDisplayName(t *testing.T) {
+	name := "Acme Team"
+	replyTo := "support@acme.test"
+
+	out := testMessageFor(models.TestTeamEmailProviderRequest{
+		UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
+			FromAddress: "  hello@acme.test  ",
+			FromName:    &name,
+			ReplyTo:     &replyTo,
+		},
+	}, "admin@example.com")
+
+	assert.Equal(t, "Acme Team", out.FromName)
+	// The gomail field stays a bare address; the name rides beside it.
+	assert.Equal(t, "hello@acme.test", out.Message.GetFrom())
+	assert.Equal(t, `"Acme Team" <hello@acme.test>`, out.FromHeader())
+	assert.Equal(t, []string{"admin@example.com"}, out.Message.GetTo())
+	assert.Equal(t, replyTo, out.Message.GetReplyTo())
+}
+
+func TestTestMessageFor_WithoutADisplayNameStaysBare(t *testing.T) {
+	out := testMessageFor(models.TestTeamEmailProviderRequest{
+		UpsertTeamEmailProviderRequest: models.UpsertTeamEmailProviderRequest{
+			FromAddress: "hello@acme.test",
+		},
+	}, "admin@example.com")
+
+	assert.Empty(t, out.FromName)
+	assert.Equal(t, "hello@acme.test", out.FromHeader())
+}

@@ -19,9 +19,13 @@ type fakeMailgunSender struct {
 	sendErr     error
 	lastCtx     context.Context
 	lastMessage *mailgun.Message
+	// lastFrom records the sender argument, which mailgun.Message exposes no
+	// getter for.
+	lastFrom string
 }
 
 func (f *fakeMailgunSender) NewMessage(from, subject, text string, to ...string) *mailgun.Message {
+	f.lastFrom = from
 	return mailgun.NewMessage(from, subject, text, to...)
 }
 
@@ -162,7 +166,7 @@ func TestMailgunEmailProvider_SendEmail_Success(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	err := provider.SendEmail(ctx, message)
+	err := provider.SendEmail(ctx, outgoing(message, ""))
 
 	require.NoError(t, err)
 	assert.Equal(t, ctx, fake.lastCtx, "ctx must be propagated to mailgun-go's Send")
@@ -181,7 +185,7 @@ func TestMailgunEmailProvider_SendEmail_ContextPropagation(t *testing.T) {
 		"Test", nil, nil, "", "text", "<p>html</p>", nil,
 	)
 
-	err := provider.SendEmail(ctx, message)
+	err := provider.SendEmail(ctx, outgoing(message, ""))
 
 	require.NoError(t, err)
 	assert.Equal(t, "abc-123", fake.lastCtx.Value(ctxKey("trace")), "ctx values must be preserved end-to-end")
@@ -198,8 +202,70 @@ func TestMailgunEmailProvider_SendEmail_Error(t *testing.T) {
 		"text", "<p>html</p>", nil,
 	)
 
-	err := provider.SendEmail(context.Background(), message)
+	err := provider.SendEmail(context.Background(), outgoing(message, ""))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, sendErr, "underlying error must be wrapped with %%w")
+}
+
+// fromNameCases are the display-name shapes every provider must get right.
+// Declared once, in the mailgun suite, and shared by the postmark suite; the
+// SendGrid suite asserts the raw name instead because that SDK does its own
+// encoding.
+var fromNameCases = []struct {
+	name       string
+	fromName   string
+	wantHeader string
+}{
+	{
+		name:       "no name sends a bare address",
+		fromName:   "",
+		wantHeader: "hello@acme.test",
+	},
+	{
+		name:       "whitespace-only name sends a bare address",
+		fromName:   "   ",
+		wantHeader: "hello@acme.test",
+	},
+	{
+		name:       "plain name is quoted",
+		fromName:   "Acme Team",
+		wantHeader: `"Acme Team" <hello@acme.test>`,
+	},
+	{
+		name:       "comma is quoted rather than splitting the address list",
+		fromName:   "Acme, Inc.",
+		wantHeader: `"Acme, Inc." <hello@acme.test>`,
+	},
+	{
+		name:       "double quote is escaped",
+		fromName:   `He said "hi"`,
+		wantHeader: `"He said \"hi\"" <hello@acme.test>`,
+	},
+	{
+		name:       "non-ASCII is RFC 2047 encoded",
+		fromName:   "Ünïcodé Tëam",
+		wantHeader: "=?utf-8?q?=C3=9Cn=C3=AFcod=C3=A9_T=C3=ABam?= <hello@acme.test>",
+	},
+	{
+		name:       "CRLF is encoded so it cannot inject a header",
+		fromName:   "Evil\r\nBcc: attacker@evil.test",
+		wantHeader: "=?utf-8?b?RXZpbA0KQmNjOiBhdHRhY2tlckBldmlsLnRlc3Q=?= <hello@acme.test>",
+	},
+}
+
+func TestMailgunEmailProvider_SendEmail_AppliesFromName(t *testing.T) {
+	for _, tt := range fromNameCases {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &fakeMailgunSender{}
+			provider := &MailgunEmailProvider{sender: fake}
+
+			require.NoError(t, provider.SendEmail(
+				context.Background(),
+				outgoing(testMessage(), tt.fromName),
+			))
+
+			assert.Equal(t, tt.wantHeader, fake.lastFrom)
+		})
+	}
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/darkrockmountain/gomail"
 	"github.com/mailgun/mailgun-go/v4"
 
 	"github.com/vibexp/vibexp/internal/external"
@@ -80,9 +79,12 @@ func normalizeMailgunBaseURL(raw string) string {
 
 // SendEmail sends an email via the Mailgun API. The caller's ctx controls
 // cancellation and deadline propagation through to the HTTP request.
-func (p *MailgunEmailProvider) SendEmail(ctx context.Context, message *gomail.EmailMessage) error {
+func (p *MailgunEmailProvider) SendEmail(ctx context.Context, outgoing *external.OutgoingMessage) error {
+	message := outgoing.Message
+
 	mgMessage := p.sender.NewMessage(
-		message.GetFrom(),
+		// Mailgun's sender argument takes a full RFC 5322 value.
+		outgoing.FromHeader(),
 		message.GetSubject(),
 		message.GetText(),
 		message.GetTo()...,

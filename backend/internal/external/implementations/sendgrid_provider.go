@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/darkrockmountain/gomail"
 	"github.com/sendgrid/rest"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
@@ -39,9 +38,14 @@ func NewSendGridEmailProvider(spec SendGridSpec) (external.EmailProvider, error)
 
 // SendEmail sends an email via the SendGrid v3 Mail Send API. The caller's ctx
 // controls cancellation and deadline propagation through to the HTTP request.
-func (p *SendGridEmailProvider) SendEmail(ctx context.Context, message *gomail.EmailMessage) error {
+func (p *SendGridEmailProvider) SendEmail(ctx context.Context, outgoing *external.OutgoingMessage) error {
+	message := outgoing.Message
+
 	m := mail.NewV3Mail()
-	m.SetFrom(mail.NewEmail("", message.GetFrom()))
+	// SendGrid takes the display name as its own field and encodes the header
+	// itself, so hand it the raw name rather than a pre-built RFC 5322 value —
+	// passing FromHeader() here would show the quoting to the recipient.
+	m.SetFrom(mail.NewEmail(outgoing.SanitizedFromName(), message.GetFrom()))
 	m.Subject = message.GetSubject()
 
 	personalization := mail.NewPersonalization()

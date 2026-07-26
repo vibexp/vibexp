@@ -13,6 +13,7 @@ import (
 	"github.com/darkrockmountain/gomail"
 
 	"github.com/vibexp/vibexp/internal/config"
+	"github.com/vibexp/vibexp/internal/external"
 	"github.com/vibexp/vibexp/internal/models"
 )
 
@@ -105,12 +106,11 @@ func (es *EmailService) sendEmail(ctx context.Context, teamID, to, subject, html
 	}
 
 	message := gomail.NewFullEmailMessage(
-		// A BARE address only. gomail validates this field with a plain
-		// email regex and silently substitutes "" for anything else, so an
+		// A BARE address only, deliberately. gomail validates this field with a
+		// plain email regex and silently substitutes "" for anything else, so an
 		// RFC-5322 `"Name" <addr>` form here would send with NO From header at
-		// all. The resolved FromName therefore cannot be applied at this layer —
-		// carrying it would mean threading a display name through all four
-		// providers, which the gomail surface has no field for.
+		// all. The display name travels separately, on the OutgoingMessage
+		// below, and each provider applies it to the From header itself (#549).
 		sender.FromAddress,
 		[]string{to},
 		subject,
@@ -124,7 +124,10 @@ func (es *EmailService) sendEmail(ctx context.Context, teamID, to, subject, html
 
 	// The caller's ctx reaches the provider, so a cancelled request no longer
 	// leaves a send running detached.
-	sendErr := sender.Provider.SendEmail(ctx, message)
+	sendErr := sender.Provider.SendEmail(ctx, &external.OutgoingMessage{
+		Message:  message,
+		FromName: sender.FromName,
+	})
 
 	// Record the outcome before returning either way: health is derived by
 	// comparing the success and failure timestamps, so a provider that only

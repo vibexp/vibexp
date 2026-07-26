@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/darkrockmountain/gomail"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ import (
 // identity by pointer rather than by type.
 type recordingProvider struct{}
 
-func (*recordingProvider) SendEmail(context.Context, *gomail.EmailMessage) error { return nil }
+func (*recordingProvider) SendEmail(context.Context, *external.OutgoingMessage) error { return nil }
 
 func instanceConfig() *config.Config {
 	return &config.Config{

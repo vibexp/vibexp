@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/darkrockmountain/gomail"
 	"github.com/mrz1836/postmark"
 
 	"github.com/vibexp/vibexp/internal/external"
@@ -54,9 +53,13 @@ func NewPostmarkEmailProvider(spec PostmarkSpec) (external.EmailProvider, error)
 
 // SendEmail sends an email via the Postmark API. The caller's ctx controls
 // cancellation and deadline propagation through to the HTTP request.
-func (p *PostmarkEmailProvider) SendEmail(ctx context.Context, message *gomail.EmailMessage) error {
+func (p *PostmarkEmailProvider) SendEmail(ctx context.Context, outgoing *external.OutgoingMessage) error {
+	message := outgoing.Message
+
 	email := postmark.Email{
-		From:          message.GetFrom(),
+		// Postmark's From takes a full RFC 5322 value, so the display name
+		// travels as part of it.
+		From:          outgoing.FromHeader(),
 		To:            strings.Join(message.GetTo(), ","),
 		Subject:       message.GetSubject(),
 		TextBody:      message.GetText(),
