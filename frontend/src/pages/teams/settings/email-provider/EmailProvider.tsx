@@ -99,15 +99,22 @@ export function EmailProvider({ team }: Readonly<{ team: Team }>) {
     void load()
   }, [load])
 
-  const configured = provider?.configured ?? false
-
   /** Both actions need a valid form; each has its own rule about the secret. */
   const validateFor = async (
     action: 'save' | 'test'
   ): Promise<EmailProviderFormValues | null> => {
     if (!(await form.trigger())) return null
     const values = form.getValues()
-    const message = secretError(action, configured, values.secret)
+    const message = secretError(
+      action,
+      {
+        configured: provider?.configured ?? false,
+        providerTypeChanged:
+          provider?.configured === true &&
+          provider.provider_type !== values.provider_type,
+      },
+      values.secret
+    )
     if (message) {
       form.setError('secret', { type: 'manual', message })
       return null

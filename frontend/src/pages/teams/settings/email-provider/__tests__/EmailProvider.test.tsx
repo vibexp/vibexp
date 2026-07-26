@@ -225,6 +225,49 @@ describe('EmailProvider — configured state', () => {
     expect(service.upsertEmailProvider.mock.calls[0][1].secret).toBe('key-new')
   })
 
+  it('demands a fresh credential when the provider type is switched', async () => {
+    // The team stores ONE secret, so saving without re-entering it here would
+    // reuse the Mailgun sending key as an SMTP password — a provider that
+    // hard-fails with no fallback, which the backend will not catch.
+    const user = userEvent.setup()
+    service.getEmailProvider.mockResolvedValue(configured())
+    renderPage()
+
+    await user.click(await screen.findByRole('radio', { name: /^smtp$/i }))
+    await user.type(screen.getByLabelText(/^host$/i), 'smtp.acme.test')
+    await user.type(screen.getByLabelText(/^port$/i), '587')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(
+      await screen.findByText(/belongs to the provider you are switching away/i)
+    ).toBeInTheDocument()
+    expect(service.upsertEmailProvider).not.toHaveBeenCalled()
+  })
+
+  it('saves a switched provider type once a new credential is given', async () => {
+    const user = userEvent.setup()
+    service.getEmailProvider.mockResolvedValue(configured())
+    service.upsertEmailProvider.mockResolvedValue(configured())
+    renderPage()
+
+    await user.click(await screen.findByRole('radio', { name: /^smtp$/i }))
+    await user.type(screen.getByLabelText(/^host$/i), 'smtp.acme.test')
+    await user.type(screen.getByLabelText(/^port$/i), '587')
+    await user.type(screen.getByLabelText(/smtp password/i), 'hunter2')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(service.upsertEmailProvider).toHaveBeenCalled()
+    })
+    const body = service.upsertEmailProvider.mock.calls[0][1]
+    expect(body.provider_type).toBe('smtp')
+    expect(body.secret).toBe('hunter2')
+    // The Mailgun block must not travel with an SMTP provider_type.
+    expect(body.settings).toEqual({
+      smtp: { host: 'smtp.acme.test', port: '587' },
+    })
+  })
+
   it('requires a credential the first time a provider is configured', async () => {
     const user = userEvent.setup()
     renderPage()

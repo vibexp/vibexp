@@ -100,6 +100,11 @@ export const emailProviderSchema = z
           message: 'Host is required',
         })
       }
+      // Digits only, deliberately NOT `Number()`: the server parses the port
+      // with strconv.Atoi, which accepts an optional sign and decimal digits
+      // and nothing else. `Number()` also accepts "0x1f", "1e3" and "587.",
+      // which would pass here and then be rejected server-side — losing the
+      // inline field error this schema exists to give.
       const port = Number(values.smtp_port)
       if (!values.smtp_port) {
         ctx.addIssue({
@@ -107,7 +112,7 @@ export const emailProviderSchema = z
           path: ['smtp_port'],
           message: 'Port is required',
         })
-      } else if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      } else if (!/^\d+$/.test(values.smtp_port) || port < 1 || port > 65535) {
         ctx.addIssue({
           code: 'custom',
           path: ['smtp_port'],
@@ -258,12 +263,26 @@ export function toRequest(
  */
 export function secretError(
   action: 'save' | 'test',
-  configured: boolean,
+  context: { configured: boolean; providerTypeChanged: boolean },
   secret: string | undefined
 ): string | null {
   if (secret?.trim()) return null
+
   if (action === 'test') {
     return 'Enter the credential to send a test — the test sends with the values in this form, not the stored credential.'
   }
-  return configured ? null : 'A credential is required'
+
+  if (!context.configured) return 'A credential is required'
+
+  // A team stores ONE secret, shared by whichever provider type is configured
+  // (`secret_encrypted` is a single column). So omitting it while switching
+  // type silently reuses, say, a Mailgun sending key as an SMTP password. The
+  // backend cannot catch this — its own check keys only on whether a row
+  // exists — and the result is a provider that hard-fails with no fallback to
+  // the instance, i.e. the team's mail stops.
+  if (context.providerTypeChanged) {
+    return 'Enter the new provider’s credential — the stored one belongs to the provider you are switching away from.'
+  }
+
+  return null
 }

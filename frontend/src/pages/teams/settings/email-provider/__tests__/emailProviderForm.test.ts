@@ -58,6 +58,17 @@ describe('emailProviderSchema', () => {
     }
   )
 
+  it.each(['0x1f', '1e3', '587.', '+587', 'Infinity'])(
+    'rejects the SMTP port %s that Number() would accept but strconv.Atoi will not',
+    port => {
+      // The server parses the port with strconv.Atoi. Accepting these here
+      // would swap an inline field error for a server round-trip rejection.
+      expect(
+        emailProviderSchema.safeParse(valid({ smtp_port: port })).success
+      ).toBe(false)
+    }
+  )
+
   it('ignores SMTP fields once another provider type is selected', () => {
     // Switching type must not leave the form permanently invalid because of
     // values belonging to the type the admin moved away from.
@@ -206,20 +217,33 @@ describe('toRequest', () => {
 })
 
 describe('secretError', () => {
+  const stored = { configured: true, providerTypeChanged: false }
+  const fresh = { configured: false, providerTypeChanged: false }
+  const switched = { configured: true, providerTypeChanged: true }
+
   it('lets an unchanged secret through when saving a configured provider', () => {
-    expect(secretError('save', true, '')).toBeNull()
+    expect(secretError('save', stored, '')).toBeNull()
   })
 
   it('requires a secret when configuring a provider for the first time', () => {
-    expect(secretError('save', false, '')).not.toBeNull()
+    expect(secretError('save', fresh, '')).not.toBeNull()
+  })
+
+  it('requires a fresh secret when the provider type changed', () => {
+    // A team stores ONE secret across all four types, so keeping it while
+    // switching would reuse (say) a Mailgun key as an SMTP password. The
+    // backend cannot catch this — it only checks whether a row exists — and
+    // the result is a provider that hard-fails with no instance fallback.
+    expect(secretError('save', switched, '')).not.toBeNull()
+    expect(secretError('save', switched, 'new-secret')).toBeNull()
   })
 
   it('always requires a secret to test, even on a configured provider', () => {
     // The test endpoint sends with the request body, not the stored config, so
     // there is no credential to fall back on.
-    expect(secretError('test', true, '')).not.toBeNull()
-    expect(secretError('test', true, '   ')).not.toBeNull()
-    expect(secretError('test', true, 'hunter2')).toBeNull()
+    expect(secretError('test', stored, '')).not.toBeNull()
+    expect(secretError('test', stored, '   ')).not.toBeNull()
+    expect(secretError('test', stored, 'hunter2')).toBeNull()
   })
 })
 
