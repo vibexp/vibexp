@@ -37,7 +37,8 @@ builds and pushes `:X.Y.Z` (+ `:latest` for non-prereleases).
   (`.github/workflows/ci.yml`, job `e2e`) with a `workflow_dispatch` input
   `platform_image_tag` that boots `ghcr.io/vibexp/vibexp:<tag>` and runs the CLI
   against it. Track C verifies the latest CLI *release* (not `main`) this way, and
-  files CLI catch-up issues. Auto-dispatch-on-release is tracked in #448.
+  files CLI catch-up issues. Publishing a release **auto-dispatches** that e2e —
+  `release.yml` job `dispatch-cli-e2e` (#448) — and links the run in its summary.
 - **Compose for self-host / smoke test:** root `docker-compose.yml` tracks `:latest`.
 
 ## Inputs
@@ -267,26 +268,40 @@ plus a `workflow_dispatch` input `platform_image_tag` that boots
 `ghcr.io/vibexp/vibexp:<tag>` and drives the built CLI against it. **We verify the
 released CLI, not `main`.**
 
-- **Preferred (once the automation in vibexp/vibexp#448 exists):** the platform
-  `release: published` event auto-dispatches the CLI e2e (cross-repo, like
-  `publish-api-client.yml`). Then just **find and watch** that run:
-  `gh run list --repo vibexp/cli --workflow ci.yml -L 5` (pick the run triggered
-  right after the release), `gh run watch <id> --repo vibexp/cli --exit-status`.
-- **Fallback (until #448 lands):** self-dispatch it against the latest CLI
-  release tag:
+- **Default path — the release already dispatched it (#448).** Publishing the
+  release runs `release.yml`'s `dispatch-cli-e2e` job (after the image push, via
+  `needs: release`), which resolves the latest CLI release tag, dispatches
+  `ci.yml` against it with `platform_image_tag=X.Y.Z`, and writes a **`CLI e2e:`
+  line with the run URL to that job's summary**. So: open the release run's
+  summary, take the link, and watch it —
+  `gh run watch <id> --repo vibexp/cli --exit-status`. Read the URL from the
+  summary rather than guessing from `gh run list`; the job already did the
+  before/after run-id disambiguation for you.
+  - Its summary line may instead say **skipped** (the CLI release predates the
+    `platform_image_tag` input) — then there is no run to watch. Report that and
+    move to C2.
+  - If `dispatch-cli-e2e` itself is **red**, its error names the remediation (the
+    VibeXP Bot app needs `Actions: read & write` on `vibexp/cli`). The image is
+    already published — a red dispatch job never affects the release. Use the
+    fallback below for this release, and get the app installed.
+- **Fallback (only when the job skipped, went red, or the release was cut by a
+  manual `workflow_dispatch`, which deliberately does not dispatch downstream):**
+  self-dispatch against the latest CLI release tag:
   ```bash
   CLI_TAG=$(gh release view --repo vibexp/cli --json tagName -q .tagName)
   gh workflow run ci.yml --repo vibexp/cli --ref "$CLI_TAG" -f platform_image_tag=X.Y.Z
   # then poll for the new run and: gh run watch <id> --repo vibexp/cli --exit-status
   ```
-- **Guard (required):** `workflow_dispatch --ref <tag>` runs the workflow **from
-  that tag**, so if the latest CLI release predates the e2e harness/job, the
-  dispatch does nothing useful. Before dispatching, confirm the tag carries the
-  job: `git -C ../cli show "$CLI_TAG:.github/workflows/ci.yml" | grep -q 'platform_image_tag'`
+- **Guard (required on the fallback path):** `workflow_dispatch --ref <tag>` runs
+  the workflow **from that tag**, so if the latest CLI release predates the e2e
+  harness/job, the dispatch does nothing useful. Before dispatching, confirm the
+  tag carries the job:
+  `git -C ../cli show "$CLI_TAG:.github/workflows/ci.yml" | grep -q 'platform_image_tag'`
   (or the API equivalent). **If it is absent, SKIP the e2e run and report it
   clearly** ("latest CLI release `<tag>` predates the e2e harness; compatibility
   e2e skipped") — do NOT silently fall back to `main` (that tests unreleased CLI
-  code, not the release). Still do C2.
+  code, not the release). Still do C2. (On the default path the job applies this
+  same guard itself.)
 - A failing CLI e2e is a **compatibility regression**: report it loudly (link the
   failing run) so a CLI fix can follow. It does NOT roll back the platform release
   (already published) — it is post-release signal.
