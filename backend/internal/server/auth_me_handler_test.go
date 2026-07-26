@@ -49,7 +49,6 @@ func TestHandleGetMe_IsInstanceAdmin(t *testing.T) {
 				ID:                  "user-123",
 				Email:               tc.email,
 				Name:                "Test User",
-				SubscriptionStatus:  "active",
 				OnboardingCompleted: true,
 				CreatedAt:           time.Now(),
 				UpdatedAt:           time.Now(),

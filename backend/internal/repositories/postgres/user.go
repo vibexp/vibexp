@@ -14,8 +14,7 @@ import (
 // userColumns is the canonical user column list used by every SELECT.
 // Keep in sync with scanUser below.
 const userColumns = `id, google_id, idp_provider, idp_subject, email, name, avatar_url,
-		stripe_customer_id, subscription_status, trial_ends_at, subscription_plan,
-		subscription_canceled_at, default_team_id, status, onboarding_completed,
+		default_team_id, status, onboarding_completed,
 		onboarding_completed_at, created_at, updated_at, version`
 
 // UserRepository implements the repositories.UserRepository interface for PostgreSQL
@@ -39,9 +38,8 @@ func scanUser(row rowScanner) (*models.User, error) {
 	var user models.User
 	err := row.Scan(
 		&user.ID, &user.GoogleID, &user.IDPProvider, &user.IDPSubject,
-		&user.Email, &user.Name, &user.AvatarURL, &user.StripeCustomerID,
-		&user.SubscriptionStatus, &user.TrialEndsAt, &user.SubscriptionPlan,
-		&user.SubscriptionCanceledAt, &user.DefaultTeamID, &user.Status,
+		&user.Email, &user.Name, &user.AvatarURL,
+		&user.DefaultTeamID, &user.Status,
 		&user.OnboardingCompleted, &user.OnboardingCompletedAt,
 		&user.CreatedAt, &user.UpdatedAt, &user.Version,
 	)
@@ -99,23 +97,12 @@ func (r *UserRepository) GetByIDPSubject(
 	return user, nil
 }
 
-// GetByStripeCustomerID retrieves a user by their Stripe customer ID
-func (r *UserRepository) GetByStripeCustomerID(ctx context.Context, stripeCustomerID string) (*models.User, error) {
-	query := `SELECT ` + userColumns + ` FROM users WHERE stripe_customer_id = $1`
-
-	user, err := scanUser(r.db.QueryRowContext(ctx, query, stripeCustomerID))
-	if err != nil {
-		return nil, mapNoRows(fmt.Errorf("failed to get user by Stripe customer ID: %w", err), repositories.ErrUserNotFound)
-	}
-	return user, nil
-}
-
 // Create creates a new user
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `
 		INSERT INTO users (google_id, idp_provider, idp_subject, email, name, avatar_url, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, subscription_status, subscription_plan, default_team_id,
+		RETURNING id, default_team_id,
 		          onboarding_completed, onboarding_completed_at, created_at, updated_at
 	`
 
@@ -123,7 +110,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 		user.GoogleID, user.IDPProvider, user.IDPSubject,
 		user.Email, user.Name, user.AvatarURL,
 		user.CreatedAt, user.UpdatedAt,
-	).Scan(&user.ID, &user.SubscriptionStatus, &user.SubscriptionPlan, &user.DefaultTeamID,
+	).Scan(&user.ID, &user.DefaultTeamID,
 		&user.OnboardingCompleted, &user.OnboardingCompletedAt, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
@@ -152,7 +139,7 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		    idp_subject  = COALESCE($6, idp_subject),
 		    updated_at = $7, version = version + 1
 		WHERE id = $1 AND version = $8
-		RETURNING id, subscription_status, trial_ends_at, subscription_plan, subscription_canceled_at,
+		RETURNING id,
 			default_team_id, onboarding_completed, onboarding_completed_at, created_at, updated_at, version
 	`
 
@@ -160,141 +147,12 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		user.ID, user.Email, user.Name, user.AvatarURL,
 		user.IDPProvider, user.IDPSubject, now, user.Version,
 	).Scan(
-		&user.ID, &user.SubscriptionStatus, &user.TrialEndsAt, &user.SubscriptionPlan,
-		&user.SubscriptionCanceledAt, &user.DefaultTeamID, &user.OnboardingCompleted,
+		&user.ID, &user.DefaultTeamID, &user.OnboardingCompleted,
 		&user.OnboardingCompletedAt, &user.CreatedAt, &user.UpdatedAt, &user.Version,
 	)
 
 	if err != nil {
 		return mapNoRows(fmt.Errorf("failed to update user: %w", err), fmt.Errorf("user not found or version mismatch"))
-	}
-
-	return nil
-}
-
-// UpdateSubscriptionStatus updates a user's subscription status and plan
-func (r *UserRepository) UpdateSubscriptionStatus(ctx context.Context, userID, status string, plan *string) error {
-	query := `
-		UPDATE users
-		SET subscription_status = $2, subscription_plan = $3, updated_at = NOW()
-		WHERE id = $1
-	`
-
-	_, err := r.db.ExecContext(ctx, query, userID, status, plan)
-	if err != nil {
-		return fmt.Errorf("failed to update subscription status: %w", err)
-	}
-
-	return nil
-}
-
-// UpdateSubscriptionStatusWithTrial updates a user's subscription status,
-// plan, and trial end date
-func (r *UserRepository) UpdateSubscriptionStatusWithTrial(
-	ctx context.Context, userID, status string, plan *string, trialEnd *time.Time,
-) error {
-	// Build query with proper parameterization to avoid SQL injection
-	query := `UPDATE users SET
-		subscription_status = $1,
-		subscription_plan = CASE WHEN $2::text IS NOT NULL THEN $2 ELSE subscription_plan END,
-		trial_ends_at = CASE WHEN $3::timestamptz IS NOT NULL THEN $3 ELSE trial_ends_at END,
-		updated_at = NOW()
-		WHERE id = $4`
-
-	var planValue interface{}
-	var trialEndValue interface{}
-
-	if plan != nil {
-		planValue = *plan
-	}
-	if trialEnd != nil {
-		trialEndValue = *trialEnd
-	}
-
-	result, err := r.db.ExecContext(ctx, query, status, planValue, trialEndValue, userID)
-	if err != nil {
-		return fmt.Errorf("failed to update subscription status with trial: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return repositories.ErrUserNotFound
-	}
-
-	return nil
-}
-
-// UpdateStripeCustomerID updates a user's Stripe customer ID
-func (r *UserRepository) UpdateStripeCustomerID(ctx context.Context, userID, customerID string) error {
-	query := `
-		UPDATE users
-		SET stripe_customer_id = $2, updated_at = NOW()
-		WHERE id = $1
-	`
-
-	_, err := r.db.ExecContext(ctx, query, userID, customerID)
-	if err != nil {
-		return fmt.Errorf("failed to update Stripe customer ID: %w", err)
-	}
-
-	return nil
-}
-
-// UpdateSubscriptionWithCancellation updates a user's subscription status, plan, trial end,
-// and cancellation timestamp
-func (r *UserRepository) UpdateSubscriptionWithCancellation(
-	ctx context.Context, userID, status string, plan *string, trialEnd *time.Time, canceledAt *time.Time,
-) error {
-	query := `UPDATE users SET
-		subscription_status = $1,
-		subscription_plan = CASE WHEN $2::text IS NOT NULL THEN $2 ELSE subscription_plan END,
-		trial_ends_at = CASE WHEN $3::timestamptz IS NOT NULL THEN $3 ELSE trial_ends_at END,
-		subscription_canceled_at = $4,
-		updated_at = NOW()
-		WHERE id = $5`
-
-	var planValue interface{}
-	var trialEndValue interface{}
-
-	if plan != nil {
-		planValue = *plan
-	}
-	if trialEnd != nil {
-		trialEndValue = *trialEnd
-	}
-
-	result, err := r.db.ExecContext(ctx, query, status, planValue, trialEndValue, canceledAt, userID)
-	if err != nil {
-		return fmt.Errorf("failed to update subscription with cancellation: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return repositories.ErrUserNotFound
-	}
-
-	return nil
-}
-
-// UpdateTrialEndsAt updates a user's trial end date
-func (r *UserRepository) UpdateTrialEndsAt(ctx context.Context, userID string, trialEndsAt *time.Time) error {
-	query := `
-		UPDATE users
-		SET trial_ends_at = $2, updated_at = NOW()
-		WHERE id = $1
-	`
-
-	_, err := r.db.ExecContext(ctx, query, userID, trialEndsAt)
-	if err != nil {
-		return fmt.Errorf("failed to update trial end date: %w", err)
 	}
 
 	return nil

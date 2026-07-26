@@ -892,7 +892,7 @@
                     "acknowledgement": true,
                     "additional_info": {
                       "source_url": "/settings/api-keys",
-                      "subscription_tier": "pro"
+                      "app_version": "1.4.2"
                     }
                   }
                 },
@@ -21950,25 +21950,6 @@
             "format": "uri",
             "example": "https://example.com/avatar.jpg"
           },
-          "stripe_customer_id": {
-            "type": "string",
-            "nullable": true,
-            "example": "cus_123"
-          },
-          "subscription_status": {
-            "type": "string",
-            "example": "active"
-          },
-          "trial_ends_at": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "subscription_plan": {
-            "type": "string",
-            "nullable": true,
-            "example": "professional"
-          },
           "default_team_id": {
             "type": "string",
             "nullable": true,
@@ -22001,7 +21982,6 @@
           "id",
           "email",
           "name",
-          "subscription_status",
           "onboarding_completed",
           "created_at",
           "updated_at",
@@ -24848,7 +24828,7 @@
             "example": {
               "source_url": "/settings/api-keys",
               "browser": "Chrome",
-              "subscription_tier": "basic"
+              "app_version": "1.4.2"
             }
           },
           "acknowledgement": {

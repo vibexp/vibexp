@@ -15,7 +15,7 @@ SupportRequest:
       example:
         source_url: "/settings/api-keys"
         browser: "Chrome"
-        subscription_tier: "basic"
+        app_version: "1.4.2"
     acknowledgement:
       type: boolean
       default: false

@@ -40,8 +40,6 @@ func TestUserRepository_GetByID(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	avatarURL := "https://example.com/avatar.png"
-	stripeCustomerID := "cus_123"
-	subscriptionPlan := "pro"
 	defaultTeamID := "team-123"
 
 	tests := []struct {
@@ -56,13 +54,11 @@ func TestUserRepository_GetByID(t *testing.T) {
 			userID: "user-123",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{
-					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
-					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
+					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
-					"user-123", "google-123", nil, nil, "user@example.com", "Test User", &avatarURL, &stripeCustomerID,
-					"active", nil, &subscriptionPlan, nil,
+					"user-123", "google-123", nil, nil, "user@example.com", "Test User", &avatarURL,
 					&defaultTeamID, "active", false, nil,
 					now, now, 1,
 				)
@@ -78,7 +74,6 @@ func TestUserRepository_GetByID(t *testing.T) {
 				assert.Equal(t, "user@example.com", user.Email)
 				assert.Equal(t, "Test User", user.Name)
 				assert.Equal(t, &avatarURL, user.AvatarURL)
-				assert.Equal(t, "active", user.SubscriptionStatus)
 			},
 		},
 		{
@@ -86,13 +81,11 @@ func TestUserRepository_GetByID(t *testing.T) {
 			userID: "user-456",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{
-					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
-					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
+					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
-					"user-456", "google-456", nil, nil, "minimal@example.com", "Minimal User", nil, nil,
-					"trial", nil, nil, nil,
+					"user-456", "google-456", nil, nil, "minimal@example.com", "Minimal User", nil,
 					nil, "active", false, nil,
 					now, now, 1,
 				)
@@ -105,7 +98,6 @@ func TestUserRepository_GetByID(t *testing.T) {
 			validateFn: func(t *testing.T, user *models.User) {
 				assert.Equal(t, "user-456", user.ID)
 				assert.Nil(t, user.AvatarURL)
-				assert.Nil(t, user.StripeCustomerID)
 			},
 		},
 		{
@@ -176,13 +168,11 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 			email: "user@example.com",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{
-					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
-					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
+					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
-					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil, nil,
-					"active", nil, nil, nil,
+					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil,
 					nil, "active", false, nil,
 					now, now, 1,
 				)
@@ -264,13 +254,11 @@ func TestUserRepository_GetByGoogleID(t *testing.T) {
 			googleID: "google-123",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{
-					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
-					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
+					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url",
 					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
 					"created_at", "updated_at", "version",
 				}).AddRow(
-					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil, nil,
-					"active", nil, nil, nil,
+					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil,
 					nil, "active", false, nil,
 					now, now, 1,
 				)
@@ -329,95 +317,6 @@ func TestUserRepository_GetByGoogleID(t *testing.T) {
 }
 
 //nolint:funlen // table-driven test with multiple test cases
-func TestUserRepository_GetByStripeCustomerID(t *testing.T) {
-	repo, mock, mockDB := setupUserTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
-
-	ctx := context.Background()
-	now := time.Now()
-	stripeCustomerID := "cus_123"
-
-	tests := []struct {
-		name             string
-		stripeCustomerID string
-		setupMock        func()
-		expectErr        bool
-		validateFn       func(*testing.T, *models.User)
-	}{
-		{
-			name:             "successful retrieval",
-			stripeCustomerID: "cus_123",
-			setupMock: func() {
-				rows := sqlmock.NewRows([]string{
-					"id", "google_id", "idp_provider", "idp_subject", "email", "name", "avatar_url", "stripe_customer_id",
-					"subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
-					"default_team_id", "status", "onboarding_completed", "onboarding_completed_at",
-					"created_at", "updated_at", "version",
-				}).AddRow(
-					"user-123", "google-123", nil, nil, "user@example.com", "Test User", nil, &stripeCustomerID,
-					"active", nil, nil, nil,
-					nil, "active", false, nil,
-					now, now, 1,
-				)
-
-				mock.ExpectQuery(`SELECT .+ FROM users WHERE stripe_customer_id`).
-					WithArgs("cus_123").
-					WillReturnRows(rows)
-			},
-			expectErr: false,
-			validateFn: func(t *testing.T, user *models.User) {
-				assert.Equal(t, &stripeCustomerID, user.StripeCustomerID)
-			},
-		},
-		{
-			name:             "not found",
-			stripeCustomerID: "cus_notfound",
-			setupMock: func() {
-				mock.ExpectQuery(`SELECT .+ FROM users WHERE stripe_customer_id`).
-					WithArgs("cus_notfound").
-					WillReturnError(sql.ErrNoRows)
-			},
-			expectErr: true,
-		},
-		{
-			name:             "database error",
-			stripeCustomerID: "cus_error",
-			setupMock: func() {
-				mock.ExpectQuery(`SELECT .+ FROM users WHERE stripe_customer_id`).
-					WithArgs("cus_error").
-					WillReturnError(sql.ErrConnDone)
-			},
-			expectErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
-
-			result, err := repo.GetByStripeCustomerID(ctx, tt.stripeCustomerID)
-
-			if tt.expectErr {
-				assert.Error(t, err)
-				assert.Nil(t, result)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				if tt.validateFn != nil {
-					tt.validateFn(t, result)
-				}
-			}
-
-			assert.NoError(t, mock.ExpectationsWereMet())
-		})
-	}
-}
-
-//nolint:funlen // table-driven test with multiple test cases
 func TestUserRepository_Create(t *testing.T) {
 	repo, mock, mockDB := setupUserTest(t)
 	defer func() {
@@ -448,9 +347,9 @@ func TestUserRepository_Create(t *testing.T) {
 			},
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{
-					"id", "subscription_status", "subscription_plan", "default_team_id",
+					"id", "default_team_id",
 					"onboarding_completed", "onboarding_completed_at", "created_at", "updated_at",
-				}).AddRow("user-123", "trial", nil, nil, false, nil, now, now)
+				}).AddRow("user-123", nil, false, nil, now, now)
 
 				mock.ExpectQuery(`INSERT INTO users`).
 					WithArgs(
@@ -542,9 +441,9 @@ func TestUserRepository_Update(t *testing.T) {
 			},
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{
-					"id", "subscription_status", "trial_ends_at", "subscription_plan", "subscription_canceled_at",
+					"id",
 					"default_team_id", "onboarding_completed", "onboarding_completed_at", "created_at", "updated_at", "version",
-				}).AddRow("user-123", "active", nil, nil, nil, nil, false, nil, now, now, 2)
+				}).AddRow("user-123", nil, false, nil, now, now, 2)
 
 				// Update query now uses id ($1) not google_id
 				mock.ExpectQuery(`UPDATE users SET`).
@@ -634,291 +533,6 @@ func TestUserRepository_Update(t *testing.T) {
 }
 
 //nolint:funlen // table-driven test with multiple test cases
-func TestUserRepository_UpdateSubscriptionStatus(t *testing.T) {
-	repo, mock, mockDB := setupUserTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
-
-	ctx := context.Background()
-	proPlan := "pro"
-
-	tests := []struct {
-		name      string
-		userID    string
-		status    string
-		plan      *string
-		setupMock func()
-		expectErr bool
-	}{
-		{
-			name:   "successful update with plan",
-			userID: "user-123",
-			status: "active",
-			plan:   &proPlan,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET subscription_status`).
-					WithArgs("user-123", "active", &proPlan).
-					WillReturnResult(sqlmock.NewResult(0, 1))
-			},
-			expectErr: false,
-		},
-		{
-			name:   "successful update without plan",
-			userID: "user-456",
-			status: "trial",
-			plan:   nil,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET subscription_status`).
-					WithArgs("user-456", "trial", nil).
-					WillReturnResult(sqlmock.NewResult(0, 1))
-			},
-			expectErr: false,
-		},
-		{
-			name:   "database error",
-			userID: "user-error",
-			status: "active",
-			plan:   nil,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET subscription_status`).
-					WithArgs("user-error", "active", nil).
-					WillReturnError(sql.ErrConnDone)
-			},
-			expectErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
-
-			err := repo.UpdateSubscriptionStatus(ctx, tt.userID, tt.status, tt.plan)
-
-			if tt.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-
-			assert.NoError(t, mock.ExpectationsWereMet())
-		})
-	}
-}
-
-//nolint:funlen // table-driven test with multiple test cases
-func TestUserRepository_UpdateSubscriptionStatusWithTrial(t *testing.T) {
-	repo, mock, mockDB := setupUserTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
-
-	ctx := context.Background()
-	trialEnd := time.Now().Add(14 * 24 * time.Hour)
-	proPlan := "pro"
-
-	tests := []struct {
-		name      string
-		userID    string
-		status    string
-		plan      *string
-		trialEnd  *time.Time
-		setupMock func()
-		expectErr bool
-	}{
-		{
-			name:     "successful update with all fields",
-			userID:   "user-123",
-			status:   "trialing",
-			plan:     &proPlan,
-			trialEnd: &trialEnd,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET`).
-					WithArgs("trialing", proPlan, sqlmock.AnyArg(), "user-123").
-					WillReturnResult(sqlmock.NewResult(0, 1))
-			},
-			expectErr: false,
-		},
-		{
-			name:     "user not found",
-			userID:   "user-notfound",
-			status:   "active",
-			plan:     nil,
-			trialEnd: nil,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET`).
-					WithArgs("active", nil, nil, "user-notfound").
-					WillReturnResult(sqlmock.NewResult(0, 0))
-			},
-			expectErr: true,
-		},
-		{
-			name:     "database error",
-			userID:   "user-error",
-			status:   "active",
-			plan:     nil,
-			trialEnd: nil,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET`).
-					WithArgs("active", nil, nil, "user-error").
-					WillReturnError(sql.ErrConnDone)
-			},
-			expectErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
-
-			err := repo.UpdateSubscriptionStatusWithTrial(ctx, tt.userID, tt.status, tt.plan, tt.trialEnd)
-
-			if tt.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-
-			assert.NoError(t, mock.ExpectationsWereMet())
-		})
-	}
-}
-
-//nolint:funlen // table-driven test with multiple test cases
-func TestUserRepository_UpdateStripeCustomerID(t *testing.T) {
-	repo, mock, mockDB := setupUserTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
-
-	ctx := context.Background()
-
-	tests := []struct {
-		name       string
-		userID     string
-		customerID string
-		setupMock  func()
-		expectErr  bool
-	}{
-		{
-			name:       "successful update",
-			userID:     "user-123",
-			customerID: "cus_new123",
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET stripe_customer_id`).
-					WithArgs("user-123", "cus_new123").
-					WillReturnResult(sqlmock.NewResult(0, 1))
-			},
-			expectErr: false,
-		},
-		{
-			name:       "database error",
-			userID:     "user-error",
-			customerID: "cus_error",
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET stripe_customer_id`).
-					WithArgs("user-error", "cus_error").
-					WillReturnError(sql.ErrConnDone)
-			},
-			expectErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
-
-			err := repo.UpdateStripeCustomerID(ctx, tt.userID, tt.customerID)
-
-			if tt.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-
-			assert.NoError(t, mock.ExpectationsWereMet())
-		})
-	}
-}
-
-//nolint:funlen // table-driven test with multiple test cases
-func TestUserRepository_UpdateTrialEndsAt(t *testing.T) {
-	repo, mock, mockDB := setupUserTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
-
-	ctx := context.Background()
-	trialEndsAt := time.Now().Add(14 * 24 * time.Hour)
-
-	tests := []struct {
-		name        string
-		userID      string
-		trialEndsAt *time.Time
-		setupMock   func()
-		expectErr   bool
-	}{
-		{
-			name:        "successful update with date",
-			userID:      "user-123",
-			trialEndsAt: &trialEndsAt,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET trial_ends_at`).
-					WithArgs("user-123", sqlmock.AnyArg()).
-					WillReturnResult(sqlmock.NewResult(0, 1))
-			},
-			expectErr: false,
-		},
-		{
-			name:        "successful update to nil",
-			userID:      "user-456",
-			trialEndsAt: nil,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET trial_ends_at`).
-					WithArgs("user-456", nil).
-					WillReturnResult(sqlmock.NewResult(0, 1))
-			},
-			expectErr: false,
-		},
-		{
-			name:        "database error",
-			userID:      "user-error",
-			trialEndsAt: &trialEndsAt,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET trial_ends_at`).
-					WithArgs("user-error", sqlmock.AnyArg()).
-					WillReturnError(sql.ErrConnDone)
-			},
-			expectErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
-
-			err := repo.UpdateTrialEndsAt(ctx, tt.userID, tt.trialEndsAt)
-
-			if tt.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-
-			assert.NoError(t, mock.ExpectationsWereMet())
-		})
-	}
-}
-
-//nolint:funlen // table-driven test with multiple test cases
 func TestUserRepository_UpdateDefaultTeamID(t *testing.T) {
 	repo, mock, mockDB := setupUserTest(t)
 	defer func() {
@@ -975,27 +589,6 @@ func TestUserRepository_UpdateDefaultTeamID(t *testing.T) {
 			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
-}
-
-// TestUserRepository_UpdateSubscriptionStatusWithTrial_RowsAffectedError tests rows affected error
-func TestUserRepository_UpdateSubscriptionStatusWithTrial_RowsAffectedError(t *testing.T) {
-	repo, mock, mockDB := setupUserTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
-
-	ctx := context.Background()
-
-	mock.ExpectExec(`UPDATE users SET`).
-		WithArgs("active", nil, nil, "user-123").
-		WillReturnResult(sqlmock.NewErrorResult(sql.ErrConnDone))
-
-	err := repo.UpdateSubscriptionStatusWithTrial(ctx, "user-123", "active", nil, nil)
-
-	assert.Error(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 //nolint:funlen // table-driven test with multiple test cases
@@ -1093,107 +686,6 @@ func TestUserRepository_MarkOnboardingCompleted_RowsAffectedError(t *testing.T) 
 
 	assert.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-// TestUserRepository_UpdateSubscriptionWithCancellation tests subscription cancellation tracking
-//
-//nolint:funlen // Table-driven test with multiple test cases for cancellation tracking
-func TestUserRepository_UpdateSubscriptionWithCancellation(t *testing.T) {
-	repo, mock, mockDB := setupUserTest(t)
-	defer func() {
-		if closeErr := mockDB.Close(); closeErr != nil {
-			t.Logf("Failed to close mock DB: %v", closeErr)
-		}
-	}()
-
-	ctx := context.Background()
-	plan := "professional"
-	trialEnd := time.Now().Add(7 * 24 * time.Hour)
-	canceledAt := time.Now()
-
-	tests := []struct {
-		name       string
-		userID     string
-		status     string
-		plan       *string
-		trialEnd   *time.Time
-		canceledAt *time.Time
-		setupMock  func()
-		expectErr  bool
-	}{
-		{
-			name:       "update with cancellation",
-			userID:     "user-123",
-			status:     "active",
-			plan:       &plan,
-			trialEnd:   &trialEnd,
-			canceledAt: &canceledAt,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET`).
-					WithArgs("active", plan, trialEnd, canceledAt, "user-123").
-					WillReturnResult(sqlmock.NewResult(0, 1))
-			},
-			expectErr: false,
-		},
-		{
-			name:       "clear cancellation (reactivation)",
-			userID:     "user-456",
-			status:     "active",
-			plan:       &plan,
-			trialEnd:   nil,
-			canceledAt: nil,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET`).
-					WithArgs("active", plan, nil, nil, "user-456").
-					WillReturnResult(sqlmock.NewResult(0, 1))
-			},
-			expectErr: false,
-		},
-		{
-			name:       "user not found",
-			userID:     "nonexistent",
-			status:     "active",
-			plan:       &plan,
-			trialEnd:   nil,
-			canceledAt: &canceledAt,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET`).
-					WithArgs("active", plan, nil, canceledAt, "nonexistent").
-					WillReturnResult(sqlmock.NewResult(0, 0))
-			},
-			expectErr: true,
-		},
-		{
-			name:       "database error",
-			userID:     "user-error",
-			status:     "active",
-			plan:       &plan,
-			trialEnd:   nil,
-			canceledAt: &canceledAt,
-			setupMock: func() {
-				mock.ExpectExec(`UPDATE users SET`).
-					WithArgs("active", plan, nil, canceledAt, "user-error").
-					WillReturnError(sql.ErrConnDone)
-			},
-			expectErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
-
-			err := repo.UpdateSubscriptionWithCancellation(ctx, tt.userID, tt.status, tt.plan, tt.trialEnd, tt.canceledAt)
-
-			if tt.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-
-			assert.NoError(t, mock.ExpectationsWereMet())
-		})
-	}
 }
 
 // TestUserRepository_Create_DuplicateEmailIsDomainError pins the mapping that

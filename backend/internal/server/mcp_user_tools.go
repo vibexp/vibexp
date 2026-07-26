@@ -17,8 +17,7 @@ type GetUserParams struct{}
 
 // getUserWithUser implements the vibexp_io_get_user MCP tool. It returns a
 // safe subset of the authenticated user's profile (see models.UserBasicInfo).
-// Sensitive fields (GoogleID, IDPProvider, IDPSubject, StripeCustomerID,
-// SubscriptionCanceledAt, Version) are never exposed.
+// Sensitive fields (GoogleID, IDPProvider, IDPSubject, Version) are never exposed.
 func (s *Server) getUserWithUser(
 	ctx context.Context, _ *mcp.CallToolRequest, _ *GetUserParams, userID string,
 ) (*mcp.CallToolResult, any, error) {

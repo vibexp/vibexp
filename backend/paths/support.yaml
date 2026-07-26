@@ -23,7 +23,7 @@ api-v1-support-message:
                 acknowledgement: true
                 additional_info:
                   source_url: "/settings/api-keys"
-                  subscription_tier: "pro"
+                  app_version: "1.4.2"
             withoutAcknowledgement:
               summary: Support request without acknowledgement
               value:

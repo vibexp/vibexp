@@ -39,11 +39,6 @@ func AssertUserEqual(t TestingT, expected, actual *models.User) {
 	if !equalStringPointers(expected.AvatarURL, actual.AvatarURL) {
 		t.Errorf("User AvatarURL mismatch: expected %v, actual %v", expected.AvatarURL, actual.AvatarURL)
 	}
-
-	if expected.SubscriptionStatus != actual.SubscriptionStatus {
-		t.Errorf("User SubscriptionStatus mismatch: expected %s, actual %s",
-			expected.SubscriptionStatus, actual.SubscriptionStatus)
-	}
 }
 
 // AssertAPIKeyEqual asserts that two APIKey models are equal (excluding sensitive fields)

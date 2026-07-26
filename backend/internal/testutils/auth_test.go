@@ -31,14 +31,6 @@ func TestCreateTestUser(t *testing.T) {
 		t.Errorf("Expected name 'Test User', got '%s'", user.Name)
 	}
 
-	if user.SubscriptionStatus != "basic" {
-		t.Errorf("Expected subscription status '%s', got '%s'", "basic", user.SubscriptionStatus)
-	}
-
-	if user.SubscriptionPlan == nil || *user.SubscriptionPlan != "basic" {
-		t.Errorf("Expected plan '%s', got %v", "basic", user.SubscriptionPlan)
-	}
-
 	// Check timestamps are reasonable (within last minute)
 	if time.Since(user.CreatedAt) > time.Minute {
 		t.Error("CreatedAt should be recent")

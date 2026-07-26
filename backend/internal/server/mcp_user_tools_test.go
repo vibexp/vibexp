@@ -23,28 +23,21 @@ func buildFixtureUser() *models.User {
 	googleID := "google-sensitive-123"
 	idpProvider := "google"
 	idpSubject := "subj-sensitive-456"
-	stripeCustomerID := "cus_sensitive_abc"
 	avatarURL := "https://example.com/avatar.png"
 	defaultTeamID := "team-uuid-fixture"
-	plan := "teams_pro"
-	canceledAt := time.Now().Add(-24 * time.Hour)
 
 	return &models.User{
-		ID:                     "user-uuid-fixture",
-		GoogleID:               &googleID,
-		IDPProvider:            &idpProvider,
-		IDPSubject:             &idpSubject,
-		Email:                  "jane@example.com",
-		Name:                   "Jane Doe",
-		AvatarURL:              &avatarURL,
-		StripeCustomerID:       &stripeCustomerID,
-		SubscriptionStatus:     "active",
-		SubscriptionPlan:       &plan,
-		SubscriptionCanceledAt: &canceledAt,
-		DefaultTeamID:          &defaultTeamID,
-		OnboardingCompleted:    true,
-		CreatedAt:              time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
-		Version:                7,
+		ID:                  "user-uuid-fixture",
+		GoogleID:            &googleID,
+		IDPProvider:         &idpProvider,
+		IDPSubject:          &idpSubject,
+		Email:               "jane@example.com",
+		Name:                "Jane Doe",
+		AvatarURL:           &avatarURL,
+		DefaultTeamID:       &defaultTeamID,
+		OnboardingCompleted: true,
+		CreatedAt:           time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+		Version:             7,
 	}
 }
 
@@ -165,15 +158,16 @@ func TestGetUserWithUser_FieldExclusion(t *testing.T) {
 	assert.False(t, strings.Contains(rawJSON, `"google_id"`), "google_id must be excluded")
 	assert.False(t, strings.Contains(rawJSON, `"idp_provider"`), "idp_provider must be excluded")
 	assert.False(t, strings.Contains(rawJSON, `"idp_subject"`), "idp_subject must be excluded")
-	assert.False(t, strings.Contains(rawJSON, `"stripe_customer_id"`), "stripe_customer_id must be excluded")
-	assert.False(t, strings.Contains(rawJSON, `"subscription_canceled_at"`), "subscription_canceled_at must be excluded")
 	assert.False(t, strings.Contains(rawJSON, `"version"`), "version must be excluded")
+
+	// The billing fields are gone from models.User entirely (#652), so asserting
+	// their absence here would pass no matter what the DTO did. Their exclusion is
+	// now guaranteed by construction, not by this test.
 
 	// Safe fields must be present
 	assert.True(t, strings.Contains(rawJSON, `"id"`))
 	assert.True(t, strings.Contains(rawJSON, `"email"`))
 	assert.True(t, strings.Contains(rawJSON, `"name"`))
-	assert.True(t, strings.Contains(rawJSON, `"subscription_status"`))
 	assert.True(t, strings.Contains(rawJSON, `"onboarding_completed"`))
 	assert.True(t, strings.Contains(rawJSON, `"created_at"`))
 

@@ -65,7 +65,6 @@ func TestFixtures(t *testing.T) {
 	assert.NotNil(t, user)
 	assert.Equal(t, "test@example.com", user.Email)
 	assert.Equal(t, "Test User", user.Name)
-	assert.Equal(t, "basic", user.SubscriptionStatus)
 
 	// Test constants
 	assert.Equal(t, "test-api-key-12345", TestAPIKeyValue)

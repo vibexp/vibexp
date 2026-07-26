@@ -33,21 +33,6 @@ User:
       nullable: true
       format: uri
       example: "https://example.com/avatar.jpg"
-    stripe_customer_id:
-      type: string
-      nullable: true
-      example: "cus_123"
-    subscription_status:
-      type: string
-      example: "active"
-    trial_ends_at:
-      type: string
-      format: date-time
-      nullable: true
-    subscription_plan:
-      type: string
-      nullable: true
-      example: "professional"
     default_team_id:
       type: string
       nullable: true
@@ -73,7 +58,6 @@ User:
     - id
     - email
     - name
-    - subscription_status
     - onboarding_completed
     - created_at
     - updated_at

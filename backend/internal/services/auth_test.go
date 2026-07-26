@@ -96,14 +96,12 @@ func strPtr(s string) *string {
 func TestAuthService_GetUserByID_New(t *testing.T) {
 	googleID := "google-123"
 	testUser := &models.User{
-		ID:                 "user-123",
-		GoogleID:           &googleID,
-		Email:              "test@example.com",
-		Name:               "Test User",
-		SubscriptionStatus: "free",
-		SubscriptionPlan:   func() *string { s := "free"; return &s }(),
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
+		ID:        "user-123",
+		GoogleID:  &googleID,
+		Email:     "test@example.com",
+		Name:      "Test User",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	tests := []struct {
@@ -160,16 +158,14 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 	claims := createTestClaims()
 	testProvider := string(idp.ProviderOIDC)
 	existingUser := &models.User{
-		ID:                 "user-123",
-		GoogleID:           nil, // non-Google users have no google_id
-		Email:              "old@example.com",
-		Name:               "Old Name",
-		IDPProvider:        strPtr(testProvider),
-		IDPSubject:         strPtr("oidc-sub-123"),
-		SubscriptionStatus: "free",
-		SubscriptionPlan:   func() *string { s := "free"; return &s }(),
-		CreatedAt:          time.Now().Add(-time.Hour),
-		UpdatedAt:          time.Now().Add(-time.Hour),
+		ID:          "user-123",
+		GoogleID:    nil, // non-Google users have no google_id
+		Email:       "old@example.com",
+		Name:        "Old Name",
+		IDPProvider: strPtr(testProvider),
+		IDPSubject:  strPtr("oidc-sub-123"),
+		CreatedAt:   time.Now().Add(-time.Hour),
+		UpdatedAt:   time.Now().Add(-time.Hour),
 	}
 
 	tests := []struct {
@@ -194,8 +190,6 @@ func TestAuthService_CreateOrUpdateUserFromClaims(t *testing.T) {
 				})).Return(nil).Run(func(args mock.Arguments) {
 					user := args.Get(1).(*models.User)
 					user.ID = "user-new-123"
-					user.SubscriptionStatus = "free"
-					user.SubscriptionPlan = func() *string { s := "free"; return &s }()
 				})
 			},
 			expectError: false,
@@ -369,7 +363,6 @@ func TestAuthService_HandleCallback(t *testing.T) {
 				})).Return(nil).Run(func(args mock.Arguments) {
 					user := args.Get(1).(*models.User)
 					user.ID = "user-new-123"
-					user.SubscriptionStatus = "free"
 				})
 			},
 			expectError: false,
@@ -386,15 +379,14 @@ func TestAuthService_HandleCallback(t *testing.T) {
 			allowedEmails: []string{"test@example.com"},
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository, mockIDP *idpmocks.MockIdentityProvider) {
 				existingUser := &models.User{
-					ID:                 "user-existing-123",
-					GoogleID:           nil,
-					IDPProvider:        strPtr(testProvider),
-					IDPSubject:         strPtr("oidc-sub-123"),
-					Email:              "old@example.com",
-					Name:               "Old Name",
-					SubscriptionStatus: "premium",
-					CreatedAt:          time.Now().Add(-time.Hour),
-					UpdatedAt:          time.Now().Add(-time.Hour),
+					ID:          "user-existing-123",
+					GoogleID:    nil,
+					IDPProvider: strPtr(testProvider),
+					IDPSubject:  strPtr("oidc-sub-123"),
+					Email:       "old@example.com",
+					Name:        "Old Name",
+					CreatedAt:   time.Now().Add(-time.Hour),
+					UpdatedAt:   time.Now().Add(-time.Hour),
 				}
 
 				mockIDP.On("Name").Return(idp.ProviderOIDC)
@@ -695,7 +687,6 @@ func TestAuthService_HandleDevLogin(t *testing.T) {
 				})).Return(nil).Run(func(args mock.Arguments) {
 					user := args.Get(1).(*models.User)
 					user.ID = "user-dev-123"
-					user.SubscriptionStatus = "free"
 				})
 			},
 			expectError: false,
@@ -711,13 +702,12 @@ func TestAuthService_HandleDevLogin(t *testing.T) {
 			userName: "Existing User",
 			setupMocks: func(mockRepo *repo_mocks.MockUserRepository) {
 				existingUser := &models.User{
-					ID:                 "user-existing-456",
-					GoogleID:           nil,
-					Email:              "existing@example.com",
-					Name:               "Existing User",
-					SubscriptionStatus: "premium",
-					CreatedAt:          time.Now().Add(-time.Hour),
-					UpdatedAt:          time.Now().Add(-time.Hour),
+					ID:        "user-existing-456",
+					GoogleID:  nil,
+					Email:     "existing@example.com",
+					Name:      "Existing User",
+					CreatedAt: time.Now().Add(-time.Hour),
+					UpdatedAt: time.Now().Add(-time.Hour),
 				}
 				mockRepo.On("GetByEmail", context.Background(), "existing@example.com").
 					Return(existingUser, nil)

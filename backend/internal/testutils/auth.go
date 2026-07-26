@@ -26,17 +26,13 @@ func CreateTestUserWithID(userID string) *models.User {
 	now := time.Now()
 	googleID := "google-" + userID
 	return &models.User{
-		ID:                 userID,
-		GoogleID:           &googleID,
-		Email:              "test@example.com",
-		Name:               "Test User",
-		AvatarURL:          nil,
-		StripeCustomerID:   nil,
-		SubscriptionStatus: "basic",
-		TrialEndsAt:        nil,
-		SubscriptionPlan:   &[]string{"basic"}[0],
-		CreatedAt:          now,
-		UpdatedAt:          now,
+		ID:        userID,
+		GoogleID:  &googleID,
+		Email:     "test@example.com",
+		Name:      "Test User",
+		AvatarURL: nil,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 }
 

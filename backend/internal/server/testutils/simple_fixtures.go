@@ -45,14 +45,13 @@ func CreateTestUser() *models.User {
 	avatarURL := "https://example.com/profile.jpg"
 	googleID := "google-123456"
 	return &models.User{
-		ID:                 uuid.New().String(),
-		GoogleID:           &googleID,
-		Email:              "test@example.com",
-		Name:               "Test User",
-		AvatarURL:          &avatarURL,
-		SubscriptionStatus: "basic",
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
+		ID:        uuid.New().String(),
+		GoogleID:  &googleID,
+		Email:     "test@example.com",
+		Name:      "Test User",
+		AvatarURL: &avatarURL,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 }
 
