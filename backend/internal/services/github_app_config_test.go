@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,10 +26,33 @@ const (
 	testAppConfigUserID = "user-1"
 )
 
-// testRSAPEM generates a real RSA key in PEM form. Validation and JWT minting
+// testRSAPEM returns a real RSA key in PEM form. Validation and JWT minting
 // both actually parse the key, so a fixture string would only prove that the
 // error path works.
+//
+// The key is generated once per test binary and shared: a 2048-bit keygen costs
+// ~75ms, and the callers that fan out over many configs only need a key that
+// parses, not a key nobody else holds. Use freshRSAPEM when the test asserts
+// that two keys DIFFER.
 func testRSAPEM(t *testing.T) string {
+	t.Helper()
+	sharedRSAPEMOnce.Do(func() { sharedRSAPEM = generateRSAPEM(t) })
+	return sharedRSAPEM
+}
+
+var (
+	sharedRSAPEMOnce sync.Once
+	sharedRSAPEM     string
+)
+
+// freshRSAPEM generates a distinct key on every call, for tests whose subject is
+// key rotation or per-team key isolation.
+func freshRSAPEM(t *testing.T) string {
+	t.Helper()
+	return generateRSAPEM(t)
+}
+
+func generateRSAPEM(t *testing.T) string {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
@@ -303,7 +327,7 @@ func TestGitHubAppConfigService_UpdateSecretSemantics(t *testing.T) {
 		svc := newAppConfigService(t, repo)
 		stored := storedConfig(t, svc)
 		before := stored.PrivateKeyEncrypted
-		newKey := testRSAPEM(t)
+		newKey := freshRSAPEM(t)
 
 		repo.EXPECT().GetByTeamID(ctx, testAppConfigTeamID).Return(stored, nil)
 		repo.EXPECT().Update(ctx, stored).Return(nil)
