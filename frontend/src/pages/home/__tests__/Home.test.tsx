@@ -54,9 +54,6 @@ jest.mock('@/services/commentService', () => ({
 jest.mock('@/services/agentService', () => ({
   agentService: { getAgentStats: jest.fn() },
 }))
-jest.mock('@/services/aiToolsService', () => ({
-  aiToolsService: { getClaudeCodeOverviewStats: jest.fn() },
-}))
 
 // Analytics widgets and the top-accessed grid are covered by their own tests.
 jest.mock('@/components/TeamResourceAccessChart', () => ({
@@ -83,7 +80,6 @@ jest.mock('@/pages/home/activityHelpers', () => ({
 
 import { activityService } from '@/services/activityService'
 import { agentService } from '@/services/agentService'
-import { aiToolsService } from '@/services/aiToolsService'
 import { commentService } from '@/services/commentService'
 import { feedService } from '@/services/feedService'
 import { teamService } from '@/services/teamService'
@@ -94,7 +90,6 @@ const mockActivity = activityService as jest.Mocked<typeof activityService>
 const mockFeed = feedService as jest.Mocked<typeof feedService>
 const mockTeam = teamService as jest.Mocked<typeof teamService>
 const mockAgent = agentService as jest.Mocked<typeof agentService>
-const mockAiTools = aiToolsService as jest.Mocked<typeof aiToolsService>
 const mockComment = commentService as jest.Mocked<typeof commentService>
 
 function makeStats(overrides: Partial<TeamStats> = {}): TeamStats {
@@ -197,17 +192,6 @@ function setup(stats: TeamStats = makeStats(), activities = [makeActivity()]) {
     runs_this_week: 0,
     recent_activities: [],
   })
-  mockAiTools.getClaudeCodeOverviewStats.mockResolvedValue({
-    total_sessions: 0,
-    sessions_this_week: 0,
-    sessions_last_week: 0,
-    weekly_trend_percent: 0,
-    avg_user_prompts_per_session: 0,
-    total_unique_tools: 0,
-    top_tools: [],
-    avg_session_duration_minutes: 0,
-    total_memories: 51,
-  })
 }
 
 beforeEach(() => {
@@ -223,12 +207,11 @@ function renderHome() {
 }
 
 describe('Home — overview', () => {
-  it('renders the eight overview cards with values from the metric sources', async () => {
+  it('renders the seven overview cards with values from the metric sources', async () => {
     setup()
     renderHome()
 
     expect(await screen.findByText('Total Artifacts')).toBeInTheDocument()
-    expect(screen.getByText('AI Sessions')).toBeInTheDocument()
     expect(screen.getByText('Total Agents')).toBeInTheDocument()
     expect(screen.getByText('AI Feed updates')).toBeInTheDocument()
     expect(screen.getByText('MCP Tools')).toBeInTheDocument()

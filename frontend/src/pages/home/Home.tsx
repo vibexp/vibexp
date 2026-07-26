@@ -27,7 +27,6 @@ import { mcpTools } from '@/pages/mcp/mcp-tools'
 import type { Activity as ActivityType } from '@/services/activityService'
 import { activityService } from '@/services/activityService'
 import { agentService } from '@/services/agentService'
-import { aiToolsService } from '@/services/aiToolsService'
 import type { RecentComment } from '@/services/commentService'
 import { commentService } from '@/services/commentService'
 import type { FeedItem } from '@/services/feedService'
@@ -93,8 +92,6 @@ export function Home() {
 
   const [range, setRange] = useState(DEFAULT_RANGE)
   const [teamStats, setTeamStats] = useState<TeamStats | null>(null)
-  const [totalSessions, setTotalSessions] = useState(0)
-  const [sessionsTrendPct, setSessionsTrendPct] = useState(0)
   const [totalAgents, setTotalAgents] = useState(0)
   const [weekly, setWeekly] = useState<WeeklyDeltas | null>(null)
   const [statsLoading, setStatsLoading] = useState(true)
@@ -143,19 +140,13 @@ export function Home() {
     const fetchOverview = async () => {
       setStatsLoading(true)
       try {
-        const [stats, overview, agents, created, feed] =
-          await Promise.allSettled([
-            teamService.getTeamStats(teamId),
-            aiToolsService.getClaudeCodeOverviewStats(),
-            agentService.getAgentStats(teamId),
-            teamService.getTeamResourceCreationMetrics(teamId, '7d'),
-            teamService.getTeamFeedCreationMetrics(teamId, '7d'),
-          ])
+        const [stats, agents, created, feed] = await Promise.allSettled([
+          teamService.getTeamStats(teamId),
+          agentService.getAgentStats(teamId),
+          teamService.getTeamResourceCreationMetrics(teamId, '7d'),
+          teamService.getTeamFeedCreationMetrics(teamId, '7d'),
+        ])
         if (stats.status === 'fulfilled') setTeamStats(stats.value)
-        if (overview.status === 'fulfilled') {
-          setTotalSessions(overview.value.total_sessions)
-          setSessionsTrendPct(overview.value.weekly_trend_percent)
-        }
         if (agents.status === 'fulfilled') {
           const stat = agents.value
           setTotalAgents(stat.total_agents)
@@ -248,8 +239,6 @@ export function Home() {
 
   const overviewStats = buildOverviewStats({
     teamStats,
-    totalSessions,
-    sessionsTrendPct,
     totalAgents,
     mcpToolsCount: mcpTools.length,
     weekly,

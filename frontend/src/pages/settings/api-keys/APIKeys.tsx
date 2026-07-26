@@ -1,12 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import {
-  Key as KeyIcon,
-  Network,
-  Plus,
-  Sparkles,
-  Terminal,
-  Trash2,
-} from 'lucide-react'
+import { Key as KeyIcon, Network, Plus, Terminal, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -38,7 +31,6 @@ const INTEGRATION_META: Partial<
     { name: string; icon: React.ComponentType<{ className?: string }> }
   >
 > = {
-  ai_tools: { name: 'AI Tools', icon: Sparkles },
   cli: { name: 'CLI', icon: Terminal },
   mcp_server: { name: 'MCP Server', icon: Network },
 }

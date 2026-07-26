@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Network, Sparkles, Terminal } from 'lucide-react'
+import { Network, Terminal } from 'lucide-react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -27,13 +27,6 @@ import { cn } from '@/lib/utils'
 
 export const AVAILABLE_INTEGRATIONS = [
   {
-    code: 'ai_tools',
-    name: 'AI Tools',
-    description:
-      'Use with Claude Code, Cursor IDE, and other AI-powered development tools.',
-    icon: Sparkles,
-  },
-  {
     code: 'cli',
     name: 'VibeXP CLI',
     description:
@@ -55,7 +48,7 @@ const schema = z.object({
     .min(1, 'Name is required')
     .max(255, 'Name must be under 255 characters'),
   integrations: z
-    .array(z.enum(['ai_tools', 'cli', 'mcp_server']))
+    .array(z.enum(['cli', 'mcp_server']))
     .min(1, 'Select at least one integration'),
 })
 
