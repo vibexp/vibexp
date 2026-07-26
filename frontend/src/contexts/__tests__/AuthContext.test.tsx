@@ -33,7 +33,6 @@ describe('AuthContext (cookie-based auth)', () => {
     created_at: '2023-01-01T00:00:00Z',
     updated_at: '2023-01-01T00:00:00Z',
     onboarding_completed: true,
-    subscription_status: 'active',
     version: 1,
     is_instance_admin: false,
   }
@@ -112,7 +111,6 @@ describe('AuthContext (cookie-based auth)', () => {
           created_at: mockUser.created_at,
           updated_at: mockUser.updated_at,
           onboarding_completed: true,
-          subscription_status: mockUser.subscription_status,
           version: mockUser.version,
         })
 
