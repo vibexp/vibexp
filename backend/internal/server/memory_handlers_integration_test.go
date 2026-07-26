@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/models"
@@ -784,4 +785,60 @@ func TestHandleUpdateMemory_OnlyProjectID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	mockContainer.memoryService.AssertExpectations(t)
 	mockContainer.projectRepository.AssertExpectations(t)
+}
+
+// TestHandleUpdateMemory_ValidationError covers validateUpdateMemoryRequest,
+// which nothing asserted before: TestUpdateMemory_BadRequest named these cases
+// but built a nil-container server, so all seven stopped at the auth middleware
+// and asserted 401 (#665). TestMemoryHandlers_Unauthorized still covers the
+// unauthenticated path for this route.
+func TestHandleUpdateMemory_ValidationError(t *testing.T) {
+	tests := []struct {
+		name          string
+		payload       string
+		expectedError string
+	}{
+		{
+			name:          "invalid JSON",
+			payload:       `{"invalid": json}`,
+			expectedError: "Invalid request body",
+		},
+		{
+			name:          "empty body provides no field",
+			payload:       `{}`,
+			expectedError: "At least one field",
+		},
+		{
+			name:          "empty text",
+			payload:       `{"text":""}`,
+			expectedError: "Text cannot be empty",
+		},
+		{
+			name:          "project_id is not a UUID",
+			payload:       `{"text":"Some text","project_id":"not-a-uuid"}`,
+			expectedError: memoryMsgInvalidProjectID,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockContainer := newMockMemoryContainer(t)
+			srv := createMemoryTestServer(mockContainer)
+
+			req := httptest.NewRequest(
+				"PUT", "/api/v1/team-123/memories/memory-1", bytes.NewBufferString(tt.payload))
+			req.Header.Set("Content-Type", "application/json")
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, "test-user-123"))
+			req = addRouteParams(req, map[string]string{"team_id": "team-123", "id": "memory-1"})
+
+			w := httptest.NewRecorder()
+			srv.handleUpdateMemory(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+
+			var response map[string]interface{}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Contains(t, response["detail"], tt.expectedError)
+		})
+	}
 }
