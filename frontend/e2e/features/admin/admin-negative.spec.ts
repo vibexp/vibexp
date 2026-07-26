@@ -24,9 +24,13 @@ test.describe('Admin portal — non-admin negative path', () => {
     // Direct URL entry is redirected away from /admin back to the home page.
     await page.goto('/admin')
     await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
-    await expect(
-      page.getByRole('heading', { name: 'Admin Portal' })
-    ).toHaveCount(0)
+    // Assert the absence of chrome that the admin shell — and only the admin
+    // shell — renders: AdminHeader's "Back to app" link. This used to look for
+    // an `Admin Portal` *heading*, which #456 deleted, so no element could
+    // produce it any more and the assertion passed even with the route guard
+    // gone. A negative assertion is only worth anything if the thing it names
+    // still exists on the failing path.
+    await expect(page.getByRole('link', { name: 'Back to app' })).toHaveCount(0)
 
     // The API surface itself 404s for a non-admin (not advertised — not 403).
     const response = await page.request.get('/api/v1/admin/stats')

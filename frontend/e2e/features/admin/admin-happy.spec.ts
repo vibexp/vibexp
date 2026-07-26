@@ -4,11 +4,11 @@ import { ADMIN_EMAIL } from './admin-emails'
 
 /**
  * Instance-admin happy path (#317, epic #309): an admin sees the Admin Portal
- * menu entry and can browse the whole read-only surface — stats → users → user
- * detail → teams → team detail.
+ * menu entry and can browse the whole read-only surface — dashboard → users →
+ * user detail → teams → team detail.
  */
 test.describe('Admin portal — happy path', () => {
-  test('an instance admin can browse stats, users, and teams', async ({
+  test('an instance admin can browse the dashboard, users, and teams', async ({
     page,
   }) => {
     await devLogin(page, ADMIN_EMAIL, 'Admin E2E')
@@ -19,12 +19,20 @@ test.describe('Admin portal — happy path', () => {
     await expect(adminItem).toBeVisible()
     await adminItem.click()
 
-    // Lands on the stats dashboard.
+    // Lands on the instance-admin dashboard. Assert the chrome AdminShell
+    // actually renders (#456 replaced AdminLayout): the page <h1> comes from
+    // `adminSectionFor(pathname)`, which is "Dashboard" on /admin, while
+    // "Admin Portal" survives only as the header brand text. Scope that one to
+    // the banner — UserMenu renders an "Admin Portal" item with the same string.
     await expect(page).toHaveURL(/\/admin$/)
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     await expect(
-      page.getByRole('heading', { name: 'Admin Portal' })
+      page.getByRole('banner').getByText('Admin Portal')
     ).toBeVisible()
-    await expect(page.getByText('Version')).toBeVisible()
+    // Case-insensitive: #458 moved this to "Backend version <v>" and getByText
+    // is case-sensitive, which is what hid this second staleness behind the
+    // first one.
+    await expect(page.getByText(/Backend version/i)).toBeVisible()
 
     // Users list → the admin's own row → user detail (team memberships).
     await page.getByRole('link', { name: 'Users' }).click()
