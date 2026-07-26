@@ -78,6 +78,7 @@ jobs:
           script: |
             const PROJECT_ID = process.env.PROJECT_ID;
             const STATUS_FIELD_ID = process.env.STATUS_FIELD_ID;
+            const ITERATION_FIELD_ID = process.env.ITERATION_FIELD_ID;
             const BACKLOG = process.env.STATUS_BACKLOG_OPTION_ID;
             const { owner, repo } = context.repo;
             // App token drives all Projects V2 GraphQL; default token reads issues.
