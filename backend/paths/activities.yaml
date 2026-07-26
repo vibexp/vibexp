@@ -95,12 +95,6 @@ api-v1-activities:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Internal server error
         content:
@@ -144,12 +138,6 @@ api-v1-activities:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Internal server error
         content:
@@ -179,12 +167,6 @@ api-v1-activities-stats:
               $ref: '../openapi.yaml#/components/schemas/ActivityStatsEnvelope'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
         content:
           application/problem+json:
             schema:
@@ -219,12 +201,6 @@ api-v1-activities-types:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
       - Activities
 
@@ -245,12 +221,6 @@ api-v1-activities-entity-types:
               $ref: '../openapi.yaml#/components/schemas/ActivityEntityTypesEnvelope'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
         content:
           application/problem+json:
             schema:
@@ -282,12 +252,6 @@ api-v1-activities-id:
               $ref: '../openapi.yaml#/components/schemas/ActivityEnvelope'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
         content:
           application/problem+json:
             schema:

@@ -8748,16 +8748,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — not a team member, or agent limit reached for the subscription plan",
             "content": {
@@ -8928,16 +8918,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — not a team member",
             "content": {
@@ -9030,16 +9010,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — not a team member",
             "content": {
@@ -9114,16 +9084,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9215,16 +9175,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9342,16 +9292,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — not a team member",
             "content": {
@@ -9446,16 +9386,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9560,16 +9490,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9689,16 +9609,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — not a team member",
             "content": {
@@ -9802,16 +9712,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9964,16 +9864,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — not a team member",
             "content": {
@@ -10078,16 +9968,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10207,16 +10087,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — not a team member",
             "content": {
@@ -10308,16 +10178,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10419,16 +10279,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10540,16 +10390,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10696,16 +10536,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — not a team member",
             "content": {
@@ -10827,16 +10657,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — not a team member",
             "content": {
@@ -10927,16 +10747,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -11010,16 +10820,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -11074,16 +10874,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11182,16 +10972,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — only team owners can update a team",
             "content": {
@@ -11257,16 +11037,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11390,16 +11160,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "404": {
             "description": "Team not found",
             "content": {
@@ -11466,16 +11226,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11799,16 +11549,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — personal workspace (code `upgrade_required`) or no permission to invite (code `FORBIDDEN`)",
             "content": {
@@ -11899,16 +11639,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden — no permission to view this team's invitations",
             "content": {
@@ -11975,16 +11705,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12524,16 +12244,6 @@
               }
             }
           },
-          "402": {
-            "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -12597,16 +12307,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12711,16 +12411,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required — active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -19868,16 +19558,6 @@
               }
             }
           },
-          "402": {
-            "description": "Active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden (not a team member)",
             "content": {
@@ -20018,16 +19698,6 @@
               }
             }
           },
-          "402": {
-            "description": "Active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden (not a team member)",
             "content": {
@@ -20111,16 +19781,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -20238,16 +19898,6 @@
               }
             }
           },
-          "402": {
-            "description": "Active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden (not a team member)",
             "content": {
@@ -20350,16 +20000,6 @@
               }
             }
           },
-          "402": {
-            "description": "Active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Forbidden (not a team member)",
             "content": {
@@ -20454,16 +20094,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -20576,16 +20206,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -20763,16 +20383,6 @@
               }
             }
           },
-          "402": {
-            "description": "Active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -20841,16 +20451,6 @@
               }
             }
           },
-          "402": {
-            "description": "Active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -20893,16 +20493,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -20960,16 +20550,6 @@
                 }
               }
             }
-          },
-          "402": {
-            "description": "Active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
         },
         "tags": [
@@ -21003,16 +20583,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -21064,16 +20634,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Active subscription required",
             "content": {
               "application/problem+json": {
                 "schema": {

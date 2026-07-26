@@ -38,12 +38,6 @@ api-v1-teams:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Internal server error
         content:
@@ -93,12 +87,6 @@ api-v1-teams:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Internal server error
         content:
@@ -133,12 +121,6 @@ api-v1-teams-id:
               $ref: '../openapi.yaml#/components/schemas/Team'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -200,12 +182,6 @@ api-v1-teams-id:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — only team owners can update a team
         content:
@@ -253,12 +229,6 @@ api-v1-teams-id:
         description: Team deleted successfully
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -338,12 +308,6 @@ api-v1-teams-id-members:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '404':
         description: Team not found
         content:
@@ -388,12 +352,6 @@ api-v1-teams-id-members-userId:
         description: Member removed successfully
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -609,12 +567,6 @@ api-v1-teams-id-invitations:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — personal workspace (code `upgrade_required`) or no permission to invite (code `FORBIDDEN`)
         content:
@@ -673,12 +625,6 @@ api-v1-teams-id-invitations:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — no permission to view this team's invitations
         content:
@@ -721,12 +667,6 @@ api-v1-teams-id-invitations-invitationId:
         description: Invitation revoked successfully
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:

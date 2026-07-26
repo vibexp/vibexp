@@ -158,12 +158,6 @@ api-v1-team_id-projects:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden (not a team member)
         content:
@@ -257,12 +251,6 @@ api-v1-team_id-projects:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden (not a team member)
         content:
@@ -315,12 +303,6 @@ api-v1-team_id-projects-slug:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
         content:
           application/problem+json:
             schema:
@@ -394,12 +376,6 @@ api-v1-team_id-projects-slug:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden (not a team member)
         content:
@@ -460,12 +436,6 @@ api-v1-team_id-projects-slug:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
         content:
           application/problem+json:
             schema:
@@ -532,12 +502,6 @@ api-v1-team_id-projects-project_id-migration-inventory:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
         content:
           application/problem+json:
             schema:
@@ -612,12 +576,6 @@ api-v1-team_id-projects-project_id-migration:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Active subscription required
         content:
           application/problem+json:
             schema:

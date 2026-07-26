@@ -46,12 +46,6 @@ api-v1-team_id-agents:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — not a team member, or agent limit reached for the subscription plan
         content:
@@ -151,12 +145,6 @@ api-v1-team_id-agents:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — not a team member
         content:
@@ -213,12 +201,6 @@ api-v1-team_id-agents-preview-card:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — not a team member
         content:
@@ -265,12 +247,6 @@ api-v1-team_id-agents-stats:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -327,12 +303,6 @@ api-v1-team_id-agents-id:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -406,12 +376,6 @@ api-v1-team_id-agents-id:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — not a team member
         content:
@@ -471,12 +435,6 @@ api-v1-team_id-agents-id:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -541,12 +499,6 @@ api-v1-team_id-agents-id-credentials:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -624,12 +576,6 @@ api-v1-team_id-agents-id-execute:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — not a team member
         content:
@@ -694,12 +640,6 @@ api-v1-team_id-agents-id-executions:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -795,12 +735,6 @@ api-v1-team_id-agents-id-executions:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — not a team member
         content:
@@ -868,12 +802,6 @@ api-v1-team_id-agents-id-conversations:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -946,12 +874,6 @@ api-v1-team_id-agents-executions-execution_id:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — not a team member
         content:
@@ -1009,12 +931,6 @@ api-v1-team_id-agents-executions-execution_id:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -1083,12 +999,6 @@ api-v1-team_id-agents-executions-id-status:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — not a team member
         content:
@@ -1151,12 +1061,6 @@ api-v1-team_id-agents-executions-execution_id-cancel:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -1256,12 +1160,6 @@ api-v1-team_id-agents-executions-id-events:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
         description: Forbidden — not a team member
         content:
@@ -1334,12 +1232,6 @@ api-v1-team_id-agents-conversations-conversation_id-executions:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:

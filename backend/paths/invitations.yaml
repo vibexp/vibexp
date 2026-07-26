@@ -90,12 +90,6 @@ api-v1-invitations-pending:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '500':
         description: Internal server error
         content:
@@ -138,12 +132,6 @@ api-v1-invitations-token-accept:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
@@ -207,12 +195,6 @@ api-v1-invitations-token-reject:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '401':
         description: Unauthorized
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '402':
-        description: Payment required — active subscription required
         content:
           application/problem+json:
             schema:
