@@ -11,8 +11,6 @@ packages:
       PromptServiceInterface:
       PromptBodyRenderer:
       PromptShareServiceInterface:
-      StaticContextServiceInterface:
-      WorkReportServiceInterface:
       ArtifactServiceInterface:
       AttachmentServiceInterface:
       CommentServiceInterface:
@@ -31,7 +29,6 @@ packages:
       MetadataCatalogServiceInterface:
       SearchSettingsResolver:
       QueryEmbedder:
-      SubscriptionServiceInterface:
       EmailServiceInterface:
       CardFetcher:
       AgentServiceInterface:
@@ -50,7 +47,6 @@ packages:
       IdentityProvider:
   github.com/vibexp/vibexp/internal/external:
     interfaces:
-      StripeClient:
       EmailSender:
   github.com/vibexp/vibexp/internal/repositories:
     interfaces:
@@ -60,14 +56,11 @@ packages:
       TeamRepository:
       TeamMemberRepository:
       TeamInvitationRepository:
-      TeamSubscriptionRepository:
       TeamSearchSettingsRepository:
       MetadataCatalogRepository:
       PromptRepository:
       PromptReferenceRepository:
       PromptShareRepository:
-      StaticContextRepository:
-      WorkReportRepository:
       ArtifactRepository:
       AttachmentRepository:
       CommentRepository:
@@ -80,7 +73,6 @@ packages:
       TeamEmailProviderRepository:
       EmbeddingRepository:
       SearchRepository:
-      SubscriptionRepository:
       ActivityRepository:
       ResourceAccessRepository:
       AgentRepository:
@@ -89,7 +81,6 @@ packages:
       MemoryRepository:
       ProjectRepository:
       DeviceTokenRepository:
-      FinancialKPIRepository:
       ContentVersionRepository:
   github.com/vibexp/vibexp/pkg/events:
     interfaces:
