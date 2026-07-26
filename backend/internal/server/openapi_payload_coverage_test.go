@@ -91,7 +91,6 @@ var payloadCoverageLedger = map[string]string{
 	"GET /api/v1/prompt-gallery/categories":                           "TODO(#1714): uncovered",
 	"GET /api/v1/prompt-gallery/prompts/{id}":                         "TODO(#1714): uncovered",
 	"GET /api/v1/prompt-gallery/prompts":                              "TODO(#1714): uncovered",
-	"GET /api/v1/resource-usage":                                      "TODO(#1714): uncovered",
 	"GET /api/v1/settings/api-keys":                                   "TODO(#1714): uncovered",
 	"GET /api/v1/shared/prompts/{token}":                              "TODO(#1714): uncovered",
 	"GET /api/v1/{team_id}/artifacts/stats":                           "TODO(#1714): uncovered",

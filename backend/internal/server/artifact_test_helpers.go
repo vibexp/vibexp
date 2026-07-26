@@ -5,7 +5,11 @@ import (
 	"strings"
 )
 
-const artifactTestBasePath = "/api/v1/artifacts"
+// artifactTestBasePath is the real, team-scoped artifact collection route,
+// trailing slash included — the router registers `POST /api/v1/{team_id}/artifacts/`.
+// It must stay an existing pattern: these cases assert 401, and a path the router
+// does not register returns 404 instead.
+const artifactTestBasePath = "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/"
 
 // artifactTestCases returns common test cases for artifact validation
 func artifactBadRequestCases(auth string) []testCase {

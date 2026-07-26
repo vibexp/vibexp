@@ -33,9 +33,12 @@ func TestProjectHandlers_ListProjectsRequiresTeamID(t *testing.T) {
 		expected int
 	}{
 		{
-			"List without team_id in URL - Unauthorized (auth runs first)",
+			// There is no team-less project route, so nothing matches and the router
+			// 404s. Before #649 this returned 401: the resource-usage group mounted
+			// `/api/v1` with auth middleware and matched the prefix first.
+			"List without team_id in URL - not routed",
 			"/api/v1/projects",
-			http.StatusUnauthorized,
+			http.StatusNotFound,
 		},
 		{
 			"List with team_id in URL - Unauthorized",
@@ -43,6 +46,8 @@ func TestProjectHandlers_ListProjectsRequiresTeamID(t *testing.T) {
 			http.StatusUnauthorized,
 		},
 		{
+			// A non-UUID team_id still matches the {team_id} pattern, so this reaches
+			// the auth middleware and is rejected there — team validation never runs.
 			"List with invalid team_id in URL - Unauthorized (auth runs first)",
 			"/api/v1/invalid/projects",
 			http.StatusUnauthorized,
