@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 30000
  * Typed openapi-fetch client generated from the backend OpenAPI spec — the
  * single HTTP client for the SPA (the hand-written `apiClient` was retired in
  * #94). Every domain service calls this client and resolves with `unwrap`; see
- * docs/developer-guidelines/frontend/api-integration.md for the pattern.
+ * https://docs.vibexp.io/developer-guide/frontend/api-integration/ for the pattern.
  * Authentication uses the httpOnly session cookie (`credentials: 'include'`).
  */
 export const generatedClient = createApiClient({

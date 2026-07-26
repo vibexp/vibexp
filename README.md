@@ -166,7 +166,7 @@ volumes:
 
 </details>
 
-> ⬆️ **Upgrading an existing deployment?** Check [`docs/UPGRADING.md`](docs/UPGRADING.md) — it lists the breaking changes that need a config edit before the new image will start.
+> ⬆️ **Upgrading an existing deployment?** Check the [upgrade guide](https://docs.vibexp.io/user-guide/self-hosting/upgrading/?utm_source=github&utm_medium=readme&utm_campaign=docs_link&utm_content=upgrading) — it lists the breaking changes that need a config edit before the new image will start.
 
 ---
 
