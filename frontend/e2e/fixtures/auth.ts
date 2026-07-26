@@ -67,6 +67,24 @@ async function waitForTeamHydration(page: Page): Promise<void> {
 }
 
 /**
+ * Fixture types for the extended `test`.
+ *
+ * Declaring these is what lets specs see the custom fixtures: without the type
+ * argument `base.extend` returns a `TestType` carrying only the stock
+ * Playwright fixture args, so every `test('…', async ({ authenticatedPage })`
+ * signature is a type error even though Playwright resolves fixtures by name
+ * at runtime (#621).
+ *
+ * Each fixture hands its `use()` a plain Playwright `Page` that has already
+ * been through dev login.
+ */
+export interface AuthFixtures {
+  authenticatedPage: Page
+  authenticatedPageWithTeam: Page
+  freshUserPage: Page
+}
+
+/**
  * Custom fixture that provides authenticated context using dev login.
  *
  * Each login fixture carries its OWN timeout (tuple form) so setup is not
@@ -75,7 +93,7 @@ async function waitForTeamHydration(page: Page): Promise<void> {
  * the test budget and was intermittently failing random specs during fixture
  * setup under CI load (#86).
  */
-export const test = base.extend({
+export const test = base.extend<AuthFixtures>({
   /**
    * Authenticated page fixture - logs in before each test using this fixture
    * This is reusable across all tests that need authentication
@@ -229,4 +247,7 @@ export async function switchTeam(page: Page, teamName: string): Promise<void> {
   }
 }
 
+// Re-exported so specs can pull `test`, `expect` and the `Page` type they
+// annotate helpers with from this one fixture module.
 export { expect }
+export type { Page }
