@@ -252,6 +252,20 @@
   box-sizing: border-box;
 }
 
+/* Always reserve the scrollbar gutter (#666).
+ *
+ * Without this the document's scrollbar appears and disappears as you move
+ * between routes of different heights, and because the app shell centres its
+ * container (`mx-auto`), every such transition shifts the whole page sideways
+ * by half the scrollbar width — measured at 7.5px moving between a team's
+ * Overview (no scrollbar) and its Analytics tab (scrollbar). The gutter is now
+ * reserved whether or not it is used, so route changes never re-centre the
+ * layout.
+ */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   font-family:
     'Poppins', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -296,9 +310,21 @@ body {
  * rule must live OUTSIDE `.v2-root` because Radix portals the
  * Dropdown / Dialog / Popover / Tooltip / Select content into `body`,
  * which is a sibling of `.v2-root`, not a descendant.
+ *
+ * It MUST also live inside `@layer base` (#666). `:where()` drops the
+ * specificity to zero, but specificity is not what decides this: unlayered
+ * rules beat every `@layer`ed rule in the cascade, and Tailwind v4 emits its
+ * utilities into `@layer utilities`. Unlayered, this default therefore
+ * silently overrode every `border-<colour>` utility in the app —
+ * `border-transparent` on a Badge, `border-primary` on a selected card, the
+ * active tab indicator — forcing all of them to the hairline grey. As a
+ * `base` rule it is what it was always meant to be: a default a utility can
+ * override.
  */
-:where(*) {
-  border-color: var(--border);
+@layer base {
+  :where(*) {
+    border-color: var(--border);
+  }
 }
 
 .v2-root *:focus-visible {

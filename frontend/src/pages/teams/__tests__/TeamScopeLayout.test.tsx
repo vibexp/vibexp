@@ -10,6 +10,7 @@ import { ApiError } from '@/types/errors'
 // its identity ("Maximum update depth exceeded").
 // --------------------------------------------------------------------------
 const mockSetCurrentTeam = jest.fn()
+const mockRefreshTeams = jest.fn()
 const teamContext: {
   teams: Team[]
   currentTeam: Team | null
@@ -22,6 +23,7 @@ jest.mock('@/contexts/TeamContext', () => ({
     currentTeam: teamContext.currentTeam,
     isLoading: teamContext.isLoading,
     setCurrentTeam: mockSetCurrentTeam,
+    refreshTeams: mockRefreshTeams,
   }),
 }))
 
@@ -32,11 +34,17 @@ jest.mock('@/services/teamService', () => ({
   },
 }))
 
-// The nested routes are exercised by their own suites; stub them so this file
-// tests the layout's resolution/gating logic only.
+// The nested routes and the scope header are exercised by their own suites;
+// stub them so this file tests the layout's resolution/gating logic only.
 jest.mock('@/pages/teams/TeamRoutes', () => ({
   TeamRoutes: ({ team }: { team: Team }) => (
     <div data-testid="team-routes">{team.name}</div>
+  ),
+}))
+
+jest.mock('@/pages/teams/TeamScopeHeader', () => ({
+  TeamScopeHeader: ({ team }: { team: Team }) => (
+    <div data-testid="team-scope-header">{team.name}</div>
   ),
 }))
 
