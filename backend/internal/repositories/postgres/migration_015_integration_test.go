@@ -226,7 +226,7 @@ func newScratchMigrationDB(t *testing.T) (*sql.DB, func()) {
 	u, err := url.Parse(base)
 	require.NoError(t, err, "parse base DSN")
 
-	name := "vibexp_mig015_" + strings.ReplaceAll(uuid.New().String()[:8], "-", "")
+	name := "vibexp_mig_" + strings.ReplaceAll(uuid.New().String()[:8], "-", "")
 	adminURL := *u
 	adminURL.Path = "/postgres"
 
