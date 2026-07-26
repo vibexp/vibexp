@@ -83,7 +83,7 @@ test.describe('API Keys Feature', () => {
 
       // Select at least one integration (required)
       await authenticatedPage
-        .locator('[data-testid="integration-checkbox-ai_tools"]')
+        .locator('[data-testid="integration-checkbox-cli"]')
         .check()
 
       // Submit the form
@@ -148,7 +148,7 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="api-key-name-input"]')
         .fill(apiKeyName)
       await authenticatedPage
-        .locator('[data-testid="integration-checkbox-ai_tools"]')
+        .locator('[data-testid="integration-checkbox-cli"]')
         .check()
       await authenticatedPage
         .locator('[data-testid="submit-create-api-key-button"]')
@@ -195,7 +195,7 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="api-key-name-input"]')
         .fill(apiKeyName)
       await authenticatedPage
-        .locator('[data-testid="integration-checkbox-ai_tools"]')
+        .locator('[data-testid="integration-checkbox-cli"]')
         .check()
       await authenticatedPage
         .locator('[data-testid="submit-create-api-key-button"]')
@@ -262,7 +262,7 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="api-key-name-input"]')
         .fill(apiKeyName)
       await authenticatedPage
-        .locator('[data-testid="integration-checkbox-ai_tools"]')
+        .locator('[data-testid="integration-checkbox-cli"]')
         .check()
       await authenticatedPage
         .locator('[data-testid="submit-create-api-key-button"]')
@@ -339,7 +339,7 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="api-key-name-input"]')
         .fill(apiKeyName)
       await authenticatedPage
-        .locator('[data-testid="integration-checkbox-ai_tools"]')
+        .locator('[data-testid="integration-checkbox-cli"]')
         .check()
       await authenticatedPage
         .locator('[data-testid="submit-create-api-key-button"]')
@@ -386,9 +386,7 @@ test.describe('API Keys Feature', () => {
       await authPage
         .locator('[data-testid="api-key-name-input"]')
         .fill(testApiKeyName)
-      await authPage
-        .locator('[data-testid="integration-checkbox-ai_tools"]')
-        .check()
+      await authPage.locator('[data-testid="integration-checkbox-cli"]').check()
       await authPage
         .locator('[data-testid="submit-create-api-key-button"]')
         .click()
@@ -408,81 +406,49 @@ test.describe('API Keys Feature', () => {
       const apiBaseUrl =
         process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8080'
 
-      // Test with Claude Code hooks endpoint (supports API key auth)
-      const hookResponse = await page.request.post(
-        `${apiBaseUrl}/api/v1/claude-code/hooks`,
+      // Any endpoint behind flexibleAuthMiddleware (cookie-or-API-key) proves
+      // the point. This used to POST /api/v1/claude-code/hooks, which #614
+      // removed with the hook payload tables — a valid key then passed auth and
+      // fell through to a 404, so this test failed for a reason that had
+      // nothing to do with API-key authentication (#660).
+      const authResponse = await page.request.get(
+        `${apiBaseUrl}/api/v1/teams`,
         {
-          headers: {
-            Authorization: `Bearer ${testApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          data: {
-            event_type: 'test_event',
-            session_id: `test_session_${Date.now()}`,
-            data: {
-              test: true,
-            },
-          },
+          headers: { Authorization: `Bearer ${testApiKey}` },
+          failOnStatusCode: false,
         }
       )
 
-      // Should not return 401 Unauthorized
-      expect(hookResponse.status()).not.toBe(401)
-
-      // Should return either 200/201 (success) or 400 (bad request due to test data)
-      // But not 401 (unauthorized), which would indicate API key auth failed
-      expect([200, 201, 400, 422]).toContain(hookResponse.status())
+      // 401 is the failure this test exists to catch.
+      expect(authResponse.status()).not.toBe(401)
+      expect(authResponse.status()).toBe(200)
     })
 
     test('should reject invalid API key', async ({ page }) => {
       const apiBaseUrl =
         process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8080'
 
-      const hookResponse = await page.request.post(
-        `${apiBaseUrl}/api/v1/claude-code/hooks`,
-        {
-          headers: {
-            Authorization: 'Bearer ak_invalid_key_that_does_not_exist',
-            'Content-Type': 'application/json',
-          },
-          data: {
-            event_type: 'test_event',
-            session_id: `test_session_${Date.now()}`,
-            data: {
-              test: true,
-            },
-          },
-          failOnStatusCode: false,
-        }
-      )
+      // Retargeted off the removed hooks endpoint (#660). This one happened to
+      // keep passing, but only because auth rejects before routing — so it
+      // proved nothing about the endpoint it named.
+      const response = await page.request.get(`${apiBaseUrl}/api/v1/teams`, {
+        headers: { Authorization: 'Bearer ak_invalid_key_that_does_not_exist' },
+        failOnStatusCode: false,
+      })
 
-      // Should return 401 Unauthorized for invalid API key
-      expect(hookResponse.status()).toBe(401)
+      expect(response.status()).toBe(401)
     })
 
     test('should reject request without API key or JWT', async ({ page }) => {
       const apiBaseUrl =
         process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8080'
 
-      const hookResponse = await page.request.post(
-        `${apiBaseUrl}/api/v1/claude-code/hooks`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          data: {
-            event_type: 'test_event',
-            session_id: `test_session_${Date.now()}`,
-            data: {
-              test: true,
-            },
-          },
-          failOnStatusCode: false,
-        }
-      )
+      // Retargeted off the removed hooks endpoint (#660), same as the two above.
+      const response = await page.request.get(`${apiBaseUrl}/api/v1/teams`, {
+        failOnStatusCode: false,
+      })
 
-      // Should return 401 Unauthorized without auth
-      expect(hookResponse.status()).toBe(401)
+      expect(response.status()).toBe(401)
     })
   })
 
@@ -507,7 +473,7 @@ test.describe('API Keys Feature', () => {
           .locator('[data-testid="api-key-name-input"]')
           .fill(keyName)
         await authenticatedPage
-          .locator('[data-testid="integration-checkbox-ai_tools"]')
+          .locator('[data-testid="integration-checkbox-cli"]')
           .check()
         await authenticatedPage
           .locator('[data-testid="submit-create-api-key-button"]')
@@ -549,7 +515,7 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="api-key-name-input"]')
         .fill(apiKeyName)
       await authenticatedPage
-        .locator('[data-testid="integration-checkbox-ai_tools"]')
+        .locator('[data-testid="integration-checkbox-cli"]')
         .check()
       await authenticatedPage
         .locator('[data-testid="submit-create-api-key-button"]')
@@ -593,7 +559,7 @@ test.describe('API Keys Feature', () => {
         .locator('[data-testid="api-key-name-input"]')
         .fill(apiKeyName)
       await authenticatedPage
-        .locator('[data-testid="integration-checkbox-ai_tools"]')
+        .locator('[data-testid="integration-checkbox-cli"]')
         .check()
       await authenticatedPage
         .locator('[data-testid="submit-create-api-key-button"]')
