@@ -175,8 +175,6 @@ func TestGetResourceUsage_IncludesAllResources(t *testing.T) {
 
 	// All resource types as defined in the service
 	allResources := []models.ResourceUsageItem{
-		newItem(events.ResourceTypeAITool, 1, 2, 2, 50),
-		newItem(events.ResourceTypeAISession, 50, 100, 100, 50),
 		newItem(events.ResourceTypePrompt, 10, 100, 100, 10),
 		newItem(events.ResourceTypeArtifact, 5, 100, 100, 5),
 		newItem(events.ResourceTypeMemory, 20, 100, 100, 20),
@@ -201,7 +199,7 @@ func TestGetResourceUsage_IncludesAllResources(t *testing.T) {
 	var response models.ResourceUsageResponse
 	err := json.NewDecoder(w.Body).Decode(&response)
 	assert.NoError(t, err)
-	assert.Len(t, response.Resources, 9) // All 9 resource types
+	assert.Len(t, response.Resources, 7) // All 7 resource types
 
 	// Verify all expected resource types are present
 	resourceTypes := make(map[string]bool)
@@ -210,8 +208,6 @@ func TestGetResourceUsage_IncludesAllResources(t *testing.T) {
 	}
 
 	expectedTypes := []string{
-		events.ResourceTypeAITool,
-		events.ResourceTypeAISession,
 		events.ResourceTypePrompt,
 		events.ResourceTypeArtifact,
 		events.ResourceTypeMemory,
@@ -241,7 +237,7 @@ func TestGetResourceUsage_FreeUser(t *testing.T) {
 		newItem(events.ResourceTypePrompt, 50, 100, 100, 50),
 		newItem(events.ResourceTypeMemory, 30, 100, 100, 30),
 		newItem(events.ResourceTypeAgent, 1, 2, 2, 50),
-		newItem(events.ResourceTypeAITool, 1, 2, 2, 50),
+		newItem(events.ResourceTypeBlueprint, 1, 2, 2, 50),
 	}
 	expectedResponse := createResourceUsageResponse(freeUserResources)
 
@@ -269,7 +265,7 @@ func TestGetResourceUsage_FreeUser(t *testing.T) {
 			assert.Equal(t, 100, resource.Limit)
 		case events.ResourceTypeAgent:
 			assert.Equal(t, 2, resource.Limit)
-		case events.ResourceTypeAITool:
+		case events.ResourceTypeBlueprint:
 			assert.Equal(t, 2, resource.Limit)
 		}
 	}
@@ -286,7 +282,7 @@ func TestGetResourceUsage_ProUser(t *testing.T) {
 		newItem(events.ResourceTypePrompt, 200, 500, 500, 40),
 		newItem(events.ResourceTypeMemory, 150, 500, 500, 30),
 		newItem(events.ResourceTypeAgent, 3, 5, 5, 60),
-		newItem(events.ResourceTypeAITool, 2, 3, 3, 66),
+		newItem(events.ResourceTypeBlueprint, 2, 3, 3, 66),
 	}
 	expectedResponse := createResourceUsageResponse(proUserResources)
 
@@ -314,7 +310,7 @@ func TestGetResourceUsage_ProUser(t *testing.T) {
 			assert.Equal(t, 500, resource.Limit)
 		case events.ResourceTypeAgent:
 			assert.Equal(t, 5, resource.Limit)
-		case events.ResourceTypeAITool:
+		case events.ResourceTypeBlueprint:
 			assert.Equal(t, 3, resource.Limit)
 		}
 	}
@@ -331,7 +327,7 @@ func TestGetResourceUsage_EnterpriseUser(t *testing.T) {
 		newItem(events.ResourceTypePrompt, 500, 1000, 1000, 50),
 		newItem(events.ResourceTypeMemory, 300, 1000, 1000, 30),
 		newItem(events.ResourceTypeAgent, 10, -1, -1, 0),
-		newItem(events.ResourceTypeAITool, 2, -1, -1, 0),
+		newItem(events.ResourceTypeBlueprint, 2, -1, -1, 0),
 	}
 	expectedResponse := createResourceUsageResponse(enterpriseResources)
 
@@ -359,7 +355,7 @@ func TestGetResourceUsage_EnterpriseUser(t *testing.T) {
 			assert.Equal(t, 1000, resource.Limit)
 		case events.ResourceTypeAgent:
 			assert.Equal(t, -1, resource.Limit) // Unlimited
-		case events.ResourceTypeAITool:
+		case events.ResourceTypeBlueprint:
 			assert.Equal(t, -1, resource.Limit) // Unlimited
 		}
 	}
@@ -440,7 +436,7 @@ func TestGetResourceUsage_UnlimitedResources(t *testing.T) {
 			Percentage:      0, // 0% for unlimited
 		},
 		{
-			ResourceType:    events.ResourceTypeAITool,
+			ResourceType:    events.ResourceTypeBlueprint,
 			Count:           5,
 			Limit:           -1, // Unlimited
 			IndividualLimit: -1,
@@ -595,7 +591,7 @@ func TestGetResourceUsage_ZeroUsage(t *testing.T) {
 		newItem(events.ResourceTypeMemory, 0, 100, 100, 0),
 		newItem(events.ResourceTypeArtifact, 0, 100, 100, 0),
 		newItem(events.ResourceTypeAgent, 0, 2, 2, 0),
-		newItem(events.ResourceTypeAITool, 0, 2, 2, 0),
+		newItem(events.ResourceTypeBlueprint, 0, 2, 2, 0),
 	}
 	expectedResponse := createResourceUsageResponse(zeroUsageResources)
 
@@ -633,7 +629,7 @@ func TestGetResourceUsage_MultipleResources(t *testing.T) {
 		newItem(events.ResourceTypeMemory, 90, 100, 100, 90),
 		newItem(events.ResourceTypeArtifact, 10, 100, 100, 10),
 		newItem(events.ResourceTypeAgent, 2, 2, 2, 100),
-		newItem(events.ResourceTypeAITool, 0, 2, 2, 0),
+		newItem(events.ResourceTypeTeam, 0, 2, 2, 0),
 		newItem(events.ResourceTypeBlueprint, 15, 20, 20, 75),
 	}
 	expectedResponse := createResourceUsageResponse(multipleResources)
@@ -664,7 +660,7 @@ func TestGetResourceUsage_MultipleResources(t *testing.T) {
 	assert.Equal(t, 90, resourceMap[events.ResourceTypeMemory].Percentage)
 	assert.Equal(t, 10, resourceMap[events.ResourceTypeArtifact].Percentage)
 	assert.Equal(t, 100, resourceMap[events.ResourceTypeAgent].Percentage) // At limit
-	assert.Equal(t, 0, resourceMap[events.ResourceTypeAITool].Percentage)  // Zero usage
+	assert.Equal(t, 0, resourceMap[events.ResourceTypeTeam].Percentage)    // Zero usage
 	assert.Equal(t, 75, resourceMap[events.ResourceTypeBlueprint].Percentage)
 
 	mockContainer.resourceUsageService.AssertExpectations(t)
@@ -723,9 +719,8 @@ func TestGetResourceUsage_MonthlyReset(t *testing.T) {
 func TestGetResourceUsage_DailyLimits(t *testing.T) {
 	mockContainer := newMockResourceUsageContainer(t)
 
-	// AI sessions often have daily or monthly limits
+	// Conversation-style resources often have daily or monthly limits
 	dailyResources := []models.ResourceUsageItem{
-		newItem(events.ResourceTypeAISession, 50, 100, 100, 50),
 		newItem(events.ResourceTypeAgentConv, 25, 100, 100, 25),
 	}
 	expectedResponse := createResourceUsageResponse(dailyResources)
@@ -747,7 +742,7 @@ func TestGetResourceUsage_DailyLimits(t *testing.T) {
 
 	// Verify session-based resources are tracked
 	for _, resource := range response.Resources {
-		if resource.ResourceType == events.ResourceTypeAISession || resource.ResourceType == events.ResourceTypeAgentConv {
+		if resource.ResourceType == events.ResourceTypeAgentConv {
 			assert.GreaterOrEqual(t, resource.Limit, 0, "Session limits should be positive or unlimited")
 		}
 	}

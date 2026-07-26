@@ -576,124 +576,6 @@ type mockAgentExecRepo struct {
 	mock.Mock
 }
 
-type mockClaudeCodeRepo struct {
-	mock.Mock
-}
-
-func (m *mockClaudeCodeRepo) CountUniqueSessions(ctx context.Context, userID string) (int, error) {
-	args := m.Called(ctx, userID)
-	return args.Int(0), args.Error(1)
-}
-
-// Implement other required methods as no-ops for now
-func (m *mockClaudeCodeRepo) Create(
-	ctx context.Context,
-	payload *models.ClaudeCodeHookPayload,
-) error {
-	return nil
-}
-func (m *mockClaudeCodeRepo) GetByID(
-	ctx context.Context,
-	userID string,
-	id int,
-) (*models.ClaudeCodeHookPayload, error) {
-	return nil, nil
-}
-func (m *mockClaudeCodeRepo) List(
-	ctx context.Context,
-	filters repositories.ClaudeCodeHooksFilters,
-) (*models.ClaudeCodeHooksPaginatedResponse, error) {
-	return nil, nil
-}
-func (m *mockClaudeCodeRepo) GetSessions(
-	ctx context.Context,
-	filters repositories.SessionFilters,
-) (*models.SessionsResponse, error) {
-	return nil, nil
-}
-func (m *mockClaudeCodeRepo) GetSessionCounts(
-	ctx context.Context,
-	userID string,
-	days int,
-) (*models.SessionCountsResponse, error) {
-	return nil, nil
-}
-func (m *mockClaudeCodeRepo) GetOverviewStats(ctx context.Context, userID string) (*models.OverviewStats, error) {
-	return nil, nil
-}
-func (m *mockClaudeCodeRepo) GetRecentActivities(
-	ctx context.Context,
-	filters repositories.RecentActivitiesFilters,
-) (*models.RecentActivitiesResponse, error) {
-	return nil, nil
-}
-func (m *mockClaudeCodeRepo) SessionExists(ctx context.Context, userID, sessionID string) (bool, error) {
-	return false, nil
-}
-
-func (m *mockClaudeCodeRepo) DeleteSession(ctx context.Context, userID, sessionID string) error {
-	return nil
-}
-
-type mockCursorIDERepo struct {
-	mock.Mock
-}
-
-func (m *mockCursorIDERepo) CountUniqueSessions(ctx context.Context, userID string) (int, error) {
-	args := m.Called(ctx, userID)
-	return args.Int(0), args.Error(1)
-}
-
-// Implement other required methods as no-ops for now
-func (m *mockCursorIDERepo) Create(
-	ctx context.Context,
-	payload *models.CursorIDEHookPayload,
-) error {
-	return nil
-}
-func (m *mockCursorIDERepo) GetByID(
-	ctx context.Context,
-	userID string,
-	id int,
-) (*models.CursorIDEHookPayload, error) {
-	return nil, nil
-}
-func (m *mockCursorIDERepo) List(
-	ctx context.Context,
-	filters repositories.CursorIDEHooksFilters,
-) (*models.CursorIDEHooksPaginatedResponse, error) {
-	return nil, nil
-}
-func (m *mockCursorIDERepo) GetSessions(
-	ctx context.Context,
-	filters repositories.CursorSessionFilters,
-) (*models.CursorSessionsResponse, error) {
-	return nil, nil
-}
-func (m *mockCursorIDERepo) GetSessionCounts(
-	ctx context.Context,
-	userID string,
-	days int,
-) (*models.CursorSessionCountsResponse, error) {
-	return nil, nil
-}
-func (m *mockCursorIDERepo) GetOverviewStats(ctx context.Context, userID string) (*models.CursorOverviewStats, error) {
-	return nil, nil
-}
-func (m *mockCursorIDERepo) GetRecentActivities(
-	ctx context.Context,
-	filters repositories.CursorRecentActivitiesFilters,
-) (*models.CursorRecentActivitiesResponse, error) {
-	return nil, nil
-}
-func (m *mockCursorIDERepo) SessionExists(ctx context.Context, userID, sessionID string) (bool, error) {
-	return false, nil
-}
-
-func (m *mockCursorIDERepo) DeleteSession(ctx context.Context, userID, sessionID string) error {
-	return nil
-}
-
 // mockFeedRepo is a minimal mock for the FeedRepository interface used in resource usage tests.
 type mockFeedRepo struct {
 	mock.Mock
@@ -929,8 +811,6 @@ func TestCheckResourceLimit(t *testing.T) {
 		MemoryRepo:           new(mockMemoryRepo),
 		AgentRepo:            new(mockAgentRepo),
 		AgentExecRepo:        new(mockAgentExecRepo),
-		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
-		CursorIDERepo:        new(mockCursorIDERepo),
 		SpecLibraryRepo:      new(mockSpecLibraryRepo),
 		TeamRepo:             new(mockTeamRepo),
 		TeamMemberRepo:       new(mockTeamMemberRepo),
@@ -1021,8 +901,6 @@ func TestGetResourceLimit_PowerUserPlan(t *testing.T) {
 		resourceType  string
 		expectedLimit int
 	}{
-		{events.ResourceTypeAITool, -1},
-		{events.ResourceTypeAISession, 2000},
 		{events.ResourceTypePrompt, 1000},
 		{events.ResourceTypeArtifact, 1000},
 		{events.ResourceTypeMemory, 1000},
@@ -1066,8 +944,6 @@ func TestCountAgentConversations_EmptyAgentID(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// Setup mock AI hooks repositories
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 
@@ -1079,8 +955,6 @@ func TestCountAgentConversations_EmptyAgentID(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       nil,
@@ -1140,8 +1014,6 @@ func TestCountAgentConversations_Pagination(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	// Setup mock AI hooks repositories
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 
@@ -1153,8 +1025,6 @@ func TestCountAgentConversations_Pagination(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       nil,
@@ -1210,8 +1080,6 @@ func TestCountSpecLibraries(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 	logger := slog.New(slog.DiscardHandler)
@@ -1224,8 +1092,6 @@ func TestCountSpecLibraries(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       nil,
@@ -1358,8 +1224,6 @@ func TestCountTeams(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 	logger := slog.New(slog.DiscardHandler)
@@ -1372,8 +1236,6 @@ func TestCountTeams(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       nil,
@@ -1411,8 +1273,6 @@ func TestGetResourceUsage_IncludesTeams(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
@@ -1430,8 +1290,6 @@ func TestGetResourceUsage_IncludesTeams(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       teamMemberRepo,
@@ -1453,8 +1311,6 @@ func TestGetResourceUsage_IncludesTeams(t *testing.T) {
 	// Mock all repositories
 	userRepo.On("GetByID", mock.Anything, userID).Return(user, nil)
 	teamMemberRepo.On("GetByUserID", mock.Anything, userID).Return([]models.TeamMember{}, nil)
-	claudeCodeRepo.On("CountUniqueSessions", mock.Anything, userID).Return(1, nil)
-	cursorIDERepo.On("CountUniqueSessions", mock.Anything, userID).Return(1, nil)
 	promptRepo.On("CountByStatus", mock.Anything, userID, "draft").Return(10, nil)
 	promptRepo.On("CountByStatus", mock.Anything, userID, "published").Return(20, nil)
 	artifactRepo.On("CountAll", mock.Anything, userID).Return(15, nil)
@@ -1693,8 +1549,6 @@ func TestGetTeamQuotaContribution_SingleTeam(t *testing.T) {
 			memoryRepo := new(mockMemoryRepo)
 			agentRepo := new(mockAgentRepo)
 			agentExecRepo := new(mockAgentExecRepo)
-			claudeCodeRepo := new(mockClaudeCodeRepo)
-			cursorIDERepo := new(mockCursorIDERepo)
 			specLibraryRepo := new(mockSpecLibraryRepo)
 			teamRepo := new(mockTeamRepo)
 			teamMemberRepo := new(mockTeamMemberRepo)
@@ -1709,8 +1563,6 @@ func TestGetTeamQuotaContribution_SingleTeam(t *testing.T) {
 				MemoryRepo:           memoryRepo,
 				AgentRepo:            agentRepo,
 				AgentExecRepo:        agentExecRepo,
-				ClaudeCodeRepo:       claudeCodeRepo,
-				CursorIDERepo:        cursorIDERepo,
 				SpecLibraryRepo:      specLibraryRepo,
 				TeamRepo:             teamRepo,
 				TeamMemberRepo:       teamMemberRepo,
@@ -1770,8 +1622,6 @@ func TestGetTeamQuotaContribution_MultipleTeams(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
@@ -1786,8 +1636,6 @@ func TestGetTeamQuotaContribution_MultipleTeams(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       teamMemberRepo,
@@ -1860,8 +1708,6 @@ func TestGetTeamQuotaContribution_PersonalWorkspaceExcluded(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
@@ -1876,8 +1722,6 @@ func TestGetTeamQuotaContribution_PersonalWorkspaceExcluded(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       teamMemberRepo,
@@ -1942,8 +1786,6 @@ func TestGetTeamQuotaContribution_InactiveSubscriptionExcluded(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
@@ -1958,8 +1800,6 @@ func TestGetTeamQuotaContribution_InactiveSubscriptionExcluded(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       teamMemberRepo,
@@ -2032,8 +1872,6 @@ func TestGetResourceUsage_WithTeamQuotaBreakdown(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
@@ -2052,8 +1890,6 @@ func TestGetResourceUsage_WithTeamQuotaBreakdown(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       teamMemberRepo,
@@ -2089,8 +1925,6 @@ func TestGetResourceUsage_WithTeamQuotaBreakdown(t *testing.T) {
 		{ConversationID: "conv-1", AgentID: "agent-1", MessageCount: 5},
 	}
 	agentExecRepo.On("ListConversations", mock.Anything, userID, "", 1, 100).Return(conversations, 1, nil)
-	claudeCodeRepo.On("CountUniqueSessions", mock.Anything, userID).Return(1, nil)
-	cursorIDERepo.On("CountUniqueSessions", mock.Anything, userID).Return(1, nil)
 	teamRepo.On("CountByOwnerID", mock.Anything, userID).Return(1, nil)
 
 	// Mock team membership (called multiple times, once per resource type)
@@ -2213,8 +2047,6 @@ func TestGetTeamQuotaContribution_OverflowProtection(t *testing.T) {
 			memoryRepo := new(mockMemoryRepo)
 			agentRepo := new(mockAgentRepo)
 			agentExecRepo := new(mockAgentExecRepo)
-			claudeCodeRepo := new(mockClaudeCodeRepo)
-			cursorIDERepo := new(mockCursorIDERepo)
 			specLibraryRepo := new(mockSpecLibraryRepo)
 			teamRepo := new(mockTeamRepo)
 			teamMemberRepo := new(mockTeamMemberRepo)
@@ -2229,8 +2061,6 @@ func TestGetTeamQuotaContribution_OverflowProtection(t *testing.T) {
 				MemoryRepo:           memoryRepo,
 				AgentRepo:            agentRepo,
 				AgentExecRepo:        agentExecRepo,
-				ClaudeCodeRepo:       claudeCodeRepo,
-				CursorIDERepo:        cursorIDERepo,
 				SpecLibraryRepo:      specLibraryRepo,
 				TeamRepo:             teamRepo,
 				TeamMemberRepo:       teamMemberRepo,
@@ -2295,8 +2125,6 @@ func TestGetTeamQuotaContribution_AccumulationOverflow(t *testing.T) {
 	memoryRepo := new(mockMemoryRepo)
 	agentRepo := new(mockAgentRepo)
 	agentExecRepo := new(mockAgentExecRepo)
-	claudeCodeRepo := new(mockClaudeCodeRepo)
-	cursorIDERepo := new(mockCursorIDERepo)
 	specLibraryRepo := new(mockSpecLibraryRepo)
 	teamRepo := new(mockTeamRepo)
 	teamMemberRepo := new(mockTeamMemberRepo)
@@ -2311,8 +2139,6 @@ func TestGetTeamQuotaContribution_AccumulationOverflow(t *testing.T) {
 		MemoryRepo:           memoryRepo,
 		AgentRepo:            agentRepo,
 		AgentExecRepo:        agentExecRepo,
-		ClaudeCodeRepo:       claudeCodeRepo,
-		CursorIDERepo:        cursorIDERepo,
 		SpecLibraryRepo:      specLibraryRepo,
 		TeamRepo:             teamRepo,
 		TeamMemberRepo:       teamMemberRepo,
@@ -2435,8 +2261,6 @@ func TestGetTeamQuotaContribution_NegativeValueValidation(t *testing.T) {
 			memoryRepo := new(mockMemoryRepo)
 			agentRepo := new(mockAgentRepo)
 			agentExecRepo := new(mockAgentExecRepo)
-			claudeCodeRepo := new(mockClaudeCodeRepo)
-			cursorIDERepo := new(mockCursorIDERepo)
 			specLibraryRepo := new(mockSpecLibraryRepo)
 			teamRepo := new(mockTeamRepo)
 			teamMemberRepo := new(mockTeamMemberRepo)
@@ -2451,8 +2275,6 @@ func TestGetTeamQuotaContribution_NegativeValueValidation(t *testing.T) {
 				MemoryRepo:           memoryRepo,
 				AgentRepo:            agentRepo,
 				AgentExecRepo:        agentExecRepo,
-				ClaudeCodeRepo:       claudeCodeRepo,
-				CursorIDERepo:        cursorIDERepo,
 				SpecLibraryRepo:      specLibraryRepo,
 				TeamRepo:             teamRepo,
 				TeamMemberRepo:       teamMemberRepo,
@@ -2517,8 +2339,6 @@ func TestCountFeeds(t *testing.T) {
 		MemoryRepo:           new(mockMemoryRepo),
 		AgentRepo:            new(mockAgentRepo),
 		AgentExecRepo:        new(mockAgentExecRepo),
-		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
-		CursorIDERepo:        new(mockCursorIDERepo),
 		SpecLibraryRepo:      new(mockSpecLibraryRepo),
 		TeamRepo:             new(mockTeamRepo),
 		TeamMemberRepo:       nil,
@@ -2554,8 +2374,6 @@ func TestCountFeedItems(t *testing.T) {
 		MemoryRepo:           new(mockMemoryRepo),
 		AgentRepo:            new(mockAgentRepo),
 		AgentExecRepo:        new(mockAgentExecRepo),
-		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
-		CursorIDERepo:        new(mockCursorIDERepo),
 		SpecLibraryRepo:      new(mockSpecLibraryRepo),
 		TeamRepo:             new(mockTeamRepo),
 		TeamMemberRepo:       nil,
@@ -2594,8 +2412,6 @@ func TestCountFeedItems_ItemRepoError(t *testing.T) {
 		MemoryRepo:           new(mockMemoryRepo),
 		AgentRepo:            new(mockAgentRepo),
 		AgentExecRepo:        new(mockAgentExecRepo),
-		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
-		CursorIDERepo:        new(mockCursorIDERepo),
 		SpecLibraryRepo:      new(mockSpecLibraryRepo),
 		TeamRepo:             new(mockTeamRepo),
 		TeamMemberRepo:       nil,
@@ -2630,8 +2446,6 @@ func TestCountFeedItems_ReplyRepoError(t *testing.T) {
 		MemoryRepo:           new(mockMemoryRepo),
 		AgentRepo:            new(mockAgentRepo),
 		AgentExecRepo:        new(mockAgentExecRepo),
-		ClaudeCodeRepo:       new(mockClaudeCodeRepo),
-		CursorIDERepo:        new(mockCursorIDERepo),
 		SpecLibraryRepo:      new(mockSpecLibraryRepo),
 		TeamRepo:             new(mockTeamRepo),
 		TeamMemberRepo:       nil,
@@ -2653,4 +2467,88 @@ func TestCountFeedItems_ReplyRepoError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to count feed item replies")
 	feedItemRepo.AssertExpectations(t)
 	feedItemReplyRepo.AssertExpectations(t)
+}
+
+// TestGetResourceUsage_ReturnsExactResourceTypeSet pins the exact set of resource
+// types the response reports. The ai_tool / ai_session types were retired with the
+// AI-tool hook ingestion feature (#611); asserting the whole set — rather than only
+// their absence — also fails if a future change silently re-adds or drops a type.
+func TestGetResourceUsage_ReturnsExactResourceTypeSet(t *testing.T) {
+	userRepo := new(mockUserRepo)
+	promptRepo := new(mockPromptRepo)
+	artifactRepo := new(mockArtifactRepo)
+	memoryRepo := new(mockMemoryRepo)
+	agentRepo := new(mockAgentRepo)
+	agentExecRepo := new(mockAgentExecRepo)
+	specLibraryRepo := new(mockSpecLibraryRepo)
+	teamRepo := new(mockTeamRepo)
+	teamMemberRepo := new(mockTeamMemberRepo)
+	teamSubscriptionRepo := new(mockTeamSubscriptionRepo)
+	feedRepo := new(mockFeedRepo)
+	feedItemRepo := new(mockFeedItemRepo)
+	feedItemReplyRepo := new(mockFeedItemReplyRepo)
+	logger := slog.New(slog.DiscardHandler)
+
+	service := NewResourceUsageService(ResourceUsageServiceDeps{
+		UserRepo:             userRepo,
+		PromptRepo:           promptRepo,
+		ArtifactRepo:         artifactRepo,
+		MemoryRepo:           memoryRepo,
+		AgentRepo:            agentRepo,
+		AgentExecRepo:        agentExecRepo,
+		SpecLibraryRepo:      specLibraryRepo,
+		TeamRepo:             teamRepo,
+		TeamMemberRepo:       teamMemberRepo,
+		TeamSubscriptionRepo: teamSubscriptionRepo,
+		FeedRepo:             feedRepo,
+		FeedItemRepo:         feedItemRepo,
+		FeedItemReplyRepo:    feedItemReplyRepo,
+		Logger:               logger,
+	})
+
+	userID := "test-user-id"
+	plan := models.PlanPro
+	userRepo.On("GetByID", mock.Anything, userID).Return(&models.User{
+		ID:               userID,
+		SubscriptionPlan: &plan,
+	}, nil)
+	teamMemberRepo.On("GetByUserID", mock.Anything, userID).Return([]models.TeamMember{}, nil)
+	promptRepo.On("CountByStatus", mock.Anything, userID, "draft").Return(1, nil)
+	promptRepo.On("CountByStatus", mock.Anything, userID, "published").Return(1, nil)
+	artifactRepo.On("CountAll", mock.Anything, userID).Return(1, nil)
+	memoryRepo.On("CountAll", mock.Anything, userID).Return(1, nil)
+	specLibraryRepo.On("GetStats", mock.Anything, userID).Return(
+		&models.BlueprintStatsResponse{TotalBlueprints: 1}, nil,
+	)
+	agentRepo.On("GetStats", mock.Anything, userID, "").Return(&models.AgentStatsResponse{TotalAgents: 1}, nil)
+	agentExecRepo.On("ListConversations", mock.Anything, userID, "", 1, 100).
+		Return([]models.ConversationSummary{}, 0, nil)
+	teamRepo.On("CountByOwnerID", mock.Anything, userID).Return(1, nil)
+	feedRepo.On("CountAll", mock.Anything, userID).Return(1, nil)
+	feedItemRepo.On("CountAll", mock.Anything, userID).Return(1, nil)
+	feedItemReplyRepo.On("CountAll", mock.Anything, userID).Return(1, nil)
+
+	response, err := service.GetResourceUsage(context.Background(), userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, response)
+
+	got := make([]string, 0, len(response.Resources))
+	for _, r := range response.Resources {
+		got = append(got, r.ResourceType)
+	}
+
+	assert.Equal(t, []string{
+		events.ResourceTypePrompt,
+		events.ResourceTypeArtifact,
+		events.ResourceTypeMemory,
+		events.ResourceTypeBlueprint,
+		events.ResourceTypeAgent,
+		events.ResourceTypeAgentConv,
+		events.ResourceTypeTeam,
+		events.ResourceTypeFeed,
+		events.ResourceTypeFeedItem,
+	}, got)
+	assert.NotContains(t, got, "ai_tool")
+	assert.NotContains(t, got, "ai_session")
 }
