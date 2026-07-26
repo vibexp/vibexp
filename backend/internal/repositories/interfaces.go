@@ -88,12 +88,6 @@ var (
 	// item does not exist in the specified team. Callers detect it with errors.Is.
 	ErrFeedItemNotFound = errors.New("feed item not found")
 
-	// ErrTeamSubscriptionNotFound is returned by TeamSubscriptionRepository.Delete (and
-	// future similar lookups) when no row matches the requested identifier. The terminal-dead
-	// replacement path in TeamSubscriptionService.Create relies on errors.Is to treat a
-	// concurrent delete as a benign no-op rather than a hard failure.
-	ErrTeamSubscriptionNotFound = errors.New("team subscription not found")
-
 	// ErrTeamInvitationNotFound is returned by TeamInvitationRepository.GetByToken
 	// (and future similar lookups) when no row matches the requested token/id.
 	// Callers detect it with errors.Is and map to 404 / a typed service error.
@@ -406,30 +400,6 @@ type TeamInvitationRepository interface {
 	GetPendingByEmail(ctx context.Context, email string) ([]models.TeamInvitation, error)
 	UpdateStatus(ctx context.Context, invitationID string, status models.InvitationStatus) error
 	Delete(ctx context.Context, invitationID string) error
-}
-
-// TeamSubscriptionRepository defines the interface for team subscription data access operations
-type TeamSubscriptionRepository interface {
-	// Core CRUD operations
-	Create(ctx context.Context, subscription *models.TeamSubscription) error
-	GetByID(ctx context.Context, id string) (*models.TeamSubscription, error)
-	GetByTeamID(ctx context.Context, teamID string) (*models.TeamSubscription, error)
-	GetByStripeSubscriptionID(ctx context.Context, stripeSubID string) (*models.TeamSubscription, error)
-	Update(ctx context.Context, subscription *models.TeamSubscription) error
-	Delete(ctx context.Context, id string) error
-
-	// Webhook-optimized methods (avoid fetch+update round trips)
-	UpdateStatus(ctx context.Context, stripeSubID, status string) error
-	UpdateSeatCount(ctx context.Context, stripeSubID string, seatCount int) error
-
-	// Deletion validation methods.
-	// Both return (nil, nil) — not an error — when no matching subscription exists.
-	GetActiveByTeamID(ctx context.Context, teamID string) (*models.TeamSubscription, error)
-	GetCanceledByTeamID(ctx context.Context, teamID string) (*models.TeamSubscription, error)
-
-	// Listing methods
-	ListByStatus(ctx context.Context, status string, limit, offset int) ([]*models.TeamSubscription, int, error)
-	ListByTier(ctx context.Context, tier string, limit, offset int) ([]*models.TeamSubscription, int, error)
 }
 
 // APIKeyRepository defines the interface for API key data access operations

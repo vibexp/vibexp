@@ -22,9 +22,9 @@ func TestUserWithID(userID string) *models.User {
 		Name:               "Test User",
 		AvatarURL:          nil,
 		StripeCustomerID:   nil,
-		SubscriptionStatus: models.SubscriptionStatusBasic,
+		SubscriptionStatus: "basic",
 		TrialEndsAt:        nil,
-		SubscriptionPlan:   &[]string{models.PlanBasic}[0],
+		SubscriptionPlan:   &[]string{"basic"}[0],
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -34,29 +34,6 @@ func TestUserWithID(userID string) *models.User {
 func TestUserWithEmail(email string) *models.User {
 	user := TestUser()
 	user.Email = email
-	return user
-}
-
-// TestUserWithSubscription generates a test user with a specific subscription status and plan
-func TestUserWithSubscription(status, plan string) *models.User {
-	user := TestUser()
-	user.SubscriptionStatus = status
-	user.SubscriptionPlan = &plan
-	return user
-}
-
-// TestUserPro generates a test user with pro subscription
-func TestUserPro() *models.User {
-	user := TestUser()
-	user.SubscriptionStatus = models.SubscriptionStatusActive
-	user.SubscriptionPlan = &[]string{models.PlanPro}[0]
-	return user
-}
-
-// TestUserWithStripe generates a test user with Stripe customer ID
-func TestUserWithStripe(stripeCustomerID string) *models.User {
-	user := TestUser()
-	user.StripeCustomerID = &stripeCustomerID
 	return user
 }
 
@@ -155,55 +132,6 @@ func TestEmbeddingProviderWithAPIKey(userID string) *models.EmbeddingProvider {
 	return provider
 }
 
-// TestSubscription generates a test subscription for a given user ID
-func TestSubscription(userID string) *models.Subscription {
-	return TestSubscriptionWithStatus(userID, models.SubscriptionStatusBasic)
-}
-
-// TestSubscriptionWithStatus generates a test subscription with specific status
-func TestSubscriptionWithStatus(userID, status string) *models.Subscription {
-	now := time.Now()
-	return &models.Subscription{
-		ID:                   "sub-" + userID + "-123",
-		UserID:               userID,
-		StripeSubscriptionID: nil,
-		StripeCustomerID:     nil,
-		Status:               status,
-		PlanName:             nil,
-		CurrentPeriodStart:   nil,
-		CurrentPeriodEnd:     nil,
-		TrialEnd:             nil,
-		CreatedAt:            now,
-		UpdatedAt:            now,
-	}
-}
-
-// TestSubscriptionActive generates an active test subscription
-func TestSubscriptionActive(userID string) *models.Subscription {
-	sub := TestSubscriptionWithStatus(userID, models.SubscriptionStatusActive)
-	stripeSubID := "sub_stripe_123"
-	stripeCustID := "cus_stripe_123"
-	planName := models.PlanPro
-	now := time.Now()
-	periodStart := now.Add(-30 * 24 * time.Hour) // Started 30 days ago
-	periodEnd := now.Add(30 * 24 * time.Hour)    // Ends in 30 days
-
-	sub.StripeSubscriptionID = &stripeSubID
-	sub.StripeCustomerID = &stripeCustID
-	sub.PlanName = &planName
-	sub.CurrentPeriodStart = &periodStart
-	sub.CurrentPeriodEnd = &periodEnd
-	return sub
-}
-
-// TestSubscriptionTrial generates a trial test subscription
-func TestSubscriptionTrial(userID string) *models.Subscription {
-	sub := TestSubscriptionWithStatus(userID, models.SubscriptionStatusTrialActive)
-	trialEnd := time.Now().Add(7 * 24 * time.Hour) // Trial ends in 7 days
-	sub.TrialEnd = &trialEnd
-	return sub
-}
-
 // TestGoogleUserInfo generates test Google user info
 func TestGoogleUserInfo() *models.GoogleUserInfo {
 	return &models.GoogleUserInfo{
@@ -295,53 +223,5 @@ func TestValidateEmbeddingProviderResponse(isValid bool, message string) *models
 	return &models.ValidateEmbeddingProviderResponse{
 		IsValid: isValid,
 		Message: message,
-	}
-}
-
-// TestCreateSubscriptionResponse generates a test create subscription response
-func TestCreateSubscriptionResponse(checkoutURL, sessionID string) *models.CreateSubscriptionResponse {
-	return &models.CreateSubscriptionResponse{
-		CheckoutURL: checkoutURL,
-		SessionID:   sessionID,
-	}
-}
-
-// TestSubscriptionStatusResponse generates a test subscription status response
-func TestSubscriptionStatusResponse(status string, canAccess bool) *models.SubscriptionStatusResponse {
-	return &models.SubscriptionStatusResponse{
-		Status:           status,
-		IsTrialActive:    status == models.SubscriptionStatusTrialActive,
-		CanAccessService: canAccess,
-	}
-}
-
-// TestCreatePortalSessionResponse generates a test create portal session response
-func TestCreatePortalSessionResponse(url string) *models.CreatePortalSessionResponse {
-	return &models.CreatePortalSessionResponse{
-		URL: url,
-	}
-}
-
-// TestProductConfiguration generates a test product configuration
-func TestProductConfiguration() *models.ProductConfiguration {
-	return &models.ProductConfiguration{
-		ID:       "prod_test_123",
-		Name:     "Test Plan",
-		PriceID:  "price_test_123",
-		Currency: "usd",
-		Amount:   999,
-		Popular:  false,
-		MarketingFeatures: []string{
-			"Feature 1",
-			"Feature 2",
-			"Feature 3",
-		},
-	}
-}
-
-// TestProductConfigurationResponse generates a test product configuration response
-func TestProductConfigurationResponse(products []models.ProductConfiguration) *models.ProductConfigurationResponse {
-	return &models.ProductConfigurationResponse{
-		Products: products,
 	}
 }

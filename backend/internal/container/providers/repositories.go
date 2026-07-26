@@ -178,11 +178,6 @@ func ProvideTeamInvitationRepository(db *database.DB) repositories.TeamInvitatio
 	return postgres.NewTeamInvitationRepository(db)
 }
 
-// ProvideTeamSubscriptionRepository creates a new TeamSubscriptionRepository
-func ProvideTeamSubscriptionRepository(db *database.DB) repositories.TeamSubscriptionRepository {
-	return postgres.NewTeamSubscriptionRepository(db)
-}
-
 // ProvideProjectRepository creates a new ProjectRepository
 func ProvideProjectRepository(db *database.DB) repositories.ProjectRepository {
 	return postgres.NewProjectRepository(db)

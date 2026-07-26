@@ -19246,31 +19246,6 @@ components:
         - team_id
         - team_name
         - message
-    TeamQuotaTypeDetail:
-      type: object
-      description: Quota details for a specific resource type
-      properties:
-        resource_type:
-          type: string
-          description: Resource type the quota applies to
-          example: prompts
-        limit:
-          type: integer
-          description: Maximum allowed
-          example: 100
-        used:
-          type: integer
-          description: Current usage
-          example: 45
-        remaining:
-          type: integer
-          description: Available quota
-          example: 55
-      required:
-        - resource_type
-        - limit
-        - used
-        - remaining
     TeamDeleteConflictError:
       type: object
       description: |

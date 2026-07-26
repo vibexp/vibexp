@@ -645,8 +645,6 @@ components:
       $ref: "./schemas/teams.yaml#/SendInvitationsRequest"
     AcceptInvitationResponse:
       $ref: "./schemas/teams.yaml#/AcceptInvitationResponse"
-    TeamQuotaTypeDetail:
-      $ref: "./schemas/teams.yaml#/TeamQuotaTypeDetail"
     TeamDeleteConflictError:
       $ref: "./schemas/teams.yaml#/TeamDeleteConflictError"
     InvitationDuplicateMembersError:

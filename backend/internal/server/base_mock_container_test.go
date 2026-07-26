@@ -134,10 +134,6 @@ func (b *BaseMockContainer) TeamMemberRepository() repositories.TeamMemberReposi
 	return nil
 }
 
-func (b *BaseMockContainer) TeamSubscriptionRepository() repositories.TeamSubscriptionRepository {
-	return nil
-}
-
 func (b *BaseMockContainer) ProjectRepository() repositories.ProjectRepository {
 	return nil
 }

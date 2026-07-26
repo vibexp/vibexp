@@ -114,63 +114,6 @@ func TestAssertPromptEqual(t *testing.T) {
 	}
 }
 
-func TestAssertSubscriptionEqual(t *testing.T) {
-	now := time.Now()
-	planName := models.PlanPro
-
-	sub1 := &models.Subscription{
-		ID:                   "sub-123",
-		UserID:               "user-123",
-		StripeSubscriptionID: nil,
-		StripeCustomerID:     nil,
-		Status:               models.SubscriptionStatusActive,
-		PlanName:             &planName,
-		CurrentPeriodStart:   &now,
-		CurrentPeriodEnd:     nil,
-		TrialEnd:             nil,
-		CreatedAt:            now,
-		UpdatedAt:            now,
-	}
-
-	sub2 := &models.Subscription{
-		ID:                   "sub-123",
-		UserID:               "user-123",
-		StripeSubscriptionID: nil,
-		StripeCustomerID:     nil,
-		Status:               models.SubscriptionStatusActive,
-		PlanName:             &planName,
-		CurrentPeriodStart:   &now,
-		CurrentPeriodEnd:     nil,
-		TrialEnd:             nil,
-		CreatedAt:            now,
-		UpdatedAt:            now,
-	}
-
-	// Same subscriptions should pass
-	AssertSubscriptionEqual(t, sub1, sub2)
-
-	// Different subscriptions should fail
-	mockT := &mockTesting{}
-	sub3 := &models.Subscription{
-		ID:                   "sub-456",
-		UserID:               "user-456",
-		StripeSubscriptionID: nil,
-		StripeCustomerID:     nil,
-		Status:               models.SubscriptionStatusBasic,
-		PlanName:             nil,
-		CurrentPeriodStart:   nil,
-		CurrentPeriodEnd:     nil,
-		TrialEnd:             nil,
-		CreatedAt:            now,
-		UpdatedAt:            now,
-	}
-	AssertSubscriptionEqual(mockT, sub1, sub3)
-
-	if !mockT.errorFCalled {
-		t.Error("Expected assertion to fail for different subscriptions")
-	}
-}
-
 func TestAssertTimeAlmostEqual(t *testing.T) {
 	baseTime := time.Now()
 	closeTime := baseTime.Add(500 * time.Millisecond)

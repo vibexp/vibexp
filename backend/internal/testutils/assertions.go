@@ -118,36 +118,6 @@ func AssertPromptEqual(t TestingT, expected, actual *models.Prompt) {
 	}
 }
 
-// AssertSubscriptionEqual asserts that two Subscription models are equal
-func AssertSubscriptionEqual(t TestingT, expected, actual *models.Subscription) {
-	t.Helper()
-
-	if expected == nil && actual == nil {
-		return
-	}
-
-	if expected == nil || actual == nil {
-		t.Errorf("Subscription mismatch: expected %v, actual %v", expected, actual)
-		return
-	}
-
-	if expected.ID != actual.ID {
-		t.Errorf("Subscription ID mismatch: expected %s, actual %s", expected.ID, actual.ID)
-	}
-
-	if expected.UserID != actual.UserID {
-		t.Errorf("Subscription UserID mismatch: expected %s, actual %s", expected.UserID, actual.UserID)
-	}
-
-	if expected.Status != actual.Status {
-		t.Errorf("Subscription Status mismatch: expected %s, actual %s", expected.Status, actual.Status)
-	}
-
-	if !equalStringPointers(expected.PlanName, actual.PlanName) {
-		t.Errorf("Subscription PlanName mismatch: expected %v, actual %v", expected.PlanName, actual.PlanName)
-	}
-}
-
 // AssertTimeAlmostEqual asserts that two times are equal within a small tolerance
 func AssertTimeAlmostEqual(t TestingT, expected, actual time.Time, tolerance time.Duration) {
 	t.Helper()

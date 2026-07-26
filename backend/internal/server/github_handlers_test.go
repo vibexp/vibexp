@@ -220,10 +220,7 @@ func (c *GitHubTestContainer) UserPreferencesRepository() repositories.UserPrefe
 }
 func (c *GitHubTestContainer) TeamRepository() repositories.TeamRepository             { return nil }
 func (c *GitHubTestContainer) TeamMemberRepository() repositories.TeamMemberRepository { return nil }
-func (c *GitHubTestContainer) TeamSubscriptionRepository() repositories.TeamSubscriptionRepository {
-	return nil
-}
-func (c *GitHubTestContainer) ProjectRepository() repositories.ProjectRepository { return nil }
+func (c *GitHubTestContainer) ProjectRepository() repositories.ProjectRepository       { return nil }
 func (c *GitHubTestContainer) WebhookEventRepository() repositories.WebhookEventRepository {
 	return nil
 }

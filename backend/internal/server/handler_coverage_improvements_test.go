@@ -145,10 +145,7 @@ func (c *CoverageTestContainer) BackofficeRepository() repositories.BackofficeRe
 func (c *CoverageTestContainer) UserPreferencesRepository() repositories.UserPreferencesRepository {
 	return nil
 }
-func (c *CoverageTestContainer) TeamRepository() repositories.TeamRepository { return nil }
-func (c *CoverageTestContainer) TeamSubscriptionRepository() repositories.TeamSubscriptionRepository {
-	return nil
-}
+func (c *CoverageTestContainer) TeamRepository() repositories.TeamRepository       { return nil }
 func (c *CoverageTestContainer) ProjectRepository() repositories.ProjectRepository { return nil }
 func (c *CoverageTestContainer) WebhookEventRepository() repositories.WebhookEventRepository {
 	return nil
