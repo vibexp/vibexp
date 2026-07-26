@@ -32,6 +32,11 @@ interface TeamMembersListProps {
    * token). Convenience only: the token is server-gated regardless.
    */
   canCopyInviteLink?: boolean
+  /**
+   * Panel title, rendered on the table's toolbar row beside the Columns menu
+   * so the roster reads as one titled panel (#666). Omit for a bare table.
+   */
+  title?: React.ReactNode
   onRemoveMember?: (userId: string) => Promise<void>
   onChangeRole?: (userId: string, role: ChangeableTeamRole) => Promise<void>
 }
@@ -262,6 +267,7 @@ export function TeamMembersList({
   canManageRoles = false,
   canRemoveMember = false,
   canCopyInviteLink = false,
+  title,
   onRemoveMember,
   onChangeRole,
 }: Readonly<TeamMembersListProps>) {
@@ -316,7 +322,7 @@ export function TeamMembersList({
 
   if (!members || members.length === 0) {
     return (
-      <Card>
+      <Card className="bg-transparent shadow-none">
         <CardContent className="py-8 text-center">
           <p className="text-muted-foreground text-sm">No members found</p>
         </CardContent>
@@ -326,15 +332,14 @@ export function TeamMembersList({
 
   return (
     <>
-      <Card>
-        <CardContent className="p-4">
-          <DataTable
-            columns={columns}
-            data={members}
-            rowTestId={() => 'team-member-row'}
-          />
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={members}
+        rowTestId={() => 'team-member-row'}
+        toolbarStart={
+          title && <h2 className="text-base font-semibold">{title}</h2>
+        }
+      />
 
       <ConfirmDialog
         open={isRemoveDialogOpen}

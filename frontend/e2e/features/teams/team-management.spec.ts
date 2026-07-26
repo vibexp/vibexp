@@ -271,6 +271,11 @@ test.describe('Team Management', () => {
             timeout: 10000,
           })
 
+          // Delete lives in the scope header's overflow menu since #666, so it
+          // has to be opened before the item exists in the DOM.
+          await authenticatedPage
+            .locator('[data-testid="team-actions-menu"]')
+            .click()
           await authenticatedPage
             .locator('[data-testid="delete-team-button"]')
             .click()

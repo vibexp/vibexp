@@ -1,20 +1,18 @@
 import {
   AlertCircle,
-  ArrowLeft,
   FileText,
   FolderKanban,
   Rss,
   Sparkles,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
 import { PageHeader } from '@/components/PageHeader'
 import { TeamResourceAccessChart } from '@/components/TeamResourceAccessChart'
 import { TeamResourceCreationChart } from '@/components/TeamResourceCreationChart'
 import { TIME_SERIES_RANGE_OPTIONS } from '@/components/TimeSeriesBarChart'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -70,7 +68,6 @@ function StatCard({ label, count, icon: Icon }: Readonly<StatCardProps>) {
 
 export function TeamAnalyticsPage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
 
   const [team, setTeam] = useState<Team | null>(null)
   const [stats, setStats] = useState<TeamStats | null>(null)
@@ -111,16 +108,6 @@ export function TeamAnalyticsPage() {
   if (error || !team || !id) {
     return (
       <div className="space-y-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            void navigate('/teams')
-          }}
-        >
-          <ArrowLeft className="mr-2 size-4" />
-          Back to Teams
-        </Button>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertTitle>Could not load team analytics</AlertTitle>
@@ -132,19 +119,10 @@ export function TeamAnalyticsPage() {
     )
   }
 
+  // No back link on this tab: the scope header renders one on every team route
+  // and the Overview tab is a click away in the tab bar (#666).
   return (
     <div className="space-y-6">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          void navigate(`/teams/${id}`)
-        }}
-      >
-        <ArrowLeft className="mr-2 size-4" />
-        Back to Team
-      </Button>
-
       <PageHeader
         title="Team Analytics"
         description={`Activity and resource trends for ${team.name}`}

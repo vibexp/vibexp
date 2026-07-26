@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTeam } from '@/contexts/TeamContext'
 import { TeamRoutes } from '@/pages/teams/TeamRoutes'
+import { TeamScopeHeader } from '@/pages/teams/TeamScopeHeader'
 import { TeamTabs } from '@/pages/teams/TeamTabs'
 import type { Team } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
@@ -20,14 +21,28 @@ type FallbackState = 'idle' | 'loading' | 'unavailable'
  *  2. Fail closed if the user is not a member, or the id does not exist.
  *  3. Sync `TeamContext.currentTeam` to the URL's team, so the rest of the app
  *     (header switcher, project scope) agrees with the address bar.
- *  4. Render the team chrome (tab bar) around the nested routes.
+ *  4. Render the team chrome (page header + tab bar) around the nested routes.
  *
  * Mirrors the `AdminShell` + `AdminRoutes` pairing rather than using
  * `<Outlet>`, which appears nowhere in this codebase.
+ *
+ * The chrome is one header block — escape hatch, identity, actions, tabs — with
+ * the routes below it, so the tab bar reads as the seam between page chrome and
+ * page content (#666).
  */
 export function TeamScopeLayout() {
   const { id } = useParams<{ id: string }>()
-  const { teams, currentTeam, setCurrentTeam, isLoading } = useTeam()
+  const { teams, currentTeam, setCurrentTeam, isLoading, refreshTeams } =
+    useTeam()
+
+  // Bumped whenever a header action changes the team or its roster, so the
+  // active tab reloads its own data. The header owns the modals (it renders on
+  // every team route); the tabs own their data — this is the seam between them.
+  const [reloadToken, setReloadToken] = useState(0)
+  const handleTeamChanged = useCallback(() => {
+    setReloadToken(token => token + 1)
+    void refreshTeams()
+  }, [refreshTeams])
 
   const [fallbackTeam, setFallbackTeam] = useState<Team | null>(null)
   const [fallbackState, setFallbackState] = useState<FallbackState>('idle')
@@ -109,9 +124,22 @@ export function TeamScopeLayout() {
   }
 
   return (
-    <div className="space-y-6">
-      <TeamTabs teamId={team.id} />
-      <TeamRoutes team={team} />
+    <div>
+      <TeamScopeHeader team={team} onTeamChanged={handleTeamChanged} />
+      {/* The rule under the tabs is the seam into the content, so it runs the
+          full width of the main region: the negative inline margins cancel the
+          app shell's horizontal padding, and the inner div puts it back so the
+          tabs still line up with the title above them. The `max-w-screen-xl`
+          cap in `components/layout/Layout.tsx` still applies — the layout keeps
+          owning the container and nothing overflows. */}
+      <div className="border-border -mx-4 border-b md:-mx-6 lg:-mx-8">
+        <div className="px-4 md:px-6 lg:px-8">
+          <TeamTabs teamId={team.id} />
+        </div>
+      </div>
+      <div className="pt-6">
+        <TeamRoutes team={team} reloadToken={reloadToken} />
+      </div>
     </div>
   )
 }

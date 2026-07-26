@@ -28,11 +28,18 @@ import type { Team } from '@/services/teamService'
  * themselves, exactly as they did after #538, so this mount changes nothing
  * about how they behave. Only `TeamSettings` takes the team the layout already
  * resolved.
+ *
+ * `reloadToken` is bumped by the layout when a header action changed the team
+ * or its roster (#666). Only the Overview tab renders roster data, so it is the
+ * only route that takes it.
  */
-export function TeamRoutes({ team }: Readonly<{ team: Team }>) {
+export function TeamRoutes({
+  team,
+  reloadToken = 0,
+}: Readonly<{ team: Team; reloadToken?: number }>) {
   return (
     <Routes>
-      <Route index element={<TeamDetailsPage />} />
+      <Route index element={<TeamDetailsPage reloadToken={reloadToken} />} />
       <Route path="analytics" element={<TeamAnalyticsPage />} />
       {/* Projects sit beside analytics, NOT under settings/ (#542). `create`
           before `:slug` for legibility; `:slug/edit` matches every other

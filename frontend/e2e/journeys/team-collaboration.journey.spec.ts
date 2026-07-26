@@ -277,9 +277,9 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       //
       // Clicking "the first team" would not fix it either: the authenticatedPage
       // fixture mints a fresh user, whose only pre-existing team is the personal
-      // Private Workspace — and TeamActions hides Invite for a personal team. A
-      // first-row click would legitimately find no Invite button, which is what
-      // the second, nested guard was papering over.
+      // Private Workspace — and TeamScopeHeader hides Invite for a personal
+      // team. A first-row click would legitimately find no Invite button, which
+      // is what the second, nested guard was papering over.
       await createTeamAndOpen(authenticatedPage, 'Invalid Email Test Team')
 
       await authenticatedPage
@@ -604,6 +604,12 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
       // for a team whose name contains that substring - which this fixture's
       // does. The sibling test above avoids it by using getByRole, since the
       // switcher carries role="combobox".
+      //
+      // Since #666 delete sits in the scope header's overflow menu, so the menu
+      // is opened first — the item is not in the DOM until then.
+      await authenticatedPage
+        .locator('[data-testid="team-actions-menu"]')
+        .click()
       const deleteButton = authenticatedPage.locator(
         '[data-testid="delete-team-button"]'
       )

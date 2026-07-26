@@ -42,6 +42,13 @@ interface DataTableProps<TData, TValue> {
   emptyContent?: React.ReactNode
   /** Optional per-row data-testid, derived from the row's original data. */
   rowTestId?: (row: TData) => string
+  /**
+   * Content for the left of the toolbar row, before the search box — a panel
+   * title, typically, so the table reads as one titled panel rather than a
+   * heading floating above an unlabelled table. The Columns menu keeps its
+   * `ml-auto`, so it stays hard right whatever goes here.
+   */
+  toolbarStart?: React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -52,6 +59,7 @@ export function DataTable<TData, TValue>({
   pageSize = 10,
   emptyContent,
   rowTestId,
+  toolbarStart,
 }: Readonly<DataTableProps<TData, TValue>>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -74,14 +82,14 @@ export function DataTable<TData, TValue>({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
+        {toolbarStart}
         {searchColumn && (
           <div className="relative max-w-xs flex-1">
             <Search className="text-muted-foreground absolute left-2.5 top-1/2 size-4 -translate-y-1/2" />
             <Input
               value={
                 (table.getColumn(searchColumn)?.getFilterValue() as
-                  | string
-                  | undefined) ?? ''
+                  string | undefined) ?? ''
               }
               onChange={event =>
                 table
