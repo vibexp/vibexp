@@ -53,11 +53,20 @@ on:
 permissions:
   contents: read
 
-# Superseded PR runs are cancelled; pushes to main NEVER are — a main run
-# produces the Sonar coverage baseline this workflow's header protects, and
-# cancelling it would swing overall coverage (the #300 invariant).
+# Superseded PR runs are cancelled; pushes to main are neither cancelled NOR
+# queued behind each other.
+#
+# A main run produces the Sonar coverage baseline this workflow's header
+# protects, so cancelling it would swing overall coverage (the #300 invariant).
+# But the obvious `github.event.pull_request.number || github.ref` spelling
+# ALSO puts every main push in one group `ci-refs/heads/main`, and with
+# cancel-in-progress false they then run one-at-a-time: observed on runs
+# 30203964982 (#584) queued behind 30203891018 (#641). That serialises main,
+# delaying the Sonar analysis, the feedback on a broken main, and the
+# cache-saving run. So the non-PR fallback is `github.run_id`, which is unique
+# per run — main pushes never contend with anything.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
