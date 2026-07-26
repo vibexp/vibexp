@@ -53,8 +53,6 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideGitHubAppConfigRepository,
 	providers.ProvideActivityRepository,
 	providers.ProvideResourceAccessRepository,
-	providers.ProvideClaudeCodeHooksRepository,
-	providers.ProvideCursorIDEHooksRepository,
 	providers.ProvideAgentRepository,
 	providers.ProvideAgentExecutionRepository,
 	providers.ProvideAgentExecutionEventRepository,

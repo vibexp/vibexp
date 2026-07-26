@@ -45,44 +45,6 @@ func (s *Server) logHandlerError(w http.ResponseWriter, p handlerErrorParams) {
 // handler file, so removing a single feature never strands the shared singleton.
 var validate = validator.New()
 
-// getUserDefaultTeamID retrieves the user's default team ID for resource creation
-// All user-created resources are linked to their default team for future team collaboration features
-// This function validates that:
-// 1. The user exists
-// 2. The user has a default team
-// 3. The user is still a member of that team
-// 4. The team exists and is active
-func (s *Server) getUserDefaultTeamID(ctx context.Context, userID string) (string, error) {
-	user, err := s.container.AuthService().GetUserByID(ctx, userID)
-	if err != nil {
-		return "", fmt.Errorf("failed to get user: %w", err)
-	}
-
-	if user.DefaultTeamID == nil || *user.DefaultTeamID == "" {
-		return "", fmt.Errorf("user has no default team")
-	}
-
-	teamID := *user.DefaultTeamID
-
-	// Validate team membership
-	isMember, err := s.container.TeamService().IsUserMemberOfTeam(ctx, userID, teamID)
-	if err != nil {
-		return "", fmt.Errorf("failed to validate team membership: %w", err)
-	}
-
-	if !isMember {
-		return "", fmt.Errorf("access denied")
-	}
-
-	// Verify team exists (the team service will return error if team doesn't exist)
-	_, err = s.container.TeamService().GetTeam(ctx, user.ID, teamID)
-	if err != nil {
-		return "", fmt.Errorf("access denied")
-	}
-
-	return teamID, nil
-}
-
 // validateTeamAccess validates that a user has access to a specific team
 // This function should be used for single-resource operations where team_id is provided
 // Returns error with generic message to prevent team enumeration attacks

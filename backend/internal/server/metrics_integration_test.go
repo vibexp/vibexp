@@ -89,19 +89,6 @@ func TestMetrics_APIKeyCreated(t *testing.T) {
 	assertCounterValue(t, rm, "vx_api_key_created", 1)
 }
 
-// TestMetrics_AIToolsHooksCall verifies that vx_ai_tools_hooks_call metric is recorded with tool name
-func TestMetrics_AIToolsHooksCall(t *testing.T) {
-	reader := sdkmetric.NewManualReader()
-	m := setupTestMetrics(t, reader)
-
-	m.RecordAIToolsHooksCall(context.Background(), "Bash")
-
-	rm := collectMetrics(t, reader)
-	assertCounterValueWithAttributes(t, rm, "vx_ai_tools_hooks_call", 1, map[string]string{
-		"tool_name": "Bash",
-	})
-}
-
 // TestMetrics_PromptLifecycle verifies prompt created/deleted metrics
 func TestMetrics_PromptLifecycle(t *testing.T) {
 	t.Run("prompt created", func(t *testing.T) {
@@ -323,9 +310,6 @@ func initUserAndStripeMetrics(m *metrics.Metrics, meter metric.Meter) error {
 func initResourceMetrics(m *metrics.Metrics, meter metric.Meter) error {
 	var err error
 	if m.APIKeyCreated, err = meter.Int64Counter("vx_api_key_created"); err != nil {
-		return err
-	}
-	if m.AIToolsHooksCall, err = meter.Int64Counter("vx_ai_tools_hooks_call"); err != nil {
 		return err
 	}
 	if m.PromptCreated, err = meter.Int64Counter("vx_prompt_created"); err != nil {

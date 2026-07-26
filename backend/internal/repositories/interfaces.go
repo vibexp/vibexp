@@ -688,49 +688,6 @@ type ActivityFilters struct {
 	Offset       int
 }
 
-// ClaudeCodeHooksRepository defines the interface for Claude Code hooks data access operations
-type ClaudeCodeHooksRepository interface {
-	Create(ctx context.Context, payload *models.ClaudeCodeHookPayload) error
-	GetByID(ctx context.Context, userID string, id int) (*models.ClaudeCodeHookPayload, error)
-	List(ctx context.Context, filters ClaudeCodeHooksFilters) (*models.ClaudeCodeHooksPaginatedResponse, error)
-	GetSessions(ctx context.Context, filters SessionFilters) (*models.SessionsResponse, error)
-	GetSessionCounts(ctx context.Context, userID string, days int) (*models.SessionCountsResponse, error)
-	GetOverviewStats(ctx context.Context, userID string) (*models.OverviewStats, error)
-	GetRecentActivities(ctx context.Context, filters RecentActivitiesFilters) (*models.RecentActivitiesResponse, error)
-	SessionExists(ctx context.Context, userID, sessionID string) (bool, error)
-	CountUniqueSessions(ctx context.Context, userID string) (int, error)
-	DeleteSession(ctx context.Context, userID, sessionID string) error
-}
-
-// ClaudeCodeHooksFilters represents filters for Claude Code hooks queries
-type ClaudeCodeHooksFilters struct {
-	UserID        *string
-	SessionID     *string
-	HookEventName *string
-	ToolName      *string
-	Page          int
-	Limit         int
-}
-
-// SessionFilters represents filters for session queries
-type SessionFilters struct {
-	UserID *string
-	Page   int
-	Limit  int
-}
-
-// RecentActivitiesFilters represents filters for recent activities queries
-type RecentActivitiesFilters struct {
-	UserID        *string
-	SessionID     *string
-	ToolName      *string
-	HookEventName *string
-	DateFrom      *string
-	DateTo        *string
-	Page          int
-	Limit         int
-}
-
 // AgentRepository defines the interface for agent data access operations
 type AgentRepository interface {
 	Create(ctx context.Context, agent *models.Agent) error
@@ -919,50 +876,6 @@ type EmbeddingBackfillRepository interface {
 	CountCoverage(
 		ctx context.Context, modelID, teamID string,
 	) ([]models.EmbeddingCoverageCount, error)
-}
-
-// CursorIDEHooksRepository defines the interface for Cursor IDE hooks data access operations
-type CursorIDEHooksRepository interface {
-	Create(ctx context.Context, payload *models.CursorIDEHookPayload) error
-	GetByID(ctx context.Context, userID string, id int) (*models.CursorIDEHookPayload, error)
-	List(ctx context.Context, filters CursorIDEHooksFilters) (*models.CursorIDEHooksPaginatedResponse, error)
-	GetSessions(ctx context.Context, filters CursorSessionFilters) (*models.CursorSessionsResponse, error)
-	GetSessionCounts(ctx context.Context, userID string, days int) (*models.CursorSessionCountsResponse, error)
-	GetOverviewStats(ctx context.Context, userID string) (*models.CursorOverviewStats, error)
-	GetRecentActivities(ctx context.Context, filters CursorRecentActivitiesFilters,
-	) (*models.CursorRecentActivitiesResponse, error)
-	SessionExists(ctx context.Context, userID, sessionID string) (bool, error)
-	CountUniqueSessions(ctx context.Context, userID string) (int, error)
-	DeleteSession(ctx context.Context, userID, sessionID string) error
-}
-
-// CursorIDEHooksFilters represents filters for Cursor IDE hooks queries
-type CursorIDEHooksFilters struct {
-	UserID        *string
-	SessionID     *string
-	HookEventName *string
-	ToolName      *string
-	Page          int
-	Limit         int
-}
-
-// CursorSessionFilters represents filters for Cursor IDE session queries
-type CursorSessionFilters struct {
-	UserID *string
-	Page   int
-	Limit  int
-}
-
-// CursorRecentActivitiesFilters represents filters for Cursor IDE recent activities queries
-type CursorRecentActivitiesFilters struct {
-	UserID        *string
-	SessionID     *string
-	ToolName      *string
-	HookEventName *string
-	DateFrom      *string
-	DateTo        *string
-	Page          int
-	Limit         int
 }
 
 // ResourceUsageRepository defines the interface for resource usage data access operations

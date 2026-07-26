@@ -685,7 +685,6 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupAPIKeysRoutes(r)
 		s.setupUserRoutes(r)
 		s.setupSettingsRoutes(r)
-		s.setupAIToolsRoutes(r)
 		s.setupSupportRoutes(r)
 		// Non-CLI resource routes
 		s.setupPromptGalleryRoutes(r)
@@ -1351,49 +1350,16 @@ func (s *Server) mountTeamEmailProviderRoutes(r chi.Router) {
 	}
 }
 
-func (s *Server) setupAIToolsRoutes(r chi.Router) {
-	r.Route("/api/v1/ai-tools/claude-code", func(r chi.Router) {
-		r.Get("/hooks", s.handleClaudeCodeHooksGet)
-		r.Get("/sessions", s.handleClaudeCodeSessionsGet)
-		r.Get("/session-counts", s.handleClaudeCodeSessionCountsGet)
-		r.Get("/overview-stats", s.handleClaudeCodeOverviewStatsGet)
-		r.Get("/recent-activities", s.handleClaudeCodeRecentActivitiesGet)
-		r.Delete("/sessions/{session_id}", s.handleClaudeCodeSessionDelete)
-	})
-	r.Route("/api/v1/ai-tools/cursor-ide", func(r chi.Router) {
-		r.Get("/hooks", s.handleCursorIDEHooksGet)
-		r.Get("/sessions", s.handleCursorIDESessionsGet)
-		r.Get("/session-counts", s.handleCursorIDESessionCountsGet)
-		r.Get("/overview-stats", s.handleCursorIDEOverviewStatsGet)
-		r.Get("/recent-activities", s.handleCursorIDERecentActivitiesGet)
-		r.Delete("/sessions/{session_id}", s.handleCursorIDESessionDelete)
-	})
-}
-
 // setupFlexibleAuthRoutes registers endpoints that accept either a cookie session
 // or an API key.
 //
-// These routes are intentionally NOT IP-rate-limited. They serve high-frequency
-// authenticated automation clients: IDE hook endpoints (claude-code / cursor-ide)
-// fire once per tool invocation during an active coding session, and the MCP mount
-// opens a long-lived SSE stream plus rapid tool calls. A per-IP request-count limit
-// tuned for the human-facing API (1000/min) would throttle this legitimate traffic.
-// Abuse here is bounded by authentication (a valid API key or session is required)
-// rather than by IP rate limiting.
+// These routes are intentionally NOT IP-rate-limited. The MCP mount is the reason:
+// it opens a long-lived SSE stream plus rapid tool calls from authenticated
+// automation clients, and a per-IP request-count limit tuned for the human-facing
+// API (1000/min) would throttle that legitimate traffic. Abuse here is bounded by
+// authentication (a valid API key or session is required) rather than by IP rate
+// limiting.
 func (s *Server) setupFlexibleAuthRoutes() {
-	s.router.Group(func(r chi.Router) {
-		r.Use(s.flexibleAuthMiddleware)
-		r.Post("/api/v1/claude-code/hooks", s.handleClaudeCodeHooksPost)
-	})
-
-	// Cursor IDE hooks endpoints with flexible auth (supports both JWT and API keys)
-	s.router.Group(func(r chi.Router) {
-		r.Use(s.flexibleAuthMiddleware)
-
-		// POST endpoints that support both JWT and API key authentication
-		r.Post("/api/v1/cursor-ide/hooks", s.handleCursorIDEHooksPost)
-	})
-
 	// MCP server endpoint - an OAuth 2.1 resource server (MCP authorization spec
 	// 2025-06-18). It accepts only AuthKit-issued bearer JWTs minted for the MCP
 	// resource audience; the legacy ?api_key query path and header API keys are not

@@ -88,12 +88,6 @@ func (m *MockContainerForBackoffice) ActivityRepository() repositories.ActivityR
 func (m *MockContainerForBackoffice) ResourceAccessRepository() repositories.ResourceAccessRepository {
 	return nil
 }
-func (m *MockContainerForBackoffice) ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository {
-	return nil
-}
-func (m *MockContainerForBackoffice) CursorIDEHooksRepository() repositories.CursorIDEHooksRepository {
-	return nil
-}
 func (m *MockContainerForBackoffice) AgentRepository() repositories.AgentRepository { return nil }
 func (m *MockContainerForBackoffice) AgentExecutionRepository() repositories.AgentExecutionRepository {
 	return nil

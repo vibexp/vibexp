@@ -795,7 +795,6 @@ type instrumentDescriptor struct {
 // instrument kind breaks production dashboards (epic #1484), so a change here
 // must be deliberate and coordinated with the PromQL dashboard definitions.
 var expectedInstruments = []instrumentDescriptor{
-	{"vx_ai_tools_hooks_call", "Total number of AI tools hooks calls by tool name", "1", "Int64Counter"},
 	{"vx_api_call_duration_seconds", "Duration of API calls", "s", "Float64Histogram"},
 	{"vx_api_calls_total", "Total number of API calls", "1", "Float64Counter"},
 	{"vx_api_key_created", "Total number of API keys created", "1", "Int64Counter"},
@@ -907,7 +906,7 @@ func recordOneSampleEachInstrument(ctx context.Context, m *Metrics) {
 		m.UserCreated, m.UserLoginSuccessful, m.UserLoginFailed,
 		m.StripeSubscriptionCreated, m.StripeSubscriptionUpdated, m.StripeSubscriptionDeleted,
 		m.StripePaymentSucceeded, m.StripePaymentFailed,
-		m.APIKeyCreated, m.AIToolsHooksCall,
+		m.APIKeyCreated,
 		m.PromptCreated, m.PromptDeleted,
 		m.ArtifactCreated, m.ArtifactDeleted,
 		m.MemoryCreated, m.MemoryDeleted,

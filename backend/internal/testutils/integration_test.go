@@ -87,7 +87,7 @@ func testHealthEndpoint(t *testing.T, srv http.Handler) {
 
 func testProtectedEndpointWithoutAuth(t *testing.T, srv http.Handler) {
 	t.Helper()
-	req, err := CreateTestRequest("GET", "/api/v1/ai-tools/claude-code/hooks", nil)
+	req, err := CreateTestRequest("GET", "/api/v1/api-keys", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func testProtectedEndpointWithoutAuth(t *testing.T, srv http.Handler) {
 func testProtectedEndpointWithJWTAuth(t *testing.T, srv http.Handler) {
 	t.Helper()
 	userID, email := GetTestUserCredentials()
-	req, err := CreateAuthenticatedRequest("GET", "/api/v1/ai-tools/claude-code/hooks", userID, email)
+	req, err := CreateAuthenticatedRequest("GET", "/api/v1/api-keys", userID, email)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func testJWTTokenValidation(t *testing.T, srv http.Handler) {
 		t.Fatal(err)
 	}
 
-	req, err := CreateTestRequest("GET", "/api/v1/ai-tools/claude-code/hooks", nil)
+	req, err := CreateTestRequest("GET", "/api/v1/api-keys", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func testAPIKeyAuthentication(t *testing.T, srv http.Handler) {
 		t.Fatal(err)
 	}
 
-	req, err := CreateAPIKeyAuthenticatedRequest("GET", "/api/v1/ai-tools/claude-code/hooks", apiKey)
+	req, err := CreateAPIKeyAuthenticatedRequest("GET", "/api/v1/api-keys", apiKey)
 	if err != nil {
 		t.Fatal(err)
 	}

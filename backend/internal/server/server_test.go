@@ -98,7 +98,7 @@ func TestProtectedEndpointUnauthorized(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 
-	req, err := http.NewRequest("GET", "/api/v1/ai-tools/claude-code/hooks", nil)
+	req, err := http.NewRequest("GET", "/api/v1/api-keys", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
