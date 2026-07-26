@@ -112,11 +112,31 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 // writeStateCookie sets the short-lived, signed CSRF state cookie.
 func (s *Server) writeStateCookie(w http.ResponseWriter, value string) {
+	// #nosec G124 -- HttpOnly and SameSite are set below; Secure is derived from
+	// IsDevelopment() so it is true everywhere except local HTTP development.
+	// G124 only accepts a literal `Secure: true`. Asserted in
+	// TestWriteStateCookie_Attributes.
 	http.SetCookie(w, &http.Cookie{
 		Name:     stateCookieName,
 		Value:    value,
 		Path:     "/",
 		MaxAge:   stateCookieMaxAge,
+		HttpOnly: true,
+		Secure:   !s.container.EnvironmentService().IsDevelopment(),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// clearStateCookie expires the CSRF state cookie. The attributes must match
+// writeStateCookie's or the browser will not match and drop the original.
+func (s *Server) clearStateCookie(w http.ResponseWriter) {
+	// #nosec G124 -- see writeStateCookie: Secure is environment-derived, which
+	// G124 cannot evaluate. Asserted in TestClearStateCookie_Attributes.
+	http.SetCookie(w, &http.Cookie{
+		Name:     stateCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   !s.container.EnvironmentService().IsDevelopment(),
 		SameSite: http.SameSiteLaxMode,
@@ -181,16 +201,7 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clear state cookie
-	secure := !s.container.EnvironmentService().IsDevelopment()
-	http.SetCookie(w, &http.Cookie{
-		Name:     stateCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
+	s.clearStateCookie(w)
 
 	user, idpTokens, isNewUser, err := s.container.AuthService().HandleCallback(r.Context(), code, provider)
 	if err != nil {

@@ -340,25 +340,24 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/go/bin
-          key: go-sectools-${{ runner.os }}-1.25.12-govulncheck-v1.6.0-gosec-v2.24.7
+          key: go-sectools-${{ runner.os }}-1.25.12-govulncheck-v1.6.0-gosec-v2.28.0
 
       # make backend-vulncheck / backend-security invoke these binaries directly,
       # so CI has to install them (same pattern as golangci-lint in the lint job).
       # Both are pinned, and for the same reason the linter is: an unpinned bump
       # turns a new upstream rule into a surprise red build on untouched code.
-      # gosec is held at v2.24.7 — the version this repo is green under, and the
-      # one the pre-commit hook resolves to. v2.28.0 adds G124 (cookie attributes)
-      # and G710 (open-redirect taint analysis), which flag 7 pre-existing
-      # findings on untouched code. Triaging those and lifting this pin is #553;
-      # until then the pin keeps this step gating regressions rather than failing
-      # on day one. Install the same versions locally — the pre-commit hooks run
-      # whatever `gosec`/`govulncheck` is on PATH, so a newer local build reports
-      # failures CI does not.
+      # gosec is at v2.28.0, the current release and the version the tree is
+      # green under. The 7 findings its new G124 (cookie attributes) and G710
+      # (open-redirect taint) rules reported were triaged in #553: all were
+      # false positives and each site now carries a `#nosec` with the reasoning,
+      # so this step gates on today's rule set. Install the same versions
+      # locally — the pre-commit hooks run whatever `gosec`/`govulncheck` is on
+      # PATH, so a version skew either way reports failures CI does not.
       - name: Install govulncheck and gosec
         if: steps.security-tools.outputs.cache-hit != 'true'
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.24.7
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0
 
       # Explicit rather than relying on setup-go having put GOPATH/bin on PATH —
       # on a cache hit no `go install` runs, so nothing else would.

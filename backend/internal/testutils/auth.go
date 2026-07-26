@@ -105,6 +105,8 @@ func CreateTestAPIKeyWithName(userID, name string) (*models.APIKey, string, erro
 // NOTE: In the cookie-based auth model, there is no Authorization Bearer header.
 // This function is kept for API compatibility; it now sets the session cookie.
 func AddAuthHeader(req *http.Request, token string) {
+	// #nosec G124 -- outbound REQUEST cookie in a test helper; per RFC 6265 a
+	// client transmits only name=value, so the security attributes do not apply.
 	req.AddCookie(&http.Cookie{
 		Name:  sesslib.CookieName,
 		Value: token,

@@ -53,6 +53,12 @@ func (s *Service) Authorize(w http.ResponseWriter, r *http.Request) {
 		s.provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError)
 		return
 	}
+	// #nosec G710 -- the destination carries no request-controlled data.
+	// consentRedirect builds it from s.cfg.FrontendBaseURL (server-side config)
+	// + the ConsentPagePath constant + loginID, which startLogin mints from
+	// crypto/rand and which is url.QueryEscape'd into the query string, so it
+	// cannot alter the scheme, host or path. The taint analysis flags it only
+	// because the argument is non-constant and *http.Request is in scope.
 	http.Redirect(w, r, s.consentRedirect(loginID), http.StatusFound)
 }
 
