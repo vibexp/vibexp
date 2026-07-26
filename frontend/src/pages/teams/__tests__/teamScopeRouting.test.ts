@@ -37,16 +37,23 @@ it('keeps the teams list outside the scoped subtree', () => {
   expect(routesSource).toContain('path="teams" element={<Teams />}')
 })
 
-it('mounts the team scope before the settings catch-all and the app catch-all', () => {
+it('mounts the team scope before the app catch-all', () => {
   const teamScopeAt = routesSource.indexOf('path="teams/:id/*"')
-  const settingsCatchAll = routesSource.indexOf('path="settings/*"')
   const appCatchAll = routesSource.indexOf('path="*"')
 
   expect(teamScopeAt).toBeGreaterThan(-1)
   // react-router picks the best match rather than the first, but ordering is
   // what keeps the intent legible.
-  expect(teamScopeAt).toBeLessThan(settingsCatchAll)
   expect(teamScopeAt).toBeLessThan(appCatchAll)
+})
+
+it('has no settings catch-all left to order against', () => {
+  // This assertion used to read `indexOf('path="settings/*"')` and compare it to
+  // the team-scope mount. #593 deleted that route so retired /settings paths
+  // reach NotFound, which turned the lookup into -1 and made the comparison
+  // pass or fail for the wrong reason. The fact worth keeping is simply that the
+  // route is gone; `routeCutover.test.ts` owns the full guard.
+  expect(routesSource).not.toContain('path="settings/*"')
 })
 
 it('routes the team pages through TeamRoutes, not routes.tsx directly', () => {

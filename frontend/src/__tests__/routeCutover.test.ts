@@ -29,6 +29,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
+import { matchRoutes } from 'react-router-dom'
 
 /** Frontend routes retired by epic #536. */
 const RETIRED_SEGMENTS = [
@@ -200,6 +201,114 @@ describe('retired /settings/* frontend routes stay retired (#545)', () => {
       for (const retained of RETAINED) {
         expect(RETIRED_SEGMENTS).not.toContain(retained)
       }
+    })
+  })
+})
+
+/**
+ * The guard above proves nothing *links to* a retired path. This one proves
+ * what happens when someone arrives at one anyway (#593).
+ *
+ * `routes.tsx` used to carry `<Route path="settings/*" element={<ComingSoon
+ * title="Settings" />} />`, which React Router ranks above the global `*` →
+ * `NotFound`. Every retired `/settings/**` path therefore rendered "Settings —
+ * coming soon": the one description that is definitely false, since those pages
+ * exist under `/teams/:id/**`.
+ *
+ * Structural rather than a render test, for the reason in this file's header
+ * and in `adminBranch.test.ts`: mounting `AppRoutes` needs stubs for ~40 pages,
+ * and a hand-built equivalent tree would prove React Router's ranking rather
+ * than what `routes.tsx` actually declares.
+ */
+describe('no `settings/*` catch-all shadows NotFound (#593)', () => {
+  const routesSource = readFileSync(join(ROOT, 'src', 'routes.tsx'), 'utf8')
+
+  it('declares no settings wildcard route', () => {
+    // Quote-agnostic and whitespace-tolerant, so a reformat or a switch to
+    // single quotes cannot smuggle the route back past this guard.
+    expect(routesSource).not.toMatch(/path\s*=\s*['"`]settings\/\*['"`]/)
+  })
+
+  it('still declares every retained personal settings route', () => {
+    // The other half of the assertion: deleting the wildcard must not turn into
+    // deleting the pages that legitimately live under /settings (#543).
+    for (const retained of RETAINED) {
+      expect(routesSource).toMatch(
+        new RegExp(`path\\s*=\\s*['"\`]settings/${retained}['"\`]`)
+      )
+    }
+  })
+
+  it('still routes unmatched paths to NotFound', () => {
+    // Deleting the wildcard only helps if the global fallback is still there.
+    expect(routesSource).toMatch(
+      /path\s*=\s*['"`]\*['"`]\s+element\s*=\s*\{\s*<NotFound\s*\/>\s*\}/
+    )
+  })
+
+  /**
+   * The assertions above prove what `routes.tsx` DECLARES. This block proves
+   * what those declarations RESOLVE to, by running React Router's real ranking
+   * over the real path list.
+   *
+   * It is not the circular "equivalent tree" test the issue rejected: the paths
+   * are scraped out of `routes.tsx` itself, so deleting a retained route or
+   * re-adding the wildcard changes this input and flips the expectations. And
+   * it costs nothing — `matchRoutes` needs paths only, so none of the ~40 page
+   * components has to be imported or stubbed.
+   *
+   * `AppRoutes` is a single flat `<Routes>` with no nested `<Route>` children
+   * (asserted below), which is what makes the scrape sound.
+   */
+  describe('React Router resolves the retired paths onto the fallback', () => {
+    const declaredPaths = [...routesSource.matchAll(/\bpath="([^"]+)"/g)].map(
+      m => m[1]
+    )
+    const routeTable = declaredPaths.map(path => ({ path }))
+
+    /** The path that actually wins for `pathname`, per React Router. */
+    const resolve = (pathname: string): string | undefined =>
+      matchRoutes(routeTable, pathname)?.at(-1)?.route.path
+
+    it('scraped a plausible route table from a flat <Routes>', () => {
+      // Guards the guard: a broken scrape would make every expectation vacuous.
+      expect(declaredPaths.length).toBeGreaterThan(30)
+      expect(declaredPaths).toContain('*')
+      expect(routesSource).not.toContain('</Route>')
+    })
+
+    // Exactly the table from the issue body.
+    it.each([
+      '/settings/search',
+      '/settings/model-providers',
+      '/settings/embedding-providers',
+      '/settings/customization',
+      '/settings/integrations/github',
+      '/settings/projects',
+      '/settings/projects/some-slug',
+      '/settings/teams',
+      '/settings/teams/team-a',
+    ])('%s falls through to the NotFound catch-all', pathname => {
+      expect(resolve(pathname)).toBe('*')
+    })
+
+    it.each([
+      ['/settings', 'settings'],
+      ['/settings/activities', 'settings/activities'],
+      ['/settings/notifications', 'settings/notifications'],
+      ['/settings/api-keys', 'settings/api-keys'],
+    ])('%s still resolves to its own route', (pathname, expected) => {
+      expect(resolve(pathname)).toBe(expected)
+    })
+
+    it('leaves the other ComingSoon catch-alls alone', () => {
+      // Those cover genuinely unbuilt pages and are explicitly out of scope.
+      expect(resolve('/ai-tools/anything')).toBe('ai-tools/*')
+      expect(resolve('/mcp-servers/anything')).toBe('mcp-servers/*')
+    })
+
+    it('still routes team-scoped paths into the team shell', () => {
+      expect(resolve('/teams/team-a/settings/search')).toBe('teams/:id/*')
     })
   })
 })

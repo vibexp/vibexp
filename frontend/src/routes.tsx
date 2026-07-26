@@ -202,7 +202,13 @@ export function AppRoutes() {
       {/* The `/*` is load-bearing: a bare `teams/:id` silently breaks every
           nested path. Mirrors App.tsx's `/admin/*` mount (#539). */}
       <Route path="teams/:id/*" element={<TeamScopeLayout />} />
-      <Route path="settings/*" element={<ComingSoon title="Settings" />} />
+      {/* There is deliberately no `settings/*` catch-all (#593). Epic #536
+          moved every team-scoped surface to `/teams/**`, so the retired paths
+          under /settings must fall through to `NotFound` — which says the page
+          may have moved — rather than a "coming soon" placeholder claiming a
+          page that already exists was never built. Decision 9 of #536 chose
+          deletion over redirection, so no alias belongs here either.
+          `routeCutover.test.ts` fails the build if this comes back. */}
       {/* `/admin/**` is NOT here: the instance-admin portal is a top-level
           branch in App.tsx with its own shell and no team/project providers
           (#456). */}
