@@ -419,7 +419,7 @@ Target metrics for Phase 3:
 
 - [E2E Testing README](../README.md) - Main E2E testing documentation
 - [Phase 1: Fixtures & Infrastructure](../fixtures/README.md)
-- [Developer Guidelines](../../../docs/developer-guidelines/frontend/)
+- [Frontend Developer Guide](https://docs.vibexp.io/developer-guide/frontend/overview/) - Published contributor documentation
 
 ## Support
 

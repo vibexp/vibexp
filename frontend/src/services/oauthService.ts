@@ -15,7 +15,7 @@ const API_BASE_URL = getApiBaseUrl()
  * consent surface (`/oauth/consent[/attach]`).
  *
  * INTENTIONALLY HAND-WRITTEN — the deliberate exception to the "every service
- * uses `generatedClient`" rule (see docs/developer-guidelines/frontend/api-integration.md).
+ * uses `generatedClient`" rule (see https://docs.vibexp.io/developer-guide/frontend/api-integration/).
  * These endpoints are served by the embedded AS and are kept OUT of
  * `openapi.yaml` by design: documenting them would break the spec drift +
  * payload-coverage gates (the drift test's DB-free server never mounts the AS

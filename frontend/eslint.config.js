@@ -155,7 +155,7 @@ export default tseslint.config(
       // `ApiResponse<T>`/`PaginatedData<T>` envelope were removed once every
       // domain moved to the generated `@vibexp/api-client` + `generatedClient`.
       // Block re-introducing them so wire types can't silently drift from the
-      // OpenAPI spec again. See docs/developer-guidelines/frontend/api-integration.md.
+      // OpenAPI spec again. See https://docs.vibexp.io/developer-guide/frontend/api-integration/.
       'no-restricted-imports': [
         'error',
         {
@@ -163,24 +163,24 @@ export default tseslint.config(
             {
               name: '@/types',
               message:
-                'The hand-written API types barrel was removed (#94). Import UI-only types by direct path (e.g. `@/types/alert`) and wire types from the generated client via your service. See docs/developer-guidelines/frontend/api-integration.md',
+                'The hand-written API types barrel was removed (#94). Import UI-only types by direct path (e.g. `@/types/alert`) and wire types from the generated client via your service. See https://docs.vibexp.io/developer-guide/frontend/api-integration/',
             },
             {
               name: '@/types/api',
               message:
-                'The `ApiResponse<T>`/`PaginatedData<T>` envelope was removed (#94). Use the generated response types and `unwrap` from `@/lib/apiClientGenerated`. See docs/developer-guidelines/frontend/api-integration.md',
+                'The `ApiResponse<T>`/`PaginatedData<T>` envelope was removed (#94). Use the generated response types and `unwrap` from `@/lib/apiClientGenerated`. See https://docs.vibexp.io/developer-guide/frontend/api-integration/',
             },
           ],
           patterns: [
             {
               group: ['**/lib/apiClient', '@/lib/apiClient'],
               message:
-                'The hand-written `apiClient` was removed (#94). Use `{ generatedClient, unwrap }` from `@/lib/apiClientGenerated` and re-export wire types from your service (the notificationService pattern). See docs/developer-guidelines/frontend/api-integration.md',
+                'The hand-written `apiClient` was removed (#94). Use `{ generatedClient, unwrap }` from `@/lib/apiClientGenerated` and re-export wire types from your service (the notificationService pattern). See https://docs.vibexp.io/developer-guide/frontend/api-integration/',
             },
             {
               group: ['**/types/api'],
               message:
-                'The `ApiResponse<T>`/`PaginatedData<T>` envelope was removed (#94). Use the generated response types and `unwrap` from `@/lib/apiClientGenerated`. See docs/developer-guidelines/frontend/api-integration.md',
+                'The `ApiResponse<T>`/`PaginatedData<T>` envelope was removed (#94). Use the generated response types and `unwrap` from `@/lib/apiClientGenerated`. See https://docs.vibexp.io/developer-guide/frontend/api-integration/',
             },
           ],
         },
