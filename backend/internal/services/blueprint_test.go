@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
@@ -540,9 +541,12 @@ func TestBlueprintService_ListSpecLibraries(t *testing.T) {
 				Search:    "test",
 				SortBy:    "created_at",
 				SortOrder: "desc",
-				Metadata:  map[string]string{"key": "value"},
-				Page:      1,
-				Limit:     20,
+				// Guards the service -> repository hop for the `metadata` filter:
+				// nothing else covers that mapping, so dropping it would leave the
+				// suite green while the filter silently did nothing (epic #519).
+				MetadataFilter: repositories.MetadataFilter{"env": {"prod"}},
+				Page:           1,
+				Limit:          20,
 			},
 			setup: func(repo *MockBlueprintRepository) {
 				specLibraries := []models.Blueprint{
@@ -562,7 +566,7 @@ func TestBlueprintService_ListSpecLibraries(t *testing.T) {
 						filters.Search == "test" &&
 						filters.SortBy == "created_at" &&
 						filters.SortOrder == "desc" &&
-						filters.Metadata["key"] == "value" &&
+						slices.Equal(filters.MetadataFilter["env"], []string{"prod"}) &&
 						filters.Page == 1 &&
 						filters.Limit == 20
 				})).Return(specLibraries, 2, nil)

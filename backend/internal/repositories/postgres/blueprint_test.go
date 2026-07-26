@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"testing"
 	"time"
 
@@ -210,95 +209,6 @@ func TestUpdateOnReimport_WritesProvenance(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// TestList_InvalidMetadataKey tests the metadata-key bound on the list path.
-//
-// Since #519 only length is enforced; injection-looking keys are legal input
-// because they are bound as parameters, never formatted into SQL.
-//
-//nolint:funlen // Test function with comprehensive test cases
-func TestList_InvalidMetadataKey(t *testing.T) {
-	db, _, repo := setupMockDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("failed to close db: %v", err)
-		}
-	}()
-
-	testCases := []struct {
-		name        string
-		metadataKey string
-		shouldError bool
-	}{
-		{
-			name:        "SQL injection text is a legal key (bound as a parameter)",
-			metadataKey: "key'; DROP TABLE blueprints; --",
-			shouldError: false,
-		},
-		{
-			name:        "Quotes are a legal key",
-			metadataKey: "key' OR '1'='1",
-			shouldError: false,
-		},
-		{
-			name:        "Special characters are a legal key",
-			metadataKey: "key@#$%",
-			shouldError: false,
-		},
-		{
-			name:        "Dotted key from an import is filterable",
-			metadataKey: "spec.type",
-			shouldError: false,
-		},
-		{
-			name:        "Empty key",
-			metadataKey: "",
-			shouldError: true,
-		},
-		{
-			name:        "Key too long",
-			metadataKey: string(make([]byte, 256)),
-			shouldError: true,
-		},
-		{
-			name:        "Valid alphanumeric key",
-			metadataKey: "valid_key-123", // gitleaks:allow
-			shouldError: false,
-		},
-		{
-			name:        "Valid underscore key",
-			metadataKey: "valid_key",
-			shouldError: false,
-		},
-		{
-			name:        "Valid hyphen key",
-			metadataKey: "valid-key",
-			shouldError: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			filters := repositories.BlueprintFilters{
-				TeamID: "team-123", // Required TeamID
-				Metadata: map[string]string{
-					tc.metadataKey: "value",
-				},
-			}
-
-			_, _, err := repo.List(context.Background(), "user-123", filters)
-
-			if tc.shouldError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "invalid metadata key")
-			} else if err != nil {
-				// For valid keys, we expect a different error (no mock setup)
-				// but NOT the metadata key validation error
-				assert.NotContains(t, err.Error(), "invalid metadata key")
-			}
-		})
-	}
-}
-
 // Context cancellation is handled by Go's database/sql package and doesn't need explicit testing
 // The repository correctly propagates context to database operations
 
@@ -344,8 +254,7 @@ func TestList_EmptyMetadataFilter(t *testing.T) {
 	userID := "user-123"
 	teamID := "team-123"
 	filters := repositories.BlueprintFilters{
-		TeamID:   teamID,
-		Metadata: nil, // No metadata filter
+		TeamID: teamID,
 	}
 
 	countRows := sqlmock.NewRows([]string{"count"}).AddRow(0)
@@ -370,88 +279,4 @@ func TestList_EmptyMetadataFilter(t *testing.T) {
 	assert.Equal(t, 0, total)
 	assert.Empty(t, result)
 	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-// TestList_MetadataKeyBoundAsParameter verifies the metadata key is passed as a
-// bound query parameter (->>$N = $M) rather than interpolated into the SQL string,
-// so a malicious-looking but allowlist-passing key can never break out of the value slot.
-func TestList_MetadataKeyBoundAsParameter(t *testing.T) {
-	db, mock, repo := setupMockDB(t)
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Logf("failed to close db: %v", err)
-		}
-	}()
-
-	userID := "user-123"
-	teamID := "team-123"
-	metadataKey := "environment"
-	metadataValue := "production"
-
-	filters := repositories.BlueprintFilters{
-		TeamID:   teamID,
-		Metadata: map[string]string{metadataKey: metadataValue},
-	}
-
-	// The generated SQL must use the parameterized form metadata->>$N, never an
-	// interpolated key. Assert the regex on the parameterized shape and that the
-	// key + value are supplied as bound args.
-	countRows := sqlmock.NewRows([]string{"count"}).AddRow(0)
-	// squirrel binds the team-access pair once per EXISTS branch, then the
-	// metadata key/value: (team, team, user, team, user, key, value).
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM blueprints s.*metadata->>\$\d+ = \$\d+`).
-		WithArgs(teamID, teamID, userID, teamID, userID, metadataKey, metadataValue).
-		WillReturnRows(countRows)
-
-	dataRows := sqlmock.NewRows([]string{
-		"id", "project_id", "slug", "user_id", "team_id", "title", "description",
-		"status", "type", "subtype", "metadata", "created_at", "updated_at",
-		"path", "path_derived", "content_sha",
-		"source_repo", "source_commit_sha", "source_blob_sha", "imported_at",
-	})
-	mock.ExpectQuery(`SELECT (.+) FROM blueprints s.*metadata->>\$\d+ = \$\d+`).
-		WillReturnRows(dataRows)
-
-	_, _, err := repo.List(context.Background(), userID, filters)
-
-	assert.NoError(t, err)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-// TestIsValidMetadataKey tests the validation function directly.
-//
-// Since #519 the only rule is a length bound. The old ^[a-zA-Z0-9_-]+$
-// allowlist was dropped: keys are bound as SQL parameters at every call site,
-// so the charset restriction bought no safety while making keys that are
-// perfectly writable — `spec.type` from a GitHub import, say — permanently
-// unfilterable. The quote/semicolon cases below are therefore VALID now; that
-// they are safe is asserted at the SQL level in
-// TestMetadataContainment_QuotesAreEscapedNotInterpolated.
-func TestIsValidMetadataKey(t *testing.T) {
-	testCases := []struct {
-		name     string
-		key      string
-		expected bool
-	}{
-		{"Valid alphanumeric", "key123", true},
-		{"Valid with underscore", "valid_key", true},
-		{"Valid with hyphen", "valid-key", true},
-		{"Valid mixed", "Valid_Key-123", true},
-		{"Dotted key from an import", "spec.type", true},
-		{"Namespaced key", "vibexp:source", true},
-		{"Key at the length cap", strings.Repeat("k", 255), true},
-		{"Empty string", "", false},
-		{"Too long", string(make([]byte, 256)), false},
-		{"SQL injection text is a legal key", "key'; DROP TABLE", true},
-		{"Special chars", "key@#$", true},
-		{"Spaces", "key with spaces", true},
-		{"Quotes", "key'value", true},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := isValidMetadataKey(tc.key)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
 }

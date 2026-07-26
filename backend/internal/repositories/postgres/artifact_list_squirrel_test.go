@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"strings"
 	"testing"
 	"time"
 
@@ -200,42 +199,6 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name: "List metadata single key binds via ->> operator",
-			filters: repositories.ArtifactFilters{
-				TeamID: "team-123", Metadata: map[string]string{"env": "prod"}, Page: 1, Limit: 10,
-			},
-			setupMock: func(mock sqlmock.Sqlmock) {
-				args := append(artifactListDefaultArgs(), "env", "prod")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.metadata->>\$7 = \$8`).
-					WithArgs(args...).
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM artifacts a .*a\.metadata->>\$7 = \$8`).
-					WithArgs(args...).
-					WillReturnRows(artifactListOneRow(now))
-			},
-			expectTotal: 1,
-			expectCount: 1,
-		},
-		{
-			name: "List metadata multi-key binds in sorted key order",
-			filters: repositories.ArtifactFilters{
-				TeamID: "team-123", Metadata: map[string]string{"zeta": "z", "alpha": "a"}, Page: 1, Limit: 10,
-			},
-			setupMock: func(mock sqlmock.Sqlmock) {
-				// Sorted iteration guarantees alpha is bound before zeta regardless of
-				// map ordering, so the parameter sequence is deterministic.
-				args := append(artifactListDefaultArgs(), "alpha", "a", "zeta", "z")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.metadata->>\$7 = \$8 AND a\.metadata->>\$9 = \$10`).
-					WithArgs(args...).
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM artifacts a .*a\.metadata->>\$7 = \$8 AND a\.metadata->>\$9 = \$10`).
-					WithArgs(args...).
-					WillReturnRows(artifactListOneRow(now))
-			},
-			expectTotal: 1,
-			expectCount: 1,
-		},
-		{
 			name: "List metadata filter renders containment probes, keys ANDed values ORed",
 			filters: repositories.ArtifactFilters{
 				TeamID: "team-123",
@@ -387,42 +350,6 @@ func TestArtifactRepository_ListSquirrel(t *testing.T) {
 			expectCount: 1,
 		},
 		{
-			name: "ListCrossTeam metadata single key binds via ->> operator",
-			filters: repositories.ArtifactFilters{
-				Metadata: map[string]string{"env": "prod"}, Page: 1, Limit: 10,
-			},
-			crossTeam: true,
-			setupMock: func(mock sqlmock.Sqlmock) {
-				args := append(artifactCrossTeamDefaultArgs(), "env", "prod")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.metadata->>\$5 = \$6`).
-					WithArgs(args...).
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM artifacts a .*a\.metadata->>\$5 = \$6`).
-					WithArgs(args...).
-					WillReturnRows(artifactListOneRow(now))
-			},
-			expectTotal: 1,
-			expectCount: 1,
-		},
-		{
-			name: "ListCrossTeam metadata multi-key binds in sorted key order",
-			filters: repositories.ArtifactFilters{
-				Metadata: map[string]string{"zeta": "z", "alpha": "a"}, Page: 1, Limit: 10,
-			},
-			crossTeam: true,
-			setupMock: func(mock sqlmock.Sqlmock) {
-				args := append(artifactCrossTeamDefaultArgs(), "alpha", "a", "zeta", "z")
-				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM artifacts a .*a\.metadata->>\$5 = \$6 AND a\.metadata->>\$7 = \$8`).
-					WithArgs(args...).
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-				mock.ExpectQuery(`FROM artifacts a .*a\.metadata->>\$5 = \$6 AND a\.metadata->>\$7 = \$8`).
-					WithArgs(args...).
-					WillReturnRows(artifactListOneRow(now))
-			},
-			expectTotal: 1,
-			expectCount: 1,
-		},
-		{
 			name:      "ListCrossTeam clamps non-positive page and limit to LIMIT 0 OFFSET 0",
 			filters:   repositories.ArtifactFilters{Page: 0, Limit: -5},
 			crossTeam: true,
@@ -552,51 +479,6 @@ func TestArtifactRepository_List_RequiresTeamID(t *testing.T) {
 	assert.Nil(t, artifacts)
 	assert.Zero(t, total)
 	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-// TestArtifactRepository_ListSquirrel_InvalidMetadataKey verifies an
-// out-of-bounds metadata key short-circuits before any query is issued, for
-// both methods.
-//
-// Since #519 "out of bounds" means length only — an injection-looking key is
-// legal input, because it is bound as a parameter.
-func TestArtifactRepository_ListSquirrel_InvalidMetadataKey(t *testing.T) {
-	tests := []struct {
-		name      string
-		crossTeam bool
-	}{
-		{name: "List rejects an over-long metadata key", crossTeam: false},
-		{name: "ListCrossTeam rejects an over-long metadata key", crossTeam: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo, mock, mockDB := setupArtifactListTest(t)
-			defer func() {
-				if closeErr := mockDB.Close(); closeErr != nil {
-					t.Logf("Failed to close mock DB: %v", closeErr)
-				}
-			}()
-
-			filters := repositories.ArtifactFilters{
-				TeamID:   "team-123",
-				Metadata: map[string]string{strings.Repeat("k", 256): "v"},
-				Page:     1, Limit: 10,
-			}
-
-			var err error
-			if tt.crossTeam {
-				_, _, err = repo.ListCrossTeam(context.Background(), "user-123", filters)
-			} else {
-				_, _, err = repo.List(context.Background(), "user-123", filters)
-			}
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "invalid metadata key")
-			// No query must have been issued before the validation failure.
-			assert.NoError(t, mock.ExpectationsWereMet())
-		})
-	}
 }
 
 //nolint:funlen // table-driven error-path test covering both list methods

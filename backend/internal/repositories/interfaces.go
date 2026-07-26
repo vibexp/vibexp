@@ -554,9 +554,6 @@ type ArtifactFilters struct {
 	Search    string
 	SortBy    string
 	SortOrder string
-	// Metadata is the legacy metadata_<key>=value filter: exact string equality
-	// per key, ANDed. Superseded by MetadataFilter; removed in #526.
-	Metadata map[string]string
 	// MetadataFilter is the JSONB containment filter behind the `metadata`
 	// query parameter: keys ANDed, values within a key ORed.
 	MetadataFilter MetadataFilter
@@ -1154,9 +1151,6 @@ type BlueprintFilters struct {
 	Search    string
 	SortBy    string
 	SortOrder string
-	// Metadata is the legacy metadata_<key>=value filter: exact string equality
-	// per key, ANDed. Superseded by MetadataFilter; removed in #526.
-	Metadata map[string]string
 	// MetadataFilter is the JSONB containment filter behind the `metadata`
 	// query parameter: keys ANDed, values within a key ORed.
 	MetadataFilter MetadataFilter

@@ -63,7 +63,6 @@ type ArtifactFilters struct {
 	Search    string
 	SortBy    string
 	SortOrder string
-	Metadata  map[string]string
 	// MetadataFilter is the parsed `metadata` query parameter (epic #519).
 	MetadataFilter repositories.MetadataFilter
 	Page           int
@@ -278,7 +277,6 @@ func (s *ArtifactService) ListArtifacts(userID string, filters ArtifactFilters) 
 		Search:         filters.Search,
 		SortBy:         filters.SortBy,
 		SortOrder:      filters.SortOrder,
-		Metadata:       filters.Metadata,
 		MetadataFilter: filters.MetadataFilter,
 		Page:           filters.Page,
 		Limit:          filters.Limit,
@@ -341,7 +339,6 @@ func (s *ArtifactService) ListArtifactsByProjectCrossTeam(
 		Search:         filters.Search,
 		SortBy:         filters.SortBy,
 		SortOrder:      filters.SortOrder,
-		Metadata:       filters.Metadata,
 		MetadataFilter: filters.MetadataFilter,
 		Page:           filters.Page,
 		Limit:          filters.Limit,

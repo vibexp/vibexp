@@ -888,8 +888,6 @@ func (s *Server) buildArtifactFilters(
 		filters.ProjectID = r.URL.Query().Get("project_id")
 	}
 
-	filters.Metadata = extractMetadataFromQuery(r.URL.Query())
-
 	metadataFilter, ok := parseMetadataQueryParam(w, r)
 	if !ok {
 		return services.ArtifactFilters{}, false
@@ -905,9 +903,8 @@ func (s *Server) buildArtifactFilters(
 }
 
 // parseMetadataQueryParam parses the shared `metadata` list filter (epic #519)
-// from the request. It lives beside extractMetadataFromQuery — the legacy
-// metadata_<key> reader it supersedes — because the artifact, blueprint and
-// memory list handlers all call both.
+// from the request. It lives here, rather than beside any one resource, because
+// the artifact, blueprint and memory list handlers all call it.
 //
 // On a malformed filter it writes a 400 problem+json and reports false, so the
 // caller returns without querying.
@@ -918,20 +915,6 @@ func parseMetadataQueryParam(w http.ResponseWriter, r *http.Request) (repositori
 		return nil, false
 	}
 	return filter, true
-}
-
-// extractMetadataFromQuery extracts metadata_* query parameters
-func extractMetadataFromQuery(query url.Values) map[string]string {
-	metadata := make(map[string]string)
-	for key, values := range query {
-		if strings.HasPrefix(key, "metadata_") {
-			metaKey := strings.TrimPrefix(key, "metadata_")
-			if len(values) > 0 {
-				metadata[metaKey] = values[0]
-			}
-		}
-	}
-	return metadata
 }
 
 // deleteArtifactEmbeddings deletes embeddings for an artifact
