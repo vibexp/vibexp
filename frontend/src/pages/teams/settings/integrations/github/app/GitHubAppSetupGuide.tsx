@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+import { CopyableValue } from './CopyableValue'
+
 /**
  * The numbered walkthrough for registering a team's own GitHub App.
  *
@@ -12,8 +14,15 @@ import { Label } from '@/components/ui/label'
  * written against the same checklist so they cannot disagree. The ordering
  * matters more than it looks: the webhook URL only exists after the
  * credentials are saved, so the guide has to tell people to leave the webhook
- * blank on GitHub and come back for it. A setup that stops after step 3 looks
+ * blank on GitHub and come back for it. A setup that stops after step 4 looks
  * complete and silently drops every installation event.
+ *
+ * The Callback URL step (#587) is step 2 because the value is needed while the
+ * admin is still on GitHub's App form. It is the one field in this flow that
+ * lives ONLY on github.com — VibeXP cannot read or write it — and since #541
+ * moved this page under `/teams/:id/**` its correct value contains a team id
+ * nobody can guess. Left unshown, an admin creates the App, installs it, and
+ * the handshake never fires: no error, no toast, just a page that does nothing.
  */
 
 /** Repository permissions the App needs, with the reason for each. */
@@ -43,6 +52,8 @@ const REQUIRED_EVENTS: { name: string; why: string }[] = [
 ]
 
 export interface GitHubAppSetupGuideProps {
+  /** Team being configured — the Callback URL is scoped to it. */
+  teamId: string
   /**
    * Pre-fills the organization the App is created under. The field stays
    * editable — this is only a starting value.
@@ -50,7 +61,26 @@ export interface GitHubAppSetupGuideProps {
   defaultOrganization?: string
 }
 
+/**
+ * Absolute URL GitHub must return to after an install.
+ *
+ * `window.location.origin` rather than a configured base URL: this is the
+ * origin the admin's browser is actually on, which is the one that has to match
+ * what they paste into GitHub. A server-side value could legitimately differ
+ * behind a reverse proxy and would be the wrong thing to show.
+ *
+ * The path is defined by the `settings/integrations/github` route in
+ * `pages/teams/TeamRoutes.tsx`. It is spelled out here rather than imported
+ * because no shared route-path constant exists yet — `githubCallbackUrl.test.ts`
+ * pins it against the settings-hub card's href so the two cannot drift apart
+ * silently, which is exactly how this URL went stale in the first place (#541).
+ */
+export function githubCallbackUrlFor(teamId: string): string {
+  return `${window.location.origin}/teams/${teamId}/settings/integrations/github`
+}
+
 export function GitHubAppSetupGuide({
+  teamId,
   defaultOrganization = '',
 }: GitHubAppSetupGuideProps) {
   // The create-App URL differs for a personal account and an org, and there is
@@ -64,6 +94,8 @@ export function GitHubAppSetupGuide({
     ? `https://github.com/organizations/${encodeURIComponent(trimmedOrg)}/settings/apps/new`
     : 'https://github.com/settings/apps/new'
 
+  const callbackUrl = githubCallbackUrlFor(teamId)
+
   return (
     <div className="space-y-6 text-sm">
       <ol className="space-y-5">
@@ -74,7 +106,7 @@ export function GitHubAppSetupGuide({
             to an org — an App owned by a personal account keeps working only as
             long as that account does. Leave the{' '}
             <strong>Webhook URL blank</strong> for now; you will come back for
-            it in step 3.
+            it in step 4.
           </p>
           <div className="mt-2 space-y-1">
             <Label htmlFor="github-app-org" className="text-xs">
@@ -147,7 +179,34 @@ export function GitHubAppSetupGuide({
         </li>
 
         <li>
-          <p className="font-medium">2. Copy the credentials into VibeXP</p>
+          <p className="font-medium">2. Point the App back at this team</p>
+          <p className="text-muted-foreground mt-1">
+            Put this exact value in the App’s <strong>Callback URL</strong>. It
+            is where GitHub returns the admin once the install is authorized,
+            and it is specific to this team — no other team’s URL will work.
+          </p>
+          <div className="mt-2 max-w-xl">
+            <CopyableValue label="Callback URL" value={callbackUrl} />
+          </div>
+          <p className="text-muted-foreground mt-2">
+            Set the App’s <strong>Setup URL</strong> to the same value if you
+            fill one in, so both routes lead somewhere live. GitHub uses the
+            Callback URL while{' '}
+            <strong>
+              “Request user authorization (OAuth) during installation”
+            </strong>{' '}
+            is enabled (step 1) — and it must be, so the Callback URL is the
+            field that matters.
+          </p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Already have an App from before this page moved? Its Callback URL
+            still points at the old location, and installs against it fail
+            silently — update it to the value above.
+          </p>
+        </li>
+
+        <li>
+          <p className="font-medium">3. Copy the credentials into VibeXP</p>
           <p className="text-muted-foreground mt-1">
             From the App’s settings page you need five values:{' '}
             <strong>App ID</strong>, <strong>App slug</strong> (the last segment
@@ -161,7 +220,7 @@ export function GitHubAppSetupGuide({
         </li>
 
         <li>
-          <p className="font-medium">3. Wire the webhook, then verify</p>
+          <p className="font-medium">4. Wire the webhook, then verify</p>
           <p className="text-muted-foreground mt-1">
             Saving reveals the <strong>webhook URL</strong> and a{' '}
             <strong>webhook secret VibeXP generates for you</strong> — shown{' '}
@@ -176,7 +235,7 @@ export function GitHubAppSetupGuide({
         </li>
 
         <li>
-          <p className="font-medium">4. Install the App</p>
+          <p className="font-medium">5. Install the App</p>
           <p className="text-muted-foreground mt-1">
             Install it on the account or organization whose repositories you
             want, choose the repositories, and complete the redirect back here.

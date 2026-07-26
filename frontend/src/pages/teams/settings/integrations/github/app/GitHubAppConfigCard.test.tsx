@@ -156,6 +156,41 @@ describe('GitHubAppConfigCard — destructive confirmations', () => {
   })
 })
 
+describe('GitHubAppSetupGuide — Callback URL (#587)', () => {
+  // The no-config state is what an admin who has not registered an App yet
+  // sees, so it is exactly where the Callback URL has to be visible.
+  it('shows the team-scoped Callback URL in the unconfigured state', () => {
+    renderCard({ config: null })
+
+    const value = screen.getByTestId('copyable-callback-url')
+    expect(value).toBeVisible()
+    expect(value).toHaveTextContent(
+      `${window.location.origin}/teams/${TEAM_ID}/settings/integrations/github`
+    )
+  })
+
+  it('tells the operator to mirror it into Setup URL and names the OAuth requirement', () => {
+    renderCard({ config: null })
+
+    expect(screen.getByText(/Setup URL/)).toBeVisible()
+    // The Callback URL is only used when OAuth-during-install is on, so the
+    // step is wrong on its own without that cross-reference.
+    expect(
+      screen.getAllByText(
+        /Request user authorization \(OAuth\) during installation/
+      ).length
+    ).toBeGreaterThan(0)
+  })
+
+  it('offers it copyable, like the webhook URL', () => {
+    renderCard({ config: null })
+
+    expect(
+      screen.getByRole('button', { name: 'Copy Callback URL' })
+    ).toBeVisible()
+  })
+})
+
 describe('GitHubAppSetupGuide — organization deep link', () => {
   it('targets the personal account by default and the org once given one', async () => {
     const user = userEvent.setup()
