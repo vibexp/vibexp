@@ -119,6 +119,11 @@ jobs:
     name: Dispatch vibexp/cli e2e
     runs-on: ubuntu-latest
     needs: release
+    # Narrower than the workflow-level default: this job pushes nothing to GHCR
+    # and never uses GITHUB_TOKEN — every gh call below authenticates with the
+    # scoped app token — so it has no business inheriting `packages: write`.
+    permissions:
+      contents: read
     # Only for a real published v* release. A manual workflow_dispatch of this
     # workflow has no github.event.release, so this evaluates false and an
     # escape-hatch build never dispatches downstream. Prereleases DO dispatch —
@@ -157,8 +162,20 @@ jobs:
           # A workflow_dispatch --ref <tag> runs ci.yml AS OF THAT TAG. If a
           # future CLI release drops the input, dispatching would fail opaquely,
           # so skip loudly instead and keep the release green.
-          if ! gh api "repos/vibexp/cli/contents/.github/workflows/ci.yml?ref=$cli_tag" \
-                 -q .content | base64 -d | grep -q platform_image_tag; then
+          #
+          # Fetch and test SEPARATELY. Piping the fetch straight into grep would
+          # make a failed read (403 from a missing app grant, a transient error)
+          # look identical to "the input is absent" under `pipefail` — the
+          # release would go green reporting a benign skip while the
+          # compatibility check silently never ran.
+          if ! ci_yml="$(gh api \
+                "repos/vibexp/cli/contents/.github/workflows/ci.yml?ref=$cli_tag" \
+                -q .content | base64 -d)"; then
+            echo "::error::Could not read .github/workflows/ci.yml at vibexp/cli@$cli_tag."
+            exit 1
+          fi
+
+          if ! grep -q platform_image_tag <<<"$ci_yml"; then
             echo "::notice::CLI release $cli_tag has no platform_image_tag input; skipping the compatibility e2e."
             {
               echo "- CLI e2e: **skipped** — release \`$cli_tag\` predates the \`platform_image_tag\` input."
