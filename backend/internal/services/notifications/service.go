@@ -154,8 +154,6 @@ func channelEnabledGlobally(prefs *models.Preferences, ch ChannelName) bool {
 		return prefs.Notifications.Channels.InApp
 	case ChannelEmail:
 		return prefs.Notifications.Channels.Email
-	case ChannelWebPush:
-		return prefs.Notifications.Channels.WebPush
 	default:
 		return true
 	}

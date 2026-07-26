@@ -41,8 +41,12 @@ NotificationTypePreference:
       example: "digest"
     web_push:
       type: boolean
-      description: Deliver this notification type via web push
-      example: true
+      deprecated: true
+      description: |
+        Deprecated and inert. Web push (Firebase Cloud Messaging) was removed in #688;
+        this field is accepted and returned for backward compatibility but is never read.
+        It will be dropped in a future release once clients have stopped sending it.
+      example: false
   required:
     - in_app
     - email
@@ -62,7 +66,11 @@ NotificationChannelPreferences:
       example: true
     web_push:
       type: boolean
-      description: Enable web push notifications globally
+      deprecated: true
+      description: |
+        Deprecated and inert. Web push (Firebase Cloud Messaging) was removed in #688;
+        this field is accepted and returned for backward compatibility but is never read.
+        It will be dropped in a future release once clients have stopped sending it.
       example: false
   required:
     - in_app

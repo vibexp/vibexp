@@ -1,0 +1,33 @@
+-- Remove the Firebase Cloud Messaging web-push data layer (issue #688).
+--
+-- VibeXP is free, open-source and self-hosted. Web push was the last hard
+-- dependency on a proprietary Google service: it required the operator to stand
+-- up a Firebase project and set seven VITE_FIREBASE_* variables, and #320
+-- established that the deprecated getToken/deleteToken client APIs cannot be
+-- migrated to Firebase's documented replacement at all — the Go Admin SDK's
+-- messaging.Message exposes only Token/Topic/Condition, with no field able to
+-- address a Firebase Installation ID.
+--
+-- The Go code that read this table (DeviceTokenRepository, the
+-- POST/DELETE /api/v1/device-tokens handlers and WebPushChannel) is deleted in
+-- the same change, so nothing selects any of it any more.
+--
+-- DEPLOY ORDERING: unlike #652/#653 this needs no staged rollout. VibeXP ships
+-- as a single combined image, so the binary that stopped reading device_tokens
+-- and this migration land in the same release — there is no window in which an
+-- older binary queries a dropped table.
+--
+-- Locking: DROP TABLE takes a brief ACCESS EXCLUSIVE lock on device_tokens
+-- only. The CASCADE below carries device_tokens_pkey, the unique index
+-- device_tokens_token_idx, device_tokens_user_id_idx, and the
+-- device_tokens_user_id_fkey foreign key to users(id). That FK was
+-- ON DELETE CASCADE, so it never blocked a user deletion and dropping it
+-- removes no behaviour.
+
+DROP TABLE IF EXISTS public.device_tokens CASCADE;
+
+-- NOTE: the `web_push` keys inside user_preferences.preferences (a JSONB blob)
+-- are deliberately left in place. They are not columns and no CHECK constraint
+-- references them; Go simply ignores the key on unmarshal. They are removed
+-- together with the `web_push` field in the preferences API contract, which is
+-- deferred until @vibexp/api-client republishes without it (see #688).

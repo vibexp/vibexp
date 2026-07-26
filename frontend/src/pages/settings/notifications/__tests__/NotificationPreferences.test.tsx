@@ -11,19 +11,6 @@ jest.mock('@/services/preferencesService', () => ({
   preferencesService: mockPreferencesService,
 }))
 
-// Mock FCM module (class-singleton pattern)
-const mockRequestPermissionAndRegister = jest.fn()
-const mockRevokeToken = jest.fn()
-const mockIsFCMConfigured = jest.fn()
-
-jest.mock('@/services/notifications/fcm', () => ({
-  fcmService: {
-    requestPermissionAndRegister: mockRequestPermissionAndRegister,
-    revokeToken: mockRevokeToken,
-    isFCMConfigured: mockIsFCMConfigured,
-  },
-}))
-
 // Mock LoadingSpinner and PageHeader to simplify test DOM
 jest.mock('@/components/LoadingSpinner', () => ({
   LoadingSpinner: () => <div data-testid="loading-spinner" />,
@@ -74,7 +61,6 @@ function makePrefsResponse(
 describe('NotificationPreferences', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    mockIsFCMConfigured.mockReturnValue(true)
     mockPreferencesService.getPreferences.mockResolvedValue(
       makePrefsResponse(baseNotifPrefs)
     )
@@ -126,156 +112,6 @@ describe('NotificationPreferences', () => {
       expect(screen.getByText('Network failure')).toBeInTheDocument()
     })
   })
-
-  // ---------------------------------------------------------------------------
-  // Browser push card — FCM not configured
-  // ---------------------------------------------------------------------------
-
-  it('shows unconfigured message when FCM is not configured', async () => {
-    mockIsFCMConfigured.mockReturnValue(false)
-
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Browser notifications require configuration/)
-      ).toBeInTheDocument()
-    })
-  })
-
-  // ---------------------------------------------------------------------------
-  // Browser push card — FCM configured, master toggle
-  // ---------------------------------------------------------------------------
-
-  it('renders browser notifications card when FCM is configured', async () => {
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Browser notifications')).toBeInTheDocument()
-    })
-
-    expect(screen.getByText('Enable browser notifications')).toBeInTheDocument()
-  })
-
-  it('master toggle is off by default when web_push channel is disabled', async () => {
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('Enable browser notifications')
-      ).toBeInTheDocument()
-    })
-
-    const toggle = screen.getByRole('switch', {
-      name: /enable browser notifications/i,
-    })
-    expect(toggle).toHaveAttribute('data-state', 'unchecked')
-  })
-
-  it('calls requestPermissionAndRegister when master toggle is turned on', async () => {
-    mockRequestPermissionAndRegister.mockResolvedValue(true)
-
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('Enable browser notifications')
-      ).toBeInTheDocument()
-    })
-
-    const toggle = screen.getByRole('switch', {
-      name: /enable browser notifications/i,
-    })
-
-    await userEvent.click(toggle)
-
-    expect(mockRequestPermissionAndRegister).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls revokeToken when master toggle is turned off after being on', async () => {
-    mockPreferencesService.getPreferences.mockResolvedValue(
-      makePrefsResponse({
-        ...baseNotifPrefs,
-        channels: { ...baseNotifPrefs.channels, web_push: true },
-      })
-    )
-    mockRevokeToken.mockResolvedValue(undefined)
-
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      const toggle = screen.getByRole('switch', {
-        name: /enable browser notifications/i,
-      })
-      expect(toggle).toHaveAttribute('data-state', 'checked')
-    })
-
-    const toggle = screen.getByRole('switch', {
-      name: /enable browser notifications/i,
-    })
-
-    await userEvent.click(toggle)
-
-    expect(mockRevokeToken).toHaveBeenCalledTimes(1)
-  })
-
-  it('shows permission blocked alert when requestPermissionAndRegister returns false', async () => {
-    mockRequestPermissionAndRegister.mockResolvedValue(false)
-
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('Enable browser notifications')
-      ).toBeInTheDocument()
-    })
-
-    const toggle = screen.getByRole('switch', {
-      name: /enable browser notifications/i,
-    })
-
-    await userEvent.click(toggle)
-
-    await waitFor(() => {
-      expect(screen.getByText('Permission blocked')).toBeInTheDocument()
-    })
-  })
-
-  // ---------------------------------------------------------------------------
-  // Browser push card — per-type matrix
-  // ---------------------------------------------------------------------------
-
-  it('shows per-type web_push checkboxes when master toggle is enabled', async () => {
-    mockPreferencesService.getPreferences.mockResolvedValue(
-      makePrefsResponse({
-        ...baseNotifPrefs,
-        channels: { ...baseNotifPrefs.channels, web_push: true },
-      })
-    )
-
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      expect(screen.getAllByText('New feed items').length).toBeGreaterThan(0)
-    })
-
-    expect(
-      screen.getAllByText('Replies to your feed posts').length
-    ).toBeGreaterThan(0)
-    expect(screen.getAllByText('Team invitations').length).toBeGreaterThan(0)
-  })
-
-  it('does not show per-type checkboxes when master toggle is off', async () => {
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      expect(screen.queryByText('New feed items')).not.toBeInTheDocument()
-    })
-  })
-
-  // ---------------------------------------------------------------------------
-  // Save / reset
-  // ---------------------------------------------------------------------------
 
   it('shows unsaved changes section after toggling an email preference', async () => {
     render(<NotificationPreferences />)
@@ -345,140 +181,11 @@ describe('NotificationPreferences', () => {
   // Bug 1 — guard against missing types field
   // ---------------------------------------------------------------------------
 
-  it('renders without crash when notifPrefs.types is undefined (web_push channel enabled)', async () => {
-    const prefsWithoutTypes: NotificationPrefsType = {
-      channels: { in_app: true, email: true, web_push: true },
-      types: {},
-    }
-    mockPreferencesService.getPreferences.mockResolvedValue(
-      makePrefsResponse(prefsWithoutTypes)
-    )
-
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Browser notifications')).toBeInTheDocument()
-    })
-
-    // The master toggle should be checked (web_push: true)
-    const toggle = screen.getByRole('switch', {
-      name: /enable browser notifications/i,
-    })
-    expect(toggle).toHaveAttribute('data-state', 'checked')
-
-    // No type checkboxes are shown (empty types list — no crash)
-    expect(screen.queryByText('New feed items')).not.toBeInTheDocument()
-  })
-
-  it('handleWebPushTypeChange does not crash when notifPrefs.types is undefined', async () => {
-    const prefsWithoutTypes: NotificationPrefsType = {
-      channels: { in_app: true, email: true, web_push: true },
-      types: {},
-    }
-    mockPreferencesService.getPreferences.mockResolvedValue(
-      makePrefsResponse(prefsWithoutTypes)
-    )
-    mockPreferencesService.updatePreferences.mockResolvedValue(
-      makePrefsResponse(prefsWithoutTypes)
-    )
-
-    render(<NotificationPreferences />)
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('Enable browser notifications')
-      ).toBeInTheDocument()
-    })
-
-    // Toggle off to trigger revokeToken path (which calls handleWebPushTypeChange indirectly)
-    // Actually, to test handleWebPushTypeChange with missing types, we need to exercise the save path.
-    // Toggle email pref to create unsaved changes, then save — this exercises save without crashing
-    const emailToggle = screen.getByRole('switch', {
-      name: /platform announcements/i,
-    })
-    await userEvent.click(emailToggle)
-
-    const saveBtn = screen.getByRole('button', { name: /save changes/i })
-    await userEvent.click(saveBtn)
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('Preferences saved successfully.')
-      ).toBeInTheDocument()
-    })
-
-    expect(mockPreferencesService.updatePreferences).toHaveBeenCalledWith(
-      expect.objectContaining({
-        notifications: expect.objectContaining({
-          channels: expect.any(Object),
-        }),
-      })
-    )
-  })
-
   // ---------------------------------------------------------------------------
-  // Bug 3 — permission denied seeded on mount
+  // Footer placement — save/reset must appear after the activity email card
   // ---------------------------------------------------------------------------
 
-  describe('Notification.permission seeded on mount', () => {
-    const originalNotification = (window as unknown as Record<string, unknown>)
-      .Notification
-
-    beforeEach(() => {
-      jest.clearAllMocks()
-      mockIsFCMConfigured.mockReturnValue(true)
-      mockPreferencesService.getPreferences.mockResolvedValue(
-        makePrefsResponse(baseNotifPrefs)
-      )
-      mockPreferencesService.updatePreferences.mockResolvedValue(
-        makePrefsResponse(baseNotifPrefs)
-      )
-    })
-
-    afterEach(() => {
-      Object.defineProperty(window, 'Notification', {
-        value: originalNotification,
-        configurable: true,
-        writable: true,
-      })
-    })
-
-    it('shows blocked-state alert on mount when Notification.permission is denied', async () => {
-      Object.defineProperty(window, 'Notification', {
-        value: { permission: 'denied' },
-        configurable: true,
-        writable: true,
-      })
-
-      render(<NotificationPreferences />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Permission blocked')).toBeInTheDocument()
-      })
-    })
-
-    it('does not show blocked-state alert on mount when Notification.permission is granted', async () => {
-      Object.defineProperty(window, 'Notification', {
-        value: { permission: 'granted' },
-        configurable: true,
-        writable: true,
-      })
-
-      render(<NotificationPreferences />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Browser notifications')).toBeInTheDocument()
-      })
-
-      expect(screen.queryByText('Permission blocked')).not.toBeInTheDocument()
-    })
-  })
-
-  // ---------------------------------------------------------------------------
-  // Footer placement — save/reset must appear after browser push card
-  // ---------------------------------------------------------------------------
-
-  it('save/reset footer renders after the browser push card, not inside the email card', async () => {
+  it('save/reset footer renders after the activity email card, not inside the email card', async () => {
     render(<NotificationPreferences />)
 
     await waitFor(() => {
@@ -493,10 +200,10 @@ describe('NotificationPreferences', () => {
     const saveFooter = await screen.findByTestId('save-footer')
     expect(saveFooter).toBeInTheDocument()
 
-    // Browser notifications heading should precede the save footer in DOM order
-    const browserHeading = screen.getByText('Browser notifications')
+    // The activity email card should precede the save footer in DOM order
+    const activityHeading = screen.getByText('In-app activity email')
     expect(
-      browserHeading.compareDocumentPosition(saveFooter) &
+      activityHeading.compareDocumentPosition(saveFooter) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
   })

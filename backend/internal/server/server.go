@@ -704,9 +704,6 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupFeedsRoutes(r)
 		// Notification routes
 		s.setupNotificationsRoutes(r)
-		// Device token routes are intentionally free-tier — push notification
-		// registration is a UX feature, not a gated resource.
-		s.setupDeviceTokensRoutes(r)
 	})
 }
 
@@ -1081,13 +1078,6 @@ func (s *Server) setupNotificationsRoutes(r chi.Router) {
 	gen.HandlerWithOptions(strict, gen.ChiServerOptions{
 		BaseRouter:       r,
 		ErrorHandlerFunc: s.notificationsBindErrorHandler,
-	})
-}
-
-func (s *Server) setupDeviceTokensRoutes(r chi.Router) {
-	r.Route("/api/v1/device-tokens", func(r chi.Router) {
-		r.Post("/", s.handleRegisterDeviceToken)
-		r.Delete("/", s.handleDeleteDeviceToken)
 	})
 }
 

@@ -179,9 +179,6 @@ func (c *CoverageTestContainer) NotificationService() notifications.Notification
 	return nil
 }
 func (c *CoverageTestContainer) DigestRunner() *notifications.DigestRunner { return nil }
-func (c *CoverageTestContainer) DeviceTokenRepository() repositories.DeviceTokenRepository {
-	return nil
-}
 func (c *CoverageTestContainer) ProjectMigrationService() services.ProjectMigrationServiceInterface {
 	return nil
 }

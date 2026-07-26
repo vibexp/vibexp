@@ -166,9 +166,6 @@ func (m *MockContainerForBackoffice) GitHubInstallationRepository() repositories
 }
 
 func (m *MockContainerForBackoffice) Close() error { return nil }
-func (m *MockContainerForBackoffice) DeviceTokenRepository() repositories.DeviceTokenRepository {
-	return nil
-}
 
 // Ensure MockContainerForBackoffice implements container.Container
 var _ container.Container = (*MockContainerForBackoffice)(nil)

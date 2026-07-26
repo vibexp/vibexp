@@ -80,7 +80,6 @@ packages:
       AgentExecutionEventRepository:
       MemoryRepository:
       ProjectRepository:
-      DeviceTokenRepository:
       ContentVersionRepository:
   github.com/vibexp/vibexp/pkg/events:
     interfaces:

@@ -19,8 +19,6 @@ const (
 	ChannelInApp ChannelName = "in_app"
 	// ChannelEmail is the email notification channel
 	ChannelEmail ChannelName = "email"
-	// ChannelWebPush is the browser / OS-level push notification channel via FCM
-	ChannelWebPush ChannelName = "web_push"
 )
 
 const (

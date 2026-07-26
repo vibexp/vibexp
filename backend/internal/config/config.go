@@ -40,7 +40,6 @@ type Config struct {
 	RateLimit  RateLimitConfig  `koanf:"rate_limit"`
 	Retention  RetentionConfig  `koanf:"retention"`
 	A2A        A2AConfig        `koanf:"a2a"`
-	FCM        FCMConfig        `koanf:"fcm"`
 	Deployment DeploymentConfig `koanf:"deployment"`
 
 	// EventBus holds in-memory event-bus tuning (see pkg/events).
@@ -427,11 +426,6 @@ type A2AConfig struct {
 	// SSE connection. It is deliberately decoupled from DefaultTimeout so a
 	// long-running streaming agent is not force-closed by the sync timeout.
 	StreamTimeout time.Duration `koanf:"stream_timeout"`
-}
-
-// FCMConfig gates the Firebase Cloud Messaging web push channel.
-type FCMConfig struct {
-	Enabled bool `koanf:"enabled"`
 }
 
 // DeploymentConfig holds environment-detection indicators (see

@@ -14,12 +14,6 @@ export default {
     '^mermaid$': '<rootDir>/tests/mocks/mermaid.js',
     '^../utils/environment$': '<rootDir>/tests/mocks/environment.ts',
     '^../../src/utils/environment$': '<rootDir>/tests/mocks/environment.ts',
-    // Firebase env helper — uses import.meta.env which is not available in Jest/CJS.
-    // The mock returns empty/false values; individual tests can override with jest.spyOn.
-    '^@/lib/firebaseEnv$': '<rootDir>/tests/mocks/firebaseEnv.ts',
-    // Firebase packages are Vite/ESM only; stub them out for jest/CJS test environment
-    '^firebase/app$': '<rootDir>/tests/mocks/firebase-app.ts',
-    '^firebase/messaging$': '<rootDir>/tests/mocks/firebase-messaging.ts',
     // Generated API client is ESM only; stub it for jest/CJS. Type-only
     // imports are erased — tests mock @/lib/apiClientGenerated for behavior.
     '^@vibexp/api-client$': '<rootDir>/tests/mocks/vibexpApiClient.ts',
@@ -62,14 +56,6 @@ export default {
         VITE_GTM_ENABLED: 'false',
         VITE_GTM_ID: '',
         VITE_GA4_MEASUREMENT_ID: '',
-        // Firebase env vars — empty by default; tests that need them can override
-        VITE_FIREBASE_API_KEY: '',
-        VITE_FIREBASE_AUTH_DOMAIN: '',
-        VITE_FIREBASE_PROJECT_ID: '',
-        VITE_FIREBASE_STORAGE_BUCKET: '',
-        VITE_FIREBASE_MESSAGING_SENDER_ID: '',
-        VITE_FIREBASE_APP_ID: '',
-        VITE_FIREBASE_VAPID_KEY: '',
       },
     },
   },

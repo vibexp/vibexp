@@ -344,10 +344,6 @@ func (b *BaseMockContainer) NotificationDigestQueueRepository() repositories.Not
 	return nil
 }
 
-func (b *BaseMockContainer) DeviceTokenRepository() repositories.DeviceTokenRepository {
-	return nil
-}
-
 // Notification service
 func (b *BaseMockContainer) NotificationService() notifications.NotificationServiceInterface {
 	return nil

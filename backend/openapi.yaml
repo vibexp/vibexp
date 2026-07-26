@@ -850,12 +850,6 @@ components:
     UpdatePreferencesRequest:
       $ref: "./schemas/preferences.yaml#/UpdatePreferencesRequest"
 
-    # Import device token schemas
-    RegisterDeviceTokenRequest:
-      $ref: "./schemas/device-tokens.yaml#/RegisterDeviceTokenRequest"
-    DeleteDeviceTokenRequest:
-      $ref: "./schemas/device-tokens.yaml#/DeleteDeviceTokenRequest"
-
     # Import feed item reply schemas
     FeedItemReply:
       $ref: "./schemas/feeds.yaml#/FeedItemReply"
@@ -1197,8 +1191,6 @@ paths:
     $ref: "./paths/activities.yaml#/api-v1-activities-id"
   /api/v1/preferences:
     $ref: "./paths/user.yaml#/api-v1-preferences"
-  /api/v1/device-tokens:
-    $ref: "./paths/user.yaml#/api-v1-device-tokens"
   /api/v1/user/onboarding/complete:
     $ref: "./paths/user.yaml#/api-v1-user-onboarding-complete"
   /api/v1/{team_id}/feed-items/{item_id}/replies:

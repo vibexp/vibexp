@@ -3,8 +3,6 @@ package providers
 import (
 	"log/slog"
 
-	fcmmessaging "firebase.google.com/go/v4/messaging"
-
 	"github.com/vibexp/vibexp/internal/auth/idp"
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/database"
@@ -651,23 +649,6 @@ func ProvideFeedItemReplyService(
 	)
 }
 
-// ProvideWebPushChannel creates a new WebPushChannel. Returns nil when the FCM
-// client is nil (FCM_ENABLED=false) so that
-// ProvideNotificationService can skip registration via a simple nil check.
-// The nil guard here is the single place where FCM-disabled state is handled;
-// WebPushChannel.Deliver also defends against nil fcm (returns StatusSkipped),
-// but avoiding registration altogether is cleaner.
-func ProvideWebPushChannel(
-	fcmClient *fcmmessaging.Client,
-	tokenRepo repositories.DeviceTokenRepository,
-	logger *slog.Logger,
-) *notifchannels.WebPushChannel {
-	if fcmClient == nil {
-		return nil
-	}
-	return notifchannels.NewWebPushChannel(fcmClient, tokenRepo, logger)
-}
-
 // NotificationServiceDeps groups the dependencies of ProvideNotificationService.
 // Wire fills it via wire.Struct (see the container ProviderSet).
 type NotificationServiceDeps struct {
@@ -677,27 +658,16 @@ type NotificationServiceDeps struct {
 	UserRepo     repositories.UserRepository
 	DigestRepo   repositories.NotificationDigestQueueRepository
 	EmailSvc     services.EmailServiceInterface
-	WebPushCh    *notifchannels.WebPushChannel
 	AppMetrics   *metrics.Metrics
 	Logger       *slog.Logger
 }
 
 // ProvideNotificationService creates a new NotificationService with all registered channels.
-// The WebPush channel is included only when ProvideWebPushChannel returned a non-nil value
-// (i.e. FCM is configured). No FCMEnabled() predicate is needed: a nil channel means FCM is
-// disabled, and WebPushChannel.Deliver returns StatusSkipped when fcm is nil regardless.
 func ProvideNotificationService(deps NotificationServiceDeps) *notificationsvc.NotificationService {
 	inAppCh := notifchannels.NewInAppChannel()
 	emailCh := notifchannels.NewEmailChannel(deps.EmailSvc, deps.DigestRepo, deps.Logger)
 
 	channels := []notificationsvc.Channel{inAppCh, emailCh}
-
-	// Only append the web push channel when FCM is configured.
-	// ProvideWebPushChannel returns nil when FCM is disabled, making this a
-	// straightforward nil check with no need for an FCMEnabled() predicate.
-	if deps.WebPushCh != nil {
-		channels = append(channels, deps.WebPushCh)
-	}
 
 	return notificationsvc.NewNotificationService(
 		deps.NotifRepo,

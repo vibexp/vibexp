@@ -31,6 +31,3 @@ playwright/.cache/
 *.sln
 *.sw?
 coverage/
-
-# Generated at build time — contains Firebase credentials baked in from env vars
-public/firebase-messaging-sw-config.js

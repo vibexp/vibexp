@@ -1,4 +1,4 @@
-import { Bell, Lock, Mail } from 'lucide-react'
+import { Lock, Mail } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -6,10 +6,8 @@ import { PageHeader } from '@/components/PageHeader'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { fcmService } from '@/services/notifications/fcm'
 import {
   type EmailNotificationPreferences,
   type NotificationPreferences,
@@ -68,127 +66,10 @@ function PreferenceRow({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Browser push card
-// ---------------------------------------------------------------------------
-
 const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   'feed.item.created': 'New feed items',
   'feed.reply.created': 'Replies to your feed posts',
   'team.invitation': 'Team invitations',
-}
-
-interface BrowserPushCardProps {
-  notifPrefs: NotificationPreferences | null
-  onChannelChange: (enabled: boolean) => void
-  onTypeChange: (typeName: string, enabled: boolean) => void
-  permissionDenied: boolean
-}
-
-function BrowserPushCard({
-  notifPrefs,
-  onChannelChange,
-  onTypeChange,
-  permissionDenied,
-}: Readonly<BrowserPushCardProps>) {
-  const masterEnabled = notifPrefs?.channels.web_push ?? false
-
-  if (!fcmService.isFCMConfigured()) {
-    return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Bell className="text-muted-foreground size-5" />
-            <CardTitle>Browser notifications</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">
-            Browser notifications require configuration. Contact your
-            administrator to enable this feature.
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Bell className="text-muted-foreground size-5" />
-          <CardTitle>Browser notifications</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="divide-y">
-        <PreferenceRow
-          id="browser_push_master"
-          label="Enable browser notifications"
-          description="Receive OS-level push notifications even when the app is in the background."
-          checked={masterEnabled}
-          onChange={onChannelChange}
-        />
-
-        {permissionDenied && (
-          <Alert variant="destructive" className="mt-3">
-            <AlertTitle>Permission blocked</AlertTitle>
-            <AlertDescription>
-              Browser blocked notifications. To enable, allow notifications for
-              this site in your browser settings.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {masterEnabled && notifPrefs && (
-          <div className="pt-3">
-            <p className="text-muted-foreground mb-3 text-xs font-medium uppercase tracking-wide">
-              Notify me about
-            </p>
-            <div className="space-y-3">
-              {Object.entries(notifPrefs.types).map(([typeName, typePrefs]) => (
-                <WebPushTypeRow
-                  key={typeName}
-                  typeName={typeName}
-                  typePrefs={typePrefs}
-                  onTypeChange={onTypeChange}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-interface WebPushTypeRowProps {
-  typeName: string
-  typePrefs: NotificationTypePreference
-  onTypeChange: (typeName: string, enabled: boolean) => void
-}
-
-function WebPushTypeRow({
-  typeName,
-  typePrefs,
-  onTypeChange,
-}: Readonly<WebPushTypeRowProps>) {
-  const label = NOTIFICATION_TYPE_LABELS[typeName] ?? typeName
-  const id = `web_push_type_${typeName.replaceAll('.', '_')}`
-
-  return (
-    <div className="flex items-center gap-3">
-      <Checkbox
-        id={id}
-        checked={typePrefs.web_push}
-        onCheckedChange={checked => {
-          onTypeChange(typeName, checked === true)
-        }}
-      />
-      <label htmlFor={id} className="cursor-pointer text-sm">
-        {label}
-      </label>
-    </div>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -302,7 +183,6 @@ export function NotificationPreferences() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [permissionDenied, setPermissionDenied] = useState(false)
 
   const hasEmailChanges =
     prefs !== null &&
@@ -340,57 +220,9 @@ export function NotificationPreferences() {
     void loadPreferences()
   }, [loadPreferences])
 
-  // NOTE: reads permission only on mount — if the user revokes in another tab
-  // the UI won't update until remount or a toggle attempt. For live-tracking,
-  // subscribe to the `permissionchange` event on the Notification object.
-  useEffect(() => {
-    if (typeof Notification !== 'undefined') {
-      setPermissionDenied(Notification.permission === 'denied')
-    }
-  }, [])
-
   const toggleEmail = (key: keyof EmailNotificationPreferences) => {
     if (!prefs) return
     setPrefs({ ...prefs, [key]: !prefs[key] })
-    setSuccessMessage(null)
-  }
-
-  const handleBrowserPushToggle = async (enabled: boolean) => {
-    // Fast-path: skip the flicker of briefly clearing permissionDenied when
-    // the user tries to re-enable while permission is already denied.
-    if (enabled && permissionDenied) return
-    setPermissionDenied(false)
-    setSuccessMessage(null)
-
-    if (enabled) {
-      const granted = await fcmService.requestPermissionAndRegister()
-      if (!granted) {
-        setPermissionDenied(true)
-        return
-      }
-    } else {
-      await fcmService.revokeToken()
-    }
-
-    setNotifPrefs(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        channels: { ...prev.channels, web_push: enabled },
-      }
-    })
-  }
-
-  const handleWebPushTypeChange = (typeName: string, webPush: boolean) => {
-    setNotifPrefs(prev => {
-      if (!prev) return prev
-      const updatedTypes = Object.fromEntries(
-        Object.entries(prev.types).map(([key, val]) =>
-          key === typeName ? [key, { ...val, web_push: webPush }] : [key, val]
-        )
-      )
-      return { ...prev, types: updatedTypes }
-    })
     setSuccessMessage(null)
   }
 
@@ -452,7 +284,6 @@ export function NotificationPreferences() {
     }
     setNotifPrefs(originalNotifPrefs)
     setSuccessMessage(null)
-    setPermissionDenied(false)
   }
 
   if (loading) {
@@ -460,7 +291,7 @@ export function NotificationPreferences() {
       <div className="space-y-6">
         <PageHeader
           title="Notification Preferences"
-          description="Manage your email and browser notification settings."
+          description="Manage your email and in-app notification settings."
         />
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
@@ -473,7 +304,7 @@ export function NotificationPreferences() {
     <div className="space-y-6">
       <PageHeader
         title="Notification Preferences"
-        description="Manage your email and browser notification settings."
+        description="Manage your email and in-app notification settings."
       />
 
       {error && (
@@ -541,15 +372,6 @@ export function NotificationPreferences() {
           )}
         </CardContent>
       </Card>
-
-      <BrowserPushCard
-        notifPrefs={notifPrefs}
-        onChannelChange={enabled => {
-          void handleBrowserPushToggle(enabled)
-        }}
-        onTypeChange={handleWebPushTypeChange}
-        permissionDenied={permissionDenied}
-      />
 
       <ActivityEmailCard
         notifPrefs={notifPrefs}

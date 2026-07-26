@@ -57,7 +57,6 @@ type WireContainer struct {
 	notifRepo               repositories.NotificationRepository
 	notifDeliveryRepo       repositories.NotificationDeliveryRepository
 	notifDigestQueueRepo    repositories.NotificationDigestQueueRepository
-	deviceTokenRepo         repositories.DeviceTokenRepository
 
 	// Services
 	authService               services.AuthServiceInterface
@@ -137,11 +136,6 @@ func (c *WireContainer) NotificationDeliveryRepository() repositories.Notificati
 // NotificationDigestQueueRepository returns the notification digest queue repository
 func (c *WireContainer) NotificationDigestQueueRepository() repositories.NotificationDigestQueueRepository {
 	return c.notifDigestQueueRepo
-}
-
-// DeviceTokenRepository returns the device token repository
-func (c *WireContainer) DeviceTokenRepository() repositories.DeviceTokenRepository {
-	return c.deviceTokenRepo
 }
 
 // NotificationService returns the notification service
