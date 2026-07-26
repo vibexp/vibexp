@@ -1056,8 +1056,8 @@ func decode(path string) (*Config, error) {
 // whole point: loud beats silently wrong.
 var removedConfigSections = map[string]string{
 	"github": "GitHub App credentials are now configured per team in the UI " +
-		"(Settings → Integrations → GitHub), not instance-wide. Delete the `github:` section " +
-		"from your config.yaml and re-register the App on each team. " +
+		"(open the team, then Settings → GitHub Integration), not instance-wide. " +
+		"Delete the `github:` section from your config.yaml and re-register the App on each team. " +
 		"Note this is NOT `auth.github` (the web-login OAuth client), which is unaffected.",
 }
 

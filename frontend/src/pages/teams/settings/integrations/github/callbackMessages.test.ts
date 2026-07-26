@@ -33,7 +33,7 @@ describe('describeCallbackFailure', () => {
     {
       name: 'team has no App configured',
       error: apiError(409, 'GITHUB_APP_NOT_CONFIGURED'),
-      expect: /Register one under Settings/i,
+      expect: /Register one under the team’s Settings/i,
     },
     {
       name: 'App has no OAuth credentials',

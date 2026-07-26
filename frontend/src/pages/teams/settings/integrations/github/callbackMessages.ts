@@ -23,10 +23,10 @@ export function describeCallbackFailure(error: unknown): string {
       return 'Your GitHub account cannot administer this installation. Ask someone who can install the App on that organization to complete the connection.'
 
     case 'GITHUB_APP_NOT_CONFIGURED':
-      return 'This team has no GitHub App configured. Register one under Settings → Integrations → GitHub, then install it.'
+      return 'This team has no GitHub App configured. Register one under the team’s Settings → GitHub Integration, then install it.'
 
     case 'github_user_auth_not_configured':
-      return 'This team’s GitHub App has no OAuth credentials, so the installation cannot be verified. Add the App’s Client ID and secret in Settings → Integrations → GitHub, and enable “Request user authorization (OAuth) during installation” on GitHub.'
+      return 'This team’s GitHub App has no OAuth credentials, so the installation cannot be verified. Add the App’s Client ID and secret under the team’s Settings → GitHub Integration, and enable “Request user authorization (OAuth) during installation” on GitHub.'
 
     default:
       break
@@ -43,4 +43,4 @@ export function describeCallbackFailure(error: unknown): string {
 
 /** What to tell someone who reached the callback with no authorization code. */
 export const MISSING_CODE_MESSAGE =
-  'GitHub did not return an authorization code, so this installation cannot be verified. Start the install again from Settings → Integrations → GitHub.'
+  'GitHub did not return an authorization code, so this installation cannot be verified. Start the install again from the team’s Settings → GitHub Integration.'
