@@ -144,6 +144,13 @@ func TestClear_SetsMaxAgeNegative(t *testing.T) {
 	assert.Equal(t, CookieName, c.Name)
 	assert.Equal(t, "", c.Value)
 	assert.Equal(t, -1, c.MaxAge)
+
+	// The expiry write must carry the same attributes as Write or the browser
+	// will not match the original cookie and the clear becomes a no-op. gosec's
+	// G124 is suppressed on both writes (#553), so this is what guards them.
+	assert.True(t, c.HttpOnly)
+	assert.Equal(t, http.SameSiteLaxMode, c.SameSite)
+	assert.Equal(t, cookiePath, c.Path)
 }
 
 func TestSession_IsExpired(t *testing.T) {

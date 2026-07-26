@@ -162,6 +162,11 @@ func (m *Manager) Write(w http.ResponseWriter, s *Session) error {
 		return fmt.Errorf("%w: got %d bytes, limit %d", ErrCookieTooLarge, len(ciphertext), maxCookieValueBytes)
 	}
 
+	// #nosec G124 -- HttpOnly and SameSite are set below and Secure is set from
+	// m.secure, which is false only for local HTTP development. G124 requires a
+	// literal `Secure: true` and cannot see through the variable; hard-coding it
+	// would break local dev and the localhost e2e stack. The attributes are
+	// asserted in session_test.go for both the local and production cases.
 	http.SetCookie(w, &http.Cookie{
 		Name:     CookieName,
 		Value:    ciphertext,
@@ -177,6 +182,10 @@ func (m *Manager) Write(w http.ResponseWriter, s *Session) error {
 // Clear sets the session cookie to expire immediately, effectively logging
 // the user out of the cookie-based session.
 func (m *Manager) Clear(w http.ResponseWriter) {
+	// #nosec G124 -- same as Write: Secure comes from m.secure, which G124 cannot
+	// evaluate. This is the expiry write (MaxAge -1) and carries the identical
+	// attribute set so the browser matches and drops the original cookie —
+	// asserted in TestClear_SetsMaxAgeNegative.
 	http.SetCookie(w, &http.Cookie{
 		Name:     CookieName,
 		Value:    "",

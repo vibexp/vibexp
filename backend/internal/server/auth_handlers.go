@@ -110,17 +110,35 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, LoginResponse{URL: authURL}, s.logger)
 }
 
-// writeStateCookie sets the short-lived, signed CSRF state cookie.
-func (s *Server) writeStateCookie(w http.ResponseWriter, value string) {
+// setStateCookie is the single writer for the CSRF state cookie. Both the set
+// and the expiry path go through it so their attributes cannot drift: a browser
+// only replaces a cookie whose name, path and flags all match, so a divergence
+// would silently turn the clear into a no-op.
+func (s *Server) setStateCookie(w http.ResponseWriter, value string, maxAge int) {
+	// #nosec G124 -- HttpOnly and SameSite are set below; Secure is derived from
+	// IsDevelopment() so it is true everywhere except local HTTP development.
+	// G124 only accepts a literal `Secure: true` and cannot see through the
+	// expression. Asserted in TestWriteStateCookie_Attributes and
+	// TestClearStateCookie_Attributes.
 	http.SetCookie(w, &http.Cookie{
 		Name:     stateCookieName,
 		Value:    value,
 		Path:     "/",
-		MaxAge:   stateCookieMaxAge,
+		MaxAge:   maxAge,
 		HttpOnly: true,
 		Secure:   !s.container.EnvironmentService().IsDevelopment(),
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+// writeStateCookie sets the short-lived, signed CSRF state cookie.
+func (s *Server) writeStateCookie(w http.ResponseWriter, value string) {
+	s.setStateCookie(w, value, stateCookieMaxAge)
+}
+
+// clearStateCookie expires the CSRF state cookie.
+func (s *Server) clearStateCookie(w http.ResponseWriter) {
+	s.setStateCookie(w, "", -1)
 }
 
 // resolveLoginProvider validates the requested provider against the enabled
@@ -181,16 +199,7 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clear state cookie
-	secure := !s.container.EnvironmentService().IsDevelopment()
-	http.SetCookie(w, &http.Cookie{
-		Name:     stateCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
+	s.clearStateCookie(w)
 
 	user, idpTokens, isNewUser, err := s.container.AuthService().HandleCallback(r.Context(), code, provider)
 	if err != nil {

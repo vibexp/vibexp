@@ -99,6 +99,80 @@ func TestAgentAuthenticator_ApplyAuthentication(t *testing.T) {
 		assert.Equal(t, "query-key-456", req.URL.Query().Get("api_key"))
 	})
 
+	// The cookie location was the one APIKeySecurityScheme location with no
+	// coverage (#553). gosec's G124 is suppressed on that branch because the
+	// attributes are meaningless on an outbound request cookie, so this is what
+	// verifies the credential actually reaches the agent.
+	t.Run("API Key in cookie", func(t *testing.T) {
+		encrypted, err := encryptionSvc.Encrypt("cookie-key-789")
+		require.NoError(t, err)
+		credentials := models.AgentCredentials{
+			"cookieAuth": models.AgentCredential{
+				Type:  "apiKey",
+				Value: encrypted,
+			},
+		}
+
+		agent := &models.Agent{
+			AgentCard: &models.AgentCard{
+				Name: "Test Agent",
+				SecurityRequirements: a2a.SecurityRequirementsOptions{
+					{"cookieAuth": {}},
+				},
+				SecuritySchemes: a2a.NamedSecuritySchemes{
+					"cookieAuth": a2a.APIKeySecurityScheme{
+						Name:     "session_key",
+						Location: a2a.APIKeySecuritySchemeLocationCookie,
+					},
+				},
+			},
+			Credentials: &credentials,
+		}
+
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		require.NoError(t, err)
+		err = authenticator.ApplyAuthentication(req, agent)
+
+		assert.NoError(t, err)
+		c, cookieErr := req.Cookie("session_key")
+		require.NoError(t, cookieErr)
+		assert.Equal(t, "cookie-key-789", c.Value)
+	})
+
+	t.Run("unsupported API key location is rejected", func(t *testing.T) {
+		encrypted, err := encryptionSvc.Encrypt("unused")
+		require.NoError(t, err)
+		credentials := models.AgentCredentials{
+			"badAuth": models.AgentCredential{
+				Type:  "apiKey",
+				Value: encrypted,
+			},
+		}
+
+		agent := &models.Agent{
+			AgentCard: &models.AgentCard{
+				Name: "Test Agent",
+				SecurityRequirements: a2a.SecurityRequirementsOptions{
+					{"badAuth": {}},
+				},
+				SecuritySchemes: a2a.NamedSecuritySchemes{
+					"badAuth": a2a.APIKeySecurityScheme{
+						Name:     "whatever",
+						Location: "body",
+					},
+				},
+			},
+			Credentials: &credentials,
+		}
+
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		require.NoError(t, err)
+
+		err = authenticator.ApplyAuthentication(req, agent)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported API key location")
+	})
+
 	t.Run("Bearer token authentication", func(t *testing.T) {
 		encrypted, err := encryptionSvc.Encrypt("bearer-token-789")
 		require.NoError(t, err)

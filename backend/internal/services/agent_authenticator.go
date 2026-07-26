@@ -138,6 +138,10 @@ func (a *AgentAuthenticator) applyAPIKeyAuth(
 		q.Set(scheme.Name, value)
 		req.URL.RawQuery = q.Encode()
 	case a2a.APIKeySecuritySchemeLocationCookie:
+		// #nosec G124 -- this is an OUTBOUND REQUEST cookie, not a response
+		// cookie. Per RFC 6265 a client sends only name=value pairs; Secure,
+		// HttpOnly and SameSite are response-only directives and would be
+		// dropped on the wire. G124 does not distinguish the two directions.
 		req.AddCookie(&http.Cookie{
 			Name:  scheme.Name,
 			Value: value,
