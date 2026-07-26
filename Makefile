@@ -391,8 +391,20 @@ e2e-down:
 # Install the Playwright browser(s) the suite needs (chromium only). Depends on
 # frontend-deps so `npx` resolves the pinned local playwright rather than
 # downloading its own, and so the two never run concurrently under `make -j`.
+#
+# `--with-deps` shells out to `sudo apt-get install` for Chromium's shared
+# libraries whenever the caller is not root — every run, even when the packages
+# are already there — so a plain `make e2e` stopped for a password prompt in the
+# middle of an otherwise unattended run (#640). Probe with `install-deps
+# --dry-run` (non-zero exit = something is missing, no system changes) and only
+# escalate when there is actually something to install: a warm machine takes the
+# browser-only path with no sudo, a fresh CI runner takes the original one.
 e2e-browsers: frontend-deps
-	cd frontend && npx playwright install --with-deps chromium
+	cd frontend && if npx playwright install-deps --dry-run chromium >/dev/null 2>&1; then \
+		npx playwright install chromium; \
+	else \
+		npx playwright install --with-deps chromium; \
+	fi
 
 # The Playwright invocation, defined once and shared by `e2e-test` and `e2e` so
 # the two can never drift. It cd's, so callers that do anything afterwards must
