@@ -381,7 +381,7 @@ func TestInitializeContainer_ServiceDependencies(t *testing.T) {
 	promptService := c.PromptService()
 	assert.NotNil(t, promptService, "PromptService should be properly wired")
 
-	// ArtifactService depends on ArtifactRepository, EventPublisher, ResourceUsageService, Logger
+	// ArtifactService depends on ArtifactRepository, EventPublisher, Logger
 	artifactService := c.ArtifactService()
 	assert.NotNil(t, artifactService, "ArtifactService should be properly wired")
 
