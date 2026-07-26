@@ -56,14 +56,23 @@ func TestIntegrationAPIKey_CreateAndGetByUserID(t *testing.T) {
 
 	got := keys[1]
 	assert.Equal(t, older.ID, got.ID)
-	assert.Equal(t, []string{"mcp_server", "cli"}, []string(got.Integrations), "permissions must be hydrated in grant order")
+	// Alphabetical, NOT the insert order ("mcp_server", "cli"): every permission
+	// row a Create inserts shares one transaction timestamp, so granted_at ties
+	// and integration_code decides. Asserting insert order here would pass only
+	// by luck (#246).
+	assert.Equal(t, []string{"cli", "mcp_server"}, []string(got.Integrations),
+		"permissions hydrate in a stable order: granted_at, then integration_code")
 	assert.Equal(t, "everything", got.UsageType, "column default must apply when Create omits usage_type")
 	assert.False(t, got.IsLegacy)
 	assert.Nil(t, got.MigrationNotes)
 	assert.Nil(t, got.LastUsedAt)
 	assert.Nil(t, got.ExpiresAt)
 
-	assert.Empty(t, keys[0].Integrations, "a key created without integrations must hydrate to an empty slice")
+	// assert.Empty passes for nil too, so it cannot fail on the regression it
+	// names. Compare against an explicit empty slice instead: this is the same
+	// [] vs null wire distinction models.JSONArray[T] exists to protect (#125).
+	assert.Equal(t, []string{}, []string(keys[0].Integrations),
+		"a key created without integrations must hydrate to an empty slice, never nil")
 }
 
 func TestIntegrationAPIKey_Create_UnknownIntegrationRollsBack(t *testing.T) {
