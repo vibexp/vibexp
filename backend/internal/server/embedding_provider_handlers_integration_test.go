@@ -1753,3 +1753,101 @@ func TestEmbeddingProviderValidate_SpecConformance(t *testing.T) {
 		}, http.MethodPost, path, validBody, http.StatusInternalServerError)
 	})
 }
+
+// TestToGenEmbeddingProviderResponse_MapsEveryField pins the converter field by
+// field.
+//
+// This is deliberately NOT covered by the spec-conformance assertions above, and
+// cannot be: every field below is a required scalar of the documented type, so
+// transposing two of them (or reading the wrong source field) produces a payload
+// that still validates perfectly against the schema. Verified by mutation —
+// swapping chunk_size and chunk_overlap in the converter leaves all twelve
+// conformance assertions green and only fails here.
+func TestToGenEmbeddingProviderResponse_MapsEveryField(t *testing.T) {
+	src := specConformanceProviderResponse()
+	// Distinct values per numeric field so a transposition cannot pass.
+	src.ChunkSize = 1111
+	src.ChunkOverlap = 222
+	src.Concurrency = 7
+	src.Version = 42
+
+	got := toGenEmbeddingProviderResponse(*src)
+
+	assert.Equal(t, src.ID, got.Id)
+	assert.Equal(t, src.UserID, got.UserId)
+	require.NotNil(t, got.TeamId)
+	assert.Equal(t, specTeamID, got.TeamId.String())
+	assert.Equal(t, src.Name, got.Name)
+	assert.Equal(t, src.ProviderType, got.ProviderType)
+	assert.Equal(t, src.Model, got.Model)
+	assert.Equal(t, 1111, got.ChunkSize)
+	assert.Equal(t, 222, got.ChunkOverlap)
+	assert.Equal(t, 7, got.Concurrency)
+	assert.Equal(t, src.QueryPrefix, got.QueryPrefix)
+	assert.Equal(t, src.DocumentPrefix, got.DocumentPrefix)
+	assert.Equal(t, src.IsDefault, got.IsDefault)
+	assert.Equal(t, src.BaseURL, got.BaseUrl)
+	assert.Equal(t, src.Configuration, got.Configuration)
+	assert.Equal(t, src.CreatedAt, got.CreatedAt)
+	assert.Equal(t, src.UpdatedAt, got.UpdatedAt)
+	assert.Equal(t, int64(42), got.Version)
+	assert.True(t, got.HasApiKey)
+}
+
+// TestToGenEmbeddingProviderResponse_OmitsUnusableTeamID covers the two cases
+// where the generated `format: uuid` field must be omitted rather than filled
+// with a value that would fail spec validation for every caller.
+func TestToGenEmbeddingProviderResponse_OmitsUnusableTeamID(t *testing.T) {
+	for name, teamID := range map[string]*string{
+		"nil":        nil,
+		"empty":      strPtr(""),
+		"not_a_uuid": strPtr("team-123"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			src := specConformanceProviderResponse()
+			src.TeamID = teamID
+
+			assert.Nil(t, toGenEmbeddingProviderResponse(*src).TeamId)
+		})
+	}
+}
+
+// TestToGenValidateResponse_OmitsZeroDetails pins the details mapping: each field
+// is omitted when zero, which is what keeps the payload identical to the
+// hand-marshaled response this replaced (models.ValidateEmbeddingProviderDetails
+// used `omitempty` on every field).
+func TestToGenValidateResponse_OmitsZeroDetails(t *testing.T) {
+	populated := toGenValidateResponse(&models.ValidateEmbeddingProviderResponse{
+		IsValid: true,
+		Message: "ok",
+		Details: models.ValidateEmbeddingProviderDetails{
+			ResponseTime: 150, StatusCode: 200, Dimension: 1024, ErrorDetails: "none",
+		},
+	})
+	require.NotNil(t, populated.Details)
+	assert.True(t, populated.IsValid)
+	assert.Equal(t, "ok", populated.Message)
+	require.NotNil(t, populated.Details.ResponseTimeMs)
+	assert.Equal(t, 150, *populated.Details.ResponseTimeMs)
+	require.NotNil(t, populated.Details.StatusCode)
+	assert.Equal(t, 200, *populated.Details.StatusCode)
+	require.NotNil(t, populated.Details.Dimension)
+	assert.Equal(t, 1024, *populated.Details.Dimension)
+	require.NotNil(t, populated.Details.ErrorDetails)
+	assert.Equal(t, "none", *populated.Details.ErrorDetails)
+
+	empty := toGenValidateResponse(&models.ValidateEmbeddingProviderResponse{
+		IsValid: false, Message: "bad",
+	})
+	require.NotNil(t, empty.Details)
+	assert.Nil(t, empty.Details.ResponseTimeMs)
+	assert.Nil(t, empty.Details.StatusCode)
+	assert.Nil(t, empty.Details.Dimension)
+	assert.Nil(t, empty.Details.ErrorDetails)
+
+	body, err := json.Marshal(empty)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"is_valid":false,"message":"bad","details":{}}`, string(body))
+}
+
+func strPtr(s string) *string { return &s }

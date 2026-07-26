@@ -237,6 +237,7 @@ func (e *embeddingProvidersStrictServer) list(
 		e.s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "ListEmbeddingProviders",
+			"user_id", loggableUserID(ctx),
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to get embedding providers")
 		return nil, apierrors.NewDatabaseError(
@@ -271,6 +272,7 @@ func (e *embeddingProvidersStrictServer) get(
 		e.s.logger.With(
 			"service", serverLogServiceName,
 			"handler", "GetEmbeddingProvider",
+			"user_id", loggableUserID(ctx),
 			"provider_id", providerID,
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to get embedding provider")
@@ -541,6 +543,15 @@ func requireProviderID(providerID string) error {
 		msgProviderIDRequiredInPath,
 		[]apierrors.ValidationError{apierrors.NewRequiredFieldError("id")},
 	)
+}
+
+// loggableUserID returns the authenticated user id for log lines on the two read
+// operations, which do not otherwise need it. It never fails the request: the
+// auth middleware guarantees the value, and a missing one must not turn a
+// readable error log into a 401.
+func loggableUserID(ctx context.Context) string {
+	userID, _ := ctx.Value(contextKeyUserID).(string)
+	return userID
 }
 
 // providerPermissionError maps a service permission failure to this domain's
