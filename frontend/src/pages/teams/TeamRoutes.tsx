@@ -6,6 +6,7 @@ import { ProjectEdit } from '@/pages/teams/projects/ProjectEdit'
 import { ProjectMigrate } from '@/pages/teams/projects/ProjectMigrate'
 import { Projects } from '@/pages/teams/projects/Projects'
 import { Customization } from '@/pages/teams/settings/customization/Customization'
+import { EmailProvider } from '@/pages/teams/settings/email-provider/EmailProvider'
 import { EmbeddingProviders } from '@/pages/teams/settings/embedding-providers/EmbeddingProviders'
 import { GitHubIntegration } from '@/pages/teams/settings/integrations/github/GitHubIntegration'
 import { ModelProviders } from '@/pages/teams/settings/model-providers/ModelProviders'
@@ -50,13 +51,18 @@ export function TeamRoutes({
       <Route path="projects/:slug/edit" element={<ProjectEdit />} />
       <Route path="projects/:slug/migrate" element={<ProjectMigrate />} />
       <Route path="settings" element={<TeamSettings team={team} />} />
-      {/* The five team-scoped configuration pages, relocated in #540. Each one
-          takes the team the layout resolved from the URL — none of them may
-          read `useTeam()` (#584). React fires child effects before parent
-          effects, so on a cold deep-link a page's load effect runs BEFORE
-          TeamScopeLayout's `setCurrentTeam` sync, and the ambient team is still
-          whichever one was last persisted. */}
+      {/* The team-scoped configuration pages, relocated in #540 and extended
+          with the email provider in #506. Each one takes the team the layout
+          resolved from the URL — none of them may read `useTeam()` (#584).
+          React fires child effects before parent effects, so on a cold
+          deep-link a page's load effect runs BEFORE TeamScopeLayout's
+          `setCurrentTeam` sync, and the ambient team is still whichever one was
+          last persisted. */}
       <Route path="settings/search" element={<SearchSettings team={team} />} />
+      <Route
+        path="settings/email-provider"
+        element={<EmailProvider team={team} />}
+      />
       <Route
         path="settings/model-providers"
         element={<ModelProviders team={team} />}

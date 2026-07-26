@@ -35,6 +35,12 @@ jest.mock(
 jest.mock('@/pages/teams/settings/customization/Customization', () => ({
   Customization: () => <div data-testid="customization" />,
 }))
+// #506 — the email provider page, added to the same set.
+jest.mock('@/pages/teams/settings/email-provider/EmailProvider', () => ({
+  EmailProvider: ({ team }: { team: Team }) => (
+    <div data-testid="email-provider">{team.name}</div>
+  ),
+}))
 jest.mock(
   '@/pages/teams/settings/integrations/github/GitHubIntegration',
   () => ({
@@ -91,6 +97,7 @@ describe('TeamRoutes', () => {
     ['/teams/team-a/settings/model-providers', 'model-providers'],
     ['/teams/team-a/settings/embedding-providers', 'embedding-providers'],
     ['/teams/team-a/settings/customization', 'customization'],
+    ['/teams/team-a/settings/email-provider', 'email-provider'],
     // #541 - note the nested path, which a non-splat sibling route still matches.
     ['/teams/team-a/settings/integrations/github', 'github-integration'],
   ])('renders the relocated page at %s', (path, testId) => {
@@ -104,6 +111,15 @@ describe('TeamRoutes', () => {
     // rather than leaving it to read the ambient context.
     renderAt('/teams/team-a/settings/search')
     expect(screen.getByTestId('search')).toHaveTextContent('Engineering')
+  })
+
+  it('passes the resolved team to EmailProvider for permission gating', () => {
+    // Same reason as SearchSettings: #506 gates save/test/revert on
+    // `team.update` read off the URL's team, never the ambient one (#584).
+    renderAt('/teams/team-a/settings/email-provider')
+    expect(screen.getByTestId('email-provider')).toHaveTextContent(
+      'Engineering'
+    )
   })
 
   it('still 404s an unknown path under settings', () => {

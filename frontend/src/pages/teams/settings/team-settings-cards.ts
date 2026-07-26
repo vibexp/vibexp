@@ -1,4 +1,4 @@
-import { Bot, Cpu, Shapes, SlidersHorizontal } from 'lucide-react'
+import { Bot, Cpu, Mail, Shapes, SlidersHorizontal } from 'lucide-react'
 
 import { GitHubIcon } from '@/components/icons/GitHubIcon'
 import type { SettingItem } from '@/components/settings/SettingsGrid'
@@ -39,6 +39,12 @@ export function teamSettingsCardsFor(teamId: string): SettingItem[] {
         'Configure embedding vector providers for your AI applications.',
       icon: Cpu,
       href: `${base}/embedding-providers`,
+    },
+    {
+      title: 'Email Provider',
+      description: "Send your team's email through your own provider.",
+      icon: Mail,
+      href: `${base}/email-provider`,
     },
     {
       title: 'GitHub Integration',
