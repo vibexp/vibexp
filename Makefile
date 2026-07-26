@@ -1,4 +1,4 @@
-.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down e2e-browsers e2e-test e2e
+.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down frontend-deps e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
@@ -329,7 +329,10 @@ build-combined: frontend-build
 # fake-gcs-server, so the Playwright suite runs against the artifact we ship.
 # CI (.github/workflows/ci-e2e.yml, workflow_dispatch) runs the SAME `make e2e`,
 # so local and CI stay identical.
-E2E_COMPOSE := docker compose -f docker-compose.e2e.yml
+
+# Absolute compose path: every e2e target must work regardless of the shell's
+# cwd, so a recipe that cd's somewhere first can never break the teardown (#598).
+E2E_COMPOSE := docker compose -f $(CURDIR)/docker-compose.e2e.yml
 E2E_BASE_URL ?= http://localhost:8080
 # URL the BACKEND (app container) uses to reach the dummy A2A agent — the
 # compose service name, resolvable inside the vibexp-e2e network. The real-agent
@@ -345,19 +348,45 @@ e2e-up:
 e2e-down:
 	$(E2E_COMPOSE) down -v --remove-orphans
 
-# Install the Playwright browser(s) the suite needs (chromium only).
-e2e-browsers:
+# Install the Playwright browser(s) the suite needs (chromium only). Depends on
+# frontend-deps so `npx` resolves the pinned local playwright rather than
+# downloading its own, and so the two never run concurrently under `make -j`.
+e2e-browsers: frontend-deps
 	cd frontend && npx playwright install --with-deps chromium
 
+# The Playwright invocation, defined once and shared by `e2e-test` and `e2e` so
+# the two can never drift. It cd's, so callers that do anything afterwards must
+# run it in a subshell — see `e2e` below.
+E2E_PLAYWRIGHT = cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) E2E_A2A_AGENT_URL=$(E2E_A2A_AGENT_URL) npm run test:e2e
+
+# A fresh clone or git worktree has no frontend/node_modules, which surfaces from
+# the e2e targets as a bare `sh: 1: playwright: not found` (exit 127) — after the
+# stack has already been built and started. `npm ci` (not `install`) because the
+# suite must run against the locked dependency set. CI installs deps in its own
+# step, so this guard is a no-op there.
+frontend-deps:
+	@if [ ! -d frontend/node_modules ]; then \
+		echo "📦 Installing frontend dependencies..."; \
+		cd frontend && npm ci; \
+	fi
+
 # Run the Playwright suite against an already-running stack.
-e2e-test:
-	cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) E2E_A2A_AGENT_URL=$(E2E_A2A_AGENT_URL) npm run test:e2e
+e2e-test: frontend-deps
+	$(E2E_PLAYWRIGHT)
 
 # One-shot: install browsers, bring the stack up, run the suite, always tear the
-# stack down, and propagate the suite's exit code. This is what CI runs.
-e2e: e2e-browsers e2e-up
-	@cd frontend && CI=true PLAYWRIGHT_BASE_URL=$(E2E_BASE_URL) E2E_A2A_AGENT_URL=$(E2E_A2A_AGENT_URL) npm run test:e2e; \
+# stack down — including on Ctrl-C — and propagate the suite's exit code. This is
+# what CI runs.
+#
+# The suite runs in a SUBSHELL so its `cd frontend` cannot leak into the steps
+# after it: unparenthesised, the cd was still in effect at teardown, which then
+# failed on the compose path and leaked the whole running stack plus its Postgres
+# volume into the next run (#598). The subshell also keeps Playwright's own exit
+# code, which a `$(MAKE) e2e-test` sub-make would flatten to make's generic 2.
+e2e: frontend-deps e2e-browsers e2e-up
+	@trap 'echo "🧹 Tearing down the e2e stack (interrupted)..."; $(MAKE) --no-print-directory e2e-down; exit 130' INT TERM; \
+	( $(E2E_PLAYWRIGHT) ); \
 	status=$$?; \
 	echo "🧹 Tearing down the e2e stack..."; \
-	$(E2E_COMPOSE) down -v --remove-orphans; \
+	$(MAKE) --no-print-directory e2e-down; \
 	exit $$status
