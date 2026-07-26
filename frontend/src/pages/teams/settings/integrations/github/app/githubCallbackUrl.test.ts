@@ -13,7 +13,7 @@
  */
 import { teamSettingsCardsFor } from '@/pages/teams/settings/team-settings-cards'
 
-import { githubCallbackUrlFor } from './GitHubAppSetupGuide'
+import { githubCallbackUrlFor } from './githubCallbackUrl'
 
 const TEAM_ID = '11111111-2222-4333-8444-555555555555'
 

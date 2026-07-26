@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import { CopyableValue } from './CopyableValue'
+import { githubCallbackUrlFor } from './githubCallbackUrl'
 
 /**
  * The numbered walkthrough for registering a team's own GitHub App.
@@ -59,24 +60,6 @@ export interface GitHubAppSetupGuideProps {
    * editable — this is only a starting value.
    */
   defaultOrganization?: string
-}
-
-/**
- * Absolute URL GitHub must return to after an install.
- *
- * `window.location.origin` rather than a configured base URL: this is the
- * origin the admin's browser is actually on, which is the one that has to match
- * what they paste into GitHub. A server-side value could legitimately differ
- * behind a reverse proxy and would be the wrong thing to show.
- *
- * The path is defined by the `settings/integrations/github` route in
- * `pages/teams/TeamRoutes.tsx`. It is spelled out here rather than imported
- * because no shared route-path constant exists yet — `githubCallbackUrl.test.ts`
- * pins it against the settings-hub card's href so the two cannot drift apart
- * silently, which is exactly how this URL went stale in the first place (#541).
- */
-export function githubCallbackUrlFor(teamId: string): string {
-  return `${window.location.origin}/teams/${teamId}/settings/integrations/github`
 }
 
 export function GitHubAppSetupGuide({
