@@ -129,7 +129,7 @@ test.describe('Core Feature Smoke Tests', () => {
     // Fill API key form (name + at least one integration, both required)
     const keyName = `Smoke Test Key ${Date.now()}`
     await page.locator('[data-testid="api-key-name-input"]').fill(keyName)
-    await page.locator('[data-testid="integration-checkbox-ai_tools"]').check()
+    await page.locator('[data-testid="integration-checkbox-cli"]').check()
 
     // Submit and verify the created key is shown
     await page.locator('[data-testid="submit-create-api-key-button"]').click()
