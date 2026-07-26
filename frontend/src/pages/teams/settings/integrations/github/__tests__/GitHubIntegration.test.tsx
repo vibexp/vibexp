@@ -748,7 +748,11 @@ describe('GitHubIntegration — install callback via URL params', () => {
       403,
       /cannot administer this installation/i,
     ],
-    ['GITHUB_APP_NOT_CONFIGURED', 409, /Register one under Settings/i],
+    [
+      'GITHUB_APP_NOT_CONFIGURED',
+      409,
+      /Register one under the team’s Settings/i,
+    ],
     ['github_user_auth_not_configured', 503, /Client ID and secret/i],
   ])('maps %s to its own actionable message', async (code, status, match) => {
     ;(githubIntegrationService.handleCallback as jest.Mock).mockRejectedValue(
