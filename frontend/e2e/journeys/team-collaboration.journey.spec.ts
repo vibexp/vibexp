@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test'
+
 import { test, expect } from '../fixtures/auth'
 
 /**
@@ -23,6 +25,34 @@ import { test, expect } from '../fixtures/auth'
  * and a team switch is confirmed via the current-team indicator before any
  * full-page navigation re-hydrates the team context from storage.
  */
+
+/**
+ * Creates a team and opens its detail page.
+ *
+ * Tests that need a team create their own rather than clicking whatever is
+ * first in the list (#559). Two reasons, both of which previously made tests
+ * assert nothing at all:
+ *
+ *  - The teams list renders **no anchor** — the name cell is a `<button>` with
+ *    an onClick — so the old `a[href*="/teams/"]` selector matched zero
+ *    elements and its `count() > 0` guard was permanently false.
+ *  - The `authenticatedPage` fixture mints a fresh user per test, so the only
+ *    pre-existing team is the personal Private Workspace, which hides Invite
+ *    and other team affordances. "The first team" is the wrong team.
+ *
+ * `teamName` must be unique per test — colliding names made a sibling spec
+ * ambiguous in #597.
+ */
+async function createTeamAndOpen(page: Page, teamName: string): Promise<void> {
+  await page.goto('/teams')
+  await page.click('[data-testid="create-team-button"]')
+  await page.fill('[data-testid="team-name-input"]', teamName)
+  await page.click('[data-testid="submit-create-team-button"]')
+
+  // Opens via the stable hook on the row's clickable name, so a future
+  // restructure of the list fails this loudly instead of silently skipping.
+  await page.click(`[data-testid="team-row-link"]:has-text("${teamName}")`)
+}
 test.describe('Journey 7: Team Collaboration Workflow', () => {
   test.describe('Teams Navigation', () => {
     test('should navigate to Teams from settings', async ({
@@ -230,39 +260,40 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
     test('should require valid email for invitation', async ({
       authenticatedPage,
     }) => {
-      await authenticatedPage.goto('/teams')
+      // Creates its own team, like `should open invite dialog` above. The
+      // previous version selected `a[href*="/teams/"]` — the list renders no
+      // anchor at all, so it matched nothing, the count() > 0 guard was always
+      // false, and this test asserted NOTHING while reporting green (#559).
+      //
+      // Clicking "the first team" would not fix it either: the authenticatedPage
+      // fixture mints a fresh user, whose only pre-existing team is the personal
+      // Private Workspace — and TeamActions hides Invite for a personal team. A
+      // first-row click would legitimately find no Invite button, which is what
+      // the second, nested guard was papering over.
+      await createTeamAndOpen(authenticatedPage, 'Invalid Email Test Team')
 
-      const firstTeam = authenticatedPage.locator('a[href*="/teams/"]').first()
+      await authenticatedPage
+        .getByRole('button', { name: /invite|add member/i })
+        .first()
+        .click()
 
-      if ((await firstTeam.count()) > 0) {
-        await firstTeam.click()
+      // Located by label, not by `input[placeholder*="email"]` as before: the
+      // field is a <textarea>, so an `input[...]` selector never matches it —
+      // a second reason this test could not have worked even with a team open.
+      await authenticatedPage
+        .getByLabel(/email addresses/i)
+        .fill('invalid-email')
 
-        const inviteButton = authenticatedPage.locator(
-          'button:has-text("Invite")'
-        )
-        await inviteButton
-          .first()
-          .waitFor({ state: 'visible', timeout: 10000 })
-          .catch(() => {})
+      // "Send Invitations", plural — the old selector's singular substring
+      // happened to still match, but pin the real copy.
+      await authenticatedPage
+        .getByRole('button', { name: /send invitations/i })
+        .click()
 
-        if ((await inviteButton.count()) > 0) {
-          await inviteButton.first().click()
-
-          // Enter invalid email (fill auto-waits for the field to render)
-          await authenticatedPage.fill(
-            'input[placeholder*="email"]',
-            'invalid-email'
-          )
-
-          // Try to send
-          await authenticatedPage.click('button:has-text("Send Invitation")')
-
-          // Should show validation error
-          await expect(
-            authenticatedPage.getByText(/valid email|email.*invalid/i)
-          ).toBeVisible()
-        }
-      }
+      // The modal reports `Invalid email at position 1: invalid-email`.
+      await expect(
+        authenticatedPage.getByText(/invalid email at position/i)
+      ).toBeVisible({ timeout: 10000 })
     })
   })
 
@@ -478,36 +509,35 @@ test.describe('Journey 7: Team Collaboration Workflow', () => {
 
   test.describe('Team Member Management', () => {
     test('should list team members', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/teams')
+      await createTeamAndOpen(authenticatedPage, 'Member List Test Team')
 
-      const firstTeam = authenticatedPage.locator('a[href*="/teams/"]').first()
+      // Scoped to the heading rather than getByText(/members/i): that regex also
+      // matches the "Total members" stat card, so once the guard is gone and the
+      // assertion actually runs it would fail Playwright strict mode.
+      await expect(
+        authenticatedPage.getByRole('heading', { name: /team members/i })
+      ).toBeVisible({ timeout: 10000 })
 
-      if ((await firstTeam.count()) > 0) {
-        await firstTeam.click()
-
-        // Should see members section
-        await expect(
-          authenticatedPage.getByText(/members|team members/i)
-        ).toBeVisible({ timeout: 10000 })
-
-        // Should see at least owner (current user)
-        await expect(authenticatedPage.getByText(/owner|you/i)).toBeVisible()
-      }
+      // Exactly one: the fixture mints a fresh user per test, so a team they
+      // just created has precisely one member. An "at least one" assertion would
+      // not notice the list rendering someone else's members.
+      await expect(
+        authenticatedPage.locator('[data-testid="team-member-row"]')
+      ).toHaveCount(1)
     })
 
     test('should display member roles', async ({ authenticatedPage }) => {
-      await authenticatedPage.goto('/teams')
+      await createTeamAndOpen(authenticatedPage, 'Member Roles Test Team')
 
-      const firstTeam = authenticatedPage.locator('a[href*="/teams/"]').first()
-
-      if ((await firstTeam.count()) > 0) {
-        await firstTeam.click()
-
-        // Should show role badges (Owner, Admin, Member)
-        await expect(
-          authenticatedPage.getByText(/owner|admin|member/i)
-        ).toBeVisible({ timeout: 10000 })
-      }
+      // Scoped to the member row: /owner|admin|member/i unscoped matches the
+      // stat card and the section heading too, so this would be a strict-mode
+      // failure the moment it stopped being skipped.
+      await expect(
+        authenticatedPage
+          .locator('[data-testid="team-member-row"]')
+          .first()
+          .getByText(/owner/i)
+      ).toBeVisible({ timeout: 10000 })
     })
   })
 
