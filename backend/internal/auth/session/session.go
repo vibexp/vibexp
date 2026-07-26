@@ -182,9 +182,10 @@ func (m *Manager) Write(w http.ResponseWriter, s *Session) error {
 // Clear sets the session cookie to expire immediately, effectively logging
 // the user out of the cookie-based session.
 func (m *Manager) Clear(w http.ResponseWriter) {
-	// #nosec G124 -- same as Set: Secure comes from m.secure, which G124 cannot
+	// #nosec G124 -- same as Write: Secure comes from m.secure, which G124 cannot
 	// evaluate. This is the expiry write (MaxAge -1) and carries the identical
-	// attribute set so the browser matches and drops the original cookie.
+	// attribute set so the browser matches and drops the original cookie —
+	// asserted in TestClear_SetsMaxAgeNegative.
 	http.SetCookie(w, &http.Cookie{
 		Name:     CookieName,
 		Value:    "",

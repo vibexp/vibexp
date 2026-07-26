@@ -110,37 +110,35 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, LoginResponse{URL: authURL}, s.logger)
 }
 
-// writeStateCookie sets the short-lived, signed CSRF state cookie.
-func (s *Server) writeStateCookie(w http.ResponseWriter, value string) {
+// setStateCookie is the single writer for the CSRF state cookie. Both the set
+// and the expiry path go through it so their attributes cannot drift: a browser
+// only replaces a cookie whose name, path and flags all match, so a divergence
+// would silently turn the clear into a no-op.
+func (s *Server) setStateCookie(w http.ResponseWriter, value string, maxAge int) {
 	// #nosec G124 -- HttpOnly and SameSite are set below; Secure is derived from
 	// IsDevelopment() so it is true everywhere except local HTTP development.
-	// G124 only accepts a literal `Secure: true`. Asserted in
-	// TestWriteStateCookie_Attributes.
+	// G124 only accepts a literal `Secure: true` and cannot see through the
+	// expression. Asserted in TestWriteStateCookie_Attributes and
+	// TestClearStateCookie_Attributes.
 	http.SetCookie(w, &http.Cookie{
 		Name:     stateCookieName,
 		Value:    value,
 		Path:     "/",
-		MaxAge:   stateCookieMaxAge,
+		MaxAge:   maxAge,
 		HttpOnly: true,
 		Secure:   !s.container.EnvironmentService().IsDevelopment(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-// clearStateCookie expires the CSRF state cookie. The attributes must match
-// writeStateCookie's or the browser will not match and drop the original.
+// writeStateCookie sets the short-lived, signed CSRF state cookie.
+func (s *Server) writeStateCookie(w http.ResponseWriter, value string) {
+	s.setStateCookie(w, value, stateCookieMaxAge)
+}
+
+// clearStateCookie expires the CSRF state cookie.
 func (s *Server) clearStateCookie(w http.ResponseWriter) {
-	// #nosec G124 -- see writeStateCookie: Secure is environment-derived, which
-	// G124 cannot evaluate. Asserted in TestClearStateCookie_Attributes.
-	http.SetCookie(w, &http.Cookie{
-		Name:     stateCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   !s.container.EnvironmentService().IsDevelopment(),
-		SameSite: http.SameSiteLaxMode,
-	})
+	s.setStateCookie(w, "", -1)
 }
 
 // resolveLoginProvider validates the requested provider against the enabled
