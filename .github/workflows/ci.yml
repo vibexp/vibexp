@@ -59,12 +59,24 @@ permissions:
 # A main run produces the Sonar coverage baseline this workflow's header
 # protects, so cancelling it would swing overall coverage (the #300 invariant).
 # But the obvious `github.event.pull_request.number || github.ref` spelling
-# ALSO puts every main push in one group `ci-refs/heads/main`, and with
-# cancel-in-progress false they then run one-at-a-time: observed on runs
-# 30203964982 (#584) queued behind 30203891018 (#641). That serialises main,
-# delaying the Sonar analysis, the feedback on a broken main, and the
-# cache-saving run. So the non-PR fallback is `github.run_id`, which is unique
-# per run — main pushes never contend with anything.
+# ALSO puts every main push in one group `ci-refs/heads/main` (observed: run
+# 30203964982 queued behind 30203891018), and that is LOSSY, not merely slow.
+# Per the Actions docs the two cancellations are independent: "any existing
+# pending job or workflow in the same concurrency group will be canceled and
+# the new queued job or workflow will take its place" happens BY DEFAULT, and
+# cancel-in-progress:true is what "also" cancels the RUNNING one. At most one
+# run may be pending per group. So across three merges in quick succession the
+# middle one is cancelled while pending, and that main commit never produces
+# its Sonar coverage baseline — the exact #300 invariant this block exists to
+# protect. `queue: max` cannot rescue it: its queue is bounded ("when the queue
+# is full, any additional runs are canceled") and it cannot be combined with
+# cancel-in-progress:true, which this expression is for PRs.
+#
+# Hence the non-PR fallback is `github.run_id` — unique per run, so main pushes
+# share a group with nothing and can be neither cancelled nor queued. That
+# restores the pre-#638 main behaviour exactly, leaving this block's only
+# effect the PR-run cancellation it was added for. (`github.sha` would be
+# subtly wrong: a push and a re-run of the same commit would still collide.)
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
