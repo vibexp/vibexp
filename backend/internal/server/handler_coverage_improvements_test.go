@@ -25,6 +25,7 @@ import (
 	svcmocks "github.com/vibexp/vibexp/internal/services/mocks"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 const coverageTestUserID = "user-123"
@@ -563,86 +564,79 @@ func TestTeamCreateCoverage_DescriptionTooLong(t *testing.T) {
 // Embedding Provider Handler Coverage Improvement Tests
 // =============================================================================
 
-// TestEmbeddingProviderGetCoverage_ServiceError tests get with service error
-func TestEmbeddingProviderGetCoverage_ServiceError(t *testing.T) {
-	container := newCoverageTestContainer(t)
-	cfg := &config.Config{}
-	logger := slog.New(slog.DiscardHandler)
+// coverageEmbeddingTeamID is a real UUID because the embedding-provider routes
+// are served by the generated strict handler, whose team_id binder enforces the
+// spec's `format: uuid` (issue #472). Production always required one — the
+// tenancy middleware rejected anything else.
+const coverageEmbeddingTeamID = "11111111-2222-4333-8444-555555555555"
 
+// newCoverageEmbeddingProviderServer mounts the production embedding-provider
+// route tree (generated strict handler + the chi maintenance routes) so these
+// tests exercise real routing rather than calling a handler function directly.
+func newCoverageEmbeddingProviderServer(container *CoverageTestContainer) *Server {
 	r := chi.NewRouter()
 	srv := &Server{
 		port:      "8080",
 		container: container,
-		logger:    logger,
-		config:    cfg,
+		logger:    slog.New(slog.DiscardHandler),
+		config:    &config.Config{},
 		router:    r,
 	}
+	srv.mountEmbeddingProvidersHandlers(r)
+	return srv
+}
+
+// TestEmbeddingProviderGetCoverage_ServiceError tests get with service error
+func TestEmbeddingProviderGetCoverage_ServiceError(t *testing.T) {
+	container := newCoverageTestContainer(t)
+	srv := newCoverageEmbeddingProviderServer(container)
 
 	providerID := "550e8400-e29b-41d4-a716-446655440000"
 
-	container.embeddingProviderService.On("GetEmbeddingProvider", mock.Anything, "team-123", providerID).
+	container.embeddingProviderService.
+		On("GetEmbeddingProvider", mock.Anything, coverageEmbeddingTeamID, providerID).
 		Return(nil, errors.New("database connection failed")).Maybe()
 
-	req := makeCoverageAuthRequest("GET", "/api/v1/embedding-providers/"+providerID, nil)
-	req = addCoverageChiParams(req, map[string]string{"id": providerID, "team_id": "team-123"})
+	req := makeCoverageAuthRequest(
+		"GET", "/api/v1/"+coverageEmbeddingTeamID+"/embedding-providers/"+providerID, nil)
 	rr := httptest.NewRecorder()
 
-	srv.handleGetEmbeddingProvider(rr, req)
+	srv.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 }
 
 // TestEmbeddingProviderUpdateCoverage_ServiceError tests update with service error
 func TestEmbeddingProviderUpdateCoverage_ServiceError(t *testing.T) {
 	container := newCoverageTestContainer(t)
-	cfg := &config.Config{}
-	logger := slog.New(slog.DiscardHandler)
-
-	r := chi.NewRouter()
-	srv := &Server{
-		port:      "8080",
-		container: container,
-		logger:    logger,
-		config:    cfg,
-		router:    r,
-	}
+	srv := newCoverageEmbeddingProviderServer(container)
 
 	providerID := "550e8400-e29b-41d4-a716-446655440000"
 
 	container.embeddingProviderService.
-		On("GetEmbeddingProvider", mock.Anything, "team-123", providerID).
+		On("GetEmbeddingProvider", mock.Anything, coverageEmbeddingTeamID, providerID).
 		Return(nil, errors.New("database connection failed")).Maybe()
-	container.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", mock.Anything, providerID, mock.Anything).
+	container.embeddingProviderService.
+		On("UpdateEmbeddingProvider", mock.Anything, coverageEmbeddingTeamID, mock.Anything, providerID, mock.Anything).
 		Return(nil, errors.New("database connection failed")).Maybe()
 
-	name := "Updated Provider"
-	body := map[string]interface{}{
-		"name": name,
-	}
+	body := map[string]interface{}{"name": "Updated Provider"}
 
-	req := makeCoverageAuthRequest("PUT", "/api/v1/embedding-providers/"+providerID, body)
-	req = addCoverageChiParams(req, map[string]string{"id": providerID, "team_id": "team-123"})
+	req := makeCoverageAuthRequest(
+		"PUT", "/api/v1/"+coverageEmbeddingTeamID+"/embedding-providers/"+providerID, body)
 	rr := httptest.NewRecorder()
 
-	srv.handleUpdateEmbeddingProvider(rr, req)
+	srv.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 }
 
 // TestEmbeddingProviderUpdateCoverage_SuccessWithValidData tests successful update
 func TestEmbeddingProviderUpdateCoverage_SuccessWithValidData(t *testing.T) {
 	container := newCoverageTestContainer(t)
-	cfg := &config.Config{}
-	logger := slog.New(slog.DiscardHandler)
-
-	r := chi.NewRouter()
-	srv := &Server{
-		port:      "8080",
-		container: container,
-		logger:    logger,
-		config:    cfg,
-		router:    r,
-	}
+	srv := newCoverageEmbeddingProviderServer(container)
 
 	providerID := "550e8400-e29b-41d4-a716-446655440000"
 
@@ -657,23 +651,22 @@ func TestEmbeddingProviderUpdateCoverage_SuccessWithValidData(t *testing.T) {
 	}
 
 	container.embeddingProviderService.
-		On("GetEmbeddingProvider", mock.Anything, "team-123", providerID).
+		On("GetEmbeddingProvider", mock.Anything, coverageEmbeddingTeamID, providerID).
 		Return(&models.EmbeddingProviderResponse{EmbeddingProvider: *expectedProvider}, nil).Maybe()
-	container.embeddingProviderService.On("UpdateEmbeddingProvider", mock.Anything, "team-123", mock.Anything, providerID, mock.Anything).
+	container.embeddingProviderService.
+		On("UpdateEmbeddingProvider", mock.Anything, coverageEmbeddingTeamID, mock.Anything, providerID, mock.Anything).
 		Return(expectedProvider, nil).Maybe()
 
-	name := "Updated Provider"
-	body := map[string]interface{}{
-		"name": name,
-	}
+	body := map[string]interface{}{"name": "Updated Provider"}
 
-	req := makeCoverageAuthRequest("PUT", "/api/v1/embedding-providers/"+providerID, body)
-	req = addCoverageChiParams(req, map[string]string{"id": providerID, "team_id": "team-123"})
+	req := makeCoverageAuthRequest(
+		"PUT", "/api/v1/"+coverageEmbeddingTeamID+"/embedding-providers/"+providerID, body)
 	rr := httptest.NewRecorder()
 
-	srv.handleUpdateEmbeddingProvider(rr, req)
+	srv.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+	specconformance.AssertConformsToSpec(t, req, rr)
 }
 
 func (c *CoverageTestContainer) TypeService() services.TypeServiceInterface { return nil }

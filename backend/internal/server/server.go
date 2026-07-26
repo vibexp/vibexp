@@ -30,6 +30,7 @@ import (
 	"github.com/vibexp/vibexp/internal/server/gen"
 	admingen "github.com/vibexp/vibexp/internal/server/gen/admin"
 	commentsgen "github.com/vibexp/vibexp/internal/server/gen/comments"
+	embeddingprovidersgen "github.com/vibexp/vibexp/internal/server/gen/embeddingproviders"
 	metadatagen "github.com/vibexp/vibexp/internal/server/gen/metadata"
 	relationsgen "github.com/vibexp/vibexp/internal/server/gen/relations"
 	teamrolesgen "github.com/vibexp/vibexp/internal/server/gen/teamroles"
@@ -702,6 +703,7 @@ func (s *Server) setupProtectedRoutes() {
 		s.setupRelationsRoutes(r)
 		s.setupTeamSettingsRoutes(r)
 		s.setupMetadataRoutes(r)
+		s.setupEmbeddingProvidersRoutes(r)
 		s.setupBlueprintRoutes(r)
 		s.setupMemoriesRoutes(r)
 		s.setupProjectsRoutes(r)
@@ -743,23 +745,6 @@ func (s *Server) setupSettingsRoutes(r chi.Router) {
 			r.Delete("/{id}", s.handleDeleteAPIKey)
 		})
 	})
-	// Embedding providers are scoped to a team (issue #79). Both the settings and
-	// bare route groups validate team membership from the {team_id} path segment.
-	r.Route("/api/v1/{team_id}/settings/embedding-providers", func(r chi.Router) {
-		r.Use(s.teamValidationMiddleware())
-		s.setupEmbeddingProvidersRoutes(r)
-		// Clear-all-embeddings is a destructive maintenance action surfaced only
-		// in the embedding settings UI, so it is registered on the settings mount
-		// alone — not in the shared setupEmbeddingProvidersRoutes (which serves
-		// both the settings and bare groups). The static "/embeddings" segment
-		// sits beside the "/{id}" routes; chi matches the literal path first
-		// (issue #182).
-		r.Delete("/embeddings", s.handleClearEmbeddings)
-	})
-	r.Route("/api/v1/{team_id}/embedding-providers", func(r chi.Router) {
-		r.Use(s.teamValidationMiddleware())
-		s.setupEmbeddingProvidersRoutes(r)
-	})
 	// Model providers are scoped to a team (issue #110). Both the settings and
 	// bare route groups validate team membership from the {team_id} path segment.
 	r.Route("/api/v1/{team_id}/settings/model-providers", func(r chi.Router) {
@@ -778,15 +763,53 @@ func (s *Server) setupPreferencesRoutes(r chi.Router) {
 	r.Put("/", s.handleUpdatePreferences)
 }
 
+// setupEmbeddingProvidersRoutes mounts the embedding-provider domain (issue #79,
+// converted to a strict server in #472) under a team-validated group. The
+// generated handler registers ABSOLUTE paths, so — unlike the chi handlers it
+// replaced — it cannot be mounted inside an `r.Route("/api/v1/{team_id}/...")`
+// prefix group; every route in this domain is therefore registered at full
+// length on the same group, which is also what keeps chi's static-beats-param
+// precedence (issue #182) working for /coverage and /embeddings.
 func (s *Server) setupEmbeddingProvidersRoutes(r chi.Router) {
-	r.Post("/", s.handleCreateEmbeddingProvider)
-	r.Get("/", s.handleListEmbeddingProviders)
-	r.Get("/coverage", s.handleGetEmbeddingCoverage)
-	r.Get("/{id}", s.handleGetEmbeddingProvider)
-	r.Put("/{id}", s.handleUpdateEmbeddingProvider)
-	r.Delete("/{id}", s.handleDeleteEmbeddingProvider)
-	r.Post("/{id}/reprocess", s.handleReprocessEmbeddingProvider)
-	r.Post("/validate", s.handleValidateEmbeddingProvider)
+	r.Group(func(gr chi.Router) {
+		gr.Use(s.teamValidationMiddleware()) // Validate team_id from URL and team access
+		s.mountEmbeddingProvidersHandlers(gr)
+	})
+}
+
+// mountEmbeddingProvidersHandlers registers the domain's routes on an
+// already-scoped router: the twelve generated CRUD/validate operations plus the
+// four maintenance routes that stay on chi handlers (they are already
+// spec-covered, so #472 deliberately left them alone). Split out of
+// setupEmbeddingProvidersRoutes so tests can exercise the real route tree
+// without the tenancy middleware.
+func (s *Server) mountEmbeddingProvidersHandlers(r chi.Router) {
+	strict := embeddingprovidersgen.NewStrictHandlerWithOptions(
+		&embeddingProvidersStrictServer{s: s},
+		nil,
+		embeddingprovidersgen.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  s.embeddingProvidersBindErrorHandler,
+			ResponseErrorHandlerFunc: s.embeddingProvidersResponseErrorHandler,
+		},
+	)
+	embeddingprovidersgen.HandlerWithOptions(strict, embeddingprovidersgen.ChiServerOptions{
+		BaseRouter:       r,
+		ErrorHandlerFunc: s.embeddingProvidersBindErrorHandler,
+	})
+
+	const (
+		bare     = "/api/v1/{team_id}/embedding-providers"
+		settings = "/api/v1/{team_id}/settings/embedding-providers"
+	)
+	r.Get(bare+"/coverage", s.handleGetEmbeddingCoverage)
+	r.Get(settings+"/coverage", s.handleGetEmbeddingCoverage)
+	r.Post(bare+"/{id}/reprocess", s.handleReprocessEmbeddingProvider)
+	r.Post(settings+"/{id}/reprocess", s.handleReprocessEmbeddingProvider)
+	// Clear-all-embeddings is a destructive maintenance action surfaced only in
+	// the embedding settings UI, so it is registered on the settings mount alone.
+	// The static "/embeddings" segment sits beside the "/{id}" routes; chi
+	// matches the literal path first (issue #182).
+	r.Delete(settings+"/embeddings", s.handleClearEmbeddings)
 }
 
 func (s *Server) setupModelProvidersRoutes(r chi.Router) {
