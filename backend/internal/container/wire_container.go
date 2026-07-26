@@ -38,8 +38,6 @@ type WireContainer struct {
 	githubAppConfigRepo     repositories.GitHubAppConfigRepository
 	activityRepo            repositories.ActivityRepository
 	resourceAccessRepo      repositories.ResourceAccessRepository
-	claudeCodeHooksRepo     repositories.ClaudeCodeHooksRepository
-	cursorIDEHooksRepo      repositories.CursorIDEHooksRepository
 	agentRepo               repositories.AgentRepository
 	agentExecutionRepo      repositories.AgentExecutionRepository
 	agentExecutionEventRepo repositories.AgentExecutionEventRepository
@@ -206,14 +204,6 @@ func (c *WireContainer) ActivityRepository() repositories.ActivityRepository {
 
 func (c *WireContainer) ResourceAccessRepository() repositories.ResourceAccessRepository {
 	return c.resourceAccessRepo
-}
-
-func (c *WireContainer) ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository {
-	return c.claudeCodeHooksRepo
-}
-
-func (c *WireContainer) CursorIDEHooksRepository() repositories.CursorIDEHooksRepository {
-	return c.cursorIDEHooksRepo
 }
 
 func (c *WireContainer) AgentRepository() repositories.AgentRepository {

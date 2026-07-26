@@ -112,8 +112,6 @@ func TestInitializeContainer_AllRepositoriesNonNil(t *testing.T) {
 	assert.NotNil(t, c.BlueprintRepository(), "BlueprintRepository should not be nil")
 	assert.NotNil(t, c.EmbeddingProviderRepository(), "EmbeddingProviderRepository should not be nil")
 	assert.NotNil(t, c.ActivityRepository(), "ActivityRepository should not be nil")
-	assert.NotNil(t, c.ClaudeCodeHooksRepository(), "ClaudeCodeHooksRepository should not be nil")
-	assert.NotNil(t, c.CursorIDEHooksRepository(), "CursorIDEHooksRepository should not be nil")
 	assert.NotNil(t, c.AgentRepository(), "AgentRepository should not be nil")
 	assert.NotNil(t, c.AgentExecutionRepository(), "AgentExecutionRepository should not be nil")
 	assert.NotNil(t, c.AgentExecutionEventRepository(), "AgentExecutionEventRepository should not be nil")

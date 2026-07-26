@@ -65,7 +65,7 @@ func newMockPromptContainer(t *testing.T) *MockPromptContainer {
 	}
 }
 
-// setupPromptDefaultTeamMock sets up auth and team service mocks for getUserDefaultTeamID
+// setupPromptDefaultTeamMock sets up auth and team service mocks for the default-team lookup
 func setupPromptDefaultTeamMock(container *MockPromptContainer) {
 	userID := "user-123"
 	defaultTeamID := "550e8400-e29b-41d4-a716-446655440000"

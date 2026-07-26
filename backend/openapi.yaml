@@ -3,13 +3,13 @@ info:
   title: Vibexp.io API
   description: |
     Comprehensive REST API for Vibexp.io - a platform for AI agents, prompt management,
-    artifacts, blueprints, memories, and Claude Code integration.
+    artifacts, blueprints, and memories.
 
     ## Authentication
     The API supports multiple authentication mechanisms:
     - **Session Cookie** (`vx_session`, httpOnly): how the web app authenticates after the identity-provider OAuth flow (see `CookieAuth`)
     - **Bearer JWT**: identity-provider access token sent as `Authorization: Bearer <token>` (see `BearerAuth`)
-    - **API Key**: long-lived key sent as a bearer token, used by the CLI and Claude Code hooks (see `ApiKeyAuth`)
+    - **API Key**: long-lived key sent as a bearer token, used by the CLI and MCP clients (see `ApiKeyAuth`)
     - **Back office API Key**: admin-only key for `/bo/v1` endpoints (see `BackofficeAuth`)
     - **Public Endpoints**: no authentication required for health checks and auth flows
 
@@ -324,29 +324,6 @@ components:
     SupportResponse:
       $ref: "./schemas/support.yaml#/SupportResponse"
 
-    # Import Claude Code hook schemas
-    IncomingHookPayload:
-      $ref: "./schemas/claude-code-hooks.yaml#/IncomingHookPayload"
-    ClaudeCodeHookPayload:
-      $ref: "./schemas/claude-code-hooks.yaml#/ClaudeCodeHookPayload"
-    ClaudeCodeHooksPaginatedResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/ClaudeCodeHooksPaginatedResponse"
-    HookCreatedResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/HookCreatedResponse"
-    HookListResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/HookListResponse"
-    SessionSummary:
-      $ref: "./schemas/claude-code-hooks.yaml#/SessionSummary"
-    SessionsResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/SessionsResponse"
-    SessionCountsResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/SessionCountsResponse"
-    OverviewStats:
-      $ref: "./schemas/claude-code-hooks.yaml#/OverviewStats"
-    RecentActivity:
-      $ref: "./schemas/claude-code-hooks.yaml#/RecentActivity"
-    RecentActivitiesResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/RecentActivitiesResponse"
 
     # Import artifact schemas
     Artifact:
@@ -647,42 +624,7 @@ components:
       $ref: "./schemas/agents.yaml#/ConversationListResponse"
     ConversationExecutionsResponse:
       $ref: "./schemas/agents.yaml#/ConversationExecutionsResponse"
-    HookErrorResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/HookErrorResponse"
-    SessionsListResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/SessionsListResponse"
-    SessionCountsApiResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/SessionCountsApiResponse"
-    OverviewStatsApiResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/OverviewStatsApiResponse"
-    RecentActivitiesApiResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/RecentActivitiesApiResponse"
 
-    # Import Cursor IDE hook schemas
-    IncomingCursorHookPayload:
-      $ref: "./schemas/claude-code-hooks.yaml#/IncomingCursorHookPayload"
-    CursorIDEHookPayload:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorIDEHookPayload"
-    CursorIDEHooksPaginatedResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorIDEHooksPaginatedResponse"
-    CursorIDEHookListResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorIDEHookListResponse"
-    CursorSessionSummary:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorSessionSummary"
-    CursorSessionsResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorSessionsResponse"
-    CursorSessionsListResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorSessionsListResponse"
-    CursorOverviewStats:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorOverviewStats"
-    CursorOverviewStatsApiResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorOverviewStatsApiResponse"
-    CursorRecentActivity:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorRecentActivity"
-    CursorRecentActivitiesResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorRecentActivitiesResponse"
-    CursorRecentActivitiesApiResponse:
-      $ref: "./schemas/claude-code-hooks.yaml#/CursorRecentActivitiesApiResponse"
 
     # Import team schemas
     Team:
@@ -1011,10 +953,6 @@ paths:
     $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-versions-version_number"
   /api/v1/{team_id}/blueprints/{project_id}/{slug}/versions/{version_number}/restore:
     $ref: "./paths/blueprints.yaml#/api-v1-team_id-blueprints-project_id-slug-versions-version_number-restore"
-  /api/v1/ai-tools/claude-code/sessions/{session_id}:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-sessions-session_id"
-  /api/v1/ai-tools/cursor-ide/sessions/{session_id}:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-sessions-session_id"
   /api/v1/resource-usage:
     $ref: "./paths/subscriptions.yaml#/api-v1-resource-usage"
   /api/v1/{team_id}/prompts:
@@ -1109,30 +1047,6 @@ paths:
     $ref: "./paths/agents.yaml#/api-v1-team_id-agents-executions-id-events"
   /api/v1/{team_id}/agents/conversations/{conversation_id}/executions:
     $ref: "./paths/agents.yaml#/api-v1-team_id-agents-conversations-conversation_id-executions"
-  /api/v1/ai-tools/claude-code/hooks:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-hooks"
-  /api/v1/ai-tools/claude-code/sessions:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-sessions"
-  /api/v1/ai-tools/claude-code/session-counts:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-session-counts"
-  /api/v1/ai-tools/claude-code/overview-stats:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-overview-stats"
-  /api/v1/ai-tools/claude-code/recent-activities:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-claude-code-recent-activities"
-  /api/v1/ai-tools/cursor-ide/hooks:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-hooks"
-  /api/v1/ai-tools/cursor-ide/sessions:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-sessions"
-  /api/v1/ai-tools/cursor-ide/session-counts:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-session-counts"
-  /api/v1/ai-tools/cursor-ide/overview-stats:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-overview-stats"
-  /api/v1/ai-tools/cursor-ide/recent-activities:
-    $ref: "./paths/ai-tools.yaml#/api-v1-ai-tools-cursor-ide-recent-activities"
-  /api/v1/claude-code/hooks:
-    $ref: "./paths/ai-tools.yaml#/api-v1-claude-code-hooks"
-  /api/v1/cursor-ide/hooks:
-    $ref: "./paths/ai-tools.yaml#/api-v1-cursor-ide-hooks"
   /api/v1/teams:
     $ref: "./paths/teams.yaml#/api-v1-teams"
   /api/v1/teams/{id}:
@@ -1329,10 +1243,6 @@ tags:
     description: Subscription and billing endpoints
   - name: Support
     description: Support request endpoints for authenticated users
-  - name: Claude Code Hooks
-    description: Claude Code integration endpoints
-  - name: Cursor IDE Hooks
-    description: Cursor IDE integration endpoints
   - name: Webhooks
     description: Webhook endpoints
   - name: MCP Server

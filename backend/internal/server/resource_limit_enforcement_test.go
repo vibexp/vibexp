@@ -170,14 +170,6 @@ func (m *MockContainerForHandlers) ResourceAccessRepository() repositories.Resou
 	return nil
 }
 
-func (m *MockContainerForHandlers) ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository {
-	return nil
-}
-
-func (m *MockContainerForHandlers) CursorIDEHooksRepository() repositories.CursorIDEHooksRepository {
-	return nil
-}
-
 func (m *MockContainerForHandlers) AgentRepository() repositories.AgentRepository {
 	return nil
 }
@@ -669,7 +661,7 @@ func setupUpdateTestServer(
 	mockAuthService := mocks.NewMockAuthServiceInterface(t)
 	mockTeamService := mocks.NewMockTeamServiceInterface(t)
 
-	// Setup default team for getUserDefaultTeamID
+	// Setup default team for the default-team lookup
 	defaultTeamID := "550e8400-e29b-41d4-a716-446655440000"
 	mockAuthService.On("GetUserByID", mock.Anything, userID).
 		Return(&models.User{ID: userID, DefaultTeamID: &defaultTeamID}, nil).Maybe()

@@ -98,14 +98,6 @@ func (b *BaseMockContainer) ResourceAccessRepository() repositories.ResourceAcce
 	return nil
 }
 
-func (b *BaseMockContainer) ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository {
-	return nil
-}
-
-func (b *BaseMockContainer) CursorIDEHooksRepository() repositories.CursorIDEHooksRepository {
-	return nil
-}
-
 func (b *BaseMockContainer) AgentRepository() repositories.AgentRepository {
 	return nil
 }

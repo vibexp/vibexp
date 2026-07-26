@@ -39,6 +39,13 @@ var userActivityColumns = []string{
 
 const timelinePattern = `SELECT DISTINCT date_trunc`
 
+// countResult builds the single-column row a COUNT(*) sub-query returns. It used
+// to live in the Claude Code hooks sqlmock suite; that file was deleted with the
+// hook stack (#613) and this is now its only consumer.
+func countResult(n int) *sqlmock.Rows {
+	return sqlmock.NewRows([]string{"count"}).AddRow(n)
+}
+
 func TestBackofficeRepository_GetUsageMetrics_TimelineErrors(t *testing.T) {
 	cases := []struct {
 		name      string

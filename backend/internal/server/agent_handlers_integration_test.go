@@ -388,7 +388,7 @@ func TestHandleCreateAgent_Success(t *testing.T) {
 	mockContainer.resourceUsageService.On("CheckResourceLimit", mock.Anything, "user-123", "agent").
 		Return(true, nil)
 
-	// Mock getUserDefaultTeamID - setup default team mock
+	// Mock the default-team lookup - setup default team mock
 	setupDefaultTeamMock(mockContainer, "user-123", "team-123")
 
 	mockContainer.agentService.On(

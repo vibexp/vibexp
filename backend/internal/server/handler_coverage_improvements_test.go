@@ -51,7 +51,6 @@ type CoverageTestContainer struct {
 	apiKeyService            *svcmocks.MockAPIKeyServiceInterface
 	activityService          activities.ActivityService
 	teamMemberRepo           *repomocks.MockTeamMemberRepository
-	claudeCodeHooksRepo      *repomocks.MockClaudeCodeHooksRepository
 }
 
 // Container interface implementations - Services
@@ -94,9 +93,6 @@ func (c *CoverageTestContainer) ResourceAccessService() resourceaccess.ResourceA
 func (c *CoverageTestContainer) TeamMemberRepository() repositories.TeamMemberRepository {
 	return c.teamMemberRepo
 }
-func (c *CoverageTestContainer) ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository {
-	return c.claudeCodeHooksRepo
-}
 
 // Stub implementations for unused services
 func (c *CoverageTestContainer) BackofficeService() services.UsageAndGrowthGetter { return nil }
@@ -138,9 +134,6 @@ func (c *CoverageTestContainer) EmbeddingProviderRepository() repositories.Embed
 }
 func (c *CoverageTestContainer) ActivityRepository() repositories.ActivityRepository { return nil }
 func (c *CoverageTestContainer) ResourceAccessRepository() repositories.ResourceAccessRepository {
-	return nil
-}
-func (c *CoverageTestContainer) CursorIDEHooksRepository() repositories.CursorIDEHooksRepository {
 	return nil
 }
 func (c *CoverageTestContainer) AgentRepository() repositories.AgentRepository { return nil }
@@ -260,7 +253,6 @@ func newCoverageTestContainer(t *testing.T) *CoverageTestContainer {
 		apiKeyService:            svcmocks.NewMockAPIKeyServiceInterface(t),
 		activityService:          &noopActivityService{},
 		teamMemberRepo:           repomocks.NewMockTeamMemberRepository(t),
-		claudeCodeHooksRepo:      repomocks.NewMockClaudeCodeHooksRepository(t),
 	}
 }
 

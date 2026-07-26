@@ -79,12 +79,6 @@ func (m *MockContainerForSupport) ActivityRepository() repositories.ActivityRepo
 func (m *MockContainerForSupport) ResourceAccessRepository() repositories.ResourceAccessRepository {
 	return nil
 }
-func (m *MockContainerForSupport) ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository {
-	return nil
-}
-func (m *MockContainerForSupport) CursorIDEHooksRepository() repositories.CursorIDEHooksRepository {
-	return nil
-}
 func (m *MockContainerForSupport) AgentRepository() repositories.AgentRepository { return nil }
 func (m *MockContainerForSupport) AgentExecutionRepository() repositories.AgentExecutionRepository {
 	return nil

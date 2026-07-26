@@ -40,9 +40,6 @@ type Metrics struct {
 	// Business metrics - API Key events
 	APIKeyCreated metric.Int64Counter
 
-	// Business metrics - AI Tools events
-	AIToolsHooksCall metric.Int64Counter
-
 	// Business metrics - Prompt events
 	PromptCreated metric.Int64Counter
 	PromptDeleted metric.Int64Counter
@@ -395,9 +392,6 @@ func (m *Metrics) registerCoreInstruments(r *registrar) {
 		"vx_stripe_payment_failed", "Total number of Stripe invoice.payment_failed webhooks received", "1",
 	})
 	m.APIKeyCreated = r.int64Counter(instrumentSpec{"vx_api_key_created", "Total number of API keys created", "1"})
-	m.AIToolsHooksCall = r.int64Counter(instrumentSpec{
-		"vx_ai_tools_hooks_call", "Total number of AI tools hooks calls by tool name", "1",
-	})
 	m.DeprecatedEndpointCalls = r.int64Counter(instrumentSpec{
 		"vx_deprecated_endpoint_calls_total", "Total number of calls to deprecated API endpoints", "1",
 	})
@@ -592,7 +586,6 @@ const (
 	eventCategoryUser    = "user"
 	eventCategoryBilling = "billing"
 	eventCategoryAPIKey  = "apikey"
-	eventCategoryAITools = "ai_tools"
 	eventCategoryContent = "content"
 	eventCategoryMCP     = "mcp"
 )
@@ -692,21 +685,6 @@ func (m *Metrics) RecordAPIKeyCreated(ctx context.Context) {
 	}
 	m.APIKeyCreated.Add(ctx, 1)
 	m.emitEvent(ctx, "apikey.created", eventCategoryAPIKey, nil)
-}
-
-// RecordAIToolsHooksCall increments the AI tools hooks call counter with tool name attribute
-func (m *Metrics) RecordAIToolsHooksCall(ctx context.Context, toolName string) {
-	if m == nil || m.AIToolsHooksCall == nil {
-		return
-	}
-	attrs := metric.WithAttributes()
-	var fields []any
-	if toolName != "" {
-		attrs = metric.WithAttributes(attribute.String("tool_name", toolName))
-		fields = []any{"tool_name", toolName}
-	}
-	m.AIToolsHooksCall.Add(ctx, 1, attrs)
-	m.emitEvent(ctx, "ai_tools.hooks.call", eventCategoryAITools, fields)
 }
 
 // RecordPromptCreated increments the prompt created counter

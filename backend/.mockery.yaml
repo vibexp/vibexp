@@ -83,7 +83,6 @@ packages:
       SubscriptionRepository:
       ActivityRepository:
       ResourceAccessRepository:
-      ClaudeCodeHooksRepository:
       AgentRepository:
       AgentExecutionRepository:
       AgentExecutionEventRepository:

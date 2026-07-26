@@ -183,22 +183,6 @@ func (m *MockAppContainer) ActivityRepository() repositories.ActivityRepository 
 	return args.Get(0).(repositories.ActivityRepository)
 }
 
-func (m *MockAppContainer) ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(repositories.ClaudeCodeHooksRepository)
-}
-
-func (m *MockAppContainer) CursorIDEHooksRepository() repositories.CursorIDEHooksRepository {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(repositories.CursorIDEHooksRepository)
-}
-
 func (m *MockAppContainer) AgentRepository() repositories.AgentRepository {
 	args := m.Called()
 	if args.Get(0) == nil {

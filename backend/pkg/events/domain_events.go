@@ -33,9 +33,6 @@ const (
 	EventTypeResourceCreated = "resource.created"
 	EventTypeResourceDeleted = "resource.deleted"
 
-	// AI Tool Session events
-	EventTypeAIToolSessionCreated = "ai_tool_session.created"
-
 	// Feed events
 	EventTypeFeedItemCreated      = "feed_item.created"
 	EventTypeFeedItemReplyCreated = "feed_item_reply.created"
@@ -305,36 +302,6 @@ func NewResourceDeletedEvent(userID, resourceType, resourceID string) Event {
 	// Using a concrete value instead of a pointer to ensure better serialization/deserialization
 	return &ResourceDeletedEvent{
 		BaseEvent: NewBaseEvent(EventTypeResourceDeleted, payload, userID),
-	}
-}
-
-// AIToolSessionCreatedPayload represents payload for ai_tool_session.created events
-type AIToolSessionCreatedPayload struct {
-	UserID    string    `json:"user_id"`
-	Email     string    `json:"email"` // User email for the event payload
-	SessionID string    `json:"session_id"`
-	ToolType  string    `json:"tool_type"` // "claude_code_cli" or "cursor_ide"
-	IsNewTool bool      `json:"is_new_tool"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-// AIToolSessionCreatedEvent represents an AI tool session creation event
-type AIToolSessionCreatedEvent struct {
-	*BaseEvent
-}
-
-// NewAIToolSessionCreatedEvent creates a new AI tool session created event
-func NewAIToolSessionCreatedEvent(userID, email, sessionID, toolType string, isNewTool bool) Event {
-	payload := &AIToolSessionCreatedPayload{
-		UserID:    userID,
-		Email:     email,
-		SessionID: sessionID,
-		ToolType:  toolType,
-		IsNewTool: isNewTool,
-		CreatedAt: time.Now(),
-	}
-	return &AIToolSessionCreatedEvent{
-		BaseEvent: NewBaseEvent(EventTypeAIToolSessionCreated, payload, userID),
 	}
 }
 

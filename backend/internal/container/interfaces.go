@@ -32,8 +32,6 @@ type Container interface {
 	ModelProviderRepository() repositories.ModelProviderRepository
 	ActivityRepository() repositories.ActivityRepository
 	ResourceAccessRepository() repositories.ResourceAccessRepository
-	ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository
-	CursorIDEHooksRepository() repositories.CursorIDEHooksRepository
 	AgentRepository() repositories.AgentRepository
 	AgentExecutionRepository() repositories.AgentExecutionRepository
 	AgentExecutionEventRepository() repositories.AgentExecutionEventRepository

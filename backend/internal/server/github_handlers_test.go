@@ -208,12 +208,6 @@ func (c *GitHubTestContainer) ActivityRepository() repositories.ActivityReposito
 func (c *GitHubTestContainer) ResourceAccessRepository() repositories.ResourceAccessRepository {
 	return nil
 }
-func (c *GitHubTestContainer) ClaudeCodeHooksRepository() repositories.ClaudeCodeHooksRepository {
-	return nil
-}
-func (c *GitHubTestContainer) CursorIDEHooksRepository() repositories.CursorIDEHooksRepository {
-	return nil
-}
 func (c *GitHubTestContainer) AgentRepository() repositories.AgentRepository { return nil }
 func (c *GitHubTestContainer) AgentExecutionRepository() repositories.AgentExecutionRepository {
 	return nil

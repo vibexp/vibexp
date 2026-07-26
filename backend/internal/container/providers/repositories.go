@@ -98,16 +98,6 @@ func ProvideResourceAccessRepository(db *database.DB) repositories.ResourceAcces
 	return postgres.NewResourceAccessRepository(db)
 }
 
-// ProvideClaudeCodeHooksRepository creates a new ClaudeCodeHooksRepository
-func ProvideClaudeCodeHooksRepository(db *database.DB) repositories.ClaudeCodeHooksRepository {
-	return postgres.NewClaudeCodeHooksRepository(db)
-}
-
-// ProvideCursorIDEHooksRepository creates a new CursorIDEHooksRepository
-func ProvideCursorIDEHooksRepository(db *database.DB) repositories.CursorIDEHooksRepository {
-	return postgres.NewCursorIDEHooksRepository(db)
-}
-
 // ProvideAgentRepository creates a new AgentRepository
 func ProvideAgentRepository(db *database.DB) repositories.AgentRepository {
 	return postgres.NewAgentRepository(db)

@@ -118,39 +118,6 @@ func TestRecordUserLoginFailed_ReasonField(t *testing.T) {
 	}
 }
 
-func TestRecordAIToolsHooksCall_ToolNameField(t *testing.T) {
-	tests := []struct {
-		name         string
-		toolName     string
-		wantToolName bool
-	}{
-		{name: "with tool name", toolName: "search", wantToolName: true},
-		{name: "empty tool name omits field", toolName: "", wantToolName: false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			m, _, hook := newTestMetricsWithLogger(t)
-			hook.Reset()
-
-			m.RecordAIToolsHooksCall(context.Background(), tc.toolName)
-
-			require.Len(t, hook.AllEntries(), 1)
-			entry := hook.LastEntry()
-			assert.Equal(t, "ai_tools.hooks.call", entry.Data["event"])
-			assert.Equal(t, eventCategoryAITools, entry.Data["event_category"])
-
-			toolName, ok := entry.Data["tool_name"]
-			if tc.wantToolName {
-				assert.True(t, ok, "tool_name field should be present")
-				assert.Equal(t, tc.toolName, toolName)
-			} else {
-				assert.False(t, ok, "tool_name field should be omitted when empty")
-			}
-		})
-	}
-}
-
 func TestRecordStripeWebhook_KnownEvents(t *testing.T) {
 	tests := []struct {
 		name          string
