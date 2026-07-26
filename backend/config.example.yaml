@@ -169,6 +169,13 @@ mcp:
 # Email delivery. provider selects the backend: smtp (default), mailgun,
 # postmark, sendgrid. Dev defaults target Mailpit (the local SMTP sink started
 # by `make backend-run-dev`; inbox at http://localhost:8025).
+#
+# This is the INSTANCE provider, and since epic #499 it is also the FALLBACK for
+# every team that has not configured its own. A team that brings its own
+# provider (Settings -> Email Provider) sends its invitations, notifications and
+# digests through that instead, from its own address; only support mail always
+# uses the instance provider. Team credentials are encrypted with
+# security.encryption_key. See https://docs.vibexp.io/user-guide/integrations/email-provider/
 email:
   provider: "smtp"
   # Sender address for all providers; empty falls back to smtp.username.
