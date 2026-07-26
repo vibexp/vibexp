@@ -944,6 +944,24 @@ func TestHandleCreateArtifact_Validation(t *testing.T) {
 			body:          `{"project_id":"` + projectID + `","slug":"s","title":"t","content":""}`,
 			expectedError: "Content is required",
 		},
+		{
+			name: "Slug too long",
+			body: `{"project_id":"` + projectID + `","slug":"` + strings.Repeat("a", 256) +
+				`","title":"t","content":"c"}`,
+			expectedError: "Slug cannot be longer than 255 characters",
+		},
+		{
+			name: "Title too long",
+			body: `{"project_id":"` + projectID + `","slug":"s","title":"` + strings.Repeat("a", 256) +
+				`","content":"c"}`,
+			expectedError: "Title cannot be longer than 255 characters",
+		},
+		{
+			name: "Description too long",
+			body: `{"project_id":"` + projectID + `","slug":"s","title":"t","content":"c","description":"` +
+				strings.Repeat("a", 501) + `"}`,
+			expectedError: "Description cannot be longer than 500 characters",
+		},
 	}
 
 	for _, tt := range tests {

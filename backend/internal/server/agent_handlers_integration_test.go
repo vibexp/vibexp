@@ -1420,8 +1420,6 @@ func TestHandleCompleteAgentExecution_AcceptedStatuses(t *testing.T) {
 			setupDefaultTeamMock(mockContainer, "user-123", teamID)
 			mockContainer.agentService.On("CompleteExecution", mock.Anything, "user-123", "execution-1", mock.Anything).
 				Return(&models.AgentExecution{ID: "execution-1", AgentID: "agent-1", Status: status}, nil)
-			mockContainer.agentService.On("RecordActivity", mock.Anything, mock.Anything, mock.Anything,
-				mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 			srv := createTestAgentServer(mockContainer)
 
 			req := makeAgentAuthenticatedRequest("PUT", "/api/v1/"+teamID+"/agents/executions/execution-1",
