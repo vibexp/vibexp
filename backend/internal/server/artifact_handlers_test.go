@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vibexp/vibexp/internal/config"
 	"github.com/vibexp/vibexp/internal/container"
@@ -86,61 +87,6 @@ func TestArtifactHandlers_Unauthorized(t *testing.T) {
 			rr := httptest.NewRecorder()
 			srv.ServeHTTP(rr, req)
 
-			if status := rr.Code; status != tt.expected {
-				t.Errorf("handler returned wrong status code: got %v want %v",
-					status, tt.expected)
-			}
-		})
-	}
-}
-
-func TestCreateArtifact_BadRequest(t *testing.T) {
-	srv := testServer()
-	runTestCases(t, srv, artifactBadRequestCases("Bearer valid-token"))
-}
-
-func TestUpdateArtifact_BadRequest(t *testing.T) {
-	cfg := &config.Config{}
-	logger := slog.New(slog.DiscardHandler)
-	srv := New("8080", nil, "test-api-key", cfg, logger)
-
-	tests := []struct {
-		name     string
-		body     string
-		expected int
-	}{
-		{"Invalid JSON", `{"invalid": json}`, http.StatusUnauthorized},
-		{"Project name too long", `{"project_id":"` + strings.Repeat("a", 81) + `"}`, http.StatusUnauthorized},
-		{"Slug too long", `{"slug":"` + strings.Repeat("a", 256) + `"}`, http.StatusUnauthorized},
-		{"Title too long", `{"title":"` + strings.Repeat("a", 256) + `"}`, http.StatusUnauthorized},
-		{"Description too long", `{"description":"` + strings.Repeat("a", 501) + `"}`, http.StatusUnauthorized},
-		{"Invalid type", `{"type":"invalid"}`, http.StatusUnauthorized},
-		{"Valid type work_reports", `{"type":"work_reports"}`, http.StatusUnauthorized},
-		{"Valid type static_contexts", `{"type":"static_contexts"}`, http.StatusUnauthorized},
-		{"Valid type general", `{"type":"general"}`, http.StatusUnauthorized},
-		{"Invalid status", `{"status":"invalid"}`, http.StatusUnauthorized},
-		{"Valid status active", `{"status":"active"}`, http.StatusUnauthorized},
-		{"Valid status draft", `{"status":"draft"}`, http.StatusUnauthorized},
-		{"Valid status archived", `{"status":"archived"}`, http.StatusUnauthorized},
-		{"Valid partial update", `{"title":"Updated Title","description":"Updated Description"}`, http.StatusUnauthorized},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			body := strings.NewReader(tt.body)
-			url := "/api/v1/550e8400-e29b-41d4-a716-446655440000/artifacts/test-project/test-slug"
-			req, err := http.NewRequest("PUT", url, body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Authorization", "Bearer valid-token")
-
-			rr := httptest.NewRecorder()
-			srv.ServeHTTP(rr, req)
-
-			// These should be unauthorized since we don't have proper auth setup
-			// In a real integration test environment, we would set up proper authentication
 			if status := rr.Code; status != tt.expected {
 				t.Errorf("handler returned wrong status code: got %v want %v",
 					status, tt.expected)
@@ -919,6 +865,167 @@ func TestValidateArtifactStatus(t *testing.T) {
 			if !tt.wantValid {
 				assert.Equal(t, http.StatusBadRequest, rr.Code)
 			}
+		})
+	}
+}
+
+// artifactValidationServer builds an authenticated artifact server whose type
+// service accepts every type, so a case reaches the validator it is aimed at.
+func artifactValidationServer(t *testing.T) *Server {
+	t.Helper()
+
+	cfg := &config.Config{}
+	logger := slog.New(slog.DiscardHandler)
+	srv := New("8080", nil, "test-api-key", cfg, logger)
+	srv.container = &MockArtifactContainer{
+		ArtifactServiceMock: servicesmocks.NewMockArtifactServiceInterface(t),
+	}
+
+	return srv
+}
+
+// TestHandleCreateArtifact_Validation and its update twin replace
+// TestCreateArtifact_BadRequest / TestUpdateArtifact_BadRequest (and the shared
+// artifactBadRequestCases helper), which built a nil-container server with a
+// bogus bearer token: all 33 cases stopped at the auth middleware and asserted
+// 401, so no body was ever parsed (#665). TestArtifactHandlers_Unauthorized
+// still covers the unauthenticated path for these routes.
+func TestHandleCreateArtifact_Validation(t *testing.T) {
+	const teamID = "550e8400-e29b-41d4-a716-446655440000"
+	const projectID = "550e8400-e29b-41d4-a716-446655440111"
+
+	tests := []struct {
+		name          string
+		body          string
+		expectedError string
+	}{
+		{
+			name:          "Invalid JSON",
+			body:          `{"invalid": json}`,
+			expectedError: "Invalid request body",
+		},
+		{
+			name:          "Missing project_id",
+			body:          `{"slug":"s","title":"t","content":"c"}`,
+			expectedError: "project_id is required",
+		},
+		{
+			name:          "project_id is not a UUID",
+			body:          `{"project_id":"not-a-uuid","slug":"s","title":"t","content":"c"}`,
+			expectedError: "project_id must be a valid UUID",
+		},
+		{
+			name:          "Missing slug",
+			body:          `{"project_id":"` + projectID + `","title":"t","content":"c"}`,
+			expectedError: "Slug is required",
+		},
+		{
+			name:          "Empty slug",
+			body:          `{"project_id":"` + projectID + `","slug":"","title":"t","content":"c"}`,
+			expectedError: "Slug is required",
+		},
+		{
+			name:          "Missing title",
+			body:          `{"project_id":"` + projectID + `","slug":"s","content":"c"}`,
+			expectedError: "Title is required",
+		},
+		{
+			name:          "Empty title",
+			body:          `{"project_id":"` + projectID + `","slug":"s","title":"","content":"c"}`,
+			expectedError: "Title is required",
+		},
+		{
+			name:          "Missing content",
+			body:          `{"project_id":"` + projectID + `","slug":"s","title":"t"}`,
+			expectedError: "Content is required",
+		},
+		{
+			name:          "Empty content",
+			body:          `{"project_id":"` + projectID + `","slug":"s","title":"t","content":""}`,
+			expectedError: "Content is required",
+		},
+		{
+			name: "Slug too long",
+			body: `{"project_id":"` + projectID + `","slug":"` + strings.Repeat("a", 256) +
+				`","title":"t","content":"c"}`,
+			expectedError: "Slug cannot be longer than 255 characters",
+		},
+		{
+			name: "Title too long",
+			body: `{"project_id":"` + projectID + `","slug":"s","title":"` + strings.Repeat("a", 256) +
+				`","content":"c"}`,
+			expectedError: "Title cannot be longer than 255 characters",
+		},
+		{
+			name: "Description too long",
+			body: `{"project_id":"` + projectID + `","slug":"s","title":"t","content":"c","description":"` +
+				strings.Repeat("a", 501) + `"}`,
+			expectedError: "Description cannot be longer than 500 characters",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := artifactValidationServer(t)
+
+			req := createAuthenticatedRequest(
+				"POST", "/api/v1/"+teamID+"/artifacts/", tt.body, "user-123")
+			req = addURLParams(req, map[string]string{"team_id": teamID})
+			rr := httptest.NewRecorder()
+
+			srv.handleCreateArtifact(rr, req)
+
+			assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+			var response map[string]interface{}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+			assert.Contains(t, response["detail"], tt.expectedError)
+		})
+	}
+}
+
+func TestHandleUpdateArtifact_Validation(t *testing.T) {
+	const teamID = "550e8400-e29b-41d4-a716-446655440000"
+	const routeProjectID = "550e8400-e29b-41d4-a716-446655440111"
+
+	tests := []struct {
+		name          string
+		body          string
+		expectedError string
+	}{
+		{
+			name:          "Invalid JSON",
+			body:          `{"invalid": json}`,
+			expectedError: "Invalid request body",
+		},
+		{
+			name:          "project_id is not a UUID",
+			body:          `{"project_id":"not-a-uuid"}`,
+			expectedError: "project_id must be a valid UUID",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := artifactValidationServer(t)
+
+			// The update route is keyed on {project_id}/{slug}, and the handler
+			// validates those BEFORE decoding the body — supply real ones or
+			// every case fails on "Invalid project_id format" instead.
+			req := createAuthenticatedRequest(
+				"PUT", "/api/v1/"+teamID+"/artifacts/"+routeProjectID+"/some-slug", tt.body, "user-123")
+			req = addURLParams(req, map[string]string{
+				"team_id": teamID, "project_id": routeProjectID, "slug": "some-slug",
+			})
+			rr := httptest.NewRecorder()
+
+			srv.handleUpdateArtifact(rr, req)
+
+			assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+			var response map[string]interface{}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+			assert.Contains(t, response["detail"], tt.expectedError)
 		})
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -1205,4 +1206,229 @@ func TestHandleListAgents_SortOrderDesc(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	mockContainer.agentService.AssertExpectations(t)
+}
+
+// malformedJSONBody is a body no typed struct can produce by marshalling, which
+// is why the decode-error branch needs a raw-bodied request to reach it.
+const malformedJSONBody = `{"invalid": json}`
+
+// agentTestUserID is the authenticated user these validation tests act as.
+const agentTestUserID = "user-123"
+
+// makeAgentMalformedJSONRequest is makeAgentAuthenticatedRequest for a body that
+// must reach the handler byte-for-byte. It authenticates as agentTestUserID,
+// the user every mock container in this file is set up for.
+func makeAgentMalformedJSONRequest(method, path string) *http.Request {
+	req := httptest.NewRequest(method, path, bytes.NewReader([]byte(malformedJSONBody)))
+	req.Header.Set("Content-Type", "application/json")
+
+	return req.WithContext(context.WithValue(req.Context(), contextKeyUserID, agentTestUserID))
+}
+
+// The tests below replace the four `*_BadRequest` tables that used to live in
+// agent_handlers_test.go. Those built a server with a nil container and no real
+// credentials, so every case — malformed JSON and a perfectly valid body alike —
+// stopped at the auth middleware and asserted 401; the bodies they varied were
+// never parsed (#665). The unauthenticated-401 matrix they duplicated is still
+// covered, per route, by TestAgentHandlers_Unauthorized.
+
+func TestHandleCreateAgent_InvalidJSON(t *testing.T) {
+	mockContainer := newMockAgentContainer(t)
+	teamID := "550e8400-e29b-41d4-a716-446655440000"
+	setupDefaultTeamMock(mockContainer, "user-123", teamID)
+	srv := createTestAgentServer(mockContainer)
+
+	req := makeAgentMalformedJSONRequest("POST", "/api/v1/"+teamID+"/agents/")
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestHandleCreateAgent_StatusValidation covers validateCreateAgentRequest's
+// status branch, which nothing asserted before: an unrecognised status is
+// rejected, and both accepted values reach the service.
+func TestHandleCreateAgent_StatusValidation(t *testing.T) {
+	const cardURL = "http://localhost:8000/.well-known/agent-card.json"
+	teamID := "550e8400-e29b-41d4-a716-446655440000"
+
+	t.Run("invalid status is rejected", func(t *testing.T) {
+		mockContainer := newMockAgentContainer(t)
+		setupDefaultTeamMock(mockContainer, "user-123", teamID)
+		srv := createTestAgentServer(mockContainer)
+
+		req := makeAgentAuthenticatedRequest("POST", "/api/v1/"+teamID+"/agents/",
+			&models.CreateAgentRequest{Name: "Test Agent", CardURL: cardURL, Status: "invalid"},
+			"user-123")
+		w := httptest.NewRecorder()
+
+		srv.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "VALIDATION_FAILED", response["code"])
+		assert.Contains(t, response["detail"], "Status must be either 'active' or 'paused'")
+	})
+
+	for _, status := range []string{"active", "paused"} {
+		t.Run("status "+status+" is accepted", func(t *testing.T) {
+			mockContainer := newMockAgentContainer(t)
+			setupDefaultTeamMock(mockContainer, "user-123", teamID)
+			mockContainer.agentService.On("CreateAgent", mock.Anything, "user-123", teamID, mock.Anything).
+				Return(&models.Agent{ID: "agent-1", Name: "Test Agent", Status: status}, nil)
+			srv := createTestAgentServer(mockContainer)
+
+			req := makeAgentAuthenticatedRequest("POST", "/api/v1/"+teamID+"/agents/",
+				&models.CreateAgentRequest{Name: "Test Agent", CardURL: cardURL, Status: status},
+				"user-123")
+			w := httptest.NewRecorder()
+
+			srv.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusCreated, w.Code)
+		})
+	}
+}
+
+// TestHandleUpdateAgent_ValidationError covers validateUpdateAgentRequest's
+// name, description and status branches — none of which were asserted before.
+func TestHandleUpdateAgent_ValidationError(t *testing.T) {
+	teamID := "550e8400-e29b-41d4-a716-446655440000"
+
+	tests := []struct {
+		name          string
+		reqBody       *models.UpdateAgentRequest
+		expectedError string
+	}{
+		{
+			name:          "Empty name",
+			reqBody:       &models.UpdateAgentRequest{Name: stringPtr("")},
+			expectedError: "Name cannot be empty",
+		},
+		{
+			name:          "Name too long",
+			reqBody:       &models.UpdateAgentRequest{Name: stringPtr(strings.Repeat("a", 101))},
+			expectedError: "Name cannot be longer than 100 characters",
+		},
+		{
+			name:          "Invalid status",
+			reqBody:       &models.UpdateAgentRequest{Status: stringPtr("invalid")},
+			expectedError: "Status must be 'active', 'paused', or 'error'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockContainer := newMockAgentContainer(t)
+			setupDefaultTeamMock(mockContainer, "user-123", teamID)
+			srv := createTestAgentServer(mockContainer)
+
+			req := makeAgentAuthenticatedRequest(
+				"PUT", "/api/v1/"+teamID+"/agents/agent-1", tt.reqBody, "user-123")
+			w := httptest.NewRecorder()
+
+			srv.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+
+			var response map[string]interface{}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, "VALIDATION_FAILED", response["code"])
+			assert.Contains(t, response["detail"], tt.expectedError)
+		})
+	}
+}
+
+func TestHandleUpdateAgent_InvalidJSON(t *testing.T) {
+	mockContainer := newMockAgentContainer(t)
+	teamID := "550e8400-e29b-41d4-a716-446655440000"
+	setupDefaultTeamMock(mockContainer, "user-123", teamID)
+	srv := createTestAgentServer(mockContainer)
+
+	req := makeAgentMalformedJSONRequest("PUT", "/api/v1/"+teamID+"/agents/agent-1")
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestHandleUpdateAgent_AcceptedStatuses pins all three values the validator
+// allows; the old table listed them as separate cases that all asserted 401.
+func TestHandleUpdateAgent_AcceptedStatuses(t *testing.T) {
+	teamID := "550e8400-e29b-41d4-a716-446655440000"
+
+	for _, status := range []string{"active", "paused", "error"} {
+		t.Run("status "+status, func(t *testing.T) {
+			mockContainer := newMockAgentContainer(t)
+			setupDefaultTeamMock(mockContainer, "user-123", teamID)
+			mockContainer.agentService.On("UpdateAgent", mock.Anything, "user-123", teamID, "agent-1", mock.Anything).
+				Return(&models.Agent{ID: "agent-1", Name: "Test Agent", Status: status}, nil)
+			srv := createTestAgentServer(mockContainer)
+
+			req := makeAgentAuthenticatedRequest("PUT", "/api/v1/"+teamID+"/agents/agent-1",
+				&models.UpdateAgentRequest{Status: stringPtr(status)}, "user-123")
+			w := httptest.NewRecorder()
+
+			srv.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+		})
+	}
+}
+
+func TestHandleStartAgentExecution_InvalidJSON(t *testing.T) {
+	mockContainer := newMockAgentContainer(t)
+	teamID := "550e8400-e29b-41d4-a716-446655440000"
+	setupDefaultTeamMock(mockContainer, "user-123", teamID)
+	srv := createTestAgentServer(mockContainer)
+
+	req := makeAgentMalformedJSONRequest("POST", "/api/v1/"+teamID+"/agents/agent-1/executions")
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandleCompleteAgentExecution_InvalidJSON(t *testing.T) {
+	mockContainer := newMockAgentContainer(t)
+	teamID := "550e8400-e29b-41d4-a716-446655440000"
+	setupDefaultTeamMock(mockContainer, "user-123", teamID)
+	srv := createTestAgentServer(mockContainer)
+
+	req := makeAgentMalformedJSONRequest("PUT", "/api/v1/"+teamID+"/agents/executions/execution-1")
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestHandleCompleteAgentExecution_AcceptedStatuses pins the three terminal
+// statuses the handler accepts. The old table listed each as its own case and
+// asserted 401 for all of them.
+func TestHandleCompleteAgentExecution_AcceptedStatuses(t *testing.T) {
+	teamID := "550e8400-e29b-41d4-a716-446655440000"
+
+	for _, status := range []string{"running", "success", "error"} {
+		t.Run("status "+status, func(t *testing.T) {
+			mockContainer := newMockAgentContainer(t)
+			setupDefaultTeamMock(mockContainer, "user-123", teamID)
+			mockContainer.agentService.On("CompleteExecution", mock.Anything, "user-123", "execution-1", mock.Anything).
+				Return(&models.AgentExecution{ID: "execution-1", AgentID: "agent-1", Status: status}, nil)
+			srv := createTestAgentServer(mockContainer)
+
+			req := makeAgentAuthenticatedRequest("PUT", "/api/v1/"+teamID+"/agents/executions/execution-1",
+				&models.UpdateAgentExecutionRequest{Status: status}, "user-123")
+			w := httptest.NewRecorder()
+
+			srv.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+		})
+	}
 }

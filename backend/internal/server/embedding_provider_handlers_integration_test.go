@@ -1851,3 +1851,62 @@ func TestToGenValidateResponse_OmitsZeroDetails(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// makeRawEmbeddingProviderRequest is makeAuthenticatedEmbeddingProviderRequest
+// for a body that must reach the server byte-for-byte — malformed JSON in
+// particular, which marshalling a typed struct cannot produce.
+func makeRawEmbeddingProviderRequest(method, path, body, userID string) *http.Request {
+	req := httptest.NewRequest(method, path, bytes.NewReader([]byte(body)))
+	req.Header.Set("Content-Type", "application/json")
+
+	return req.WithContext(context.WithValue(req.Context(), contextKeyUserID, userID))
+}
+
+// TestEmbeddingProvider_MalformedJSONIsRejected replaces the malformed-JSON
+// cases of the three `*_BadRequest` tables deleted from
+// embedding_provider_handlers_test.go, which built a nil-container server and
+// asserted 401 for every case (#665). This domain is spec-first, so the
+// rejection comes from the generated request binder rather than a hand-written
+// decode branch — worth pinning, because that binder is regenerated.
+//
+// The unauthenticated path stays covered by the per-operation
+// Test*EmbeddingProvider_Unauthorized tests.
+func TestEmbeddingProvider_MalformedJSONIsRejected(t *testing.T) {
+	const teamID = "11111111-2222-4333-8444-555555555555"
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{
+			name:   "create",
+			method: "POST",
+			path:   "/api/v1/" + teamID + "/embedding-providers",
+		},
+		{
+			name:   "update",
+			method: "PUT",
+			path:   "/api/v1/" + teamID + "/embedding-providers/provider-1",
+		},
+		{
+			name:   "validate",
+			method: "POST",
+			path:   "/api/v1/" + teamID + "/embedding-providers/validate",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockContainer := newMockEmbeddingProviderContainer(t)
+			srv := createTestEmbeddingProviderServer(mockContainer)
+
+			req := makeRawEmbeddingProviderRequest(tt.method, tt.path, `{"invalid": json}`, "user-123")
+			w := httptest.NewRecorder()
+
+			srv.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
+}
