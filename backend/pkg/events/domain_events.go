@@ -43,8 +43,6 @@ const (
 
 // Resource type constants
 const (
-	ResourceTypeAITool    = "ai_tool"
-	ResourceTypeAISession = "ai_session"
 	ResourceTypePrompt    = "prompt"
 	ResourceTypeArtifact  = "artifact"
 	ResourceTypeMemory    = "memory"

@@ -24,8 +24,6 @@ type ResourceUsageService struct {
 	memoryRepo           repositories.MemoryRepository
 	agentRepo            repositories.AgentRepository
 	agentExecRepo        repositories.AgentExecutionRepository
-	claudeCodeRepo       repositories.ClaudeCodeHooksRepository
-	cursorIDERepo        repositories.CursorIDEHooksRepository
 	specLibraryRepo      repositories.BlueprintRepository
 	teamRepo             repositories.TeamRepository
 	teamMemberRepo       repositories.TeamMemberRepository
@@ -44,8 +42,6 @@ type ResourceUsageServiceDeps struct {
 	MemoryRepo           repositories.MemoryRepository
 	AgentRepo            repositories.AgentRepository
 	AgentExecRepo        repositories.AgentExecutionRepository
-	ClaudeCodeRepo       repositories.ClaudeCodeHooksRepository
-	CursorIDERepo        repositories.CursorIDEHooksRepository
 	SpecLibraryRepo      repositories.BlueprintRepository
 	TeamRepo             repositories.TeamRepository
 	TeamMemberRepo       repositories.TeamMemberRepository
@@ -65,8 +61,6 @@ func NewResourceUsageService(deps ResourceUsageServiceDeps) *ResourceUsageServic
 		memoryRepo:           deps.MemoryRepo,
 		agentRepo:            deps.AgentRepo,
 		agentExecRepo:        deps.AgentExecRepo,
-		claudeCodeRepo:       deps.ClaudeCodeRepo,
-		cursorIDERepo:        deps.CursorIDERepo,
 		specLibraryRepo:      deps.SpecLibraryRepo,
 		teamRepo:             deps.TeamRepo,
 		teamMemberRepo:       deps.TeamMemberRepo,
@@ -161,32 +155,6 @@ func (s *ResourceUsageService) countAgentConversations(ctx context.Context, user
 	return totalCount, nil
 }
 
-// countConnectedAITools counts unique AI tools with at least one session
-func (s *ResourceUsageService) countConnectedAITools(ctx context.Context, userID string) (int, error) {
-	claudeCount, cursorCount, err := s.getAIToolSessionCounts(ctx, userID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get AI tool session counts: %w", err)
-	}
-
-	count := 0
-	if claudeCount > 0 {
-		count++
-	}
-	if cursorCount > 0 {
-		count++
-	}
-	return count, nil
-}
-
-// countTotalAISessions counts total AI sessions across all tools
-func (s *ResourceUsageService) countTotalAISessions(ctx context.Context, userID string) (int, error) {
-	claudeCount, cursorCount, err := s.getAIToolSessionCounts(ctx, userID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get AI session counts: %w", err)
-	}
-	return claudeCount + cursorCount, nil
-}
-
 // countTeams counts all teams owned by a user
 func (s *ResourceUsageService) countTeams(ctx context.Context, userID string) (int, error) {
 	return s.teamRepo.CountByOwnerID(ctx, userID)
@@ -230,10 +198,6 @@ func (s *ResourceUsageService) getResourceCount(ctx context.Context, userID, res
 		return s.countAgents(ctx, userID)
 	case events.ResourceTypeAgentConv:
 		return s.countAgentConversations(ctx, userID)
-	case events.ResourceTypeAITool:
-		return s.countConnectedAITools(ctx, userID)
-	case events.ResourceTypeAISession:
-		return s.countTotalAISessions(ctx, userID)
 	case events.ResourceTypeTeam:
 		return s.countTeams(ctx, userID)
 	case events.ResourceTypeFeed:
@@ -244,23 +208,6 @@ func (s *ResourceUsageService) getResourceCount(ctx context.Context, userID, res
 		s.logger.With("resource_type", resourceType).Warn("Unknown resource type for count check")
 		return 0, nil
 	}
-}
-
-// getAIToolSessionCounts gets session counts for both Claude Code and Cursor IDE using efficient COUNT queries
-// Returns (claudeCodeCount, cursorIDECount, error)
-func (s *ResourceUsageService) getAIToolSessionCounts(ctx context.Context, userID string) (int, int, error) {
-	// Use CountUniqueSessions for efficient counting without pagination overhead
-	claudeCount, err := s.claudeCodeRepo.CountUniqueSessions(ctx, userID)
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to count Claude Code sessions: %w", err)
-	}
-
-	cursorCount, err := s.cursorIDERepo.CountUniqueSessions(ctx, userID)
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to count Cursor IDE sessions: %w", err)
-	}
-
-	return claudeCount, cursorCount, nil
 }
 
 // teamQuotaContribution is one team's quota contribution as computed by
@@ -511,8 +458,6 @@ func (s *ResourceUsageService) GetResourceUsage(
 
 	// Define resource types to check
 	resourceTypes := []string{
-		events.ResourceTypeAITool,
-		events.ResourceTypeAISession,
 		events.ResourceTypePrompt,
 		events.ResourceTypeArtifact,
 		events.ResourceTypeMemory,
@@ -583,18 +528,6 @@ func (s *ResourceUsageService) GetResourceUsage(
 
 // getResourceLimit returns the resource limit for a subscription plan
 var resourceLimits = map[string]map[string]int{
-	events.ResourceTypeAITool: {
-		models.PlanBasic:     2,
-		models.PlanStarter:   2,
-		models.PlanPro:       3,
-		models.PlanPowerUser: -1, // Unlimited
-	},
-	events.ResourceTypeAISession: {
-		models.PlanBasic:     100,
-		models.PlanStarter:   500,
-		models.PlanPro:       1000,
-		models.PlanPowerUser: 2000,
-	},
 	events.ResourceTypePrompt: {
 		models.PlanBasic:     100,
 		models.PlanStarter:   200,

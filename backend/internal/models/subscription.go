@@ -67,7 +67,6 @@ type TeamQuota struct {
 	Prompts              int `json:"prompts"`               // -1 means unlimited
 	Artifacts            int `json:"artifacts"`             // -1 means unlimited
 	Memories             int `json:"memories"`              // -1 means unlimited
-	AIToolSessions       int `json:"ai_tool_sessions"`      // -1 means unlimited
 	AgenticConversations int `json:"agentic_conversations"` // -1 means unlimited
 	SpecLibraryItems     int `json:"spec_library_items"`    // -1 means unlimited
 }

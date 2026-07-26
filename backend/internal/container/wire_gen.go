@@ -99,8 +99,6 @@ func InitializeContainer(db *database.DB, cfg *config.Config, logger *slog.Logge
 		MemoryRepo:           memoryRepository,
 		AgentRepo:            agentRepository,
 		AgentExecRepo:        agentExecutionRepository,
-		ClaudeCodeRepo:       claudeCodeHooksRepository,
-		CursorIDERepo:        cursorIDEHooksRepository,
 		SpecLibraryRepo:      blueprintRepository,
 		TeamRepo:             teamRepository,
 		TeamMemberRepo:       teamMemberRepository,
