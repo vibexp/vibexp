@@ -220,12 +220,6 @@ func (n *noopActivityService) RecordResourceActivity(
 ) error {
 	return nil
 }
-func (n *noopActivityService) RecordClaudeCodeActivity(
-	ctx context.Context, userID, sessionID string, toolName *string,
-	hookEventName string, metadata map[string]interface{},
-) error {
-	return nil
-}
 func (n *noopActivityService) GetActivities(
 	ctx context.Context, filters activities.ActivityFilters,
 ) (*activities.ActivityListResponse, error) {

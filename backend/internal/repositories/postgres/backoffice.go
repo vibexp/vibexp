@@ -67,10 +67,6 @@ func (r *BackofficeRepository) getWeekStarts(ctx context.Context) ([]time.Time, 
 			SELECT created_at FROM prompts
 			UNION ALL
 			SELECT created_at FROM agents
-			UNION ALL
-			SELECT created_at FROM claude_code_hooks_payload
-			UNION ALL
-			SELECT created_at FROM cursor_ide_hooks_payload
 		) AS all_dates
 		ORDER BY week_start DESC
 	`
@@ -117,10 +113,6 @@ func (r *BackofficeRepository) buildUsageMetricsRow(
 	row.NewAgents = r.countByTable(ctx, "agents", "created_at", weekStart, weekEnd)
 	row.AgentExecutions = r.countByTable(ctx, "agent_executions", "started_at", weekStart, weekEnd)
 
-	row.ClaudeSessions = r.countDistinctSessions(ctx, "claude_code_hooks_payload", weekStart, weekEnd)
-	row.CursorSessions = r.countDistinctSessions(ctx, "cursor_ide_hooks_payload", weekStart, weekEnd)
-	row.TotalAIToolSessions = row.ClaudeSessions + row.CursorSessions
-
 	return row
 }
 
@@ -132,24 +124,6 @@ func (r *BackofficeRepository) countByTable(
 ) int {
 	query := "SELECT COALESCE(COUNT(*), 0) FROM " + table +
 		" WHERE " + timestampColumn + " >= $1 AND " + timestampColumn + " <= $2"
-
-	var count int
-	err := r.db.QueryRowContext(ctx, query, weekStart, weekEnd).Scan(&count)
-	if err != nil {
-		return 0
-	}
-
-	return count
-}
-
-// countDistinctSessions counts distinct sessions for a specific time range
-func (r *BackofficeRepository) countDistinctSessions(
-	ctx context.Context,
-	table string,
-	weekStart, weekEnd time.Time,
-) int {
-	query := "SELECT COALESCE(COUNT(DISTINCT session_id), 0) FROM " + table +
-		" WHERE created_at >= $1 AND created_at <= $2"
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, weekStart, weekEnd).Scan(&count)

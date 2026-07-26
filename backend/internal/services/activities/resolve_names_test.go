@@ -265,7 +265,7 @@ func TestService_GetActivities_SkipsNameResolutionForNonResolvableEntityTypes(t 
 
 	activityRepo.On("List", ctx, mock.Anything).Return(&models.ActivityListResponse{
 		Activities: []models.Activity{
-			{ID: uuid.New().String(), UserID: userID, ActivityType: ActivityTypeClaudeCodeSession,
+			{ID: uuid.New().String(), UserID: userID, ActivityType: ActivityTypeSystemInfo,
 				EntityType: EntityTypeSession, EntityID: &sessionID, Description: "session"},
 		},
 		TotalCount: 1, Page: 1, PerPage: 10, TotalPages: 1,

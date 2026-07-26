@@ -142,35 +142,6 @@ func (s *Service) RecordResourceActivity(
 	return err
 }
 
-// RecordClaudeCodeActivity records Claude Code session activities
-func (s *Service) RecordClaudeCodeActivity(
-	ctx context.Context, userID string, sessionID string, toolName *string,
-	hookEventName string, metadata map[string]interface{},
-) error {
-	description := s.generateClaudeCodeActivityDescription(hookEventName, toolName, metadata)
-
-	// Determine activity type based on hook event
-	activityType := ActivityTypeClaudeCodeSession
-	if toolName != nil {
-		activityType = ActivityTypeClaudeCodeTool
-	}
-	if hookEventName == "UserPromptSubmit" {
-		activityType = ActivityTypeClaudeCodePrompt
-	}
-
-	req := CreateActivityRequest{
-		ActivityType: activityType,
-		EntityType:   EntityTypeSession,
-		EntityID:     &sessionID,
-		SessionID:    &sessionID,
-		Description:  description,
-		Metadata:     metadata,
-	}
-
-	_, err := s.RecordActivity(ctx, userID, req)
-	return err
-}
-
 // GetActivities retrieves activities with filtering and pagination
 func (s *Service) GetActivities(ctx context.Context, filters ActivityFilters) (*ActivityListResponse, error) {
 	// Convert service filters to repository filters
@@ -320,9 +291,6 @@ func (s *Service) GetActivityTypes() []string {
 		ActivityTypePromptCreated,
 		ActivityTypePromptUpdated,
 		ActivityTypePromptDeleted,
-		ActivityTypeClaudeCodeSession,
-		ActivityTypeClaudeCodeTool,
-		ActivityTypeClaudeCodePrompt,
 		ActivityTypeSystemError,
 		ActivityTypeSystemWarning,
 		ActivityTypeSystemInfo,
@@ -667,28 +635,5 @@ func (s *Service) generateAuthActivityDescription(activityType string, metadata 
 		return "Authentication token refreshed"
 	default:
 		return fmt.Sprintf("Authentication activity: %s", activityType)
-	}
-}
-
-func (s *Service) generateClaudeCodeActivityDescription(
-	hookEventName string, toolName *string, _ map[string]interface{},
-) string {
-	switch hookEventName {
-	case "UserPromptSubmit":
-		return "User submitted a prompt to Claude Code"
-	case "ToolUse":
-		if toolName != nil {
-			return fmt.Sprintf("Used Claude Code tool: %s", *toolName)
-		}
-		return "Used Claude Code tool"
-	case "SessionStart":
-		return "Started Claude Code session"
-	case "SessionEnd":
-		return "Ended Claude Code session"
-	default:
-		if toolName != nil {
-			return fmt.Sprintf("Claude Code %s with tool: %s", hookEventName, *toolName)
-		}
-		return fmt.Sprintf("Claude Code %s", hookEventName)
 	}
 }

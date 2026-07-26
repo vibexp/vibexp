@@ -88,13 +88,6 @@ func (t *trackingActivityService) RecordResourceActivity(
 	return nil
 }
 
-func (t *trackingActivityService) RecordClaudeCodeActivity(
-	ctx context.Context, userID, sessionID string, toolName *string,
-	hookEventName string, metadata map[string]interface{},
-) error {
-	return nil
-}
-
 func (t *trackingActivityService) GetActivities(
 	ctx context.Context, filters activities.ActivityFilters,
 ) (*activities.ActivityListResponse, error) {

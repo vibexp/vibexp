@@ -23,6 +23,7 @@ import (
 	"github.com/vibexp/vibexp/internal/services/activities"
 	"github.com/vibexp/vibexp/internal/services/notifications"
 	"github.com/vibexp/vibexp/internal/services/resourceaccess"
+	"github.com/vibexp/vibexp/internal/specconformance"
 )
 
 // TestEmbeddingsBackfillRoute_Removed_Returns404 guards acceptance criterion #1
@@ -221,17 +222,14 @@ func TestBackofficeUsageAndGrowth_Success(t *testing.T) {
 	expectedResponse := &models.UsageAndGrowthResponse{
 		Usage: []models.UsageMetricsRow{
 			{
-				WeekStart:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-				NewUsers:            10,
-				NewArtifacts:        25,
-				NewMemories:         15,
-				NewAPIKeys:          5,
-				NewPrompts:          8,
-				NewAgents:           3,
-				AgentExecutions:     12,
-				ClaudeSessions:      20,
-				CursorSessions:      15,
-				TotalAIToolSessions: 35,
+				WeekStart:       time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				NewUsers:        10,
+				NewArtifacts:    25,
+				NewMemories:     15,
+				NewAPIKeys:      5,
+				NewPrompts:      8,
+				NewAgents:       3,
+				AgentExecutions: 12,
 			},
 		},
 		ActivitiesPerUser: []models.UserActivityRow{
@@ -270,6 +268,11 @@ func TestBackofficeUsageAndGrowth_Success(t *testing.T) {
 	assert.Len(t, response.Usage, 1)
 	assert.Len(t, response.ActivitiesPerUser, 1)
 	assert.Equal(t, 10, response.Usage[0].NewUsers)
+
+	// Validates the recorded body against the OpenAPI schema — this is what proves
+	// claude_sessions / cursor_sessions / total_ai_tool_sessions are really gone
+	// from the documented response (#612), not just from the Go struct.
+	specconformance.AssertConformsToSpec(t, req, rr)
 
 	mockService.AssertExpectations(t)
 }
@@ -566,17 +569,14 @@ func TestBackofficeUsageAndGrowth_ResponseStructure(t *testing.T) {
 	expectedResponse := &models.UsageAndGrowthResponse{
 		Usage: []models.UsageMetricsRow{
 			{
-				WeekStart:           time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-				NewUsers:            10,
-				NewArtifacts:        25,
-				NewMemories:         15,
-				NewAPIKeys:          5,
-				NewPrompts:          8,
-				NewAgents:           3,
-				AgentExecutions:     12,
-				ClaudeSessions:      20,
-				CursorSessions:      15,
-				TotalAIToolSessions: 35,
+				WeekStart:       time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				NewUsers:        10,
+				NewArtifacts:    25,
+				NewMemories:     15,
+				NewAPIKeys:      5,
+				NewPrompts:      8,
+				NewAgents:       3,
+				AgentExecutions: 12,
 			},
 		},
 		ActivitiesPerUser: []models.UserActivityRow{
@@ -628,9 +628,6 @@ func TestBackofficeUsageAndGrowth_ResponseStructure(t *testing.T) {
 	assert.Equal(t, 8, usage.NewPrompts)
 	assert.Equal(t, 3, usage.NewAgents)
 	assert.Equal(t, 12, usage.AgentExecutions)
-	assert.Equal(t, 20, usage.ClaudeSessions)
-	assert.Equal(t, 15, usage.CursorSessions)
-	assert.Equal(t, 35, usage.TotalAIToolSessions)
 
 	// Verify user activities
 	activity := response.ActivitiesPerUser[0]

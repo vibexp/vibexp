@@ -48,13 +48,6 @@ func (m *mockActivityService) RecordResourceActivity(
 	return nil
 }
 
-func (m *mockActivityService) RecordClaudeCodeActivity(
-	ctx context.Context, userID string, sessionID string, toolName *string,
-	hookEventName string, metadata map[string]interface{},
-) error {
-	return nil
-}
-
 func (m *mockActivityService) GetActivities(
 	ctx context.Context, filters activities.ActivityFilters,
 ) (*activities.ActivityListResponse, error) {

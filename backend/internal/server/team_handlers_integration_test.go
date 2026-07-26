@@ -193,14 +193,6 @@ func (m *MockActivityServiceForTeamHandlers) RecordResourceActivity(
 	return args.Error(0)
 }
 
-func (m *MockActivityServiceForTeamHandlers) RecordClaudeCodeActivity(
-	ctx context.Context, userID string, sessionID string, toolName *string,
-	hookEventName string, metadata map[string]interface{},
-) error {
-	args := m.Called(ctx, userID, sessionID, toolName, hookEventName, metadata)
-	return args.Error(0)
-}
-
 func (m *MockActivityServiceForTeamHandlers) RunRetentionJob(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
