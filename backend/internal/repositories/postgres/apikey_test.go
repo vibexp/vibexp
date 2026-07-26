@@ -50,7 +50,7 @@ func TestAPIKeyRepository_Create(t *testing.T) {
 				UserID:       "user-123",
 				KeyHash:      "hash-abc123",
 				KeyPrefix:    "vxk_abc",
-				Integrations: []string{"ai_tools", "cli"},
+				Integrations: []string{"mcp_server", "cli"},
 				CreatedAt:    now,
 				UpdatedAt:    now,
 			},
@@ -74,7 +74,7 @@ func TestAPIKeyRepository_Create(t *testing.T) {
 
 				// Insert integration permissions
 				mock.ExpectExec(`INSERT INTO api_key_integration_permissions`).
-					WithArgs("key-123", "ai_tools").
+					WithArgs("key-123", "mcp_server").
 					WillReturnResult(sqlmock.NewResult(1, 1))
 
 				mock.ExpectExec(`INSERT INTO api_key_integration_permissions`).
@@ -191,7 +191,7 @@ func TestAPIKeyRepository_GetByUserID(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Now()
-	usageType := "ai_tools"
+	usageType := "mcp"
 
 	tests := []struct {
 		name        string
@@ -222,7 +222,7 @@ func TestAPIKeyRepository_GetByUserID(t *testing.T) {
 
 				// Integration queries for each key
 				intRows1 := sqlmock.NewRows([]string{"integration_code"}).
-					AddRow("ai_tools").AddRow("cli")
+					AddRow("mcp_server").AddRow("cli")
 				mock.ExpectQuery(`SELECT integration_code FROM api_key_integration_permissions WHERE api_key_id`).
 					WithArgs("key-1").
 					WillReturnRows(intRows1)
@@ -295,7 +295,7 @@ func TestAPIKeyRepository_GetByKeyHash(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Now()
-	usageType := "ai_tools"
+	usageType := "mcp"
 
 	tests := []struct {
 		name       string
@@ -321,7 +321,7 @@ func TestAPIKeyRepository_GetByKeyHash(t *testing.T) {
 					WillReturnRows(rows)
 
 				intRows := sqlmock.NewRows([]string{"integration_code"}).
-					AddRow("ai_tools").AddRow("cli")
+					AddRow("mcp_server").AddRow("cli")
 				mock.ExpectQuery(`SELECT integration_code FROM api_key_integration_permissions WHERE api_key_id`).
 					WithArgs("key-123").
 					WillReturnRows(intRows)
@@ -420,7 +420,7 @@ func TestAPIKeyRepository_GetByKeyHash_Expiry(t *testing.T) {
 			"id", "name", "user_id", "key_hash", "key_prefix", "usage_type",
 			"is_legacy", "migration_notes", "last_used_at", "expires_at", "created_at", "updated_at", "version",
 		}).AddRow(
-			"key-future", "Future Key", "user-1", "hash-future", "vxk_f", "ai_tools",
+			"key-future", "Future Key", "user-1", "hash-future", "vxk_f", "mcp",
 			false, nil, nil, future, now, now, 1,
 		)
 		// The query must carry the expiry guard so expired rows never match.
@@ -618,7 +618,6 @@ func TestAPIKeyRepository_GetIntegrationsByAPIKeyID(t *testing.T) {
 			apiKeyID: "key-123",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{"integration_code"}).
-					AddRow("ai_tools").
 					AddRow("cli").
 					AddRow("mcp_server")
 
@@ -627,7 +626,7 @@ func TestAPIKeyRepository_GetIntegrationsByAPIKeyID(t *testing.T) {
 					WillReturnRows(rows)
 			},
 			expectErr:   false,
-			expectCount: 3,
+			expectCount: 2,
 		},
 		{
 			name:     "empty list",
@@ -696,11 +695,11 @@ func TestAPIKeyRepository_HasIntegrationPermission(t *testing.T) {
 		{
 			name:            "has permission",
 			apiKeyID:        "key-123",
-			integrationCode: "ai_tools",
+			integrationCode: "mcp_server",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{"count"}).AddRow(1)
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM api_key_integration_permissions`).
-					WithArgs("key-123", "ai_tools").
+					WithArgs("key-123", "mcp_server").
 					WillReturnRows(rows)
 			},
 			expectErr:    false,
@@ -722,10 +721,10 @@ func TestAPIKeyRepository_HasIntegrationPermission(t *testing.T) {
 		{
 			name:            "database error",
 			apiKeyID:        "key-error",
-			integrationCode: "ai_tools",
+			integrationCode: "mcp_server",
 			setupMock: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM api_key_integration_permissions`).
-					WithArgs("key-error", "ai_tools").
+					WithArgs("key-error", "mcp_server").
 					WillReturnError(sql.ErrConnDone)
 			},
 			expectErr:    true,
@@ -772,7 +771,6 @@ func TestAPIKeyRepository_GetValidIntegrationCodes(t *testing.T) {
 			name: "successful retrieval",
 			setupMock: func() {
 				rows := sqlmock.NewRows([]string{"integration_code"}).
-					AddRow("ai_tools").
 					AddRow("cli").
 					AddRow("mcp_server")
 
@@ -780,7 +778,7 @@ func TestAPIKeyRepository_GetValidIntegrationCodes(t *testing.T) {
 					WillReturnRows(rows)
 			},
 			expectErr:   false,
-			expectCodes: []string{"ai_tools", "cli", "mcp_server"},
+			expectCodes: []string{"cli", "mcp_server"},
 		},
 		{
 			name: "empty catalog",
@@ -839,7 +837,7 @@ func TestAPIKeyRepository_GetByUserID_ScanError(t *testing.T) {
 		"id", "name", "user_id", "key_hash", "key_prefix", "usage_type",
 		"is_legacy", "migration_notes", "last_used_at", "expires_at", "created_at", "updated_at", "version",
 	}).AddRow(
-		"key-1", "Key 1", "user-123", "hash-1", "vxk_1", "ai_tools",
+		"key-1", "Key 1", "user-123", "hash-1", "vxk_1", "mcp",
 		"invalid_bool", nil, nil, nil, time.Now(), time.Now(), 1, // invalid bool
 	)
 
@@ -866,7 +864,7 @@ func TestAPIKeyRepository_GetIntegrationsByAPIKeyID_RowsIterationError(t *testin
 	ctx := context.Background()
 
 	rows := sqlmock.NewRows([]string{"integration_code"}).
-		AddRow("ai_tools").
+		AddRow("mcp_server").
 		RowError(0, driver.ErrBadConn)
 
 	mock.ExpectQuery(`SELECT integration_code FROM api_key_integration_permissions WHERE api_key_id`).
@@ -892,7 +890,7 @@ func TestAPIKeyRepository_GetValidIntegrationCodes_RowsIterationError(t *testing
 	ctx := context.Background()
 
 	rows := sqlmock.NewRows([]string{"integration_code"}).
-		AddRow("ai_tools").
+		AddRow("mcp_server").
 		RowError(0, driver.ErrBadConn)
 
 	mock.ExpectQuery(`SELECT integration_code FROM api_key_integrations_catalog WHERE is_active`).
@@ -922,7 +920,7 @@ func TestAPIKeyRepository_Create_IntegrationInsertError(t *testing.T) {
 		UserID:       "user-123",
 		KeyHash:      "hash-abc123",
 		KeyPrefix:    "vxk_abc",
-		Integrations: []string{"ai_tools"},
+		Integrations: []string{"mcp_server"},
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -944,7 +942,7 @@ func TestAPIKeyRepository_Create_IntegrationInsertError(t *testing.T) {
 		WillReturnRows(rows)
 
 	mock.ExpectExec(`INSERT INTO api_key_integration_permissions`).
-		WithArgs("key-123", "ai_tools").
+		WithArgs("key-123", "mcp_server").
 		WillReturnError(sql.ErrConnDone)
 
 	mock.ExpectRollback()

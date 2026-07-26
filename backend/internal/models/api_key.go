@@ -6,14 +6,12 @@ import (
 
 // Integration codes (replacing usage type constants)
 const (
-	IntegrationCodeAITools   = "ai_tools"
 	IntegrationCodeCLI       = "cli"
 	IntegrationCodeMCPServer = "mcp_server"
 )
 
 // Legacy usage type constants (kept for backward compatibility)
 const (
-	UsageTypeAITools    = "ai_tools"
 	UsageTypeCLI        = "cli"
 	UsageTypeMCP        = "mcp"
 	UsageTypeEverything = "everything"
@@ -21,7 +19,12 @@ const (
 
 // API key prefixes - now unified
 const (
-	// Legacy prefixes (deprecated)
+	// Legacy prefixes (deprecated).
+	//
+	// PrefixAITools MUST NOT be removed even though the `ai_tools` integration scope
+	// was retired with the hook feature (#614). middleware.go uses it to recognise a
+	// bearer token as an API key at all, so deleting it would 401 every existing
+	// `aait-`-prefixed key. The prefix is orthogonal to the scope.
 	PrefixAITools    = "aait-"
 	PrefixCLI        = "acli-"
 	PrefixMCP        = "amcp-"
@@ -33,7 +36,6 @@ const (
 // ValidUsageTypes returns all valid usage types (legacy)
 func ValidUsageTypes() []string {
 	return []string{
-		UsageTypeAITools,
 		UsageTypeCLI,
 		UsageTypeMCP,
 		UsageTypeEverything,
@@ -43,7 +45,6 @@ func ValidUsageTypes() []string {
 // ValidIntegrationCodes returns all valid integration codes
 func ValidIntegrationCodes() []string {
 	return []string{
-		IntegrationCodeAITools,
 		IntegrationCodeCLI,
 		IntegrationCodeMCPServer,
 	}

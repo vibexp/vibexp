@@ -38,7 +38,7 @@ func TestIntegrationAPIKey_CreateAndGetByUserID(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().UTC()
-	older := newIntegrationAPIKey(userID, "older-key", now.Add(-time.Minute), []string{"ai_tools", "cli"})
+	older := newIntegrationAPIKey(userID, "older-key", now.Add(-time.Minute), []string{"mcp_server", "cli"})
 	newer := newIntegrationAPIKey(userID, "newer-key", now, nil)
 
 	require.NoError(t, repo.Create(ctx, older))
@@ -56,7 +56,7 @@ func TestIntegrationAPIKey_CreateAndGetByUserID(t *testing.T) {
 
 	got := keys[1]
 	assert.Equal(t, older.ID, got.ID)
-	assert.Equal(t, []string{"ai_tools", "cli"}, []string(got.Integrations), "permissions must be hydrated in grant order")
+	assert.Equal(t, []string{"mcp_server", "cli"}, []string(got.Integrations), "permissions must be hydrated in grant order")
 	assert.Equal(t, "everything", got.UsageType, "column default must apply when Create omits usage_type")
 	assert.False(t, got.IsLegacy)
 	assert.Nil(t, got.MigrationNotes)
