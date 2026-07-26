@@ -662,7 +662,6 @@ type TestContainer struct {
 	FeedServiceMock           services.FeedServiceInterface
 	FeedItemServiceMock       services.FeedItemServiceInterface
 	FeedItemReplyServiceMock  services.FeedItemReplyServiceInterface
-	ResourceUsageServiceMock  services.ResourceUsageServiceInterface
 	SearchServiceMock         services.Searcher
 	ResourceAccessServiceMock resourceaccess.ResourceAccessService
 	AttachmentServiceMock     services.AttachmentServiceInterface
@@ -754,13 +753,6 @@ func (tc *TestContainer) FeedItemService() services.FeedItemServiceInterface {
 func (tc *TestContainer) FeedItemReplyService() services.FeedItemReplyServiceInterface {
 	if tc.FeedItemReplyServiceMock != nil {
 		return tc.FeedItemReplyServiceMock
-	}
-	return nil
-}
-
-func (tc *TestContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	if tc.ResourceUsageServiceMock != nil {
-		return tc.ResourceUsageServiceMock
 	}
 	return nil
 }

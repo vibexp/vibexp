@@ -42,7 +42,6 @@ type CoverageTestContainer struct {
 	agentInvocationService   *svcmocks.MockAgentInvocationServiceInterface
 	memoryService            *svcmocks.MockMemoryServiceInterface
 	teamService              *svcmocks.MockTeamServiceInterface
-	resourceUsageService     *svcmocks.MockResourceUsageServiceInterface
 	authService              *svcmocks.MockAuthServiceInterface
 	embeddingProviderService *svcmocks.MockEmbeddingProviderServiceInterface
 	embeddingService         *svcmocks.MockEmbeddingServiceInterface
@@ -63,9 +62,6 @@ func (c *CoverageTestContainer) MemoryService() services.MemoryServiceInterface 
 }
 func (c *CoverageTestContainer) TeamService() services.TeamServiceInterface { return c.teamService }
 func (c *CoverageTestContainer) AuthService() services.AuthServiceInterface { return c.authService }
-func (c *CoverageTestContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return c.resourceUsageService
-}
 func (c *CoverageTestContainer) EmbeddingProviderService() services.EmbeddingProviderServiceInterface {
 	return c.embeddingProviderService
 }
@@ -244,7 +240,6 @@ func newCoverageTestContainer(t *testing.T) *CoverageTestContainer {
 		agentInvocationService:   svcmocks.NewMockAgentInvocationServiceInterface(t),
 		memoryService:            svcmocks.NewMockMemoryServiceInterface(t),
 		teamService:              svcmocks.NewMockTeamServiceInterface(t),
-		resourceUsageService:     svcmocks.NewMockResourceUsageServiceInterface(t),
 		authService:              svcmocks.NewMockAuthServiceInterface(t),
 		embeddingProviderService: svcmocks.NewMockEmbeddingProviderServiceInterface(t),
 		embeddingService:         svcmocks.NewMockEmbeddingServiceInterface(t),

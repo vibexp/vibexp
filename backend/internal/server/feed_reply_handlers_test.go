@@ -28,7 +28,6 @@ type MockFeedReplyContainer struct {
 	BaseMockContainer
 	FeedItemServiceMock      services.FeedItemServiceInterface
 	FeedItemReplyServiceMock services.FeedItemReplyServiceInterface
-	ResourceUsageServiceMock services.ResourceUsageServiceInterface
 }
 
 func (m *MockFeedReplyContainer) FeedItemService() services.FeedItemServiceInterface {
@@ -37,10 +36,6 @@ func (m *MockFeedReplyContainer) FeedItemService() services.FeedItemServiceInter
 
 func (m *MockFeedReplyContainer) FeedItemReplyService() services.FeedItemReplyServiceInterface {
 	return m.FeedItemReplyServiceMock
-}
-
-func (m *MockFeedReplyContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.ResourceUsageServiceMock
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -188,17 +183,8 @@ func TestHandleCreateFeedItemReply(t *testing.T) {
 			mockReplySvc := servicesmocks.NewMockFeedItemReplyServiceInterface(t)
 			tt.setupMock(mockReplySvc)
 
-			// (i.e., has a valid body and item_id). Validation failures return before
-			// the resource limit check is called, so those cases don't need it.
-			var mockResourceSvc *servicesmocks.MockResourceUsageServiceInterface
-			needsResourceCheck := tt.itemID == feedTestItemID && tt.wantStatus != http.StatusBadRequest
-			if needsResourceCheck {
-				mockResourceSvc = newResourceUsageMock(t)
-			}
-
 			rc := &MockFeedReplyContainer{
 				FeedItemReplyServiceMock: mockReplySvc,
-				ResourceUsageServiceMock: mockResourceSvc,
 			}
 			srv := newReplyTestServerWithContainer(t, rc)
 

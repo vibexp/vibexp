@@ -110,7 +110,6 @@ type MockAppContainer struct {
 // Ensure MockAppContainer implements Container interface
 var _ interface {
 	MemoryService() services.MemoryServiceInterface
-	ResourceUsageService() services.ResourceUsageServiceInterface
 	ActivityService() activities.ActivityService
 	EmbeddingService() services.EmbeddingServiceInterface
 	Database() *database.DB
@@ -334,14 +333,6 @@ func (m *MockAppContainer) EnvironmentService() *services.EnvironmentService {
 		return nil
 	}
 	return args.Get(0).(*services.EnvironmentService)
-}
-
-func (m *MockAppContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil
-	}
-	return args.Get(0).(services.ResourceUsageServiceInterface)
 }
 
 // External methods

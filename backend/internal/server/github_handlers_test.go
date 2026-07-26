@@ -177,11 +177,8 @@ func (c *GitHubTestContainer) MemoryService() services.MemoryServiceInterface   
 func (c *GitHubTestContainer) EmbeddingService() services.EmbeddingServiceInterface { return nil }
 func (c *GitHubTestContainer) SearchService() services.Searcher                     { return nil }
 func (c *GitHubTestContainer) EnvironmentService() *services.EnvironmentService     { return nil }
-func (c *GitHubTestContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return nil
-}
-func (c *GitHubTestContainer) BackofficeService() services.UsageAndGrowthGetter { return nil }
-func (c *GitHubTestContainer) AdminService() services.AdminServiceInterface     { return nil }
+func (c *GitHubTestContainer) BackofficeService() services.UsageAndGrowthGetter     { return nil }
+func (c *GitHubTestContainer) AdminService() services.AdminServiceInterface         { return nil }
 func (c *GitHubTestContainer) EmbeddingBackfillService() services.EmbeddingBackfiller {
 	return nil
 }

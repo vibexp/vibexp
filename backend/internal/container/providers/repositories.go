@@ -133,14 +133,6 @@ func ProvideEmbeddingBackfillRepository(db *database.DB) repositories.EmbeddingB
 	return postgres.NewEmbeddingBackfillRepository(db)
 }
 
-// ProvideResourceUsageRepository creates a new ResourceUsageRepository
-func ProvideResourceUsageRepository(db *database.DB, logger *slog.Logger) repositories.ResourceUsageRepository {
-	if db == nil || db.DB == nil {
-		return nil
-	}
-	return postgres.NewResourceUsageRepository(db.DB, logger)
-}
-
 // ProvideBackofficeRepository creates a new BackofficeRepository
 func ProvideBackofficeRepository(db *database.DB) repositories.BackofficeRepository {
 	return postgres.NewBackofficeRepository(db)

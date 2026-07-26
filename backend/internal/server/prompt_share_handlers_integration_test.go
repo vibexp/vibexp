@@ -26,18 +26,13 @@ import (
 type MockPromptShareContainer struct {
 	BaseMockContainer // Embed base container for default nil implementations
 	mock.Mock
-	promptShareService   *svcmocks.MockPromptShareServiceInterface
-	resourceUsageService *MockResourceUsageServiceForHandlers
-	userRepository       *mockUserRepository
-	teamService          *svcmocks.MockTeamServiceInterface
+	promptShareService *svcmocks.MockPromptShareServiceInterface
+	userRepository     *mockUserRepository
+	teamService        *svcmocks.MockTeamServiceInterface
 }
 
 func (m *MockPromptShareContainer) PromptShareService() services.PromptShareServiceInterface {
 	return m.promptShareService
-}
-
-func (m *MockPromptShareContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.resourceUsageService
 }
 
 func (m *MockPromptShareContainer) UserRepository() repositories.UserRepository {
@@ -150,18 +145,14 @@ type promptShareTestParams struct {
 func runPromptShareTest(t *testing.T, p promptShareTestParams) {
 	t.Helper()
 	mockService := svcmocks.NewMockPromptShareServiceInterface(t)
-	mockResourceUsage := &MockResourceUsageServiceForHandlers{}
-	mockResourceUsage.On("CheckAndIncrementUsage", mock.Anything, mock.Anything, mock.Anything).
-		Return(true, nil).Maybe()
 
 	mockTeamService := svcmocks.NewMockTeamServiceInterface(t)
 	mockTeamService.On("IsUserMemberOfTeam", mock.Anything, mock.Anything, mock.Anything).
 		Return(true, nil).Maybe()
 
 	mockContainer := &MockPromptShareContainer{
-		promptShareService:   mockService,
-		resourceUsageService: mockResourceUsage,
-		teamService:          mockTeamService,
+		promptShareService: mockService,
+		teamService:        mockTeamService,
 	}
 
 	p.mockSetup(mockService)

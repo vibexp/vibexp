@@ -27,20 +27,15 @@ import (
 type MockPromptContainer struct {
 	BaseMockContainer // Embed base container for default nil implementations
 	mock.Mock
-	promptService        *svcmocks.MockPromptServiceInterface
-	resourceUsageService *MockResourceUsageServiceForHandlers
-	embeddingService     *svcmocks.MockEmbeddingServiceInterface
-	authService          *svcmocks.MockAuthServiceInterface
-	teamService          *svcmocks.MockTeamServiceInterface
+	promptService    *svcmocks.MockPromptServiceInterface
+	embeddingService *svcmocks.MockEmbeddingServiceInterface
+	authService      *svcmocks.MockAuthServiceInterface
+	teamService      *svcmocks.MockTeamServiceInterface
 }
 
 // Only override methods that return non-nil mocks
 func (m *MockPromptContainer) PromptService() services.PromptServiceInterface {
 	return m.promptService
-}
-
-func (m *MockPromptContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.resourceUsageService
 }
 
 func (m *MockPromptContainer) EmbeddingService() services.EmbeddingServiceInterface {
@@ -57,11 +52,10 @@ func (m *MockPromptContainer) TeamService() services.TeamServiceInterface {
 
 func newMockPromptContainer(t *testing.T) *MockPromptContainer {
 	return &MockPromptContainer{
-		promptService:        svcmocks.NewMockPromptServiceInterface(t),
-		resourceUsageService: &MockResourceUsageServiceForHandlers{},
-		embeddingService:     svcmocks.NewMockEmbeddingServiceInterface(t),
-		authService:          svcmocks.NewMockAuthServiceInterface(t),
-		teamService:          svcmocks.NewMockTeamServiceInterface(t),
+		promptService:    svcmocks.NewMockPromptServiceInterface(t),
+		embeddingService: svcmocks.NewMockEmbeddingServiceInterface(t),
+		authService:      svcmocks.NewMockAuthServiceInterface(t),
+		teamService:      svcmocks.NewMockTeamServiceInterface(t),
 	}
 }
 
@@ -1109,7 +1103,6 @@ func TestHandleListPrompts_SortOrderDesc(t *testing.T) {
 func TestHandleGetPromptDependencies_Success(t *testing.T) {
 	mockContainer := &MockPromptContainer{
 		promptService:        svcmocks.NewMockPromptServiceInterface(t),
-		resourceUsageService: &MockResourceUsageServiceForHandlers{},
 		embeddingService:     svcmocks.NewMockEmbeddingServiceInterface(t),
 	}
 
@@ -1169,7 +1162,6 @@ func TestHandleGetPromptDependencies_Success(t *testing.T) {
 func TestHandleGetPromptDependencies_EmptyArrays(t *testing.T) {
 	mockContainer := &MockPromptContainer{
 		promptService:        svcmocks.NewMockPromptServiceInterface(t),
-		resourceUsageService: &MockResourceUsageServiceForHandlers{},
 		embeddingService:     svcmocks.NewMockEmbeddingServiceInterface(t),
 	}
 
@@ -1228,7 +1220,6 @@ func TestHandleGetPromptDependencies_EmptyArrays(t *testing.T) {
 func TestHandleGetPromptDependencies_PromptNotFound(t *testing.T) {
 	mockContainer := &MockPromptContainer{
 		promptService:        svcmocks.NewMockPromptServiceInterface(t),
-		resourceUsageService: &MockResourceUsageServiceForHandlers{},
 		embeddingService:     svcmocks.NewMockEmbeddingServiceInterface(t),
 	}
 

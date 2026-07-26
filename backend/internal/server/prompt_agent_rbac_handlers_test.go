@@ -35,13 +35,8 @@ const (
 // MockPromptAgentContainer overrides only the prompt and agent services.
 type MockPromptAgentContainer struct {
 	BaseMockContainer
-	promptService        services.PromptServiceInterface
-	agentService         services.AgentServiceInterface
-	resourceUsageService services.ResourceUsageServiceInterface
-}
-
-func (m *MockPromptAgentContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.resourceUsageService
+	promptService services.PromptServiceInterface
+	agentService  services.AgentServiceInterface
 }
 
 func (m *MockPromptAgentContainer) PromptService() services.PromptServiceInterface {
@@ -60,13 +55,11 @@ func createTestPromptAgentServer(
 ) *Server {
 	t.Helper()
 
-	usage := svcmocks.NewMockResourceUsageServiceInterface(t)
-
 	r := chi.NewRouter()
 	srv := &Server{
 		port: "8080",
 		container: &MockPromptAgentContainer{
-			promptService: prompt, agentService: agent, resourceUsageService: usage,
+			promptService: prompt, agentService: agent,
 		},
 		logger: slog.New(slog.DiscardHandler),
 		config: &config.Config{},

@@ -598,16 +598,15 @@ func TestArtifactHandlers_URLEncoding(t *testing.T) {
 
 // MockArtifactContainer is a mock container for artifact handler integration tests
 type MockArtifactContainer struct {
-	BaseMockContainer        // Embed base container for default nil implementations
-	ArtifactServiceMock      services.ArtifactServiceInterface
-	ResourceUsageServiceMock services.ResourceUsageServiceInterface
-	EmbeddingServiceMock     services.EmbeddingServiceInterface
-	ActivityServiceMock      activities.ActivityService
-	AuthServiceMock          services.AuthServiceInterface
-	TeamServiceMock          services.TeamServiceInterface
-	TypeServiceMock          services.TypeServiceInterface
-	RelationServiceMock      services.RelationServiceInterface
-	EmbeddingRepositoryMock  repositories.EmbeddingRepository
+	BaseMockContainer       // Embed base container for default nil implementations
+	ArtifactServiceMock     services.ArtifactServiceInterface
+	EmbeddingServiceMock    services.EmbeddingServiceInterface
+	ActivityServiceMock     activities.ActivityService
+	AuthServiceMock         services.AuthServiceInterface
+	TeamServiceMock         services.TeamServiceInterface
+	TypeServiceMock         services.TypeServiceInterface
+	RelationServiceMock     services.RelationServiceInterface
+	EmbeddingRepositoryMock repositories.EmbeddingRepository
 }
 
 func (m *MockArtifactContainer) ArtifactService() services.ArtifactServiceInterface {
@@ -655,10 +654,6 @@ func (permissiveTypeService) ValidateType(context.Context, string, string, strin
 
 func (m *MockArtifactContainer) AuthService() services.AuthServiceInterface {
 	return m.AuthServiceMock
-}
-
-func (m *MockArtifactContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.ResourceUsageServiceMock
 }
 
 func (m *MockArtifactContainer) EmbeddingService() services.EmbeddingServiceInterface {

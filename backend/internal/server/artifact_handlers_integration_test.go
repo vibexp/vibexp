@@ -189,7 +189,6 @@ func TestHandleGetArtifactsByProject_Success(t *testing.T) {
 //nolint:funlen // Comprehensive test with mocked service
 func TestHandleCreateArtifact_Success(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 
 	expectedArtifact := &models.Artifact{
 		ID:          "art-new",
@@ -222,8 +221,7 @@ func TestHandleCreateArtifact_Success(t *testing.T) {
 	).Return(expectedArtifact, nil)
 
 	mockContainer := &MockArtifactContainer{
-		ArtifactServiceMock:      mockArtifactService,
-		ResourceUsageServiceMock: mockResourceService,
+		ArtifactServiceMock: mockArtifactService,
 	}
 
 	cfg := &config.Config{}
@@ -299,11 +297,9 @@ func TestHandleCreateArtifact_InvalidType(t *testing.T) {
 //nolint:funlen // Test function requires comprehensive setup for validation scenarios
 func TestHandleCreateArtifact_ValidationError(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 
 	mockContainer := &MockArtifactContainer{
-		ArtifactServiceMock:      mockArtifactService,
-		ResourceUsageServiceMock: mockResourceService,
+		ArtifactServiceMock: mockArtifactService,
 	}
 
 	cfg := &config.Config{}
@@ -360,7 +356,6 @@ func TestHandleCreateArtifact_ValidationError(t *testing.T) {
 // TestHandleUpdateArtifact_Success tests successful artifact update
 func TestHandleUpdateArtifact_Success(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 
 	updatedArtifact := &models.Artifact{
 		ID:        "art-1",
@@ -386,8 +381,7 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 		})).Return(updatedArtifact, nil)
 
 	mockContainer := &MockArtifactContainer{
-		ArtifactServiceMock:      mockArtifactService,
-		ResourceUsageServiceMock: mockResourceService,
+		ArtifactServiceMock: mockArtifactService,
 	}
 
 	cfg := &config.Config{}
@@ -422,7 +416,6 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 // TestHandleUpdateArtifact_NotFound tests update on non-existent artifact
 func TestHandleUpdateArtifact_NotFound(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 
 	mockArtifactService.On(
 		"UpdateArtifactByProjectIDAndSlugInTeam",
@@ -434,8 +427,7 @@ func TestHandleUpdateArtifact_NotFound(t *testing.T) {
 	).Return((*models.Artifact)(nil), errors.New("artifact not found"))
 
 	mockContainer := &MockArtifactContainer{
-		ArtifactServiceMock:      mockArtifactService,
-		ResourceUsageServiceMock: mockResourceService,
+		ArtifactServiceMock: mockArtifactService,
 	}
 
 	cfg := &config.Config{}

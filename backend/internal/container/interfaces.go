@@ -84,7 +84,6 @@ type Container interface {
 	TeamSearchSettingsService() services.TeamSearchSettingsServiceInterface
 	MetadataCatalogService() services.MetadataCatalogServiceInterface
 	EnvironmentService() *services.EnvironmentService
-	ResourceUsageService() services.ResourceUsageServiceInterface
 	BackofficeService() services.UsageAndGrowthGetter
 	AdminService() services.AdminServiceInterface
 	EmbeddingBackfillService() services.EmbeddingBackfiller
