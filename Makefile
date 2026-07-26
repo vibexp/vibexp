@@ -1,4 +1,4 @@
-.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down frontend-deps e2e-browsers e2e-test e2e
+.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-openapi-server-check backend-mock-check backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down frontend-deps e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
@@ -12,6 +12,16 @@
 # Keep GO_VERSION in sync with the go-version pins in the CI workflow.
 GO_VERSION := 1.25.12
 export GOTOOLCHAIN := go$(GO_VERSION)
+
+# Pin the code generators whose output is committed and drift-gated. A
+# regenerate-and-diff gate is only meaningful against a pinned generator: an
+# unpinned bump silently rewrites every generated file and turns a version skew
+# between a contributor's machine and CI into a red build on untouched code
+# (the same reason golangci-lint/gosec/govulncheck are pinned in ci.yml).
+# `wire` and `oapi-codegen` need no variable here — they are pinned by the
+# `tool` directive in backend/go.mod and invoked with `go tool`.
+REDOCLY_VERSION := 2.5.0
+MOCKERY_VERSION := v2.53.6
 
 # ============================================
 # Container Runtime Detection Helper
@@ -57,9 +67,25 @@ backend-test-coverage-integration:
 backend-test-integration:
 	cd backend && go test -race -tags=integration -v ./internal/repositories/postgres/... -timeout=180s
 
-# Generate mocks
+# Regenerate the mockery mocks (~124 files under **/mocks/) from .mockery.yaml.
+# Invoked via `go run ...@$(MOCKERY_VERSION)` rather than a `mockery` binary off
+# PATH so the committed bytes are reproducible for backend-mock-check. Output is
+# committed.
 backend-mock-generate:
-	cd backend && mockery --all
+	@echo "🎭 Regenerating mocks (mockery $(MOCKERY_VERSION))..."
+	@cd backend && go run github.com/vektra/mockery/v2@$(MOCKERY_VERSION) --all
+
+# Regenerate the mocks, then fail if they differ from the committed files —
+# catches a hand-edited mock and an interface change that was never regenerated.
+# Unlike the other gates this checks `git status` rather than `git diff`, because
+# a new interface produces a brand-new (untracked) mock file that `git diff`
+# would not see. Idempotent on a clean tree (#635).
+backend-mock-check: backend-mock-generate
+	@cd backend && if [ -n "$$(git status --porcelain -- ':(glob)**/mocks/*.go')" ]; then \
+		git status --short -- ':(glob)**/mocks/*.go'; \
+		echo "❌ mocks are out of sync — run 'make backend-mock-generate' and commit the result"; \
+		exit 1; \
+	fi
 
 # Clean test artifacts
 backend-test-clean:
@@ -94,7 +120,7 @@ backend-validate-openapi:
 # artifact consumed by linting, docs, and client generation (#1697).
 backend-bundle-openapi:
 	@echo "📦 Bundling OpenAPI specification..."
-	@cd backend && npx @redocly/cli bundle openapi.yaml -o dist/openapi.bundled.yaml
+	@cd backend && npx --yes @redocly/cli@$(REDOCLY_VERSION) bundle openapi.yaml -o dist/openapi.bundled.yaml
 
 # Generate the committed, embedded OpenAPI bundle served at /openapi.yaml and
 # /openapi.json (#139). The bundled artifacts live inside the embedding package
@@ -104,7 +130,7 @@ backend-bundle-openapi:
 # backend-config-schema-check). redocly omits the trailing newline on JSON
 # output, so we append one — keeping the committed file identical to what a fresh
 # regenerate produces and leaving the end-of-file-fixer hook nothing to change.
-REDOCLY_VERSION := 2.5.0
+# (REDOCLY_VERSION is pinned in the Toolchain Pinning section at the top.)
 OPENAPI_BUNDLE_DIR := internal/server/openapispec
 backend-generate-openapi-bundle:
 	@echo "📦 Generating embedded OpenAPI bundle (openapispec)..."
@@ -121,8 +147,8 @@ backend-openapi-bundle-check: backend-generate-openapi-bundle
 
 # Regenerate the oapi-codegen strict-server bindings from the bundle, one
 # self-contained package per spec-first domain (Notifications #1713, Types
-# #1846). Output is committed; CI fails the PR when it is stale relative to the
-# spec.
+# #1846). Output is committed; backend-openapi-server-check fails the PR when it
+# is stale relative to the spec.
 backend-generate-openapi-server: backend-bundle-openapi
 	@echo "🧬 Generating OpenAPI strict-server code (Notifications)..."
 	@cd backend && go tool oapi-codegen -config oapi-codegen.yaml dist/openapi.bundled.yaml
@@ -142,6 +168,18 @@ backend-generate-openapi-server: backend-bundle-openapi
 	@cd backend && mkdir -p internal/server/gen/admin && go tool oapi-codegen -config oapi-codegen-admin.yaml dist/openapi.bundled.yaml
 	@echo "🧬 Generating OpenAPI strict-server code (Embedding Providers)..."
 	@cd backend && mkdir -p internal/server/gen/embeddingproviders && go tool oapi-codegen -config oapi-codegen-embedding-providers.yaml dist/openapi.bundled.yaml
+
+# Regenerate the strict-server bindings, then fail if they differ from the
+# committed files — catches a hand-edited *.gen.go and a spec change that was
+# never regenerated. Checks `git status` (not `git diff`) so a newly generated
+# package shows up as untracked rather than passing silently. Idempotent on a
+# clean tree (#635).
+backend-openapi-server-check: backend-generate-openapi-server
+	@cd backend && if [ -n "$$(git status --porcelain -- internal/server/gen)" ]; then \
+		git status --short -- internal/server/gen; \
+		echo "❌ OpenAPI strict-server bindings are out of sync — run 'make backend-generate-openapi-server' and commit the result"; \
+		exit 1; \
+	fi
 
 # Regenerate the Wire dependency-injection bindings
 # (internal/container/wire_gen.go) from the provider set. Wire is pinned via the
