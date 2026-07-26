@@ -79,12 +79,22 @@ jest.mock('@/services/githubAppConfigService', () => ({
   },
 }))
 
-jest.mock('@/hooks/usePermissions', () => ({
-  usePermissions: () => ({
+// Records its argument so the #584 test can prove the gating keys on the URL's
+// team. A mock that ignores the argument would make `usePermissions(team)`
+// indistinguishable from the old ambient-team `usePermissions()`.
+// The tuple type (rather than unknown[]) keeps the call ARITY intact, so an
+// argument-less `usePermissions()` is recorded as a zero-argument call and the
+// assertion below can tell it apart from `usePermissions(team)`.
+const mockUsePermissions = jest.fn((...args: [unknown?]) => {
+  void args
+  return {
     can: jest.fn(() => true),
     canDeleteResource: jest.fn(() => true),
     canDeleteFeedContent: jest.fn(() => true),
-  }),
+  }
+})
+jest.mock('@/hooks/usePermissions', () => ({
+  usePermissions: (...args: [unknown?]) => mockUsePermissions(...args),
 }))
 
 jest.mock('@/contexts/TeamContext', () => {
@@ -824,6 +834,20 @@ describe('GitHubIntegration — install callback targets the URL team (#584)', (
       'team-1',
       expect.anything()
     )
+  })
+
+  it('gates permissions on the URL team, not the ambient one', async () => {
+    renderPage('/settings/integrations/github', urlTeamB)
+
+    await waitFor(() => {
+      expect(mockUsePermissions).toHaveBeenCalledWith(urlTeamB)
+    })
+    // The ambient team the TeamContext mock reports must never be the subject.
+    expect(mockUsePermissions).not.toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'team-1' })
+    )
+    // And never argument-less, which is how it read the ambient team before.
+    expect(mockUsePermissions).not.toHaveBeenCalledWith()
   })
 
   it('reads status, repositories and the install URL for the URL team too', async () => {
