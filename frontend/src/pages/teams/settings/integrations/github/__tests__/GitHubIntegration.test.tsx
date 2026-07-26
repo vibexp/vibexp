@@ -79,12 +79,22 @@ jest.mock('@/services/githubAppConfigService', () => ({
   },
 }))
 
-jest.mock('@/hooks/usePermissions', () => ({
-  usePermissions: () => ({
+// Records its argument so the #584 test can prove the gating keys on the URL's
+// team. A mock that ignores the argument would make `usePermissions(team)`
+// indistinguishable from the old ambient-team `usePermissions()`.
+// The tuple type (rather than unknown[]) keeps the call ARITY intact, so an
+// argument-less `usePermissions()` is recorded as a zero-argument call and the
+// assertion below can tell it apart from `usePermissions(team)`.
+const mockUsePermissions = jest.fn((...args: [unknown?]) => {
+  void args
+  return {
     can: jest.fn(() => true),
     canDeleteResource: jest.fn(() => true),
     canDeleteFeedContent: jest.fn(() => true),
-  }),
+  }
+})
+jest.mock('@/hooks/usePermissions', () => ({
+  usePermissions: (...args: [unknown?]) => mockUsePermissions(...args),
 }))
 
 jest.mock('@/contexts/TeamContext', () => {
@@ -132,6 +142,7 @@ import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
 import { githubAppConfigService } from '@/services/githubAppConfigService'
 import { githubIntegrationService } from '@/services/githubIntegrationService'
+import type { Team } from '@/services/teamService'
 import { safeRedirect } from '@/utils/urlValidation'
 
 import { GitHubIntegration } from '../GitHubIntegration'
@@ -180,10 +191,18 @@ function buildRepo(
   }
 }
 
-function renderPage(initialEntry = '/settings/integrations/github') {
+// The team TeamScopeLayout resolved from the URL (#584). Deliberately NOT the
+// same id as the ambient team the TeamContext mock reports, so any code path
+// that reaches for `useTeam()` again shows up as a wrong-id assertion failure.
+const urlTeam = { id: 'team-1', name: 'Test Team' } as unknown as Team
+
+function renderPage(
+  initialEntry = '/settings/integrations/github',
+  team: Team = urlTeam
+) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <GitHubIntegration />
+      <GitHubIntegration team={team} />
     </MemoryRouter>
   )
 }
@@ -198,7 +217,7 @@ function renderPageWithLocation(initialEntry: string) {
   }
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <GitHubIntegration />
+      <GitHubIntegration team={urlTeam} />
       <LocationProbe />
     </MemoryRouter>
   )
@@ -237,7 +256,7 @@ describe('GitHubIntegration — GitHub App precondition', () => {
 
     render(
       <MemoryRouter>
-        <GitHubIntegration />
+        <GitHubIntegration team={urlTeam} />
       </MemoryRouter>
     )
 
@@ -254,7 +273,7 @@ describe('GitHubIntegration — GitHub App precondition', () => {
 
     render(
       <MemoryRouter>
-        <GitHubIntegration />
+        <GitHubIntegration team={urlTeam} />
       </MemoryRouter>
     )
 
@@ -268,7 +287,7 @@ describe('GitHubIntegration — GitHub App precondition', () => {
   it('offers the install button once an App is configured', async () => {
     render(
       <MemoryRouter>
-        <GitHubIntegration />
+        <GitHubIntegration team={urlTeam} />
       </MemoryRouter>
     )
 
@@ -771,6 +790,86 @@ describe('GitHubIntegration — install callback via URL params', () => {
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(match))
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// #584 — the install callback must POST to the URL's team
+// ---------------------------------------------------------------------------
+// This is the failure that made #584 more than cosmetic. The callback fires
+// from a mount effect, and React runs child effects before parent effects, so
+// on a cold deep-link back from GitHub the ambient team was still whichever one
+// was last persisted. The POST went to that team, the backend rejected it 403
+// ("State parameter does not match team"), and the catch arm called
+// clearCallbackParams() — destroying the params before the ambient team caught
+// up. The install could not complete and had to be restarted from scratch.
+//
+// The TeamContext mock above reports team-1 as the ambient team, so rendering
+// with an explicit team-b prop reproduces exactly that divergence.
+describe('GitHubIntegration — install callback targets the URL team (#584)', () => {
+  const urlTeamB = { id: 'team-b', name: 'Team B' } as unknown as Team
+  const callbackUrl =
+    '/settings/integrations/github?installation_id=12345678&setup_action=install&state=csrf-state&code=gh-oauth-code'
+
+  it('posts to the URL team, never the ambient one', async () => {
+    ;(githubIntegrationService.handleCallback as jest.Mock).mockResolvedValue({
+      reconnected: false,
+    })
+
+    renderPage(callbackUrl, urlTeamB)
+
+    await waitFor(() => {
+      expect(githubIntegrationService.handleCallback).toHaveBeenCalledWith(
+        'team-b',
+        {
+          installation_id: 12345678,
+          setup_action: 'install',
+          state: 'csrf-state',
+          code: 'gh-oauth-code',
+        }
+      )
+    })
+    expect(githubIntegrationService.handleCallback).not.toHaveBeenCalledWith(
+      'team-1',
+      expect.anything()
+    )
+  })
+
+  it('gates permissions on the URL team, not the ambient one', async () => {
+    renderPage('/settings/integrations/github', urlTeamB)
+
+    await waitFor(() => {
+      expect(mockUsePermissions).toHaveBeenCalledWith(urlTeamB)
+    })
+    // The ambient team the TeamContext mock reports must never be the subject.
+    expect(mockUsePermissions).not.toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'team-1' })
+    )
+    // And never argument-less, which is how it read the ambient team before.
+    expect(mockUsePermissions).not.toHaveBeenCalledWith()
+  })
+
+  it('reads status, repositories and the install URL for the URL team too', async () => {
+    ;(githubIntegrationService.getStatus as jest.Mock).mockResolvedValue({
+      installed: true,
+      suspended: false,
+    })
+
+    renderPage('/settings/integrations/github', urlTeamB)
+
+    await waitFor(() => {
+      expect(githubIntegrationService.getStatus).toHaveBeenCalledWith('team-b')
+    })
+    expect(githubIntegrationService.getStatus).not.toHaveBeenCalledWith(
+      'team-1'
+    )
+    await waitFor(() => {
+      expect(githubIntegrationService.getRepositories).toHaveBeenCalledWith(
+        'team-b',
+        1,
+        expect.anything()
+      )
     })
   })
 })

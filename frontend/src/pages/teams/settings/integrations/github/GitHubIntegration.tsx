@@ -5,7 +5,6 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { GitHubIcon } from '@/components/icons/GitHubIcon'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
-import { useTeam } from '@/contexts/TeamContext'
 import { useAnalytics } from '@/hooks'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -16,6 +15,7 @@ import type {
   GitHubRepository,
 } from '@/services/githubIntegrationService'
 import { githubIntegrationService } from '@/services/githubIntegrationService'
+import type { Team } from '@/services/teamService'
 import { ANALYTICS_EVENTS } from '@/types/analytics'
 import { safeRedirect } from '@/utils/urlValidation'
 
@@ -33,20 +33,36 @@ import { useGitHubDisconnect } from './useGitHubDisconnect'
 
 const REPOS_PER_SERVER_PAGE = 100
 
-export function GitHubIntegration() {
+/**
+ * `team` is the team `TeamScopeLayout` resolved from the URL (#584).
+ *
+ * This page is the reason #584 was not merely cosmetic. Every other relocated
+ * settings page only *reads* on mount, so keying on the ambient team cost one
+ * wasted request that self-corrected. Here the install callback also fires from
+ * a mount effect: React runs child effects before parent effects, so on a cold
+ * deep-link back from GitHub the ambient team was still the previously
+ * persisted one, the POST went to the wrong team, the backend rejected it 403
+ * ("State parameter does not match team"), and the catch arm called
+ * `clearCallbackParams()` — destroying the params before the ambient team
+ * caught up. The install could not complete and had to be restarted.
+ *
+ * The layout guarantees a team inside the scope, which is why there are no
+ * `!team` guards below.
+ */
+export function GitHubIntegration({ team }: Readonly<{ team: Team }>) {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const { currentTeam } = useTeam()
   const { trackEvent } = useAnalytics()
   const { handleError } = useErrorHandler()
-  const { can } = usePermissions()
+  // Gated on the URL's team for the same reason, so the manage affordance can
+  // never reflect the previous team's role.
+  const { can } = usePermissions(team)
   const canManageApp = can('team.update')
+  const teamId = team.id
 
   const [status, setStatus] = useState<GitHubInstallationStatus | null>(null)
-  const { appConfig, reload: loadAppConfig } = useGitHubAppConfig(
-    currentTeam?.id
-  )
+  const { appConfig, reload: loadAppConfig } = useGitHubAppConfig(teamId)
   const [repositories, setRepositories] = useState<GitHubRepository[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingRepos, setIsLoadingRepos] = useState(false)
@@ -59,19 +75,16 @@ export function GitHubIntegration() {
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const loadStatus = useCallback(async () => {
-    if (!currentTeam) return
     try {
       setIsLoading(true)
-      const statusData = await githubIntegrationService.getStatus(
-        currentTeam.id
-      )
+      const statusData = await githubIntegrationService.getStatus(teamId)
       setStatus(statusData)
     } catch (error) {
       handleError(error, 'Failed to load GitHub integration status')
     } finally {
       setIsLoading(false)
     }
-  }, [currentTeam, handleError])
+  }, [teamId, handleError])
 
   const {
     showDisconnectDialog,
@@ -83,7 +96,7 @@ export function GitHubIntegration() {
     handleDisconnect,
     handleUninstallStepClose,
   } = useGitHubDisconnect({
-    teamId: currentTeam?.id,
+    teamId,
     status,
     repositories,
     onDisconnected: loadStatus,
@@ -94,12 +107,10 @@ export function GitHubIntegration() {
   })
 
   const loadRepositories = useCallback(async () => {
-    if (!currentTeam) return
-
     try {
       setIsLoadingRepos(true)
       const response = await githubIntegrationService.getRepositories(
-        currentTeam.id,
+        teamId,
         1,
         abortControllerRef.current?.signal
       )
@@ -126,16 +137,16 @@ export function GitHubIntegration() {
     } finally {
       setIsLoadingRepos(false)
     }
-  }, [currentTeam, handleError, trackEvent])
+  }, [teamId, handleError, trackEvent])
 
   const loadMoreRepositories = useCallback(async () => {
-    if (!currentTeam || isLoadingMore) return
+    if (isLoadingMore) return
 
     setIsLoadingMore(true)
     try {
       const nextPage = serverPage + 1
       const response = await githubIntegrationService.getRepositories(
-        currentTeam.id,
+        teamId,
         nextPage,
         abortControllerRef.current?.signal
       )
@@ -153,7 +164,7 @@ export function GitHubIntegration() {
     } finally {
       setIsLoadingMore(false)
     }
-  }, [currentTeam, serverPage, isLoadingMore, handleError])
+  }, [teamId, serverPage, isLoadingMore, handleError])
 
   // Drops the callback query params while staying on whatever path this page is
   // mounted at. Deliberately NOT a hardcoded route: the intent is "strip the
@@ -165,11 +176,9 @@ export function GitHubIntegration() {
 
   const handleCallback = useCallback(
     async (data: GitHubInstallCallbackRequest) => {
-      if (!currentTeam) return
-
       try {
         const response = await githubIntegrationService.handleCallback(
-          currentTeam.id,
+          teamId,
           data
         )
 
@@ -197,7 +206,7 @@ export function GitHubIntegration() {
         clearCallbackParams()
       }
     },
-    [currentTeam, loadStatus, clearCallbackParams, trackEvent]
+    [teamId, loadStatus, clearCallbackParams, trackEvent]
   )
 
   useEffect(() => {
@@ -208,21 +217,19 @@ export function GitHubIntegration() {
   }, [trackEvent])
 
   useEffect(() => {
-    if (currentTeam) {
-      void loadStatus()
-    }
-  }, [currentTeam, loadStatus])
+    void loadStatus()
+  }, [loadStatus])
 
   useEffect(() => {
     abortControllerRef.current = new AbortController()
-    if (status?.installed && !status.suspended && currentTeam) {
+    if (status?.installed && !status.suspended) {
       void loadRepositories()
     }
     const controller = abortControllerRef.current
     return () => {
       controller.abort()
     }
-  }, [status?.installed, status?.suspended, currentTeam, loadRepositories])
+  }, [status?.installed, status?.suspended, loadRepositories])
 
   const installationIdStr = searchParams.get('installation_id')
   const setupAction = searchParams.get('setup_action')
@@ -233,7 +240,7 @@ export function GitHubIntegration() {
   const code = searchParams.get('code')
 
   useEffect(() => {
-    if (!installationIdStr || !setupAction || !state || !currentTeam) return
+    if (!installationIdStr || !setupAction || !state) return
 
     const installationId = Number.parseInt(installationIdStr, 10)
     if (Number.isNaN(installationId) || installationId <= 0) {
@@ -266,7 +273,6 @@ export function GitHubIntegration() {
     setupAction,
     state,
     code,
-    currentTeam,
     handleCallback,
     handleError,
     clearCallbackParams,
@@ -281,12 +287,9 @@ export function GitHubIntegration() {
   const hasAppConfig = Boolean(appConfig)
 
   const handleLaunchInstall = async () => {
-    if (!currentTeam) return
     try {
       setIsLaunching(true)
-      const response = await githubIntegrationService.getInstallUrl(
-        currentTeam.id
-      )
+      const response = await githubIntegrationService.getInstallUrl(teamId)
       safeRedirect(response.install_url, ['github.com'])
     } catch (error) {
       handleError(error, 'Failed to get GitHub install URL')
@@ -315,7 +318,7 @@ export function GitHubIntegration() {
 
       {appConfig !== undefined && (
         <GitHubAppConfigCard
-          teamId={currentTeam?.id ?? ''}
+          teamId={teamId}
           config={appConfig}
           canManage={canManageApp}
           onChanged={loadAppConfig}

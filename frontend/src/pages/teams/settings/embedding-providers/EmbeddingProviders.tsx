@@ -25,7 +25,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
 import { EmbeddingProviderDialog } from '@/pages/teams/settings/embedding-providers/EmbeddingProviderDialog'
@@ -37,6 +36,7 @@ import type {
   UpdateEmbeddingProviderRequest,
 } from '@/services/embeddingProviderService'
 import { embeddingProviderService } from '@/services/embeddingProviderService'
+import type { Team } from '@/services/teamService'
 import { getErrorMessage } from '@/utils/errorHandling'
 
 function formatDate(value: string) {
@@ -328,9 +328,18 @@ function CoverageSection({
   )
 }
 
-export function EmbeddingProviders() {
+/**
+ * `team` is the team `TeamScopeLayout` resolved from the URL (#584). Do not
+ * reach for `useTeam()` here: React fires child effects before parent effects,
+ * so on a cold deep-link this page's load effects run BEFORE the layout's
+ * `setCurrentTeam` sync and the ambient team is still the previously persisted
+ * one — it would fetch and briefly render another team's providers and coverage
+ * under this team's URL. The layout guarantees a team inside the scope, which
+ * is why there are no `!team` guards below.
+ */
+export function EmbeddingProviders({ team }: Readonly<{ team: Team }>) {
   const { handleError } = useErrorHandler()
-  const { currentTeam } = useTeam()
+  const teamId = team.id
 
   const [providers, setProviders] = useState<EmbeddingProviderResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -354,12 +363,9 @@ export function EmbeddingProviders() {
   const [clearing, setClearing] = useState(false)
 
   const loadProviders = useCallback(async () => {
-    if (!currentTeam) return
     try {
       setLoading(true)
-      const data = await embeddingProviderService.getEmbeddingProviders(
-        currentTeam.id
-      )
+      const data = await embeddingProviderService.getEmbeddingProviders(teamId)
       setProviders(data)
     } catch (error) {
       handleError(error, 'Failed to load embedding providers')
@@ -367,18 +373,15 @@ export function EmbeddingProviders() {
     } finally {
       setLoading(false)
     }
-  }, [handleError, currentTeam])
+  }, [handleError, teamId])
 
   // Coverage failures surface inline (Alert) rather than as a toast so a status
   // hiccup never blanks the providers table below.
   const loadCoverage = useCallback(async () => {
-    if (!currentTeam) return
     try {
       setCoverageLoading(true)
       setCoverageError(null)
-      const data = await embeddingProviderService.getEmbeddingCoverage(
-        currentTeam.id
-      )
+      const data = await embeddingProviderService.getEmbeddingCoverage(teamId)
       setCoverage(data)
     } catch (error) {
       setCoverage(null)
@@ -386,7 +389,7 @@ export function EmbeddingProviders() {
     } finally {
       setCoverageLoading(false)
     }
-  }, [currentTeam])
+  }, [teamId])
 
   useEffect(() => {
     void loadProviders()
@@ -399,19 +402,18 @@ export function EmbeddingProviders() {
   const handleSubmit = async (
     data: CreateEmbeddingProviderRequest | UpdateEmbeddingProviderRequest
   ) => {
-    if (!currentTeam) return
     try {
       setSubmitting(true)
       if (editing) {
         await embeddingProviderService.updateEmbeddingProvider(
-          currentTeam.id,
+          teamId,
           editing.id,
           data as UpdateEmbeddingProviderRequest
         )
         toast.success('Provider updated')
       } else {
         await embeddingProviderService.createEmbeddingProvider(
-          currentTeam.id,
+          teamId,
           data as CreateEmbeddingProviderRequest
         )
         toast.success('Provider created')
@@ -431,11 +433,11 @@ export function EmbeddingProviders() {
   }
 
   const handleDelete = async () => {
-    if (!toDelete || !currentTeam) return
+    if (!toDelete) return
     try {
       setDeleting(true)
       await embeddingProviderService.deleteEmbeddingProvider(
-        currentTeam.id,
+        teamId,
         toDelete.id
       )
       toast.success('Provider deleted')
@@ -454,11 +456,11 @@ export function EmbeddingProviders() {
     !!coverage?.has_active_provider && !!defaultProviderId && !coverageLoading
 
   const handleReprocess = async () => {
-    if (!currentTeam || !defaultProviderId) return
+    if (!defaultProviderId) return
     try {
       setReprocessing(true)
       await embeddingProviderService.reprocessEmbeddingProvider(
-        currentTeam.id,
+        teamId,
         defaultProviderId
       )
       toast.success('Reprocessing started', {
@@ -480,12 +482,10 @@ export function EmbeddingProviders() {
   const canClear = embeddedTotal > 0 && !coverageLoading
 
   const handleClearEmbeddings = async () => {
-    if (!currentTeam) return
     try {
       setClearing(true)
-      const { deleted_count } = await embeddingProviderService.clearEmbeddings(
-        currentTeam.id
-      )
+      const { deleted_count } =
+        await embeddingProviderService.clearEmbeddings(teamId)
       toast.success('Embeddings cleared', {
         description: `Removed ${deleted_count.toLocaleString()} embedding${
           deleted_count === 1 ? '' : 's'
@@ -589,7 +589,8 @@ export function EmbeddingProviders() {
       )}
 
       <EmbeddingProviderDialog
-        teamId={currentTeam?.id ?? ''}
+        teamId={teamId}
+        teamName={team.name}
         open={dialogOpen}
         onOpenChange={open => {
           setDialogOpen(open)

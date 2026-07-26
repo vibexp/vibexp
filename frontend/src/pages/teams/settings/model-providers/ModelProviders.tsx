@@ -10,7 +10,6 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
 import { ModelProviderDialog } from '@/pages/teams/settings/model-providers/ModelProviderDialog'
@@ -20,6 +19,7 @@ import type {
   UpdateModelProviderRequest,
 } from '@/services/modelProviderService'
 import { modelProviderService } from '@/services/modelProviderService'
+import type { Team } from '@/services/teamService'
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('en-US', {
@@ -123,9 +123,18 @@ function buildProviderColumns(
   ]
 }
 
-export function ModelProviders() {
+/**
+ * `team` is the team `TeamScopeLayout` resolved from the URL (#584). Do not
+ * reach for `useTeam()` here: React fires child effects before parent effects,
+ * so on a cold deep-link this page's load effect runs BEFORE the layout's
+ * `setCurrentTeam` sync and the ambient team is still the previously persisted
+ * one — it would fetch and briefly render another team's providers under this
+ * team's URL. The layout guarantees a team inside the scope, which is why there
+ * are no `!team` guards below.
+ */
+export function ModelProviders({ team }: Readonly<{ team: Team }>) {
   const { handleError } = useErrorHandler()
-  const { currentTeam } = useTeam()
+  const teamId = team.id
 
   const [providers, setProviders] = useState<ModelProviderResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -136,10 +145,9 @@ export function ModelProviders() {
   const [deleting, setDeleting] = useState(false)
 
   const loadProviders = useCallback(async () => {
-    if (!currentTeam) return
     try {
       setLoading(true)
-      const data = await modelProviderService.getModelProviders(currentTeam.id)
+      const data = await modelProviderService.getModelProviders(teamId)
       setProviders(data)
     } catch (error) {
       handleError(error, 'Failed to load model providers')
@@ -147,7 +155,7 @@ export function ModelProviders() {
     } finally {
       setLoading(false)
     }
-  }, [handleError, currentTeam])
+  }, [handleError, teamId])
 
   useEffect(() => {
     void loadProviders()
@@ -156,19 +164,18 @@ export function ModelProviders() {
   const handleSubmit = async (
     data: CreateModelProviderRequest | UpdateModelProviderRequest
   ) => {
-    if (!currentTeam) return
     try {
       setSubmitting(true)
       if (editing) {
         await modelProviderService.updateModelProvider(
-          currentTeam.id,
+          teamId,
           editing.id,
           data as UpdateModelProviderRequest
         )
         toast.success('Provider updated')
       } else {
         await modelProviderService.createModelProvider(
-          currentTeam.id,
+          teamId,
           data as CreateModelProviderRequest
         )
         toast.success('Provider created')
@@ -187,13 +194,10 @@ export function ModelProviders() {
   }
 
   const handleDelete = async () => {
-    if (!toDelete || !currentTeam) return
+    if (!toDelete) return
     try {
       setDeleting(true)
-      await modelProviderService.deleteModelProvider(
-        currentTeam.id,
-        toDelete.id
-      )
+      await modelProviderService.deleteModelProvider(teamId, toDelete.id)
       toast.success('Provider deleted')
       await loadProviders()
     } catch (error) {
@@ -272,7 +276,7 @@ export function ModelProviders() {
       )}
 
       <ModelProviderDialog
-        teamId={currentTeam?.id ?? ''}
+        teamId={teamId}
         open={dialogOpen}
         onOpenChange={open => {
           setDialogOpen(open)
