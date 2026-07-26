@@ -76,8 +76,6 @@ func TestHandleInvitationError_Arms(t *testing.T) {
 	}{
 		{"personal workspace → 403", services.NewPersonalWorkspaceError("team-1"), http.StatusForbidden},
 		{"duplicate members → 409", services.NewDuplicateMembersError([]string{"a@example.com"}), http.StatusConflict},
-		{"no subscription → 403", services.NewNoActiveSubscriptionError("team-1"), http.StatusForbidden},
-		{"seat limit → 403", services.NewSeatLimitExceededError("team-1", 3, 1, 4, 5), http.StatusForbidden},
 		{"permission → 403", stderrors.New("permission denied for invite"), http.StatusForbidden},
 		{"not found → 404", stderrors.New("team not found"), http.StatusNotFound},
 		{"unknown → 500", stderrors.New("boom"), http.StatusInternalServerError},
@@ -86,7 +84,7 @@ func TestHandleInvitationError_Arms(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/teams/t/invitations", nil)
-			srv.handleInvitationError(rr, req, tt.err, "team-1")
+			srv.handleInvitationError(rr, req, tt.err)
 			assert.Equal(t, tt.wantStatus, rr.Code)
 		})
 	}

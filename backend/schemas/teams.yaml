@@ -25,7 +25,7 @@ Team:
       example: "Team for the core engineering group"
     is_personal:
       type: boolean
-      description: Whether this is the user's personal workspace (cannot be deleted or hold a team subscription)
+      description: Whether this is the user's personal workspace (cannot be deleted)
       example: false
     role:
       type: string
@@ -343,30 +343,28 @@ TeamDeleteConflictError:
   description: |
     RFC 9457 problem details returned when team deletion is blocked (HTTP 409).
     Codes are UPPERCASE and all `metadata` values are strings:
-    - `ACTIVE_SUBSCRIPTION_EXISTS` — metadata: `subscription_id`, `subscription_tier`, `billing_portal_url`, `help_text`
-    - `SUBSCRIPTION_CANCELING` — metadata: `cancel_at` (date the cancellation takes effect)
     - `TEAM_HAS_MEMBERS` — metadata: `member_count` (stringified integer)
   properties:
     type:
       type: string
       description: URI reference that identifies the problem type
-      example: "https://api.example.com/errors/ACTIVE_SUBSCRIPTION_EXISTS"
+      example: "https://api.example.com/errors/TEAM_HAS_MEMBERS"
     title:
       type: string
       description: Short, human-readable summary of the problem type
-      enum: ["Active Subscription Exists", "Subscription Canceling", "Team Has Members"]
-      example: "Active Subscription Exists"
+      enum: ["Team Has Members"]
+      example: "Team Has Members"
     status:
       type: integer
       example: 409
     detail:
       type: string
       description: Human-readable explanation specific to this occurrence
-      example: "team has an active professional subscription. Cancel the subscription before deleting the team"
+      example: "cannot delete team with active members. Remove all 3 members first"
     code:
       type: string
-      enum: [ACTIVE_SUBSCRIPTION_EXISTS, SUBSCRIPTION_CANCELING, TEAM_HAS_MEMBERS]
-      example: "ACTIVE_SUBSCRIPTION_EXISTS"
+      enum: [TEAM_HAS_MEMBERS]
+      example: "TEAM_HAS_MEMBERS"
     request_id:
       type: string
       example: "abc123-def456"
@@ -384,10 +382,7 @@ TeamDeleteConflictError:
       additionalProperties:
         type: string
       example:
-        subscription_id: "sub_1QabcDEF"
-        subscription_tier: "professional"
-        billing_portal_url: "https://billing.stripe.com/p/session/abc123"
-        help_text: "Cancel your subscription via the billing portal, then delete the team."
+        member_count: "3"
   required:
     - type
     - title

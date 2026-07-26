@@ -9,9 +9,6 @@ api-v1-teams:
       Creates a new team owned by the current user and synchronously bootstraps a
       default "Project 1" project inside it so resources created immediately
       afterwards are correctly scoped.
-
-      Team creation is subject to the plan's team resource limit; exceeding it
-      returns `403` with code `RESOURCE_LIMIT_EXCEEDED`.
     operationId: createTeam
     security:
       - ApiKeyAuth: []
@@ -43,12 +40,6 @@ api-v1-teams:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '402':
         description: Payment required — active subscription required
-        content:
-          application/problem+json:
-            schema:
-              $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
-      '403':
-        description: Team creation limit reached for the current plan (code `RESOURCE_LIMIT_EXCEEDED`)
         content:
           application/problem+json:
             schema:
@@ -244,8 +235,6 @@ api-v1-teams-id:
 
       Deletion conflicts return `409` with RFC 9457 problem details carrying an
       UPPERCASE `code` and string-valued `metadata`:
-      - `ACTIVE_SUBSCRIPTION_EXISTS` — the team still has an active subscription
-      - `SUBSCRIPTION_CANCELING` — the subscription is scheduled to cancel; retry after `metadata.cancel_at`
       - `TEAM_HAS_MEMBERS` — remove all members first (`metadata.member_count`)
     operationId: deleteTeam
     security:
@@ -287,7 +276,7 @@ api-v1-teams-id:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '409':
-        description: Deletion blocked — active/canceling subscription or remaining members (codes `ACTIVE_SUBSCRIPTION_EXISTS`, `SUBSCRIPTION_CANCELING`, `TEAM_HAS_MEMBERS`)
+        description: Deletion blocked — the team still has members (code `TEAM_HAS_MEMBERS`)
         content:
           application/problem+json:
             schema:
@@ -578,15 +567,8 @@ api-v1-teams-id-invitations:
     summary: Send team invitations
     description: |
       Sends invitations to join the team to up to 50 email addresses with the given
-      role. Requires an eligible team (not a personal workspace), an active team
-      subscription, and enough available seats.
-
-      Limit failures return `403` with code `RESOURCE_LIMIT_EXCEEDED` and a
-      `metadata` object: for missing subscriptions it carries `team_id`, `feature`
-      and `upgrade_url`; for seat limits it carries `team_id` plus seat accounting fields
-      (`total_seats`, `occupied_seats`, `current_members`, `pending_invitations`,
-      `requested_invitations`, `available_seats`, `additional_seats_needed`,
-      `upgrade_url`).
+      role. Requires an eligible team (not a personal workspace). Team membership is
+      unlimited.
 
       Inviting users who are already team members returns `409` with code
       `DUPLICATE_MEMBERS` and a top-level `duplicate_emails` string array.
@@ -634,7 +616,7 @@ api-v1-teams-id-invitations:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden — personal workspace (code `upgrade_required`), no permission to invite (code `FORBIDDEN`), no active team subscription, or seat limit exceeded (code `RESOURCE_LIMIT_EXCEEDED` with metadata)
+        description: Forbidden — personal workspace (code `upgrade_required`) or no permission to invite (code `FORBIDDEN`)
         content:
           application/problem+json:
             schema:
