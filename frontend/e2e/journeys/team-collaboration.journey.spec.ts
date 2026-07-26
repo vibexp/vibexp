@@ -51,7 +51,17 @@ async function createTeamAndOpen(page: Page, teamName: string): Promise<void> {
 
   // Opens via the stable hook on the row's clickable name, so a future
   // restructure of the list fails this loudly instead of silently skipping.
-  await page.click(`[data-testid="team-row-link"]:has-text("${teamName}")`)
+  //
+  // Asserted before the click rather than relying on click's auto-wait: both
+  // wait, but only this reports WHICH step broke. A bare click that times out
+  // says "selector not found" whether the team was never created, the list did
+  // not refresh, or the hook was renamed — and a test suite whose failures do
+  // not say what went wrong is how this file ended up asserting nothing.
+  const row = page.locator(
+    `[data-testid="team-row-link"]:has-text("${teamName}")`
+  )
+  await expect(row).toBeVisible({ timeout: 15000 })
+  await row.click()
 }
 test.describe('Journey 7: Team Collaboration Workflow', () => {
   test.describe('Teams Navigation', () => {
