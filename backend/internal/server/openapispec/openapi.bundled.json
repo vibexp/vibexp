@@ -11281,7 +11281,7 @@
       },
       "delete": {
         "summary": "Delete a team",
-        "description": "Deletes a team. Only team owners can delete a team; personal workspaces and\nthe default team cannot be deleted.\n\nDeletion conflicts return `409` with RFC 9457 problem details carrying an\nUPPERCASE `code` and string-valued `metadata`:\n- `ACTIVE_SUBSCRIPTION_EXISTS` — the team still has an active subscription\n- `SUBSCRIPTION_CANCELING` — the subscription is scheduled to cancel; retry after `metadata.cancel_at`\n- `TEAM_HAS_MEMBERS` — remove all members first (`metadata.member_count`)\n",
+        "description": "Deletes a team. Only team owners can delete a team; personal workspaces and\nthe default team cannot be deleted.\n\nDeletion conflicts return `409` with RFC 9457 problem details carrying an\nUPPERCASE `code` and string-valued `metadata`:\n- `TEAM_HAS_MEMBERS` — remove all members first (`metadata.member_count`)\n",
         "operationId": "deleteTeam",
         "security": [
           {
@@ -11348,7 +11348,7 @@
             }
           },
           "409": {
-            "description": "Deletion blocked — active/canceling subscription or remaining members (codes `ACTIVE_SUBSCRIPTION_EXISTS`, `SUBSCRIPTION_CANCELING`, `TEAM_HAS_MEMBERS`)",
+            "description": "Deletion blocked — the team still has members (code `TEAM_HAS_MEMBERS`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -28495,22 +28495,20 @@
       },
       "TeamDeleteConflictError": {
         "type": "object",
-        "description": "RFC 9457 problem details returned when team deletion is blocked (HTTP 409).\nCodes are UPPERCASE and all `metadata` values are strings:\n- `ACTIVE_SUBSCRIPTION_EXISTS` — metadata: `subscription_id`, `subscription_tier`, `billing_portal_url`, `help_text`\n- `SUBSCRIPTION_CANCELING` — metadata: `cancel_at` (date the cancellation takes effect)\n- `TEAM_HAS_MEMBERS` — metadata: `member_count` (stringified integer)\n",
+        "description": "RFC 9457 problem details returned when team deletion is blocked (HTTP 409).\nCodes are UPPERCASE and all `metadata` values are strings:\n- `TEAM_HAS_MEMBERS` — metadata: `member_count` (stringified integer)\n",
         "properties": {
           "type": {
             "type": "string",
             "description": "URI reference that identifies the problem type",
-            "example": "https://api.example.com/errors/ACTIVE_SUBSCRIPTION_EXISTS"
+            "example": "https://api.example.com/errors/TEAM_HAS_MEMBERS"
           },
           "title": {
             "type": "string",
             "description": "Short, human-readable summary of the problem type",
             "enum": [
-              "Active Subscription Exists",
-              "Subscription Canceling",
               "Team Has Members"
             ],
-            "example": "Active Subscription Exists"
+            "example": "Team Has Members"
           },
           "status": {
             "type": "integer",
@@ -28519,16 +28517,14 @@
           "detail": {
             "type": "string",
             "description": "Human-readable explanation specific to this occurrence",
-            "example": "team has an active professional subscription. Cancel the subscription before deleting the team"
+            "example": "cannot delete team with active members. Remove all 3 members first"
           },
           "code": {
             "type": "string",
             "enum": [
-              "ACTIVE_SUBSCRIPTION_EXISTS",
-              "SUBSCRIPTION_CANCELING",
               "TEAM_HAS_MEMBERS"
             ],
-            "example": "ACTIVE_SUBSCRIPTION_EXISTS"
+            "example": "TEAM_HAS_MEMBERS"
           },
           "request_id": {
             "type": "string",
@@ -28551,10 +28547,7 @@
               "type": "string"
             },
             "example": {
-              "subscription_id": "sub_1QabcDEF",
-              "subscription_tier": "professional",
-              "billing_portal_url": "https://billing.stripe.com/p/session/abc123",
-              "help_text": "Cancel your subscription via the billing portal, then delete the team."
+              "member_count": "3"
             }
           }
         },

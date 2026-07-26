@@ -136,50 +136,6 @@ func NewPersonalWorkspaceError(teamID string) *PersonalWorkspaceError {
 	return &PersonalWorkspaceError{TeamID: teamID}
 }
 
-// ActiveSubscriptionError is returned when attempting to delete a team with an active subscription
-type ActiveSubscriptionError struct {
-	TeamID           string
-	SubscriptionID   string
-	SubscriptionTier string
-	BillingPortalURL string
-	HelpText         string
-}
-
-// Error implements the error interface
-func (e *ActiveSubscriptionError) Error() string {
-	return "cannot delete team with active subscription. Cancel subscription first"
-}
-
-// NewActiveSubscriptionError creates a new ActiveSubscriptionError
-func NewActiveSubscriptionError(teamID, subscriptionID, tier, portalURL string) *ActiveSubscriptionError {
-	return &ActiveSubscriptionError{
-		TeamID:           teamID,
-		SubscriptionID:   subscriptionID,
-		SubscriptionTier: tier,
-		BillingPortalURL: portalURL,
-		HelpText:         "Visit the billing portal to cancel your subscription, then try deleting again.",
-	}
-}
-
-// SubscriptionCancelingError is returned when subscription is canceled but period hasn't ended
-type SubscriptionCancelingError struct {
-	TeamID   string
-	CancelAt string
-}
-
-// Error implements the error interface
-func (e *SubscriptionCancelingError) Error() string {
-	return fmt.Sprintf("team subscription is canceling on %s. You can delete the team after this date", e.CancelAt)
-}
-
-// NewSubscriptionCancelingError creates a new SubscriptionCancelingError
-func NewSubscriptionCancelingError(teamID, cancelAt string) *SubscriptionCancelingError {
-	return &SubscriptionCancelingError{
-		TeamID:   teamID,
-		CancelAt: cancelAt,
-	}
-}
-
 // TeamHasMembersError is returned when attempting to delete a team with multiple members
 type TeamHasMembersError struct {
 	TeamID      string
@@ -212,58 +168,6 @@ func (e *CannotDeletePersonalWorkspaceError) Error() string {
 // NewCannotDeletePersonalWorkspaceError creates a new CannotDeletePersonalWorkspaceError
 func NewCannotDeletePersonalWorkspaceError(teamID string) *CannotDeletePersonalWorkspaceError {
 	return &CannotDeletePersonalWorkspaceError{TeamID: teamID}
-}
-
-// NoActiveSubscriptionError is returned when attempting to invite members without an active subscription
-type NoActiveSubscriptionError struct {
-	TeamID string
-}
-
-// Error implements the error interface
-func (e *NoActiveSubscriptionError) Error() string {
-	return "team requires an active subscription to invite members"
-}
-
-// NewNoActiveSubscriptionError creates a new NoActiveSubscriptionError
-func NewNoActiveSubscriptionError(teamID string) *NoActiveSubscriptionError {
-	return &NoActiveSubscriptionError{TeamID: teamID}
-}
-
-// SeatLimitExceededError is returned when team has reached its seat limit
-type SeatLimitExceededError struct {
-	TeamID           string
-	CurrentMembers   int
-	PendingInvites   int
-	PaidSeats        int
-	RequestedInvites int
-}
-
-// Error implements the error interface
-func (e *SeatLimitExceededError) Error() string {
-	totalOccupied := e.CurrentMembers + e.PendingInvites
-	availableSeats := e.PaidSeats - totalOccupied
-	return fmt.Sprintf(
-		"team has reached seat limit. You have %d/%d seats used (%d members + %d pending invitations). "+
-			"Add %d more seats to invite %d additional members",
-		totalOccupied, e.PaidSeats,
-		e.CurrentMembers, e.PendingInvites,
-		e.RequestedInvites-availableSeats,
-		e.RequestedInvites,
-	)
-}
-
-// NewSeatLimitExceededError creates a new SeatLimitExceededError
-func NewSeatLimitExceededError(
-	teamID string,
-	currentMembers, pendingInvites, paidSeats, requestedInvites int,
-) *SeatLimitExceededError {
-	return &SeatLimitExceededError{
-		TeamID:           teamID,
-		CurrentMembers:   currentMembers,
-		PendingInvites:   pendingInvites,
-		PaidSeats:        paidSeats,
-		RequestedInvites: requestedInvites,
-	}
 }
 
 // InvitationNotFoundError is returned when an invitation cannot be found by token.

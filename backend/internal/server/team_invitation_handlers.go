@@ -130,7 +130,7 @@ func (s *Server) handleSendTeamInvitations(w http.ResponseWriter, r *http.Reques
 			"error", fmt.Sprintf("%+v", err),
 		).Error("Failed to send invitations")
 
-		s.handleInvitationError(w, r, err, teamID)
+		s.handleInvitationError(w, r, err)
 		return
 	}
 
@@ -205,57 +205,10 @@ func handleDuplicateMembersError(w http.ResponseWriter, r *http.Request, duplica
 	apierrors.WriteJSONError(w, r, apiErr)
 }
 
-// handleNoSubscriptionError handles no active subscription errors
-func handleNoSubscriptionError(w http.ResponseWriter, r *http.Request, teamID string) {
-	apiErr := apierrors.NewResourceLimitExceededErrorWithMetadata(
-		"Team requires an active subscription to invite members. Please upgrade your plan to enable team collaboration.",
-		map[string]any{
-			"team_id":     teamID,
-			"feature":     "team_invitations",
-			"upgrade_url": "/subscription?type=team",
-		},
-	)
-	apierrors.WriteJSONError(w, r, apiErr)
-}
-
-// handleSeatLimitError handles seat limit exceeded errors
-func handleSeatLimitError(
-	w http.ResponseWriter, r *http.Request, seatLimitErr *services.SeatLimitExceededError, teamID string,
-) {
-	totalOccupied := seatLimitErr.CurrentMembers + seatLimitErr.PendingInvites
-	availableSeats := seatLimitErr.PaidSeats - totalOccupied
-
-	// Ensure availableSeats doesn't go negative
-	if availableSeats < 0 {
-		availableSeats = 0
-	}
-
-	additionalSeatsNeeded := seatLimitErr.RequestedInvites - availableSeats
-	if additionalSeatsNeeded < 0 {
-		additionalSeatsNeeded = 0
-	}
-
-	apiErr := apierrors.NewResourceLimitExceededErrorWithMetadata(
-		seatLimitErr.Error(),
-		map[string]any{
-			"team_id":                 teamID,
-			"total_seats":             seatLimitErr.PaidSeats,
-			"occupied_seats":          totalOccupied,
-			"current_members":         seatLimitErr.CurrentMembers,
-			"pending_invitations":     seatLimitErr.PendingInvites,
-			"requested_invitations":   seatLimitErr.RequestedInvites,
-			"available_seats":         availableSeats,
-			"additional_seats_needed": additionalSeatsNeeded,
-			"upgrade_url":             "/subscription?type=team",
-		},
-	)
-	apierrors.WriteJSONError(w, r, apiErr)
-}
-
 // handleRevokeInvitation revokes a team invitation
 // DELETE /api/v1/teams/{id}/invitations/{invitationId}
 // handleInvitationError handles errors from invitation operations
-func (s *Server) handleInvitationError(w http.ResponseWriter, r *http.Request, err error, teamID string) {
+func (s *Server) handleInvitationError(w http.ResponseWriter, r *http.Request, err error) {
 	var personalWorkspaceErr *services.PersonalWorkspaceError
 	if errors.As(err, &personalWorkspaceErr) {
 		handlePersonalWorkspaceError(w)
@@ -265,18 +218,6 @@ func (s *Server) handleInvitationError(w http.ResponseWriter, r *http.Request, e
 	var duplicateErr *services.DuplicateMembersError
 	if errors.As(err, &duplicateErr) {
 		handleDuplicateMembersError(w, r, duplicateErr)
-		return
-	}
-
-	var noSubErr *services.NoActiveSubscriptionError
-	if errors.As(err, &noSubErr) {
-		handleNoSubscriptionError(w, r, teamID)
-		return
-	}
-
-	var seatLimitErr *services.SeatLimitExceededError
-	if errors.As(err, &seatLimitErr) {
-		handleSeatLimitError(w, r, seatLimitErr, teamID)
 		return
 	}
 

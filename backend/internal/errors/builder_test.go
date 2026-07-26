@@ -60,11 +60,6 @@ func coreBuilderScenarios() []builderContractScenario {
 	fieldErrs := []ValidationError{
 		{Field: "name", Message: "Field 'name' is required", Code: "REQUIRED", Constraint: "required"},
 	}
-	limitMetadata := map[string]any{
-		"team_id":     "team-123",
-		"upgrade_url": "/settings/teams/team-123/subscription",
-	}
-
 	return []builderContractScenario{
 		{
 			name:           "validation error propagates field errors",
@@ -138,25 +133,6 @@ func coreBuilderScenarios() []builderContractScenario {
 			wantCode:   "RESOURCE_EXISTS",
 			wantTitle:  "Resource Already Exists",
 			wantDetail: "team already exists",
-		},
-		{
-			name:       "resource limit exceeded",
-			build:      func() *APIError { return NewResourceLimitExceededError("Seat limit reached") },
-			wantStatus: http.StatusForbidden,
-			wantCode:   "RESOURCE_LIMIT_EXCEEDED",
-			wantTitle:  "Resource Limit Exceeded",
-			wantDetail: "Seat limit reached",
-		},
-		{
-			name: "resource limit exceeded with metadata",
-			build: func() *APIError {
-				return NewResourceLimitExceededErrorWithMetadata("Team requires an active subscription", limitMetadata)
-			},
-			wantStatus:   http.StatusForbidden,
-			wantCode:     "RESOURCE_LIMIT_EXCEEDED",
-			wantTitle:    "Resource Limit Exceeded",
-			wantDetail:   "Team requires an active subscription",
-			wantMetadata: limitMetadata,
 		},
 		{
 			name:       "internal error with explicit detail",
@@ -586,8 +562,8 @@ func TestTypeURI_ConfigurableBase(t *testing.T) {
 	assert.Equal(t, "https://example.com/errors/RESOURCE_LIMIT_EXCEEDED", typeURI(CodeResourceLimitExceeded))
 	assert.Equal(
 		t,
-		"https://example.com/errors/RESOURCE_LIMIT_EXCEEDED",
-		NewResourceLimitExceededError("limit").Type,
+		"https://example.com/errors/INTERNAL_ERROR",
+		NewInternalError("boom").Type,
 	)
 
 	// Empty resets to the neutral default.

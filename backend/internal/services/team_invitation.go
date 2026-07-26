@@ -81,10 +81,6 @@ func (s *TeamInvitationService) InviteMembers(
 		return nil, err
 	}
 
-	// Open-source build: team membership is unlimited and requires no paid
-	// subscription. Invitations proceed without any subscription or seat-limit
-	// gating.
-
 	// Resolve the inviter's display name once — it's the same for every email
 	// in this batch, and the invitation email must show a human-readable name
 	// (never the raw user UUID). Lookup failures degrade to a fallback string

@@ -57,23 +57,6 @@ func NewResourceExistsError(resourceType, detail string) *APIError {
 	return NewAPIError(CodeResourceExists, GetErrorTitle(CodeResourceExists), detail, http.StatusConflict)
 }
 
-// NewResourceLimitExceededError creates a resource limit exceeded error
-func NewResourceLimitExceededError(detail string) *APIError {
-	return NewAPIError(CodeResourceLimitExceeded, GetErrorTitle(CodeResourceLimitExceeded), detail, http.StatusForbidden)
-}
-
-// NewResourceLimitExceededErrorWithMetadata creates a resource limit exceeded error with additional metadata
-func NewResourceLimitExceededErrorWithMetadata(detail string, metadata map[string]any) *APIError {
-	apiErr := NewAPIError(
-		CodeResourceLimitExceeded,
-		GetErrorTitle(CodeResourceLimitExceeded),
-		detail,
-		http.StatusForbidden,
-	)
-	apiErr.Metadata = metadata
-	return apiErr
-}
-
 // NewInternalError creates an internal server error
 func NewInternalError(detail string) *APIError {
 	if detail == "" {

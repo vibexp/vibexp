@@ -244,8 +244,6 @@ api-v1-teams-id:
 
       Deletion conflicts return `409` with RFC 9457 problem details carrying an
       UPPERCASE `code` and string-valued `metadata`:
-      - `ACTIVE_SUBSCRIPTION_EXISTS` — the team still has an active subscription
-      - `SUBSCRIPTION_CANCELING` — the subscription is scheduled to cancel; retry after `metadata.cancel_at`
       - `TEAM_HAS_MEMBERS` — remove all members first (`metadata.member_count`)
     operationId: deleteTeam
     security:
@@ -287,7 +285,7 @@ api-v1-teams-id:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '409':
-        description: Deletion blocked — active/canceling subscription or remaining members (codes `ACTIVE_SUBSCRIPTION_EXISTS`, `SUBSCRIPTION_CANCELING`, `TEAM_HAS_MEMBERS`)
+        description: Deletion blocked — the team still has members (code `TEAM_HAS_MEMBERS`)
         content:
           application/problem+json:
             schema:

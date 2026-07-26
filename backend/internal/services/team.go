@@ -350,10 +350,6 @@ func (s *TeamService) DeleteTeam(ctx context.Context, userID, teamID string) err
 		return fmt.Errorf("cannot delete default team")
 	}
 
-	// Open-source build: teams have no paid subscription, so there are no
-	// billing-related deletion guards. Deletion proceeds straight to member
-	// validation.
-
 	// 4. Check for multiple members (must remove all members first except owner)
 	members, err := s.teamMemberRepo.GetByTeamID(ctx, teamID)
 	if err != nil {

@@ -268,31 +268,6 @@ func (s *Server) handleDeleteTeam(w http.ResponseWriter, r *http.Request) {
 // response.
 func writeDeleteTeamError(w http.ResponseWriter, r *http.Request, err error) {
 	// Handle custom error types with detailed RFC 9457 responses
-	if activeSubErr, ok := err.(*services.ActiveSubscriptionError); ok {
-		writeErrorResponseWithDetails(w, r, "ACTIVE_SUBSCRIPTION_EXISTS",
-			"Active Subscription Exists",
-			activeSubErr.Error(),
-			http.StatusConflict,
-			map[string]any{
-				"subscription_id":    activeSubErr.SubscriptionID,
-				"subscription_tier":  activeSubErr.SubscriptionTier,
-				"billing_portal_url": activeSubErr.BillingPortalURL,
-				"help_text":          activeSubErr.HelpText,
-			})
-		return
-	}
-
-	if cancelingErr, ok := err.(*services.SubscriptionCancelingError); ok {
-		writeErrorResponseWithDetails(w, r, "SUBSCRIPTION_CANCELING",
-			"Subscription Canceling",
-			cancelingErr.Error(),
-			http.StatusConflict,
-			map[string]any{
-				"cancel_at": cancelingErr.CancelAt,
-			})
-		return
-	}
-
 	if membersErr, ok := err.(*services.TeamHasMembersError); ok {
 		writeErrorResponseWithDetails(w, r, "TEAM_HAS_MEMBERS",
 			"Team Has Members",
