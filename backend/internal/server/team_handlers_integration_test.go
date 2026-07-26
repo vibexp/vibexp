@@ -399,7 +399,6 @@ func TestHandleCreateTeam_Success(t *testing.T) {
 	assert.Equal(t, "Team description", response.Description)
 
 	mockContainer.teamService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 	mockContainer.projectService.AssertExpectations(t)
 }
 
@@ -453,7 +452,6 @@ func TestHandleCreateTeam_DefaultProjectFailure(t *testing.T) {
 	assert.Equal(t, "Team description", response.Description)
 
 	mockContainer.teamService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 	mockContainer.projectService.AssertExpectations(t)
 }
 

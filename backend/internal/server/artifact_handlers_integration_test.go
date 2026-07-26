@@ -206,8 +206,6 @@ func TestHandleCreateArtifact_Success(t *testing.T) {
 		UpdatedAt:   time.Now(),
 	}
 
-	// Mock resource limit check
-
 	// Note: team_id now comes from URL parameter (validated by middleware), no longer from user's default team
 	teamID := "550e8400-e29b-41d4-a716-446655440000"
 
@@ -262,7 +260,6 @@ func TestHandleCreateArtifact_Success(t *testing.T) {
 	assert.Equal(t, "New Artifact", response.Title)
 
 	mockArtifactService.AssertExpectations(t)
-	mockResourceService.AssertExpectations(t)
 }
 
 // TestHandleCreateArtifact_InvalidType verifies the handler rejects a type that
@@ -303,8 +300,6 @@ func TestHandleCreateArtifact_InvalidType(t *testing.T) {
 func TestHandleCreateArtifact_ValidationError(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
 	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
-
-	// Mock resource limit check - always allow
 
 	mockContainer := &MockArtifactContainer{
 		ArtifactServiceMock:      mockArtifactService,
@@ -380,8 +375,6 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 
-	// Mock resource limit check
-
 	mockArtifactService.On(
 		"UpdateArtifactByProjectIDAndSlugInTeam",
 		"user-123",
@@ -424,15 +417,12 @@ func TestHandleUpdateArtifact_Success(t *testing.T) {
 
 	assert.Equal(t, "Updated Title", response.Title)
 	mockArtifactService.AssertExpectations(t)
-	mockResourceService.AssertExpectations(t)
 }
 
 // TestHandleUpdateArtifact_NotFound tests update on non-existent artifact
 func TestHandleUpdateArtifact_NotFound(t *testing.T) {
 	mockArtifactService := servicesmocks.NewMockArtifactServiceInterface(t)
 	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
-
-	// Mock resource limit check
 
 	mockArtifactService.On(
 		"UpdateArtifactByProjectIDAndSlugInTeam",

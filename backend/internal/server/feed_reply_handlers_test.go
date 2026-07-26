@@ -188,7 +188,6 @@ func TestHandleCreateFeedItemReply(t *testing.T) {
 			mockReplySvc := servicesmocks.NewMockFeedItemReplyServiceInterface(t)
 			tt.setupMock(mockReplySvc)
 
-			// Resource limit check needed for any test case that passes validation
 			// (i.e., has a valid body and item_id). Validation failures return before
 			// the resource limit check is called, so those cases don't need it.
 			var mockResourceSvc *servicesmocks.MockResourceUsageServiceInterface

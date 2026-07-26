@@ -384,8 +384,6 @@ func TestHandleCreateAgent_Success(t *testing.T) {
 		UpdatedAt:   time.Now(),
 	}
 
-	// Mock resource limit check
-
 	// Mock the default-team lookup - setup default team mock
 	setupDefaultTeamMock(mockContainer, "user-123", "team-123")
 
@@ -417,7 +415,6 @@ func TestHandleCreateAgent_Success(t *testing.T) {
 	assert.Equal(t, expectedAgent.CardURL, response.CardURL)
 
 	mockContainer.agentService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 	mockContainer.authService.AssertExpectations(t)
 }
 

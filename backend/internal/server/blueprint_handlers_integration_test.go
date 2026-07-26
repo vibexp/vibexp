@@ -199,7 +199,6 @@ func TestHandleCreateBlueprint_Success(t *testing.T) {
 
 	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
-	mockResourceService.AssertExpectations(t)
 }
 
 // TestHandleCreateBlueprint_PathErrors covers the #339 error mappings: a
@@ -1006,7 +1005,6 @@ func TestHandleUpdateBlueprint_Success(t *testing.T) {
 	assert.Equal(t, "Updated Title", response.Title)
 	specconformance.AssertConformsToSpec(t, req, rr)
 	mockBlueprintService.AssertExpectations(t)
-	mockResourceService.AssertExpectations(t)
 }
 
 // TestHandleUpdateBlueprint_NotFound tests update on non-existent blueprint
@@ -1533,7 +1531,7 @@ func TestHandleCreateBlueprint_SubtypeValidation(t *testing.T) {
 // runSubtypeValidationTest is a helper for subtype validation tests
 func runSubtypeValidationTest(t *testing.T, body string, expectedStatus int, errorMessage string) {
 	t.Helper()
-	srv, mockBlueprintService, mockResourceUsageService := setupTestServerForBlueprint(t,
+	srv, mockBlueprintService, _ := setupTestServerForBlueprint(t,
 		func(specLibSvc *servicesmocks.MockBlueprintServiceInterface,
 			resourceUsageSvc *servicesmocks.MockResourceUsageServiceInterface,
 			mockTeam *servicesmocks.MockTeamServiceInterface) {
@@ -1567,16 +1565,14 @@ func runSubtypeValidationTest(t *testing.T, body string, expectedStatus int, err
 	}
 
 	mockBlueprintService.AssertExpectations(t)
-	mockResourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleUpdateBlueprint_SubtypeValidationOnTypeChange tests subtype validation on type change
 func TestHandleUpdateBlueprint_SubtypeValidationOnTypeChange(t *testing.T) {
-	srv, mockBlueprintService, mockResourceUsageService := setupTestServerForBlueprint(t,
+	srv, mockBlueprintService, _ := setupTestServerForBlueprint(t,
 		func(specLibSvc *servicesmocks.MockBlueprintServiceInterface,
 			resourceUsageSvc *servicesmocks.MockResourceUsageServiceInterface,
 			mockTeam *servicesmocks.MockTeamServiceInterface) {
-			// Resource limit check happens before validation
 			// No service expectations because validation should fail before service call
 		})
 
@@ -1598,7 +1594,6 @@ func TestHandleUpdateBlueprint_SubtypeValidationOnTypeChange(t *testing.T) {
 	assert.Contains(t, errResp["detail"], "Subtype cannot be set for type 'general'")
 
 	mockBlueprintService.AssertExpectations(t)
-	mockResourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleListBlueprintsByProject_Success tests successful blueprint listing by project

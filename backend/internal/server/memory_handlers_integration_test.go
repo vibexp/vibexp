@@ -258,7 +258,6 @@ func TestHandleCreateMemory_Success(t *testing.T) {
 	assert.Equal(t, "work", response.Metadata["category"])
 
 	mockContainer.memoryService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleCreateMemory_ValidationError tests memory creation with invalid input
@@ -502,7 +501,6 @@ func TestHandleUpdateMemory_Success(t *testing.T) {
 	assert.Equal(t, "Updated memory text", response.Text)
 
 	mockContainer.memoryService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleUpdateMemory_NotFound tests memory update when memory doesn't exist

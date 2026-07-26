@@ -402,8 +402,6 @@ func TestHandleCreatePrompt_Success(t *testing.T) {
 	mockContainer.teamService.On("IsUserMemberOfTeam", mock.Anything, "user-123", teamID).
 		Return(true, nil)
 
-	// Mock resource limit check
-
 	mockContainer.promptService.On(
 		"CreatePrompt",
 		"user-123",
@@ -430,7 +428,6 @@ func TestHandleCreatePrompt_Success(t *testing.T) {
 	assert.Equal(t, expectedPrompt.Slug, response.Slug)
 
 	mockContainer.promptService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleCreatePrompt_ValidationError tests create prompt with validation errors
@@ -530,7 +527,6 @@ func TestHandleCreatePrompt_Conflict(t *testing.T) {
 	assert.Equal(t, "RESOURCE_EXISTS", response["code"])
 
 	mockContainer.promptService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleUpdatePrompt_Success tests successful prompt update
@@ -578,7 +574,6 @@ func TestHandleUpdatePrompt_Success(t *testing.T) {
 	assert.Equal(t, updatedPrompt.Status, response.Status)
 
 	mockContainer.promptService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleUpdatePrompt_NotFound tests update non-existent prompt
@@ -611,7 +606,6 @@ func TestHandleUpdatePrompt_NotFound(t *testing.T) {
 	assert.Equal(t, "RESOURCE_NOT_FOUND", response["code"])
 
 	mockContainer.promptService.AssertExpectations(t)
-	mockContainer.resourceUsageService.AssertExpectations(t)
 }
 
 // TestHandleDeletePrompt_Success tests successful prompt deletion
