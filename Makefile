@@ -1,4 +1,4 @@
-.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-openapi-server-check backend-mock-check backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down frontend-deps e2e-browsers e2e-test e2e
+.PHONY: backend-test backend-test-coverage backend-test-coverage-integration backend-test-unit-coverage backend-test-integration-coverage backend-check-integration-shard backend-test-integration backend-mock-generate backend-test-clean backend-format backend-vet backend-build backend-download-deps backend-validate-openapi backend-bundle-openapi backend-generate-openapi-bundle backend-openapi-bundle-check backend-generate-openapi-server backend-openapi-server-check backend-mock-check backend-wire-gen backend-wire-check backend-generate-config-schema backend-config-schema-check backend-lint-openapi backend-lint backend-vulncheck backend-security backend-check backend-check-migrations backend-run backend-run-dev frontend-install frontend-ci-install frontend-lint frontend-type-check frontend-test frontend-test-coverage frontend-audit frontend-build frontend-run-dev build-combined e2e-up e2e-down frontend-deps e2e-browsers e2e-test e2e
 
 # ============================================
 # Toolchain Pinning
@@ -53,13 +53,61 @@ backend-test-coverage:
 	cd backend && go test -race -coverprofile=coverage.out ./... -timeout=60s
 	cd backend && go tool cover -html=coverage.out -o coverage.html
 
-# Single-execution full suite (unit + integration-tagged) with coverage — used
-# by CI's Build & Test job (#390) so integration-covered code counts in Sonar.
+# Single-execution full suite (unit + integration-tagged) with coverage. CI no
+# longer uses this — it shards into backend-test-unit-coverage and
+# backend-test-integration-coverage (#638) — but it is kept as the documented
+# LOCAL one-shot, and as the reference the two halves are checked against.
 # Needs a reachable Postgres (docker-compose locally, service container in CI);
 # override the target database with POSTGRES_TEST_DSN. The longer timeout
 # covers the integration harness's one-time migration bootstrap.
 backend-test-coverage-integration:
 	cd backend && go test -race -tags=integration -coverprofile=coverage.out ./... -timeout=300s
+
+# The two halves CI runs as separate jobs (#638). Together they cover exactly
+# what backend-test-coverage-integration covers in one process; that target is
+# kept because it remains the documented local one-shot.
+#
+# Untagged: the whole module WITHOUT `-tags=integration`, so every
+# `//go:build integration` file is excluded at build time and no database is
+# needed. NOTE the trap recorded in the team notes — a `*_integration_test.go`
+# NAME does not imply the tag; all 20 such files under internal/server/ are
+# untagged handler tests and run here.
+backend-test-unit-coverage:
+	cd backend && go test -race -coverprofile=coverage-unit.out ./... -timeout=120s
+
+# The packages that carry `//go:build integration` files — the SINGLE source of
+# truth for both the target below and the guard after it, so the two can never
+# disagree. Note each package owns its own test database (see the respective
+# main_integration_test.go); do NOT set POSTGRES_TEST_DSN across both, that
+# points them at one database and reintroduces the collision they avoid.
+INTEGRATION_TAGGED_PKGS := internal/repositories/postgres internal/services/projectmigration
+INTEGRATION_TEST_PATTERNS := $(addprefix ./,$(addsuffix /...,$(INTEGRATION_TAGGED_PKGS)))
+
+# Tagged half. Needs a reachable Postgres (docker-compose locally, service
+# container in CI). The longer timeout covers the integration harness's one-time
+# migration bootstrap.
+backend-test-integration-coverage:
+	cd backend && go test -race -tags=integration -coverprofile=coverage-integration.out \
+		$(INTEGRATION_TEST_PATTERNS) -timeout=300s
+
+# The sharding is only exhaustive while INTEGRATION_TAGGED_PKGS matches reality.
+# Add a `//go:build integration` file to a THIRD package and its tagged tests
+# would silently stop running in CI — green, and never executed. This gate makes
+# that a build failure instead.
+backend-check-integration-shard:
+	@cd backend && actual=$$(grep -rl '//go:build integration' --include='*.go' . \
+		| sed 's|^\./||; s|/[^/]*$$||' | sort -u); \
+	expected=$$(printf '%s\n' $(INTEGRATION_TAGGED_PKGS) | sort -u); \
+	if [ "$$actual" != "$$expected" ]; then \
+		echo "❌ integration-tagged packages have changed — the CI shard would miss tests."; \
+		echo "   expected (INTEGRATION_TAGGED_PKGS):"; \
+		printf '     %s\n' $$expected; \
+		echo "   actually tagged in the tree:"; \
+		printf '     %s\n' $$actual; \
+		echo "   Fix: update INTEGRATION_TAGGED_PKGS in the Makefile (the test target derives from it)."; \
+		exit 1; \
+	fi; \
+	echo "✅ integration-tagged packages match the CI shard."
 
 # Run repository integration tests against real Postgres (docker-compose
 # locally, service container in CI). Override the target database with
@@ -89,7 +137,7 @@ backend-mock-check: backend-mock-generate
 
 # Clean test artifacts
 backend-test-clean:
-	cd backend && rm -f coverage.out coverage.html
+	cd backend && rm -f coverage.out coverage.html coverage-unit.out coverage-integration.out
 
 # Download Go module dependencies
 backend-download-deps:
@@ -300,9 +348,17 @@ backend-run-dev:
 # Frontend Commands
 # ============================================
 
-# Install frontend dependencies
+# Install frontend dependencies (local development — honours package.json, so
+# adding a dependency works). CI uses frontend-ci-install instead.
 frontend-install:
 	cd frontend && npm install
+
+# Deterministic install from the lockfile, for CI (#638). Kept separate from
+# frontend-install so local `make frontend-install` keeps `npm install`
+# semantics, and separate from frontend-deps, whose node_modules guard exists
+# for the e2e targets and would silently skip a reinstall.
+frontend-ci-install:
+	cd frontend && npm ci
 
 # Lint the frontend
 frontend-lint:

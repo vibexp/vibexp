@@ -12,13 +12,38 @@ name: CI
 # analysis always carries BOTH coverage reports (partial main analyses would
 # swing overall coverage — the invariant #300 protected).
 #
-# The backend test job also runs the integration-tagged suite against a real
-# Postgres service container, so integration-covered code finally counts in
-# Sonar coverage (issue #390; previously local-only).
+# The Go suite is SHARDED into `unit` and `integration` (issue #638). Only
+# `internal/repositories/postgres` and `internal/services/projectmigration`
+# carry `//go:build integration` files, so only the `integration` job needs the
+# Postgres service container; the `unit` job skips container startup entirely.
+# Each publishes its own coverage profile and BOTH are listed in
+# sonar-project.properties — integration-covered code still counts in Sonar
+# coverage (issue #390; previously local-only).
 #
 # NOTE: CI-based analysis is mutually exclusive with SonarCloud Automatic
 # Analysis. Automatic Analysis must be disabled for `vibexp_vibexp` in the
 # SonarCloud UI (Administration -> Analysis Method) or the scan is rejected.
+#
+# CACHING (issue #638). `actions/setup-go`'s built-in cache keys on Go version +
+# `go.sum` hash ONLY. `go.sum` rarely moves, so the key hit on every run and the
+# action therefore NEVER saved: the restored blob was whatever one run wrote long
+# ago. It held the compiled stdlib and third-party dependencies (which is why
+# `make backend-build` took 3s and gosec 44s), but NONE of this repo's own
+# packages in `-race -cover` mode — so the test step recompiled all of them every
+# run, the 126s of silence before the first `ok` line.
+#
+# Replacing it therefore has to preserve the dependency floor, not just add the
+# missing part. MEASURED on this PR's first run, with `cache: false` and no entry
+# yet saved under the new keys: `Build` 3s -> 146s, gosec 44s -> 173s,
+# golangci-lint 81s -> 224s. Hence:
+#   * module cache -> stable `go.sum` key, plain actions/cache (save+restore).
+#   * build cache  -> `go.sum` + commit SHA with a restore-keys ladder. ONE
+#     namespace shared by every Go job, because `unit` compiles the module both
+#     plain and with `-race -cover`, making its entry a superset. Restored by
+#     unit/integration/security/lint/openapi; saved by `unit` alone, on pushes to
+#     main plus on a total cache miss (the cold-start escape hatch — see the step
+#     comment). The entry is ~500MB, so an unconditional per-run save would
+#     exhaust the 10GB repo cache limit in ~20 runs.
 
 on:
   pull_request:
@@ -27,6 +52,13 @@ on:
 
 permissions:
   contents: read
+
+# Superseded PR runs are cancelled; pushes to main NEVER are — a main run
+# produces the Sonar coverage baseline this workflow's header protects, and
+# cancelling it would swing overall coverage (the #300 invariant).
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -57,8 +89,117 @@ jobs:
               - 'sonar-project.properties'
               - '.github/workflows/ci.yml'
 
-  build-and-test:
-    name: Build & Test
+  unit:
+    name: Build & Unit Test
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'push'
+
+    # No `services:` block — the untagged suite touches no database, so this job
+    # skips the ~16s `Initialize containers` step the old combined job paid.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version: '1.25.12'
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-1.25.12-
+
+      - name: Restore Go build cache
+        id: go-build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
+
+      - name: Download dependencies
+        run: make backend-download-deps
+
+      - name: gofmt check
+        run: make backend-format
+
+      - name: Build
+        run: make backend-build
+
+      # Regenerate config.schema.json from the Config struct and fail if it
+      # drifts from the committed file (same gate as the other generated
+      # artifacts) — keeps editor validation for config.yaml honest.
+      - name: Check config schema drift
+        run: make backend-config-schema-check
+
+      # The remaining two Go-only generated artifacts. Both were effectively
+      # ungated before #635: backend-wire-check existed in the Makefile but no
+      # workflow or hook invoked it, and the ~124 mockery mocks had no gate at
+      # all — so a hand-edited generated file reached main silently. mockery is
+      # pinned via MOCKERY_VERSION and run with `go run`, so this needs no
+      # install step.
+      - name: Check Wire DI drift
+        run: make backend-wire-check
+
+      - name: Check mocks drift
+        run: make backend-mock-check
+
+      # Untagged suite over the whole module, with coverage. The
+      # integration-tagged files are excluded at BUILD time (no
+      # `-tags=integration`), so no database is reachable or needed here.
+      - name: Test (unit, with coverage)
+        run: make backend-test-unit-coverage
+
+      # Guard against reintroducing WorkOS-specific coupling (removed in #30).
+      # WorkOS may return only as generic OIDC_* configuration, never as
+      # special-case code. Scoped to Go source so doc/config examples are unaffected.
+      - name: Guard against WorkOS coupling
+        run: |
+          if grep -rniE 'workos' backend --include='*.go'; then
+            echo "::error::WorkOS references found in backend Go source. The WorkOS provider was removed; re-add WorkOS only as generic OIDC_* configuration."
+            exit 1
+          fi
+          echo "OK: no WorkOS coupling in backend Go source."
+
+      - name: Upload backend unit coverage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: backend-coverage-unit
+          path: backend/coverage-unit.out
+          retention-days: 1
+
+      # The single saver of the Go build cache. This job is the right one: it
+      # compiles the module BOTH plain (`make backend-build`) and with
+      # `-race -cover` (the test step), so its cache is a superset that also
+      # serves lint/security/integration.
+      #
+      # Saved on pushes to main, and additionally on a TOTAL cache miss
+      # (`cache-matched-key` empty — not even the loosest restore-key hit). That
+      # second condition is what removes the cold-start cliff: without it, the
+      # very first runs after this lands, or after the cache is evicted, have no
+      # entry to restore and every Go job pays a full cold compile. It cannot run
+      # away — once any entry exists the restore-keys ladder always matches, so
+      # PR runs stop saving again.
+      - name: Save Go build cache
+        if: >-
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          steps.go-build-cache.outputs.cache-matched-key == ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+
+  integration:
+    name: Integration Test
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.backend == 'true' || github.event_name == 'push'
@@ -89,13 +230,96 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version: '1.25.12'
-          cache-dependency-path: backend/go.sum
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-1.25.12-
+
+      # Restore-only: `unit` owns saving this cache (see the header). Its entry
+      # holds the `-race -cover` artifacts this job's test compile needs.
+      - name: Restore Go build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
 
       - name: Download dependencies
         run: make backend-download-deps
 
-      - name: gofmt check
-        run: make backend-format
+      # Sharding is only exhaustive while the target's package list matches the
+      # packages that actually carry `//go:build integration` files. Without this
+      # gate, a third such package would just stop being tested — silently green.
+      - name: Check integration shard covers every tagged package
+        run: make backend-check-integration-shard
+
+      - name: Test (integration-tagged, with coverage)
+        run: make backend-test-integration-coverage
+
+      - name: Upload backend integration coverage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: backend-coverage-integration
+          path: backend/coverage-integration.out
+          retention-days: 1
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'push'
+
+    # Split out of Build & Test in #638: ~107s of scanning (install 32s +
+    # govulncheck 23s + gosec 44s) sat serially in FRONT of a 343s test step,
+    # inside a job that also held a Postgres service container idle throughout.
+    # None of the three needs Postgres or the test run, so they now run
+    # alongside `lint` instead of gating it.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version: '1.25.12'
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-1.25.12-
+
+      # govulncheck and gosec both load and type-check the whole module, so they
+      # need the compiled dependency artifacts as much as the test job does —
+      # restore-only, `unit` owns saving.
+      - name: Restore Go build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
+
+      # Keyed on the two PINNED versions, so the 32s `go install` is paid once
+      # per pin bump rather than once per run. Bumping either version below
+      # changes the key and re-installs automatically.
+      - name: Cache govulncheck and gosec binaries
+        id: security-tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/go/bin
+          key: go-sectools-${{ runner.os }}-1.25.12-govulncheck-v1.6.0-gosec-v2.24.7
 
       # make backend-vulncheck / backend-security invoke these binaries directly,
       # so CI has to install them (same pattern as golangci-lint in the lint job).
@@ -110,60 +334,21 @@ jobs:
       # whatever `gosec`/`govulncheck` is on PATH, so a newer local build reports
       # failures CI does not.
       - name: Install govulncheck and gosec
+        if: steps.security-tools.outputs.cache-hit != 'true'
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
           go install github.com/securego/gosec/v2/cmd/gosec@v2.24.7
+
+      # Explicit rather than relying on setup-go having put GOPATH/bin on PATH —
+      # on a cache hit no `go install` runs, so nothing else would.
+      - name: Add GOPATH/bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Vulnerability check
         run: make backend-vulncheck
 
       - name: Security scan
         run: make backend-security
-
-      - name: Build
-        run: make backend-build
-
-      # Regenerate config.schema.json from the Config struct and fail if it
-      # drifts from the committed file (same gate as the other generated
-      # artifacts) — keeps editor validation for config.yaml honest.
-      - name: Check config schema drift
-        run: make backend-config-schema-check
-
-      # The remaining two Go-only generated artifacts. Both were effectively
-      # ungated before #635: backend-wire-check existed in the Makefile but no
-      # workflow or hook invoked it, and the ~124 mockery mocks had no gate at
-      # all — so a hand-edited generated file reached main silently. mockery is
-      # pinned via MOCKERY_VERSION and run with `go run`, so this needs no
-      # install step.
-      - name: Check Wire DI drift
-        run: make backend-wire-check
-
-      - name: Check mocks drift
-        run: make backend-mock-check
-
-      # Single test execution: unit + integration-tagged tests together, with
-      # coverage. Replaces the separate plain run here plus the duplicate
-      # coverage run the old ci-sonar.yml performed.
-      - name: Test (unit + integration, with coverage)
-        run: make backend-test-coverage-integration
-
-      # Guard against reintroducing WorkOS-specific coupling (removed in #30).
-      # WorkOS may return only as generic OIDC_* configuration, never as
-      # special-case code. Scoped to Go source so doc/config examples are unaffected.
-      - name: Guard against WorkOS coupling
-        run: |
-          if grep -rniE 'workos' backend --include='*.go'; then
-            echo "::error::WorkOS references found in backend Go source. The WorkOS provider was removed; re-add WorkOS only as generic OIDC_* configuration."
-            exit 1
-          fi
-          echo "OK: no WorkOS coupling in backend Go source."
-
-      - name: Upload backend coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-        with:
-          name: backend-coverage
-          path: backend/coverage.out
-          retention-days: 1
 
   lint:
     name: golangci-lint
@@ -179,18 +364,67 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version: '1.25.12'
-          cache-dependency-path: backend/go.sum
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-1.25.12-
+
+      # golangci-lint type-checks the whole module, so it needs GOCACHE just as
+      # much as the build does — restore-only, `unit` owns saving.
+      - name: Restore Go build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
+
+      # golangci-lint also keeps its own analysis cache here, separate from
+      # GOCACHE. It is what makes a warm run cheap; the job cached nothing
+      # before #638.
+      - name: Cache golangci-lint analysis cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/golangci-lint
+          key: golangci-${{ runner.os }}-v2.5.0-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            golangci-${{ runner.os }}-v2.5.0-${{ hashFiles('backend/go.sum') }}-
+            golangci-${{ runner.os }}-v2.5.0-
+
+      # Keyed on the pinned version, so the installer is fetched once per bump.
+      - name: Cache golangci-lint binary
+        id: golangci-bin
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/go/bin/golangci-lint
+          key: golangci-bin-${{ runner.os }}-v2.5.0
 
       # make backend-lint invokes the golangci-lint binary directly, so install
       # it (pinned to match the v2 config in .github/linters/golangci.yml).
       - name: Install golangci-lint
+        if: steps.golangci-bin.outputs.cache-hit != 'true'
         run: |
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
             | sh -s -- -b "$(go env GOPATH)/bin" v2.5.0
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Add GOPATH/bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Run golangci-lint
         run: make backend-lint
+
+      - name: Save golangci-lint analysis cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/golangci-lint
+          key: golangci-${{ runner.os }}-v2.5.0-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
 
   openapi:
     name: OpenAPI validation
@@ -207,13 +441,45 @@ jobs:
         with:
           node-version: '22'
 
+      # This job runs no `npm install` — it resolves @redocly/cli and
+      # @apidevtools/swagger-cli on demand via `npx --yes`, three times per run
+      # (~20s of registry round-trips). Caching the npm cache dir (which holds
+      # the _npx tree) removes that. Keyed on the pinned redocly version so a
+      # bump re-resolves; deliberately NOT setup-node's `cache: 'npm'`, whose
+      # lockfile-derived key the frontend job also owns — two jobs racing to
+      # save one key means whichever loses never persists its _npx entries.
+      - name: Cache npx package downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.npm
+          key: npx-openapi-${{ runner.os }}-node22-redocly-2.5.0
+
       # backend-openapi-server-check runs oapi-codegen through the go.mod `tool`
       # directive, so this otherwise Node-only job needs a Go toolchain too.
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version: '1.25.12'
-          cache-dependency-path: backend/go.sum
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-1.25.12-
+
+      # The strict-server drift check builds oapi-codegen via `go tool`.
+      # Restore-only: `unit` owns saving.
+      - name: Restore Go build cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-${{ runner.os }}-1.25.12-${{ hashFiles('backend/go.sum') }}-
+            go-build-${{ runner.os }}-1.25.12-
 
       # make backend-validate-openapi shells out to `npx @apidevtools/swagger-cli`
       # which resolves and runs the validator on demand — no project install needed.
@@ -222,20 +488,24 @@ jobs:
 
       # Regenerate the embedded bundle served at /openapi.{yaml,json} (#139) and
       # fail if it drifts from the committed files — same gate as the config
-      # schema. Runs here (not Build & Test) because it needs Node/npx for redocly.
+      # schema. Runs here (not the `unit` job) because it needs Node/npx for redocly.
       - name: Check embedded OpenAPI bundle drift
         run: make backend-openapi-bundle-check
 
       # Regenerate the strict-server bindings from the bundled spec and fail if
       # they drift from the committed files — the gate the
       # backend-generate-openapi-server comment always claimed existed but which
-      # was never actually wired up (#635). Runs here rather than in Build & Test
+      # was never actually wired up (#635). Runs here rather than in the `unit` job
       # because bundling needs Node/npx for redocly.
       - name: Check OpenAPI strict-server drift
         run: make backend-openapi-server-check
 
-  build-lint-test:
-    name: Build, Lint & Test
+  # The frontend was one serial chain (lint -> audit -> type-check -> test ->
+  # build). Once the backend jobs came down it became the critical path's pole at
+  # 176s, so it splits in two (#638). The halves are independent: nothing in
+  # lint/audit/type-check feeds test/build.
+  frontend-static:
+    name: Frontend Lint & Types
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.frontend == 'true' || github.event_name == 'push'
@@ -248,9 +518,11 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: make frontend-install
+        run: make frontend-ci-install
 
       - name: Lint
         run: make frontend-lint
@@ -262,12 +534,44 @@ jobs:
       - name: Dependency audit
         run: make frontend-audit
 
+      # `tsc -b`. Note `make frontend-build` in the sibling job re-runs this as
+      # part of `npm run build`, so type errors gate BOTH jobs; keeping the
+      # explicit step here is what reports them as a type-check failure rather
+      # than a build failure. (#572: jest is transpile-only, so this is the only
+      # thing that type-checks the test files.)
       - name: Type-check
         run: make frontend-type-check
 
+  frontend-test:
+    name: Frontend Test & Build
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # `cache: 'npm'` keys ~/.npm on the lockfile. Both frontend jobs read it;
+      # they share the key deliberately (identical lockfile -> identical tree),
+      # and whichever finishes a cold install first saves it.
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` (not `npm install`): deterministic from the lockfile and faster
+      # with a warm cache. Its own target rather than repointing
+      # `frontend-install` — that one stays `npm install` so a developer adding a
+      # dependency locally still gets package.json honoured.
+      - name: Install dependencies
+        run: make frontend-ci-install
+
       # Single test execution WITH coverage (jest --coverage) — replaces the
       # plain `make frontend-test` here plus the duplicate coverage run the old
-      # ci-sonar.yml performed.
+      # ci-sonar.yml performed. This job is the one Sonar waits on.
       - name: Test (with coverage)
         run: make frontend-test-coverage
 
@@ -284,15 +588,16 @@ jobs:
   sonar:
     name: Sonar Scan
     runs-on: ubuntu-latest
-    needs: [changes, build-and-test, build-lint-test]
+    needs: [changes, unit, integration, frontend-test]
     # Run when at least one test job succeeded and none failed (skipped is
     # fine — a one-sided PR has no coverage for the other side, and PR analysis
     # gates on new code only). Never scan on red or cancelled tests.
     if: >-
       always() &&
-      (needs.build-and-test.result == 'success' || needs.build-lint-test.result == 'success') &&
-      needs.build-and-test.result != 'failure' && needs.build-and-test.result != 'cancelled' &&
-      needs.build-lint-test.result != 'failure' && needs.build-lint-test.result != 'cancelled'
+      (needs.unit.result == 'success' || needs.integration.result == 'success' || needs.frontend-test.result == 'success') &&
+      needs.unit.result != 'failure' && needs.unit.result != 'cancelled' &&
+      needs.integration.result != 'failure' && needs.integration.result != 'cancelled' &&
+      needs.frontend-test.result != 'failure' && needs.frontend-test.result != 'cancelled'
 
     steps:
       - name: Checkout
@@ -301,11 +606,18 @@ jobs:
           # Full history so SonarCloud can attribute new code / blame accurately.
           fetch-depth: 0
 
-      - name: Download backend coverage
+      - name: Download backend unit coverage
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: backend-coverage
+          name: backend-coverage-unit
+          path: backend
+
+      - name: Download backend integration coverage
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: backend-coverage-integration
           path: backend
 
       - name: Download frontend coverage
@@ -329,10 +641,13 @@ jobs:
       # called out in #300). A report is expected whenever its test job ran.
       - name: Verify expected coverage reports exist
         run: |
-          if [ "${{ needs.build-and-test.result }}" = "success" ]; then
-            test -s backend/coverage.out || { echo "::error::backend/coverage.out missing or empty despite Build & Test succeeding"; exit 1; }
+          if [ "${{ needs.unit.result }}" = "success" ]; then
+            test -s backend/coverage-unit.out || { echo "::error::backend/coverage-unit.out missing or empty despite Build & Unit Test succeeding"; exit 1; }
           fi
-          if [ "${{ needs.build-lint-test.result }}" = "success" ]; then
+          if [ "${{ needs.integration.result }}" = "success" ]; then
+            test -s backend/coverage-integration.out || { echo "::error::backend/coverage-integration.out missing or empty despite Integration Test succeeding"; exit 1; }
+          fi
+          if [ "${{ needs.frontend-test.result }}" = "success" ]; then
             test -s frontend/coverage/lcov.info || { echo "::error::frontend/coverage/lcov.info missing or empty despite Build, Lint & Test succeeding"; exit 1; }
           fi
 
