@@ -171,7 +171,7 @@ type Team struct {
 	Description string             `json:"description"`
 	Id          openapi_types.UUID `json:"id"`
 
-	// IsPersonal Whether this is the user's personal workspace (cannot be deleted or hold a team subscription)
+	// IsPersonal Whether this is the user's personal workspace (cannot be deleted)
 	IsPersonal bool `json:"is_personal"`
 
 	// MemberCount Number of members in this team. Populated only on list responses; 0 on create and single-team reads.

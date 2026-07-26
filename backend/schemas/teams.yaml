@@ -25,7 +25,7 @@ Team:
       example: "Team for the core engineering group"
     is_personal:
       type: boolean
-      description: Whether this is the user's personal workspace (cannot be deleted or hold a team subscription)
+      description: Whether this is the user's personal workspace (cannot be deleted)
       example: false
     role:
       type: string

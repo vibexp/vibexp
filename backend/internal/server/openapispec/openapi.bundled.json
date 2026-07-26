@@ -3830,20 +3830,20 @@
             }
           },
           "403": {
-            "description": "Resource limit exceeded",
+            "description": "No permission to create blueprints in this team",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "examples": {
-                  "limit_exceeded": {
+                  "forbidden": {
                     "value": {
                       "type": "about:blank",
                       "title": "Forbidden",
                       "status": 403,
-                      "detail": "You have reached the maximum number of spec libraries allowed for your subscription plan",
-                      "code": "resource_limit_exceeded",
+                      "detail": "You do not have permission to create blueprints in this team",
+                      "code": "forbidden",
                       "request_id": "req_123abc",
                       "timestamp": "2025-11-08T10:15:30Z"
                     }
@@ -10918,7 +10918,7 @@
     "/api/v1/teams": {
       "post": {
         "summary": "Create a new team",
-        "description": "Creates a new team owned by the current user and synchronously bootstraps a\ndefault \"Project 1\" project inside it so resources created immediately\nafterwards are correctly scoped.\n\nTeam creation is subject to the plan's team resource limit; exceeding it\nreturns `403` with code `RESOURCE_LIMIT_EXCEEDED`.\n",
+        "description": "Creates a new team owned by the current user and synchronously bootstraps a\ndefault \"Project 1\" project inside it so resources created immediately\nafterwards are correctly scoped.\n",
         "operationId": "createTeam",
         "security": [
           {
@@ -10971,16 +10971,6 @@
           },
           "402": {
             "description": "Payment required — active subscription required",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Team creation limit reached for the current plan (code `RESOURCE_LIMIT_EXCEEDED`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11788,7 +11778,7 @@
     "/api/v1/teams/{id}/invitations": {
       "post": {
         "summary": "Send team invitations",
-        "description": "Sends invitations to join the team to up to 50 email addresses with the given\nrole. Requires an eligible team (not a personal workspace), an active team\nsubscription, and enough available seats.\n\nLimit failures return `403` with code `RESOURCE_LIMIT_EXCEEDED` and a\n`metadata` object: for missing subscriptions it carries `team_id`, `feature`\nand `upgrade_url`; for seat limits it carries `team_id` plus seat accounting fields\n(`total_seats`, `occupied_seats`, `current_members`, `pending_invitations`,\n`requested_invitations`, `available_seats`, `additional_seats_needed`,\n`upgrade_url`).\n\nInviting users who are already team members returns `409` with code\n`DUPLICATE_MEMBERS` and a top-level `duplicate_emails` string array.\n",
+        "description": "Sends invitations to join the team to up to 50 email addresses with the given\nrole. Requires an eligible team (not a personal workspace). Team membership is\nunlimited.\n\nInviting users who are already team members returns `409` with code\n`DUPLICATE_MEMBERS` and a top-level `duplicate_emails` string array.\n",
         "operationId": "sendTeamInvitations",
         "security": [
           {
@@ -11862,7 +11852,7 @@
             }
           },
           "403": {
-            "description": "Forbidden — personal workspace (code `upgrade_required`), no permission to invite (code `FORBIDDEN`), no active team subscription, or seat limit exceeded (code `RESOURCE_LIMIT_EXCEEDED` with metadata)",
+            "description": "Forbidden — personal workspace (code `upgrade_required`) or no permission to invite (code `FORBIDDEN`)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -28135,7 +28125,7 @@
           },
           "is_personal": {
             "type": "boolean",
-            "description": "Whether this is the user's personal workspace (cannot be deleted or hold a team subscription)",
+            "description": "Whether this is the user's personal workspace (cannot be deleted)",
             "example": false
           },
           "role": {

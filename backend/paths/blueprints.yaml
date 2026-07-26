@@ -65,19 +65,19 @@ api-v1-team_id-blueprints:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Resource limit exceeded
+        description: No permission to create blueprints in this team
         content:
           application/problem+json:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
             examples:
-              limit_exceeded:
+              forbidden:
                 value:
                   type: "about:blank"
                   title: "Forbidden"
                   status: 403
-                  detail: "You have reached the maximum number of spec libraries allowed for your subscription plan"
-                  code: "resource_limit_exceeded"
+                  detail: "You do not have permission to create blueprints in this team"
+                  code: "forbidden"
                   request_id: "req_123abc"
                   timestamp: "2025-11-08T10:15:30Z"
       '409':
