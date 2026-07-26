@@ -1,16 +1,21 @@
 name: Project board hygiene
 
 # Keeps the VibeXP org project board (vibexp/#3, node PVT_kwDOEZ4IFs4BbTG0)
-# truthful (#416). Two behaviours:
+# truthful (#416). Runs purely on a daily schedule (midnight UTC) plus manual
+# dispatch -- deliberately NOT on `issues: opened`, so board writes happen in one
+# predictable nightly pass instead of racing every issue creation. A newly filed
+# issue therefore lands on the board at the next run, not instantly. Two
+# behaviours, both reconciling: they converge on the same end state no matter
+# how many runs are missed, so a skipped night self-heals.
 #
-#   1. Auto-add issues to the board (on open + a daily sweep for
-#      stragglers/transfers), seeding Status=Backlog and Iteration=<current>.
-#      Each field is written ONLY when it is empty -- a value a human already
-#      set is never overwritten. The current iteration is resolved live
-#      (iteration ids rotate); if the board has none configured, issues are
+#   1. Add every OPEN issue not already on the board, seeding Status=Backlog and
+#      Iteration=<current>. Each field is written ONLY when it is empty -- a
+#      value a human already set is never overwritten, so triage (moving an
+#      issue to a different iteration) sticks. The current iteration is resolved
+#      live (iteration ids rotate); if the board has none configured, issues are
 #      still added and backlogged, just without an iteration.
-#   2. No OPEN issue may sit in a past iteration: a daily sweep moves any open
-#      issue whose Iteration is a completed one into the current iteration.
+#   2. No OPEN issue may sit in a past iteration: the sweep moves any open issue
+#      whose Iteration is a completed one into the current iteration.
 #      Current/future iterations and Done/closed items are left untouched.
 #
 # TOKEN MODEL: the default GITHUB_TOKEN cannot write org-level Projects V2, so
@@ -32,10 +37,8 @@ name: Project board hygiene
 # fail fast with a clear remediation message (they do not silently no-op).
 
 on:
-  issues:
-    types: [opened]
   schedule:
-    - cron: '30 3 * * *' # daily at 03:30 UTC (staggered from stale.yml)
+    - cron: '0 0 * * *' # daily at midnight UTC
   workflow_dispatch:
 
 permissions:
@@ -43,10 +46,9 @@ permissions:
   issues: read
 
 concurrency:
-  # Per-issue for opened events (never cancel another issue's add) and per-run
-  # for sweeps (never cancel a scheduled sweep). A single shared group would let
-  # GitHub cancel superseded *pending* runs, silently dropping some board adds.
-  group: project-board-${{ github.event.issue.number || github.run_id }}
+  # One sweep at a time. cancel-in-progress stays false so a queued run is never
+  # dropped -- cancelling a superseded *pending* run would silently skip a sweep.
+  group: project-board
   cancel-in-progress: false
 
 env:
@@ -173,32 +175,28 @@ jobs:
               return seeded;
             }
 
-            // Decide which issue node IDs to process.
-            let targets = [];
-            if (context.eventName === 'issues' && context.payload.issue) {
-              targets = [context.payload.issue.node_id];
-            } else {
-              // Daily sweep: add OPEN issues not already on the board.
-              const onBoard = new Set();
-              let cursor = null;
-              do {
-                const res = await proj(
-                  `query($p:ID!, $c:String){ node(id:$p){ ... on ProjectV2 {
-                     items(first:100, after:$c){ pageInfo { hasNextPage endCursor }
-                       nodes { content { __typename ... on Issue { id } } } } } } }`,
-                  { p: PROJECT_ID, c: cursor });
-                const conn = res.node.items;
-                for (const it of conn.nodes) {
-                  if (it.content && it.content.__typename === 'Issue') onBoard.add(it.content.id);
-                }
-                cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
-              } while (cursor);
+            // Every OPEN issue not already on the board.
+            const onBoard = new Set();
+            let cursor = null;
+            do {
+              const res = await proj(
+                `query($p:ID!, $c:String){ node(id:$p){ ... on ProjectV2 {
+                   items(first:100, after:$c){ pageInfo { hasNextPage endCursor }
+                     nodes { content { __typename ... on Issue { id } } } } } } }`,
+                { p: PROJECT_ID, c: cursor });
+              const conn = res.node.items;
+              for (const it of conn.nodes) {
+                if (it.content && it.content.__typename === 'Issue') onBoard.add(it.content.id);
+              }
+              cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
+            } while (cursor);
 
-              const open = await github.paginate(github.rest.issues.listForRepo, {
-                owner, repo, state: 'open', per_page: 100,
-              });
-              targets = open.filter((i) => !i.pull_request && !onBoard.has(i.node_id)).map((i) => i.node_id);
-            }
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', per_page: 100,
+            });
+            const targets = open
+              .filter((i) => !i.pull_request && !onBoard.has(i.node_id))
+              .map((i) => i.node_id);
 
             let backlogged = 0, iterated = 0;
             for (const cid of targets) {
@@ -216,7 +214,6 @@ jobs:
 
   iteration-sweep:
     name: Move open issues out of past iterations
-    if: github.event_name != 'issues' # sweep only runs on schedule / manual dispatch
     runs-on: ubuntu-latest
     steps:
       - name: Mint VibeXP Bot app token
