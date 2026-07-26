@@ -121,11 +121,125 @@ func TestNoDuplicateOperationIDs(t *testing.T) {
 // Keeping both means two hand-maintained copies of the same operations, and two
 // copies drift — usually discovered much later, by a client consumer.
 var settingsAliases = map[string]string{
+	// github-app + email-provider: created by #573, mounted via
+	// githubAppConfigMountPrefixes / teamEmailProviderMountPrefixes.
 	"/api/v1/{team_id}/settings/github-app":                      "/api/v1/{team_id}/integrations/github/app",
 	"/api/v1/{team_id}/settings/github-app/validate":             "/api/v1/{team_id}/integrations/github/app/validate",
 	"/api/v1/{team_id}/settings/github-app/rotate-webhook-token": "/api/v1/{team_id}/integrations/github/app/rotate-webhook-token",
 	"/api/v1/{team_id}/settings/email-provider":                  "/api/v1/{team_id}/email-provider",
 	"/api/v1/{team_id}/settings/email-provider/test":             "/api/v1/{team_id}/email-provider/test",
+
+	// api-keys: the settings prefix is what the SPA calls
+	// (services/apiKeyService.ts); the bare group is mounted separately.
+	"/api/v1/settings/api-keys":      "/api/v1/api-keys",
+	"/api/v1/settings/api-keys/{id}": "/api/v1/api-keys/{id}",
+
+	// embedding-providers: both prefixes are served by one
+	// setupEmbeddingProvidersRoutes mount (server.go). Note that
+	// .../settings/embedding-providers/embeddings is deliberately NOT here — it
+	// is settings-only by design; see settingsAliasExclusions.
+	"/api/v1/{team_id}/settings/embedding-providers":                "/api/v1/{team_id}/embedding-providers",
+	"/api/v1/{team_id}/settings/embedding-providers/coverage":       "/api/v1/{team_id}/embedding-providers/coverage",
+	"/api/v1/{team_id}/settings/embedding-providers/validate":       "/api/v1/{team_id}/embedding-providers/validate",
+	"/api/v1/{team_id}/settings/embedding-providers/{id}":           "/api/v1/{team_id}/embedding-providers/{id}",
+	"/api/v1/{team_id}/settings/embedding-providers/{id}/reprocess": "/api/v1/{team_id}/embedding-providers/{id}/reprocess",
+
+	// model-providers: same shape, mounted by setupModelProvidersRoutes.
+	"/api/v1/{team_id}/settings/model-providers":          "/api/v1/{team_id}/model-providers",
+	"/api/v1/{team_id}/settings/model-providers/validate": "/api/v1/{team_id}/model-providers/validate",
+	"/api/v1/{team_id}/settings/model-providers/{id}":     "/api/v1/{team_id}/model-providers/{id}",
+}
+
+// settingsAliasExclusions lists paths whose operationIds end in "Settings" but
+// which are NOT aliases of anything, with the reason for each.
+//
+// The completeness gate below is deliberately a dumb suffix match plus this
+// list, rather than a cleverer regex: a regex that "knows" which ids are really
+// aliases is a regex that will quietly stop covering the next one. Adding an
+// entry here is a decision someone has to write down.
+var settingsAliasExclusions = map[string]string{
+	"/api/v1/{team_id}/settings/search": "the DOMAIN is team search settings " +
+		"(getTeamSearchSettings / updateTeamSearchSettings / resetTeamSearchSettings, " +
+		"epic #487) — the suffix is the noun, not an alias marker. There is no bare " +
+		"/api/v1/{team_id}/search counterpart and never will be.",
+
+	"/api/v1/{team_id}/settings/embedding-providers/embeddings": "clearEmbeddingsSettings " +
+		"is registered on the settings mount ONLY, by design: a destructive team-wide " +
+		"truncate surfaced solely in the embedding settings UI (server.go, issue #182). " +
+		"It has no canonical twin to compare against.",
+}
+
+// TestEverySettingsSuffixedPathIsRegistered is the completeness half of the
+// drift gate. TestSettingsAliasPathItemsMatchCanonical only checks the pairs
+// somebody remembered to register; this makes forgetting impossible.
+//
+// The ...Settings operationId suffix is this repo's established marker for "the
+// settings-prefix copy of an operation that also lives somewhere else" — it is
+// what keeps the ids unique after bundling (#573). So any path carrying one is
+// either an alias (register it) or an exception (justify it).
+func TestEverySettingsSuffixedPathIsRegistered(t *testing.T) {
+	unregistered := make([]string, 0)
+
+	for path, ops := range bundledPaths(t) {
+		if _, registered := settingsAliases[path]; registered {
+			continue
+		}
+		if _, excluded := settingsAliasExclusions[path]; excluded {
+			continue
+		}
+		for method, op := range ops {
+			id, _ := op["operationId"].(string)
+			if !strings.HasSuffix(id, "Settings") {
+				continue
+			}
+			unregistered = append(unregistered,
+				fmt.Sprintf("  %s %s (operationId %q)", strings.ToUpper(method), path, id))
+		}
+	}
+
+	if len(unregistered) > 0 {
+		sort.Strings(unregistered)
+		t.Errorf(
+			"%d operation(s) carry the ...Settings alias suffix on a path that is neither a "+
+				"registered alias nor a documented exception (#576):\n%s\n\n"+
+				"Add the path to settingsAliases with the canonical path it duplicates, so the "+
+				"deep-compare keeps the two copies identical. If it is genuinely not an alias, "+
+				"add it to settingsAliasExclusions WITH A REASON. Do not loosen the suffix "+
+				"match: a regex that knows which ids are 'really' aliases stops covering the next one.",
+			len(unregistered), strings.Join(unregistered, "\n"))
+	}
+}
+
+// TestSettingsAliasExclusionsAreReal keeps the exclusion list honest: an entry
+// for a path that no longer exists, or that has since become a real alias, is a
+// hole in the gate that nothing else would report.
+func TestSettingsAliasExclusionsAreReal(t *testing.T) {
+	paths := bundledPaths(t)
+
+	for path, reason := range settingsAliasExclusions {
+		if _, ok := paths[path]; !ok {
+			t.Errorf("excluded path %q is no longer in the spec — delete the exclusion", path)
+		}
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("exclusion %q has no reason — every exclusion must justify itself", path)
+		}
+		if _, alsoAlias := settingsAliases[path]; alsoAlias {
+			t.Errorf("%q is both a registered alias and an exclusion — pick one", path)
+		}
+		// An exclusion for a path with no ...Settings operation excludes nothing.
+		// Dead config here is worse than none: it reads as "this path was
+		// considered and waived" when the gate never looked at it.
+		hasSuffixed := false
+		for _, op := range paths[path] {
+			if id, _ := op["operationId"].(string); strings.HasSuffix(id, "Settings") {
+				hasSuffixed = true
+				break
+			}
+		}
+		if !hasSuffixed {
+			t.Errorf("excluded path %q has no ...Settings operation — the exclusion is dead config", path)
+		}
+	}
 }
 
 // TestSettingsAliasPathItemsMatchCanonical asserts each alias is identical to its

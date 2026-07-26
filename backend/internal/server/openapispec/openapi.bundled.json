@@ -716,8 +716,8 @@
     },
     "/api/v1/settings/api-keys": {
       "post": {
-        "summary": "Create new API key (Settings)",
-        "description": "Creates a new API key for the authenticated user (settings route)",
+        "summary": "Create new API key",
+        "description": "Creates a new API key for the authenticated user",
         "operationId": "createAPIKeySettings",
         "requestBody": {
           "required": true,
@@ -762,12 +762,12 @@
           }
         },
         "tags": [
-          "Settings"
+          "API Keys"
         ]
       },
       "get": {
-        "summary": "List API keys (Settings)",
-        "description": "Retrieves all API keys for the authenticated user (settings route)",
+        "summary": "List API keys",
+        "description": "Retrieves all API keys for the authenticated user",
         "operationId": "listAPIKeysSettings",
         "parameters": [
           {
@@ -815,14 +815,14 @@
           }
         },
         "tags": [
-          "Settings"
+          "API Keys"
         ]
       }
     },
     "/api/v1/settings/api-keys/{id}": {
       "delete": {
-        "summary": "Delete API key (Settings)",
-        "description": "Deletes an API key by ID (settings route)",
+        "summary": "Delete API key",
+        "description": "Deletes an API key by ID",
         "operationId": "deleteAPIKeySettings",
         "parameters": [
           {
@@ -868,7 +868,7 @@
           }
         },
         "tags": [
-          "Settings"
+          "API Keys"
         ]
       }
     },
@@ -16788,8 +16788,8 @@
         }
       ],
       "post": {
-        "summary": "Create embedding provider (Settings)",
-        "description": "Creates a new embedding provider configuration for the authenticated user (settings route).\nThe `api_key` supplied in the request is encrypted at rest and is never\nreturned by the API — responses expose only a `has_api_key` boolean.\nReturns 200 (not 201) on success.\n",
+        "summary": "Create embedding provider",
+        "description": "Creates a new embedding provider configuration for the authenticated user.\nThe `api_key` supplied in the request is encrypted at rest and is never\nreturned by the API — responses expose only a `has_api_key` boolean.\nReturns 200 (not 201) on success.\n",
         "operationId": "createEmbeddingProviderSettings",
         "security": [
           {
@@ -16872,12 +16872,12 @@
           }
         },
         "tags": [
-          "Settings"
+          "Embedding Providers"
         ]
       },
       "get": {
-        "summary": "List embedding providers (Settings)",
-        "description": "Retrieves all embedding providers belonging to the authenticated user (settings route).\nReturns a bare JSON array (no pagination envelope). Encrypted API keys\nare never included; each item carries a `has_api_key` boolean instead.\n",
+        "summary": "List embedding providers",
+        "description": "Retrieves all embedding providers belonging to the authenticated user.\nReturns a bare JSON array (no pagination envelope). Encrypted API keys\nare never included; each item carries a `has_api_key` boolean instead.\n",
         "operationId": "listEmbeddingProvidersSettings",
         "security": [
           {
@@ -16923,7 +16923,7 @@
           }
         },
         "tags": [
-          "Settings"
+          "Embedding Providers"
         ]
       }
     },
@@ -16941,8 +16941,8 @@
         }
       ],
       "get": {
-        "summary": "Get embedding coverage (Settings)",
-        "description": "Returns derived, team-scoped embedding coverage per entity type under the\nteam's active provider model (settings route). See `getEmbeddingCoverage`\nfor the payload semantics.\n",
+        "summary": "Get embedding coverage",
+        "description": "Returns derived, team-scoped embedding coverage per entity type under the\nteam's active provider model: how many entities exist (`total`), how many\nhave an embedding (`embedded`), how many are still pending, and the\nembedded percentage. Counts are computed from existing rows — there is no\nper-entity state. When the team has no active provider, the response\nreports every type as all-pending (0%) rather than an error.\n",
         "operationId": "getEmbeddingCoverageSettings",
         "security": [
           {
@@ -16985,7 +16985,7 @@
           }
         },
         "tags": [
-          "Settings"
+          "Embedding Providers"
         ]
       }
     },
@@ -17003,8 +17003,8 @@
         }
       ],
       "get": {
-        "summary": "Get embedding provider (Settings)",
-        "description": "Retrieves a single embedding provider owned by the authenticated user (settings route).\nThe encrypted API key is never returned; `has_api_key` indicates whether\none is stored.\n",
+        "summary": "Get embedding provider",
+        "description": "Retrieves a single embedding provider owned by the authenticated user.\nThe encrypted API key is never returned; `has_api_key` indicates whether\none is stored.\n",
         "operationId": "getEmbeddingProviderSettings",
         "security": [
           {
@@ -17068,12 +17068,12 @@
           }
         },
         "tags": [
-          "Settings"
+          "Embedding Providers"
         ]
       },
       "put": {
-        "summary": "Update embedding provider (Settings)",
-        "description": "Updates an existing embedding provider (settings route). All fields are\noptional; only provided fields are changed. A supplied `api_key`\nreplaces the stored (encrypted) key and is never echoed back in the\nresponse.\n",
+        "summary": "Update embedding provider",
+        "description": "Updates an existing embedding provider. All fields are optional; only\nprovided fields are changed. A supplied `api_key` replaces the stored\n(encrypted) key and is never echoed back in the response.\n",
         "operationId": "updateEmbeddingProviderSettings",
         "security": [
           {
@@ -17167,12 +17167,12 @@
           }
         },
         "tags": [
-          "Settings"
+          "Embedding Providers"
         ]
       },
       "delete": {
-        "summary": "Delete embedding provider (Settings)",
-        "description": "Deletes an embedding provider owned by the authenticated user (settings route).\nDeleting the user's last remaining provider is blocked with a 400\n`PROVIDER_LAST_DELETE_BLOCKED` error.\n",
+        "summary": "Delete embedding provider",
+        "description": "Deletes an embedding provider owned by the authenticated user. Deleting\nthe user's last remaining provider is blocked with a 400\n`PROVIDER_LAST_DELETE_BLOCKED` error.\n",
         "operationId": "deleteEmbeddingProviderSettings",
         "security": [
           {
@@ -17249,7 +17249,7 @@
           }
         },
         "tags": [
-          "Settings"
+          "Embedding Providers"
         ]
       }
     },
@@ -17267,8 +17267,8 @@
         }
       ],
       "post": {
-        "summary": "Reprocess missing embeddings (Settings)",
-        "description": "Re-drives embedding generation for the team's entities that are still\nmissing an embedding, through the concurrency-bounded embedding path\n(settings route). The provider `{id}` is validated and authorized, but the\nwork is team-scoped: an embedding provider is per-team, so reprocess\nenqueues the team's entity set. It returns 202 immediately and runs in the\nbackground; generation is idempotent and a per-team in-flight guard makes\nrepeat calls safe.\n",
+        "summary": "Reprocess missing embeddings",
+        "description": "Re-drives embedding generation for the team's entities that are still\nmissing an embedding, through the concurrency-bounded embedding path so a\nlarge run never fans out beyond the provider's configured concurrency. It\nis the sanctioned replacement for the removed back-office backfill\nendpoint.\n\nThe provider `{id}` is validated and authorized, but the work is\nteam-scoped: an embedding provider is per-team, so reprocess enqueues the\nteam's entity set (generated via the team's active provider). It returns\n202 immediately and runs in the background; generation is idempotent\n(delete-then-insert per entity) and a per-team in-flight guard makes\nrepeat calls safe (no double fan-out).\n",
         "operationId": "reprocessEmbeddingProviderSettings",
         "security": [
           {
@@ -17342,7 +17342,7 @@
           }
         },
         "tags": [
-          "Settings"
+          "Embedding Providers"
         ]
       }
     },
@@ -17360,8 +17360,8 @@
         }
       ],
       "post": {
-        "summary": "Validate embedding provider configuration (Settings)",
-        "description": "Validates an embedding provider configuration (connectivity/credentials)\nwithout persisting anything (settings route). Validation outcome —\nincluding an invalid configuration — is reported in the 200 response\nbody (`is_valid`, `message`, `details`); 500 is returned only for\ninternal service errors.\n",
+        "summary": "Validate embedding provider configuration",
+        "description": "Validates an embedding provider configuration (connectivity/credentials)\nwithout persisting anything. Validation outcome — including an invalid\nconfiguration — is reported in the 200 response body (`is_valid`,\n`message`, `details`); 500 is returned only for internal service errors.\n",
         "operationId": "validateEmbeddingProviderSettings",
         "security": [
           {
@@ -17434,7 +17434,7 @@
           }
         },
         "tags": [
-          "Settings"
+          "Embedding Providers"
         ]
       }
     },
@@ -19362,8 +19362,8 @@
         }
       ],
       "post": {
-        "summary": "Create model provider (Settings)",
-        "description": "Creates a new model provider configuration for the authenticated user (settings route).\nThe `api_key` supplied in the request is encrypted at rest and is never\nreturned by the API — responses expose only a `has_api_key` boolean.\nReturns 200 (not 201) on success.\n",
+        "summary": "Create model provider",
+        "description": "Creates a new model provider configuration for the authenticated user.\nThe `api_key` supplied in the request is encrypted at rest and is never\nreturned by the API — responses expose only a `has_api_key` boolean.\nReturns 200 (not 201) on success.\n",
         "operationId": "createModelProviderSettings",
         "security": [
           {
@@ -19446,12 +19446,12 @@
           }
         },
         "tags": [
-          "Settings"
+          "Model Providers"
         ]
       },
       "get": {
-        "summary": "List model providers (Settings)",
-        "description": "Retrieves all model providers belonging to the authenticated user (settings route).\nReturns a bare JSON array (no pagination envelope). Encrypted API keys\nare never included; each item carries a `has_api_key` boolean instead.\n",
+        "summary": "List model providers",
+        "description": "Retrieves all model providers belonging to the authenticated user.\nReturns a bare JSON array (no pagination envelope). Encrypted API keys\nare never included; each item carries a `has_api_key` boolean instead.\n",
         "operationId": "listModelProvidersSettings",
         "security": [
           {
@@ -19494,7 +19494,7 @@
           }
         },
         "tags": [
-          "Settings"
+          "Model Providers"
         ]
       }
     },
@@ -19512,8 +19512,8 @@
         }
       ],
       "get": {
-        "summary": "Get model provider (Settings)",
-        "description": "Retrieves a single model provider owned by the authenticated user (settings route).\nThe encrypted API key is never returned; `has_api_key` indicates whether\none is stored.\n",
+        "summary": "Get model provider",
+        "description": "Retrieves a single model provider owned by the authenticated user.\nThe encrypted API key is never returned; `has_api_key` indicates whether\none is stored.\n",
         "operationId": "getModelProviderSettings",
         "security": [
           {
@@ -19577,12 +19577,12 @@
           }
         },
         "tags": [
-          "Settings"
+          "Model Providers"
         ]
       },
       "put": {
-        "summary": "Update model provider (Settings)",
-        "description": "Updates an existing model provider (settings route). All fields are\noptional; only provided fields are changed. A supplied `api_key`\nreplaces the stored (encrypted) key and is never echoed back in the\nresponse. A blank/omitted `api_key` preserves the stored key.\n",
+        "summary": "Update model provider",
+        "description": "Updates an existing model provider. All fields are optional; only\nprovided fields are changed. A supplied `api_key` replaces the stored\n(encrypted) key and is never echoed back in the response. A blank/omitted\n`api_key` preserves the stored key.\n",
         "operationId": "updateModelProviderSettings",
         "security": [
           {
@@ -19676,12 +19676,12 @@
           }
         },
         "tags": [
-          "Settings"
+          "Model Providers"
         ]
       },
       "delete": {
-        "summary": "Delete model provider (Settings)",
-        "description": "Deletes a model provider owned by the authenticated user (settings route).\nDeleting the team's last remaining provider is blocked with a 400\n`MODEL_PROVIDER_LAST_DELETE_BLOCKED` error.\n",
+        "summary": "Delete model provider",
+        "description": "Deletes a model provider owned by the authenticated user. Deleting the\nteam's last remaining provider is blocked with a 400\n`MODEL_PROVIDER_LAST_DELETE_BLOCKED` error.\n",
         "operationId": "deleteModelProviderSettings",
         "security": [
           {
@@ -19758,7 +19758,7 @@
           }
         },
         "tags": [
-          "Settings"
+          "Model Providers"
         ]
       }
     },
@@ -19776,8 +19776,8 @@
         }
       ],
       "post": {
-        "summary": "Validate model provider configuration (Settings)",
-        "description": "Validates a model provider configuration (connectivity/credentials)\nwithout persisting anything (settings route). The probe attempts\n`GET {base_url}/models` and falls back to\n`POST {base_url}/chat/completions`. Validation outcome — including an\ninvalid configuration — is reported in the 200 response body\n(`is_valid`, `message`, `details`); 500 is returned only for internal\nservice errors.\n",
+        "summary": "Validate model provider configuration",
+        "description": "Validates a model provider configuration (connectivity/credentials)\nwithout persisting anything. The probe attempts `GET {base_url}/models`\nand falls back to `POST {base_url}/chat/completions`. Validation outcome —\nincluding an invalid configuration — is reported in the 200 response body\n(`is_valid`, `message`, `details`); 500 is returned only for internal\nservice errors.\n",
         "operationId": "validateModelProviderSettings",
         "security": [
           {
@@ -19850,7 +19850,7 @@
           }
         },
         "tags": [
-          "Settings"
+          "Model Providers"
         ]
       }
     },

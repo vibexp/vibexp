@@ -107,8 +107,8 @@ api-v1-api-keys-id:
 
 api-v1-settings-api-keys:
   post:
-    summary: Create new API key (Settings)
-    description: Creates a new API key for the authenticated user (settings route)
+    summary: Create new API key
+    description: Creates a new API key for the authenticated user
     operationId: createAPIKeySettings
     requestBody:
       required: true
@@ -136,11 +136,10 @@ api-v1-settings-api-keys:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
-      - Settings
-
+      - API Keys
   get:
-    summary: List API keys (Settings)
-    description: Retrieves all API keys for the authenticated user (settings route)
+    summary: List API keys
+    description: Retrieves all API keys for the authenticated user
     operationId: listAPIKeysSettings
     parameters:
       - name: page
@@ -172,12 +171,11 @@ api-v1-settings-api-keys:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
-      - Settings
-
+      - API Keys
 api-v1-settings-api-keys-id:
   delete:
-    summary: Delete API key (Settings)
-    description: Deletes an API key by ID (settings route)
+    summary: Delete API key
+    description: Deletes an API key by ID
     operationId: deleteAPIKeySettings
     parameters:
       - name: id
@@ -206,4 +204,4 @@ api-v1-settings-api-keys-id:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
     tags:
-      - Settings
+      - API Keys
