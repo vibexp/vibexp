@@ -73,7 +73,7 @@ backend-test-coverage-integration:
 # NAME does not imply the tag; all 20 such files under internal/server/ are
 # untagged handler tests and run here.
 backend-test-unit-coverage:
-	cd backend && go test -race -count=1 -coverprofile=coverage-unit.out ./... -timeout=120s
+	cd backend && go test -race -coverprofile=coverage-unit.out ./... -timeout=120s
 
 # The packages that carry `//go:build integration` files — the SINGLE source of
 # truth for both the target below and the guard after it, so the two can never

@@ -500,8 +500,12 @@ jobs:
       - name: Check OpenAPI strict-server drift
         run: make backend-openapi-server-check
 
-  build-lint-test:
-    name: Build, Lint & Test
+  # The frontend was one serial chain (lint -> audit -> type-check -> test ->
+  # build). Once the backend jobs came down it became the critical path's pole at
+  # 176s, so it splits in two (#638). The halves are independent: nothing in
+  # lint/audit/type-check feeds test/build.
+  frontend-static:
+    name: Frontend Lint & Types
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.frontend == 'true' || github.event_name == 'push'
@@ -510,8 +514,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      # `cache: 'npm'` keys ~/.npm on the lockfile — this job is the only owner
-      # of that key (the openapi job caches npx separately, on its own key).
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: make frontend-ci-install
+
+      - name: Lint
+        run: make frontend-lint
+
+      # Production-dependency advisory gate (npm audit --omit=dev, with the
+      # documented allowlist in frontend/scripts/audit-deps.js). Previously
+      # pre-commit-only, so a contributor without the hooks installed bypassed it
+      # entirely and dependency drift accumulated unseen (#547).
+      - name: Dependency audit
+        run: make frontend-audit
+
+      # `tsc -b`. Note `make frontend-build` in the sibling job re-runs this as
+      # part of `npm run build`, so type errors gate BOTH jobs; keeping the
+      # explicit step here is what reports them as a type-check failure rather
+      # than a build failure. (#572: jest is transpile-only, so this is the only
+      # thing that type-checks the test files.)
+      - name: Type-check
+        run: make frontend-type-check
+
+  frontend-test:
+    name: Frontend Test & Build
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # `cache: 'npm'` keys ~/.npm on the lockfile. Both frontend jobs read it;
+      # they share the key deliberately (identical lockfile -> identical tree),
+      # and whichever finishes a cold install first saves it.
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
@@ -526,22 +569,9 @@ jobs:
       - name: Install dependencies
         run: make frontend-ci-install
 
-      - name: Lint
-        run: make frontend-lint
-
-      # Production-dependency advisory gate (npm audit --omit=dev, with the
-      # documented allowlist in frontend/scripts/audit-deps.js). Previously
-      # pre-commit-only, so a contributor without the hooks installed bypassed it
-      # entirely and dependency drift accumulated unseen (#547).
-      - name: Dependency audit
-        run: make frontend-audit
-
-      - name: Type-check
-        run: make frontend-type-check
-
       # Single test execution WITH coverage (jest --coverage) — replaces the
       # plain `make frontend-test` here plus the duplicate coverage run the old
-      # ci-sonar.yml performed.
+      # ci-sonar.yml performed. This job is the one Sonar waits on.
       - name: Test (with coverage)
         run: make frontend-test-coverage
 
@@ -558,16 +588,16 @@ jobs:
   sonar:
     name: Sonar Scan
     runs-on: ubuntu-latest
-    needs: [changes, unit, integration, build-lint-test]
+    needs: [changes, unit, integration, frontend-test]
     # Run when at least one test job succeeded and none failed (skipped is
     # fine — a one-sided PR has no coverage for the other side, and PR analysis
     # gates on new code only). Never scan on red or cancelled tests.
     if: >-
       always() &&
-      (needs.unit.result == 'success' || needs.integration.result == 'success' || needs.build-lint-test.result == 'success') &&
+      (needs.unit.result == 'success' || needs.integration.result == 'success' || needs.frontend-test.result == 'success') &&
       needs.unit.result != 'failure' && needs.unit.result != 'cancelled' &&
       needs.integration.result != 'failure' && needs.integration.result != 'cancelled' &&
-      needs.build-lint-test.result != 'failure' && needs.build-lint-test.result != 'cancelled'
+      needs.frontend-test.result != 'failure' && needs.frontend-test.result != 'cancelled'
 
     steps:
       - name: Checkout
@@ -617,7 +647,7 @@ jobs:
           if [ "${{ needs.integration.result }}" = "success" ]; then
             test -s backend/coverage-integration.out || { echo "::error::backend/coverage-integration.out missing or empty despite Integration Test succeeding"; exit 1; }
           fi
-          if [ "${{ needs.build-lint-test.result }}" = "success" ]; then
+          if [ "${{ needs.frontend-test.result }}" = "success" ]; then
             test -s frontend/coverage/lcov.info || { echo "::error::frontend/coverage/lcov.info missing or empty despite Build, Lint & Test succeeding"; exit 1; }
           fi
 
