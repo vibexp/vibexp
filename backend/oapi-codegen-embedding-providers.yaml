@@ -5,12 +5,18 @@
 # independently of the other spec-first domains.
 #
 # DEPARTURE FROM THE include-tags CONVENTION: this domain is mounted twice
-# (bare + `settings/`) and the settings-mount operations are tagged `Settings`,
-# a tag shared with api-keys, team-email-provider and user. `include-tags:
-# [Settings]` would therefore drag those unrelated operations into this package,
-# so the operations are selected explicitly by id instead. The coverage,
-# reprocess and clear-embeddings operations are deliberately NOT listed — they
-# already have spec-validated responses and stay on their chi handlers.
+# (bare + `settings/`), and the package must contain the six CRUD/validate
+# operations from BOTH mounts and nothing else. No tag expresses that set.
+# `include-tags: [Embedding Providers]` would also pull in coverage, reprocess
+# and clear-embeddings, which are deliberately left on their chi handlers (they
+# already have spec-validated responses), so the operations are selected
+# explicitly by id instead.
+#
+# (Until #576 the reason was different: the settings-mount operations were
+# tagged `Settings`, shared with api-keys, team-email-provider and user. #576
+# retagged every settings-prefix alias to its domain tag, so that particular
+# collision is gone — but the selector stays by-id, because the tag is still
+# broader than this package.)
 #
 # Regenerate with: make backend-generate-openapi-server
 # CI fails the PR if this output is stale relative to the spec.

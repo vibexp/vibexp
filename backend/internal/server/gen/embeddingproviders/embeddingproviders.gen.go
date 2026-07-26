@@ -263,22 +263,22 @@ type ServerInterface interface {
 	// Update embedding provider
 	// (PUT /api/v1/{team_id}/embedding-providers/{id})
 	UpdateEmbeddingProvider(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
-	// List embedding providers (Settings)
+	// List embedding providers
 	// (GET /api/v1/{team_id}/settings/embedding-providers)
 	ListEmbeddingProvidersSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
-	// Create embedding provider (Settings)
+	// Create embedding provider
 	// (POST /api/v1/{team_id}/settings/embedding-providers)
 	CreateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
-	// Validate embedding provider configuration (Settings)
+	// Validate embedding provider configuration
 	// (POST /api/v1/{team_id}/settings/embedding-providers/validate)
 	ValidateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID)
-	// Delete embedding provider (Settings)
+	// Delete embedding provider
 	// (DELETE /api/v1/{team_id}/settings/embedding-providers/{id})
 	DeleteEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
-	// Get embedding provider (Settings)
+	// Get embedding provider
 	// (GET /api/v1/{team_id}/settings/embedding-providers/{id})
 	GetEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
-	// Update embedding provider (Settings)
+	// Update embedding provider
 	// (PUT /api/v1/{team_id}/settings/embedding-providers/{id})
 	UpdateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string)
 }
@@ -323,37 +323,37 @@ func (_ Unimplemented) UpdateEmbeddingProvider(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// List embedding providers (Settings)
+// List embedding providers
 // (GET /api/v1/{team_id}/settings/embedding-providers)
 func (_ Unimplemented) ListEmbeddingProvidersSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Create embedding provider (Settings)
+// Create embedding provider
 // (POST /api/v1/{team_id}/settings/embedding-providers)
 func (_ Unimplemented) CreateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Validate embedding provider configuration (Settings)
+// Validate embedding provider configuration
 // (POST /api/v1/{team_id}/settings/embedding-providers/validate)
 func (_ Unimplemented) ValidateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Delete embedding provider (Settings)
+// Delete embedding provider
 // (DELETE /api/v1/{team_id}/settings/embedding-providers/{id})
 func (_ Unimplemented) DeleteEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Get embedding provider (Settings)
+// Get embedding provider
 // (GET /api/v1/{team_id}/settings/embedding-providers/{id})
 func (_ Unimplemented) GetEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Update embedding provider (Settings)
+// Update embedding provider
 // (PUT /api/v1/{team_id}/settings/embedding-providers/{id})
 func (_ Unimplemented) UpdateEmbeddingProviderSettings(w http.ResponseWriter, r *http.Request, teamId openapi_types.UUID, id string) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -1939,22 +1939,22 @@ type StrictServerInterface interface {
 	// Update embedding provider
 	// (PUT /api/v1/{team_id}/embedding-providers/{id})
 	UpdateEmbeddingProvider(ctx context.Context, request UpdateEmbeddingProviderRequestObject) (UpdateEmbeddingProviderResponseObject, error)
-	// List embedding providers (Settings)
+	// List embedding providers
 	// (GET /api/v1/{team_id}/settings/embedding-providers)
 	ListEmbeddingProvidersSettings(ctx context.Context, request ListEmbeddingProvidersSettingsRequestObject) (ListEmbeddingProvidersSettingsResponseObject, error)
-	// Create embedding provider (Settings)
+	// Create embedding provider
 	// (POST /api/v1/{team_id}/settings/embedding-providers)
 	CreateEmbeddingProviderSettings(ctx context.Context, request CreateEmbeddingProviderSettingsRequestObject) (CreateEmbeddingProviderSettingsResponseObject, error)
-	// Validate embedding provider configuration (Settings)
+	// Validate embedding provider configuration
 	// (POST /api/v1/{team_id}/settings/embedding-providers/validate)
 	ValidateEmbeddingProviderSettings(ctx context.Context, request ValidateEmbeddingProviderSettingsRequestObject) (ValidateEmbeddingProviderSettingsResponseObject, error)
-	// Delete embedding provider (Settings)
+	// Delete embedding provider
 	// (DELETE /api/v1/{team_id}/settings/embedding-providers/{id})
 	DeleteEmbeddingProviderSettings(ctx context.Context, request DeleteEmbeddingProviderSettingsRequestObject) (DeleteEmbeddingProviderSettingsResponseObject, error)
-	// Get embedding provider (Settings)
+	// Get embedding provider
 	// (GET /api/v1/{team_id}/settings/embedding-providers/{id})
 	GetEmbeddingProviderSettings(ctx context.Context, request GetEmbeddingProviderSettingsRequestObject) (GetEmbeddingProviderSettingsResponseObject, error)
-	// Update embedding provider (Settings)
+	// Update embedding provider
 	// (PUT /api/v1/{team_id}/settings/embedding-providers/{id})
 	UpdateEmbeddingProviderSettings(ctx context.Context, request UpdateEmbeddingProviderSettingsRequestObject) (UpdateEmbeddingProviderSettingsResponseObject, error)
 }

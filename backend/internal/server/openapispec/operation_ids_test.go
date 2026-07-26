@@ -226,6 +226,19 @@ func TestSettingsAliasExclusionsAreReal(t *testing.T) {
 		if _, alsoAlias := settingsAliases[path]; alsoAlias {
 			t.Errorf("%q is both a registered alias and an exclusion — pick one", path)
 		}
+		// An exclusion for a path with no ...Settings operation excludes nothing.
+		// Dead config here is worse than none: it reads as "this path was
+		// considered and waived" when the gate never looked at it.
+		hasSuffixed := false
+		for _, op := range paths[path] {
+			if id, _ := op["operationId"].(string); strings.HasSuffix(id, "Settings") {
+				hasSuffixed = true
+				break
+			}
+		}
+		if !hasSuffixed {
+			t.Errorf("excluded path %q has no ...Settings operation — the exclusion is dead config", path)
+		}
 	}
 }
 
