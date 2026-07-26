@@ -32,9 +32,9 @@ func CreateTestUserWithID(userID string) *models.User {
 		Name:               "Test User",
 		AvatarURL:          nil,
 		StripeCustomerID:   nil,
-		SubscriptionStatus: models.SubscriptionStatusBasic,
+		SubscriptionStatus: "basic",
 		TrialEndsAt:        nil,
-		SubscriptionPlan:   &[]string{models.PlanBasic}[0],
+		SubscriptionPlan:   &[]string{"basic"}[0],
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}

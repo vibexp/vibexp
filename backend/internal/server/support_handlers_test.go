@@ -142,10 +142,7 @@ func (m *MockContainerForSupport) TeamMemberRepository() repositories.TeamMember
 }
 func (m *MockContainerForSupport) TeamService() services.TeamServiceInterface             { return nil }
 func (m *MockContainerForSupport) TeamInvitationService() *services.TeamInvitationService { return nil }
-func (m *MockContainerForSupport) TeamSubscriptionRepository() repositories.TeamSubscriptionRepository {
-	return nil
-}
-func (m *MockContainerForSupport) GitHubAppClient() external.GitHubAppClient { return nil }
+func (m *MockContainerForSupport) GitHubAppClient() external.GitHubAppClient              { return nil }
 func (m *MockContainerForSupport) GitHubAppService() services.GitHubAppServiceInterface {
 	return nil
 }

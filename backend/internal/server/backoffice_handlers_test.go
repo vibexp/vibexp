@@ -157,9 +157,6 @@ func (m *MockContainerForBackoffice) TeamService() services.TeamServiceInterface
 func (m *MockContainerForBackoffice) TeamInvitationService() *services.TeamInvitationService {
 	return nil
 }
-func (m *MockContainerForBackoffice) TeamSubscriptionRepository() repositories.TeamSubscriptionRepository {
-	return nil
-}
 func (m *MockContainerForBackoffice) GitHubAppClient() external.GitHubAppClient { return nil }
 func (m *MockContainerForBackoffice) GitHubAppService() services.GitHubAppServiceInterface {
 	return nil

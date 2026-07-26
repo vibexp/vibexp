@@ -28354,38 +28354,6 @@
           "message"
         ]
       },
-      "TeamQuotaTypeDetail": {
-        "type": "object",
-        "description": "Quota details for a specific resource type",
-        "properties": {
-          "resource_type": {
-            "type": "string",
-            "description": "Resource type the quota applies to",
-            "example": "prompts"
-          },
-          "limit": {
-            "type": "integer",
-            "description": "Maximum allowed",
-            "example": 100
-          },
-          "used": {
-            "type": "integer",
-            "description": "Current usage",
-            "example": 45
-          },
-          "remaining": {
-            "type": "integer",
-            "description": "Available quota",
-            "example": 55
-          }
-        },
-        "required": [
-          "resource_type",
-          "limit",
-          "used",
-          "remaining"
-        ]
-      },
       "TeamDeleteConflictError": {
         "type": "object",
         "description": "RFC 9457 problem details returned when team deletion is blocked (HTTP 409).\nCodes are UPPERCASE and all `metadata` values are strings:\n- `TEAM_HAS_MEMBERS` — metadata: `member_count` (stringified integer)\n",

@@ -41,7 +41,6 @@ type Container interface {
 	UserPreferencesRepository() repositories.UserPreferencesRepository
 	TeamRepository() repositories.TeamRepository
 	TeamMemberRepository() repositories.TeamMemberRepository
-	TeamSubscriptionRepository() repositories.TeamSubscriptionRepository
 	ProjectRepository() repositories.ProjectRepository
 	WebhookEventRepository() repositories.WebhookEventRepository
 	GitHubInstallationRepository() repositories.GitHubInstallationRepository

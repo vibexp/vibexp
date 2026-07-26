@@ -69,7 +69,6 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideTeamRepository,
 	providers.ProvideTeamMemberRepository,
 	providers.ProvideTeamInvitationRepository,
-	providers.ProvideTeamSubscriptionRepository,
 	providers.ProvideProjectRepository,
 	providers.ProvideWebhookEventRepository,
 	providers.ProvideGitHubInstallationRepository,

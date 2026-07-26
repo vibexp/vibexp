@@ -48,7 +48,6 @@ type WireContainer struct {
 	teamRepo                repositories.TeamRepository
 	teamMemberRepo          repositories.TeamMemberRepository
 	teamInvitationRepo      repositories.TeamInvitationRepository
-	teamSubscriptionRepo    repositories.TeamSubscriptionRepository
 	projectRepo             repositories.ProjectRepository
 	webhookEventRepo        repositories.WebhookEventRepository
 	githubInstallationRepo  repositories.GitHubInstallationRepository
@@ -238,10 +237,6 @@ func (c *WireContainer) TeamRepository() repositories.TeamRepository {
 
 func (c *WireContainer) TeamMemberRepository() repositories.TeamMemberRepository {
 	return c.teamMemberRepo
-}
-
-func (c *WireContainer) TeamSubscriptionRepository() repositories.TeamSubscriptionRepository {
-	return c.teamSubscriptionRepo
 }
 
 func (c *WireContainer) ProjectRepository() repositories.ProjectRepository {

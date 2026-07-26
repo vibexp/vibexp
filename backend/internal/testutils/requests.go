@@ -207,27 +207,6 @@ func WithEmbeddingProviderConfiguration(config map[string]interface{}) func(*mod
 	}
 }
 
-// CreateSubscriptionRequestBuilder builds CreateSubscriptionRequest with defaults
-func CreateSubscriptionRequestBuilder() *models.CreateSubscriptionRequest {
-	return &models.CreateSubscriptionRequest{
-		PriceID: "price_test_123",
-	}
-}
-
-// CreateSubscriptionRequest builds CreateSubscriptionRequest with price ID
-func CreateSubscriptionRequest(
-	priceID string, overrides ...func(*models.CreateSubscriptionRequest),
-) *models.CreateSubscriptionRequest {
-	req := CreateSubscriptionRequestBuilder()
-	req.PriceID = priceID
-
-	for _, override := range overrides {
-		override(req)
-	}
-
-	return req
-}
-
 // RenderPromptRequestBuilder builds RenderPromptRequest with defaults
 func RenderPromptRequestBuilder() *models.RenderPromptRequest {
 	return &models.RenderPromptRequest{

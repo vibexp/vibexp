@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sesslib "github.com/vibexp/vibexp/internal/auth/session"
-	"github.com/vibexp/vibexp/internal/models"
 )
 
 func TestCreateTestUser(t *testing.T) {
@@ -32,12 +31,12 @@ func TestCreateTestUser(t *testing.T) {
 		t.Errorf("Expected name 'Test User', got '%s'", user.Name)
 	}
 
-	if user.SubscriptionStatus != models.SubscriptionStatusBasic {
-		t.Errorf("Expected subscription status '%s', got '%s'", models.SubscriptionStatusBasic, user.SubscriptionStatus)
+	if user.SubscriptionStatus != "basic" {
+		t.Errorf("Expected subscription status '%s', got '%s'", "basic", user.SubscriptionStatus)
 	}
 
-	if user.SubscriptionPlan == nil || *user.SubscriptionPlan != models.PlanBasic {
-		t.Errorf("Expected plan '%s', got %v", models.PlanBasic, user.SubscriptionPlan)
+	if user.SubscriptionPlan == nil || *user.SubscriptionPlan != "basic" {
+		t.Errorf("Expected plan '%s', got %v", "basic", user.SubscriptionPlan)
 	}
 
 	// Check timestamps are reasonable (within last minute)

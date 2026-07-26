@@ -119,15 +119,6 @@ func TestCreateEmbeddingProviderRequest(t *testing.T) {
 	}
 }
 
-func TestCreateSubscriptionRequest(t *testing.T) {
-	priceID := "price_test_456"
-	req := CreateSubscriptionRequest(priceID)
-
-	if req.PriceID != priceID {
-		t.Errorf("Expected PriceID '%s', got %s", priceID, req.PriceID)
-	}
-}
-
 func TestRenderPromptRequest(t *testing.T) {
 	req := RenderPromptRequest()
 	if req.Placeholders == nil {

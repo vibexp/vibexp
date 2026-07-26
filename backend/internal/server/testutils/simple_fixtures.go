@@ -50,7 +50,7 @@ func CreateTestUser() *models.User {
 		Email:              "test@example.com",
 		Name:               "Test User",
 		AvatarURL:          &avatarURL,
-		SubscriptionStatus: models.SubscriptionStatusBasic,
+		SubscriptionStatus: "basic",
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
