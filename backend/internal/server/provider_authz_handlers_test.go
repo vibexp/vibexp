@@ -35,7 +35,11 @@ func assertProviderForbidden(t *testing.T, srv *Server, req *http.Request) {
 }
 
 func TestEmbeddingProviderHandlers_PermissionDeniedIsForbidden(t *testing.T) {
-	const base = "/api/v1/team-123/embedding-providers"
+	// A real UUID: the embedding-provider routes are served by the generated
+	// strict handler, whose team_id binder enforces the spec's `format: uuid`
+	// (#472). Model providers below are still chi handlers and keep their
+	// opaque id.
+	const base = "/api/v1/11111111-2222-4333-8444-555555555555/embedding-providers"
 
 	tests := []struct {
 		name   string
