@@ -250,8 +250,7 @@ func (c *GitHubTestContainer) NotificationDigestQueueRepository() repositories.N
 func (c *GitHubTestContainer) NotificationService() notifications.NotificationServiceInterface {
 	return nil
 }
-func (c *GitHubTestContainer) DigestRunner() *notifications.DigestRunner                 { return nil }
-func (c *GitHubTestContainer) DeviceTokenRepository() repositories.DeviceTokenRepository { return nil }
+func (c *GitHubTestContainer) DigestRunner() *notifications.DigestRunner { return nil }
 func (c *GitHubTestContainer) ProjectMigrationService() services.ProjectMigrationServiceInterface {
 	return nil
 }

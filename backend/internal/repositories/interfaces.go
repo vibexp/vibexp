@@ -59,11 +59,6 @@ var (
 	// ErrProjectNotFoundForRepo is returned when no project exists for a given repository
 	ErrProjectNotFoundForRepo = errors.New("project not found for repository")
 
-	// ErrDeviceTokenConflict is returned by DeviceTokenRepository.Upsert when the given
-	// token is already registered to a different user. Callers should surface this as a
-	// 409 Conflict so the originating user knows the token cannot be claimed.
-	ErrDeviceTokenConflict = errors.New("device token already registered to another account")
-
 	// ErrUserNotFound is returned by UserRepository.GetByID (and similar lookups) when no
 	// row exists for the given identifier. Callers can distinguish a genuine missing user
 	// from a transient DB error by checking errors.Is(err, repositories.ErrUserNotFound).
@@ -1315,18 +1310,6 @@ type NotificationDigestQueueRepository interface {
 	TryAdvisoryLock(ctx context.Context, key int64) (bool, error)
 	// ReleaseAdvisoryLock releases a previously acquired session-level advisory lock.
 	ReleaseAdvisoryLock(ctx context.Context, key int64) error
-}
-
-// DeviceTokenRepository defines the interface for device push token data access operations
-type DeviceTokenRepository interface {
-	// Upsert inserts or updates a device token; on conflict updates last_used_at and user_agent
-	Upsert(ctx context.Context, token *models.DeviceToken) error
-	// ListByUserID returns all device tokens registered for the user
-	ListByUserID(ctx context.Context, userID string) ([]*models.DeviceToken, error)
-	// Delete removes a single device token scoped to the given user
-	Delete(ctx context.Context, token string, userID string) error
-	// DeleteByTokens removes multiple tokens (used to clean up expired FCM tokens)
-	DeleteByTokens(ctx context.Context, tokens []string) error
 }
 
 // AttachmentRepository persists generic, polymorphic file-attachment metadata

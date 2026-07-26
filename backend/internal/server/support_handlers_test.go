@@ -152,9 +152,6 @@ func (m *MockContainerForSupport) GitHubInstallationRepository() repositories.Gi
 
 func (m *MockContainerForSupport) Close() error                        { return nil }
 func (m *MockContainerForSupport) EventManager() events.EventPublisher { return nil }
-func (m *MockContainerForSupport) DeviceTokenRepository() repositories.DeviceTokenRepository {
-	return nil
-}
 
 // Ensure MockContainerForSupport implements container.Container
 var _ container.Container = (*MockContainerForSupport)(nil)

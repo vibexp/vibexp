@@ -252,61 +252,6 @@ func TestNotificationService_RunRetentionJob(t *testing.T) {
 	notifRepo.AssertExpectations(t)
 }
 
-// TestNotificationService_WebPushChannelGloballyDisabled verifies that when
-// the user's global web_push channel preference is false the channel is skipped.
-func TestNotificationService_WebPushChannelGloballyDisabled(t *testing.T) {
-	ctx := context.Background()
-
-	notifRepo := new(repomocks.MockNotificationRepository)
-	deliveryRepo := new(repomocks.MockNotificationDeliveryRepository)
-	prefRepo := new(repomocks.MockUserPreferencesRepository)
-	userRepo := new(repomocks.MockUserRepository)
-
-	ch := &mockChannel{name: notifications.ChannelWebPush, result: notifications.DeliveryResult{
-		Status: notifications.StatusSent,
-	}}
-
-	svc := notifications.NewNotificationService(
-		notifRepo, deliveryRepo, prefRepo, userRepo,
-		[]notifications.Channel{ch}, nil, newTestLogger(),
-	)
-
-	req := makeNotifReq("web-push-disabled-test")
-
-	notifRepo.On("Insert", ctx, mock.MatchedBy(func(n *models.Notification) bool {
-		n.ID = "notif-wp-1"
-		n.CreatedAt = time.Now()
-		return true
-	})).Return(nil)
-
-	testUser := &models.User{ID: "user-123", Email: "user@example.com"}
-	userRepo.On("GetByID", ctx, "user-123").Return(testUser, nil)
-
-	// WebPush globally off in channel preferences
-	prefs := &models.UserPreferences{
-		Preferences: models.Preferences{
-			Notifications: models.NotificationPreferences{
-				Channels: models.NotificationChannelPreferences{
-					InApp:   true,
-					Email:   true,
-					WebPush: false,
-				},
-			},
-		},
-	}
-	prefRepo.On("GetByUserID", ctx, "user-123").Return(prefs, nil)
-
-	// The channel is skipped — delivery is recorded with StatusSkipped
-	deliveryRepo.On("Insert", ctx, mock.MatchedBy(func(d *models.NotificationDelivery) bool {
-		return d.Status == string(notifications.StatusSkipped)
-	})).Return(nil)
-
-	err := svc.Send(ctx, req)
-
-	require.NoError(t, err)
-	assert.Equal(t, 0, ch.calls, "web_push channel should not be called when globally disabled")
-}
-
 func TestNotificationService_ListForUser(t *testing.T) {
 	ctx := context.Background()
 	notifRepo := new(repomocks.MockNotificationRepository)

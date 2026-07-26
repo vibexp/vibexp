@@ -70,7 +70,6 @@ func enforcePayloadCoverageLedger() int {
 // that domain's handler tests and deleting the freed entries.
 var payloadCoverageLedger = map[string]string{
 	"DELETE /api/v1/api-keys/{id}":                                    "TODO(#1714): uncovered",
-	"DELETE /api/v1/device-tokens":                                    "TODO(#1714): uncovered",
 	"DELETE /api/v1/settings/api-keys/{id}":                           "TODO(#1714): uncovered",
 	"DELETE /api/v1/{team_id}/artifacts/{project_id}/{slug}":          "TODO(#1714): uncovered",
 	"DELETE /api/v1/{team_id}/feed-items/{item_id}":                   "TODO(#1714): uncovered",
@@ -116,7 +115,6 @@ var payloadCoverageLedger = map[string]string{
 	"POST /api/v1/activities":                                "TODO(#1714): uncovered",
 	"POST /api/v1/api-keys":                                  "TODO(#1714): uncovered",
 	"POST /api/v1/auth/logout":                               "TODO(#1714): uncovered",
-	"POST /api/v1/device-tokens":                             "TODO(#1714): uncovered",
 	"POST /api/v1/prompt-gallery/prompts/{id}/use":           "TODO(#1714): uncovered",
 	"POST /api/v1/settings/api-keys":                         "TODO(#1714): uncovered",
 	"POST /api/v1/support/message":                           "TODO(#1714): uncovered",

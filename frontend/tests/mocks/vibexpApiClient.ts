@@ -1,5 +1,5 @@
 // @vibexp/api-client ships ESM only; stub it out for the
-// jest/CJS test environment (same approach as the firebase mocks). Tests
+// jest/CJS test environment. Tests
 // exercising migrated services should mock `@/lib/apiClientGenerated`
 // instead of letting calls reach this stub.
 

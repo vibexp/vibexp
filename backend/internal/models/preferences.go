@@ -73,12 +73,12 @@ func DefaultNotificationPreferences() NotificationPreferences {
 			"feed.item.created": {
 				InApp:   true,
 				Email:   "digest",
-				WebPush: true,
+				WebPush: false,
 			},
 			"feed.reply.created": {
 				InApp:   true,
 				Email:   "instant",
-				WebPush: true,
+				WebPush: false,
 			},
 			"team.invitation": {
 				InApp:   true,

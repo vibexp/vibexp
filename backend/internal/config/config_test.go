@@ -151,8 +151,6 @@ retention:
 a2a:
   default_timeout: 10s
   stream_timeout: 3h
-fcm:
-  enabled: true
 deployment:
   otel_environment: staging
   environment: stg
@@ -367,7 +365,7 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, "my-project", cfg.GCP.ProjectID)
 	assert.Equal(t, "@my-project.iam.gserviceaccount.com", cfg.GCP.PubSubPushServiceAccountSuffix)
 
-	// Rate limit / retention / a2a / fcm.
+	// Rate limit / retention / a2a.
 	assert.Equal(t, 50, cfg.RateLimit.AuthPerMinute)
 	assert.Equal(t, 500, cfg.RateLimit.APIPerMinute)
 	assert.Equal(t, 30, cfg.Retention.ActivityDays)
@@ -375,7 +373,6 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, 10, cfg.Retention.ContentVersionLimit)
 	assert.Equal(t, 10*time.Second, cfg.A2A.DefaultTimeout)
 	assert.Equal(t, 3*time.Hour, cfg.A2A.StreamTimeout)
-	assert.True(t, cfg.FCM.Enabled)
 
 	// Deployment.
 	assert.Equal(t, "staging", cfg.Deployment.OTelEnvironment)

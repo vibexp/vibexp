@@ -289,10 +289,6 @@ a2a:
   # force-closed by the sync timeout; set generously.
   stream_timeout: "2h"
 
-# Firebase Cloud Messaging web-push channel (opt-in).
-fcm:
-  enabled: false
-
 # Environment-detection indicators (see GetDeploymentEnvironment). Most are
 # auto-populated by the hosting platform; the ${VAR:-} references pass the
 # platform's environment through so detection keeps working. Manual setting is

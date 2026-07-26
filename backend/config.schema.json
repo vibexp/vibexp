@@ -160,9 +160,6 @@
         "a2a": {
           "$ref": "#/$defs/A2AConfig"
         },
-        "fcm": {
-          "$ref": "#/$defs/FCMConfig"
-        },
         "deployment": {
           "$ref": "#/$defs/DeploymentConfig"
         },
@@ -285,15 +282,6 @@
           "pattern": "^(\\$\\{[^}]+\\}|-?(\\d+(\\.\\d+)?(ns|us|µs|ms|s|m|h))+)$"
         },
         "retry_jitter": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "FCMConfig": {
-      "properties": {
-        "enabled": {
           "type": "boolean"
         }
       },

@@ -78,7 +78,6 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideNotificationRepository,
 	providers.ProvideNotificationDeliveryRepository,
 	providers.ProvideNotificationDigestQueueRepository,
-	providers.ProvideDeviceTokenRepository,
 
 	// Provider dependency structs (filled by Wire so provider functions stay
 	// under the parameter-count lint limit)
@@ -147,8 +146,6 @@ var ProviderSet = wire.NewSet(
 	providers.ProvideFeedService,
 	providers.ProvideFeedItemService,
 	providers.ProvideFeedItemReplyService,
-	providers.ProvideFirebaseMessagingClient,
-	providers.ProvideWebPushChannel,
 	providers.ProvideNotificationService,
 	wire.Bind(new(notificationsvc.NotificationServiceInterface), new(*notificationsvc.NotificationService)),
 	providers.ProvideDigestRunner,

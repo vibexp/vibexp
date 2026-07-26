@@ -231,8 +231,3 @@ func ProvideNotificationDeliveryRepository(db *database.DB) repositories.Notific
 func ProvideNotificationDigestQueueRepository(db *database.DB) repositories.NotificationDigestQueueRepository {
 	return postgres.NewNotificationDigestQueueRepository(db)
 }
-
-// ProvideDeviceTokenRepository creates a new DeviceTokenRepository
-func ProvideDeviceTokenRepository(db *database.DB) repositories.DeviceTokenRepository {
-	return postgres.NewDeviceTokenRepository(db)
-}

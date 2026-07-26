@@ -23,7 +23,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-sw-config.js && tsc -b && vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -75,7 +75,6 @@
     "date-fns": "~4.4.0",
     "diff": "9.0.0",
     "dompurify": "~3.4.10",
-    "firebase": "^12.13.0",
     "lucide-react": "~0.542.0",
     "marked": "~16.2.1",
     "mermaid": "~11.15.0",

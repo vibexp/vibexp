@@ -18,7 +18,6 @@ type Container interface {
 	NotificationRepository() repositories.NotificationRepository
 	NotificationDeliveryRepository() repositories.NotificationDeliveryRepository
 	NotificationDigestQueueRepository() repositories.NotificationDigestQueueRepository
-	DeviceTokenRepository() repositories.DeviceTokenRepository
 
 	// Repository methods
 	UserRepository() repositories.UserRepository

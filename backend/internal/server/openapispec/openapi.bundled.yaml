@@ -13552,91 +13552,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       tags:
         - Settings
-  /api/v1/device-tokens:
-    post:
-      summary: Register a device token
-      description: |
-        Upserts a push notification device token for the authenticated user. Currently
-        only the "web" platform (Web Push / FCM browser push) is supported. Re-registering
-        the same token for the same user is idempotent. Request body is capped at 4 KB.
-        Free-tier accessible — push notification registration is not a gated resource.
-      operationId: registerDeviceToken
-      security:
-        - ApiKeyAuth: []
-        - CookieAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterDeviceTokenRequest'
-      responses:
-        '201':
-          description: Device token registered successfully (empty body)
-        '400':
-          description: Invalid request body, missing/too-long token, or unsupported platform
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: Conflict — token is registered to another account
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error — failed to register device token
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      tags:
-        - User
-    delete:
-      summary: Delete a device token
-      description: |
-        Removes a push notification device token for the authenticated user. The token to
-        delete is supplied in the JSON request body. Request body is capped at 4 KB.
-      operationId: deleteDeviceToken
-      security:
-        - ApiKeyAuth: []
-        - CookieAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DeleteDeviceTokenRequest'
-      responses:
-        '204':
-          description: Device token deleted successfully (also returned if the token did not exist)
-        '400':
-          description: Invalid request body or missing token
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error — failed to delete device token
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      tags:
-        - User
   /api/v1/user/onboarding/complete:
     post:
       summary: Mark onboarding as completed
@@ -21112,38 +21027,6 @@ components:
           $ref: '#/components/schemas/EmailNotificationPreferences'
         notifications:
           $ref: '#/components/schemas/NotificationPreferences'
-    RegisterDeviceTokenRequest:
-      type: object
-      properties:
-        token:
-          type: string
-          description: Push notification device token (leading/trailing whitespace is trimmed)
-          minLength: 1
-          maxLength: 4096
-          example: fcm-web-push-token-abc123
-        platform:
-          type: string
-          description: Push notification platform; currently only "web" (Web Push / FCM browser push) is supported
-          enum:
-            - web
-          example: web
-        user_agent:
-          type: string
-          description: Optional user agent string of the registering browser
-          example: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
-      required:
-        - token
-        - platform
-    DeleteDeviceTokenRequest:
-      type: object
-      properties:
-        token:
-          type: string
-          description: Push notification device token to delete (leading/trailing whitespace is trimmed)
-          minLength: 1
-          example: fcm-web-push-token-abc123
-      required:
-        - token
     FeedItemReply:
       type: object
       properties:
@@ -21607,7 +21490,11 @@ components:
           example: true
         web_push:
           type: boolean
-          description: Enable web push notifications globally
+          deprecated: true
+          description: |
+            Deprecated and inert. Web push (Firebase Cloud Messaging) was removed in #688;
+            this field is accepted and returned for backward compatibility but is never read.
+            It will be dropped in a future release once clients have stopped sending it.
           example: false
       required:
         - in_app
@@ -21630,8 +21517,12 @@ components:
           example: digest
         web_push:
           type: boolean
-          description: Deliver this notification type via web push
-          example: true
+          deprecated: true
+          description: |
+            Deprecated and inert. Web push (Firebase Cloud Messaging) was removed in #688;
+            this field is accepted and returned for backward compatibility but is never read.
+            It will be dropped in a future release once clients have stopped sending it.
+          example: false
       required:
         - in_app
         - email

@@ -82,10 +82,6 @@ export const STORAGE_KEYS = {
   // Cookie Consent
   /** User's cookie consent decision (granted/denied) with timestamp */
   COOKIE_CONSENT: 'vx_cookie_consent',
-
-  // Push Notifications
-  /** FCM registration token for web push notifications */
-  FCM_TOKEN: 'vx_fcm_token',
 } as const
 
 /**
@@ -115,7 +111,6 @@ export const LOCAL_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.CURRENT_TEAM_ID,
   STORAGE_KEYS.CURRENT_PROJECT_ID,
   STORAGE_KEYS.COOKIE_CONSENT,
-  STORAGE_KEYS.FCM_TOKEN,
 ])
 
 export const SESSION_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
