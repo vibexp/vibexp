@@ -51,14 +51,6 @@ func (m *MockActivityService) RecordResourceActivity(
 	return args.Error(0)
 }
 
-func (m *MockActivityService) RecordClaudeCodeActivity(
-	ctx context.Context, userID string, sessionID string, toolName *string,
-	hookEventName string, metadata map[string]interface{},
-) error {
-	args := m.Called(ctx, userID, sessionID, toolName, hookEventName, metadata)
-	return args.Error(0)
-}
-
 func (m *MockActivityService) GetActivities(
 	ctx context.Context, filters activities.ActivityFilters,
 ) (*activities.ActivityListResponse, error) {

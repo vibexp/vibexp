@@ -124,11 +124,6 @@ const (
 	ActivityTypeBlueprintUpdated = "blueprint_updated"
 	ActivityTypeBlueprintDeleted = "blueprint_deleted"
 
-	// Claude Code activities
-	ActivityTypeClaudeCodeSession = "claude_code_session"
-	ActivityTypeClaudeCodeTool    = "claude_code_tool"
-	ActivityTypeClaudeCodePrompt  = "claude_code_prompt"
-
 	// Agent activities
 	ActivityTypeAgentCreated            = "agent_created"
 	ActivityTypeAgentUpdated            = "agent_updated"

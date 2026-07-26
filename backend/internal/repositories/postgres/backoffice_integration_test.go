@@ -21,7 +21,7 @@ func resetBackofficeTables(t *testing.T) {
 	t.Helper()
 	_, err := integrationDB.ExecContext(context.Background(),
 		"TRUNCATE TABLE users, teams, projects, api_keys, prompts, artifacts, memories, "+
-			"agents, agent_executions, claude_code_hooks_payload, cursor_ide_hooks_payload CASCADE")
+			"agents, agent_executions CASCADE")
 	require.NoError(t, err)
 }
 
@@ -97,24 +97,6 @@ func insertAgentExecutionStartedAt(t *testing.T, agentID, userID string, started
 	require.NoError(t, err)
 }
 
-func insertClaudeHookCreatedAt(t *testing.T, teamID, sessionID string, createdAt time.Time) {
-	t.Helper()
-	_, err := integrationDB.ExecContext(context.Background(),
-		"INSERT INTO claude_code_hooks_payload (session_id, hook_event_name, payload, team_id, created_at) "+
-			"VALUES ($1, $2, $3, $4, $5)",
-		sessionID, "PostToolUse", "{}", teamID, createdAt)
-	require.NoError(t, err)
-}
-
-func insertCursorHookCreatedAt(t *testing.T, teamID, sessionID string, createdAt time.Time) {
-	t.Helper()
-	_, err := integrationDB.ExecContext(context.Background(),
-		"INSERT INTO cursor_ide_hooks_payload (session_id, hook_event_name, payload, team_id, created_at) "+
-			"VALUES ($1, $2, $3, $4, $5)",
-		sessionID, "afterShellExecution", "{}", teamID, createdAt)
-	require.NoError(t, err)
-}
-
 // TestBackofficeRepositoryIntegration_GetUsageMetrics seeds rows across two
 // distinct ISO weeks and asserts the aggregation is correct per week and per
 // table, then that the from/to filter excludes out-of-range weeks.
@@ -154,14 +136,6 @@ func TestBackofficeRepositoryIntegration_GetUsageMetrics(t *testing.T) {
 	insertAgentExecutionStartedAt(t, agentID, u1, week1.Add(16*time.Hour))
 	insertAgentExecutionStartedAt(t, agentID, u1, week2.Add(15*time.Hour))
 
-	insertClaudeHookCreatedAt(t, teamID, "claude-session-a", week1.Add(17*time.Hour))
-	insertClaudeHookCreatedAt(t, teamID, "claude-session-a", week1.Add(18*time.Hour))
-	insertClaudeHookCreatedAt(t, teamID, "claude-session-b", week1.Add(19*time.Hour))
-
-	insertCursorHookCreatedAt(t, teamID, "cursor-session-a", week1.Add(17*time.Hour))
-	insertCursorHookCreatedAt(t, teamID, "cursor-session-a", week1.Add(20*time.Hour))
-	insertCursorHookCreatedAt(t, teamID, "cursor-session-z", week2.Add(17*time.Hour))
-
 	all, err := repo.GetUsageMetrics(ctx, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, all, 2, "exactly the two seeded weeks must appear")
@@ -172,31 +146,25 @@ func TestBackofficeRepositoryIntegration_GetUsageMetrics(t *testing.T) {
 		assert.Equal(t, "2026-01-05", all[1].WeekStart.Format("2006-01-02"))
 
 		assert.Equal(t, models.UsageMetricsRow{
-			WeekStart:           all[0].WeekStart,
-			NewUsers:            1,
-			NewArtifacts:        2,
-			NewMemories:         0,
-			NewAPIKeys:          1,
-			NewPrompts:          0,
-			NewAgents:           0,
-			AgentExecutions:     1, // counted by started_at, agent itself is week 1
-			ClaudeSessions:      0,
-			CursorSessions:      1,
-			TotalAIToolSessions: 1,
+			WeekStart:       all[0].WeekStart,
+			NewUsers:        1,
+			NewArtifacts:    2,
+			NewMemories:     0,
+			NewAPIKeys:      1,
+			NewPrompts:      0,
+			NewAgents:       0,
+			AgentExecutions: 1, // counted by started_at, agent itself is week 1
 		}, all[0], "week 2 row")
 
 		assert.Equal(t, models.UsageMetricsRow{
-			WeekStart:           all[1].WeekStart,
-			NewUsers:            2,
-			NewArtifacts:        1,
-			NewMemories:         1,
-			NewAPIKeys:          1,
-			NewPrompts:          2,
-			NewAgents:           1,
-			AgentExecutions:     2,
-			ClaudeSessions:      2, // 3 hook rows, 2 distinct session_ids
-			CursorSessions:      1, // 2 hook rows, 1 distinct session_id
-			TotalAIToolSessions: 3,
+			WeekStart:       all[1].WeekStart,
+			NewUsers:        2,
+			NewArtifacts:    1,
+			NewMemories:     1,
+			NewAPIKeys:      1,
+			NewPrompts:      2,
+			NewAgents:       1,
+			AgentExecutions: 2,
 		}, all[1], "week 1 row")
 	})
 

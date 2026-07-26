@@ -89,9 +89,9 @@ func TestBackofficeRepository_GetUsageMetrics_TimelineErrors(t *testing.T) {
 }
 
 // TestBackofficeRepository_GetUsageMetrics_SubqueryErrorsSwallowedToZero pins
-// the countByTable / countDistinctSessions contract: a failing per-week
-// sub-count yields 0 for that metric while the call as a whole still succeeds
-// and the healthy counts survive.
+// the countByTable contract: a failing per-week sub-count yields 0 for that
+// metric while the call as a whole still succeeds and the healthy counts
+// survive.
 func TestBackofficeRepository_GetUsageMetrics_SubqueryErrorsSwallowedToZero(t *testing.T) {
 	repo, mock, mockDB := newBackofficeMockRepo(t)
 	defer closeMockDB(t, mockDB)
@@ -102,7 +102,7 @@ func TestBackofficeRepository_GetUsageMetrics_SubqueryErrorsSwallowedToZero(t *t
 	mock.ExpectQuery(timelinePattern).
 		WillReturnRows(sqlmock.NewRows([]string{"week_start"}).AddRow(weekStart))
 
-	// buildUsageMetricsRow issues the nine sub-counts in this fixed order.
+	// buildUsageMetricsRow issues the seven sub-counts in this fixed order.
 	mock.ExpectQuery(`FROM users WHERE created_at`).
 		WithArgs(weekStart, weekEnd).
 		WillReturnRows(countResult(5))
@@ -114,26 +114,19 @@ func TestBackofficeRepository_GetUsageMetrics_SubqueryErrorsSwallowedToZero(t *t
 	mock.ExpectQuery(`FROM agent_executions WHERE started_at`).
 		WithArgs(weekStart, weekEnd).
 		WillReturnRows(countResult(4))
-	mock.ExpectQuery(`COUNT\(DISTINCT session_id\), 0\) FROM claude_code_hooks_payload`).
-		WillReturnError(sql.ErrConnDone)
-	mock.ExpectQuery(`COUNT\(DISTINCT session_id\), 0\) FROM cursor_ide_hooks_payload`).
-		WillReturnRows(countResult(2))
 
 	got, err := repo.GetUsageMetrics(context.Background(), nil, nil)
 	require.NoError(t, err, "a failing sub-count must not fail the whole call")
 	require.Len(t, got, 1)
 	assert.Equal(t, models.UsageMetricsRow{
-		WeekStart:           weekStart,
-		NewUsers:            5,
-		NewArtifacts:        0, // swallowed driver error
-		NewMemories:         2,
-		NewAPIKeys:          0, // swallowed driver error
-		NewPrompts:          1,
-		NewAgents:           3,
-		AgentExecutions:     4,
-		ClaudeSessions:      0, // swallowed driver error
-		CursorSessions:      2,
-		TotalAIToolSessions: 2,
+		WeekStart:       weekStart,
+		NewUsers:        5,
+		NewArtifacts:    0, // swallowed driver error
+		NewMemories:     2,
+		NewAPIKeys:      0, // swallowed driver error
+		NewPrompts:      1,
+		NewAgents:       3,
+		AgentExecutions: 4,
 	}, got[0])
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

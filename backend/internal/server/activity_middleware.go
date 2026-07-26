@@ -120,33 +120,6 @@ func (ar *ActivityRecorder) RecordAPIKeyUsage(
 	}, r)
 }
 
-// RecordClaudeCodeActivity records Claude Code session activities
-func (ar *ActivityRecorder) RecordClaudeCodeActivity(
-	ctx context.Context, userID string, sessionID string, toolName *string,
-	hookEventName string, metadata map[string]interface{},
-) {
-	// Skip activity recording if service is not available (e.g., during tests)
-	if ar.activityService == nil {
-		slog.Debug("Activity service not available, skipping activity recording")
-		return
-	}
-
-	if metadata == nil {
-		metadata = make(map[string]interface{})
-	}
-
-	err := ar.activityService.RecordClaudeCodeActivity(ctx, userID, sessionID, toolName, hookEventName, metadata)
-	if err != nil {
-		slog.With("error", err).
-			With(
-				"user_id", userID,
-				"session_id", sessionID,
-				"hook_event_name", hookEventName,
-			).
-			Error("Failed to record Claude Code activity")
-	}
-}
-
 // Note: Removed automatic activity tracking middleware as we have explicit
 // activity recording in individual handlers which provides more meaningful
 // and specific activity tracking without noise or redundancy.

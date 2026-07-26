@@ -6,17 +6,14 @@ import (
 
 // UsageMetricsRow represents a single row of weekly usage metrics
 type UsageMetricsRow struct {
-	WeekStart           time.Time `json:"week_start"`
-	NewUsers            int       `json:"new_users"`
-	NewArtifacts        int       `json:"new_artifacts"`
-	NewMemories         int       `json:"new_memories"`
-	NewAPIKeys          int       `json:"new_api_keys"`
-	NewPrompts          int       `json:"new_prompts"`
-	NewAgents           int       `json:"new_agents"`
-	AgentExecutions     int       `json:"agent_executions"`
-	TotalAIToolSessions int       `json:"total_ai_tool_sessions"`
-	ClaudeSessions      int       `json:"claude_sessions"`
-	CursorSessions      int       `json:"cursor_sessions"`
+	WeekStart       time.Time `json:"week_start"`
+	NewUsers        int       `json:"new_users"`
+	NewArtifacts    int       `json:"new_artifacts"`
+	NewMemories     int       `json:"new_memories"`
+	NewAPIKeys      int       `json:"new_api_keys"`
+	NewPrompts      int       `json:"new_prompts"`
+	NewAgents       int       `json:"new_agents"`
+	AgentExecutions int       `json:"agent_executions"`
 }
 
 // UserActivityRow represents a single user's activity summary

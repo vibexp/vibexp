@@ -494,15 +494,6 @@ components:
         agent_executions:
           type: integer
           description: Number of agent executions this week
-        claude_sessions:
-          type: integer
-          description: Number of distinct Claude Code sessions this week
-        cursor_sessions:
-          type: integer
-          description: Number of distinct Cursor IDE sessions this week
-        total_ai_tool_sessions:
-          type: integer
-          description: Total AI tool sessions (Claude + Cursor)
 
     UserActivityRow:
       type: object

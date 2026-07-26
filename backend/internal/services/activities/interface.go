@@ -20,12 +20,6 @@ type ActivityTracker interface {
 		ctx context.Context, userID string, activityType string, entityType string,
 		entityID *string, description string, metadata map[string]interface{},
 	) error
-
-	// RecordClaudeCodeActivity records Claude Code session activities
-	RecordClaudeCodeActivity(
-		ctx context.Context, userID string, sessionID string, toolName *string,
-		hookEventName string, metadata map[string]interface{},
-	) error
 }
 
 // ActivityService defines the interface for activity management
