@@ -195,11 +195,17 @@ func (r *APIKeyRepository) UpdateLastUsed(ctx context.Context, keyID string, las
 
 // GetIntegrationsByAPIKeyID retrieves all integration codes for a specific API key
 func (r *APIKeyRepository) GetIntegrationsByAPIKeyID(ctx context.Context, apiKeyID string) ([]string, error) {
+	// granted_at alone is not a total order: it defaults to CURRENT_TIMESTAMP,
+	// which in Postgres is TRANSACTION-start time, and Create inserts every
+	// permission row for a key inside one transaction — so all of them share a
+	// timestamp and the sort is a complete tie, leaving row order to the heap.
+	// integration_code breaks the tie, making hydration order deterministic
+	// (#246).
 	query := `
 		SELECT integration_code
 		FROM api_key_integration_permissions
 		WHERE api_key_id = $1
-		ORDER BY granted_at
+		ORDER BY granted_at, integration_code
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, apiKeyID)
