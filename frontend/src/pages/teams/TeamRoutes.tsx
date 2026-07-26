@@ -43,20 +43,28 @@ export function TeamRoutes({ team }: Readonly<{ team: Team }>) {
       <Route path="projects/:slug/edit" element={<ProjectEdit />} />
       <Route path="projects/:slug/migrate" element={<ProjectMigrate />} />
       <Route path="settings" element={<TeamSettings team={team} />} />
-      {/* The four team-scoped configuration pages, relocated in #540. They read
-          the team from `useTeam()`, which TeamScopeLayout has already pointed at
-          the URL's team — except SearchSettings, whose permission gating takes
-          the resolved team explicitly so it cannot depend on that sync. */}
+      {/* The five team-scoped configuration pages, relocated in #540. Each one
+          takes the team the layout resolved from the URL — none of them may
+          read `useTeam()` (#584). React fires child effects before parent
+          effects, so on a cold deep-link a page's load effect runs BEFORE
+          TeamScopeLayout's `setCurrentTeam` sync, and the ambient team is still
+          whichever one was last persisted. */}
       <Route path="settings/search" element={<SearchSettings team={team} />} />
-      <Route path="settings/model-providers" element={<ModelProviders />} />
+      <Route
+        path="settings/model-providers"
+        element={<ModelProviders team={team} />}
+      />
       <Route
         path="settings/embedding-providers"
-        element={<EmbeddingProviders />}
+        element={<EmbeddingProviders team={team} />}
       />
-      <Route path="settings/customization" element={<Customization />} />
+      <Route
+        path="settings/customization"
+        element={<Customization team={team} />}
+      />
       <Route
         path="settings/integrations/github"
-        element={<GitHubIntegration />}
+        element={<GitHubIntegration team={team} />}
       />
       <Route path="*" element={<TeamNotFound />} />
     </Routes>

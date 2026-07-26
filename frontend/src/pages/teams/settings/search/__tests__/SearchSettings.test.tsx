@@ -519,3 +519,28 @@ describe('SearchSettings', () => {
     ).toBeInTheDocument()
   })
 })
+
+// ---------------------------------------------------------------------------
+// #584 — read and write the URL's team, not the ambient one
+// ---------------------------------------------------------------------------
+// #540 already gated PERMISSIONS on the resolved team; #584 moved the data
+// layer onto it too. The mocked TeamContext above reports team-1, so rendering
+// with an explicit team-b prop reproduces the cold deep-link divergence: React
+// fires child effects before parent effects, so this page's load effect used to
+// run while the ambient team was still the previously persisted one.
+describe('cold deep-link (#584)', () => {
+  const urlTeamB = {
+    id: 'team-b',
+    name: 'Team B',
+    permissions: ['team.settings.update'],
+  } as unknown as Team
+
+  it('loads settings for the URL team, never the ambient one', async () => {
+    renderPage(urlTeamB)
+
+    await waitFor(() => {
+      expect(mockedService.getSearchSettings).toHaveBeenCalledWith('team-b')
+    })
+    expect(mockedService.getSearchSettings).not.toHaveBeenCalledWith('team-1')
+  })
+})

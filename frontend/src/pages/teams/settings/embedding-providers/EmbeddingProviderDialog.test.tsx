@@ -45,6 +45,7 @@ const renderDialog = (onSubmit = jest.fn().mockResolvedValue(undefined)) => {
   render(
     <EmbeddingProviderDialog
       teamId="team-1"
+      teamName="Team"
       open
       onOpenChange={jest.fn()}
       submitting={false}
@@ -154,6 +155,7 @@ describe('EmbeddingProviderDialog', () => {
     render(
       <EmbeddingProviderDialog
         teamId="team-1"
+        teamName="Team"
         open
         onOpenChange={jest.fn()}
         submitting={false}
@@ -170,6 +172,7 @@ describe('EmbeddingProviderDialog', () => {
     render(
       <EmbeddingProviderDialog
         teamId="team-1"
+        teamName="Team"
         open
         onOpenChange={jest.fn()}
         submitting={false}
@@ -196,6 +199,7 @@ describe('EmbeddingProviderDialog', () => {
     render(
       <EmbeddingProviderDialog
         teamId="team-1"
+        teamName="Team"
         open
         onOpenChange={jest.fn()}
         submitting={false}
@@ -257,6 +261,7 @@ describe('EmbeddingProviderDialog', () => {
     render(
       <EmbeddingProviderDialog
         teamId="team-1"
+        teamName="Team"
         open
         onOpenChange={jest.fn()}
         submitting={false}
@@ -290,6 +295,7 @@ describe('EmbeddingProviderDialog', () => {
     render(
       <EmbeddingProviderDialog
         teamId="team-1"
+        teamName="Team"
         open
         onOpenChange={jest.fn()}
         submitting={false}

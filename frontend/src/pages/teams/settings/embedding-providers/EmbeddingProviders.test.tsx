@@ -7,8 +7,16 @@ import type {
   EmbeddingProviderResponse,
 } from '@/services/embeddingProviderService'
 import { embeddingProviderService } from '@/services/embeddingProviderService'
+import type { Team } from '@/services/teamService'
 
 import { EmbeddingProviders } from './EmbeddingProviders'
+
+// The team TeamScopeLayout resolved from the URL (#584). Module-stable so a
+// fresh identity per render cannot loop an effect keyed on it.
+const urlTeam = { id: 'team-1', name: 'Team' } as unknown as Team
+
+const renderPage = (team: Team = urlTeam) =>
+  render(<EmbeddingProviders team={team} />)
 
 const mockUseTeam = jest.fn()
 jest.mock('@/contexts/TeamContext', () => ({
@@ -97,7 +105,7 @@ beforeEach(() => {
 
 describe('EmbeddingProviders coverage', () => {
   it('renders embedded / pending counts and % embedded for the active provider', async () => {
-    render(<EmbeddingProviders />)
+    renderPage()
 
     // Aggregate across types: 160 embedded of 200, 40 pending, 80%.
     expect(await screen.findByText('Embedding coverage')).toBeInTheDocument()
@@ -131,7 +139,7 @@ describe('EmbeddingProviders coverage', () => {
       ],
     })
 
-    render(<EmbeddingProviders />)
+    renderPage()
 
     // Overall + the single per-type card both read 0% — no NaN anywhere.
     await screen.findByText('% embedded')
@@ -148,7 +156,7 @@ describe('EmbeddingProviders coverage', () => {
       })
     )
 
-    render(<EmbeddingProviders />)
+    renderPage()
 
     const button = await screen.findByRole('button', {
       name: /reprocess pending/i,
@@ -186,7 +194,7 @@ describe('EmbeddingProviders coverage', () => {
   it('clears all embeddings after confirmation and refetches coverage', async () => {
     const user = userEvent.setup()
 
-    render(<EmbeddingProviders />)
+    renderPage()
 
     const clearButton = await screen.findByRole('button', {
       name: /clear all embeddings/i,
@@ -232,7 +240,7 @@ describe('EmbeddingProviders coverage', () => {
       ],
     })
 
-    render(<EmbeddingProviders />)
+    renderPage()
 
     const clearButton = await screen.findByRole('button', {
       name: /clear all embeddings/i,
@@ -243,7 +251,7 @@ describe('EmbeddingProviders coverage', () => {
   it('renders an inline error alert when coverage fails to load', async () => {
     service.getEmbeddingCoverage.mockRejectedValue(new Error('boom'))
 
-    render(<EmbeddingProviders />)
+    renderPage()
 
     expect(
       await screen.findByText(/couldn.t load embedding coverage/i)
@@ -251,5 +259,34 @@ describe('EmbeddingProviders coverage', () => {
     expect(screen.getByText('boom')).toBeInTheDocument()
     // Providers table still renders — a status hiccup must not blank the page.
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// #584 — cold deep-link: act on the URL's team, never the ambient one
+// ---------------------------------------------------------------------------
+// React fires child effects before parent effects, so on a cold deep-link to
+// /teams/B/... this page's load effect runs BEFORE TeamScopeLayout's
+// setCurrentTeam sync and the ambient team is still A. These tests pin that the
+// page reads the team from its prop by driving the two apart.
+
+describe('cold deep-link (#584)', () => {
+  const urlTeamB = { id: 'team-b', name: 'Team B' } as unknown as Team
+
+  it('fetches providers and coverage for the URL team, never the ambient one', async () => {
+    mockUseTeam.mockReturnValue({
+      currentTeam: { id: 'team-a', name: 'Team A' },
+    })
+
+    renderPage(urlTeamB)
+
+    await waitFor(() => {
+      expect(service.getEmbeddingProviders).toHaveBeenCalledWith('team-b')
+    })
+    await waitFor(() => {
+      expect(service.getEmbeddingCoverage).toHaveBeenCalledWith('team-b')
+    })
+    expect(service.getEmbeddingProviders).not.toHaveBeenCalledWith('team-a')
+    expect(service.getEmbeddingCoverage).not.toHaveBeenCalledWith('team-a')
   })
 })

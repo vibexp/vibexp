@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useTeam } from '@/contexts/TeamContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import {
   searchSettingsService,
@@ -314,14 +313,14 @@ function ActionFooter({
 /**
  * `team` is the team `TeamScopeLayout` resolved from the URL (#540).
  *
- * Permissions MUST be read from it rather than from the ambient
- * `currentTeam`: the layout syncs the two, but gating on the ambient value
- * would mean this page's read-only state depends on that sync having already
- * happened. `usePermissions` fails closed on `null`, so a missing team permits
- * nothing.
+ * Both the permission gating and every read/write MUST key on it rather than
+ * on the ambient `currentTeam`: React fires child effects before parent
+ * effects, so on a cold deep-link this page's load effect runs BEFORE the
+ * layout's `setCurrentTeam` sync and the ambient value is still the previously
+ * persisted team (#584). `usePermissions` fails closed on `null`, so a missing
+ * team permits nothing.
  */
 export function SearchSettings({ team }: Readonly<{ team: Team }>) {
-  const { currentTeam } = useTeam()
   const { can } = usePermissions(team)
   const canEdit = can('team.settings.update')
 
@@ -333,7 +332,7 @@ export function SearchSettings({ team }: Readonly<{ team: Team }>) {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const teamId = currentTeam?.id
+  const teamId = team.id
 
   /**
    * Fetches the settings, reporting whether it succeeded.
@@ -344,7 +343,6 @@ export function SearchSettings({ team }: Readonly<{ team: Team }>) {
    */
   const load = useCallback(
     async (silent = false): Promise<boolean> => {
-      if (!teamId) return false
       try {
         if (!silent) setLoading(true)
         setError(null)
@@ -388,7 +386,7 @@ export function SearchSettings({ team }: Readonly<{ team: Team }>) {
   }
 
   const handleSave = async () => {
-    if (!teamId || !form) return
+    if (!form) return
     try {
       setSaving(true)
       setError(null)
@@ -410,7 +408,6 @@ export function SearchSettings({ team }: Readonly<{ team: Team }>) {
   }
 
   const handleReset = async () => {
-    if (!teamId) return
     try {
       setResetting(true)
       setError(null)

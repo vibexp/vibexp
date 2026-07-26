@@ -1,7 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+import type { Team } from '@/services/teamService'
 import type { Type } from '@/services/typeService'
+
+// The team TeamScopeLayout resolved from the URL (#584).
+const urlTeam = { id: 'team-1', name: 'Test Team' } as unknown as Team
 
 const mockUseTeam = jest.fn()
 jest.mock('@/contexts/TeamContext', () => ({
@@ -67,7 +71,7 @@ beforeEach(() => {
 })
 
 it('lists system and custom types; only custom types are deletable', async () => {
-  render(<Customization />)
+  render(<Customization team={urlTeam} />)
 
   expect(await screen.findByText('General')).toBeInTheDocument()
   expect(screen.getByText('Bug report')).toBeInTheDocument()
@@ -82,7 +86,7 @@ it('lists system and custom types; only custom types are deletable', async () =>
 it('deletes a custom type and reloads, surfacing the reassignment in the confirm copy', async () => {
   mockedService.deleteType.mockResolvedValue()
   const user = userEvent.setup()
-  render(<Customization />)
+  render(<Customization team={urlTeam} />)
 
   await screen.findByText('Bug report')
   await user.click(screen.getByTestId('delete-type-button'))
@@ -101,4 +105,31 @@ it('deletes a custom type and reloads, surfacing the reassignment in the confirm
   expect(mockToastSuccess).toHaveBeenCalled()
   // List reloaded: initial mount + after delete.
   expect(mockedService.getTypes).toHaveBeenCalledTimes(2)
+})
+
+// ---------------------------------------------------------------------------
+// #584 — cold deep-link: act on the URL's team, never the ambient one
+// ---------------------------------------------------------------------------
+// React fires child effects before parent effects, so on a cold deep-link to
+// /teams/B/... this page's load effect runs BEFORE TeamScopeLayout's
+// setCurrentTeam sync and the ambient team is still A. These tests pin that the
+// page reads the team from its prop by driving the two apart.
+
+describe('cold deep-link (#584)', () => {
+  it('fetches artifact types for the URL team, never the ambient one', async () => {
+    mockUseTeam.mockReturnValue({
+      currentTeam: { id: 'team-a', name: 'Team A' },
+    })
+    const urlTeamB = { id: 'team-b', name: 'Team B' } as unknown as Team
+
+    render(<Customization team={urlTeamB} />)
+
+    await waitFor(() => {
+      expect(mockedService.getTypes).toHaveBeenCalledWith('team-b', 'artifacts')
+    })
+    expect(mockedService.getTypes).not.toHaveBeenCalledWith(
+      'team-a',
+      'artifacts'
+    )
+  })
 })

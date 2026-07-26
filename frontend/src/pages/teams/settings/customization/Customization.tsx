@@ -10,9 +10,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTeam } from '@/contexts/TeamContext'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { toast } from '@/lib/toast'
+import type { Team } from '@/services/teamService'
 import type { CreateTypeRequest, Type } from '@/services/typeService'
 import { typeService } from '@/services/typeService'
 
@@ -71,8 +71,13 @@ function buildColumns(onDelete: (type: Type) => void): ColumnDef<Type>[] {
   ]
 }
 
-export function Customization() {
-  const { currentTeam } = useTeam()
+/**
+ * `team` is the team `TeamScopeLayout` resolved from the URL (#584). Do not
+ * reach for `useTeam()` here: on a cold deep-link the ambient team is still the
+ * previously persisted one when this page's first effect runs, so it would
+ * fetch another team's artifact types under this team's URL.
+ */
+export function Customization({ team }: Readonly<{ team: Team }>) {
   const { handleError } = useErrorHandler()
 
   const [types, setTypes] = useState<Type[]>([])
@@ -82,10 +87,9 @@ export function Customization() {
   const [typeToDelete, setTypeToDelete] = useState<Type | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const teamId = currentTeam?.id
+  const teamId = team.id
 
   const loadTypes = useCallback(async () => {
-    if (!teamId) return
     try {
       setIsLoading(true)
       const result = await typeService.getTypes(teamId, ARTIFACTS_RESOURCE)
@@ -106,7 +110,6 @@ export function Customization() {
     values: CreateTypeFormValues,
     setFieldError: (field: 'name' | 'slug', message: string) => void
   ) => {
-    if (!teamId) return
     try {
       setIsCreating(true)
       const request: CreateTypeRequest = {
@@ -131,7 +134,7 @@ export function Customization() {
   }
 
   const handleDelete = async () => {
-    if (!typeToDelete || !teamId) return
+    if (!typeToDelete) return
     try {
       setDeleting(true)
       await typeService.deleteType(teamId, typeToDelete.id)
@@ -156,7 +159,6 @@ export function Customization() {
           description="Create your first custom type to organize artifacts your way."
           actions={
             <Button
-              disabled={!teamId}
               onClick={() => {
                 setCreateOpen(true)
               }}
@@ -199,7 +201,6 @@ export function Customization() {
           </div>
           <Button
             data-testid="create-type-button"
-            disabled={!teamId}
             onClick={() => {
               setCreateOpen(true)
             }}

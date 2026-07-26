@@ -227,6 +227,14 @@ function PrefixFields({
 
 interface Props {
   teamId: string
+  /**
+   * Named in the re-embed confirmation. Before epic #536 this page always acted
+   * on whichever team the header switcher had selected, so "this team" was
+   * unambiguous by construction. The page is now deep-linkable, so a
+   * destructive, team-wide embedding wipe can be confirmed against a team the
+   * user never explicitly picked — the dialog has to say which one (#584).
+   */
+  teamName: string
   open: boolean
   onOpenChange: (open: boolean) => void
   provider?: EmbeddingProviderResponse
@@ -238,6 +246,7 @@ interface Props {
 
 export function EmbeddingProviderDialog({
   teamId,
+  teamName,
   open,
   onOpenChange,
   provider,
@@ -526,13 +535,13 @@ export function EmbeddingProviderDialog({
         onOpenChange={openState => {
           if (!openState) setPendingValues(null)
         }}
-        title="Re-embed this team's resources?"
+        title={`Re-embed ${teamName}'s resources?`}
         description={
           <>
             Changing the model, endpoint, provider type, or document prefix
-            deletes this team&apos;s existing embeddings and re-generates them
-            in the background. Semantic search falls back to keyword matching
-            until re-indexing completes.
+            deletes <strong>{teamName}</strong>&apos;s existing embeddings and
+            re-generates them in the background. Semantic search falls back to
+            keyword matching until re-indexing completes.
           </>
         }
         confirmLabel="Save & re-embed"
