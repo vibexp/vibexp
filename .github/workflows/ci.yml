@@ -129,6 +129,18 @@ jobs:
       - name: Check config schema drift
         run: make backend-config-schema-check
 
+      # The remaining two Go-only generated artifacts. Both were effectively
+      # ungated before #635: backend-wire-check existed in the Makefile but no
+      # workflow or hook invoked it, and the ~124 mockery mocks had no gate at
+      # all — so a hand-edited generated file reached main silently. mockery is
+      # pinned via MOCKERY_VERSION and run with `go run`, so this needs no
+      # install step.
+      - name: Check Wire DI drift
+        run: make backend-wire-check
+
+      - name: Check mocks drift
+        run: make backend-mock-check
+
       # Single test execution: unit + integration-tagged tests together, with
       # coverage. Replaces the separate plain run here plus the duplicate
       # coverage run the old ci-sonar.yml performed.
@@ -195,6 +207,14 @@ jobs:
         with:
           node-version: '22'
 
+      # backend-openapi-server-check runs oapi-codegen through the go.mod `tool`
+      # directive, so this otherwise Node-only job needs a Go toolchain too.
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version: '1.25.12'
+          cache-dependency-path: backend/go.sum
+
       # make backend-validate-openapi shells out to `npx @apidevtools/swagger-cli`
       # which resolves and runs the validator on demand — no project install needed.
       - name: Validate OpenAPI specification
@@ -205,6 +225,14 @@ jobs:
       # schema. Runs here (not Build & Test) because it needs Node/npx for redocly.
       - name: Check embedded OpenAPI bundle drift
         run: make backend-openapi-bundle-check
+
+      # Regenerate the strict-server bindings from the bundled spec and fail if
+      # they drift from the committed files — the gate the
+      # backend-generate-openapi-server comment always claimed existed but which
+      # was never actually wired up (#635). Runs here rather than in Build & Test
+      # because bundling needs Node/npx for redocly.
+      - name: Check OpenAPI strict-server drift
+        run: make backend-openapi-server-check
 
   build-lint-test:
     name: Build, Lint & Test
