@@ -29,7 +29,8 @@ embedded SPA), so a red run is a real signal even when the fix is test-side.
   so a green local run means a green CI run and vice versa. If they disagree,
   that itself is the finding.
 - **What `make e2e` does** (Makefile, `E2E_COMPOSE` / `e2e-*` targets):
-  `e2e-browsers` (installs chromium) → `e2e-up`
+  `frontend-deps` (npm ci only if `frontend/node_modules` is absent — a fresh
+  clone or worktree) → `e2e-browsers` (installs chromium) → `e2e-up`
   (`docker compose -f docker-compose.e2e.yml up -d --build --wait`, builds the
   combined image from source) → Playwright → teardown.
 - **Known trap — `make e2e` HANGS where sudo needs a password.** Its
@@ -66,11 +67,8 @@ embedded SPA), so a red run is a real signal even when the fix is test-side.
   published.** Two runs cannot coexist: one from a git worktree and one from the
   main checkout collide on both the project name and the port. Run one at a time,
   and tear down between.
-- **Known trap — teardown is broken (#598).** The `e2e` recipe's `cd frontend`
-  leaks into the teardown line, so `docker compose … down` runs from `frontend/`
-  and fails on the relative compose path. **The stack keeps running, volume and
-  all**, and the next run reuses that Postgres data. Always tear down by hand
-  from the repo root (below) until #598 lands.
+- **`make e2e` tears the stack down itself, on every exit path** — pass, fail, or
+  Ctrl-C. The `e2e-up`/`e2e-test` path below does **not**; that one is on you.
 
 ## Choosing how to run it
 
@@ -90,8 +88,8 @@ ls ~/.cache/ms-playwright/ | grep -c '^chromium-'     # >0 means chromium is pre
 **In an unattended/agent session sudo almost always needs a password, so the
 second row is the normal path.** It runs the same Playwright invocation `make
 e2e` does and only skips the `e2e-browsers` prerequisite, so the result is
-equivalent. It does not tear down for you — which you must do explicitly anyway
-(see #598).
+equivalent. Unlike `make e2e` it does **not** tear down for you — always finish
+with `make e2e-down`.
 
 ## Inputs
 
@@ -113,9 +111,10 @@ equivalent. It does not tear down for you — which you must do explicitly anywa
    - **Port 8080 is free** — `ss -ltn | grep :8080`. A dev server on 8080 will
      make `e2e-up` fail. (Only 8080 is published; the stack's Postgres is
      internal, so a local Postgres on 5432 is fine.)
-   - No stale stack from a previous run (see the teardown trap):
-     `docker compose -f docker-compose.e2e.yml ps` — if anything is running,
-     `make e2e-down` first, so the run does not start against old data.
+   - No stale stack from a previous run (an `e2e-up`/`e2e-test` run someone
+     never tore down): `docker compose -f docker-compose.e2e.yml ps` — if
+     anything is running, `make e2e-down` first, so the run does not start
+     against old data.
 3. For a CI run, confirm the `gh` account that may dispatch workflows on
    `vibexp/vibexp` (`gh api user -q .login`).
 4. Note the **last green run** for context — it tells you how much has landed
@@ -225,8 +224,8 @@ app is a real browsable instance at <http://localhost:8080> with dev login on �
 open it and click through the failing flow; that usually settles stale-spec vs
 regression in seconds.
 
-**Always finish with `make e2e-down` from the repo root** (`-v` wipes the
-volumes) — see the #598 trap. Verify with
+**Always finish with `make e2e-down`** (`-v` wipes the volumes) — the
+`e2e-up`/`e2e-test` path leaves the stack up by design. Verify with
 `docker compose -f docker-compose.e2e.yml ps`.
 
 ### Phase 4 — Report and file
@@ -240,8 +239,7 @@ volumes) — see the #598 trap. Verify with
    masked-assertion follow-ups, and a suggested fix ending in "verify with
    `gh workflow run ci-e2e.yml -f branch=<branch>`". Cross-link the siblings.
 3. Check for duplicates first (`gh issue list --search "e2e in:title"`), and link
-   related known issues rather than restating them (#559 vacuous guards, #598
-   teardown).
+   related known issues rather than restating them (e.g. #559 vacuous guards).
 4. **Report which run path you used.** If you used `e2e-up`/`e2e-test`, say that
    system browser deps were not (re)installed — the run is still valid, but a
    genuinely missing dependency would surface as a browser launch failure rather
