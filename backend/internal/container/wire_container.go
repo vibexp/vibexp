@@ -43,7 +43,6 @@ type WireContainer struct {
 	agentExecutionEventRepo repositories.AgentExecutionEventRepository
 	memoryRepo              repositories.MemoryRepository
 	embeddingRepo           repositories.EmbeddingRepository
-	resourceUsageRepo       repositories.ResourceUsageRepository
 	backofficeRepo          repositories.BackofficeRepository
 	userPreferencesRepo     repositories.UserPreferencesRepository
 	teamRepo                repositories.TeamRepository
@@ -88,7 +87,6 @@ type WireContainer struct {
 	teamSearchSettingsService services.TeamSearchSettingsServiceInterface
 	metadataCatalogService    services.MetadataCatalogServiceInterface
 	environmentService        *services.EnvironmentService
-	resourceUsageService      services.ResourceUsageServiceInterface
 	featureFlagService        *feature_flags.FeatureFlagService
 	backofficeService         services.UsageAndGrowthGetter
 	adminService              services.AdminServiceInterface
@@ -376,10 +374,6 @@ func (c *WireContainer) SearchService() services.Searcher {
 
 func (c *WireContainer) EnvironmentService() *services.EnvironmentService {
 	return c.environmentService
-}
-
-func (c *WireContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return c.resourceUsageService
 }
 
 func (c *WireContainer) BackofficeService() services.UsageAndGrowthGetter {

@@ -24,21 +24,16 @@ import (
 
 // MockBlueprintContainer implements container.Container interface for blueprint tests
 type MockBlueprintContainer struct {
-	BaseMockContainer        // Embed base container for default nil implementations
-	BlueprintServiceMock     services.BlueprintServiceInterface
-	ResourceUsageServiceMock services.ResourceUsageServiceInterface
-	EmbeddingServiceMock     services.EmbeddingServiceInterface
-	AuthServiceMock          services.AuthServiceInterface
-	TeamServiceMock          services.TeamServiceInterface
-	APIKeyServiceMock        services.APIKeyServiceInterface
+	BaseMockContainer    // Embed base container for default nil implementations
+	BlueprintServiceMock services.BlueprintServiceInterface
+	EmbeddingServiceMock services.EmbeddingServiceInterface
+	AuthServiceMock      services.AuthServiceInterface
+	TeamServiceMock      services.TeamServiceInterface
+	APIKeyServiceMock    services.APIKeyServiceInterface
 }
 
 func (m *MockBlueprintContainer) BlueprintService() services.BlueprintServiceInterface {
 	return m.BlueprintServiceMock
-}
-
-func (m *MockBlueprintContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.ResourceUsageServiceMock
 }
 
 func (m *MockBlueprintContainer) EmbeddingService() services.EmbeddingServiceInterface {
@@ -107,7 +102,6 @@ func createListSpecTestServer(t *testing.T, mockSvc *servicesmocks.MockBlueprint
 //nolint:funlen // Comprehensive test with mocked service
 func TestHandleCreateBlueprint_Success(t *testing.T) {
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 	mockAuthService := servicesmocks.NewMockAuthServiceInterface(t)
 	mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
 	mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
@@ -149,11 +143,10 @@ func TestHandleCreateBlueprint_Success(t *testing.T) {
 		})).Return(expectedBlueprint, nil)
 
 	mockContainer := &MockBlueprintContainer{
-		BlueprintServiceMock:     mockBlueprintService,
-		ResourceUsageServiceMock: mockResourceService,
-		AuthServiceMock:          mockAuthService,
-		TeamServiceMock:          mockTeamService,
-		APIKeyServiceMock:        mockAPIKeyService,
+		BlueprintServiceMock: mockBlueprintService,
+		AuthServiceMock:      mockAuthService,
+		TeamServiceMock:      mockTeamService,
+		APIKeyServiceMock:    mockAPIKeyService,
 	}
 
 	cfg := &config.Config{}
@@ -220,7 +213,6 @@ func TestHandleCreateBlueprint_PathErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
-			mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 			mockAuthService := servicesmocks.NewMockAuthServiceInterface(t)
 			mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
 			mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
@@ -234,11 +226,10 @@ func TestHandleCreateBlueprint_PathErrors(t *testing.T) {
 
 			srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
 			srv.container = &MockBlueprintContainer{
-				BlueprintServiceMock:     mockBlueprintService,
-				ResourceUsageServiceMock: mockResourceService,
-				AuthServiceMock:          mockAuthService,
-				TeamServiceMock:          mockTeamService,
-				APIKeyServiceMock:        mockAPIKeyService,
+				BlueprintServiceMock: mockBlueprintService,
+				AuthServiceMock:      mockAuthService,
+				TeamServiceMock:      mockTeamService,
+				APIKeyServiceMock:    mockAPIKeyService,
 			}
 
 			reqBody := `{"project_id":"550e8400-e29b-41d4-a716-446655440000","slug":"a",` +
@@ -258,7 +249,7 @@ func TestHandleCreateBlueprint_PathErrors(t *testing.T) {
 //
 //nolint:funlen // Comprehensive table-driven test
 func TestHandleCreateBlueprint_ValidationError(t *testing.T) {
-	srv, _, _ := setupTestServerForBlueprint(t, nil)
+	srv, _ := setupTestServerForBlueprint(t, nil)
 
 	testCases := []struct {
 		name           string
@@ -325,9 +316,8 @@ func TestHandleCreateBlueprint_ValidationError(t *testing.T) {
 
 // TestHandleCreateBlueprint_ServiceError tests service errors
 func TestHandleCreateBlueprint_ServiceError(t *testing.T) {
-	srv, mockBlueprintService, _ := setupTestServerForBlueprint(t, func(
+	srv, mockBlueprintService := setupTestServerForBlueprint(t, func(
 		specLibSvc *servicesmocks.MockBlueprintServiceInterface,
-		resourceSvc *servicesmocks.MockResourceUsageServiceInterface,
 		teamSvc *servicesmocks.MockTeamServiceInterface,
 	) {
 		specLibSvc.On("CreateBlueprint", "user-123", "550e8400-e29b-41d4-a716-446655440000", mock.Anything).
@@ -362,17 +352,14 @@ func setupTestServerForBlueprint(
 	t *testing.T,
 	setupMocks func(
 		*servicesmocks.MockBlueprintServiceInterface,
-		*servicesmocks.MockResourceUsageServiceInterface,
 		*servicesmocks.MockTeamServiceInterface,
 	),
 ) (
 	*Server,
 	*servicesmocks.MockBlueprintServiceInterface,
-	*servicesmocks.MockResourceUsageServiceInterface,
 ) {
 	t.Helper()
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 	mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
 	mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
 
@@ -388,14 +375,13 @@ func setupTestServerForBlueprint(
 		Return(true, nil).Maybe()
 
 	if setupMocks != nil {
-		setupMocks(mockBlueprintService, mockResourceService, mockTeamService)
+		setupMocks(mockBlueprintService, mockTeamService)
 	}
 
 	mockContainer := &MockBlueprintContainer{
-		BlueprintServiceMock:     mockBlueprintService,
-		ResourceUsageServiceMock: mockResourceService,
-		TeamServiceMock:          mockTeamService,
-		APIKeyServiceMock:        mockAPIKeyService,
+		BlueprintServiceMock: mockBlueprintService,
+		TeamServiceMock:      mockTeamService,
+		APIKeyServiceMock:    mockAPIKeyService,
 	}
 
 	cfg := &config.Config{}
@@ -403,7 +389,7 @@ func setupTestServerForBlueprint(
 	srv := New("8080", nil, "test-api-key", cfg, logger)
 	srv.container = mockContainer
 
-	return srv, mockBlueprintService, mockResourceService
+	return srv, mockBlueprintService
 }
 
 // TestHandleCreateBlueprint_ValidTypes tests valid blueprint types
@@ -457,9 +443,8 @@ func TestHandleCreateBlueprint_ValidTypes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			srv, mockSvc, mockRes := setupTestServerForBlueprint(t, func(
+			srv, mockSvc := setupTestServerForBlueprint(t, func(
 				mockSvc *servicesmocks.MockBlueprintServiceInterface,
-				mockRes *servicesmocks.MockResourceUsageServiceInterface,
 				mockTeam *servicesmocks.MockTeamServiceInterface,
 			) {
 				mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
@@ -488,14 +473,13 @@ func TestHandleCreateBlueprint_ValidTypes(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, rr.Code)
 			mockSvc.AssertExpectations(t)
-			mockRes.AssertExpectations(t)
 		})
 	}
 }
 
 // TestHandleCreateBlueprint_InvalidType tests invalid blueprint type rejection
 func TestHandleCreateBlueprint_InvalidType(t *testing.T) {
-	srv, _, _ := setupTestServerForBlueprint(t, nil)
+	srv, _ := setupTestServerForBlueprint(t, nil)
 
 	body := `{"project_id": "550e8400-e29b-41d4-a716-446655440000", ` +
 		`"slug": "test-spec", "title": "Test", "content": "Content", "type": "invalid-type"}`
@@ -935,7 +919,6 @@ func TestHandleListBlueprints_ServiceError(t *testing.T) {
 //nolint:funlen // Test function requires comprehensive setup
 func TestHandleUpdateBlueprint_Success(t *testing.T) {
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 	mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
 	mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
 
@@ -973,10 +956,9 @@ func TestHandleUpdateBlueprint_Success(t *testing.T) {
 		})).Return(updatedBlueprint, nil)
 
 	mockContainer := &MockBlueprintContainer{
-		BlueprintServiceMock:     mockBlueprintService,
-		ResourceUsageServiceMock: mockResourceService,
-		TeamServiceMock:          mockTeamService,
-		APIKeyServiceMock:        mockAPIKeyService,
+		BlueprintServiceMock: mockBlueprintService,
+		TeamServiceMock:      mockTeamService,
+		APIKeyServiceMock:    mockAPIKeyService,
 	}
 
 	cfg := &config.Config{}
@@ -1010,7 +992,6 @@ func TestHandleUpdateBlueprint_Success(t *testing.T) {
 // TestHandleUpdateBlueprint_NotFound tests update on non-existent blueprint
 func TestHandleUpdateBlueprint_NotFound(t *testing.T) {
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 	mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
 	mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
 
@@ -1034,10 +1015,9 @@ func TestHandleUpdateBlueprint_NotFound(t *testing.T) {
 		mock.Anything).Return((*models.Blueprint)(nil), errors.New("blueprint not found"))
 
 	mockContainer := &MockBlueprintContainer{
-		BlueprintServiceMock:     mockBlueprintService,
-		ResourceUsageServiceMock: mockResourceService,
-		TeamServiceMock:          mockTeamService,
-		APIKeyServiceMock:        mockAPIKeyService,
+		BlueprintServiceMock: mockBlueprintService,
+		TeamServiceMock:      mockTeamService,
+		APIKeyServiceMock:    mockAPIKeyService,
 	}
 
 	cfg := &config.Config{}
@@ -1063,7 +1043,6 @@ func TestHandleUpdateBlueprint_NotFound(t *testing.T) {
 // error to 400 (#339).
 func TestHandleUpdateBlueprint_InvalidPath(t *testing.T) {
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 	mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
 	mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
 
@@ -1078,10 +1057,9 @@ func TestHandleUpdateBlueprint_InvalidPath(t *testing.T) {
 
 	srv := New("8080", nil, "test-api-key", &config.Config{}, slog.New(slog.DiscardHandler))
 	srv.container = &MockBlueprintContainer{
-		BlueprintServiceMock:     mockBlueprintService,
-		ResourceUsageServiceMock: mockResourceService,
-		TeamServiceMock:          mockTeamService,
-		APIKeyServiceMock:        mockAPIKeyService,
+		BlueprintServiceMock: mockBlueprintService,
+		TeamServiceMock:      mockTeamService,
+		APIKeyServiceMock:    mockAPIKeyService,
 	}
 
 	req := createBlueprintAuthenticatedRequest(
@@ -1100,7 +1078,6 @@ func TestHandleUpdateBlueprint_InvalidPath(t *testing.T) {
 //nolint:funlen // Comprehensive table-driven test
 func TestHandleUpdateBlueprint_ValidationError(t *testing.T) {
 	mockBlueprintService := servicesmocks.NewMockBlueprintServiceInterface(t)
-	mockResourceService := servicesmocks.NewMockResourceUsageServiceInterface(t)
 	mockTeamService := servicesmocks.NewMockTeamServiceInterface(t)
 	mockAPIKeyService := servicesmocks.NewMockAPIKeyServiceInterface(t)
 
@@ -1116,10 +1093,9 @@ func TestHandleUpdateBlueprint_ValidationError(t *testing.T) {
 		Return(true, nil).Maybe()
 
 	mockContainer := &MockBlueprintContainer{
-		BlueprintServiceMock:     mockBlueprintService,
-		ResourceUsageServiceMock: mockResourceService,
-		TeamServiceMock:          mockTeamService,
-		APIKeyServiceMock:        mockAPIKeyService,
+		BlueprintServiceMock: mockBlueprintService,
+		TeamServiceMock:      mockTeamService,
+		APIKeyServiceMock:    mockAPIKeyService,
 	}
 
 	cfg := &config.Config{}
@@ -1531,9 +1507,8 @@ func TestHandleCreateBlueprint_SubtypeValidation(t *testing.T) {
 // runSubtypeValidationTest is a helper for subtype validation tests
 func runSubtypeValidationTest(t *testing.T, body string, expectedStatus int, errorMessage string) {
 	t.Helper()
-	srv, mockBlueprintService, _ := setupTestServerForBlueprint(t,
+	srv, mockBlueprintService := setupTestServerForBlueprint(t,
 		func(specLibSvc *servicesmocks.MockBlueprintServiceInterface,
-			resourceUsageSvc *servicesmocks.MockResourceUsageServiceInterface,
 			mockTeam *servicesmocks.MockTeamServiceInterface) {
 			// Only set up service expectations for success cases
 			if expectedStatus == http.StatusCreated {
@@ -1569,9 +1544,8 @@ func runSubtypeValidationTest(t *testing.T, body string, expectedStatus int, err
 
 // TestHandleUpdateBlueprint_SubtypeValidationOnTypeChange tests subtype validation on type change
 func TestHandleUpdateBlueprint_SubtypeValidationOnTypeChange(t *testing.T) {
-	srv, mockBlueprintService, _ := setupTestServerForBlueprint(t,
+	srv, mockBlueprintService := setupTestServerForBlueprint(t,
 		func(specLibSvc *servicesmocks.MockBlueprintServiceInterface,
-			resourceUsageSvc *servicesmocks.MockResourceUsageServiceInterface,
 			mockTeam *servicesmocks.MockTeamServiceInterface) {
 			// No service expectations because validation should fail before service call
 		})
@@ -1940,9 +1914,8 @@ func TestHandleCreateBlueprint_NewTypes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			srv, mockSvc, mockRes := setupTestServerForBlueprint(t, func(
+			srv, mockSvc := setupTestServerForBlueprint(t, func(
 				mockSvc *servicesmocks.MockBlueprintServiceInterface,
-				mockRes *servicesmocks.MockResourceUsageServiceInterface,
 				mockTeam *servicesmocks.MockTeamServiceInterface,
 			) {
 				mockTeam.On("IsUserMemberOfTeam", mock.Anything, "user-123", "550e8400-e29b-41d4-a716-446655440000").
@@ -1971,7 +1944,6 @@ func TestHandleCreateBlueprint_NewTypes(t *testing.T) {
 
 			assert.Equal(t, http.StatusCreated, rr.Code)
 			mockSvc.AssertExpectations(t)
-			mockRes.AssertExpectations(t)
 		})
 	}
 }
@@ -2013,7 +1985,7 @@ func TestHandleCreateBlueprint_InvalidTypeSubtypeCombinations(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			srv, _, _ := setupTestServerForBlueprint(t, nil)
+			srv, _ := setupTestServerForBlueprint(t, nil)
 
 			req := createBlueprintAuthenticatedRequest(
 				"POST",

@@ -90,21 +90,16 @@ func (m *mockActivityService) RunRetentionJob(_ context.Context) error {
 type MockMemoryContainer struct {
 	BaseMockContainer // Embed base container for default nil implementations
 	mock.Mock
-	memoryService        *svcmocks.MockMemoryServiceInterface
-	resourceUsageService *MockResourceUsageServiceForHandlers
-	embeddingService     *svcmocks.MockEmbeddingServiceInterface
-	activityService      *mockActivityService
-	authService          *svcmocks.MockAuthServiceInterface
-	teamService          *svcmocks.MockTeamServiceInterface
-	projectRepository    *repomocks.MockProjectRepository
+	memoryService     *svcmocks.MockMemoryServiceInterface
+	embeddingService  *svcmocks.MockEmbeddingServiceInterface
+	activityService   *mockActivityService
+	authService       *svcmocks.MockAuthServiceInterface
+	teamService       *svcmocks.MockTeamServiceInterface
+	projectRepository *repomocks.MockProjectRepository
 }
 
 func (m *MockMemoryContainer) MemoryService() services.MemoryServiceInterface {
 	return m.memoryService
-}
-
-func (m *MockMemoryContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.resourceUsageService
 }
 
 func (m *MockMemoryContainer) EmbeddingService() services.EmbeddingServiceInterface {
@@ -129,13 +124,12 @@ func (m *MockMemoryContainer) ProjectRepository() repositories.ProjectRepository
 
 func newMockMemoryContainer(t *testing.T) *MockMemoryContainer {
 	return &MockMemoryContainer{
-		memoryService:        svcmocks.NewMockMemoryServiceInterface(t),
-		resourceUsageService: &MockResourceUsageServiceForHandlers{},
-		embeddingService:     svcmocks.NewMockEmbeddingServiceInterface(t),
-		activityService:      &mockActivityService{},
-		authService:          svcmocks.NewMockAuthServiceInterface(t),
-		teamService:          svcmocks.NewMockTeamServiceInterface(t),
-		projectRepository:    repomocks.NewMockProjectRepository(t),
+		memoryService:     svcmocks.NewMockMemoryServiceInterface(t),
+		embeddingService:  svcmocks.NewMockEmbeddingServiceInterface(t),
+		activityService:   &mockActivityService{},
+		authService:       svcmocks.NewMockAuthServiceInterface(t),
+		teamService:       svcmocks.NewMockTeamServiceInterface(t),
+		projectRepository: repomocks.NewMockProjectRepository(t),
 	}
 }
 

@@ -154,7 +154,6 @@ func TestInitializeContainer_AllServicesNonNil(t *testing.T) {
 	assert.NotNil(t, c.MemoryService(), "MemoryService should not be nil")
 	assert.NotNil(t, c.EmbeddingService(), "EmbeddingService should not be nil")
 	assert.NotNil(t, c.EnvironmentService(), "EnvironmentService should not be nil")
-	assert.NotNil(t, c.ResourceUsageService(), "ResourceUsageService should not be nil")
 	assert.NotNil(t, c.BackofficeService(), "BackofficeService should not be nil")
 	assert.NotNil(t, c.AdminService(), "AdminService should not be nil")
 	assert.NotNil(t, c.FeedService(), "FeedService should not be nil")
@@ -382,7 +381,7 @@ func TestInitializeContainer_ServiceDependencies(t *testing.T) {
 	promptService := c.PromptService()
 	assert.NotNil(t, promptService, "PromptService should be properly wired")
 
-	// ArtifactService depends on ArtifactRepository, EventPublisher, ResourceUsageService, Logger
+	// ArtifactService depends on ArtifactRepository, EventPublisher, Logger
 	artifactService := c.ArtifactService()
 	assert.NotNil(t, artifactService, "ArtifactService should be properly wired")
 
@@ -415,28 +414,6 @@ func TestInitializeContainer_NoCircularDependencies(t *testing.T) {
 	assert.NotNil(t, c.AuthService(), "Service layer initialized")
 	assert.NotNil(t, c.EventManager(), "Event system initialized")
 	assert.NotNil(t, c.IdentityProviderRegistry(), "External dependencies initialized")
-}
-
-// TestInitializeContainer_ResourceUsageService tests resource usage service with nil handling
-func TestInitializeContainer_ResourceUsageService(t *testing.T) {
-	// Arrange
-	db := setupTestDB(t)
-	cfg := setupTestConfig()
-	logger := setupTestLogger()
-
-	// Act
-	c, err := container.InitializeContainer(db, cfg, logger)
-	require.NoError(t, err)
-	require.NotNil(t, c)
-	defer func() {
-		assert.NoError(t, c.Close())
-	}()
-
-	// Assert
-	// ResourceUsageService should handle scenarios where DB might be unavailable
-	// But in our case, it should be properly initialized
-	resourceUsageService := c.ResourceUsageService()
-	assert.NotNil(t, resourceUsageService, "ResourceUsageService should be initialized")
 }
 
 // TestInitializeContainer_EventPublishing_SmokeTest verifies event manager can publish events

@@ -878,15 +878,6 @@ type EmbeddingBackfillRepository interface {
 	) ([]models.EmbeddingCoverageCount, error)
 }
 
-// ResourceUsageRepository defines the interface for resource usage data access operations
-type ResourceUsageRepository interface {
-	IncrementUsage(ctx context.Context, userID, resourceType string, periodStart, periodEnd time.Time) error
-	DecrementUsage(ctx context.Context, userID, resourceType string, periodStart, periodEnd time.Time) error
-	// GetUsageCount returns (0, nil) when no usage row exists for the period.
-	GetUsageCount(ctx context.Context, userID, resourceType string, periodStart, periodEnd time.Time) (int, error)
-	GetResourceCounts(ctx context.Context, userID string, periodStart, periodEnd time.Time) (map[string]int, error)
-}
-
 // PromptGalleryRepository defines the interface for prompt gallery data access operations
 type PromptGalleryRepository interface {
 	GetCategories(ctx context.Context) ([]models.PromptGalleryCategory, error)

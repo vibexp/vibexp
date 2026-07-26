@@ -30,12 +30,11 @@ import (
 type MockTeamContainer struct {
 	BaseMockContainer // Embed base container for default nil implementations
 	mock.Mock
-	teamService          *svcmocks.MockTeamServiceInterface
-	resourceUsageService *svcmocks.MockResourceUsageServiceInterface
-	projectService       *svcmocks.MockProjectServiceInterface
-	activityService      *MockActivityServiceForTeamHandlers
-	environmentService   *services.EnvironmentService
-	userRepository       *MockUserRepository
+	teamService        *svcmocks.MockTeamServiceInterface
+	projectService     *svcmocks.MockProjectServiceInterface
+	activityService    *MockActivityServiceForTeamHandlers
+	environmentService *services.EnvironmentService
+	userRepository     *MockUserRepository
 }
 
 func (m *MockTeamContainer) ProjectService() services.ProjectServiceInterface {
@@ -55,10 +54,6 @@ func (m *MockTeamContainer) TeamInvitationService() *services.TeamInvitationServ
 	// only invitation-specific handlers use it. Returning nil is safe for these tests.
 	// If future tests require invitation functionality, initialize in newMockTeamContainer.
 	return nil
-}
-
-func (m *MockTeamContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.resourceUsageService
 }
 
 func (m *MockTeamContainer) ActivityService() activities.ActivityService {
@@ -201,12 +196,11 @@ func (m *MockActivityServiceForTeamHandlers) RunRetentionJob(ctx context.Context
 func newMockTeamContainer(t *testing.T) *MockTeamContainer {
 	cfg := &config.Config{}
 	return &MockTeamContainer{
-		teamService:          svcmocks.NewMockTeamServiceInterface(t),
-		resourceUsageService: svcmocks.NewMockResourceUsageServiceInterface(t),
-		projectService:       svcmocks.NewMockProjectServiceInterface(t),
-		activityService:      &MockActivityServiceForTeamHandlers{},
-		environmentService:   services.NewEnvironmentService(cfg),
-		userRepository:       &MockUserRepository{},
+		teamService:        svcmocks.NewMockTeamServiceInterface(t),
+		projectService:     svcmocks.NewMockProjectServiceInterface(t),
+		activityService:    &MockActivityServiceForTeamHandlers{},
+		environmentService: services.NewEnvironmentService(cfg),
+		userRepository:     &MockUserRepository{},
 	}
 }
 

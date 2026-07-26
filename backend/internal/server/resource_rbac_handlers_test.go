@@ -42,15 +42,10 @@ const (
 
 type MockResourceRBACContainer struct {
 	BaseMockContainer
-	memoryService        services.MemoryServiceInterface
-	artifactService      services.ArtifactServiceInterface
-	blueprintService     services.BlueprintServiceInterface
-	resourceUsageService services.ResourceUsageServiceInterface
-	projectRepository    repositories.ProjectRepository
-}
-
-func (m *MockResourceRBACContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.resourceUsageService
+	memoryService     services.MemoryServiceInterface
+	artifactService   services.ArtifactServiceInterface
+	blueprintService  services.BlueprintServiceInterface
+	projectRepository repositories.ProjectRepository
 }
 
 func (m *MockResourceRBACContainer) ProjectRepository() repositories.ProjectRepository {
@@ -76,9 +71,6 @@ func createTestResourceRBACServer(t *testing.T, c *MockResourceRBACContainer) *S
 	t.Helper()
 
 	// The create paths validate the project before reaching the service.
-	usage := svcmocks.NewMockResourceUsageServiceInterface(t)
-	c.resourceUsageService = usage
-
 	projectRepo := repomocks.NewMockProjectRepository(t)
 	projectRepo.EXPECT().GetByID(mock.Anything, mock.Anything, mock.Anything).
 		Return(&models.Project{ID: resHProject, UserID: resHUser, TeamID: resHTeam}, nil).Maybe()

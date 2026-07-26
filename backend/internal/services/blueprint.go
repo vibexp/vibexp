@@ -129,7 +129,6 @@ type BlueprintService struct {
 	teamService       TeamServiceInterface
 	authz             AuthorizationServiceInterface
 	eventManager      events.EventPublisher
-	resourceUsageSvc  ResourceUsageServiceInterface
 	contentVersionSvc ContentVersionServiceInterface
 	commentRepo       repositories.CommentRepository
 	relationRepo      repositories.RelationRepository
@@ -145,7 +144,6 @@ type BlueprintServiceDeps struct {
 	TeamService       TeamServiceInterface
 	Authz             AuthorizationServiceInterface
 	EventManager      events.EventPublisher
-	ResourceUsageSvc  ResourceUsageServiceInterface
 	Logger            *slog.Logger
 	ContentVersionSvc ContentVersionServiceInterface
 	CommentRepo       repositories.CommentRepository
@@ -158,7 +156,6 @@ func NewBlueprintService(deps BlueprintServiceDeps) *BlueprintService {
 		teamService:       deps.TeamService,
 		authz:             deps.Authz,
 		eventManager:      deps.EventManager,
-		resourceUsageSvc:  deps.ResourceUsageSvc,
 		contentVersionSvc: deps.ContentVersionSvc,
 		commentRepo:       deps.CommentRepo,
 		relationRepo:      deps.RelationRepo,

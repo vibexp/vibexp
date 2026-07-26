@@ -30,7 +30,6 @@ type MockAgentContainer struct {
 	BaseMockContainer // Embed base container for default nil implementations
 	mock.Mock
 	agentService           *svcmocks.MockAgentServiceInterface
-	resourceUsageService   *MockResourceUsageServiceForHandlers
 	agentInvocationService *svcmocks.MockAgentInvocationServiceInterface
 	authService            *svcmocks.MockAuthServiceInterface
 	teamService            *svcmocks.MockTeamServiceInterface
@@ -49,10 +48,6 @@ func (m *MockAgentContainer) AuthService() services.AuthServiceInterface {
 	return m.authService
 }
 
-func (m *MockAgentContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return m.resourceUsageService
-}
-
 func (m *MockAgentContainer) AgentInvocationService() services.AgentInvocationServiceInterface {
 	return m.agentInvocationService
 }
@@ -64,7 +59,6 @@ func (m *MockAgentContainer) TeamService() services.TeamServiceInterface {
 func newMockAgentContainer(t *testing.T) *MockAgentContainer {
 	return &MockAgentContainer{
 		agentService:           svcmocks.NewMockAgentServiceInterface(t),
-		resourceUsageService:   &MockResourceUsageServiceForHandlers{},
 		agentInvocationService: svcmocks.NewMockAgentInvocationServiceInterface(t),
 		authService:            svcmocks.NewMockAuthServiceInterface(t),
 		teamService:            svcmocks.NewMockTeamServiceInterface(t),

@@ -34,7 +34,6 @@ func newMCPFeedTestServer(
 		FeedServiceMock:          feedSvc,
 		FeedItemServiceMock:      feedItemSvc,
 		FeedItemReplyServiceMock: feedItemReplySvc,
-		ResourceUsageServiceMock: newResourceUsageMock(t),
 		TeamServiceMock:          mockTeamService,
 	}
 	return srv

@@ -138,11 +138,8 @@ func (m *MockContainerForBackoffice) EmbeddingService() services.EmbeddingServic
 }
 func (m *MockContainerForBackoffice) SearchService() services.Searcher                 { return nil }
 func (m *MockContainerForBackoffice) EnvironmentService() *services.EnvironmentService { return nil }
-func (m *MockContainerForBackoffice) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return nil
-}
-func (m *MockContainerForBackoffice) EmailService() services.EmailServiceInterface { return nil }
-func (m *MockContainerForBackoffice) IdentityProviderRegistry() *idp.Registry      { return nil }
+func (m *MockContainerForBackoffice) EmailService() services.EmailServiceInterface     { return nil }
+func (m *MockContainerForBackoffice) IdentityProviderRegistry() *idp.Registry          { return nil }
 func (m *MockContainerForBackoffice) BlueprintService() services.BlueprintServiceInterface {
 	return nil
 }

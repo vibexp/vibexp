@@ -275,10 +275,6 @@ func (b *BaseMockContainer) EnvironmentService() *services.EnvironmentService {
 	return nil
 }
 
-func (b *BaseMockContainer) ResourceUsageService() services.ResourceUsageServiceInterface {
-	return nil
-}
-
 func (b *BaseMockContainer) BackofficeService() services.UsageAndGrowthGetter {
 	return nil
 }

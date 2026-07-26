@@ -56,10 +56,9 @@ func TestListArtifacts_PassesMetadataFilterToRepository(t *testing.T) {
 	})).Return([]models.Artifact{}, 0, nil).Once()
 
 	svc := NewArtifactService(ArtifactServiceDeps{
-		Repo:             repo,
-		Authz:            allowAllAuthz{},
-		ResourceUsageSvc: &MockResourceUsageService{},
-		Logger:           testLogger(),
+		Repo:   repo,
+		Authz:  allowAllAuthz{},
+		Logger: testLogger(),
 	})
 
 	_, err := svc.ListArtifacts("user-123", ArtifactFilters{
@@ -79,10 +78,9 @@ func TestListArtifactsByProjectCrossTeam_PassesMetadataFilterToRepository(t *tes
 	})).Return([]models.Artifact{}, 0, nil).Once()
 
 	svc := NewArtifactService(ArtifactServiceDeps{
-		Repo:             repo,
-		Authz:            allowAllAuthz{},
-		ResourceUsageSvc: &MockResourceUsageService{},
-		Logger:           testLogger(),
+		Repo:   repo,
+		Authz:  allowAllAuthz{},
+		Logger: testLogger(),
 	})
 
 	_, err := svc.ListArtifactsByProjectCrossTeam("user-123", "", ArtifactFilters{
@@ -101,10 +99,9 @@ func TestListBlueprints_PassesMetadataFilterToRepository(t *testing.T) {
 	})).Return([]models.Blueprint{}, 0, nil).Once()
 
 	svc := NewBlueprintService(BlueprintServiceDeps{
-		Repo:             repo,
-		Authz:            allowAllAuthz{},
-		ResourceUsageSvc: &MockResourceUsageService{},
-		Logger:           testLogger(),
+		Repo:   repo,
+		Authz:  allowAllAuthz{},
+		Logger: testLogger(),
 	})
 
 	_, err := svc.ListBlueprints("user-123", BlueprintFilters{

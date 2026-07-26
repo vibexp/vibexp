@@ -511,12 +511,6 @@ func ProvideEnvironmentService(cfg *config.Config) *services.EnvironmentService 
 	return services.NewEnvironmentService(cfg)
 }
 
-// ProvideResourceUsageService creates a new ResourceUsageService. Wire fills
-// the deps struct via wire.Struct (see the container ProviderSet).
-func ProvideResourceUsageService(deps services.ResourceUsageServiceDeps) services.ResourceUsageServiceInterface {
-	return services.NewResourceUsageService(deps)
-}
-
 // ProvideFeatureFlagService creates a new FeatureFlagService and registers all feature flags.
 //
 // The sign-in allowlist is configured from cfg.Auth.AccessAllowlist
