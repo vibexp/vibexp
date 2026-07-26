@@ -14,9 +14,14 @@ name: Project board hygiene
 #      issue to a different iteration) sticks. The current iteration is resolved
 #      live (iteration ids rotate); if the board has none configured, issues are
 #      still added and backlogged, just without an iteration.
-#   2. No OPEN issue may sit in a past iteration: the sweep moves any open issue
-#      whose Iteration is a completed one into the current iteration.
-#      Current/future iterations and Done/closed items are left untouched.
+#   2. Every OPEN issue sits in the current iteration unless it was deliberately
+#      pushed forward. The sweep sets the current iteration on any open issue
+#      whose Iteration is NOT the current one or a future one -- that is, empty,
+#      a completed iteration, or an orphaned id from a deleted one. A past
+#      iteration is corrected even if a human set it; only current/future is a
+#      real scheduling decision and is left alone, as are Done/closed items.
+#      This is what catches issues ALREADY on the board with an empty iteration,
+#      which behaviour 1 never revisits (it only handles issues not yet added).
 #
 # TOKEN MODEL: the default GITHUB_TOKEN cannot write org-level Projects V2, so
 # the Projects GraphQL calls use an installation token minted from the existing
@@ -214,7 +219,7 @@ jobs:
               `set iteration${currentIteration ? ` (${currentIteration.title})` : ''} on ${iterated}.`);
 
   iteration-sweep:
-    name: Move open issues out of past iterations
+    name: Pull open issues into the current iteration
     runs-on: ubuntu-latest
     steps:
       - name: Mint VibeXP Bot app token
@@ -264,23 +269,22 @@ jobs:
               return;
             }
 
-            // Resolve current + completed iterations live -- iteration ids rotate,
-            // so only the field id is pinned. iterations[0] is the current one.
+            // Resolve current + future iterations live -- iteration ids rotate,
+            // so only the field id is pinned. iterations[0] is the current one;
+            // the rest are future ones. Anything NOT in this set (empty, a
+            // completed iteration, or an orphaned id from a deleted one) is a
+            // state no open issue may stay in.
             const cfg = await proj(
               `query($f:ID!){ node(id:$f){ ... on ProjectV2IterationField {
-                 configuration {
-                   iterations { id title }
-                   completedIterations { id }
-                 } } } }`,
+                 configuration { iterations { id title } } } } }`,
               { f: ITERATION_FIELD_ID });
             const iterations = cfg.node.configuration.iterations || [];
-            const completed = cfg.node.configuration.completedIterations || [];
             if (iterations.length === 0) {
               core.info('No current/future iteration configured; nothing to bump into.');
               return;
             }
             const current = iterations[0];
-            const pastIds = new Set(completed.map((it) => it.id));
+            const keepIds = new Set(iterations.map((it) => it.id));
 
             let cursor = null, scanned = 0, moved = 0;
             do {
@@ -303,15 +307,18 @@ jobs:
                 if (!c || c.__typename !== 'Issue' || c.state !== 'OPEN') continue;
                 const iv = (item.fieldValues.nodes || []).find(
                   (v) => v && v.field && v.field.id === ITERATION_FIELD_ID && v.iterationId);
-                if (!iv) continue; // no iteration set -> skip
-                if (!pastIds.has(iv.iterationId)) continue; // current/future -> skip
+                // Skip ONLY the current or a future iteration -- that is a
+                // deliberate scheduling decision. Everything else (empty, or a
+                // past iteration, whoever set it) is pulled to the current one.
+                if (iv && keepIds.has(iv.iterationId)) continue;
                 await proj(
                   `mutation($p:ID!, $i:ID!, $f:ID!, $it:String!){
                      updateProjectV2ItemFieldValue(input:{ projectId:$p, itemId:$i, fieldId:$f,
                        value:{ iterationId:$it } }){ projectV2Item { id } } }`,
                   { p: PROJECT_ID, i: item.id, f: ITERATION_FIELD_ID, it: current.id });
                 moved++;
-                core.info(`Moved issue #${c.number} from a past iteration -> ${current.title}`);
+                core.info(
+                  `Issue #${c.number}: ${iv ? 'past iteration' : 'no iteration'} -> ${current.title}`);
               }
               cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
             } while (cursor);
