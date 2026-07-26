@@ -235,16 +235,6 @@ export function buildMockConversation(
   }
 }
 
-interface Envelope<T> {
-  status: string
-  message: string
-  data: T
-}
-
-function envelope<T>(data: T): Envelope<T> {
-  return { status: 'success', message: 'ok', data }
-}
-
 /**
  * Mock the team-scoped agents API surface.
  *
@@ -368,104 +358,6 @@ export async function mockAgentsApi(
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(agent),
-      })
-      return
-    }
-
-    await route.continue()
-  })
-}
-
-// ---------------------------------------------------------------------------
-// AI Tools API mocks
-//
-// Session/hook data is ingested from real Claude Code / Cursor IDE installs
-// and cannot be seeded in E2E, so the overview pages run on route mocks.
-// Endpoints are NOT team-scoped: /api/v1/ai-tools/{tool}/...
-// ---------------------------------------------------------------------------
-
-/**
- * Mock the ai-tools stats endpoints for both Claude Code and Cursor IDE:
- * session-counts, overview-stats, and recent-activities. Other ai-tools
- * endpoints fall through to the real backend.
- */
-export async function mockAiToolsApi(
-  page: Page,
-  options?: { totalSessions?: number }
-): Promise<void> {
-  const totalSessions = options?.totalSessions ?? 5
-  const now = new Date().toISOString()
-
-  await page.route('**/api/v1/ai-tools/**', async route => {
-    const url = new URL(route.request().url())
-    const path = url.pathname
-
-    if (path.endsWith('/session-counts')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(
-          envelope({
-            total_sessions: totalSessions,
-            counts: [{ date: now.slice(0, 10), count: totalSessions }],
-          })
-        ),
-      })
-      return
-    }
-
-    if (path.endsWith('/overview-stats')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(
-          envelope({
-            total_sessions: totalSessions,
-            sessions_this_week: 3,
-            sessions_last_week: 2,
-            weekly_trend_percent: 50,
-            avg_user_prompts_per_session: 4.2,
-            total_unique_tools: 6,
-            top_tools: [{ tool_name: 'Bash', usage_count: 11 }],
-            avg_session_duration_minutes: 17,
-            total_memories: 2,
-          })
-        ),
-      })
-      return
-    }
-
-    if (path.endsWith('/recent-activities')) {
-      const isCursor = path.includes('/cursor-ide/')
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(
-          envelope({
-            activities: [
-              isCursor
-                ? {
-                    session_id: 'cursor-session-1',
-                    tool_name: 'edit_file',
-                    input: { target: 'src/index.ts' },
-                    hook_event_name: 'beforeShellExecution',
-                    created_at: now,
-                  }
-                : {
-                    session_id: 'claude-session-1',
-                    cwd: '/home/dev/project',
-                    tool_name: 'Bash',
-                    tool_input: { command: 'npm test' },
-                    hook_event_name: 'PostToolUse',
-                    created_at: now,
-                  },
-            ],
-            page: 1,
-            limit: 10,
-            total: 1,
-            total_pages: 1,
-          })
-        ),
       })
       return
     }

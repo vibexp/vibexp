@@ -1,5 +1,4 @@
 import {
-  Activity as ActivityIcon,
   BookOpen,
   Bot,
   FileText,
@@ -15,8 +14,6 @@ import type { OverviewStat, Trend } from './OverviewCard'
 
 export interface OverviewInputs {
   teamStats: TeamStats | null
-  totalSessions: number
-  sessionsTrendPct: number
   totalAgents: number
   mcpToolsCount: number
   /** Per-type resource creations over the last 7 days; null until loaded. The
@@ -39,15 +36,8 @@ export interface OverviewInputs {
  * a pure function so the page component stays simple and this stays unit-testable.
  */
 export function buildOverviewStats(inputs: OverviewInputs): OverviewStat[] {
-  const {
-    teamStats,
-    totalSessions,
-    sessionsTrendPct,
-    totalAgents,
-    mcpToolsCount,
-    weekly,
-    isEmptyWorkspace,
-  } = inputs
+  const { teamStats, totalAgents, mcpToolsCount, weekly, isEmptyWorkspace } =
+    inputs
 
   const upTrend = (n: number): Trend | null =>
     !isEmptyWorkspace && n > 0 ? { label: `+${String(n)}`, tone: 'up' } : null
@@ -55,21 +45,7 @@ export function buildOverviewStats(inputs: OverviewInputs): OverviewStat[] {
   const weekLabel = (n: number): string | undefined =>
     !isEmptyWorkspace && n > 0 ? `+${String(n)} this week` : undefined
 
-  let sessionsTrend: Trend | null = null
-  if (!isEmptyWorkspace) {
-    sessionsTrend =
-      sessionsTrendPct > 0
-        ? { label: `+${String(sessionsTrendPct)}%`, tone: 'up' }
-        : { label: '0%', tone: 'flat' }
-  }
-
   return [
-    {
-      label: 'AI Sessions',
-      value: totalSessions,
-      icon: ActivityIcon,
-      trend: sessionsTrend,
-    },
     {
       label: 'Total Prompts',
       value: teamStats?.total_prompts ?? 0,

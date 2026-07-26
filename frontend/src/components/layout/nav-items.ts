@@ -11,7 +11,6 @@ import {
   Settings as SettingsIcon,
   Users,
   UsersRound,
-  Wrench,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -44,15 +43,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Workspace',
     items: [
-      {
-        label: 'AI Tools',
-        href: '/ai-tools/overview',
-        icon: Wrench,
-        children: [
-          { label: 'Claude Code', href: '/ai-tools/claude-code/overview' },
-          { label: 'Cursor IDE', href: '/ai-tools/cursor-ide/overview' },
-        ],
-      },
       {
         label: 'Prompts',
         href: '/prompts',

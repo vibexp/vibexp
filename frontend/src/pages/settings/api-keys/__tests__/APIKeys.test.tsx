@@ -55,7 +55,7 @@ function buildKey(overrides: Partial<APIKey> = {}): APIKey {
     user_id: 'user-1',
     name: 'Development Setup',
     key_prefix: 'vxk_abc123',
-    integrations: ['ai_tools', 'cli'],
+    integrations: ['cli', 'mcp_server'],
     is_legacy: false,
     created_at: '2026-01-15T10:30:00Z',
     updated_at: '2026-01-15T10:30:00Z',
@@ -127,8 +127,8 @@ describe('APIKeys page — list rendering', () => {
     expect(within(first).getByTestId('masked-api-key')).toHaveTextContent(
       'vxk_abc123***'
     )
-    expect(within(first).getByText('AI Tools')).toBeInTheDocument()
     expect(within(first).getByText('CLI')).toBeInTheDocument()
+    expect(within(first).getByText('MCP Server')).toBeInTheDocument()
 
     // Legacy key with no integrations
     const second = rows[1]
@@ -182,7 +182,7 @@ describe('APIKeys page — create flow and show-once secret', () => {
       screen.getByTestId('api-key-name-input'),
       'Development Setup'
     )
-    await user.click(screen.getByTestId('integration-checkbox-ai_tools'))
+    await user.click(screen.getByTestId('integration-checkbox-cli'))
   }
 
   it('disables submit until a name and at least one integration are set', async () => {
@@ -229,7 +229,7 @@ describe('APIKeys page — create flow and show-once secret', () => {
     await waitFor(() => {
       expect(apiKeyService.createAPIKey).toHaveBeenCalledWith({
         name: 'Development Setup',
-        integration_codes: ['ai_tools', 'mcp_server'],
+        integration_codes: ['cli', 'mcp_server'],
       })
     })
 

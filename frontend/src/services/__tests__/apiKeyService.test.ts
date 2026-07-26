@@ -47,7 +47,7 @@ describe('APIKeyService', () => {
     user_id: 'test-user-id',
     name: 'Test API Key',
     key_prefix: 'vxk_test_',
-    integrations: ['ai_tools', 'cli'],
+    integrations: ['cli', 'mcp_server'],
     is_legacy: false,
     last_used_at: null,
     created_at: '2023-01-01T00:00:00Z',
@@ -61,7 +61,7 @@ describe('APIKeyService', () => {
   it('createAPIKey posts the request and returns the created key', async () => {
     const request: CreateAPIKeyRequest = {
       name: 'Test Key',
-      integration_codes: ['ai_tools', 'cli', 'mcp_server'],
+      integration_codes: ['cli', 'mcp_server'],
     }
     const response: CreateAPIKeyResponse = {
       api_key: mockAPIKey,
@@ -109,7 +109,7 @@ describe('APIKeyService', () => {
     )
 
     await expect(
-      apiKeyService.createAPIKey({ name: 'x', integration_codes: ['ai_tools'] })
+      apiKeyService.createAPIKey({ name: 'x', integration_codes: ['cli'] })
     ).rejects.toThrow('Invalid integration code')
   })
 })

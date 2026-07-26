@@ -8,10 +8,6 @@ import { AgentDetails } from '@/pages/agents/AgentDetails'
 import { AgentEditor } from '@/pages/agents/AgentEditor'
 import { Agents } from '@/pages/agents/Agents'
 import { AgentTasks } from '@/pages/agents/AgentTasks'
-import { AIToolsOverview } from '@/pages/ai-tools/AIToolsOverview'
-import { ClaudeCodeOverview } from '@/pages/ai-tools/claude-code/ClaudeCodeOverview'
-import { CursorIDEOverview } from '@/pages/ai-tools/cursor-ide/CursorIDEOverview'
-import { DeferredToolPage } from '@/pages/ai-tools/DeferredToolPage'
 import { ArtifactCreate } from '@/pages/artifacts/ArtifactCreate'
 import { ArtifactEdit } from '@/pages/artifacts/ArtifactEdit'
 import { Artifacts } from '@/pages/artifacts/Artifacts'
@@ -115,76 +111,6 @@ export function AppRoutes() {
       <Route path="agents/:id/chat" element={<AgentChat />} />
       <Route path="agents/:id/conversations" element={<AgentConversations />} />
       <Route path="agents/:id/tasks" element={<AgentTasks />} />
-      <Route path="ai-tools/overview" element={<AIToolsOverview />} />
-      <Route
-        path="ai-tools/claude-code/overview"
-        element={<ClaudeCodeOverview />}
-      />
-      <Route
-        path="ai-tools/claude-code/setup"
-        element={
-          <DeferredToolPage
-            title="Claude Code — Setup"
-            description="Configure Claude Code hooks and integration with VibeXP."
-            backHref="/ai-tools/claude-code/overview"
-          />
-        }
-      />
-      <Route
-        path="ai-tools/claude-code/sessions"
-        element={
-          <DeferredToolPage
-            title="Claude Code — Sessions"
-            description="Browse your recorded Claude Code sessions."
-            backHref="/ai-tools/claude-code/overview"
-          />
-        }
-      />
-      <Route
-        path="ai-tools/claude-code/session/:sessionId"
-        element={
-          <DeferredToolPage
-            title="Claude Code — Session detail"
-            description="Inspect a single Claude Code session."
-            backHref="/ai-tools/claude-code/overview"
-          />
-        }
-      />
-      <Route
-        path="ai-tools/cursor-ide/overview"
-        element={<CursorIDEOverview />}
-      />
-      <Route
-        path="ai-tools/cursor-ide/setup"
-        element={
-          <DeferredToolPage
-            title="Cursor IDE — Setup"
-            description="Configure Cursor IDE integration with VibeXP."
-            backHref="/ai-tools/cursor-ide/overview"
-          />
-        }
-      />
-      <Route
-        path="ai-tools/cursor-ide/sessions"
-        element={
-          <DeferredToolPage
-            title="Cursor IDE — Sessions"
-            description="Browse your recorded Cursor IDE sessions."
-            backHref="/ai-tools/cursor-ide/overview"
-          />
-        }
-      />
-      <Route
-        path="ai-tools/cursor-ide/session/:sessionId"
-        element={
-          <DeferredToolPage
-            title="Cursor IDE — Session detail"
-            description="Inspect a single Cursor IDE session."
-            backHref="/ai-tools/cursor-ide/overview"
-          />
-        }
-      />
-      <Route path="ai-tools/*" element={<ComingSoon title="AI Tools" />} />
       <Route path="mcp-servers/vibexp-mcp" element={<VibeXPMCP />} />
       <Route
         path="mcp-servers/*"

@@ -142,7 +142,6 @@ Each app area has a focused spec directory under `e2e/features/`:
 | `feeds`                         | `feeds/feed-crud.spec.ts`              | Feeds + feed items seeded through the UI (post composer)                                                                                                                                         |
 | `showcase`                      | `showcase/showcase.spec.ts`            | Static component gallery — no API data                                                                                                                                                           |
 | `agents`                        | `agents/agent-pages.spec.ts`           | **Route mocks** (`mockAgentsApi`) — agents register from live agent-card URLs                                                                                                                    |
-| `ai-tools`                      | `ai-tools/ai-tools.spec.ts`            | **Route mocks** (`mockAiToolsApi`) — session data is ingested from real installs                                                                                                                 |
 | `mcp-servers`                   | `mcp-servers/mcp-servers.spec.ts`      | Real backend (team context only)                                                                                                                                                                 |
 | `notifications`                 | `notifications/notifications.spec.ts`  | **Route mocks** (`mockNotificationsApi`, stateful) + real backend for preferences                                                                                                                |
 | `admin`                         | `admin/admin-{happy,negative}.spec.ts` | Real backend; `INSTANCE_ADMIN_EMAILS` gates the admin identity (dev-login email)                                                                                                                 |
@@ -151,7 +150,7 @@ Each app area has a focused spec directory under `e2e/features/`:
 ### API Mocking Conventions (`fixtures/api-mocks.ts`)
 
 Use route mocks only for data that cannot be seeded through the UI (agents,
-ai-tools sessions, notifications). Conventions:
+notifications). Conventions:
 
 - One `page.route()` per API surface that dispatches on the URL path, so
   sub-endpoint registration order never matters; unmatched requests

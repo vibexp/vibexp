@@ -27,11 +27,13 @@ describe('HeaderBreadcrumb', () => {
     expect(screen.getByText('AI Feeds')).toBeInTheDocument()
   })
 
-  it('prefers the longest matching href (deep child over parent)', () => {
-    // `/ai-tools/claude-code/overview` matches both the parent
-    // (`/ai-tools/overview` does not prefix it) and the child exactly.
-    renderAt('/ai-tools/claude-code/overview')
-    expect(screen.getByText('Claude Code')).toBeInTheDocument()
+  it('resolves a nested child route to its child label', () => {
+    // NOTE: this used to assert the longest-href tie-break using the AI Tools
+    // parent/child pair, which epic #610 removed (#615). No remaining nav entry
+    // has a parent href that prefixes a child's, so that tie-break is no longer
+    // reachable through NAV_ITEMS — the component still implements it.
+    renderAt('/prompt-gallery')
+    expect(screen.getByText('Prompt Gallery')).toBeInTheDocument()
   })
 
   it('matches nested sub-routes via the parent prefix', () => {

@@ -17,8 +17,6 @@ function makeStats(overrides: Partial<TeamStats> = {}): TeamStats {
 function makeInputs(overrides: Partial<OverviewInputs> = {}): OverviewInputs {
   return {
     teamStats: makeStats(),
-    totalSessions: 0,
-    sessionsTrendPct: 0,
     totalAgents: 9,
     mcpToolsCount: 19,
     weekly: {
@@ -34,11 +32,10 @@ function makeInputs(overrides: Partial<OverviewInputs> = {}): OverviewInputs {
 }
 
 describe('buildOverviewStats', () => {
-  it('produces the eight design cards in order with the right values', () => {
+  it('produces the seven design cards in order with the right values', () => {
     const stats = buildOverviewStats(makeInputs())
 
     expect(stats.map(s => s.label)).toEqual([
-      'AI Sessions',
       'Total Prompts',
       'Total Artifacts',
       'Total Memories',
@@ -47,17 +44,7 @@ describe('buildOverviewStats', () => {
       'AI Feed updates',
       'MCP Tools',
     ])
-    expect(stats.map(s => s.value)).toEqual([0, 4, 110, 51, 24, 9, 1862, 19])
-  })
-
-  it('shows a muted "0%" sessions trend at zero and an up trend when positive', () => {
-    const flat = buildOverviewStats(makeInputs({ sessionsTrendPct: 0 }))
-    expect(flat[0].trend).toEqual({ label: '0%', tone: 'flat' })
-
-    const up = buildOverviewStats(
-      makeInputs({ totalSessions: 120, sessionsTrendPct: 12 })
-    )
-    expect(up[0].trend).toEqual({ label: '+12%', tone: 'up' })
+    expect(stats.map(s => s.value)).toEqual([4, 110, 51, 24, 9, 1862, 19])
   })
 
   it('derives up-trend badges and "this week" subtitles from weekly deltas', () => {

@@ -165,8 +165,8 @@ describe('MobileSidebar', () => {
     })
 
     it('keeps classes on submenu links', () => {
-      renderWithRouter(['/ai-tools/claude-code/overview'])
-      const link = screen.getByRole('link', { name: /claude code/i })
+      renderWithRouter(['/prompt-gallery'])
+      const link = screen.getByRole('link', { name: /prompt gallery/i })
       expect(link.className).toContain('rounded-md')
       expect(link.className).not.toContain('=>')
     })
@@ -176,17 +176,12 @@ describe('MobileSidebar', () => {
   // Fix 2: grouped items collapsed by default
   // -------------------------------------------------------------------------
   describe('grouped items are collapsed by default (route = /)', () => {
-    it('renders "AI Tools" group trigger button', () => {
-      renderWithRouter(['/'])
-      expect(screen.getByText('AI Tools')).toBeInTheDocument()
-    })
-
     it('renders "Prompts" group trigger button', () => {
       renderWithRouter(['/'])
       expect(screen.getByText('Prompts')).toBeInTheDocument()
     })
 
-    it.each(['Claude Code', 'Cursor IDE', 'My Prompts'])(
+    it.each(['My Prompts', 'Prompt Gallery'])(
       '"%s" child is hidden (data-state=closed) when route is "/"',
       childLabel => {
         renderWithRouter(['/'])
@@ -207,57 +202,56 @@ describe('MobileSidebar', () => {
   // Group is defaultOpen when route matches a child
   // -------------------------------------------------------------------------
   describe('group is defaultOpen when current route matches a child', () => {
-    it.each([
-      ['AI Tools', '/ai-tools/claude-code/overview', 'Claude Code'],
-      ['AI Tools', '/ai-tools/cursor-ide/overview', 'Cursor IDE'],
-      ['Prompts', '/prompt-gallery', 'Prompt Gallery'],
-    ])('opens "%s" group when route is %s', (_group, route, childLabel) => {
-      renderWithRouter([route])
-      const el = screen.getByText(childLabel)
-      const content = el.closest('[data-state]')
-      expect(content).toHaveAttribute('data-state', 'open')
-    })
+    it.each([['Prompts', '/prompt-gallery', 'Prompt Gallery']])(
+      'opens "%s" group when route is %s',
+      (_group, route, childLabel) => {
+        renderWithRouter([route])
+        const el = screen.getByText(childLabel)
+        const content = el.closest('[data-state]')
+        expect(content).toHaveAttribute('data-state', 'open')
+      }
+    )
   })
 
   // -------------------------------------------------------------------------
   // Clicking the trigger toggles children
   // -------------------------------------------------------------------------
   describe('clicking a group trigger toggles children visibility', () => {
-    it('expands "AI Tools" children when trigger is clicked (starting collapsed)', async () => {
+    it('expands "Prompts" children when trigger is clicked (starting collapsed)', async () => {
       const user = userEvent.setup()
       renderWithRouter(['/'])
 
       // Before click: collapsed
-      const claudeBefore = screen.queryByText('Claude Code')
-      if (claudeBefore) {
-        expect(claudeBefore.closest('[data-state]')).toHaveAttribute(
+      const childBefore = screen.queryByText('Prompt Gallery')
+      if (childBefore) {
+        expect(childBefore.closest('[data-state]')).toHaveAttribute(
           'data-state',
           'closed'
         )
       }
 
-      const trigger = screen.getByText('AI Tools').closest('button')
+      const trigger = screen.getByText('Prompts').closest('button')
       expect(trigger).not.toBeNull()
       await user.click(trigger!)
 
       // After click: open
-      const claudeAfter = screen.getByText('Claude Code')
-      expect(claudeAfter.closest('[data-state]')).toHaveAttribute(
+      const childAfter = screen.getByText('Prompt Gallery')
+      expect(childAfter.closest('[data-state]')).toHaveAttribute(
         'data-state',
         'open'
       )
     })
 
-    it('collapses "AI Tools" children on second click (starting open)', async () => {
+    it('collapses "Prompts" children on second click (starting open)', async () => {
       const user = userEvent.setup()
-      renderWithRouter(['/ai-tools/claude-code/overview'])
+      renderWithRouter(['/prompt-gallery'])
 
-      // Starts open — Claude Code is visible
+      // Starts open — Prompt Gallery is visible
       expect(
-        screen.getByText('Claude Code').closest('[data-state]')
+        screen.getByText('Prompt Gallery').closest('[data-state]')
       ).toHaveAttribute('data-state', 'open')
 
-      const trigger = screen.getByText('AI Tools').closest('button')
+      const trigger = screen.getByText('Prompts').closest('button')
       expect(trigger).not.toBeNull()
       await user.click(trigger!)
 
@@ -285,11 +279,11 @@ describe('MobileSidebar', () => {
 
     it('closes the sheet when a submenu link is clicked', async () => {
       const user = userEvent.setup()
-      // Group "AI Tools" is defaultOpen for this route, so the child link
+      // Group "Prompts" is defaultOpen for this route, so the child link
       // is visible and clickable.
-      renderWithRouter(['/ai-tools/claude-code/overview'])
+      renderWithRouter(['/prompt-gallery'])
 
-      await user.click(screen.getByRole('link', { name: /claude code/i }))
+      await user.click(screen.getByRole('link', { name: /prompt gallery/i }))
 
       expect(mockSheetClose).toHaveBeenCalled()
     })
@@ -307,7 +301,7 @@ describe('MobileSidebar', () => {
       const user = userEvent.setup()
       renderWithRouter(['/'])
 
-      const trigger = screen.getByText('AI Tools').closest('button')
+      const trigger = screen.getByText('Prompts').closest('button')
       expect(trigger).not.toBeNull()
       // The group toggle must not be wrapped in SheetClose at all …
       expect(trigger!.closest('[data-testid="sheet-close"]')).toBeNull()
@@ -320,9 +314,9 @@ describe('MobileSidebar', () => {
     it('does NOT close the sheet when a group toggle is collapsed', async () => {
       const user = userEvent.setup()
       // Group starts open for this route; clicking collapses it.
-      renderWithRouter(['/ai-tools/claude-code/overview'])
+      renderWithRouter(['/prompt-gallery'])
 
-      const trigger = screen.getByText('AI Tools').closest('button')
+      const trigger = screen.getByText('Prompts').closest('button')
       expect(trigger).not.toBeNull()
       await user.click(trigger!)
 

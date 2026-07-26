@@ -120,10 +120,7 @@ export interface ArtifactEvent extends BaseEvent {
 // Memory Feature Events
 export interface MemoryEvent extends BaseEvent {
   event:
-    | 'memories_page_view'
-    | 'memory_created'
-    | 'memory_updated'
-    | 'memory_viewed'
+    'memories_page_view' | 'memory_created' | 'memory_updated' | 'memory_viewed'
   memory_id?: string
   memory_type?: string
   action_context: CrudActionContext
@@ -141,30 +138,6 @@ export interface BlueprintEvent extends BaseEvent {
   blueprint_type?: string
   blueprint_title?: string
   action_context: CrudActionContext
-  user_properties?: UserProperties
-}
-
-// Claude Code Feature Events
-export interface ClaudeCodeEvent extends BaseEvent {
-  event:
-    | 'claude_code_setup'
-    | 'claude_code_sessions_view'
-    | 'claude_code_session_clicked'
-  session_id?: string
-  setup_step?: string
-  action_context: 'setup' | 'sessions_view' | 'session_click'
-  user_properties?: UserProperties
-}
-
-// Cursor IDE Feature Events
-export interface CursorIDEEvent extends BaseEvent {
-  event:
-    | 'cursor_ide_setup'
-    | 'cursor_ide_sessions_view'
-    | 'cursor_ide_session_clicked'
-  session_id?: string
-  setup_step?: string
-  action_context: 'setup' | 'sessions_view' | 'session_click'
   user_properties?: UserProperties
 }
 
@@ -193,8 +166,6 @@ export type AnalyticsEvent =
   | ArtifactEvent
   | MemoryEvent
   | BlueprintEvent
-  | ClaudeCodeEvent
-  | CursorIDEEvent
   | APIKeyEvent
   | MCPEvent
 
@@ -350,20 +321,6 @@ export const ANALYTICS_EVENTS = {
   BLUEPRINT_VIEWED: 'blueprint_viewed',
   BLUEPRINT_UPDATED: 'blueprint_updated',
   BLUEPRINT_DELETED: 'blueprint_deleted',
-
-  // Claude Code feature events
-  CLAUDE_CODE_SETUP_PAGE_VIEW: 'claude_code_setup_page_view',
-  CLAUDE_CODE_SETUP: 'claude_code_setup',
-  CLAUDE_CODE_SESSIONS_PAGE_VIEW: 'claude_code_sessions_page_view',
-  CLAUDE_CODE_SESSION_VIEWED: 'claude_code_session_viewed',
-  CLAUDE_CODE_SESSION_DETAIL_VIEW: 'claude_code_session_detail_view',
-
-  // Cursor IDE feature events
-  CURSOR_IDE_SETUP_PAGE_VIEW: 'cursor_ide_setup_page_view',
-  CURSOR_IDE_SETUP: 'cursor_ide_setup',
-  CURSOR_IDE_SESSIONS_PAGE_VIEW: 'cursor_ide_sessions_page_view',
-  CURSOR_IDE_SESSION_VIEWED: 'cursor_ide_session_viewed',
-  CURSOR_IDE_SESSION_DETAIL_VIEW: 'cursor_ide_session_detail_view',
 
   // API Management events
   API_KEYS_PAGE_VIEW: 'api_keys_page_view',

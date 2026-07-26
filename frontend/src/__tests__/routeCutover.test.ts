@@ -301,10 +301,23 @@ describe('no `settings/*` catch-all shadows NotFound (#593)', () => {
       expect(resolve(pathname)).toBe(expected)
     })
 
-    it('leaves the other ComingSoon catch-alls alone', () => {
-      // Those cover genuinely unbuilt pages and are explicitly out of scope.
-      expect(resolve('/ai-tools/anything')).toBe('ai-tools/*')
+    it('leaves the remaining ComingSoon catch-all alone', () => {
+      // It covers a genuinely unbuilt page and is explicitly out of scope.
       expect(resolve('/mcp-servers/anything')).toBe('mcp-servers/*')
+    })
+
+    // Epic #610 removed the AI Tools section (#615). Its ComingSoon catch-all went
+    // with it, so these must reach NotFound rather than render a "coming soon"
+    // placeholder for a feature that no longer exists — the same bug #593 fixed
+    // for the retired /settings paths.
+    it.each([
+      '/ai-tools/overview',
+      '/ai-tools/claude-code/overview',
+      '/ai-tools/cursor-ide/overview',
+      '/ai-tools/claude-code/sessions',
+      '/ai-tools/anything',
+    ])('%s falls through to the NotFound catch-all', pathname => {
+      expect(resolve(pathname)).toBe('*')
     })
 
     it('still routes team-scoped paths into the team shell', () => {
