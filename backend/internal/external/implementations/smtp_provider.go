@@ -30,9 +30,8 @@ var crlf = []byte("\r\n")
 // (#549). The transport is otherwise the same call gomail's implicit-connection
 // path makes: net/smtp.SendMail with PLAIN auth.
 type SMTPEmailProvider struct {
-	addr      string
-	auth      smtp.Auth
-	buildMIME func(*gomail.EmailMessage) ([]byte, error)
+	addr string
+	auth smtp.Auth
 	// sendMail is net/smtp.SendMail in production, replaced in tests so the
 	// assembled bytes can be asserted without a live SMTP server.
 	sendMail func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
@@ -49,9 +48,8 @@ func NewSMTPEmailProvider(spec SMTPSpec) (external.EmailProvider, error) {
 		addr: fmt.Sprintf("%s:%d", spec.Host, port),
 		// Built unconditionally, matching what gomail did — a server that does
 		// not advertise AUTH fails the same way it did before.
-		auth:      smtp.PlainAuth("", spec.Username, spec.Password, spec.Host),
-		buildMIME: gomail.BuildMimeMessage,
-		sendMail:  smtp.SendMail,
+		auth:     smtp.PlainAuth("", spec.Username, spec.Password, spec.Host),
+		sendMail: smtp.SendMail,
 	}, nil
 }
 
@@ -60,10 +58,17 @@ func NewSMTPEmailProvider(spec SMTPSpec) (external.EmailProvider, error) {
 // The envelope sender stays the bare address — only the From header carries the
 // display name — so nothing that validates the envelope sees a different value
 // than before.
+//
+// ctx is accepted for interface symmetry but unused: net/smtp.SendMail takes no
+// context, so there is nothing to propagate it to. gomail's sender ignored it
+// for the same reason.
 func (p *SMTPEmailProvider) SendEmail(_ context.Context, outgoing *external.OutgoingMessage) error {
 	message := outgoing.Message
 
-	mime, err := p.buildMIME(message)
+	// The error is part of gomail's signature rather than a reachable outcome —
+	// BuildMimeMessage has no failure path today — but it is handled rather
+	// than discarded in case that changes.
+	mime, err := gomail.BuildMimeMessage(message)
 	if err != nil {
 		return fmt.Errorf("smtp: failed to build the message: %w", err)
 	}

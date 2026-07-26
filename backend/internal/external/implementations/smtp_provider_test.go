@@ -281,18 +281,6 @@ func TestSMTPEmailProvider_SendEmail_WrapsTransportError(t *testing.T) {
 	assert.ErrorIs(t, err, captured.err)
 }
 
-func TestSMTPEmailProvider_SendEmail_WrapsBuildError(t *testing.T) {
-	provider, _ := newCapturingProvider(t)
-	buildErr := errors.New("boom")
-	provider.buildMIME = func(*gomail.EmailMessage) ([]byte, error) { return nil, buildErr }
-
-	err := provider.SendEmail(context.Background(), outgoing(testMessage(), "Acme Team"))
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "smtp: failed to build the message")
-	assert.ErrorIs(t, err, buildErr)
-}
-
 // TestReplaceFromHeader_LeavesUnrecognisedLayoutAlone covers the defensive
 // branch: if gomail ever stops leading with From, the message is passed through
 // untouched rather than gaining a corrupt or duplicate header.
