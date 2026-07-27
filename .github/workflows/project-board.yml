@@ -76,7 +76,7 @@ jobs:
           owner: vibexp
 
       - name: Add issue(s) and seed Status=Backlog + current iteration when unset
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           APP_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
@@ -231,7 +231,7 @@ jobs:
           owner: vibexp
 
       - name: Bump backdated open issues to the current iteration
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           APP_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
