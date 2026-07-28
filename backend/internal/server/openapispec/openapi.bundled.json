@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Vibexp.io API",
-    "description": "Comprehensive REST API for Vibexp.io - a platform for AI agents, prompt management,\nartifacts, blueprints, and memories.\n\n## Authentication\nThe API supports multiple authentication mechanisms:\n- **Session Cookie** (`vx_session`, httpOnly): how the web app authenticates after the identity-provider OAuth flow (see `CookieAuth`)\n- **Bearer JWT**: identity-provider access token sent as `Authorization: Bearer <token>` (see `BearerAuth`)\n- **API Key**: long-lived key sent as a bearer token, used by the CLI and MCP clients (see `ApiKeyAuth`)\n- **Back office API Key**: admin-only key for `/bo/v1` endpoints (see `BackofficeAuth`)\n- **Public Endpoints**: no authentication required for health checks and auth flows\n\n## Documentation scope policy\nThis specification MUST document every operation under `/api/v1` and `/bo/v1`,\nwith the following intentional exclusions:\n- `/internal/*` (scheduler-invoked internal jobs)\n- `POST /api/v1/events/pubsub` (Pub/Sub push endpoint, not client-facing)\n- `POST /api/v1/integrations/github/webhook` (308 permanent-redirect shim)\n- `/favicon.ico` and `/.well-known/*` (browser/OAuth plumbing)\n- the MCP mount (`/mcp/v1/*` — documented by the MCP protocol, not REST)\nAnything else that exists in `internal/server/server.go` but not here is a bug.\n\n## Repository layout\nThis is a multi-file spec: this root document holds info/servers/components/tags\nand an index of path-item `$ref`s; the operations live in `paths/<domain>.yaml`\n(one tag = one paths file = one `schemas/<domain>.yaml` file). CI bundles it to\n`dist/openapi.bundled.yaml` (Redocly) — consume the bundle, not the source tree.\n\n## Rate Limiting\nAPI endpoints are rate-limited to ensure fair usage.\n\n## Subscriptions\nMany endpoints require an active subscription. Basic tier users have limited access.\n",
+    "description": "Comprehensive REST API for Vibexp.io - a platform for AI agents, prompt management,\nartifacts, blueprints, and memories.\n\n## Authentication\nThe API supports multiple authentication mechanisms:\n- **Session Cookie** (`vx_session`, httpOnly): how the web app authenticates after the identity-provider OAuth flow (see `CookieAuth`)\n- **Bearer JWT**: identity-provider access token sent as `Authorization: Bearer <token>` (see `BearerAuth`)\n- **API Key**: long-lived key sent as a bearer token, used by the CLI and MCP clients (see `ApiKeyAuth`)\n- **Back office API Key**: admin-only key for `/bo/v1` endpoints (see `BackofficeAuth`)\n- **Public Endpoints**: no authentication required for health checks and auth flows\n\n## Documentation scope policy\nThis specification MUST document every operation under `/api/v1` and `/bo/v1`,\nwith the following intentional exclusions:\n- `/internal/*` (scheduler-invoked internal jobs)\n- `POST /api/v1/events/pubsub` (Pub/Sub push endpoint, not client-facing)\n- `POST /api/v1/integrations/github/webhook` (308 permanent-redirect shim)\n- `/favicon.ico` and `/.well-known/*` (browser/OAuth plumbing)\n- the MCP mount (`/mcp/v1/*` — documented by the MCP protocol, not REST)\nAnything else that exists in `internal/server/server.go` but not here is a bug.\n\n## Repository layout\nThis is a multi-file spec: this root document holds info/servers/components/tags\nand an index of path-item `$ref`s; the operations live in `paths/<domain>.yaml`\n(one tag = one paths file = one `schemas/<domain>.yaml` file). CI bundles it to\n`dist/openapi.bundled.yaml` (Redocly) — consume the bundle, not the source tree.\n\n## Rate Limiting\nAPI endpoints are rate-limited to ensure fair usage.\n",
     "version": "2.0.0",
     "x-last-updated-date": "2026-06-09",
     "contact": {
@@ -79,10 +79,6 @@
       "description": "Per-team GitHub App registration, validation and webhook-token rotation"
     },
     {
-      "name": "Subscriptions",
-      "description": "Subscription and billing endpoints"
-    },
-    {
       "name": "Support",
       "description": "Support request endpoints for authenticated users"
     },
@@ -120,11 +116,11 @@
     },
     {
       "name": "Blueprints",
-      "description": "Blueprint management endpoints for storing API specifications and technical documentation (requires subscription)"
+      "description": "Blueprint management endpoints for storing API specifications and technical documentation"
     },
     {
       "name": "GitHub Integration",
-      "description": "GitHub App integration endpoints for connecting repositories, importing projects and blueprints (requires subscription)"
+      "description": "GitHub App integration endpoints for connecting repositories, importing projects and blueprints"
     },
     {
       "name": "Back Office",
@@ -136,7 +132,7 @@
     },
     {
       "name": "Teams",
-      "description": "Team (workspace) management — CRUD, members, and team subscription/billing endpoints"
+      "description": "Team (workspace) management — CRUD, members, and invitations"
     },
     {
       "name": "Team Roles",
@@ -1029,7 +1025,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (not a team member or subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5013,7 +5009,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required or resource limit exceeded)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5190,7 +5186,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5275,7 +5271,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5338,7 +5334,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5429,7 +5425,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5503,7 +5499,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5576,7 +5572,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5649,7 +5645,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5742,7 +5738,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5835,7 +5831,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5906,7 +5902,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5970,7 +5966,7 @@
             }
           },
           "403": {
-            "description": "Forbidden (subscription required)",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6619,7 +6615,7 @@
     "/api/v1/{team_id}/integrations/github/status": {
       "get": {
         "summary": "Get GitHub App installation status",
-        "description": "Returns the GitHub App installation status for the specified team. Requires an active subscription.",
+        "description": "Returns the GitHub App installation status for the specified team.",
         "operationId": "getGitHubStatus",
         "security": [
           {
@@ -6687,7 +6683,7 @@
     "/api/v1/{team_id}/integrations/github/install-url": {
       "get": {
         "summary": "Get GitHub App installation URL",
-        "description": "Returns a signed GitHub App installation URL with CSRF protection. Requires team owner/admin — the same permission as completing the callback, so a caller cannot start an install they would be refused at the end of. Requires an active subscription.",
+        "description": "Returns a signed GitHub App installation URL with CSRF protection. Requires team owner/admin — the same permission as completing the callback, so a caller cannot start an install they would be refused at the end of.",
         "operationId": "getGitHubInstallURL",
         "security": [
           {
@@ -6765,7 +6761,7 @@
     "/api/v1/{team_id}/integrations/github/callback": {
       "post": {
         "summary": "Handle GitHub App installation callback",
-        "description": "Completes the GitHub App installation flow after the user authorizes the app on GitHub.\nThe request must include the `installation_id` returned by GitHub, the signed `state`\nparameter from the install URL (CSRF protection), and the `code` GitHub appends to the\npost-install redirect. The `code` is exchanged for a user access token and the\ninstallation is only bound to the team when that user has access to it on GitHub — a valid\n`state` alone is not sufficient. Requires team owner/admin and an active subscription.\n",
+        "description": "Completes the GitHub App installation flow after the user authorizes the app on GitHub.\nThe request must include the `installation_id` returned by GitHub, the signed `state`\nparameter from the install URL (CSRF protection), and the `code` GitHub appends to the\npost-install redirect. The `code` is exchanged for a user access token and the\ninstallation is only bound to the team when that user has access to it on GitHub — a valid\n`state` alone is not sufficient. Requires team owner/admin.\n",
         "operationId": "handleGitHubCallback",
         "security": [
           {
@@ -6901,7 +6897,7 @@
     "/api/v1/{team_id}/integrations/github/repositories": {
       "get": {
         "summary": "List GitHub repositories",
-        "description": "Lists GitHub repositories accessible by the team's GitHub App installation with pagination. Requires an active subscription.",
+        "description": "Lists GitHub repositories accessible by the team's GitHub App installation with pagination.",
         "operationId": "listGitHubRepositories",
         "security": [
           {
@@ -6990,7 +6986,7 @@
     "/api/v1/{team_id}/integrations/github/repositories/{repo_id}/import-project": {
       "post": {
         "summary": "Import GitHub repository as a project",
-        "description": "Imports a GitHub repository as a VibeXP project for the team. If a project already exists\nfor the repository URL it returns the existing project (idempotent). Requires an active subscription.\n",
+        "description": "Imports a GitHub repository as a VibeXP project for the team. If a project already exists\nfor the repository URL it returns the existing project (idempotent).\n",
         "operationId": "importGitHubProject",
         "security": [
           {
@@ -7128,7 +7124,7 @@
     "/api/v1/{team_id}/integrations/github/import-blueprints": {
       "post": {
         "summary": "Import AI assistant configurations as blueprints",
-        "description": "Scans the specified GitHub repository for AI assistant configuration files\n(`.claude/`, `.cursor/`, `.codex/`, `.agents/`, `CLAUDE.md`, `CURSOR.md`, `AGENTS.md`)\nand imports each markdown file as a blueprint. A project must already exist for the\nrepository — use the import-project endpoint first. Requires an active subscription.\n",
+        "description": "Scans the specified GitHub repository for AI assistant configuration files\n(`.claude/`, `.cursor/`, `.codex/`, `.agents/`, `CLAUDE.md`, `CURSOR.md`, `AGENTS.md`)\nand imports each markdown file as a blueprint. A project must already exist for the\nrepository — use the import-project endpoint first.\n",
         "operationId": "importGitHubBlueprints",
         "security": [
           {
@@ -7247,7 +7243,7 @@
     "/api/v1/{team_id}/integrations/github/disconnect": {
       "delete": {
         "summary": "Disconnect GitHub App installation",
-        "description": "Removes the GitHub App installation link for the team. Requires an active subscription.",
+        "description": "Removes the GitHub App installation link for the team.",
         "operationId": "disconnectGitHub",
         "security": [
           {
@@ -8749,7 +8745,7 @@
             }
           },
           "403": {
-            "description": "Forbidden — not a team member, or agent limit reached for the subscription plan",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -19495,7 +19491,7 @@
     "/api/v1/{team_id}/projects": {
       "post": {
         "summary": "Create new project",
-        "description": "Creates a new project within the specified team. Project slugs must be\nunique within the team. Requires team membership and an active subscription.\n",
+        "description": "Creates a new project within the specified team. Project slugs must be\nunique within the team. Requires team membership.\n",
         "operationId": "createProject",
         "security": [
           {
@@ -20960,7 +20956,7 @@
       },
       "post": {
         "summary": "Create a feed item reply",
-        "description": "Posts a threaded reply to the specified feed item, team-scoped (free-tier\naccessible). Replies cannot be posted to archived feed items. Reply creation\ncounts against the user's feed item resource limit.\n",
+        "description": "Posts a threaded reply to the specified feed item, team-scoped (free-tier\naccessible). Replies cannot be posted to archived feed items.\n",
         "operationId": "createFeedItemReply",
         "security": [
           {
@@ -21034,7 +21030,7 @@
             }
           },
           "403": {
-            "description": "Forbidden — not a team member, or feed item resource limit reached for the subscription plan",
+            "description": "Forbidden — insufficient team permissions",
             "content": {
               "application/problem+json": {
                 "schema": {

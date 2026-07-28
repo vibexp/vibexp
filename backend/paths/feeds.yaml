@@ -819,8 +819,7 @@ api-v1-team_id-feed-items-item_id-replies:
     summary: Create a feed item reply
     description: |
       Posts a threaded reply to the specified feed item, team-scoped (free-tier
-      accessible). Replies cannot be posted to archived feed items. Reply creation
-      counts against the user's feed item resource limit.
+      accessible). Replies cannot be posted to archived feed items.
     operationId: createFeedItemReply
     security:
       - ApiKeyAuth: []
@@ -866,7 +865,7 @@ api-v1-team_id-feed-items-item_id-replies:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden — not a team member, or feed item resource limit reached for the subscription plan
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:

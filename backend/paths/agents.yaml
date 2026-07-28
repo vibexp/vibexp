@@ -47,7 +47,7 @@ api-v1-team_id-agents:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden — not a team member, or agent limit reached for the subscription plan
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
