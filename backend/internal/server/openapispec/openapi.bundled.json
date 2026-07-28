@@ -31061,18 +31061,11 @@
             "type": "boolean",
             "description": "Enable email notifications globally",
             "example": true
-          },
-          "web_push": {
-            "type": "boolean",
-            "deprecated": true,
-            "description": "Deprecated and inert. Web push (Firebase Cloud Messaging) was removed in #688;\nthis field is accepted and returned for backward compatibility but is never read.\nIt will be dropped in a future release once clients have stopped sending it.\n",
-            "example": false
           }
         },
         "required": [
           "in_app",
-          "email",
-          "web_push"
+          "email"
         ]
       },
       "NotificationTypePreference": {
@@ -31092,18 +31085,11 @@
               "none"
             ],
             "example": "digest"
-          },
-          "web_push": {
-            "type": "boolean",
-            "deprecated": true,
-            "description": "Deprecated and inert. Web push (Firebase Cloud Messaging) was removed in #688;\nthis field is accepted and returned for backward compatibility but is never read.\nIt will be dropped in a future release once clients have stopped sending it.\n",
-            "example": false
           }
         },
         "required": [
           "in_app",
-          "email",
-          "web_push"
+          "email"
         ]
       },
       "NotificationPreferences": {

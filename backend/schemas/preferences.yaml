@@ -39,18 +39,9 @@ NotificationTypePreference:
       description: Email delivery mode for this notification type
       enum: [instant, digest, none]
       example: "digest"
-    web_push:
-      type: boolean
-      deprecated: true
-      description: |
-        Deprecated and inert. Web push (Firebase Cloud Messaging) was removed in #688;
-        this field is accepted and returned for backward compatibility but is never read.
-        It will be dropped in a future release once clients have stopped sending it.
-      example: false
   required:
     - in_app
     - email
-    - web_push
 
 # Global per-channel on/off switches
 NotificationChannelPreferences:
@@ -64,18 +55,9 @@ NotificationChannelPreferences:
       type: boolean
       description: Enable email notifications globally
       example: true
-    web_push:
-      type: boolean
-      deprecated: true
-      description: |
-        Deprecated and inert. Web push (Firebase Cloud Messaging) was removed in #688;
-        this field is accepted and returned for backward compatibility but is never read.
-        It will be dropped in a future release once clients have stopped sending it.
-      example: false
   required:
     - in_app
     - email
-    - web_push
 
 # Aggregated channel and per-type notification preferences
 NotificationPreferences:

@@ -605,13 +605,12 @@ func TestHandleUpdatePreferences_WithNotifications(t *testing.T) {
 			updateReq: models.UpdatePreferencesRequest{
 				Notifications: &models.NotificationPreferences{
 					Channels: models.NotificationChannelPreferences{
-						InApp:   true,
-						Email:   false,
-						WebPush: true,
+						InApp: true,
+						Email: false,
 					},
 					Types: map[string]models.NotificationTypePreference{
-						"feed.item.created": {InApp: true, Email: "digest", WebPush: false},
-						"team.invitation":   {InApp: true, Email: "instant", WebPush: false},
+						"feed.item.created": {InApp: true, Email: "digest"},
+						"team.invitation":   {InApp: true, Email: "instant"},
 					},
 				},
 			},
@@ -620,13 +619,12 @@ func TestHandleUpdatePreferences_WithNotifications(t *testing.T) {
 					EmailNotification: models.DefaultPreferences().EmailNotification,
 					Notifications: models.NotificationPreferences{
 						Channels: models.NotificationChannelPreferences{
-							InApp:   true,
-							Email:   false,
-							WebPush: true,
+							InApp: true,
+							Email: false,
 						},
 						Types: map[string]models.NotificationTypePreference{
-							"feed.item.created": {InApp: true, Email: "digest", WebPush: false},
-							"team.invitation":   {InApp: true, Email: "instant", WebPush: false},
+							"feed.item.created": {InApp: true, Email: "digest"},
+							"team.invitation":   {InApp: true, Email: "instant"},
 						},
 					},
 				},
@@ -637,7 +635,6 @@ func TestHandleUpdatePreferences_WithNotifications(t *testing.T) {
 				t.Helper()
 				assert.False(t, resp.Preferences.Notifications.Channels.Email)
 				assert.True(t, resp.Preferences.Notifications.Channels.InApp)
-				assert.True(t, resp.Preferences.Notifications.Channels.WebPush)
 				assert.Equal(t, "digest", resp.Preferences.Notifications.Types["feed.item.created"].Email)
 				assert.Equal(t, "instant", resp.Preferences.Notifications.Types["team.invitation"].Email)
 			},
@@ -653,12 +650,11 @@ func TestHandleUpdatePreferences_WithNotifications(t *testing.T) {
 				},
 				Notifications: &models.NotificationPreferences{
 					Channels: models.NotificationChannelPreferences{
-						InApp:   true,
-						Email:   true,
-						WebPush: false,
+						InApp: true,
+						Email: true,
 					},
 					Types: map[string]models.NotificationTypePreference{
-						"feed.reply.created": {InApp: false, Email: "none", WebPush: false},
+						"feed.reply.created": {InApp: false, Email: "none"},
 					},
 				},
 			},
@@ -672,12 +668,11 @@ func TestHandleUpdatePreferences_WithNotifications(t *testing.T) {
 					},
 					Notifications: models.NotificationPreferences{
 						Channels: models.NotificationChannelPreferences{
-							InApp:   true,
-							Email:   true,
-							WebPush: false,
+							InApp: true,
+							Email: true,
 						},
 						Types: map[string]models.NotificationTypePreference{
-							"feed.reply.created": {InApp: false, Email: "none", WebPush: false},
+							"feed.reply.created": {InApp: false, Email: "none"},
 						},
 					},
 				},
@@ -697,9 +692,8 @@ func TestHandleUpdatePreferences_WithNotifications(t *testing.T) {
 			updateReq: models.UpdatePreferencesRequest{
 				Notifications: &models.NotificationPreferences{
 					Channels: models.NotificationChannelPreferences{
-						InApp:   false,
-						Email:   false,
-						WebPush: false,
+						InApp: false,
+						Email: false,
 					},
 					Types: map[string]models.NotificationTypePreference{},
 				},
@@ -709,9 +703,8 @@ func TestHandleUpdatePreferences_WithNotifications(t *testing.T) {
 					EmailNotification: models.DefaultPreferences().EmailNotification,
 					Notifications: models.NotificationPreferences{
 						Channels: models.NotificationChannelPreferences{
-							InApp:   false,
-							Email:   false,
-							WebPush: false,
+							InApp: false,
+							Email: false,
 						},
 						Types: map[string]models.NotificationTypePreference{},
 					},
@@ -723,7 +716,6 @@ func TestHandleUpdatePreferences_WithNotifications(t *testing.T) {
 				t.Helper()
 				assert.False(t, resp.Preferences.Notifications.Channels.InApp)
 				assert.False(t, resp.Preferences.Notifications.Channels.Email)
-				assert.False(t, resp.Preferences.Notifications.Channels.WebPush)
 				assert.NotNil(t, resp.Preferences.Notifications.Types)
 			},
 		},

@@ -340,13 +340,12 @@ func TestUserPreferencesService_UpdatePreferences_PersistsNotifications(t *testi
 	mockRepo := new(MockUserPreferencesRepository)
 
 	customTypes := map[string]models.NotificationTypePreference{
-		"feed.item.created": {InApp: true, Email: "none", WebPush: true},
+		"feed.item.created": {InApp: true, Email: "none"},
 	}
 	reqNotifications := &models.NotificationPreferences{
 		Channels: models.NotificationChannelPreferences{
-			InApp:   true,
-			Email:   false,
-			WebPush: true,
+			InApp: true,
+			Email: false,
 		},
 		Types: customTypes,
 	}
@@ -354,7 +353,7 @@ func TestUserPreferencesService_UpdatePreferences_PersistsNotifications(t *testi
 	mockRepo.On("GetByUserID", mock.Anything, "user-notif").Return(nil, nil)
 	mockRepo.On("Upsert", mock.Anything, mock.MatchedBy(func(p *models.UserPreferences) bool {
 		n := p.Preferences.Notifications
-		return n.Channels.WebPush && !n.Channels.Email && n.Channels.InApp &&
+		return !n.Channels.Email && n.Channels.InApp &&
 			n.Types != nil
 	})).Return(nil)
 
@@ -389,7 +388,7 @@ func TestUserPreferencesService_UpdatePreferences_InvalidEmailFrequencyRejected(
 			Notifications: &models.NotificationPreferences{
 				Channels: models.NotificationChannelPreferences{InApp: true},
 				Types: map[string]models.NotificationTypePreference{
-					"feed.item.created": {InApp: true, Email: "weekly", WebPush: false},
+					"feed.item.created": {InApp: true, Email: "weekly"},
 				},
 			},
 		},
@@ -425,7 +424,7 @@ func TestUserPreferencesService_UpdatePreferences_ValidEmailFrequenciesAccepted(
 					Notifications: &models.NotificationPreferences{
 						Channels: models.NotificationChannelPreferences{InApp: true},
 						Types: map[string]models.NotificationTypePreference{
-							"feed.item.created": {InApp: true, Email: freq, WebPush: false},
+							"feed.item.created": {InApp: true, Email: freq},
 						},
 					},
 				},
@@ -453,7 +452,7 @@ func TestUserPreferencesService_UpdatePreferences_EmptyEmailFrequencyAccepted(t 
 			Notifications: &models.NotificationPreferences{
 				Channels: models.NotificationChannelPreferences{InApp: true},
 				Types: map[string]models.NotificationTypePreference{
-					"feed.item.created": {InApp: true, Email: "", WebPush: false},
+					"feed.item.created": {InApp: true, Email: ""},
 				},
 			},
 		},
@@ -483,9 +482,8 @@ func TestUserPreferencesService_UpdatePreferences_NilTypesDefaultsToDefaults(t *
 		models.UpdatePreferencesRequest{
 			Notifications: &models.NotificationPreferences{
 				Channels: models.NotificationChannelPreferences{
-					InApp:   true,
-					Email:   true,
-					WebPush: true,
+					InApp: true,
+					Email: true,
 				},
 				Types: nil, // Caller sends nil — service must fill defaults
 			},
