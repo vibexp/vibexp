@@ -41,7 +41,7 @@ api-v1-team_id-artifacts:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (not a team member or subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:

@@ -153,17 +153,17 @@ describe('errorHandling', () => {
   describe('isErrorCode', () => {
     it('should return true for matching ApiError code', () => {
       const errorResponse: APIErrorResponse = {
-        type: 'https://api.vibexp.io/errors/subscription',
-        title: 'Subscription Required',
-        status: 402,
-        detail: 'This feature requires an active subscription',
-        code: 'SUBSCRIPTION_REQUIRED',
+        type: 'https://api.vibexp.io/errors/forbidden',
+        title: 'Forbidden',
+        status: 403,
+        detail: 'You do not have permission to perform this action',
+        code: 'FORBIDDEN',
         request_id: 'req-123',
         timestamp: '2026-02-08T10:00:00Z',
       }
       const apiError = new ApiError(errorResponse)
 
-      const result = isErrorCode(apiError, 'SUBSCRIPTION_REQUIRED')
+      const result = isErrorCode(apiError, 'FORBIDDEN')
 
       expect(result).toBe(true)
     })

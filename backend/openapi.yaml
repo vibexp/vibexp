@@ -32,8 +32,6 @@ info:
     ## Rate Limiting
     API endpoints are rate-limited to ensure fair usage.
 
-    ## Subscriptions
-    Many endpoints require an active subscription. Basic tier users have limited access.
   version: 2.0.0
   x-last-updated-date: "2026-06-09"
   contact:
@@ -1221,8 +1219,6 @@ tags:
     description: Model provider (bring-your-own OpenAI-compatible LLM) configuration endpoints
   - name: GitHub App Configuration
     description: Per-team GitHub App registration, validation and webhook-token rotation
-  - name: Subscriptions
-    description: Subscription and billing endpoints
   - name: Support
     description: Support request endpoints for authenticated users
   - name: Webhooks
@@ -1242,15 +1238,15 @@ tags:
   - name: Resource Access Metrics
     description: Team-scoped per-resource daily access analytics for resource detail-page charts (free-tier accessible)
   - name: Blueprints
-    description: Blueprint management endpoints for storing API specifications and technical documentation (requires subscription)
+    description: Blueprint management endpoints for storing API specifications and technical documentation
   - name: GitHub Integration
-    description: GitHub App integration endpoints for connecting repositories, importing projects and blueprints (requires subscription)
+    description: GitHub App integration endpoints for connecting repositories, importing projects and blueprints
   - name: Back Office
     description: Administrative endpoints for platform-wide metrics and reporting (requires back office admin API key)
   - name: AI Feeds
     description: AI Feed endpoints for team-scoped feed channels and AI-generated items (free-tier accessible)
   - name: Teams
-    description: Team (workspace) management — CRUD, members, and team subscription/billing endpoints
+    description: Team (workspace) management — CRUD, members, and invitations
   - name: Team Roles
     description: |
       Team role management — change a member's role and transfer ownership.

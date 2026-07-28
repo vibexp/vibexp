@@ -43,7 +43,7 @@ api-v1-team_id-prompts:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required or resource limit exceeded)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -152,7 +152,7 @@ api-v1-team_id-prompts:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -205,7 +205,7 @@ api-v1-team_id-prompts-labels:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -247,7 +247,7 @@ api-v1-team_id-prompts-slug:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -306,7 +306,7 @@ api-v1-team_id-prompts-slug:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -355,7 +355,7 @@ api-v1-team_id-prompts-slug:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -403,7 +403,7 @@ api-v1-team_id-prompts-slug-placeholders:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -451,7 +451,7 @@ api-v1-team_id-prompts-slug-dependencies:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -511,7 +511,7 @@ api-v1-team_id-prompts-slug-render:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -573,7 +573,7 @@ api-v1-team_id-prompts-slug-share:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -619,7 +619,7 @@ api-v1-team_id-prompts-slug-share:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:
@@ -661,7 +661,7 @@ api-v1-team_id-prompts-slug-share:
             schema:
               $ref: '../openapi.yaml#/components/schemas/ErrorResponse'
       '403':
-        description: Forbidden (subscription required)
+        description: Forbidden — insufficient team permissions
         content:
           application/problem+json:
             schema:

@@ -120,7 +120,7 @@ api-v1-team_id-projects:
     summary: Create new project
     description: |
       Creates a new project within the specified team. Project slugs must be
-      unique within the team. Requires team membership and an active subscription.
+      unique within the team. Requires team membership.
     operationId: createProject
     security:
       - ApiKeyAuth: []

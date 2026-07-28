@@ -5,7 +5,7 @@
 api-v1-team_id-integrations-github-status:
   get:
     summary: Get GitHub App installation status
-    description: Returns the GitHub App installation status for the specified team. Requires an active subscription.
+    description: Returns the GitHub App installation status for the specified team.
     operationId: getGitHubStatus
     security:
       - BearerAuth: []
@@ -50,7 +50,7 @@ api-v1-team_id-integrations-github-install-url:
     description: >-
       Returns a signed GitHub App installation URL with CSRF protection. Requires team
       owner/admin — the same permission as completing the callback, so a caller cannot
-      start an install they would be refused at the end of. Requires an active subscription.
+      start an install they would be refused at the end of.
     operationId: getGitHubInstallURL
     security:
       - BearerAuth: []
@@ -106,7 +106,7 @@ api-v1-team_id-integrations-github-callback:
       parameter from the install URL (CSRF protection), and the `code` GitHub appends to the
       post-install redirect. The `code` is exchanged for a user access token and the
       installation is only bound to the team when that user has access to it on GitHub — a valid
-      `state` alone is not sufficient. Requires team owner/admin and an active subscription.
+      `state` alone is not sufficient. Requires team owner/admin.
     operationId: handleGitHubCallback
     security:
       - BearerAuth: []
@@ -210,7 +210,7 @@ api-v1-team_id-integrations-github-callback:
 api-v1-team_id-integrations-github-repositories:
   get:
     summary: List GitHub repositories
-    description: Lists GitHub repositories accessible by the team's GitHub App installation with pagination. Requires an active subscription.
+    description: Lists GitHub repositories accessible by the team's GitHub App installation with pagination.
     operationId: listGitHubRepositories
     security:
       - BearerAuth: []
@@ -268,7 +268,7 @@ api-v1-team_id-integrations-github-repositories-repo_id-import-project:
     summary: Import GitHub repository as a project
     description: |
       Imports a GitHub repository as a VibeXP project for the team. If a project already exists
-      for the repository URL it returns the existing project (idempotent). Requires an active subscription.
+      for the repository URL it returns the existing project (idempotent).
     operationId: importGitHubProject
     security:
       - BearerAuth: []
@@ -360,7 +360,7 @@ api-v1-team_id-integrations-github-import-blueprints:
       Scans the specified GitHub repository for AI assistant configuration files
       (`.claude/`, `.cursor/`, `.codex/`, `.agents/`, `CLAUDE.md`, `CURSOR.md`, `AGENTS.md`)
       and imports each markdown file as a blueprint. A project must already exist for the
-      repository — use the import-project endpoint first. Requires an active subscription.
+      repository — use the import-project endpoint first.
     operationId: importGitHubBlueprints
     security:
       - BearerAuth: []
@@ -434,7 +434,7 @@ api-v1-team_id-integrations-github-import-blueprints:
 api-v1-team_id-integrations-github-disconnect:
   delete:
     summary: Disconnect GitHub App installation
-    description: Removes the GitHub App installation link for the team. Requires an active subscription.
+    description: Removes the GitHub App installation link for the team.
     operationId: disconnectGitHub
     security:
       - BearerAuth: []
