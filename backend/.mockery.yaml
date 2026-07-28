@@ -2,6 +2,14 @@ with-expecter: true
 dir: "{{.InterfaceDir}}/mocks"
 outpkg: "mocks"
 filename: "mock_{{.InterfaceName}}.go"
+# v3 deprecation flips (#679): each key is set to the value v3 makes permanent,
+# clearing the three WRN DEPRECATION lines from every generation run and
+# unblocking a later MOCKERY_VERSION bump. issue-845-fix only matters for
+# inpackage mocks (we generate out-of-package, so it changes no bytes here);
+# resolve-type-alias: false and disable-version-string: true DO change output.
+resolve-type-alias: false
+disable-version-string: true
+issue-845-fix: true
 # The interfaces: lists below are AUTHORITATIVE (#678): generation runs without
 # --all, so mockery emits exactly these interfaces and nothing else. Adding a
 # mockable interface means adding its entry here first; a mock committed without
