@@ -118,10 +118,12 @@ backend-test-integration:
 # Regenerate the mockery mocks (~124 files under **/mocks/) from .mockery.yaml.
 # Invoked via `go run ...@$(MOCKERY_VERSION)` rather than a `mockery` binary off
 # PATH so the committed bytes are reproducible for backend-mock-check. Output is
-# committed.
+# committed. Runs WITHOUT --all (#678): the per-package `interfaces:` lists in
+# backend/.mockery.yaml are authoritative — mockery emits exactly those
+# interfaces, so adding a mockable interface means adding its entry there first.
 backend-mock-generate:
 	@echo "🎭 Regenerating mocks (mockery $(MOCKERY_VERSION))..."
-	@cd backend && go run github.com/vektra/mockery/v2@$(MOCKERY_VERSION) --all
+	@cd backend && go run github.com/vektra/mockery/v2@$(MOCKERY_VERSION)
 
 # Regenerate the mocks, then fail if they differ from the committed files —
 # catches a hand-edited mock and an interface change that was never regenerated.

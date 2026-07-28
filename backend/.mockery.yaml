@@ -2,87 +2,137 @@ with-expecter: true
 dir: "{{.InterfaceDir}}/mocks"
 outpkg: "mocks"
 filename: "mock_{{.InterfaceName}}.go"
+# The interfaces: lists below are AUTHORITATIVE (#678): generation runs without
+# --all, so mockery emits exactly these interfaces and nothing else. Adding a
+# mockable interface means adding its entry here first; a mock committed without
+# an entry disappears on the next regenerate (backend-mock-check then fails).
 packages:
   github.com/vibexp/vibexp/internal/services:
     interfaces:
+      A2AHTTPClientInterface:
+      ActiveEmbeddingProviderResolver:
       AdminServiceInterface:
-      AuthServiceInterface:
-      APIKeyServiceInterface:
-      PromptServiceInterface:
-      PromptBodyRenderer:
-      PromptShareServiceInterface:
-      ArtifactServiceInterface:
-      AttachmentServiceInterface:
-      CommentServiceInterface:
-      RelationServiceInterface:
-      RelationSeedServiceInterface:
-      TypeServiceInterface:
-      BlueprintServiceInterface:
-      EmbeddingProviderServiceInterface:
-      ModelProviderServiceInterface:
-      GitHubAppConfigServiceInterface:
-      EmbeddingServiceInterface:
-      Searcher:
-      TeamEmailProviderServiceInterface:
-      EmailSenderResolver:
-      TeamSearchSettingsServiceInterface:
-      MetadataCatalogServiceInterface:
-      SearchSettingsResolver:
-      QueryEmbedder:
-      EmailServiceInterface:
-      CardFetcher:
+      AgentInvocationServiceInterface:
       AgentServiceInterface:
-      MemoryServiceInterface:
-      ProjectServiceInterface:
+      APIKeyServiceInterface:
+      ArtifactServiceInterface:
+      AttachmentOwnerAuthorizer:
+      AttachmentServiceInterface:
+      AuthorizationServiceInterface:
+      AuthServiceInterface:
+      BlueprintServiceInterface:
+      CardFetcher:
+      Chunker:
+      CommentServiceInterface:
       ContentVersionServiceInterface:
-      StreamProcessor:
+      crossTeamLookup:
+      EmailSenderResolver:
+      EmailServiceInterface:
       EmbeddingBackfiller:
       EmbeddingCoverageGetter:
+      EmbeddingProvider:
+      EmbeddingProviderServiceInterface:
+      EmbeddingServiceInterface:
+      EncryptionServiceInterface:
+      EntityValidatorFunc:
+      FeedItemReplyServiceInterface:
+      FeedItemServiceInterface:
+      FeedServiceInterface:
+      GitHubAppClientResolver:
+      GitHubAppConfigServiceInterface:
+      GitHubAppServiceInterface:
+      InstanceAdminPredicate:
+      MemoryServiceInterface:
+      MetadataCatalogServiceInterface:
+      ModelProvider:
+      ModelProviderServiceInterface:
+      ProjectMigrationServiceInterface:
+      ProjectServiceInterface:
+      PromptBodyRenderer:
+      PromptGalleryServiceInterface:
+      PromptServiceInterface:
+      PromptShareServiceInterface:
+      QueryEmbedder:
+      RelationSeedServiceInterface:
+      RelationServiceInterface:
+      Searcher:
+      SearchSettingsResolver:
+      StreamProcessor:
+      TeamEmailProviderServiceInterface:
+      TeamSearchSettingsServiceInterface:
+      TeamServiceInterface:
+      TypeServiceInterface:
       UsageAndGrowthGetter:
+      UserPreferencesServiceInterface:
   github.com/vibexp/vibexp/internal/services/resourceaccess:
     interfaces:
       ResourceAccessService:
+      taskSubmitter:
   github.com/vibexp/vibexp/internal/auth/idp:
     interfaces:
       IdentityProvider:
   github.com/vibexp/vibexp/internal/external:
     interfaces:
+      EmailProvider:
       EmailSender:
+      GitHubAppClient:
   github.com/vibexp/vibexp/internal/repositories:
     interfaces:
+      ActivityRepository:
       AdminRepository:
-      UserRepository:
+      AgentExecutionEventRepository:
+      AgentExecutionRepository:
+      AgentRepository:
       APIKeyRepository:
-      TeamRepository:
-      TeamMemberRepository:
-      TeamInvitationRepository:
-      TeamSearchSettingsRepository:
-      MetadataCatalogRepository:
-      PromptRepository:
-      PromptReferenceRepository:
-      PromptShareRepository:
       ArtifactRepository:
       AttachmentRepository:
-      CommentRepository:
-      RelationRepository:
-      TypeRepository:
+      BackofficeRepository:
       BlueprintRepository:
-      EmbeddingProviderRepository:
-      ModelProviderRepository:
-      GitHubAppConfigRepository:
-      TeamEmailProviderRepository:
-      EmbeddingRepository:
-      SearchRepository:
-      ActivityRepository:
-      ResourceAccessRepository:
-      AgentRepository:
-      AgentExecutionRepository:
-      AgentExecutionEventRepository:
-      MemoryRepository:
-      ProjectRepository:
+      CommentRepository:
       ContentVersionRepository:
+      EmbeddingBackfillRepository:
+      EmbeddingProviderRepository:
+      EmbeddingRepository:
+      FeedItemReplyRepository:
+      FeedItemRepository:
+      FeedRepository:
+      GitHubAppConfigRepository:
+      GitHubInstallationRepository:
+      MemoryRepository:
+      MetadataCatalogRepository:
+      ModelProviderRepository:
+      NotificationDeliveryRepository:
+      NotificationDigestQueueRepository:
+      NotificationRepository:
+      OAuthClientRepository:
+      OAuthLoginSessionRepository:
+      OAuthRequestRepository:
+      OAuthSigningKeyRepository:
+      ProjectRepository:
+      PromptGalleryRepository:
+      PromptReferenceRepository:
+      PromptRepository:
+      PromptShareRepository:
+      RelationRepository:
+      ResourceAccessRepository:
+      SearchRepository:
+      TeamEmailProviderRepository:
+      TeamInvitationRepository:
+      TeamMemberRepository:
+      TeamRepository:
+      TeamSearchSettingsRepository:
+      TypeRepository:
+      UserPreferencesRepository:
+      UserRepository:
+      WebhookEventRepository:
   github.com/vibexp/vibexp/pkg/events:
     interfaces:
-      EventPublisher:
+      ConcurrencyManagedListener:
       DefaultTeamCreator:
+      EmbeddingProcessor:
+      Event:
+      EventBus:
+      EventListener:
+      EventPublisher:
+      MetricsRecorder:
       ProjectCreator:
