@@ -77,18 +77,6 @@ func TestMigration017_RemoveFirebaseWebPush(t *testing.T) {
 		require.NoError(t, err, "users must still accept deletes")
 	})
 
-	t.Run("user_preferences web_push keys are deliberately left intact", func(t *testing.T) {
-		// The JSONB keys are NOT part of this migration — they go with the API
-		// contract change once @vibexp/api-client republishes. Pin that so a future
-		// edit cannot quietly widen the migration's blast radius.
-		var webPush sql.NullBool
-		require.NoError(t, db.QueryRow(
-			`SELECT (preferences #>> '{notifications,channels,web_push}')::boolean
-			   FROM user_preferences WHERE user_id = $1`, userID).Scan(&webPush))
-		assert.True(t, webPush.Valid, "the web_push preference key must survive migration 017")
-		assert.True(t, webPush.Bool)
-	})
-
 	// 4. Cycle down → up. Down restores structure only, which is what it claims.
 	t.Run("down restores the structure and up re-applies cleanly", func(t *testing.T) {
 		require.NoError(t, m.Migrate(16), "migrate down to 016")
@@ -113,10 +101,8 @@ func TestMigration017_RemoveFirebaseWebPush(t *testing.T) {
 	})
 }
 
-// seedMigration017Fixtures inserts a user with two registered device tokens and a
-// preferences row carrying a NON-DEFAULT web_push value, and returns the user id.
-// The value is deliberately not the default so "the key survived" cannot pass
-// vacuously against a row the seed never wrote.
+// seedMigration017Fixtures inserts a user with two registered device tokens and
+// returns the user id.
 func seedMigration017Fixtures(t *testing.T, db *sql.DB) string {
 	t.Helper()
 
@@ -133,12 +119,6 @@ func seedMigration017Fixtures(t *testing.T, db *sql.DB) string {
 			userID, tok)
 		require.NoError(t, err, "seed device token %s", tok)
 	}
-
-	_, err = db.Exec(
-		`INSERT INTO user_preferences (user_id, preferences)
-		 VALUES ($1, '{"notifications":{"channels":{"in_app":true,"email":true,"web_push":true}}}'::jsonb)`,
-		userID)
-	require.NoError(t, err, "seed user preferences")
 
 	return userID
 }

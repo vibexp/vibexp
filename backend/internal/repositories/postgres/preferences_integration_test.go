@@ -28,12 +28,11 @@ func integrationPreferences() models.Preferences {
 		},
 		Notifications: models.NotificationPreferences{
 			Channels: models.NotificationChannelPreferences{
-				InApp:   true,
-				Email:   true,
-				WebPush: false,
+				InApp: true,
+				Email: true,
 			},
 			Types: map[string]models.NotificationTypePreference{
-				"team_invitation": {InApp: true, Email: "instant", WebPush: false},
+				"team_invitation": {InApp: true, Email: "instant"},
 			},
 		},
 	}
@@ -88,7 +87,7 @@ func TestIntegrationUserPreferences_Upsert_ConflictIncrementsVersion(t *testing.
 	updated := integrationPreferences()
 	updated.EmailNotification.MarketingPromotional = true
 	updated.Notifications.Types["mention"] = models.NotificationTypePreference{
-		InApp: true, Email: "digest", WebPush: true,
+		InApp: true, Email: "digest",
 	}
 	// A fresh struct (empty ID) proves the ON CONFLICT (user_id) path: the
 	// repository generates a new candidate ID, but the existing row wins.

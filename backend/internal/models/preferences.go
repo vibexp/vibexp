@@ -15,16 +15,14 @@ type EmailNotificationPreferences struct {
 // NotificationTypePreference controls per-type delivery for each channel.
 // Email values: "instant" | "digest" | "none"
 type NotificationTypePreference struct {
-	InApp   bool   `json:"in_app"`
-	Email   string `json:"email"`
-	WebPush bool   `json:"web_push"`
+	InApp bool   `json:"in_app"`
+	Email string `json:"email"`
 }
 
 // NotificationChannelPreferences controls global channel on/off switches
 type NotificationChannelPreferences struct {
-	InApp   bool `json:"in_app"`
-	Email   bool `json:"email"`
-	WebPush bool `json:"web_push"`
+	InApp bool `json:"in_app"`
+	Email bool `json:"email"`
 }
 
 // NotificationPreferences aggregates channel and per-type preferences
@@ -65,25 +63,21 @@ type PreferencesResponse struct {
 func DefaultNotificationPreferences() NotificationPreferences {
 	return NotificationPreferences{
 		Channels: NotificationChannelPreferences{
-			InApp:   true,
-			Email:   true,
-			WebPush: false,
+			InApp: true,
+			Email: true,
 		},
 		Types: map[string]NotificationTypePreference{
 			"feed.item.created": {
-				InApp:   true,
-				Email:   "digest",
-				WebPush: false,
+				InApp: true,
+				Email: "digest",
 			},
 			"feed.reply.created": {
-				InApp:   true,
-				Email:   "instant",
-				WebPush: false,
+				InApp: true,
+				Email: "instant",
 			},
 			"team.invitation": {
-				InApp:   true,
-				Email:   "instant",
-				WebPush: false,
+				InApp: true,
+				Email: "instant",
 			},
 		},
 	}
