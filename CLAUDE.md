@@ -61,6 +61,8 @@ These artifacts are **generated and committed**. Change the *source*, run the re
 |---|---|---|---|
 | oapi-codegen strict-server bindings (one package per spec-first domain) | `backend/internal/server/gen/**/*.gen.go` | `make backend-generate-openapi-server` | CI (`openapi` job) |
 | mockery mocks (~124 files) | `backend/**/mocks/mock_*.go` | `make backend-mock-generate` | CI (`unit` job) |
+
+Mock generation runs **without `--all`** (#678): the per-package `interfaces:` lists in `backend/.mockery.yaml` are authoritative, so mockery emits exactly those interfaces. **Adding a mockable interface means adding its entry to `.mockery.yaml` first** — a mock committed without an entry disappears on the next regenerate and fails `backend-mock-check`.
 | Wire DI bindings | `backend/internal/container/wire_gen.go` | `make backend-wire-gen` | CI (`unit` job) |
 | Config JSON schema | `backend/config.schema.json` | `make backend-generate-config-schema` | CI (`unit` job) |
 | Embedded OpenAPI bundle (served at `/openapi.{yaml,json}`) | `backend/internal/server/openapispec/openapi.bundled.{yaml,json}` | `make backend-generate-openapi-bundle` | CI (`openapi` job) + pre-commit |
