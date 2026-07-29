@@ -59,7 +59,8 @@ func authenticatedContext(ctx context.Context, userID, authType string, extra []
 	ctx = context.WithValue(ctx, contextkeys.UserID, userID)
 	ctx = context.WithValue(ctx, contextkeys.AuthType, authType)
 
-	fields := []any{"auth_type", authType, "user_id", userID}
+	fields := make([]any, 0, 4+len(extra))
+	fields = append(fields, "auth_type", authType, "user_id", userID)
 	fields = append(fields, extra...)
 	logger := contextkeys.GetLoggerFromContext(ctx).With(fields...)
 	return context.WithValue(ctx, contextkeys.Logger, logger)
