@@ -1,18 +1,19 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type { MockedFunction } from 'vitest'
 
 import { useTeam } from '@/contexts/TeamContext'
 import { metadataService } from '@/services/metadataService'
 
 import { useMetadataCatalog } from '../useMetadataCatalog'
 
-jest.mock('@/contexts/TeamContext')
-jest.mock('@/services/metadataService')
+vi.mock('@/contexts/TeamContext')
+vi.mock('@/services/metadataService')
 
-const mockedUseTeam = useTeam as jest.MockedFunction<typeof useTeam>
-const mockedListKeys = metadataService.listKeys as jest.MockedFunction<
+const mockedUseTeam = useTeam as MockedFunction<typeof useTeam>
+const mockedListKeys = metadataService.listKeys as MockedFunction<
   typeof metadataService.listKeys
 >
-const mockedListValues = metadataService.listValues as jest.MockedFunction<
+const mockedListValues = metadataService.listValues as MockedFunction<
   typeof metadataService.listValues
 >
 
@@ -20,8 +21,8 @@ const setTeam = (): void => {
   mockedUseTeam.mockReturnValue({
     currentTeam: { id: 'team-1', name: 'Team One', slug: 'team-one' },
     teams: [],
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
     isLoading: false,
   } as unknown as ReturnType<typeof useTeam>)
 }
@@ -31,8 +32,8 @@ const renderCatalog = () =>
 
 describe('useMetadataCatalog', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    jest.useFakeTimers()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
     setTeam()
     mockedListKeys.mockResolvedValue({
       keys: ['env', 'team'],
@@ -42,8 +43,8 @@ describe('useMetadataCatalog', () => {
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   test('fetches nothing until loadKeys is called', () => {
@@ -79,7 +80,7 @@ describe('useMetadataCatalog', () => {
     expect(mockedListValues).not.toHaveBeenCalled()
 
     await act(async () => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
       await Promise.resolve()
     })
 
@@ -120,7 +121,7 @@ describe('useMetadataCatalog', () => {
     })
 
     await act(async () => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
       await Promise.resolve()
     })
 
@@ -154,7 +155,7 @@ describe('useMetadataCatalog', () => {
       result.current.selectKey('env')
     })
     await act(async () => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
       await Promise.resolve()
     })
 
@@ -163,7 +164,7 @@ describe('useMetadataCatalog', () => {
       result.current.setValueQuery('newer')
     })
     await act(async () => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
       await Promise.resolve()
     })
 
@@ -183,7 +184,7 @@ describe('useMetadataCatalog', () => {
       result.current.selectKey('env')
     })
     await act(async () => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
       await Promise.resolve()
     })
 
@@ -202,7 +203,7 @@ describe('useMetadataCatalog', () => {
       result.current.setValueQuery('pro')
     })
     await act(async () => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
       await Promise.resolve()
     })
 
@@ -236,7 +237,7 @@ describe('useMetadataCatalog', () => {
       result.current.selectKey('env')
     })
     await act(async () => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
       await Promise.resolve()
     })
 
@@ -249,8 +250,8 @@ describe('useMetadataCatalog', () => {
     mockedUseTeam.mockReturnValue({
       currentTeam: null,
       teams: [],
-      setCurrentTeam: jest.fn(),
-      refreshTeams: jest.fn(),
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn(),
       isLoading: false,
     })
 

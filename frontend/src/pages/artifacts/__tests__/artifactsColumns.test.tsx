@@ -17,8 +17,8 @@ beforeAll(() => {
 
 function renderUpdatedCell(updatedAt: string) {
   const columns = buildArtifactsColumns({
-    navigate: jest.fn(),
-    onDelete: jest.fn(),
+    navigate: vi.fn(),
+    onDelete: vi.fn(),
     canDelete: () => true,
   })
   const updatedCol = columns.find(
@@ -47,10 +47,10 @@ describe('artifactsColumns — Updated column', () => {
   })
 
   it('renders a relative label for a recent date', () => {
-    jest.useFakeTimers()
-    jest.setSystemTime(new Date('2024-06-01T12:00:00Z'))
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2024-06-01T12:00:00Z'))
     renderUpdatedCell(new Date('2024-06-01T09:00:00Z').toISOString())
     expect(screen.getByText('3h ago')).toBeInTheDocument()
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 })

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { MockInstance } from 'vitest'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 
@@ -13,10 +14,10 @@ function Boom({ shouldThrow }: { shouldThrow: boolean }) {
 
 describe('ErrorBoundary', () => {
   // componentDidCatch logs via console.error; silence it and assert on it.
-  let consoleErrorSpy: jest.SpyInstance
+  let consoleErrorSpy: MockInstance
 
   beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {
@@ -63,7 +64,7 @@ describe('ErrorBoundary', () => {
   })
 
   it('calls the onError handler with the thrown error', () => {
-    const onError = jest.fn()
+    const onError = vi.fn()
 
     render(
       <ErrorBoundary onError={onError}>

@@ -1,13 +1,13 @@
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-  DELETE: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+  DELETE: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return {
@@ -38,7 +38,7 @@ const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 
 describe('attachmentService (universal endpoint)', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('list passes owner_type/owner_id as query params on the team-scoped path', async () => {
@@ -120,9 +120,9 @@ describe('attachmentService (universal endpoint)', () => {
 
   it('download fetches the item URL with credentials and returns a Blob', async () => {
     const blob = new Blob(['data'])
-    const fetchMock = jest.fn().mockResolvedValue({
+    const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      blob: jest.fn().mockResolvedValue(blob),
+      blob: vi.fn().mockResolvedValue(blob),
     })
     global.fetch = fetchMock
 
@@ -136,7 +136,7 @@ describe('attachmentService (universal endpoint)', () => {
   })
 
   it('download throws on a non-ok response', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 404 })
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 })
 
     await expect(
       attachmentService.download(teamId, attachmentId)

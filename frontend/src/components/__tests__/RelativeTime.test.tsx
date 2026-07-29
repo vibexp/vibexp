@@ -14,14 +14,14 @@ beforeAll(() => {
 
 describe('RelativeTime', () => {
   it('renders a relative label for a recent date', () => {
-    jest.useFakeTimers()
-    jest.setSystemTime(new Date('2024-06-01T12:00:00Z'))
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2024-06-01T12:00:00Z'))
     const recent = new Date('2024-06-01T09:00:00Z').toISOString()
 
     render(<RelativeTime value={recent} />)
 
     expect(screen.getByText('3h ago')).toBeInTheDocument()
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 
   it('renders a short date for dates older than a week', () => {

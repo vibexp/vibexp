@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type { Memory, MemoryListResponse } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
@@ -8,8 +9,8 @@ import type { Project } from '@/services/projectService'
 // Mock Radix Select (MemoryFilters tag/status dropdowns) — it can loop in
 // JSDOM (same approach as Agents.test.tsx), but keep onValueChange wired so
 // tests can still pick an option as a plain button.
-jest.mock('@/components/ui/select', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react')
+vi.mock('@/components/ui/select', async () => {
+  const ReactActual = await vi.importActual<typeof import('react')>('react')
   const SelectCtx = ReactActual.createContext<(value: string) => void>(() => {})
   return {
     Select: ({
@@ -56,22 +57,22 @@ jest.mock('@/components/ui/select', () => {
   }
 })
 
-jest.mock('@/services/memoryService', () => ({
+vi.mock('@/services/memoryService', () => ({
   memoryService: {
-    getMemories: jest.fn(),
-    deleteMemory: jest.fn(),
+    getMemories: vi.fn(),
+    deleteMemory: vi.fn(),
   },
 }))
 
 // Only the catalog client is mocked; parseMetadataFilter/serializeMetadataFilter
 // stay real, since the URL round-trip is exactly what these tests assert.
-jest.mock('@/services/metadataService', () => {
-  const actual = jest.requireActual<
+vi.mock('@/services/metadataService', async () => {
+  const actual = await vi.importActual<
     typeof import('@/services/metadataService')
   >('@/services/metadataService')
   return {
     ...actual,
-    metadataService: { listKeys: jest.fn(), listValues: jest.fn() },
+    metadataService: { listKeys: vi.fn(), listValues: vi.fn() },
   }
 })
 
@@ -82,19 +83,19 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProjects: jest.fn(),
+    getProjects: vi.fn(),
   },
 }))
 
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
@@ -107,13 +108,13 @@ const mockTeamState: {
   currentTeam: { id: 'team-1', name: 'Test Team', permissions: [] },
   isLoading: false,
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockTeamState.currentTeam,
     teams: mockTeamState.currentTeam ? [mockTeamState.currentTeam] : [],
     isLoading: mockTeamState.isLoading,
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn() as () => Promise<void>,
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn() as () => Promise<void>,
   }),
 }))
 
@@ -126,26 +127,26 @@ const mockProjectState: {
   currentProject: null,
   isLoading: false,
 }
-jest.mock('@/contexts/ProjectContext', () => ({
+vi.mock('@/contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProject: mockProjectState.currentProject,
-    setCurrentProject: jest.fn(),
+    setCurrentProject: vi.fn(),
     isLoading: mockProjectState.isLoading,
   }),
 }))
 
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
+  const trackEvent = vi.fn()
   return {
     useAlerts: () => ({ showSuccess, showError }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-const mockHandleError = jest.fn()
-jest.mock('@/hooks/useErrorHandler', () => ({
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
@@ -233,22 +234,22 @@ function renderMemories(initialEntry = '/memories') {
 
 describe('Memories page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    ;(metadataService.listKeys as jest.Mock).mockResolvedValue({
+    vi.clearAllMocks()
+    ;(metadataService.listKeys as Mock).mockResolvedValue({
       keys: ['tags', 'env'],
       truncated: false,
     })
-    ;(metadataService.listValues as jest.Mock).mockResolvedValue({
+    ;(metadataService.listValues as Mock).mockResolvedValue({
       values: ['alpha', 'beta'],
       truncated: false,
     })
     setTeamPermissions([])
     mockProjectState.currentProject = null
     mockProjectState.isLoading = false
-    ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+    ;(memoryService.getMemories as Mock).mockResolvedValue(
       buildListResponse([])
     )
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [],
       total_count: 0,
       page: 1,
@@ -259,7 +260,7 @@ describe('Memories page', () => {
 
   describe('data states', () => {
     it('renders memory rows returned by the service', async () => {
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([
           buildMemory(),
           buildMemory({
@@ -294,14 +295,14 @@ describe('Memories page', () => {
     })
 
     it('shows the project column when the team has projects', async () => {
-      ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+      ;(projectService.getProjects as Mock).mockResolvedValue({
         projects: [buildProject()],
         total_count: 1,
         page: 1,
         per_page: 100,
         total_pages: 1,
       })
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory()])
       )
 
@@ -316,7 +317,7 @@ describe('Memories page', () => {
     })
 
     it('shows skeleton rows while the fetch is in flight', () => {
-      ;(memoryService.getMemories as jest.Mock).mockImplementation(
+      ;(memoryService.getMemories as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -328,7 +329,7 @@ describe('Memories page', () => {
     })
 
     it('shows the error state when the fetch fails', async () => {
-      ;(memoryService.getMemories as jest.Mock).mockRejectedValue(
+      ;(memoryService.getMemories as Mock).mockRejectedValue(
         new Error('network down')
       )
 
@@ -405,10 +406,10 @@ describe('Memories page', () => {
     })
 
     it('still renders the list when the projects fetch fails', async () => {
-      ;(projectService.getProjects as jest.Mock).mockRejectedValue(
+      ;(projectService.getProjects as Mock).mockRejectedValue(
         new Error('projects down')
       )
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory()])
       )
 
@@ -426,7 +427,7 @@ describe('Memories page', () => {
 
   describe('pagination', () => {
     it('re-fetches the next page when Next is clicked', async () => {
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue({
+      ;(memoryService.getMemories as Mock).mockResolvedValue({
         ...buildListResponse([buildMemory()]),
         total_count: 30,
         total_pages: 2,
@@ -449,7 +450,7 @@ describe('Memories page', () => {
 
   describe('URL-synced filters (#524)', () => {
     const lastQuery = () => {
-      const { calls } = (memoryService.getMemories as jest.Mock).mock
+      const { calls } = (memoryService.getMemories as Mock).mock
       return calls[calls.length - 1][1] as Record<string, unknown>
     }
 
@@ -604,7 +605,7 @@ describe('Memories page', () => {
     })
 
     it('the footer count matches the server total, not a client-filtered subset', async () => {
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue({
+      ;(memoryService.getMemories as Mock).mockResolvedValue({
         ...buildListResponse([buildMemory({ metadata: { tags: ['alpha'] } })]),
         total_count: 42,
         total_pages: 3,
@@ -621,7 +622,7 @@ describe('Memories page', () => {
 
   describe('sorting', () => {
     it('toggles the updated_at sort order on header clicks', async () => {
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory()])
       )
 
@@ -677,7 +678,7 @@ describe('Memories page', () => {
     })
 
     it('navigates to the memory detail from the row View action', async () => {
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory()])
       )
 
@@ -691,7 +692,7 @@ describe('Memories page', () => {
     })
 
     it('navigates to the memory editor from the row Edit action', async () => {
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory()])
       )
 
@@ -708,7 +709,7 @@ describe('Memories page', () => {
   describe('delete gating via the server permissions array (#225)', () => {
     it('shows the delete action on any row when the team grants resource.delete.any', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory({ user_id: 'user-2' })])
       )
 
@@ -720,7 +721,7 @@ describe('Memories page', () => {
 
     it('hides the delete action when the team grants no delete permission', async () => {
       setTeamPermissions([])
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory({ user_id: 'user-2' })])
       )
 
@@ -734,7 +735,7 @@ describe('Memories page', () => {
 
     it('with only resource.delete.own, shows delete on own rows but not on others', async () => {
       setTeamPermissions(['resource.delete.own'])
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([
           buildMemory({
             id: 'mine',
@@ -765,10 +766,10 @@ describe('Memories page', () => {
   describe('delete flow', () => {
     it('confirms and deletes via the service, then re-fetches', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory()])
       )
-      ;(memoryService.deleteMemory as jest.Mock).mockResolvedValue(undefined)
+      ;(memoryService.deleteMemory as Mock).mockResolvedValue(undefined)
 
       renderMemories()
 
@@ -777,8 +778,8 @@ describe('Memories page', () => {
 
       const dialog = await screen.findByRole('alertdialog')
       expect(within(dialog).getByText('Delete memory?')).toBeInTheDocument()
-      const fetchCallsBefore = (memoryService.getMemories as jest.Mock).mock
-        .calls.length
+      const fetchCallsBefore = (memoryService.getMemories as Mock).mock.calls
+        .length
       await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
       await waitFor(() => {
@@ -789,17 +790,17 @@ describe('Memories page', () => {
       })
       await waitFor(() => {
         expect(
-          (memoryService.getMemories as jest.Mock).mock.calls.length
+          (memoryService.getMemories as Mock).mock.calls.length
         ).toBeGreaterThan(fetchCallsBefore)
       })
     })
 
     it('reports the error and closes the dialog when the delete fails', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory()])
       )
-      ;(memoryService.deleteMemory as jest.Mock).mockRejectedValue(
+      ;(memoryService.deleteMemory as Mock).mockRejectedValue(
         new Error('delete failed')
       )
 
@@ -826,7 +827,7 @@ describe('Memories page', () => {
 
     it('keeps the memory when the confirm dialog is cancelled', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(memoryService.getMemories as jest.Mock).mockResolvedValue(
+      ;(memoryService.getMemories as Mock).mockResolvedValue(
         buildListResponse([buildMemory()])
       )
 

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type {
   FeedItemListResponse,
@@ -7,7 +8,7 @@ import type {
 } from '@/services/feedService'
 
 // Mock Radix UI components that cause infinite loops in JSDOM
-jest.mock('@/components/ui/tabs', () => ({
+vi.mock('@/components/ui/tabs', () => ({
   Tabs: ({
     children,
     value,
@@ -73,7 +74,7 @@ jest.mock('@/components/ui/tabs', () => ({
   ),
 }))
 
-jest.mock('@/components/ui/select', () => ({
+vi.mock('@/components/ui/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="select">{children}</div>
   ),
@@ -95,7 +96,7 @@ jest.mock('@/components/ui/select', () => ({
   }) => <div data-value={value}>{children}</div>,
 }))
 
-jest.mock('@/components/ui/dropdown-menu', () => ({
+vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -119,30 +120,30 @@ jest.mock('@/components/ui/dropdown-menu', () => ({
 }))
 
 // Mock services
-jest.mock('@/services/feedService', () => ({
+vi.mock('@/services/feedService', () => ({
   feedService: {
-    getFeedItems: jest.fn(),
-    getFeeds: jest.fn(),
-    archiveFeedItem: jest.fn(),
-    unarchiveFeedItem: jest.fn(),
-    deleteFeedItem: jest.fn(),
-    deleteFeed: jest.fn(),
+    getFeedItems: vi.fn(),
+    getFeeds: vi.fn(),
+    archiveFeedItem: vi.fn(),
+    unarchiveFeedItem: vi.fn(),
+    deleteFeedItem: vi.fn(),
+    deleteFeed: vi.fn(),
   },
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProjects: jest.fn(),
+    getProjects: vi.fn(),
   },
 }))
 
 // Mock TeamContext — use stable object references to prevent useCallback dep instability
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
-jest.mock('@/contexts/TeamContext', () => {
+vi.mock('@/contexts/TeamContext', () => {
   const currentTeam = { id: 'team-1', name: 'Test Team' }
   const teams = [currentTeam]
   return {
@@ -151,8 +152,8 @@ jest.mock('@/contexts/TeamContext', () => {
 })
 
 // Mock ProjectContext — stable references, "All projects" selected
-jest.mock('@/contexts/ProjectContext', () => {
-  const setCurrentProject = jest.fn()
+vi.mock('@/contexts/ProjectContext', () => {
+  const setCurrentProject = vi.fn()
   return {
     useProject: () => ({
       currentProject: null,
@@ -163,18 +164,18 @@ jest.mock('@/contexts/ProjectContext', () => {
 })
 
 // Mock hooks — use stable function references via module-level singletons
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
+  const trackEvent = vi.fn()
   return {
     useAlerts: () => ({ showSuccess, showError }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return {
     useErrorHandler: () => ({ handleError }),
   }
@@ -188,7 +189,7 @@ import { projectService } from '@/services/projectService'
 
 import { Feeds } from '../Feeds'
 
-const mockFeedItemsResponse: FeedItemListResponse = {
+const mockFeedItemsResponse: FeedItemListResponse = vi.hoisted(() => ({
   items: [
     {
       id: 'item-1',
@@ -207,9 +208,9 @@ const mockFeedItemsResponse: FeedItemListResponse = {
   page: 1,
   per_page: 20,
   total_pages: 1,
-}
+}))
 
-const mockFeedsResponse: FeedListResponse = {
+const mockFeedsResponse: FeedListResponse = vi.hoisted(() => ({
   feeds: [
     {
       id: 'feed-1',
@@ -224,16 +225,14 @@ const mockFeedsResponse: FeedListResponse = {
   page: 1,
   per_page: 100,
   total_pages: 1,
-}
+}))
 
 describe('Feeds page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    ;(feedService.getFeedItems as jest.Mock).mockResolvedValue(
-      mockFeedItemsResponse
-    )
-    ;(feedService.getFeeds as jest.Mock).mockResolvedValue(mockFeedsResponse)
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    vi.clearAllMocks()
+    ;(feedService.getFeedItems as Mock).mockResolvedValue(mockFeedItemsResponse)
+    ;(feedService.getFeeds as Mock).mockResolvedValue(mockFeedsResponse)
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [],
       total_count: 0,
       page: 1,
@@ -296,8 +295,8 @@ describe('Feeds page', () => {
     })
 
     // Clear calls so we can assert the next one cleanly
-    ;(feedService.getFeedItems as jest.Mock).mockClear()
-    ;(feedService.getFeedItems as jest.Mock).mockResolvedValue({
+    ;(feedService.getFeedItems as Mock).mockClear()
+    ;(feedService.getFeedItems as Mock).mockResolvedValue({
       items: [],
       total_count: 0,
       page: 1,
@@ -319,7 +318,7 @@ describe('Feeds page', () => {
 
   it('renders loading skeletons initially', () => {
     // Keep getFeedItems pending to see loading state
-    ;(feedService.getFeedItems as jest.Mock).mockImplementation(
+    ;(feedService.getFeedItems as Mock).mockImplementation(
       () => new Promise(() => undefined)
     )
     renderFeeds()
@@ -328,7 +327,7 @@ describe('Feeds page', () => {
   })
 
   it('renders empty state when no items', async () => {
-    ;(feedService.getFeedItems as jest.Mock).mockResolvedValue({
+    ;(feedService.getFeedItems as Mock).mockResolvedValue({
       items: [],
       total_count: 0,
       page: 1,
@@ -342,7 +341,7 @@ describe('Feeds page', () => {
   })
 
   it('renders error state when fetch fails', async () => {
-    ;(feedService.getFeedItems as jest.Mock).mockRejectedValue(
+    ;(feedService.getFeedItems as Mock).mockRejectedValue(
       new Error('Network error')
     )
     renderFeeds()

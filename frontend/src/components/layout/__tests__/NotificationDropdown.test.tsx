@@ -1,52 +1,52 @@
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import React from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { Notification } from '@/services/notificationService'
 
 // ---------------------------------------------------------------------------
 // Mock hooks and services
 // ---------------------------------------------------------------------------
-const mockMarkAllAsRead = jest.fn()
-const mockMarkAsRead = jest.fn()
+const mockMarkAllAsRead = vi.hoisted(() => vi.fn())
+const mockMarkAsRead = vi.hoisted(() => vi.fn())
 
 let mockNotifications: Notification[] = []
 let mockLoading = false
 
-jest.mock('../../../hooks/useNotifications', () => ({
+vi.mock('../../../hooks/useNotifications', () => ({
   useNotifications: () => ({
     notifications: mockNotifications,
     loading: mockLoading,
     error: null,
     hasMore: false,
-    fetchMore: jest.fn(),
+    fetchMore: vi.fn(),
     markAsRead: mockMarkAsRead,
     markAllAsRead: mockMarkAllAsRead,
-    refresh: jest.fn(),
+    refresh: vi.fn(),
   }),
 }))
 
 // Mock navigate
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router', async () => ({
+  ...(await vi.importActual('react-router')),
   useNavigate: () => mockNavigate,
 }))
 
 // Mock UI primitives
-jest.mock('../../../components/ui/scroll-area', () => ({
+vi.mock('../../../components/ui/scroll-area', () => ({
   ScrollArea: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="scroll-area">{children}</div>
   ),
   ScrollBar: () => null,
 }))
 
-jest.mock('../../../components/ui/separator', () => ({
+vi.mock('../../../components/ui/separator', () => ({
   Separator: () => <hr />,
 }))
 
-jest.mock('../../../components/ui/button', () => ({
+vi.mock('../../../components/ui/button', () => ({
   Button: ({
     children,
     onClick,
@@ -77,7 +77,7 @@ const makeNotification = (id: string, read = false): Notification => ({
   ...(read ? { read_at: '2024-01-01T11:00:00Z' } : {}),
 })
 
-function renderDropdown(onClose = jest.fn(), onUnreadChange = jest.fn()) {
+function renderDropdown(onClose = vi.fn(), onUnreadChange = vi.fn()) {
   return render(
     <MemoryRouter>
       <NotificationDropdown onClose={onClose} onUnreadChange={onUnreadChange} />
@@ -87,7 +87,7 @@ function renderDropdown(onClose = jest.fn(), onUnreadChange = jest.fn()) {
 
 describe('NotificationDropdown', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockNotifications = []
     mockLoading = false
   })
@@ -125,9 +125,9 @@ describe('NotificationDropdown', () => {
 
   it('calls markAllAsRead and onUnreadChange(0) when mark-all clicked', async () => {
     const user = userEvent.setup()
-    const onUnreadChange = jest.fn()
+    const onUnreadChange = vi.fn()
     mockNotifications = [makeNotification('1', false)]
-    renderDropdown(jest.fn(), onUnreadChange)
+    renderDropdown(vi.fn(), onUnreadChange)
 
     await user.click(screen.getByText(/mark all read/i))
 
@@ -137,9 +137,9 @@ describe('NotificationDropdown', () => {
 
   it('does NOT call onUnreadChange when a per-item read happens', async () => {
     const user = userEvent.setup()
-    const onUnreadChange = jest.fn()
+    const onUnreadChange = vi.fn()
     mockNotifications = [makeNotification('1', false)]
-    renderDropdown(jest.fn(), onUnreadChange)
+    renderDropdown(vi.fn(), onUnreadChange)
 
     // Find the notification link and click it to trigger onRead
     const link = screen.getByRole('link', { name: /notification 1/i })
@@ -152,7 +152,7 @@ describe('NotificationDropdown', () => {
 
   it('navigates to /notifications when see-all is clicked', async () => {
     const user = userEvent.setup()
-    const onClose = jest.fn()
+    const onClose = vi.fn()
     renderDropdown(onClose)
 
     await user.click(screen.getByText(/see all notifications/i))

@@ -7,7 +7,8 @@
  */
 
 // Mock window.gtag - MUST be before imports
-const mockGtag = jest.fn()
+import type { Mock } from 'vitest'
+const mockGtag = vi.fn()
 Object.defineProperty(global.window, 'gtag', {
   value: mockGtag,
   writable: true,
@@ -23,12 +24,12 @@ Object.defineProperty(global.window, 'dataLayer', {
 // Mock storage utility - MUST be before imports
 let storageStore: Record<string, string> = {}
 
-jest.mock('../../src/utils/storage', () => ({
+vi.mock('../../src/utils/storage', () => ({
   storage: {
-    get: jest.fn((key: string) => {
+    get: vi.fn((key: string) => {
       return storageStore[key] ?? null
     }),
-    getJSON: jest.fn((key: string) => {
+    getJSON: vi.fn((key: string) => {
       const value = storageStore[key]
       if (!value) return null
       try {
@@ -37,27 +38,27 @@ jest.mock('../../src/utils/storage', () => ({
         return null
       }
     }),
-    set: jest.fn((key: string, value: unknown) => {
+    set: vi.fn((key: string, value: unknown) => {
       storageStore[key] =
         typeof value === 'string' ? value : JSON.stringify(value)
     }),
-    clear: jest.fn(() => {
+    clear: vi.fn(() => {
       storageStore = {}
     }),
-    has: jest.fn((key: string) => storageStore[key] !== undefined),
+    has: vi.fn((key: string) => storageStore[key] !== undefined),
   },
   sessionStore: {
-    get: jest.fn(),
-    getJSON: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
-    has: jest.fn(),
+    get: vi.fn(),
+    getJSON: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
+    has: vi.fn(),
   },
   storageUtils: {
-    clearVibeXPData: jest.fn(),
-    getAllVibeXPData: jest.fn(),
-    isStorageAvailable: jest.fn(),
+    clearVibeXPData: vi.fn(),
+    getAllVibeXPData: vi.fn(),
+    isStorageAvailable: vi.fn(),
   },
 }))
 
@@ -72,10 +73,10 @@ import { STORAGE_KEYS } from '../../src/constants/storageKeys'
 import { storage } from '../../src/utils/storage'
 
 // Get the mocked functions
-const mockGet = storage.get as jest.Mock
-const mockGetJSON = storage.getJSON as jest.Mock
-const mockSet = storage.set as jest.Mock
-const mockClear = storage.clear as jest.Mock
+const mockGet = storage.get as Mock
+const mockGetJSON = storage.getJSON as Mock
+const mockSet = storage.set as Mock
+const mockClear = storage.clear as Mock
 
 // Get reference to dataLayer after module initialization
 const getDataLayer = () =>
@@ -88,7 +89,7 @@ const getInternalStore = () => storageStore
 describe('cookieConsent', () => {
   beforeEach(() => {
     mockClear()
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDataLayer.length = 0
     // Reset dataLayer reference to ensure it's always available after tests that set it to undefined
     Object.defineProperty(global.window, 'dataLayer', {
@@ -137,7 +138,7 @@ describe('cookieConsent', () => {
     })
 
     it('should store consent even if gtag throws', () => {
-      const throwingGtag = jest.fn(() => {
+      const throwingGtag = vi.fn(() => {
         throw new Error('gtag error')
       })
       Object.defineProperty(global.window, 'gtag', {

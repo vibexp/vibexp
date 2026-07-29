@@ -1,52 +1,49 @@
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
 
 import type { Team } from '@/services/teamService'
 
 // The three pages have their own suites; stub them so this file tests the
 // routing table itself — which path renders what, and the in-shell 404.
-jest.mock('@/pages/teams/TeamDetailsPage', () => ({
+vi.mock('@/pages/teams/TeamDetailsPage', () => ({
   TeamDetailsPage: () => <div data-testid="details" />,
 }))
-jest.mock('@/pages/teams/TeamAnalyticsPage', () => ({
+vi.mock('@/pages/teams/TeamAnalyticsPage', () => ({
   TeamAnalyticsPage: () => <div data-testid="analytics" />,
 }))
-jest.mock('@/pages/teams/settings/TeamSettings', () => ({
+vi.mock('@/pages/teams/settings/TeamSettings', () => ({
   TeamSettings: ({ team }: { team: Team }) => (
     <div data-testid="settings">{team.name}</div>
   ),
 }))
 // The four configuration pages relocated in #540. Stubbed for the same reason:
 // this file tests the routing table, not the pages.
-jest.mock('@/pages/teams/settings/search/SearchSettings', () => ({
+vi.mock('@/pages/teams/settings/search/SearchSettings', () => ({
   SearchSettings: ({ team }: { team: Team }) => (
     <div data-testid="search">{team.name}</div>
   ),
 }))
-jest.mock('@/pages/teams/settings/model-providers/ModelProviders', () => ({
+vi.mock('@/pages/teams/settings/model-providers/ModelProviders', () => ({
   ModelProviders: () => <div data-testid="model-providers" />,
 }))
-jest.mock(
+vi.mock(
   '@/pages/teams/settings/embedding-providers/EmbeddingProviders',
   () => ({
     EmbeddingProviders: () => <div data-testid="embedding-providers" />,
   })
 )
-jest.mock('@/pages/teams/settings/customization/Customization', () => ({
+vi.mock('@/pages/teams/settings/customization/Customization', () => ({
   Customization: () => <div data-testid="customization" />,
 }))
 // #506 — the email provider page, added to the same set.
-jest.mock('@/pages/teams/settings/email-provider/EmailProvider', () => ({
+vi.mock('@/pages/teams/settings/email-provider/EmailProvider', () => ({
   EmailProvider: ({ team }: { team: Team }) => (
     <div data-testid="email-provider">{team.name}</div>
   ),
 }))
-jest.mock(
-  '@/pages/teams/settings/integrations/github/GitHubIntegration',
-  () => ({
-    GitHubIntegration: () => <div data-testid="github-integration" />,
-  })
-)
+vi.mock('@/pages/teams/settings/integrations/github/GitHubIntegration', () => ({
+  GitHubIntegration: () => <div data-testid="github-integration" />,
+}))
 
 import { TeamRoutes } from '../TeamRoutes'
 

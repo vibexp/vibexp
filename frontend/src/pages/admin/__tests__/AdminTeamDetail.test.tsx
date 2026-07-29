@@ -3,19 +3,20 @@
  * error state (e.g. a 404 for an unknown id).
  */
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mocked } from 'vitest'
 
 import type { AdminTeamDetail as AdminTeamDetailType } from '@/services/adminService'
 
-jest.mock('@/services/adminService', () => ({
-  adminService: { getTeam: jest.fn() },
+vi.mock('@/services/adminService', () => ({
+  adminService: { getTeam: vi.fn() },
 }))
 
 import { adminService } from '@/services/adminService'
 
 import { AdminTeamDetail } from '../AdminTeamDetail'
 
-const mockAdminService = adminService as jest.Mocked<typeof adminService>
+const mockAdminService = adminService as Mocked<typeof adminService>
 
 const team: AdminTeamDetailType = {
   id: 't1',
@@ -46,7 +47,7 @@ function renderDetail() {
 }
 
 afterEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 it('renders the team, owner, and members', async () => {

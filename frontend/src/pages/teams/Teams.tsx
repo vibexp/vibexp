@@ -1,7 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { AlertCircle, Calendar, Mail, Plus, Users } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 
 import { DataTable } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'

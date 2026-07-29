@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRef } from 'react'
+import type { Mock } from 'vitest'
 
 import type { Blueprint } from '@/services/blueprintService'
 import type { Project } from '@/services/projectService'
@@ -9,9 +10,9 @@ import { BlueprintForm, type BlueprintFormHandle } from '../BlueprintForm'
 
 // Radix Select relies on layout APIs jsdom doesn't implement.
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 const projects: Project[] = [{ id: 'p1', name: 'Project One' } as Project]
@@ -32,11 +33,8 @@ const baseBlueprint: Blueprint = {
   metadata: {},
 }
 
-function renderForm(overrides?: {
-  blueprint?: Blueprint
-  onSubmit?: jest.Mock
-}) {
-  const onSubmit = overrides?.onSubmit ?? jest.fn().mockResolvedValue(undefined)
+function renderForm(overrides?: { blueprint?: Blueprint; onSubmit?: Mock }) {
+  const onSubmit = overrides?.onSubmit ?? vi.fn().mockResolvedValue(undefined)
   const ref = createRef<BlueprintFormHandle>()
   render(
     <BlueprintForm

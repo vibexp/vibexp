@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router'
 
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { AdminProjectDetail } from '@/pages/admin/AdminProjectDetail'

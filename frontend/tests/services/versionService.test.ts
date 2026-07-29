@@ -2,38 +2,38 @@ import type { Blueprint } from '../../src/services/blueprintService'
 import type { Prompt } from '../../src/services/promptService'
 import type { Memory } from '../../src/services/memoryService'
 
-const mockBlueprintService = {
-  getBlueprint: jest.fn(),
-  getBlueprintVersions: jest.fn(),
-  restoreBlueprintVersion: jest.fn(),
-}
+const mockBlueprintService = vi.hoisted(() => ({
+  getBlueprint: vi.fn(),
+  getBlueprintVersions: vi.fn(),
+  restoreBlueprintVersion: vi.fn(),
+}))
 
-const mockMemoryService = {
-  getMemory: jest.fn(),
-  getMemoryVersions: jest.fn(),
-  restoreMemoryVersion: jest.fn(),
-}
+const mockMemoryService = vi.hoisted(() => ({
+  getMemory: vi.fn(),
+  getMemoryVersions: vi.fn(),
+  restoreMemoryVersion: vi.fn(),
+}))
 
-const mockPromptService = {
-  getPrompt: jest.fn(),
-  getPromptVersions: jest.fn(),
-  restorePromptVersion: jest.fn(),
-}
+const mockPromptService = vi.hoisted(() => ({
+  getPrompt: vi.fn(),
+  getPromptVersions: vi.fn(),
+  restorePromptVersion: vi.fn(),
+}))
 
-jest.mock('../../src/services/blueprintService', () => ({
+vi.mock('../../src/services/blueprintService', () => ({
   blueprintService: mockBlueprintService,
 }))
 
-jest.mock('../../src/services/memoryService', () => ({
+vi.mock('../../src/services/memoryService', () => ({
   memoryService: mockMemoryService,
 }))
 
-jest.mock('../../src/services/promptService', () => ({
+vi.mock('../../src/services/promptService', () => ({
   promptService: mockPromptService,
 }))
 
 // artifactService is imported by versionService but not exercised here.
-jest.mock('../../src/services/artifactService', () => ({
+vi.mock('../../src/services/artifactService', () => ({
   artifactService: {},
 }))
 
@@ -82,7 +82,7 @@ describe('createBlueprintVersionSource', () => {
   ]
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('describes the blueprint resource', () => {
@@ -182,7 +182,7 @@ describe('createMemoryVersionSource', () => {
   ]
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('describes the memory resource', () => {
@@ -263,7 +263,7 @@ describe('createPromptVersionSource', () => {
   ]
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('describes the prompt resource', () => {

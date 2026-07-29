@@ -1,28 +1,13 @@
 import '@testing-library/jest-dom'
 
-// Polyfill for TextEncoder/TextDecoder in Node.js test environment
+// Polyfill for TextEncoder/TextDecoder in Node.js test environment (jsdom
+// does not provide them; react-router@8's server-runtime/crypto touches
+// TextEncoder at module scope).
 import { TextEncoder, TextDecoder } from 'util'
 
-// Mock import.meta.env for Vite environment variables
-Object.defineProperty(globalThis, 'import', {
-  value: {
-    meta: {
-      env: {
-        DEV: false,
-        PROD: true,
-        MODE: 'test',
-        BASE_URL: '/',
-        SSR: false,
-        // GTM/GA4 environment variables (disabled in tests)
-        VITE_GTM_ENABLED: 'false',
-        VITE_GTM_ID: '',
-        VITE_GA4_MEASUREMENT_ID: '',
-        VITE_API_BASE_URL: 'https://api.vibexp.io/api/v1',
-      },
-    },
-  },
-  writable: true,
-})
+// import.meta.env is native under Vitest — values come from Vite env handling
+// (mode 'test'), so the jest-era `globals['import.meta']` shim is gone. Tests
+// that gate on VITE_GTM_ENABLED etc. rely on those being unset/empty here.
 
 // Add TextEncoder/TextDecoder for Node.js environment
 if (typeof global.TextEncoder === 'undefined') {

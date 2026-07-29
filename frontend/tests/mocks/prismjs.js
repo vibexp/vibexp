@@ -1,15 +1,15 @@
-module.exports = {
-  default: {
-    highlightAll: jest.fn(),
-    highlight: jest.fn(text => text),
-    languages: {
-      javascript: {},
-      typescript: {},
-      python: {},
-      json: {},
-      css: {},
-      html: {},
-    },
+// Stub for prismjs in tests (avoids loading the real highlighter).
+const prism = {
+  highlightAll: vi.fn(),
+  highlight: vi.fn(text => text),
+  languages: {
+    javascript: {},
+    typescript: {},
+    python: {},
+    json: {},
+    css: {},
+    html: {},
   },
-  __esModule: true,
 }
+
+export default prism

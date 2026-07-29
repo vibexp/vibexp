@@ -1,3 +1,4 @@
+import type { MockInstance } from 'vitest'
 import {
   validateUserProperties,
   validateBaseEvent,
@@ -460,21 +461,29 @@ describe('analyticsValidation', () => {
   })
 
   describe('logValidationResults', () => {
-    let consoleLogSpy: jest.SpyInstance
-    let consoleGroupSpy: jest.SpyInstance
-    let consoleErrorSpy: jest.SpyInstance
-    let consoleWarnSpy: jest.SpyInstance
+    let consoleLogSpy: MockInstance
+    let consoleGroupSpy: MockInstance
+    let consoleErrorSpy: MockInstance
+    let consoleWarnSpy: MockInstance
 
     beforeEach(() => {
-      consoleLogSpy = jest.spyOn(console, 'log').mockImplementation()
-      consoleGroupSpy = jest.spyOn(console, 'group').mockImplementation()
-      jest.spyOn(console, 'groupEnd').mockImplementation()
-      consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation()
-      consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation()
+      consoleLogSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => undefined)
+      consoleGroupSpy = vi
+        .spyOn(console, 'group')
+        .mockImplementation(() => undefined)
+      vi.spyOn(console, 'groupEnd').mockImplementation(() => undefined)
+      consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
+      consoleWarnSpy = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined)
     })
 
     afterEach(() => {
-      jest.restoreAllMocks()
+      vi.restoreAllMocks()
     })
 
     it('logs valid event without warnings', () => {

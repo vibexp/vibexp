@@ -7,35 +7,36 @@
  */
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router'
+import type { Mocked } from 'vitest'
 
 import type {
   AdminTeamListItem,
   AdminTeamListResponse,
 } from '@/services/adminService'
 
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual<typeof import('react-router-dom')>('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router', async () => ({
+  ...(await vi.importActual<typeof import('react-router')>('react-router')),
   useNavigate: () => mockNavigate,
 }))
 
-jest.mock('@/services/adminService', () => ({
-  adminService: { listTeams: jest.fn() },
+vi.mock('@/services/adminService', () => ({
+  adminService: { listTeams: vi.fn() },
 }))
 
 import { adminService } from '@/services/adminService'
 
 import { AdminTeams } from '../AdminTeams'
 
-const mockAdminService = adminService as jest.Mocked<typeof adminService>
+const mockAdminService = adminService as Mocked<typeof adminService>
 
 // Radix Select relies on layout APIs jsdom does not implement, same as
 // BlueprintForm.test.tsx.
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 function team(overrides: Partial<AdminTeamListItem> = {}): AdminTeamListItem {
@@ -88,7 +89,7 @@ const lastQuery = () => {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockAdminService.listTeams.mockResolvedValue(page())
 })
 

@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { Team } from '@/services/teamService'
 
@@ -10,13 +10,13 @@ const teamContext: { currentTeam: Team | null; isLoading: boolean } = {
   isLoading: false,
 }
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: teamContext.currentTeam,
     isLoading: teamContext.isLoading,
     teams: teamContext.currentTeam ? [teamContext.currentTeam] : [],
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
   }),
 }))
 

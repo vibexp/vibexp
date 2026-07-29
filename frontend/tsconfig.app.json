@@ -17,7 +17,7 @@
 
     /* Monorepo: pin ambient global types so a sibling workspace's hoisted
        @types/bun (which augments the global `fetch`) does not leak in. */
-    "types": ["node", "jest", "vite/client"],
+    "types": ["node", "vitest/globals", "vite/client"],
 
     /* Linting */
     "strict": true,

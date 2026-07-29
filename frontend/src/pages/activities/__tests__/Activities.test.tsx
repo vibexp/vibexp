@@ -4,6 +4,7 @@
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
+import type { Mocked } from 'vitest'
 
 import type {
   ActivitiesResponse,
@@ -16,7 +17,7 @@ import type {
 
 // Radix UI Tooltip primitives don't work in JSDOM — stub them out so we can
 // assert on the rendered text without worrying about portal / pointer events.
-jest.mock('@/components/ui/tooltip', () => ({
+vi.mock('@/components/ui/tooltip', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipContent: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="tooltip-content">{children}</div>
@@ -29,15 +30,15 @@ jest.mock('@/components/ui/tooltip', () => ({
   ),
 }))
 
-jest.mock('@/services/activityService', () => ({
+vi.mock('@/services/activityService', () => ({
   activityService: {
-    getActivities: jest.fn(),
+    getActivities: vi.fn(),
   },
 }))
 
 // Stable showError so useCallback's dependency array doesn't change each render
-const mockShowError = jest.fn()
-jest.mock('@/hooks', () => ({
+const mockShowError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks', () => ({
   useAlerts: () => ({ showError: mockShowError }),
 }))
 
@@ -48,9 +49,7 @@ import { activityService } from '@/services/activityService'
 
 import { Activities } from '../Activities'
 
-const mockActivityService = activityService as jest.Mocked<
-  typeof activityService
->
+const mockActivityService = activityService as Mocked<typeof activityService>
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -111,7 +110,7 @@ function activityResponse(
 
 describe('Activities page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('renders the page header', async () => {

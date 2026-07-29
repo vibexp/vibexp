@@ -1,20 +1,21 @@
+import type { Mock } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
 // Mock the centralized storage utilities - MUST be before imports
-jest.mock('../../src/utils/storage', () => ({
+vi.mock('../../src/utils/storage', () => ({
   storage: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
-    has: jest.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
+    has: vi.fn(),
   },
   sessionStore: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
-    has: jest.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
+    has: vi.fn(),
   },
   STORAGE_KEYS: {
     CURRENT_TEAM_ID: 'vibexp_current_team_id',
@@ -30,14 +31,14 @@ import { useLocalStorage } from '../../src/hooks/useLocalStorage'
 import { storage, STORAGE_KEYS } from '../../src/utils/storage'
 
 // Get the mocked functions
-const mockGet = storage.get as jest.Mock
-const mockSet = storage.set as jest.Mock
-const mockClear = storage.clear as jest.Mock
+const mockGet = storage.get as Mock
+const mockSet = storage.set as Mock
+const mockClear = storage.clear as Mock
 
 describe('useLocalStorage', () => {
   beforeEach(() => {
     mockClear.mockImplementation(() => {})
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockGet.mockReturnValue(null)
   })
 

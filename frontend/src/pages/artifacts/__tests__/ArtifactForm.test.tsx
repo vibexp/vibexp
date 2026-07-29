@@ -1,11 +1,12 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRef } from 'react'
+import type { Mock } from 'vitest'
 
 import type { Artifact } from '@/services/artifactService'
 
 // Stub the async ProjectPicker to a button that selects a fixed project.
-jest.mock('@/components/ProjectPicker', () => ({
+vi.mock('@/components/ProjectPicker', () => ({
   ProjectPicker: ({
     onChange,
   }: {
@@ -23,7 +24,7 @@ jest.mock('@/components/ProjectPicker', () => ({
   ),
 }))
 
-jest.mock('@/hooks/useTypes', () => ({
+vi.mock('@/hooks/useTypes', () => ({
   useTypes: () => ({
     types: [{ id: 't1', slug: 'general', name: 'General' }],
     isLoading: false,
@@ -47,8 +48,8 @@ const baseArtifact: Artifact = {
   metadata: {},
 }
 
-function renderForm(overrides?: { artifact?: Artifact; onSubmit?: jest.Mock }) {
-  const onSubmit = overrides?.onSubmit ?? jest.fn().mockResolvedValue(undefined)
+function renderForm(overrides?: { artifact?: Artifact; onSubmit?: Mock }) {
+  const onSubmit = overrides?.onSubmit ?? vi.fn().mockResolvedValue(undefined)
   const ref = createRef<ArtifactFormHandle>()
   render(
     <ArtifactForm

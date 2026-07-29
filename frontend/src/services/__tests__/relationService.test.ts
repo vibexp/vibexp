@@ -6,15 +6,15 @@ import type {
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-  PUT: jest.fn(),
-  DELETE: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+  PUT: vi.fn(),
+  DELETE: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return {
@@ -31,9 +31,9 @@ const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 const TEAM_ID = 'team-123'
 const RELATION_ID = 'rel-abc'
 
-const mockRelation: Relation = {
-  id: RELATION_ID,
-  team_id: TEAM_ID,
+const mockRelation: Relation = vi.hoisted(() => ({
+  id: 'rel-abc',
+  team_id: 'team-123',
   project_id: 'p1',
   from_type: 'artifact',
   from_id: 'a1',
@@ -44,10 +44,10 @@ const mockRelation: Relation = {
   status: 'confirmed',
   created_at: '2026-07-21T00:00:00Z',
   updated_at: '2026-07-21T00:00:00Z',
-}
+}))
 
-const mockRelated: RelatedResource = {
-  relation_id: RELATION_ID,
+const mockRelated: RelatedResource = vi.hoisted(() => ({
+  relation_id: 'rel-abc',
   relation_type: 'governed-by',
   direction: 'outgoing',
   origin: 'ai',
@@ -56,10 +56,10 @@ const mockRelated: RelatedResource = {
   resource_id: 'b1',
   title: 'Go standards',
   created_at: '2026-07-21T00:00:00Z',
-}
+}))
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 describe('relationService', () => {

@@ -1,6 +1,6 @@
 import { Search as SearchIcon } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import {

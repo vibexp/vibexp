@@ -1,4 +1,5 @@
 import { render, waitFor } from '@testing-library/react'
+import type { MockInstance } from 'vitest'
 
 import type { Team } from '@/services/teamService'
 
@@ -7,9 +8,9 @@ import type { Team } from '@/services/teamService'
 // ---------------------------------------------------------------------------
 
 const sessionState = new Map<string, string>()
-const mockSessionStore = {
-  get: jest.fn((key: string) => sessionState.get(key) ?? null),
-  getJSON: jest.fn((key: string): unknown => {
+const mockSessionStore = vi.hoisted(() => ({
+  get: vi.fn((key: string) => sessionState.get(key) ?? null),
+  getJSON: vi.fn((key: string): unknown => {
     const raw = sessionState.get(key)
     if (raw === undefined) return null
     try {
@@ -18,33 +19,33 @@ const mockSessionStore = {
       return null
     }
   }),
-  set: jest.fn((key: string, value: unknown) => {
+  set: vi.fn((key: string, value: unknown) => {
     sessionState.set(
       key,
       typeof value === 'string' ? value : JSON.stringify(value)
     )
   }),
-  remove: jest.fn((key: string) => {
+  remove: vi.fn((key: string) => {
     sessionState.delete(key)
   }),
-}
+}))
 
-jest.mock('@/utils/storage', () => ({
+vi.mock('@/utils/storage', () => ({
   sessionStore: mockSessionStore,
 }))
 
-const mockToastSuccess = jest.fn()
-jest.mock('@/lib/toast', () => ({
+const mockToastSuccess = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/toast', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
   },
 }))
 
-const mockSetCurrentTeam = jest.fn()
-const mockRefreshTeams = jest.fn()
+const mockSetCurrentTeam = vi.hoisted(() => vi.fn())
+const mockRefreshTeams = vi.hoisted(() => vi.fn())
 let mockTeams: Team[] = []
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: null,
     teams: mockTeams,
@@ -54,8 +55,8 @@ jest.mock('@/contexts/TeamContext', () => ({
   }),
 }))
 
-const mockGetTeamDetails = jest.fn()
-jest.mock('@/services/teamService', () => ({
+const mockGetTeamDetails = vi.hoisted(() => vi.fn())
+vi.mock('@/services/teamService', () => ({
   teamService: {
     getTeamDetails: (...args: unknown[]) => mockGetTeamDetails(...args),
   },
@@ -92,13 +93,13 @@ const buildTeam = (overrides: Partial<Team> = {}): Team => ({
 // ---------------------------------------------------------------------------
 
 describe('InvitationAcceptHandshake', () => {
-  let consoleErrorSpy: jest.SpyInstance
+  let consoleErrorSpy: MockInstance
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     sessionState.clear()
     mockTeams = []
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {

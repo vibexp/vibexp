@@ -1,5 +1,5 @@
 import { HelmetProvider } from 'react-helmet-async'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'
+import { BrowserRouter as Router, Route, Routes } from 'react-router'
 
 import { AlertContainer } from '@/components/AlertContainer'
 import { ReturnToResumeAfterAuth } from '@/components/auth/ReturnToResumeAfterAuth'

@@ -6,15 +6,15 @@ import type {
   CreateAgentRequest,
 } from '../agentService'
 
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-  PUT: jest.fn(),
-  DELETE: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+  PUT: vi.fn(),
+  DELETE: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return { ...actual, generatedClient: mockGeneratedClient }
@@ -73,7 +73,7 @@ const execution: AgentExecution = {
 
 describe('AgentService (generatedClient)', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('getAgents GETs the team-scoped list with filters as query params (bare list response)', async () => {

@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type { MockedFunction } from 'vitest'
 
 import { useTeam } from '@/contexts/TeamContext'
 import type { Project, ProjectListResponse } from '@/services/projectService'
@@ -6,11 +7,11 @@ import { projectService } from '@/services/projectService'
 
 import { useProjectSearch } from './useProjectSearch'
 
-jest.mock('@/contexts/TeamContext')
-jest.mock('@/services/projectService')
+vi.mock('@/contexts/TeamContext')
+vi.mock('@/services/projectService')
 
-const mockedUseTeam = useTeam as jest.MockedFunction<typeof useTeam>
-const mockedGetProjects = projectService.getProjects as jest.MockedFunction<
+const mockedUseTeam = useTeam as MockedFunction<typeof useTeam>
+const mockedGetProjects = projectService.getProjects as MockedFunction<
   typeof projectService.getProjects
 >
 
@@ -45,23 +46,23 @@ function setTeam(): void {
       slug: 'team-one',
     },
     teams: [],
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
     isLoading: false,
   } as unknown as ReturnType<typeof useTeam>)
 }
 
 describe('useProjectSearch', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    jest.useFakeTimers()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
     setTeam()
     mockedGetProjects.mockResolvedValue(listResponse([project('p1', 'Alpha')]))
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   it('loads an initial page (no search param) after the debounce', async () => {
@@ -70,7 +71,7 @@ describe('useProjectSearch', () => {
     expect(mockedGetProjects).not.toHaveBeenCalled()
 
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
 
     await waitFor(() => {
@@ -88,7 +89,7 @@ describe('useProjectSearch', () => {
     const { result } = renderHook(() => useProjectSearch())
 
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
     await waitFor(() => {
       expect(mockedGetProjects).toHaveBeenCalledTimes(1)
@@ -105,12 +106,12 @@ describe('useProjectSearch', () => {
 
     // Only one trailing call should fire after the debounce window.
     act(() => {
-      jest.advanceTimersByTime(299)
+      vi.advanceTimersByTime(299)
     })
     expect(mockedGetProjects).toHaveBeenCalledTimes(1)
 
     act(() => {
-      jest.advanceTimersByTime(1)
+      vi.advanceTimersByTime(1)
     })
 
     await waitFor(() => {
@@ -133,7 +134,7 @@ describe('useProjectSearch', () => {
     )
 
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
 
     await waitFor(() => {
@@ -161,7 +162,7 @@ describe('useProjectSearch', () => {
     const { result } = renderHook(() => useProjectSearch())
 
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
     await waitFor(() => {
       expect(result.current.projects).toHaveLength(1)
@@ -172,13 +173,13 @@ describe('useProjectSearch', () => {
       result.current.setQuery('A')
     })
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
     act(() => {
       result.current.setQuery('AB')
     })
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
     await waitFor(() => {
       expect(mockedGetProjects).toHaveBeenCalledTimes(3)
@@ -209,7 +210,7 @@ describe('useProjectSearch', () => {
     const { result } = renderHook(() => useProjectSearch())
 
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
 
     await waitFor(() => {
@@ -238,7 +239,7 @@ describe('useProjectSearch', () => {
     const { result } = renderHook(() => useProjectSearch({ limit: 1 }))
 
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
     await waitFor(() => {
       expect(result.current.projects).toHaveLength(1)
@@ -268,7 +269,7 @@ describe('useProjectSearch', () => {
     const { result } = renderHook(() => useProjectSearch())
 
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
     await waitFor(() => {
       expect(result.current.projects).toHaveLength(1)
@@ -296,7 +297,7 @@ describe('useProjectSearch', () => {
     const { result } = renderHook(() => useProjectSearch({ limit: 1 }))
 
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
     await waitFor(() => {
       expect(result.current.projects.map(p => p.id)).toEqual(['p1'])
@@ -307,7 +308,7 @@ describe('useProjectSearch', () => {
       result.current.setQuery('Be')
     })
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
 
     await waitFor(() => {

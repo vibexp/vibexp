@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { AuthProvider } from '../../services/authService'
 import { SignInPage } from './SignInPage'
@@ -9,57 +9,59 @@ import { SignInPage } from './SignInPage'
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockLogin = jest.fn()
-const mockTrackAuth = jest.fn()
-const mockGetProviders = jest.fn<Promise<AuthProvider[]>, []>()
+const mockLogin = vi.hoisted(() => vi.fn())
+const mockTrackAuth = vi.hoisted(() => vi.fn())
+const mockGetProviders = vi.hoisted(() =>
+  vi.fn((): Promise<AuthProvider[]> => Promise.resolve([]))
+)
 
-jest.mock('../../contexts/AuthContext', () => ({
+vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     login: mockLogin,
     user: null,
     isAuthenticated: false,
     isLoading: false,
-    logout: jest.fn(),
-    checkPendingInvitation: jest.fn(),
-    markOnboardingComplete: jest.fn(),
+    logout: vi.fn(),
+    checkPendingInvitation: vi.fn(),
+    markOnboardingComplete: vi.fn(),
   }),
 }))
 
-jest.mock('../../hooks/useAnalytics', () => ({
+vi.mock('../../hooks/useAnalytics', () => ({
   useAnalytics: () => ({
     trackAuth: mockTrackAuth,
-    track: jest.fn(),
-    trackEvent: jest.fn(),
-    trackPage: jest.fn(),
-    trackError: jest.fn(),
-    identify: jest.fn(),
+    track: vi.fn(),
+    trackEvent: vi.fn(),
+    trackPage: vi.fn(),
+    trackError: vi.fn(),
+    identify: vi.fn(),
     isEnabled: true,
   }),
 }))
 
-jest.mock('../../services/authService', () => ({
+vi.mock('../../services/authService', () => ({
   authService: {
     getProviders: () => mockGetProviders(),
   },
 }))
 
 // Mock CookieConsentBanner so we don't need to stub its dependencies
-jest.mock('@/components/CookieConsentBanner', () => ({
+vi.mock('@/components/CookieConsentBanner', () => ({
   CookieConsentBanner: () => null,
 }))
 
 // Mock theme hook
-jest.mock('@/lib/theme', () => ({
-  useTheme: () => ({ resolvedTheme: 'light', setTheme: jest.fn() }),
+vi.mock('@/lib/theme', () => ({
+  useTheme: () => ({ resolvedTheme: 'light', setTheme: vi.fn() }),
 }))
 
 // Mock DevLogin to avoid import.meta.env dependency in Jest
-jest.mock('./DevLogin', () => ({
+vi.mock('./DevLogin', () => ({
   DevLogin: () => null,
 }))
 
 // Mock UI components that pull in radix-ui and other heavy deps
-jest.mock('@/components/ui/button', () => ({
+vi.mock('@/components/ui/button', () => ({
   Button: ({
     children,
     onClick,
@@ -75,7 +77,7 @@ jest.mock('@/components/ui/button', () => ({
   ),
 }))
 
-jest.mock('@/components/ui/alert', () => ({
+vi.mock('@/components/ui/alert', () => ({
   Alert: ({ children }: { children: React.ReactNode }) => (
     <div role="alert">{children}</div>
   ),
@@ -113,7 +115,7 @@ function renderSignInPage(initialEntry = '/login') {
 
 describe('SignInPage — config-driven provider picker', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     window.sessionStorage.clear()
     // Default: login resolves immediately (redirect handled by location mock)
     mockLogin.mockResolvedValue(undefined)
@@ -193,7 +195,7 @@ describe('SignInPage — config-driven provider picker', () => {
 
 describe('SignInPage — return_to plumbing', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     window.sessionStorage.clear()
     mockLogin.mockResolvedValue(undefined)
     mockGetProviders.mockResolvedValue(PROVIDERS)

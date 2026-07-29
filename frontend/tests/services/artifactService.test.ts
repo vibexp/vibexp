@@ -9,15 +9,15 @@ import type {
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-  PUT: jest.fn(),
-  DELETE: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+  PUT: vi.fn(),
+  DELETE: vi.fn(),
+}))
 
-jest.mock('../../src/lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../src/lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../src/lib/apiClientGenerated')
   >('../../src/lib/apiClientGenerated')
   return {
@@ -60,7 +60,7 @@ describe('ArtifactService', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('getArtifacts', () => {
@@ -316,7 +316,9 @@ describe('ArtifactService', () => {
     })
 
     it('returns default stats on error', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
       mockGeneratedClient.GET.mockReturnValue(
         Promise.resolve({
           error: {

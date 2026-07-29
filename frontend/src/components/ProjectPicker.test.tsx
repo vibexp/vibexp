@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { MockedFunction } from 'vitest'
 
 import { useTeam } from '@/contexts/TeamContext'
 import type { Project, ProjectListResponse } from '@/services/projectService'
@@ -7,11 +8,11 @@ import { projectService } from '@/services/projectService'
 
 import { ProjectPicker } from './ProjectPicker'
 
-jest.mock('@/contexts/TeamContext')
-jest.mock('@/services/projectService')
+vi.mock('@/contexts/TeamContext')
+vi.mock('@/services/projectService')
 
-const mockedUseTeam = useTeam as jest.MockedFunction<typeof useTeam>
-const mockedGetProjects = projectService.getProjects as jest.MockedFunction<
+const mockedUseTeam = useTeam as MockedFunction<typeof useTeam>
+const mockedGetProjects = projectService.getProjects as MockedFunction<
   typeof projectService.getProjects
 >
 
@@ -55,39 +56,35 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 function setTeam(): void {
   mockedUseTeam.mockReturnValue({
     currentTeam: { id: 'team-1', name: 'Team One', slug: 'team-one' },
     teams: [],
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
     isLoading: false,
   } as unknown as ReturnType<typeof useTeam>)
 }
 
 describe('ProjectPicker', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    jest.useFakeTimers()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
     setTeam()
     mockedGetProjects.mockResolvedValue(listResponse([alpha, beta]))
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   it('shows the placeholder when nothing is selected', () => {
     render(
-      <ProjectPicker
-        value={null}
-        onChange={jest.fn()}
-        placeholder="Pick one…"
-      />
+      <ProjectPicker value={null} onChange={vi.fn()} placeholder="Pick one…" />
     )
 
     expect(screen.getByRole('combobox')).toHaveTextContent('Pick one…')
@@ -95,20 +92,20 @@ describe('ProjectPicker', () => {
 
   it('shows the seeded selected project name in the trigger', () => {
     render(
-      <ProjectPicker value="p1" onChange={jest.fn()} selectedProject={alpha} />
+      <ProjectPicker value="p1" onChange={vi.fn()} selectedProject={alpha} />
     )
 
     expect(screen.getByRole('combobox')).toHaveTextContent('Alpha Project')
   })
 
   it('searches the backend (debounced) when typing', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
-    render(<ProjectPicker value={null} onChange={jest.fn()} />)
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    render(<ProjectPicker value={null} onChange={vi.fn()} />)
 
     await user.click(screen.getByRole('combobox'))
     await user.type(screen.getByPlaceholderText(/search projects/i), 'Beta')
 
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     await waitFor(() => {
       expect(mockedGetProjects).toHaveBeenLastCalledWith('team-1', {
@@ -120,12 +117,12 @@ describe('ProjectPicker', () => {
   })
 
   it('calls onChange with the project id and project when a project is selected', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
-    const onChange = jest.fn()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const onChange = vi.fn()
     render(<ProjectPicker value={null} onChange={onChange} />)
 
     await user.click(screen.getByRole('combobox'))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     await user.click(await screen.findByText('Beta Project'))
 
@@ -133,12 +130,12 @@ describe('ProjectPicker', () => {
   })
 
   it('renders an "All projects" option that clears the selection', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
-    const onChange = jest.fn()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const onChange = vi.fn()
     render(<ProjectPicker value="p1" onChange={onChange} includeAllOption />)
 
     await user.click(screen.getByRole('combobox'))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     await user.click(await screen.findByText('All projects'))
 
@@ -149,7 +146,7 @@ describe('ProjectPicker', () => {
     render(
       <ProjectPicker
         value={null}
-        onChange={jest.fn()}
+        onChange={vi.fn()}
         aria-invalid
         aria-describedby="project-error"
       />
@@ -164,7 +161,7 @@ describe('ProjectPicker', () => {
     render(
       <ProjectPicker
         value={null}
-        onChange={jest.fn()}
+        onChange={vi.fn()}
         includeAllOption
         allOptionLabel="All projects"
       />
@@ -174,13 +171,13 @@ describe('ProjectPicker', () => {
   })
 
   it('renders a height-bounded, scrollable result list', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     const { container } = render(
-      <ProjectPicker value={null} onChange={jest.fn()} />
+      <ProjectPicker value={null} onChange={vi.fn()} />
     )
 
     await user.click(screen.getByRole('combobox'))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
     await screen.findByText('Alpha Project')
 
     const list = container.ownerDocument.querySelector('[cmdk-list]')
@@ -190,13 +187,13 @@ describe('ProjectPicker', () => {
   })
 
   it('appends the next page when "Load more" is selected', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     mockedGetProjects.mockResolvedValueOnce(pagedResponse([alpha], 1, 2))
 
-    render(<ProjectPicker value={null} onChange={jest.fn()} />)
+    render(<ProjectPicker value={null} onChange={vi.fn()} />)
 
     await user.click(screen.getByRole('combobox'))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
     await screen.findByText('Alpha Project')
 
     mockedGetProjects.mockResolvedValueOnce(pagedResponse([beta], 2, 2))
@@ -211,14 +208,14 @@ describe('ProjectPicker', () => {
   })
 
   it('shows an empty state when no projects match', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     mockedGetProjects.mockResolvedValue(listResponse([]))
     const { container } = render(
-      <ProjectPicker value={null} onChange={jest.fn()} />
+      <ProjectPicker value={null} onChange={vi.fn()} />
     )
 
     await user.click(screen.getByRole('combobox'))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     const list = await waitFor(() => {
       const el =

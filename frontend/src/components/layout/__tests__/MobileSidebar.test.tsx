@@ -1,23 +1,23 @@
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import React from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 // ---------------------------------------------------------------------------
 // Mock Radix-based UI primitives that require browser APIs unavailable in
 // JSDOM (ResizeObserver used by ScrollArea, portal context for Sheet).
 // ---------------------------------------------------------------------------
-jest.mock('@/components/ui/scroll-area', () => ({
+vi.mock('@/components/ui/scroll-area', () => ({
   ScrollArea: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="scroll-area">{children}</div>
   ),
 }))
 
 // Spy recording every click that would close the Sheet via SheetClose.
-const mockSheetClose = jest.fn()
+const mockSheetClose = vi.hoisted(() => vi.fn())
 
-jest.mock('@/components/ui/sheet', () => {
-  const ReactActual = jest.requireActual<typeof React>('react')
+vi.mock('@/components/ui/sheet', async () => {
+  const ReactActual = await vi.importActual<typeof React>('react')
   return {
     SheetClose: ({
       children,

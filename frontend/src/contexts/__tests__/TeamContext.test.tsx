@@ -1,29 +1,30 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { renderHook } from '@testing-library/react'
+import type { Mocked } from 'vitest'
 
 import type { Team } from '../../services/teamService'
 import { TeamProvider, useTeam } from '../TeamContext'
 
 // Mock the teamService
-jest.mock('../../services/teamService', () => ({
+vi.mock('../../services/teamService', () => ({
   teamService: {
-    getTeams: jest.fn(),
+    getTeams: vi.fn(),
   },
 }))
 
 // Mock the centralized storage utilities
-jest.mock('../../utils/storage', () => ({
+vi.mock('../../utils/storage', () => ({
   storage: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
   },
   sessionStore: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
   },
 }))
 
@@ -32,8 +33,8 @@ import { teamService } from '../../services/teamService'
 import { storage } from '../../utils/storage'
 
 // Type the mocked modules properly
-const mockTeamService = teamService as jest.Mocked<typeof teamService>
-const mockStorage = storage as jest.Mocked<typeof storage>
+const mockTeamService = teamService as Mocked<typeof teamService>
+const mockStorage = storage as Mocked<typeof storage>
 
 describe('TeamContext', () => {
   const mockTeams: Team[] = [
@@ -68,7 +69,7 @@ describe('TeamContext', () => {
   ]
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     // Clear mocks
     mockStorage.clear.mockImplementation(() => {})
     mockStorage.get.mockReturnValue(null)
@@ -189,7 +190,7 @@ describe('TeamContext', () => {
     })
 
     it('should throw error when useTeam is used outside TeamProvider', () => {
-      const consoleErrorSpy = jest
+      const consoleErrorSpy = vi
         .spyOn(console, 'error')
         .mockImplementation(() => {})
 
@@ -236,7 +237,7 @@ describe('TeamContext', () => {
         new Error('Failed to fetch teams')
       )
 
-      const consoleErrorSpy = jest
+      const consoleErrorSpy = vi
         .spyOn(console, 'error')
         .mockImplementation(() => {})
 

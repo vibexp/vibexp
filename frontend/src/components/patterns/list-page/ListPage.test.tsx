@@ -86,7 +86,7 @@ describe('<ListPage.Footer>', () => {
       render(
         <ListPage.Footer
           count={{ visible: 10, total: 47, noun: 'prompt' }}
-          pagination={{ page: 1, totalPages: 3, onPageChange: jest.fn() }}
+          pagination={{ page: 1, totalPages: 3, onPageChange: vi.fn() }}
         />
       )
 
@@ -153,7 +153,7 @@ describe('<ListPage.Footer>', () => {
       render(
         <ListPage.Footer
           count={{ visible: 5, total: 5, noun: 'prompt' }}
-          pagination={{ page: 1, totalPages: 1, onPageChange: jest.fn() }}
+          pagination={{ page: 1, totalPages: 1, onPageChange: vi.fn() }}
         />
       )
 
@@ -182,7 +182,7 @@ describe('<ListPage.Footer>', () => {
       render(
         <ListPage.Footer
           count={{ visible: 10, total: 30, noun: 'prompt' }}
-          pagination={{ page: 1, totalPages: 3, onPageChange: jest.fn() }}
+          pagination={{ page: 1, totalPages: 3, onPageChange: vi.fn() }}
         />
       )
 
@@ -194,7 +194,7 @@ describe('<ListPage.Footer>', () => {
       render(
         <ListPage.Footer
           count={{ visible: 7, total: 30, noun: 'prompt' }}
-          pagination={{ page: 3, totalPages: 3, onPageChange: jest.fn() }}
+          pagination={{ page: 3, totalPages: 3, onPageChange: vi.fn() }}
         />
       )
 
@@ -206,7 +206,7 @@ describe('<ListPage.Footer>', () => {
 
     it('calls onPageChange with page-1 when Prev clicked', async () => {
       const user = userEvent.setup()
-      const onPageChange = jest.fn()
+      const onPageChange = vi.fn()
 
       render(
         <ListPage.Footer
@@ -221,7 +221,7 @@ describe('<ListPage.Footer>', () => {
 
     it('calls onPageChange with page+1 when Next clicked', async () => {
       const user = userEvent.setup()
-      const onPageChange = jest.fn()
+      const onPageChange = vi.fn()
 
       render(
         <ListPage.Footer

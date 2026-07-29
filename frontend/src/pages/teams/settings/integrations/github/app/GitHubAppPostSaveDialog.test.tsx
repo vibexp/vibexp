@@ -1,26 +1,27 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mock } from 'vitest'
 
 import { githubAppConfigService } from '@/services/githubAppConfigService'
 
 import { GitHubAppPostSaveDialog } from './GitHubAppPostSaveDialog'
 
-jest.mock('@/services/githubAppConfigService', () => ({
-  ...jest.requireActual('@/services/githubAppConfigService'),
-  githubAppConfigService: { validateAppConfig: jest.fn() },
+vi.mock('@/services/githubAppConfigService', async () => ({
+  ...(await vi.importActual('@/services/githubAppConfigService')),
+  githubAppConfigService: { validateAppConfig: vi.fn() },
 }))
 
-jest.mock('@/lib/toast', () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
 
-const mockedValidate = githubAppConfigService.validateAppConfig as jest.Mock
+const mockedValidate = githubAppConfigService.validateAppConfig as Mock
 
 const WEBHOOK_URL = 'https://vibexp.example.com/api/v1/webhooks/github/tok3n'
 const SECRET = 'whsec-generated-value'
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 const renderDialog = (
@@ -29,7 +30,7 @@ const renderDialog = (
   render(
     <GitHubAppPostSaveDialog
       open
-      onOpenChange={jest.fn()}
+      onOpenChange={vi.fn()}
       teamId="team-1"
       webhookUrl={WEBHOOK_URL}
       webhookSecret={SECRET}
@@ -109,7 +110,9 @@ describe('GitHubAppPostSaveDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'Verify' }))
 
-    const { toast } = jest.requireMock('@/lib/toast')
+    const { toast } = (await vi.importMock('@/lib/toast')) as {
+      toast: { success: Mock; error: Mock }
+    }
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith(
         'Could not verify the GitHub App'

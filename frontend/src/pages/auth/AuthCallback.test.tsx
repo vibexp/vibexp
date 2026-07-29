@@ -1,30 +1,30 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockHardRedirect = jest.fn()
-const mockConsumeReturnTo = jest.fn(() => '/')
+const mockHardRedirect = vi.hoisted(() => vi.fn())
+const mockConsumeReturnTo = vi.hoisted(() => vi.fn(() => '/'))
 
-jest.mock('@/utils/navigation', () => ({
+vi.mock('@/utils/navigation', () => ({
   hardRedirect: (...args: unknown[]) => mockHardRedirect(...args),
 }))
 
-jest.mock('@/utils/returnTo', () => ({
+vi.mock('@/utils/returnTo', () => ({
   consumeReturnTo: () => mockConsumeReturnTo(),
 }))
 
 // `@/utils/environment` is not covered by jest's relative-path moduleNameMapper
 // entries, so stub it explicitly.
-jest.mock('@/utils/environment', () => ({
+vi.mock('@/utils/environment', () => ({
   getApiBaseUrl: () => 'http://api.test/api/v1',
 }))
 
 // Passthrough mocks for the UI primitives so the alert renders as plain DOM.
-jest.mock('@/components/ui/alert', () => ({
+vi.mock('@/components/ui/alert', () => ({
   Alert: ({ children }: { children: React.ReactNode }) => (
     <div role="alert">{children}</div>
   ),
@@ -36,7 +36,7 @@ jest.mock('@/components/ui/alert', () => ({
   ),
 }))
 
-jest.mock('@/components/ui/button', () => ({
+vi.mock('@/components/ui/button', () => ({
   Button: ({
     children,
     ...props
@@ -45,7 +45,7 @@ jest.mock('@/components/ui/button', () => ({
   ),
 }))
 
-jest.mock('@/components/ui/card', () => ({
+vi.mock('@/components/ui/card', () => ({
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CardContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
@@ -70,7 +70,7 @@ function renderCallback(search: string) {
 
 describe('AuthCallback', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockConsumeReturnTo.mockReturnValue('/')
   })
 

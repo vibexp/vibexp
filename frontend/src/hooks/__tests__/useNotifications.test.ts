@@ -6,20 +6,20 @@ import type {
 } from '@/services/notificationService'
 
 // Mock notificationService
-const mockNotificationService = {
-  listNotifications: jest.fn(),
-  getUnreadCount: jest.fn(),
-  markAsRead: jest.fn(),
-  markAllAsRead: jest.fn(),
-}
+const mockNotificationService = vi.hoisted(() => ({
+  listNotifications: vi.fn(),
+  getUnreadCount: vi.fn(),
+  markAsRead: vi.fn(),
+  markAllAsRead: vi.fn(),
+}))
 
-jest.mock('../../services/notificationService', () => ({
+vi.mock('../../services/notificationService', () => ({
   notificationService: mockNotificationService,
 }))
 
 // Mock toast
-const mockToastError = jest.fn()
-jest.mock('../../lib/toast', () => ({
+const mockToastError = vi.hoisted(() => vi.fn())
+vi.mock('../../lib/toast', () => ({
   toast: {
     error: (...args: unknown[]) => mockToastError(...args),
   },
@@ -55,7 +55,7 @@ const makeResponse = (
 
 describe('useNotifications', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('fetches notifications on mount', async () => {

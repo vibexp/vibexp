@@ -1,10 +1,10 @@
-// Mock for marked library to avoid ES module issues in Jest
+// Stub for the ESM-only `marked` package (kept from the jest era — the real
+// module resolves under Vitest, but the alias keeps tests deterministic and
+// off the full parser).
 const marked = {
-  parse: jest.fn(text => `<p>${text}</p>`),
-  parseInline: jest.fn(text => text),
+  parse: vi.fn(text => `<p>${text}</p>`),
+  parseInline: vi.fn(text => text),
 }
 
-module.exports = {
-  marked,
-  default: marked,
-}
+export { marked }
+export default marked

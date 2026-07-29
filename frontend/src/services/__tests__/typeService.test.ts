@@ -2,14 +2,14 @@ import type { Type, TypeListResponse } from '../typeService'
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-  DELETE: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+  DELETE: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return {
@@ -31,19 +31,19 @@ const noContentResponse = {
 
 const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 
-const mockType: Type = {
+const mockType: Type = vi.hoisted(() => ({
   id: 'type-1',
-  team_id: teamId,
+  team_id: 'team-1',
   resource_type: 'artifact',
   slug: 'design-doc',
   name: 'Design Doc',
   is_system: false,
   created_at: '2024-01-01T00:00:00Z',
-}
+}))
 
 describe('TypeService', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('getTypes fetches team-scoped types filtered by resource type and unwraps the list', async () => {

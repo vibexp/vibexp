@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { MockedFunction } from 'vitest'
 
 import { toast } from '@/lib/toast'
 import type { Team } from '@/services/teamService'
@@ -9,26 +10,24 @@ import { ApiError } from '@/types/errors'
 
 import { DeleteTeamModal } from './DeleteTeamModal'
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    deleteTeam: jest.fn(),
+    deleteTeam: vi.fn(),
   },
 }))
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }))
 
-const mockedDeleteTeam = teamService.deleteTeam as jest.MockedFunction<
+const mockedDeleteTeam = teamService.deleteTeam as MockedFunction<
   typeof teamService.deleteTeam
 >
-const mockedToastError = toast.error as jest.MockedFunction<typeof toast.error>
-const mockedToastSuccess = toast.success as jest.MockedFunction<
-  typeof toast.success
->
+const mockedToastError = toast.error as MockedFunction<typeof toast.error>
+const mockedToastSuccess = toast.success as MockedFunction<typeof toast.success>
 
 const makeTeam = (overrides: Partial<Team> = {}): Team => ({
   id: 'team-1',
@@ -62,8 +61,8 @@ const buildApiError = (
   })
 
 const renderModal = (team: Team = makeTeam()) => {
-  const onClose = jest.fn()
-  const onSuccess = jest.fn()
+  const onClose = vi.fn()
+  const onSuccess = vi.fn()
   render(
     <DeleteTeamModal
       isOpen
@@ -81,7 +80,7 @@ const clickDelete = async () => {
 
 describe('DeleteTeamModal', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('deletes the team and reports success on the happy path', async () => {

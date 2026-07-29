@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
+import type { MockInstance } from 'vitest'
 
 import type { TeamInvitation } from '@/services/teamService'
 
@@ -8,36 +9,36 @@ import type { TeamInvitation } from '@/services/teamService'
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockNavigate = jest.fn()
+const mockNavigate = vi.hoisted(() => vi.fn())
 
-jest.mock('react-router-dom', () => {
+vi.mock('react-router', async () => {
   const actual =
-    jest.requireActual<typeof import('react-router-dom')>('react-router-dom')
+    await vi.importActual<typeof import('react-router')>('react-router')
   return {
     ...actual,
     useNavigate: () => mockNavigate,
   }
 })
 
-const mockGetPendingInvitations = jest.fn()
+const mockGetPendingInvitations = vi.hoisted(() => vi.fn())
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
     getPendingInvitations: (...args: unknown[]) =>
       mockGetPendingInvitations(...args),
   },
 }))
 
-const mockAcceptAndEnterTeam = jest.fn()
+const mockAcceptAndEnterTeam = vi.hoisted(() => vi.fn())
 
-jest.mock('@/hooks/useAcceptAndEnterTeam', () => ({
+vi.mock('@/hooks/useAcceptAndEnterTeam', () => ({
   useAcceptAndEnterTeam: () => mockAcceptAndEnterTeam,
 }))
 
 const sessionStoreState = new Map<string, string>()
-const mockSessionStore = {
-  get: jest.fn((key: string) => sessionStoreState.get(key) ?? null),
-  getJSON: jest.fn((key: string): unknown => {
+const mockSessionStore = vi.hoisted(() => ({
+  get: vi.fn((key: string) => sessionStoreState.get(key) ?? null),
+  getJSON: vi.fn((key: string): unknown => {
     const raw = sessionStoreState.get(key)
     if (raw === undefined) return null
     try {
@@ -46,18 +47,18 @@ const mockSessionStore = {
       return null
     }
   }),
-  set: jest.fn((key: string, value: unknown) => {
+  set: vi.fn((key: string, value: unknown) => {
     sessionStoreState.set(
       key,
       typeof value === 'string' ? value : JSON.stringify(value)
     )
   }),
-  remove: jest.fn((key: string) => {
+  remove: vi.fn((key: string) => {
     sessionStoreState.delete(key)
   }),
-}
+}))
 
-jest.mock('@/utils/storage', () => ({
+vi.mock('@/utils/storage', () => ({
   sessionStore: mockSessionStore,
 }))
 
@@ -104,12 +105,12 @@ function renderBanner() {
 // ---------------------------------------------------------------------------
 
 describe('PendingInvitationsBanner', () => {
-  let consoleErrorSpy: jest.SpyInstance
+  let consoleErrorSpy: MockInstance
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     sessionStoreState.clear()
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {

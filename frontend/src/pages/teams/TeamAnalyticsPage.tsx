@@ -6,7 +6,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { TeamResourceAccessChart } from '@/components/TeamResourceAccessChart'

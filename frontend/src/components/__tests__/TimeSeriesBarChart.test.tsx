@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 
 // recharts' ResponsiveContainer measures its parent, which has no layout in
 // jsdom. Render children with a fixed size so the chart mounts deterministically.
-jest.mock('recharts', () => {
-  const actual = jest.requireActual('recharts')
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual('recharts')
   return {
     ...actual,
     ResponsiveContainer: ({ children }: { children: ReactNode }) => (
@@ -34,7 +34,7 @@ function buildProps(
     series: SERIES,
     data: [{ date: '2026-05-01', prompts: 3, artifacts: 1, total: 4 }],
     range: '30d',
-    onRangeChange: jest.fn(),
+    onRangeChange: vi.fn(),
     loading: false,
     error: false,
     errorMessage: "Couldn't load resource creation",

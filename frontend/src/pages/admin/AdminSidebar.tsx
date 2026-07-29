@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink } from 'react-router'
 
 import { SidebarBrand } from '@/components/layout/SidebarBrand'
 import { ScrollArea } from '@/components/ui/scroll-area'

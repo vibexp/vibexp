@@ -3,17 +3,17 @@ import type { ReactNode } from 'react'
 
 import type { TeamFeedCreationMetricsResponse } from '../../services/teamService'
 
-const mockGetTeamFeedCreationMetrics = jest.fn()
+const mockGetTeamFeedCreationMetrics = vi.hoisted(() => vi.fn())
 
-jest.mock('../../services/teamService', () => ({
+vi.mock('../../services/teamService', () => ({
   teamService: {
     getTeamFeedCreationMetrics: (...args: unknown[]) =>
       mockGetTeamFeedCreationMetrics(...args),
   },
 }))
 
-jest.mock('recharts', () => {
-  const actual = jest.requireActual('recharts')
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual('recharts')
   return {
     ...actual,
     ResponsiveContainer: ({ children }: { children: ReactNode }) => (
@@ -44,7 +44,7 @@ function buildResponse(
 
 describe('TeamFeedCreationChart', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('fetches with the controlled range and totals feed items only (not channels)', async () => {

@@ -12,25 +12,25 @@ import {
 
 // Capture the props useChatMessages passes to useEventPolling so tests can drive
 // onEvent / onComplete without a real polling loop.
-const mockUseEventPolling = jest.fn()
-jest.mock('@/hooks/useEventPolling', () => ({
+const mockUseEventPolling = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useEventPolling', () => ({
   useEventPolling: (props: unknown) => {
     mockUseEventPolling(props)
     return { currentState: null }
   },
 }))
 
-jest.mock('@/services/agentService', () => ({
+vi.mock('@/services/agentService', () => ({
   agentService: {
-    executeAgent: jest.fn(),
-    getExecutionStatus: jest.fn(),
-    getConversationExecutions: jest.fn(),
-    cancelExecution: jest.fn(),
+    executeAgent: vi.fn(),
+    getExecutionStatus: vi.fn(),
+    getConversationExecutions: vi.fn(),
+    cancelExecution: vi.fn(),
   },
 }))
 
-jest.mock('@/lib/toast', () => ({
-  toast: { error: jest.fn(), success: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 import { agentService } from '@/services/agentService'
@@ -160,15 +160,15 @@ describe('useChatMessages', () => {
     teamId: 'team-1',
     agent,
     conversationId: null,
-    onConversationCaptured: jest.fn(),
+    onConversationCaptured: vi.fn(),
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('sendMessage completes synchronously for a terminal execution (no polling)', async () => {
-    jest.mocked(agentService.executeAgent).mockResolvedValue({
+    vi.mocked(agentService.executeAgent).mockResolvedValue({
       id: 'e1',
       status: 'completed',
       artifacts: [{ artifactId: 'a', parts: [{ text: 'done' }] }],
@@ -187,7 +187,7 @@ describe('useChatMessages', () => {
   })
 
   it('sendMessage starts polling for a pending execution', async () => {
-    jest.mocked(agentService.executeAgent).mockResolvedValue({
+    vi.mocked(agentService.executeAgent).mockResolvedValue({
       id: 'e2',
       status: 'pending',
     } as unknown as AgentExecution)
@@ -204,7 +204,7 @@ describe('useChatMessages', () => {
   })
 
   it('assembles streaming artifact-update chunks', async () => {
-    jest.mocked(agentService.executeAgent).mockResolvedValue({
+    vi.mocked(agentService.executeAgent).mockResolvedValue({
       id: 'e3',
       status: 'pending',
     } as unknown as AgentExecution)
@@ -225,7 +225,7 @@ describe('useChatMessages', () => {
   })
 
   it('dedups a streaming event delivered twice (same execution + sequence)', async () => {
-    jest.mocked(agentService.executeAgent).mockResolvedValue({
+    vi.mocked(agentService.executeAgent).mockResolvedValue({
       id: 'e6',
       status: 'pending',
     } as unknown as AgentExecution)
@@ -250,18 +250,18 @@ describe('useChatMessages', () => {
   })
 
   it('captures the conversation id on completion when none was set', async () => {
-    jest.mocked(agentService.executeAgent).mockResolvedValue({
+    vi.mocked(agentService.executeAgent).mockResolvedValue({
       id: 'e4',
       status: 'pending',
     } as unknown as AgentExecution)
-    jest.mocked(agentService.getExecutionStatus).mockResolvedValue({
+    vi.mocked(agentService.getExecutionStatus).mockResolvedValue({
       id: 'e4',
       status: 'success',
       conversation_id: 'conv-9',
       artifacts: [{ artifactId: 'a', parts: [{ text: 'ok' }] }],
     } as unknown as AgentExecution)
 
-    const onConversationCaptured = jest.fn()
+    const onConversationCaptured = vi.fn()
     const { result } = renderHook(() =>
       useChatMessages({ ...baseArgs, onConversationCaptured })
     )
@@ -279,7 +279,7 @@ describe('useChatMessages', () => {
   })
 
   it('loadConversation maps executions into messages and pagination flags', async () => {
-    jest.mocked(agentService.getConversationExecutions).mockResolvedValue({
+    vi.mocked(agentService.getConversationExecutions).mockResolvedValue({
       total_count: 1,
       has_more: true,
       executions: [
@@ -309,11 +309,11 @@ describe('useChatMessages', () => {
   })
 
   it('cancelExecution finalizes the execution', async () => {
-    jest.mocked(agentService.executeAgent).mockResolvedValue({
+    vi.mocked(agentService.executeAgent).mockResolvedValue({
       id: 'e7',
       status: 'pending',
     } as unknown as AgentExecution)
-    jest.mocked(agentService.cancelExecution).mockResolvedValue({
+    vi.mocked(agentService.cancelExecution).mockResolvedValue({
       id: 'e7',
       status: 'cancelled',
     } as unknown as AgentExecution)

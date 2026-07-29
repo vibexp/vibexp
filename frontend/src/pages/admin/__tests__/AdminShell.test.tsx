@@ -5,14 +5,14 @@
  */
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import { ThemeProvider } from '@/lib/theme'
 import { ADMIN_NAV_ITEMS } from '@/pages/admin/admin-nav'
 import { AdminShell } from '@/pages/admin/AdminShell'
 
-const mockUseAuth = jest.fn()
-jest.mock('@/contexts/useAuth', () => ({
+const mockUseAuth = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
@@ -21,12 +21,12 @@ jest.mock('@/contexts/useAuth', () => ({
  * project-scoped switcher. Asserting on rendered text would not catch a
  * switcher that renders nothing while its data loads.
  */
-jest.mock('@/components/layout/TeamSwitcher', () => ({
+vi.mock('@/components/layout/TeamSwitcher', () => ({
   TeamSwitcher: () => {
     throw new Error('AdminShell must not mount TeamSwitcher')
   },
 }))
-jest.mock('@/components/layout/ProjectSwitcher', () => ({
+vi.mock('@/components/layout/ProjectSwitcher', () => ({
   ProjectSwitcher: () => {
     throw new Error('AdminShell must not mount ProjectSwitcher')
   },
@@ -45,7 +45,7 @@ function renderShell(path = '/admin/users') {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockUseAuth.mockReturnValue({
     user: {
       id: 'u1',
@@ -54,7 +54,7 @@ beforeEach(() => {
       is_instance_admin: true,
     },
     isLoading: false,
-    logout: jest.fn(),
+    logout: vi.fn(),
   })
 })
 

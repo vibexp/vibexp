@@ -1,29 +1,30 @@
+import type { Mocked, MockedFunction } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { usePromptRenderer } from '../../src/hooks/usePromptRenderer'
 import type { RenderPromptResponse } from '../../src/services/promptService'
 
 // Mock marked library
-jest.mock('marked', () => ({
-  marked: jest.fn(),
+vi.mock('marked', () => ({
+  marked: vi.fn(),
 }))
 
 // Mock promptService
-jest.mock('../../src/services/promptService', () => ({
+vi.mock('../../src/services/promptService', () => ({
   promptService: {
-    getPromptPlaceholders: jest.fn(),
-    renderPrompt: jest.fn(),
+    getPromptPlaceholders: vi.fn(),
+    renderPrompt: vi.fn(),
   },
 }))
 
 import { promptService } from '../../src/services/promptService'
 import { marked } from 'marked'
-const mockPromptService = promptService as jest.Mocked<typeof promptService>
-const mockMarked = marked as jest.MockedFunction<typeof marked>
+const mockPromptService = promptService as Mocked<typeof promptService>
+const mockMarked = marked as MockedFunction<typeof marked>
 
 // Mock console.error to suppress expected error logs in tests
 const originalConsoleError = console.error
 beforeEach(() => {
-  console.error = jest.fn()
+  console.error = vi.fn()
 })
 
 afterEach(() => {
@@ -32,7 +33,7 @@ afterEach(() => {
 
 describe('usePromptRenderer', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     // Setup default mock implementations
     mockMarked.mockImplementation((content: string) =>
       Promise.resolve(`<p>${content}</p>`)

@@ -1,32 +1,33 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type { Project } from '@/services/projectService'
 
 // Mock ProjectForm to avoid complex form internals in unit tests
-jest.mock('@/pages/teams/projects/ProjectForm', () => ({
-  ProjectForm: jest.fn(() => <div data-testid="project-form" />),
+vi.mock('@/pages/teams/projects/ProjectForm', () => ({
+  ProjectForm: vi.fn(() => <div data-testid="project-form" />),
 }))
 
 // Mock TeamContext — stable references to prevent effect re-runs
-const mockUseTeam = jest.fn()
-jest.mock('@/contexts/TeamContext', () => ({
+const mockUseTeam = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProject: jest.fn(),
-    updateProject: jest.fn(),
+    getProject: vi.fn(),
+    updateProject: vi.fn(),
   },
 }))
 
-jest.mock('@/hooks', () => ({
-  useAlerts: () => ({ showSuccess: jest.fn() }),
+vi.mock('@/hooks', () => ({
+  useAlerts: () => ({ showSuccess: vi.fn() }),
 }))
 
-jest.mock('@/hooks/useErrorHandler', () => ({
-  useErrorHandler: () => ({ handleError: jest.fn() }),
+vi.mock('@/hooks/useErrorHandler', () => ({
+  useErrorHandler: () => ({ handleError: vi.fn() }),
 }))
 
 import { projectService } from '@/services/projectService'
@@ -63,7 +64,7 @@ function renderProjectEdit(slug = 'my-project') {
 
 describe('ProjectEdit', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('when TeamContext is still loading (isLoadingTeam = true)', () => {
@@ -72,8 +73,8 @@ describe('ProjectEdit', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderProjectEdit()
@@ -87,8 +88,8 @@ describe('ProjectEdit', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderProjectEdit()
@@ -103,10 +104,10 @@ describe('ProjectEdit', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(projectService.getProject as jest.Mock).mockResolvedValue(mockProject)
+      ;(projectService.getProject as Mock).mockResolvedValue(mockProject)
 
       renderProjectEdit()
 
@@ -126,8 +127,8 @@ describe('ProjectEdit', () => {
         currentTeam: null,
         teams: [],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderProjectEdit()
@@ -149,10 +150,10 @@ describe('ProjectEdit', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(projectService.getProject as jest.Mock).mockResolvedValue(mockProject)
+      ;(projectService.getProject as Mock).mockResolvedValue(mockProject)
 
       const { rerender } = renderProjectEdit()
 
@@ -163,8 +164,8 @@ describe('ProjectEdit', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
       rerender(
         <MemoryRouter

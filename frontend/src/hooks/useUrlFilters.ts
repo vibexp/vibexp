@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 
 /** A filter set: flat string values, so it maps 1:1 onto the query string. */
 export type UrlFilters = Record<string, string | undefined>

@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type {
   Agent,
@@ -10,8 +11,8 @@ import type {
 
 // Mock Radix Select (ExecutionFilters status dropdown) — it can loop in JSDOM.
 // onValueChange stays wired so tests can pick a status as a plain button.
-jest.mock('@/components/ui/select', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react')
+vi.mock('@/components/ui/select', async () => {
+  const ReactActual = await vi.importActual<typeof import('react')>('react')
   const SelectCtx = ReactActual.createContext<(value: string) => void>(() => {})
   return {
     Select: ({
@@ -58,33 +59,33 @@ jest.mock('@/components/ui/select', () => {
   }
 })
 
-jest.mock('@/services/agentService', () => ({
+vi.mock('@/services/agentService', () => ({
   agentService: {
-    getAgent: jest.fn(),
-    listAgentExecutions: jest.fn(),
+    getAgent: vi.fn(),
+    listAgentExecutions: vi.fn(),
   },
 }))
 
-jest.mock('@/contexts/TeamContext', () => {
+vi.mock('@/contexts/TeamContext', () => {
   const currentTeam = { id: 'team-1', name: 'Test Team' }
   return {
     useTeam: () => ({
       currentTeam,
       teams: [currentTeam],
       isLoading: false,
-      setCurrentTeam: jest.fn(),
-      refreshTeams: jest.fn() as () => Promise<void>,
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn() as () => Promise<void>,
     }),
   }
 })
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    warning: jest.fn(),
-    message: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
   },
 }))
 
@@ -171,21 +172,21 @@ function renderAgentTasks() {
 
 describe('AgentTasks page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    ;(agentService.getAgent as jest.Mock).mockResolvedValue(buildAgent())
-    ;(agentService.listAgentExecutions as jest.Mock).mockResolvedValue(
+    vi.clearAllMocks()
+    ;(agentService.getAgent as Mock).mockResolvedValue(buildAgent())
+    ;(agentService.listAgentExecutions as Mock).mockResolvedValue(
       buildListResponse([])
     )
   })
 
   describe('agent loading states', () => {
     it('shows the loading header while the agent is being fetched', () => {
-      ;(agentService.getAgent as jest.Mock).mockImplementation(
+      ;(agentService.getAgent as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
       // Keep the executions fetch pending too, so it cannot resolve after the
       // test finished (act warning).
-      ;(agentService.listAgentExecutions as jest.Mock).mockImplementation(
+      ;(agentService.listAgentExecutions as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -195,7 +196,7 @@ describe('AgentTasks page', () => {
     })
 
     it('shows the not-found alert when the agent fails to load, with a way back', async () => {
-      ;(agentService.getAgent as jest.Mock).mockRejectedValue(
+      ;(agentService.getAgent as Mock).mockRejectedValue(
         new Error('agent gone')
       )
 
@@ -217,7 +218,7 @@ describe('AgentTasks page', () => {
 
   describe('executions rendering', () => {
     it('renders the header, stats computed from the executions, and the table rows', async () => {
-      ;(agentService.listAgentExecutions as jest.Mock).mockResolvedValue(
+      ;(agentService.listAgentExecutions as Mock).mockResolvedValue(
         buildListResponse([
           buildExecution(),
           buildExecution({
@@ -273,7 +274,7 @@ describe('AgentTasks page', () => {
     })
 
     it('reports a zero average duration when no execution has finished', async () => {
-      ;(agentService.listAgentExecutions as jest.Mock).mockResolvedValue(
+      ;(agentService.listAgentExecutions as Mock).mockResolvedValue(
         buildListResponse([
           buildExecution({ status: 'running', duration: null, ended_at: null }),
         ])
@@ -299,7 +300,7 @@ describe('AgentTasks page', () => {
 
   describe('error state', () => {
     it('shows the error alert with a working retry', async () => {
-      ;(agentService.listAgentExecutions as jest.Mock).mockRejectedValueOnce(
+      ;(agentService.listAgentExecutions as Mock).mockRejectedValueOnce(
         new Error('executions down')
       )
 
@@ -312,7 +313,7 @@ describe('AgentTasks page', () => {
       expect(toast.error).toHaveBeenCalledWith('executions down')
 
       // Retry succeeds (the rejection was once-only).
-      ;(agentService.listAgentExecutions as jest.Mock).mockResolvedValue(
+      ;(agentService.listAgentExecutions as Mock).mockResolvedValue(
         buildListResponse([buildExecution()])
       )
       const user = userEvent.setup()
@@ -358,7 +359,7 @@ describe('AgentTasks page', () => {
 
   describe('pagination', () => {
     it('fetches the next page from the table controls', async () => {
-      ;(agentService.listAgentExecutions as jest.Mock).mockResolvedValue(
+      ;(agentService.listAgentExecutions as Mock).mockResolvedValue(
         buildListResponse([buildExecution()], {
           total_count: 25,
           total_pages: 2,

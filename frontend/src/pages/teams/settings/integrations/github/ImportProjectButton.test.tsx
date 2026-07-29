@@ -1,32 +1,32 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { GitHubRepository } from '@/services/githubIntegrationService'
 import { githubIntegrationService } from '@/services/githubIntegrationService'
 
-const mockUseTeam = jest.fn()
-jest.mock('@/contexts/TeamContext', () => ({
+const mockUseTeam = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/hooks/useErrorHandler', () => ({
-  useErrorHandler: () => ({ handleError: jest.fn() }),
+vi.mock('@/hooks/useErrorHandler', () => ({
+  useErrorHandler: () => ({ handleError: vi.fn() }),
 }))
 
-jest.mock('@/lib/toast', () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
 
-jest.mock('@/services/githubIntegrationService', () => ({
+vi.mock('@/services/githubIntegrationService', () => ({
   githubIntegrationService: {
-    importProject: jest.fn(),
+    importProject: vi.fn(),
   },
 }))
 
 // Stub the modal with a button that surfaces onConfirm so we can trigger
 // the import flow without rendering the full modal tree.
-jest.mock('./ImportProjectModal', () => ({
+vi.mock('./ImportProjectModal', () => ({
   ImportProjectModal: ({
     isOpen,
     onConfirm,
@@ -63,13 +63,13 @@ function renderButton(repository: GitHubRepository) {
 
 describe('ImportProjectButton', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockUseTeam.mockReturnValue({
       currentTeam: { id: 'team-1', name: 'Test Team' },
       teams: [{ id: 'team-1', name: 'Test Team' }],
       isLoading: false,
-      setCurrentTeam: jest.fn(),
-      refreshTeams: jest.fn() as () => Promise<void>,
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn() as () => Promise<void>,
     })
   })
 
@@ -96,7 +96,7 @@ describe('ImportProjectButton', () => {
   })
 
   it('flips to "View Project" using the returned slug after a same-session successful import', async () => {
-    const importProject = jest.mocked(githubIntegrationService.importProject)
+    const importProject = vi.mocked(githubIntegrationService.importProject)
     importProject.mockResolvedValueOnce({
       project: {
         id: 'p-1',
