@@ -168,7 +168,7 @@ func AssertNotNil(t TestingT, value interface{}, message string) {
 	// Check for nil pointers, slices, maps, channels, functions
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
-	case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func, reflect.Interface:
+	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func, reflect.Interface:
 		if v.IsNil() {
 			t.Errorf("Expected non-nil value: %s", message)
 		}
@@ -186,7 +186,7 @@ func AssertNil(t TestingT, value interface{}, message string) {
 	// Check for nil pointers, slices, maps, channels, functions
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
-	case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func, reflect.Interface:
+	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func, reflect.Interface:
 		if !v.IsNil() {
 			t.Errorf("Expected nil value: %s, got %v", message, value)
 		}

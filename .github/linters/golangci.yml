@@ -105,13 +105,20 @@ linters:
       - "internal/external/mocks"
       - "third_party"
     rules:
-      # Exclude complexity checks from test files
+      # Exclude complexity, security, and preallocation checks from test files.
+      # gosec's findings in tests are noise by construction: G101 fires on
+      # fixture credentials, G124 on bare request cookies test helpers attach
+      # (attributes are meaningless on an outbound request per RFC 6265), G115
+      # on toy conversions — none of it is shipped code. prealloc is a
+      # micro-optimization with no value in tests.
       - path: "(_test|\\.test|\\.gen|\\.mock)\\.go$"
         linters:
           - gocognit
           - funlen
           - gocyclo
           - lll
+          - gosec
+          - prealloc
 
       # Exclude checks from mock directories
       - path: "internal/(services|repositories|external)/mocks/.*\\.go$"
