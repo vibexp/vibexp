@@ -51,13 +51,14 @@ import { execFileSync } from 'child_process'
  * shipped vulnerability, not a resolved one.
  *
  * `react-router` / `react-router-dom` (5 advisories, 2 high): the vulnerable
- * range is `6.0.0 - 8.2.0`, patched only in `react-router@8.3.0`. The latest
- * `react-router-dom` (7.18.1) pulls `react-router@7.18.1`, still inside that
- * range, so **no version of the package we depend on satisfies the gate** —
- * v8 dropped the `react-router-dom` shim entirely. Fixing it is a major
- * migration across every routing import, tracked in #498; three of the five
- * advisories (RSC CSRF, RSCErrorHandler XSS, SSR `deserializeErrors`) concern
- * framework/SSR/RSC modes this client-only SPA does not use.
+ * range is `6.0.0 - 8.2.0` for `react-router` and `>=7.12.0-pre.0` for the
+ * `react-router-dom` shim, patched only in `react-router@8.3.0`. We are on the
+ * latest `react-router-dom` (7.18.x, bumped in #498 stage 1), which still
+ * matches both entries, so **no version of the package we depend on satisfies
+ * the gate** — v8 dropped the `react-router-dom` shim entirely. Fixing it is
+ * a major migration across every routing import, tracked in #498; three of
+ * the five advisories (RSC CSRF, RSCErrorHandler XSS, SSR `deserializeErrors`)
+ * concern framework/SSR/RSC modes this client-only SPA does not use.
  */
 const ALLOWLIST = new Set(['react-router', 'react-router-dom'])
 
