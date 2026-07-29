@@ -71,6 +71,20 @@ export default tseslint.config(
       ...jsxA11y.flatConfigs.recommended.rules, // Phase 1: Add A11y
       ...security.configs.recommended.rules,
 
+      // eslint-plugin-react-hooks v7 enables the React Compiler lint rules by
+      // default in `recommended`. Those rules (set-state-in-effect, refs,
+      // purity, immutability, globals, static-components, ...) demand
+      // compiler-grade purity from ordinary components and flag ~90
+      // pre-existing patterns across the codebase. They are off until the code
+      // is deliberately migrated; the classic rules (rules-of-hooks,
+      // exhaustive-deps) stay on and are what we actually rely on.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/globals': 'off',
+      'react-hooks/static-components': 'off',
+
       // React Refresh
       'react-refresh/only-export-components': [
         'warn',
