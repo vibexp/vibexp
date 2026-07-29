@@ -11,33 +11,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMigration016_RemoveQuotaSubscription verifies migration 016 (epic #646,
-// issue #653) against real Postgres, on its OWN scratch database.
+// TestMigration011_RemoveQuotaSubscription verifies the remove-quota-subscription
+// block of migration 011_consolidated (epic #646, issue #653; originally
+// migration 016) against real Postgres, on its OWN scratch database.
 //
 // It deliberately avoids the shared `integrationDB`: TestMain migrates that one
-// straight to head, whereas this test must observe the pre-016 state, seed rows
-// the migration has to drop, and only then apply 016. Migrating the shared
-// database mid-run would corrupt every other suite in the binary — and, because
-// it is shared across worktrees, other checkouts too. Same reasoning and
-// helpers as TestMigration015_RemoveAIToolHooks (#614).
+// straight to head, whereas this test must observe the pre-migration (v0.8.0,
+// version 010) state, seed rows the migration has to drop, and only then apply
+// 011. Migrating the shared database mid-run would corrupt every other suite in
+// the binary — and, because it is shared across worktrees, other checkouts too.
+// Same reasoning and helpers as TestMigration011_RemoveAIToolHooks (#614).
 //
 // The property that matters most is the one a schema-only assertion misses:
 // **a user row must still load after the columns are dropped.** Asserting the
 // columns are absent proves the DDL ran; selecting a user proves the table is
 // still usable, which is what every authenticated request depends on.
-func TestMigration016_RemoveQuotaSubscription(t *testing.T) {
+func TestMigration011_RemoveQuotaSubscription(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
 	m := newMigrator(t, db)
 
 	// 1. Bring the schema to the version immediately BEFORE this migration.
-	require.NoError(t, m.Migrate(15), "migrate to 015")
+	require.NoError(t, m.Migrate(10), "migrate to 010")
 
 	// 2. Seed the pre-migration state: a team subscription, and users carrying
 	//    non-default billing values (the defaults are 'basic', so seeding
 	//    something else proves the columns really held data).
-	userID, teamID := seedMigration016Fixtures(t, db)
+	userID, teamID := seedQuotaSubscriptionFixtures(t, db)
 
 	// Pre-assert the fixtures are in the pre-migration shape. Without this a
 	// silently failed seed would make every post-migration assertion pass
@@ -56,8 +57,8 @@ func TestMigration016_RemoveQuotaSubscription(t *testing.T) {
 	require.True(t, indexExists(t, db, "idx_users_stripe_customer_id"))
 	require.True(t, indexExists(t, db, "idx_users_subscription_canceled_at"))
 
-	// 3. Apply migration 016.
-	require.NoError(t, m.Migrate(16), "migrate to 016")
+	// 3. Apply migration 011.
+	require.NoError(t, m.Migrate(11), "migrate to 011")
 
 	t.Run("team_subscriptions and its indexes are gone", func(t *testing.T) {
 		assert.False(t, tableExists(t, db, "team_subscriptions"))
@@ -96,7 +97,7 @@ func TestMigration016_RemoveQuotaSubscription(t *testing.T) {
 
 	// 4. Cycle down → up. Down restores structure only, which is what it claims.
 	t.Run("down restores the structure and up re-applies cleanly", func(t *testing.T) {
-		require.NoError(t, m.Migrate(15), "migrate down to 015")
+		require.NoError(t, m.Migrate(10), "migrate down to 010")
 
 		assert.True(t, tableExists(t, db, "team_subscriptions"), "down must recreate the table")
 		for _, col := range removedUserColumns() {
@@ -114,12 +115,12 @@ func TestMigration016_RemoveQuotaSubscription(t *testing.T) {
 		assert.Equal(t, 0, countRows(t, db, `SELECT count(*) FROM team_subscriptions`),
 			"down restores structure only — the dropped rows must not reappear")
 
-		require.NoError(t, m.Migrate(16), "re-apply 016 after rolling back")
+		require.NoError(t, m.Migrate(11), "re-apply 011 after rolling back")
 		assert.False(t, tableExists(t, db, "team_subscriptions"))
 	})
 }
 
-// removedUserColumns is the exact set migration 016 drops from users.
+// removedUserColumns is the exact set the quota-subscription block drops from users.
 func removedUserColumns() []string {
 	return []string{
 		"stripe_customer_id",
@@ -130,9 +131,9 @@ func removedUserColumns() []string {
 	}
 }
 
-// seedMigration016Fixtures inserts a user holding non-default billing values and
-// a team with a subscription row. Returns the user and team ids.
-func seedMigration016Fixtures(t *testing.T, db *sql.DB) (userID, teamID string) {
+// seedQuotaSubscriptionFixtures inserts a user holding non-default billing values
+// and a team with a subscription row. Returns the user and team ids.
+func seedQuotaSubscriptionFixtures(t *testing.T, db *sql.DB) (userID, teamID string) {
 	t.Helper()
 
 	userID = uuid.New().String()

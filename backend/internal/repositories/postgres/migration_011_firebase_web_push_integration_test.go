@@ -11,29 +11,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMigration017_RemoveFirebaseWebPush verifies migration 017 (issue #688)
+// TestMigration011_RemoveFirebaseWebPush verifies the remove-firebase-web-push
+// block of migration 011_consolidated (issue #688; originally migration 017)
 // against a real Postgres, on its OWN scratch database.
 //
 // It deliberately does not use the shared `integrationDB`: TestMain migrates that one
-// straight to head, whereas this test must observe the pre-017 state, seed rows the
-// migration has to drop, and only then apply 017. Migrating the shared database up and
-// down mid-run would corrupt every other suite in the binary (and, because that database
-// is shared across worktrees, other checkouts too).
+// straight to head, whereas this test must observe the pre-migration (v0.8.0,
+// version 010) state, seed rows the migration has to drop, and only then apply 011.
+// Migrating the shared database up and down mid-run would corrupt every other suite
+// in the binary (and, because that database is shared across worktrees, other
+// checkouts too).
 //
 // The load-bearing property is not "device_tokens is gone" — that is trivially true if
 // the seed silently failed. It is that `users`, whose rows the dropped foreign key
 // referenced, is still USABLE afterwards.
-func TestMigration017_RemoveFirebaseWebPush(t *testing.T) {
+func TestMigration011_RemoveFirebaseWebPush(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
 	m := newMigrator(t, db)
 
 	// 1. Bring the schema to the version immediately BEFORE this migration.
-	require.NoError(t, m.Migrate(16), "migrate to 016")
+	require.NoError(t, m.Migrate(10), "migrate to 010")
 
 	// 2. Seed the pre-migration state.
-	userID := seedMigration017Fixtures(t, db)
+	userID := seedFirebaseWebPushFixtures(t, db)
 
 	// Sanity-check the fixtures really are in the pre-migration shape, so a silently
 	// failed seed cannot make the post-migration assertions pass vacuously.
@@ -42,8 +44,8 @@ func TestMigration017_RemoveFirebaseWebPush(t *testing.T) {
 		"fixture: seeded device tokens must exist before migrating")
 	require.Equal(t, 1, countRows(t, db, `SELECT count(*) FROM users WHERE id = $1`, userID))
 
-	// 3. Apply migration 017.
-	require.NoError(t, m.Migrate(17), "migrate to 017")
+	// 3. Apply migration 011.
+	require.NoError(t, m.Migrate(11), "migrate to 011")
 
 	t.Run("device_tokens and all its objects are gone", func(t *testing.T) {
 		assert.False(t, tableExists(t, db, "device_tokens"))
@@ -79,7 +81,7 @@ func TestMigration017_RemoveFirebaseWebPush(t *testing.T) {
 
 	// 4. Cycle down → up. Down restores structure only, which is what it claims.
 	t.Run("down restores the structure and up re-applies cleanly", func(t *testing.T) {
-		require.NoError(t, m.Migrate(16), "migrate down to 016")
+		require.NoError(t, m.Migrate(10), "migrate down to 010")
 
 		assert.True(t, tableExists(t, db, "device_tokens"), "down must recreate the table")
 		assert.True(t, indexExists(t, db, "device_tokens_token_idx"))
@@ -96,14 +98,14 @@ func TestMigration017_RemoveFirebaseWebPush(t *testing.T) {
 			uuid.New().String())
 		assert.Error(t, err, "down must restore the users foreign key, not just the table")
 
-		require.NoError(t, m.Migrate(17), "re-apply 017 after rolling back")
+		require.NoError(t, m.Migrate(11), "re-apply 011 after rolling back")
 		assert.False(t, tableExists(t, db, "device_tokens"))
 	})
 }
 
-// seedMigration017Fixtures inserts a user with two registered device tokens and
+// seedFirebaseWebPushFixtures inserts a user with two registered device tokens and
 // returns the user id.
-func seedMigration017Fixtures(t *testing.T, db *sql.DB) string {
+func seedFirebaseWebPushFixtures(t *testing.T, db *sql.DB) string {
 	t.Helper()
 
 	userID := uuid.New().String()

@@ -19,28 +19,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMigration015_RemoveAIToolHooks verifies migration 015 (epic #610, issue #614)
+// TestMigration011_RemoveAIToolHooks verifies the remove-ai-tool-hooks block of
+// migration 011_consolidated (epic #610, issue #614; originally migration 015)
 // against a real Postgres, on its OWN scratch database.
 //
 // It deliberately does not use the shared `integrationDB`: TestMain migrates that one
-// straight to head, whereas this test must observe the pre-015 state, seed the legacy
-// shapes the migration has to cope with, and only then apply 015. Migrating the shared
-// database up and down mid-run would corrupt every other suite in the binary (and,
-// because that database is shared across worktrees, other checkouts too).
+// straight to head, whereas this test must observe the pre-migration (v0.8.0,
+// version 010) state, seed the legacy shapes the migration has to cope with, and only
+// then apply 011. Migrating the shared database up and down mid-run would corrupt
+// every other suite in the binary (and, because that database is shared across
+// worktrees, other checkouts too).
 //
 // The critical property under test is the one that cannot be walked back: **no API key
 // is deleted and no key loses the ability to authenticate.**
-func TestMigration015_RemoveAIToolHooks(t *testing.T) {
+func TestMigration011_RemoveAIToolHooks(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
 	m := newMigrator(t, db)
 
 	// 1. Bring the schema to the version immediately BEFORE this migration.
-	require.NoError(t, m.Migrate(14), "migrate to 014")
+	require.NoError(t, m.Migrate(10), "migrate to 010")
 
 	// 2. Seed the pre-migration state.
-	fx := seedMigration015Fixtures(t, db)
+	fx := seedAIToolHooksFixtures(t, db)
 
 	// Sanity-check the fixtures really are in the pre-migration shape, so a silently
 	// failed seed cannot make the post-migration assertions pass vacuously.
@@ -53,8 +55,8 @@ func TestMigration015_RemoveAIToolHooks(t *testing.T) {
 	require.Equal(t, 1, countRows(t, db, `SELECT count(*) FROM cursor_ide_hooks_payload`))
 	require.Equal(t, 4, countRows(t, db, `SELECT count(*) FROM activities`))
 
-	// 3. Apply migration 015.
-	require.NoError(t, m.Migrate(15), "migrate to 015")
+	// 3. Apply migration 011.
+	require.NoError(t, m.Migrate(11), "migrate to 011")
 
 	t.Run("no API key is deleted", func(t *testing.T) {
 		assert.Equal(t, 3, countRows(t, db, `SELECT count(*) FROM api_keys`),
@@ -112,7 +114,7 @@ func TestMigration015_RemoveAIToolHooks(t *testing.T) {
 	})
 
 	t.Run("down restores structure and re-runs clean", func(t *testing.T) {
-		require.NoError(t, m.Migrate(14), "roll back to 014")
+		require.NoError(t, m.Migrate(10), "roll back to 010")
 		assert.True(t, tableExists(t, db, "claude_code_hooks_payload"), "down must recreate the table")
 		assert.True(t, tableExists(t, db, "cursor_ide_hooks_payload"), "down must recreate the table")
 		assert.Equal(t, 1, countRows(t, db,
@@ -124,24 +126,24 @@ func TestMigration015_RemoveAIToolHooks(t *testing.T) {
 			"down restores structure, not data")
 
 		// Re-applying up over a rolled-back database must still succeed (idempotent cycle).
-		require.NoError(t, m.Migrate(15), "re-apply 015 after rollback")
+		require.NoError(t, m.Migrate(11), "re-apply 011 after rollback")
 		assert.False(t, tableExists(t, db, "claude_code_hooks_payload"))
 	})
 
 }
 
-// migration015Fixtures holds the ids of the seeded API keys, so assertions can
+// aiToolHooksFixtures holds the ids of the seeded API keys, so assertions can
 // address each ai_tools shape the migration has to handle.
-type migration015Fixtures struct {
+type aiToolHooksFixtures struct {
 	legacyAIKey string // legacy key pinned to usage_type = 'ai_tools'
 	onlyAIKey   string // key whose ONLY grant is ai_tools
 	mixedKey    string // key granted ai_tools AND cli
 }
 
-// seedMigration015Fixtures writes the pre-015 state: three API keys spanning every
-// ai_tools shape the migration must handle, hook payload rows in both tables, and
-// activity rows of which only some are Claude Code.
-func seedMigration015Fixtures(t *testing.T, db *sql.DB) migration015Fixtures {
+// seedAIToolHooksFixtures writes the pre-migration state: three API keys spanning
+// every ai_tools shape the migration must handle, hook payload rows in both tables,
+// and activity rows of which only some are Claude Code.
+func seedAIToolHooksFixtures(t *testing.T, db *sql.DB) aiToolHooksFixtures {
 	t.Helper()
 
 	userID := uuid.New().String()
@@ -158,7 +160,7 @@ func seedMigration015Fixtures(t *testing.T, db *sql.DB) migration015Fixtures {
 		teamID, "migration-015-"+teamID[:8], userID)
 	require.NoError(t, err, "seed team")
 
-	fx := migration015Fixtures{
+	fx := aiToolHooksFixtures{
 		legacyAIKey: uuid.New().String(),
 		onlyAIKey:   uuid.New().String(),
 		mixedKey:    uuid.New().String(),
