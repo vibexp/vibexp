@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router'
 
 import { ProjectCreate } from '@/pages/teams/projects/ProjectCreate'
 import { ProjectDetails } from '@/pages/teams/projects/ProjectDetails'

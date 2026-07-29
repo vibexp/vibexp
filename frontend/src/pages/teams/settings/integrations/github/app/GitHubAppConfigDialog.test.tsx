@@ -1,27 +1,28 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mock } from 'vitest'
 
 import type { GitHubAppConfigResponse } from '@/services/githubAppConfigService'
 import { githubAppConfigService } from '@/services/githubAppConfigService'
 
 import { GitHubAppConfigDialog } from './GitHubAppConfigDialog'
 
-jest.mock('@/services/githubAppConfigService', () => ({
-  ...jest.requireActual('@/services/githubAppConfigService'),
+vi.mock('@/services/githubAppConfigService', async () => ({
+  ...(await vi.importActual('@/services/githubAppConfigService')),
   githubAppConfigService: {
-    createAppConfig: jest.fn(),
-    updateAppConfig: jest.fn(),
-    validateAppConfig: jest.fn(),
+    createAppConfig: vi.fn(),
+    updateAppConfig: vi.fn(),
+    validateAppConfig: vi.fn(),
   },
 }))
 
-jest.mock('@/lib/toast', () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
 
-const mockedCreate = githubAppConfigService.createAppConfig as jest.Mock
-const mockedUpdate = githubAppConfigService.updateAppConfig as jest.Mock
-const mockedValidate = githubAppConfigService.validateAppConfig as jest.Mock
+const mockedCreate = githubAppConfigService.createAppConfig as Mock
+const mockedUpdate = githubAppConfigService.updateAppConfig as Mock
+const mockedValidate = githubAppConfigService.validateAppConfig as Mock
 
 const TEAM_ID = 'team-1'
 // Assembled at runtime rather than written as a literal: gitleaks' private-key
@@ -46,7 +47,7 @@ const existingConfig = {
 } as unknown as GitHubAppConfigResponse
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
 })
 
@@ -56,9 +57,9 @@ const renderDialog = (
   render(
     <GitHubAppConfigDialog
       open
-      onOpenChange={jest.fn()}
+      onOpenChange={vi.fn()}
       teamId={TEAM_ID}
-      onSaved={jest.fn()}
+      onSaved={vi.fn()}
       {...props}
     />
   )
@@ -70,7 +71,7 @@ describe('GitHubAppConfigDialog — create', () => {
       webhook_url: 'https://example.com/hook',
       webhook_secret: 'whsec',
     })
-    const onSaved = jest.fn()
+    const onSaved = vi.fn()
     renderDialog({ onSaved })
 
     await user.type(screen.getByPlaceholderText('123456'), '123456')
@@ -176,7 +177,7 @@ describe('GitHubAppConfigDialog — validation categories', () => {
         message: 'generic server message',
         details: { error_details: code },
       })
-      const onSaved = jest.fn()
+      const onSaved = vi.fn()
       renderDialog({ config: existingConfig, onSaved })
 
       await user.click(screen.getByRole('button', { name: 'Save changes' }))
@@ -199,7 +200,9 @@ describe('GitHubAppConfigDialog — validation categories', () => {
 
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
-    const { toast } = jest.requireMock('@/lib/toast')
+    const { toast } = (await vi.importMock('@/lib/toast')) as {
+      toast: { success: Mock; error: Mock }
+    }
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalled()
     })

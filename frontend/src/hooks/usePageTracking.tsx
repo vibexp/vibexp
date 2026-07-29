@@ -14,7 +14,7 @@
  */
 
 import React, { useCallback, useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router'
 
 import { STORAGE_KEYS } from '../constants/storageKeys'
 import type { UsePageTrackingReturn } from '../types/analytics'

@@ -2,12 +2,12 @@ import type { SearchRequest, SearchResultsResponse } from '../searchService'
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  POST: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  POST: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return {
@@ -47,7 +47,7 @@ describe('SearchService', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('posts to the team-scoped search endpoint with the request payload', async () => {

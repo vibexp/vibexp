@@ -1,36 +1,36 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
 
 import { STORAGE_KEYS } from '../../constants/storageKeys'
 import * as AnalyticsHook from '../useAnalytics'
 import { usePageTracking } from '../usePageTracking'
 
 // Mock useAnalytics hook
-const mockTrackPage = jest.fn()
+const mockTrackPage = vi.fn()
 let mockIsEnabled = true
 
-jest.spyOn(AnalyticsHook, 'useAnalytics').mockImplementation(() => ({
-  track: jest.fn(),
-  trackEvent: jest.fn(),
+vi.spyOn(AnalyticsHook, 'useAnalytics').mockImplementation(() => ({
+  track: vi.fn(),
+  trackEvent: vi.fn(),
   trackPage: mockTrackPage,
-  trackAuth: jest.fn(),
-  trackError: jest.fn(),
-  identify: jest.fn(),
+  trackAuth: vi.fn(),
+  trackError: vi.fn(),
+  identify: vi.fn(),
   isEnabled: mockIsEnabled,
 }))
 
 // Mock the centralized storage utilities
 let sessionStore: Record<string, string> = {}
 
-jest.mock('../../utils/storage', () => ({
+vi.mock('../../utils/storage', () => ({
   storage: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
   },
   sessionStore: {
-    get: jest.fn((key: string) => {
+    get: vi.fn((key: string) => {
       const value = sessionStore[key]
       if (!value) return null
       try {
@@ -39,11 +39,11 @@ jest.mock('../../utils/storage', () => ({
         return value
       }
     }),
-    set: jest.fn((key: string, value: unknown) => {
+    set: vi.fn((key: string, value: unknown) => {
       sessionStore[key] =
         typeof value === 'string' ? value : JSON.stringify(value)
     }),
-    has: jest.fn(),
+    has: vi.fn(),
   },
 }))
 
@@ -62,8 +62,8 @@ function createWrapper(initialPath = '/') {
 
 describe('usePageTracking', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    jest.useFakeTimers()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
     // Mock document.title
     Object.defineProperty(document, 'title', {
       writable: true,
@@ -74,8 +74,8 @@ describe('usePageTracking', () => {
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   describe('initialization', () => {
@@ -99,7 +99,7 @@ describe('usePageTracking', () => {
 
       // Fast-forward initial delay (50ms)
       act(() => {
-        jest.advanceTimersByTime(50)
+        vi.advanceTimersByTime(50)
       })
 
       await waitFor(() => {
@@ -127,7 +127,7 @@ describe('usePageTracking', () => {
       expect(result.current).toBeDefined()
       // No tracking should happen with auto tracking disabled
       act(() => {
-        jest.advanceTimersByTime(50)
+        vi.advanceTimersByTime(50)
       })
       expect(mockTrackPage).not.toHaveBeenCalled()
     })
@@ -143,7 +143,7 @@ describe('usePageTracking', () => {
 
       // Fast-forward all timers
       act(() => {
-        jest.advanceTimersByTime(200)
+        vi.advanceTimersByTime(200)
       })
 
       expect(mockTrackPage).not.toHaveBeenCalled()
@@ -157,7 +157,7 @@ describe('usePageTracking', () => {
       })
 
       act(() => {
-        jest.advanceTimersByTime(50)
+        vi.advanceTimersByTime(50)
       })
 
       await waitFor(() => {
@@ -209,13 +209,13 @@ describe('usePageTracking', () => {
 
       // Before 50ms - should not have tracked yet
       act(() => {
-        jest.advanceTimersByTime(49)
+        vi.advanceTimersByTime(49)
       })
       expect(mockTrackPage).not.toHaveBeenCalled()
 
       // After 50ms - should have tracked
       act(() => {
-        jest.advanceTimersByTime(1)
+        vi.advanceTimersByTime(1)
       })
 
       await waitFor(() => {
@@ -237,7 +237,7 @@ describe('usePageTracking', () => {
 
       // Wait for initial tracking
       act(() => {
-        jest.advanceTimersByTime(50)
+        vi.advanceTimersByTime(50)
       })
 
       // The default debounceMs is 100ms as verified by the hook's implementation
@@ -258,7 +258,7 @@ describe('usePageTracking', () => {
 
       // Wait for initial tracking with 50ms delay
       act(() => {
-        jest.advanceTimersByTime(50)
+        vi.advanceTimersByTime(50)
       })
 
       // The custom debounceMs of 200ms is used for route changes
@@ -276,7 +276,7 @@ describe('usePageTracking', () => {
 
       // Clear initial tracking
       act(() => {
-        jest.advanceTimersByTime(50)
+        vi.advanceTimersByTime(50)
       })
       mockTrackPage.mockClear()
 
@@ -287,7 +287,7 @@ describe('usePageTracking', () => {
       })
 
       act(() => {
-        jest.advanceTimersByTime(30) // Before debounce completes
+        vi.advanceTimersByTime(30) // Before debounce completes
       })
 
       renderHook(() => usePageTracking({ debounceMs: 100 }), {
@@ -295,7 +295,7 @@ describe('usePageTracking', () => {
       })
 
       act(() => {
-        jest.advanceTimersByTime(30) // Before debounce completes
+        vi.advanceTimersByTime(30) // Before debounce completes
       })
 
       renderHook(() => usePageTracking({ debounceMs: 100 }), {
@@ -304,7 +304,7 @@ describe('usePageTracking', () => {
 
       // Fast forward past the debounce
       act(() => {
-        jest.advanceTimersByTime(100)
+        vi.advanceTimersByTime(100)
       })
 
       // With debouncing, we should have fewer tracking calls than navigations
@@ -326,7 +326,7 @@ describe('usePageTracking', () => {
 
       // Fast forward timers
       act(() => {
-        jest.advanceTimersByTime(100)
+        vi.advanceTimersByTime(100)
       })
 
       // Should not have tracked after unmount
@@ -356,7 +356,7 @@ describe('usePageTracking', () => {
 
       // Clear initial page tracking
       act(() => {
-        jest.advanceTimersByTime(50)
+        vi.advanceTimersByTime(50)
       })
       mockTrackPage.mockClear()
 
@@ -366,7 +366,7 @@ describe('usePageTracking', () => {
 
       // Fast forward debounce
       act(() => {
-        jest.advanceTimersByTime(100)
+        vi.advanceTimersByTime(100)
       })
 
       await waitFor(() => {
@@ -383,7 +383,7 @@ describe('usePageTracking', () => {
 
       // Initial tracking
       act(() => {
-        jest.advanceTimersByTime(50)
+        vi.advanceTimersByTime(50)
       })
 
       await waitFor(() => {
@@ -410,7 +410,7 @@ describe('usePageTracking', () => {
       })
 
       act(() => {
-        jest.advanceTimersByTime(50)
+        vi.advanceTimersByTime(50)
       })
 
       await waitFor(() => {
@@ -430,7 +430,7 @@ describe('usePageTracking', () => {
       })
 
       act(() => {
-        jest.advanceTimersByTime(200)
+        vi.advanceTimersByTime(200)
       })
 
       expect(mockTrackPage).not.toHaveBeenCalled()
@@ -586,13 +586,13 @@ describe('usePageTracking', () => {
       })
 
       // Verify there are pending timers
-      expect(jest.getTimerCount()).toBeGreaterThan(0)
+      expect(vi.getTimerCount()).toBeGreaterThan(0)
 
       unmount()
 
       // All timers should be cleaned up
       act(() => {
-        jest.runOnlyPendingTimers()
+        vi.runOnlyPendingTimers()
       })
       // This test verifies that no errors occur during cleanup
     })

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mock, MockedFunction } from 'vitest'
 
 import { useTeam } from '@/contexts/TeamContext'
 import type {
@@ -11,11 +12,11 @@ import { projectService } from '@/services/projectService'
 
 import { SelectDestinationStep } from './SelectDestinationStep'
 
-jest.mock('@/contexts/TeamContext')
-jest.mock('@/services/projectService')
+vi.mock('@/contexts/TeamContext')
+vi.mock('@/services/projectService')
 
-const mockedUseTeam = useTeam as jest.MockedFunction<typeof useTeam>
-const mockedGetProjects = projectService.getProjects as jest.MockedFunction<
+const mockedUseTeam = useTeam as MockedFunction<typeof useTeam>
+const mockedGetProjects = projectService.getProjects as MockedFunction<
   typeof projectService.getProjects
 >
 
@@ -71,7 +72,7 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 function setTeam(): void {
@@ -82,8 +83,8 @@ function setTeam(): void {
       slug: 'team-one',
     },
     teams: [],
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
     isLoading: false,
   } as unknown as ReturnType<typeof useTeam>)
 }
@@ -92,19 +93,19 @@ function renderStep({
   destinationProjectId = '',
   conflictPolicy = 'skip',
   selectedResources = emptyResources,
-  onDestinationSelect = jest.fn(),
-  onConflictPolicyChange = jest.fn(),
-  onBack = jest.fn(),
-  onMigrate = jest.fn(),
+  onDestinationSelect = vi.fn(),
+  onConflictPolicyChange = vi.fn(),
+  onBack = vi.fn(),
+  onMigrate = vi.fn(),
   migrating = false,
 }: {
   destinationProjectId?: string
   conflictPolicy?: ConflictPolicy
   selectedResources?: ResourceSelections
-  onDestinationSelect?: jest.Mock
-  onConflictPolicyChange?: jest.Mock
-  onBack?: jest.Mock
-  onMigrate?: jest.Mock
+  onDestinationSelect?: Mock
+  onConflictPolicyChange?: Mock
+  onBack?: Mock
+  onMigrate?: Mock
   migrating?: boolean
 } = {}) {
   return render(
@@ -126,8 +127,8 @@ function renderStep({
 
 describe('SelectDestinationStep', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    jest.useFakeTimers()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
     setTeam()
     mockedGetProjects.mockResolvedValue(
       listResponse([destProject, otherProject])
@@ -135,8 +136,8 @@ describe('SelectDestinationStep', () => {
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   it('renders the destination combobox trigger', () => {
@@ -178,8 +179,8 @@ describe('SelectDestinationStep', () => {
   })
 
   it('calls onBack when Back button is clicked', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
-    const onBack = jest.fn()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const onBack = vi.fn()
     renderStep({ onBack })
 
     await user.click(screen.getByRole('button', { name: /back/i }))
@@ -203,8 +204,8 @@ describe('SelectDestinationStep', () => {
   })
 
   it('calls onConflictPolicyChange when radio changes', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
-    const onConflictPolicyChange = jest.fn()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const onConflictPolicyChange = vi.fn()
     renderStep({ onConflictPolicyChange })
 
     const renameRadio = screen.getByDisplayValue('rename')
@@ -214,7 +215,7 @@ describe('SelectDestinationStep', () => {
   })
 
   it('searches the backend (debounced) when typing and excludes the source', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderStep()
 
     await user.click(screen.getByRole('combobox', { name: /destination/i }))
@@ -222,7 +223,7 @@ describe('SelectDestinationStep', () => {
     const input = screen.getByPlaceholderText(/search projects/i)
     await user.type(input, 'Dest')
 
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     await waitFor(() => {
       expect(mockedGetProjects).toHaveBeenLastCalledWith('team-1', {
@@ -234,12 +235,12 @@ describe('SelectDestinationStep', () => {
   })
 
   it('selecting a searched destination calls onDestinationSelect and shows the summary', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
-    const onDestinationSelect = jest.fn()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const onDestinationSelect = vi.fn()
     const { rerender } = renderStep({ onDestinationSelect })
 
     await user.click(screen.getByRole('combobox', { name: /destination/i }))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     const item = await screen.findByText('Destination Project')
     await user.click(item)
@@ -258,9 +259,9 @@ describe('SelectDestinationStep', () => {
         selectedResources={emptyResources}
         inventoryCounts={inventoryCounts}
         onDestinationSelect={onDestinationSelect}
-        onConflictPolicyChange={jest.fn()}
-        onBack={jest.fn()}
-        onMigrate={jest.fn()}
+        onConflictPolicyChange={vi.fn()}
+        onBack={vi.fn()}
+        onMigrate={vi.fn()}
         migrating={false}
       />
     )
@@ -269,7 +270,7 @@ describe('SelectDestinationStep', () => {
   })
 
   it('excludes the source project from the search request', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     // Backend returns source too; the hook must filter it out.
     mockedGetProjects.mockResolvedValue(
       listResponse([sourceProject, destProject])
@@ -277,14 +278,14 @@ describe('SelectDestinationStep', () => {
     renderStep()
 
     await user.click(screen.getByRole('combobox', { name: /destination/i }))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     expect(await screen.findByText('Destination Project')).toBeInTheDocument()
     expect(screen.queryByText('Source Project')).not.toBeInTheDocument()
   })
 
   it('shows a loading state while searching', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     let resolveFetch: (value: ProjectListResponse) => void = () => {}
     mockedGetProjects.mockReturnValue(
       new Promise<ProjectListResponse>(resolve => {
@@ -294,7 +295,7 @@ describe('SelectDestinationStep', () => {
     renderStep()
 
     await user.click(screen.getByRole('combobox', { name: /destination/i }))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     expect(await screen.findByText(/searching/i)).toBeInTheDocument()
 
@@ -305,12 +306,12 @@ describe('SelectDestinationStep', () => {
   })
 
   it('shows an empty state when no other projects match', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     mockedGetProjects.mockResolvedValue(listResponse([]))
     renderStep()
 
     await user.click(screen.getByRole('combobox', { name: /destination/i }))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     expect(
       await screen.findByText(/no other projects found/i)

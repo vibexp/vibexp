@@ -9,19 +9,19 @@ import { CommentsPanel } from '../CommentsPanel'
 
 // Radix DropdownMenu / AlertDialog need these shims in jsdom.
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 let mockState: UseCommentsResult
-jest.mock('@/hooks/useComments', () => ({
+vi.mock('@/hooks/useComments', () => ({
   useComments: () => mockState,
 }))
 
 let mockCanCreate = true
 let mockCanDelete = false
-jest.mock('@/hooks/usePermissions', () => ({
+vi.mock('@/hooks/usePermissions', () => ({
   usePermissions: () => ({
     can: (p: string) => (p === 'resource.create' ? mockCanCreate : false),
     canDeleteResource: () => mockCanDelete,
@@ -30,12 +30,12 @@ jest.mock('@/hooks/usePermissions', () => ({
 }))
 
 let mockUserId: string | undefined = 'user-1'
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: mockUserId ? { id: mockUserId } : null }),
 }))
 
-const showError = jest.fn()
-jest.mock('@/hooks', () => ({
+const showError = vi.fn()
+vi.mock('@/hooks', () => ({
   useAlerts: () => ({ showError }),
 }))
 
@@ -85,11 +85,11 @@ function makeState(over: Partial<UseCommentsResult> = {}): UseCommentsResult {
     loadingMore: false,
     error: false,
     hasMore: false,
-    reload: jest.fn(),
-    loadMore: jest.fn(),
-    addComment: jest.fn().mockResolvedValue(undefined),
-    editComment: jest.fn().mockResolvedValue(undefined),
-    removeComment: jest.fn().mockResolvedValue(undefined),
+    reload: vi.fn(),
+    loadMore: vi.fn(),
+    addComment: vi.fn().mockResolvedValue(undefined),
+    editComment: vi.fn().mockResolvedValue(undefined),
+    removeComment: vi.fn().mockResolvedValue(undefined),
     ...over,
   }
 }
@@ -101,7 +101,7 @@ function renderPanel() {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockCanCreate = true
   mockCanDelete = false
   mockUserId = 'user-1'
@@ -115,7 +115,7 @@ describe('CommentsPanel', () => {
   })
 
   it('shows an error state with a working Retry', async () => {
-    const reload = jest.fn()
+    const reload = vi.fn()
     mockState = makeState({ error: true, reload })
     renderPanel()
 
@@ -216,7 +216,7 @@ describe('CommentsPanel', () => {
 
   it('adds a comment from the inline composer', async () => {
     const user = userEvent.setup()
-    const addComment = jest.fn().mockResolvedValue(undefined)
+    const addComment = vi.fn().mockResolvedValue(undefined)
     mockState = makeState({ addComment })
     renderPanel()
 
@@ -230,7 +230,7 @@ describe('CommentsPanel', () => {
   it('deletes a comment through the confirm dialog', async () => {
     const user = userEvent.setup()
     mockCanDelete = true
-    const removeComment = jest.fn().mockResolvedValue(undefined)
+    const removeComment = vi.fn().mockResolvedValue(undefined)
     mockState = makeState({
       comments: [makeComment({ id: 'a', user_id: 'user-1' })],
       totalCount: 1,

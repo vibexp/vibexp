@@ -1,32 +1,33 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mocked } from 'vitest'
 
 import type { Team, TeamMember } from '@/services/teamService'
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    getTeamDetails: jest.fn(),
-    getTeamMembers: jest.fn(),
-    getTeamInvitations: jest.fn(),
-    updateMemberRole: jest.fn(),
-    removeMember: jest.fn(),
+    getTeamDetails: vi.fn(),
+    getTeamMembers: vi.fn(),
+    getTeamInvitations: vi.fn(),
+    updateMemberRole: vi.fn(),
+    removeMember: vi.fn(),
   },
 }))
 
-const mockRefreshTeams = jest.fn()
-jest.mock('@/contexts/TeamContext', () => ({
+const mockRefreshTeams = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({ refreshTeams: mockRefreshTeams }),
 }))
 
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'admin-1' } }),
 }))
 
-const mockToastError = jest.fn()
-jest.mock('@/lib/toast', () => ({
+const mockToastError = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/toast', () => ({
   toast: {
-    success: jest.fn(),
+    success: vi.fn(),
     error: (...args: unknown[]) => mockToastError(...args),
   },
 }))
@@ -37,9 +38,9 @@ import { TeamDetailsPage } from '../TeamDetailsPage'
 
 // Radix Select needs these in jsdom.
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 // The caller is an admin: they may update roles, but not delete or transfer.
@@ -72,10 +73,10 @@ const members: TeamMember[] = [
   },
 ]
 
-const mocked = teamService as jest.Mocked<typeof teamService>
+const mocked = teamService as Mocked<typeof teamService>
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mocked.getTeamDetails.mockResolvedValue(adminTeam)
   mocked.getTeamMembers.mockResolvedValue(members)
   mocked.getTeamInvitations.mockResolvedValue([])

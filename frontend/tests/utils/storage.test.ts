@@ -15,7 +15,7 @@ import { sessionStore, storage, storageUtils } from '../../src/utils/storage'
 describe('storage utilities', () => {
   beforeEach(() => {
     // Restore mocks first to ensure storage operations work
-    jest.restoreAllMocks()
+    vi.restoreAllMocks()
     // Clear all storage before each test
     localStorage.clear()
     sessionStorage.clear()
@@ -39,12 +39,10 @@ describe('storage utilities', () => {
       })
 
       it('handles storage access errors gracefully', () => {
-        const consoleSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => {
-            // Suppress error output in tests
-          })
-        jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+          // Suppress error output in tests
+        })
+        vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
           throw new Error('Storage access denied')
         })
 
@@ -71,11 +69,9 @@ describe('storage utilities', () => {
       })
 
       it('returns null for invalid JSON', () => {
-        const consoleSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => {
-            // Suppress error output
-          })
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+          // Suppress error output
+        })
         localStorage.setItem(STORAGE_KEYS.COOKIE_CONSENT, 'not-valid-json')
 
         expect(
@@ -85,12 +81,10 @@ describe('storage utilities', () => {
       })
 
       it('handles storage access errors gracefully', () => {
-        const consoleSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => {
-            // Suppress error output
-          })
-        jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+          // Suppress error output
+        })
+        vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
           throw new Error('Storage access denied')
         })
 
@@ -118,14 +112,12 @@ describe('storage utilities', () => {
       })
 
       it('handles QuotaExceededError', () => {
-        const consoleSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => {
-            // Suppress error output
-          })
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+          // Suppress error output
+        })
         const quotaError = new Error('Quota exceeded')
         quotaError.name = 'QuotaExceededError'
-        jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
           throw quotaError
         })
 
@@ -136,12 +128,10 @@ describe('storage utilities', () => {
       })
 
       it('handles other storage errors', () => {
-        const consoleSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => {
-            // Suppress error output
-          })
-        jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+          // Suppress error output
+        })
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
           throw new Error('Security error')
         })
 
@@ -158,12 +148,10 @@ describe('storage utilities', () => {
       })
 
       it('handles removal errors gracefully', () => {
-        const consoleSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => {
-            // Suppress error output
-          })
-        jest.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+          // Suppress error output
+        })
+        vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
           throw new Error('Storage error')
         })
 
@@ -183,12 +171,10 @@ describe('storage utilities', () => {
       })
 
       it('handles errors gracefully', () => {
-        const consoleSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => {
-            // Suppress error output
-          })
-        jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+          // Suppress error output
+        })
+        vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
           throw new Error('Storage error')
         })
 
@@ -206,12 +192,10 @@ describe('storage utilities', () => {
       })
 
       it('handles clear errors gracefully', () => {
-        const consoleSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => {
-            // Suppress error output
-          })
-        jest.spyOn(Storage.prototype, 'clear').mockImplementation(() => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+          // Suppress error output
+        })
+        vi.spyOn(Storage.prototype, 'clear').mockImplementation(() => {
           throw new Error('Storage error')
         })
 
@@ -289,11 +273,9 @@ describe('storage utilities', () => {
       })
 
       it('warns about sensitive data in development', () => {
-        const consoleSpy = jest
-          .spyOn(console, 'warn')
-          .mockImplementation(() => {
-            // Suppress warning
-          })
+        const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
+          // Suppress warning
+        })
         const originalEnv = process.env.NODE_ENV
         process.env.NODE_ENV = 'development'
 
@@ -316,7 +298,7 @@ describe('storage utilities', () => {
       it('returns false for localStorage when unavailable', () => {
         // Mock Storage.prototype.setItem to throw only for test key
         const originalSetItem = Storage.prototype.setItem
-        jest.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
           this: Storage,
           key: string,
           value: string
@@ -438,7 +420,7 @@ describe('storage utilities', () => {
 
         // Mock Storage.prototype.setItem to fail for the new team-id key
         const originalSetItem = Storage.prototype.setItem
-        jest.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
           this: Storage,
           key: string,
           value: string

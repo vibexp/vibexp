@@ -11,7 +11,8 @@
  * `teamService`/`projectService` are mocked only to assert they are never called.
  */
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mocked } from 'vitest'
 
 import { ThemeProvider } from '@/lib/theme'
 import { AdminRoutes } from '@/pages/admin/AdminRoutes'
@@ -28,38 +29,38 @@ import type {
   AdminUserListResponse,
 } from '@/services/adminService'
 
-const mockUseAuth = jest.fn()
-jest.mock('@/contexts/useAuth', () => ({
+const mockUseAuth = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
-jest.mock('@/services/adminService', () => ({
+vi.mock('@/services/adminService', () => ({
   adminService: {
-    getStats: jest.fn(),
-    getDashboardOverview: jest.fn(),
-    getDashboardTimeseries: jest.fn(),
-    listUsers: jest.fn(),
-    listTeams: jest.fn(),
-    getUser: jest.fn(),
-    getTeam: jest.fn(),
-    listProjects: jest.fn(),
-    getProject: jest.fn(),
+    getStats: vi.fn(),
+    getDashboardOverview: vi.fn(),
+    getDashboardTimeseries: vi.fn(),
+    listUsers: vi.fn(),
+    listTeams: vi.fn(),
+    getUser: vi.fn(),
+    getTeam: vi.fn(),
+    listProjects: vi.fn(),
+    getProject: vi.fn(),
   },
 }))
 
-jest.mock('@/services/teamService', () => ({
-  teamService: { getTeams: jest.fn() },
+vi.mock('@/services/teamService', () => ({
+  teamService: { getTeams: vi.fn() },
 }))
 
-jest.mock('@/services/projectService', () => ({
-  projectService: { getProjects: jest.fn() },
+vi.mock('@/services/projectService', () => ({
+  projectService: { getProjects: vi.fn() },
 }))
 
 import { adminService } from '@/services/adminService'
 import { projectService } from '@/services/projectService'
 import { teamService } from '@/services/teamService'
 
-const mockAdminService = adminService as jest.Mocked<typeof adminService>
+const mockAdminService = adminService as Mocked<typeof adminService>
 
 const stats: AdminStatsResponse = {
   counts: { users: 42, teams: 7, prompts: 3, artifacts: 5, memories: 9 },
@@ -173,7 +174,7 @@ function asAdmin() {
   mockUseAuth.mockReturnValue({
     user: { id: 'u1', email: 'admin@example.com', is_instance_admin: true },
     isLoading: false,
-    logout: jest.fn(),
+    logout: vi.fn(),
   })
 }
 
@@ -181,7 +182,7 @@ const adminNav = () =>
   screen.queryByRole('navigation', { name: 'Admin sections' })
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockAdminService.getStats.mockResolvedValue(stats)
   mockAdminService.getDashboardOverview.mockResolvedValue(overview)
   mockAdminService.getDashboardTimeseries.mockResolvedValue({
@@ -281,7 +282,7 @@ it('blocks a non-admin entering /admin directly by URL', () => {
   mockUseAuth.mockReturnValue({
     user: { id: 'u1', is_instance_admin: false },
     isLoading: false,
-    logout: jest.fn(),
+    logout: vi.fn(),
   })
   renderAt('/admin')
 
@@ -293,7 +294,7 @@ it('shows no admin content while the identity is still resolving', () => {
   mockUseAuth.mockReturnValue({
     user: null,
     isLoading: true,
-    logout: jest.fn(),
+    logout: vi.fn(),
   })
   renderAt('/admin')
 

@@ -1,46 +1,25 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type { Feed, FeedItem } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
 
-// The shared lucide mock lists icons explicitly and misses some used here
-// (ArchiveRestore, …) — serve any icon via a Proxy instead (PromptEditor pattern).
-jest.mock(
-  'lucide-react',
-  () =>
-    new Proxy(
-      {},
-      {
-        get: (_target, name) => {
-          if (name === '__esModule') return true
-          const Icon = (props: object) => (
-            <svg
-              data-testid={`${String(name).toLowerCase()}-icon`}
-              {...props}
-            />
-          )
-          return Icon
-        },
-      }
-    )
-)
-
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual<typeof import('react-router-dom')>('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router', async () => ({
+  ...(await vi.importActual<typeof import('react-router')>('react-router')),
   useNavigate: () => mockNavigate,
 }))
 
 // Render markdown as plain text in tests
-jest.mock('@/components/MarkdownRenderer', () => ({
+vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => <div>{content}</div>,
 }))
 
 // FeedItemReplies has its own suite (FeedItemReplies.test.tsx) — probe it here
 // to assert the page wires the thread to the loaded item.
-jest.mock('@/pages/feeds/FeedItemReplies', () => ({
+vi.mock('@/pages/feeds/FeedItemReplies', () => ({
   FeedItemReplies: ({ teamId, itemId }: { teamId: string; itemId: string }) => (
     <div
       data-testid="feed-item-replies"
@@ -50,30 +29,30 @@ jest.mock('@/pages/feeds/FeedItemReplies', () => ({
   ),
 }))
 
-jest.mock('@/services/feedService', () => ({
+vi.mock('@/services/feedService', () => ({
   feedService: {
-    getFeedItem: jest.fn(),
-    getFeed: jest.fn(),
-    archiveFeedItem: jest.fn(),
-    unarchiveFeedItem: jest.fn(),
-    deleteFeedItem: jest.fn(),
+    getFeedItem: vi.fn(),
+    getFeed: vi.fn(),
+    archiveFeedItem: vi.fn(),
+    unarchiveFeedItem: vi.fn(),
+    deleteFeedItem: vi.fn(),
   },
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProjects: jest.fn(),
+    getProjects: vi.fn(),
   },
 }))
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    getTeamMembers: jest.fn(),
+    getTeamMembers: vi.fn(),
   },
 }))
 
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
@@ -84,7 +63,7 @@ const mockTeamState: {
 } = {
   currentTeam: { id: 'team-1', name: 'Test Team', permissions: [] },
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockTeamState.currentTeam,
     teams: mockTeamState.currentTeam ? [mockTeamState.currentTeam] : [],
@@ -92,15 +71,15 @@ jest.mock('@/contexts/TeamContext', () => ({
   }),
 }))
 
-const mockTrackEvent = jest.fn()
-const mockShowSuccess = jest.fn()
-jest.mock('@/hooks', () => ({
-  useAlerts: () => ({ showSuccess: mockShowSuccess, showError: jest.fn() }),
+const mockTrackEvent = vi.hoisted(() => vi.fn())
+const mockShowSuccess = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks', () => ({
+  useAlerts: () => ({ showSuccess: mockShowSuccess, showError: vi.fn() }),
   useAnalytics: () => ({ trackEvent: mockTrackEvent }),
 }))
 
-const mockHandleError = jest.fn()
-jest.mock('@/hooks/useErrorHandler', () => ({
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
@@ -162,11 +141,11 @@ function renderFeedItemView() {
 
 describe('FeedItemView page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     setTeamPermissions([])
-    ;(feedService.getFeedItem as jest.Mock).mockResolvedValue(buildItem())
-    ;(feedService.getFeed as jest.Mock).mockResolvedValue(mockFeed)
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    ;(feedService.getFeedItem as Mock).mockResolvedValue(buildItem())
+    ;(feedService.getFeed as Mock).mockResolvedValue(mockFeed)
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [
         {
           id: 'proj-1',
@@ -184,11 +163,11 @@ describe('FeedItemView page', () => {
       per_page: 100,
       total_pages: 1,
     })
-    ;(teamService.getTeamMembers as jest.Mock).mockResolvedValue([member])
+    ;(teamService.getTeamMembers as Mock).mockResolvedValue([member])
   })
 
   it('shows a loading state while the item is loading', () => {
-    ;(feedService.getFeedItem as jest.Mock).mockImplementation(
+    ;(feedService.getFeedItem as Mock).mockImplementation(
       () => new Promise(() => undefined)
     )
     renderFeedItemView()
@@ -227,7 +206,7 @@ describe('FeedItemView page', () => {
   })
 
   it('shows the AI badge for assistant-posted items', async () => {
-    ;(feedService.getFeedItem as jest.Mock).mockResolvedValue(
+    ;(feedService.getFeedItem as Mock).mockResolvedValue(
       buildItem({ ai_assistant_name: 'claude-sonnet-4-5' })
     )
     renderFeedItemView()
@@ -238,7 +217,7 @@ describe('FeedItemView page', () => {
 
   it('renders the not-found state when the item fails to load', async () => {
     const user = userEvent.setup()
-    ;(feedService.getFeedItem as jest.Mock).mockRejectedValue(
+    ;(feedService.getFeedItem as Mock).mockRejectedValue(
       new Error('Network error')
     )
     renderFeedItemView()
@@ -264,9 +243,7 @@ describe('FeedItemView page', () => {
   })
 
   it('still renders the item when the feed lookup fails (non-fatal)', async () => {
-    ;(feedService.getFeed as jest.Mock).mockRejectedValue(
-      new Error('Feed gone')
-    )
+    ;(feedService.getFeed as Mock).mockRejectedValue(new Error('Feed gone'))
     renderFeedItemView()
     expect(
       (await screen.findAllByText('Sprint Retro Summary')).length
@@ -278,7 +255,7 @@ describe('FeedItemView page', () => {
 
   it('archives the item and flips to the archived presentation', async () => {
     const user = userEvent.setup()
-    ;(feedService.archiveFeedItem as jest.Mock).mockResolvedValue(undefined)
+    ;(feedService.archiveFeedItem as Mock).mockResolvedValue(undefined)
     renderFeedItemView()
     await screen.findAllByText('Sprint Retro Summary')
     expect(screen.queryByText('Archived')).not.toBeInTheDocument()
@@ -302,10 +279,10 @@ describe('FeedItemView page', () => {
 
   it('unarchives an archived item', async () => {
     const user = userEvent.setup()
-    ;(feedService.getFeedItem as jest.Mock).mockResolvedValue(
+    ;(feedService.getFeedItem as Mock).mockResolvedValue(
       buildItem({ archived_at: '2026-01-05T00:00:00Z' })
     )
-    ;(feedService.unarchiveFeedItem as jest.Mock).mockResolvedValue(undefined)
+    ;(feedService.unarchiveFeedItem as Mock).mockResolvedValue(undefined)
     renderFeedItemView()
     await screen.findAllByText('Sprint Retro Summary')
     expect(screen.getByText('Archived')).toBeInTheDocument()
@@ -342,7 +319,7 @@ describe('FeedItemView page', () => {
 
     it('shows delete on your own item with resource.delete.own', async () => {
       setTeamPermissions(['resource.delete.own'])
-      ;(feedService.getFeedItem as jest.Mock).mockResolvedValue(
+      ;(feedService.getFeedItem as Mock).mockResolvedValue(
         buildItem({ posted_by_user_id: 'user-1' })
       )
       renderFeedItemView()
@@ -354,7 +331,7 @@ describe('FeedItemView page', () => {
       // The "own" half is resource.delete.own — feed.delete.any is moderation
       // over other people's posts only (mirrors the backend pair, #225).
       setTeamPermissions(['feed.delete.any'])
-      ;(feedService.getFeedItem as jest.Mock).mockResolvedValue(
+      ;(feedService.getFeedItem as Mock).mockResolvedValue(
         buildItem({ posted_by_user_id: 'user-1' })
       )
       renderFeedItemView()
@@ -368,7 +345,7 @@ describe('FeedItemView page', () => {
   it('deletes the item through the confirm dialog and navigates back', async () => {
     const user = userEvent.setup()
     setTeamPermissions(['feed.delete.any'])
-    ;(feedService.deleteFeedItem as jest.Mock).mockResolvedValue(undefined)
+    ;(feedService.deleteFeedItem as Mock).mockResolvedValue(undefined)
     renderFeedItemView()
     await screen.findAllByText('Sprint Retro Summary')
 

@@ -7,12 +7,12 @@ import type {
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return {
@@ -27,7 +27,7 @@ const okResponse = { ok: true, status: 200, statusText: 'OK' } as Response
 
 const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 
-const mockActivity = {
+const mockActivity = vi.hoisted(() => ({
   id: 'activity-1',
   user_id: 'user-1',
   activity_type: 'auth_login',
@@ -37,7 +37,7 @@ const mockActivity = {
   description: 'User logged in successfully',
   metadata: { provider: 'google' },
   created_at: '2025-09-27T10:00:00Z',
-}
+}))
 
 const mockActivitiesResponse: ActivitiesResponse = {
   status: 'success',
@@ -53,7 +53,7 @@ const mockActivitiesResponse: ActivitiesResponse = {
 
 describe('ActivityService', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('getActivities', () => {

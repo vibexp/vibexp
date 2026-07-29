@@ -1,52 +1,53 @@
 import { renderHook } from '@testing-library/react'
 import { act } from 'react'
+import type { Mock, MockInstance } from 'vitest'
 
 import { ApiError } from '../../types/errors'
 import { useErrorHandler } from '../useErrorHandler'
 
 // Mock AlertContext
-const mockShowAlert = jest.fn()
-jest.mock('../../contexts/AlertContext', () => ({
+const mockShowAlert = vi.hoisted(() => vi.fn())
+vi.mock('../../contexts/AlertContext', () => ({
   useAlertContext: () => ({
     showAlert: mockShowAlert,
   }),
 }))
 
 // Mock storage utilities
-jest.mock('../../utils/storage', () => ({
+vi.mock('../../utils/storage', () => ({
   storage: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
-    has: jest.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
+    has: vi.fn(),
   },
   sessionStore: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
-    has: jest.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
+    has: vi.fn(),
   },
   storageUtils: {
-    clearVibeXPData: jest.fn(),
-    getAllVibeXPData: jest.fn(),
-    isStorageAvailable: jest.fn(),
+    clearVibeXPData: vi.fn(),
+    getAllVibeXPData: vi.fn(),
+    isStorageAvailable: vi.fn(),
   },
 }))
 
 import { storageUtils } from '../../utils/storage'
 
 // Get the mocked function
-const mockClearVibeXPData = storageUtils.clearVibeXPData as jest.Mock
+const mockClearVibeXPData = storageUtils.clearVibeXPData as Mock
 
 describe('useErrorHandler', () => {
-  let consoleErrorSpy: jest.SpyInstance
+  let consoleErrorSpy: MockInstance
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     // Suppress jsdom "Not implemented: navigation" errors in test output
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {

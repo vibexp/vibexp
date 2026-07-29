@@ -4,12 +4,14 @@ import type {
   FeedItemReply,
   FeedItemReplyListResponse,
 } from '@/services/feedService'
+import { feedService } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
+import { teamService } from '@/services/teamService'
 
 import { FeedItemReplies } from '../FeedItemReplies'
 
 // Mock MarkdownRenderer to render plain text in tests
-jest.mock('@/components/MarkdownRenderer', () => ({
+vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({
     content,
     className,
@@ -20,41 +22,31 @@ jest.mock('@/components/MarkdownRenderer', () => ({
 }))
 
 // Mock feedService
-jest.mock('@/services/feedService', () => ({
+vi.mock('@/services/feedService', () => ({
   feedService: {
-    listReplies: jest.fn(),
-    createReply: jest.fn(),
+    listReplies: vi.fn(),
+    createReply: vi.fn(),
   },
 }))
 
 // Mock teamService
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    getTeamMembers: jest.fn(),
+    getTeamMembers: vi.fn(),
   },
 }))
 
 // Stable mock for useErrorHandler to avoid AlertContext dependency and
-// prevent infinite re-renders caused by a new jest.fn() reference on each render.
-const mockHandleError = jest.fn()
-jest.mock('@/hooks/useErrorHandler', () => ({
+// prevent infinite re-renders caused by a new vi.fn() reference on each render.
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({
     handleError: mockHandleError,
   }),
 }))
 
-const { feedService } = require('@/services/feedService') as {
-  feedService: {
-    listReplies: jest.Mock
-    createReply: jest.Mock
-  }
-}
-
-const { teamService } = require('@/services/teamService') as {
-  teamService: {
-    getTeamMembers: jest.Mock
-  }
-}
+const mockedFeedService = vi.mocked(feedService)
+const mockedTeamService = vi.mocked(teamService)
 
 const emptyResponse: FeedItemReplyListResponse = {
   replies: [],
@@ -106,13 +98,13 @@ function renderReplies() {
 
 describe('FeedItemReplies', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     // Default: return empty team members list
-    teamService.getTeamMembers.mockResolvedValue([])
+    mockedTeamService.getTeamMembers.mockResolvedValue([])
   })
 
   it('renders the compose textarea after loading (compose box is at bottom)', async () => {
-    feedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     renderReplies()
     await waitFor(
       () => {
@@ -129,7 +121,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('Reply button is disabled when textarea is empty', async () => {
-    feedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     renderReplies()
     await waitFor(
       () => {
@@ -143,7 +135,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('Reply button is enabled when textarea has content', async () => {
-    feedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     renderReplies()
     await waitFor(
       () => {
@@ -160,7 +152,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('shows "No replies yet" when there are no replies', async () => {
-    feedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     renderReplies()
     await waitFor(
       () => {
@@ -171,8 +163,8 @@ describe('FeedItemReplies', () => {
   })
 
   it('renders human reply with real member name when team member is found', async () => {
-    feedService.listReplies.mockResolvedValue(repliesResponse)
-    teamService.getTeamMembers.mockResolvedValue([teamMember])
+    mockedFeedService.listReplies.mockResolvedValue(repliesResponse)
+    mockedTeamService.getTeamMembers.mockResolvedValue([teamMember])
     renderReplies()
     await waitFor(
       () => {
@@ -186,13 +178,13 @@ describe('FeedItemReplies', () => {
   })
 
   it('renders human reply with "Unknown user" when team member cannot be resolved', async () => {
-    feedService.listReplies.mockResolvedValue({
+    mockedFeedService.listReplies.mockResolvedValue({
       ...emptyResponse,
       replies: [humanReply],
       total_count: 1,
     })
     // No matching member in team
-    teamService.getTeamMembers.mockResolvedValue([])
+    mockedTeamService.getTeamMembers.mockResolvedValue([])
     renderReplies()
     await waitFor(
       () => {
@@ -204,7 +196,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('renders AI reply with assistant name and AI badge', async () => {
-    feedService.listReplies.mockResolvedValue(repliesResponse)
+    mockedFeedService.listReplies.mockResolvedValue(repliesResponse)
     renderReplies()
     await waitFor(
       () => {
@@ -217,7 +209,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('renders reply timestamps as relative time', async () => {
-    feedService.listReplies.mockResolvedValue(repliesResponse)
+    mockedFeedService.listReplies.mockResolvedValue(repliesResponse)
     renderReplies()
     await waitFor(
       () => {
@@ -229,12 +221,12 @@ describe('FeedItemReplies', () => {
   })
 
   it('human reply avatar shows user initial when member is resolved', async () => {
-    feedService.listReplies.mockResolvedValue({
+    mockedFeedService.listReplies.mockResolvedValue({
       ...emptyResponse,
       replies: [humanReply],
       total_count: 1,
     })
-    teamService.getTeamMembers.mockResolvedValue([teamMember])
+    mockedTeamService.getTeamMembers.mockResolvedValue([teamMember])
     renderReplies()
     await waitFor(
       () => {
@@ -246,12 +238,12 @@ describe('FeedItemReplies', () => {
   })
 
   it('unknown user avatar shows "?" initial', async () => {
-    feedService.listReplies.mockResolvedValue({
+    mockedFeedService.listReplies.mockResolvedValue({
       ...emptyResponse,
       replies: [humanReply],
       total_count: 1,
     })
-    teamService.getTeamMembers.mockResolvedValue([])
+    mockedTeamService.getTeamMembers.mockResolvedValue([])
     renderReplies()
     await waitFor(
       () => {
@@ -262,7 +254,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('AI reply avatar renders the matched provider icon (claude)', async () => {
-    feedService.listReplies.mockResolvedValue({
+    mockedFeedService.listReplies.mockResolvedValue({
       ...emptyResponse,
       replies: [aiReply],
       total_count: 1,
@@ -287,7 +279,7 @@ describe('FeedItemReplies', () => {
       id: 'reply-codex',
       ai_assistant_name: 'Codex',
     }
-    feedService.listReplies.mockResolvedValue({
+    mockedFeedService.listReplies.mockResolvedValue({
       ...emptyResponse,
       replies: [codexReply],
       total_count: 1,
@@ -309,7 +301,7 @@ describe('FeedItemReplies', () => {
       id: 'reply-google',
       ai_assistant_name: 'Google Bard',
     }
-    feedService.listReplies.mockResolvedValue({
+    mockedFeedService.listReplies.mockResolvedValue({
       ...emptyResponse,
       replies: [googleReply],
       total_count: 1,
@@ -331,7 +323,7 @@ describe('FeedItemReplies', () => {
       id: 'reply-unknown',
       ai_assistant_name: 'mistral-large',
     }
-    feedService.listReplies.mockResolvedValue({
+    mockedFeedService.listReplies.mockResolvedValue({
       ...emptyResponse,
       replies: [unknownReply],
       total_count: 1,
@@ -348,7 +340,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('new replies are prepended at the top of the list (newest-first order)', async () => {
-    feedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     const firstReply: FeedItemReply = {
       id: 'reply-first',
       team_id: 'team-1',
@@ -367,7 +359,7 @@ describe('FeedItemReplies', () => {
       ai_assistant_name: null,
       posted_at: new Date().toISOString(),
     }
-    feedService.createReply
+    mockedFeedService.createReply
       .mockResolvedValueOnce(firstReply)
       .mockResolvedValueOnce(secondReply)
 
@@ -418,7 +410,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('compose box renders after the replies list', async () => {
-    feedService.listReplies.mockResolvedValue({
+    mockedFeedService.listReplies.mockResolvedValue({
       ...emptyResponse,
       replies: [humanReply],
       total_count: 1,
@@ -443,7 +435,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('submits reply and prepends it to the top of the list', async () => {
-    feedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     const newReply: FeedItemReply = {
       id: 'reply-new',
       team_id: 'team-1',
@@ -453,7 +445,7 @@ describe('FeedItemReplies', () => {
       ai_assistant_name: null,
       posted_at: new Date().toISOString(),
     }
-    feedService.createReply.mockResolvedValue(newReply)
+    mockedFeedService.createReply.mockResolvedValue(newReply)
 
     renderReplies()
     await waitFor(
@@ -474,13 +466,17 @@ describe('FeedItemReplies', () => {
       },
       { timeout: 3000 }
     )
-    expect(feedService.createReply).toHaveBeenCalledWith('team-1', 'item-1', {
-      content: 'New reply text',
-    })
+    expect(mockedFeedService.createReply).toHaveBeenCalledWith(
+      'team-1',
+      'item-1',
+      {
+        content: 'New reply text',
+      }
+    )
   })
 
   it('clears textarea after successful submit', async () => {
-    feedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     const newReply: FeedItemReply = {
       id: 'reply-clear',
       team_id: 'team-1',
@@ -490,7 +486,7 @@ describe('FeedItemReplies', () => {
       ai_assistant_name: null,
       posted_at: new Date().toISOString(),
     }
-    feedService.createReply.mockResolvedValue(newReply)
+    mockedFeedService.createReply.mockResolvedValue(newReply)
 
     renderReplies()
     await waitFor(
@@ -514,7 +510,7 @@ describe('FeedItemReplies', () => {
   })
 
   it('submits reply on Enter key (without Shift)', async () => {
-    feedService.listReplies.mockResolvedValue(emptyResponse)
+    mockedFeedService.listReplies.mockResolvedValue(emptyResponse)
     const newReply: FeedItemReply = {
       id: 'reply-enter',
       team_id: 'team-1',
@@ -524,7 +520,7 @@ describe('FeedItemReplies', () => {
       ai_assistant_name: null,
       posted_at: new Date().toISOString(),
     }
-    feedService.createReply.mockResolvedValue(newReply)
+    mockedFeedService.createReply.mockResolvedValue(newReply)
 
     renderReplies()
     await waitFor(
@@ -540,7 +536,7 @@ describe('FeedItemReplies', () => {
 
     await waitFor(
       () => {
-        expect(feedService.createReply).toHaveBeenCalledWith(
+        expect(mockedFeedService.createReply).toHaveBeenCalledWith(
           'team-1',
           'item-1',
           { content: 'Keyboard submit' }

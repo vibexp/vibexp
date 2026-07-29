@@ -5,12 +5,12 @@ import type { AlertOptions } from '../../src/types/alert'
 
 // Mock timers for testing auto-dismiss functionality
 beforeEach(() => {
-  jest.useFakeTimers()
+  vi.useFakeTimers()
 })
 
 afterEach(() => {
-  jest.runOnlyPendingTimers()
-  jest.useRealTimers()
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
 })
 
 interface TestComponentProps {
@@ -93,7 +93,7 @@ describe('AlertContext', () => {
     it('throws error when used outside provider', () => {
       // Suppress console.error for this test since we expect an error
       const originalError = console.error
-      console.error = jest.fn()
+      console.error = vi.fn()
 
       // Create a component that uses the hook
       const TestErrorComponent = () => {
@@ -485,7 +485,7 @@ describe('AlertContext', () => {
 
       // Fast-forward time by 5 seconds
       act(() => {
-        jest.advanceTimersByTime(5000)
+        vi.advanceTimersByTime(5000)
       })
 
       await waitFor(() => {
@@ -517,7 +517,7 @@ describe('AlertContext', () => {
 
       // Fast-forward time by 10 seconds
       act(() => {
-        jest.advanceTimersByTime(10000)
+        vi.advanceTimersByTime(10000)
       })
 
       // Should still be there
@@ -547,7 +547,7 @@ describe('AlertContext', () => {
 
       // Fast-forward time by 10 seconds
       act(() => {
-        jest.advanceTimersByTime(10000)
+        vi.advanceTimersByTime(10000)
       })
 
       // Should still be there
@@ -582,7 +582,7 @@ describe('AlertContext', () => {
 
       // Fast-forward by 2 seconds
       act(() => {
-        jest.advanceTimersByTime(2000)
+        vi.advanceTimersByTime(2000)
       })
 
       await waitFor(() => {
@@ -591,7 +591,7 @@ describe('AlertContext', () => {
 
       // Fast-forward by 3 more seconds (total 5)
       act(() => {
-        jest.advanceTimersByTime(3000)
+        vi.advanceTimersByTime(3000)
       })
 
       await waitFor(() => {
@@ -627,7 +627,7 @@ describe('AlertContext', () => {
       // Fast-forward by 31 seconds (past the 30-second cleanup threshold)
       // The cleanup runs every 10 seconds, so we need to advance to trigger it
       act(() => {
-        jest.advanceTimersByTime(31000)
+        vi.advanceTimersByTime(31000)
       })
 
       await waitFor(() => {
@@ -659,7 +659,7 @@ describe('AlertContext', () => {
 
       // Fast-forward by 31 seconds
       act(() => {
-        jest.advanceTimersByTime(31000)
+        vi.advanceTimersByTime(31000)
       })
 
       // Persistent alert should still be there
@@ -691,7 +691,7 @@ describe('AlertContext', () => {
 
       // Fast-forward by only 20 seconds (less than 30-second threshold)
       act(() => {
-        jest.advanceTimersByTime(20000)
+        vi.advanceTimersByTime(20000)
       })
 
       // Recent alert should still be there
@@ -754,7 +754,7 @@ describe('AlertContext', () => {
 
   describe('Component unmounting and cleanup', () => {
     it('cleans up intervals when component unmounts', () => {
-      const clearIntervalSpy = jest.spyOn(global, 'clearInterval')
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval')
 
       const { unmount } = renderWithProvider(<TestComponent />)
 

@@ -1,48 +1,26 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type { Agent } from '@/services/agentService'
 
 import type { ExecutionMetadata, Message } from '../chat/types'
 
-// The shared lucide mock (tests/mocks/lucide-react.tsx) lists icons explicitly
-// and misses some used by the chat components — serve any icon via a Proxy
-// instead (same trick as PromptEditor.test.tsx).
-jest.mock(
-  'lucide-react',
-  () =>
-    new Proxy(
-      {},
-      {
-        get: (_target, name) => {
-          if (name === '__esModule') return true
-          const Icon = (props: object) => (
-            <svg
-              data-testid={`${String(name).toLowerCase()}-icon`}
-              {...props}
-            />
-          )
-          return Icon
-        },
-      }
-    )
-)
-
 // MessageList scrolls the transcript into view on every render; jsdom has no
 // scrollIntoView implementation.
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
-jest.mock('@/services/agentService', () => ({
+vi.mock('@/services/agentService', () => ({
   agentService: {
-    getAgent: jest.fn(),
+    getAgent: vi.fn(),
   },
 }))
 
-jest.mock('@/lib/toast', () => ({
-  toast: { error: jest.fn(), success: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const mockTeamState: {
@@ -52,13 +30,13 @@ const mockTeamState: {
   currentTeam: { id: 'team-1', name: 'Test Team', permissions: [] },
   isLoading: false,
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockTeamState.currentTeam,
     teams: mockTeamState.currentTeam ? [mockTeamState.currentTeam] : [],
     isLoading: mockTeamState.isLoading,
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn() as () => Promise<void>,
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn() as () => Promise<void>,
   }),
 }))
 
@@ -85,16 +63,18 @@ interface ChatHookResult {
   reset: () => void
 }
 
-const mockSendMessage = jest.fn()
-const mockCancelExecution = jest.fn()
-const mockLoadConversation = jest.fn()
-const mockLoadEarlierMessages = jest.fn()
-const mockReset = jest.fn()
-const mockSetExecutionMetadata = jest.fn()
-const mockCaptureHookArgs = jest.fn()
-const mockChatHook: { overrides: Partial<ChatHookResult> } = { overrides: {} }
+const mockSendMessage = vi.hoisted(() => vi.fn())
+const mockCancelExecution = vi.hoisted(() => vi.fn())
+const mockLoadConversation = vi.hoisted(() => vi.fn())
+const mockLoadEarlierMessages = vi.hoisted(() => vi.fn())
+const mockReset = vi.hoisted(() => vi.fn())
+const mockSetExecutionMetadata = vi.hoisted(() => vi.fn())
+const mockCaptureHookArgs = vi.hoisted(() => vi.fn())
+const mockChatHook: { overrides: Partial<ChatHookResult> } = vi.hoisted(() => ({
+  overrides: {},
+}))
 
-jest.mock('../chat/useChatMessages', () => ({
+vi.mock('../chat/useChatMessages', () => ({
   useChatMessages: (args: unknown): ChatHookResult => {
     mockCaptureHookArgs(args)
     return {
@@ -184,19 +164,19 @@ function renderChat(initialEntry = '/agents/agent-1/chat') {
 
 describe('AgentChat page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockChatHook.overrides = {}
     mockTeamState.currentTeam = {
       id: 'team-1',
       name: 'Test Team',
       permissions: [],
     }
-    ;(agentService.getAgent as jest.Mock).mockResolvedValue(buildAgent())
+    ;(agentService.getAgent as Mock).mockResolvedValue(buildAgent())
   })
 
   describe('agent loading', () => {
     it('shows the loading skeleton while getAgent is in flight', () => {
-      ;(agentService.getAgent as jest.Mock).mockImplementation(
+      ;(agentService.getAgent as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -227,7 +207,7 @@ describe('AgentChat page', () => {
     })
 
     it('shows the error alert and toasts when getAgent fails, with a way back', async () => {
-      ;(agentService.getAgent as jest.Mock).mockRejectedValue(
+      ;(agentService.getAgent as Mock).mockRejectedValue(
         new Error('agent exploded')
       )
 

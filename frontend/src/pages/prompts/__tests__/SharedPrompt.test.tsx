@@ -1,27 +1,28 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HelmetProvider } from 'react-helmet-async'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type { SharedPromptResponse } from '@/services/promptShareService'
 
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues
-jest.mock('@/components/MarkdownRenderer', () => ({
+vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
     <div data-testid="markdown-renderer">{content}</div>
   ),
 }))
 
-jest.mock('@/services/promptShareService', () => ({
+vi.mock('@/services/promptShareService', () => ({
   promptShareService: {
-    getSharedPrompt: jest.fn(),
+    getSharedPrompt: vi.fn(),
   },
 }))
 
 // SharedPrompt is a public page: it renders outside TeamContext/AuthContext,
 // so neither is mocked here — mounting without them IS the no-auth path.
-const mockTrackEvent = jest.fn()
-jest.mock('@/hooks/useAnalytics', () => ({
+const mockTrackEvent = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useAnalytics', () => ({
   useAnalytics: () => ({ trackEvent: mockTrackEvent }),
 }))
 
@@ -75,11 +76,11 @@ function renderSharedPrompt(token = 'share-token-123') {
 
 describe('SharedPrompt page (public, no auth)', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('shows a loading spinner while the share is being resolved', () => {
-    ;(promptShareService.getSharedPrompt as jest.Mock).mockImplementation(
+    ;(promptShareService.getSharedPrompt as Mock).mockImplementation(
       () => new Promise(() => undefined)
     )
 
@@ -89,7 +90,7 @@ describe('SharedPrompt page (public, no auth)', () => {
   })
 
   it('renders the shared prompt from the share service', async () => {
-    ;(promptShareService.getSharedPrompt as jest.Mock).mockResolvedValue(
+    ;(promptShareService.getSharedPrompt as Mock).mockResolvedValue(
       buildSharedResponse()
     )
 
@@ -117,7 +118,7 @@ describe('SharedPrompt page (public, no auth)', () => {
   })
 
   it('marks a restricted share with the Restricted badge', async () => {
-    ;(promptShareService.getSharedPrompt as jest.Mock).mockResolvedValue(
+    ;(promptShareService.getSharedPrompt as Mock).mockResolvedValue(
       buildSharedResponse({ share_type: 'restricted' })
     )
 
@@ -130,7 +131,7 @@ describe('SharedPrompt page (public, no auth)', () => {
   })
 
   it('copies the rendered body to the clipboard', async () => {
-    ;(promptShareService.getSharedPrompt as jest.Mock).mockResolvedValue(
+    ;(promptShareService.getSharedPrompt as Mock).mockResolvedValue(
       buildSharedResponse()
     )
 
@@ -148,7 +149,7 @@ describe('SharedPrompt page (public, no auth)', () => {
 
   describe('invalid token / error state', () => {
     it('shows the error card with the service message and tracks the failure', async () => {
-      ;(promptShareService.getSharedPrompt as jest.Mock).mockRejectedValue(
+      ;(promptShareService.getSharedPrompt as Mock).mockRejectedValue(
         new Error('Share link expired')
       )
 
@@ -170,7 +171,7 @@ describe('SharedPrompt page (public, no auth)', () => {
     })
 
     it('navigates to the homepage from the error card', async () => {
-      ;(promptShareService.getSharedPrompt as jest.Mock).mockRejectedValue(
+      ;(promptShareService.getSharedPrompt as Mock).mockRejectedValue(
         new Error('Share link expired')
       )
 
@@ -187,7 +188,7 @@ describe('SharedPrompt page (public, no auth)', () => {
     it('surfaces the error card instead of crashing when the service resolves with no data', async () => {
       // A null payload is unexpected (spec says an object); the page must fail
       // into its error card, not white-screen — the #121 drift failure class.
-      ;(promptShareService.getSharedPrompt as jest.Mock).mockResolvedValue(null)
+      ;(promptShareService.getSharedPrompt as Mock).mockResolvedValue(null)
 
       renderSharedPrompt()
 

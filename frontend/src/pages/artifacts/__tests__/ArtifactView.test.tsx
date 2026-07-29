@@ -1,60 +1,61 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type { Artifact } from '@/services/artifactService'
 
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues
-jest.mock('@/components/MarkdownRenderer', () => ({
+vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
     <div data-testid="markdown-renderer">{content}</div>
   ),
 }))
 
 // Mock TeamContext — stable references to prevent effect re-runs
-const mockUseTeam = jest.fn()
+const mockUseTeam = vi.hoisted(() => vi.fn())
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/services/artifactService', () => ({
+vi.mock('@/services/artifactService', () => ({
   artifactService: {
-    getArtifact: jest.fn(),
-    getArtifactVersions: jest.fn().mockResolvedValue({ versions: [] }),
-    deleteArtifact: jest.fn(),
+    getArtifact: vi.fn(),
+    getArtifactVersions: vi.fn().mockResolvedValue({ versions: [] }),
+    deleteArtifact: vi.fn(),
   },
 }))
 
 // ArtifactView renders ResourceAttachments, which loads attachments on mount.
-jest.mock('@/services/attachmentService', () => ({
+vi.mock('@/services/attachmentService', () => ({
   attachmentService: {
-    list: jest.fn().mockResolvedValue({
+    list: vi.fn().mockResolvedValue({
       attachments: [],
       total_count: 0,
       total_size_bytes: 0,
     }),
-    upload: jest.fn(),
-    remove: jest.fn(),
-    download: jest.fn(),
+    upload: vi.fn(),
+    remove: vi.fn(),
+    download: vi.fn(),
   },
 }))
 
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
+  const trackEvent = vi.fn()
   return {
     useAlerts: () => ({ showSuccess, showError }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return {
     useErrorHandler: () => ({ handleError }),
   }
@@ -64,7 +65,7 @@ import { artifactService } from '@/services/artifactService'
 
 import { ArtifactView } from '../ArtifactView'
 
-const mockArtifact: Artifact = {
+const mockArtifact: Artifact = vi.hoisted(() => ({
   id: 'artifact-1',
   project_id: 'my-project',
   slug: 'my-artifact',
@@ -77,7 +78,7 @@ const mockArtifact: Artifact = {
   description: 'A test artifact',
   type: 'general',
   metadata: {},
-}
+}))
 
 function renderArtifactView(project = 'my-project', slug = 'my-artifact') {
   return render(
@@ -91,7 +92,7 @@ function renderArtifactView(project = 'my-project', slug = 'my-artifact') {
 
 describe('ArtifactView', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('when TeamContext is still loading (isLoadingTeam = true)', () => {
@@ -100,8 +101,8 @@ describe('ArtifactView', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderArtifactView()
@@ -115,8 +116,8 @@ describe('ArtifactView', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderArtifactView()
@@ -131,12 +132,10 @@ describe('ArtifactView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(artifactService.getArtifact as jest.Mock).mockResolvedValue(
-        mockArtifact
-      )
+      ;(artifactService.getArtifact as Mock).mockResolvedValue(mockArtifact)
 
       renderArtifactView()
 
@@ -155,10 +154,10 @@ describe('ArtifactView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(artifactService.getArtifact as jest.Mock).mockImplementation(
+      ;(artifactService.getArtifact as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -176,12 +175,10 @@ describe('ArtifactView', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(artifactService.getArtifact as jest.Mock).mockResolvedValue(
-        mockArtifact
-      )
+      ;(artifactService.getArtifact as Mock).mockResolvedValue(mockArtifact)
 
       const { rerender } = renderArtifactView()
 
@@ -194,8 +191,8 @@ describe('ArtifactView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
       rerender(
         <MemoryRouter initialEntries={['/artifacts/my-project/my-artifact']}>
@@ -221,16 +218,14 @@ describe('ArtifactView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(artifactService.getArtifact as jest.Mock).mockResolvedValue(
-        mockArtifact
-      )
+      ;(artifactService.getArtifact as Mock).mockResolvedValue(mockArtifact)
     })
 
     it('renders the version-history link with the total-version count chip', async () => {
-      ;(artifactService.getArtifactVersions as jest.Mock).mockResolvedValue({
+      ;(artifactService.getArtifactVersions as Mock).mockResolvedValue({
         versions: [
           { id: 'v2', version_number: 2 },
           { id: 'v1', version_number: 1 },
@@ -260,7 +255,7 @@ describe('ArtifactView', () => {
     })
 
     it('hides the version-history footer when there is no history yet', async () => {
-      ;(artifactService.getArtifactVersions as jest.Mock).mockResolvedValue({
+      ;(artifactService.getArtifactVersions as Mock).mockResolvedValue({
         versions: [],
       })
 
@@ -276,7 +271,7 @@ describe('ArtifactView', () => {
     })
 
     it('keeps the version row resilient to a versions-fetch failure', async () => {
-      ;(artifactService.getArtifactVersions as jest.Mock).mockRejectedValue(
+      ;(artifactService.getArtifactVersions as Mock).mockRejectedValue(
         new Error('boom')
       )
 
@@ -298,10 +293,10 @@ describe('ArtifactView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(artifactService.getArtifact as jest.Mock).mockRejectedValue(
+      ;(artifactService.getArtifact as Mock).mockRejectedValue(
         new Error('Not found')
       )
 
@@ -321,10 +316,10 @@ describe('ArtifactView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(artifactService.getArtifact as jest.Mock).mockRejectedValue(
+      ;(artifactService.getArtifact as Mock).mockRejectedValue(
         new Error('Artifact does not exist')
       )
 

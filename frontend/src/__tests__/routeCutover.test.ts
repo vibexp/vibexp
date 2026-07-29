@@ -29,7 +29,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
-import { matchRoutes } from 'react-router-dom'
+import { matchRoutes } from 'react-router'
 
 /** Frontend routes retired by epic #536. */
 const RETIRED_SEGMENTS = [
@@ -179,7 +179,7 @@ describe('retired /settings/* frontend routes stay retired (#545)', () => {
       "renderAt('/teams/team-a/settings/customization')",
       // Import specifiers mirroring the directory move.
       "import { SearchSettings } from '@/pages/teams/settings/search/SearchSettings'",
-      "jest.mock('@/pages/teams/settings/customization/Customization')",
+      "vi.mock('@/pages/teams/settings/customization/Customization')",
       // API paths - unchanged by this epic and none of its business.
       "get('/api/v1/settings/api-keys')",
       'get(`/api/v1/${teamId}/settings/search`)',

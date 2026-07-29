@@ -5,13 +5,13 @@ import type {
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  PATCH: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  PATCH: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return {
@@ -31,7 +31,7 @@ const noContentResponse = {
 
 const success = <T>(data: T) => Promise.resolve({ data, response: okResponse })
 
-const mockNotification = {
+const mockNotification = vi.hoisted(() => ({
   id: 'notif-1',
   type: 'feed.item.created',
   category: 'low' as const,
@@ -39,11 +39,11 @@ const mockNotification = {
   body: 'Someone posted to your feed',
   action_url: '/feeds/1',
   created_at: '2024-01-01T10:00:00Z',
-}
+}))
 
 describe('NotificationService', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('listNotifications', () => {

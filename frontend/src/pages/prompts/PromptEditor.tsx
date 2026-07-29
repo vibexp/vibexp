@@ -1,6 +1,6 @@
 import { ArrowLeft, Save } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { PromptTemplateLoader } from '@/components/PromptTemplateLoader'

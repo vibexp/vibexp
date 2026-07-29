@@ -1,16 +1,17 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { renderHook } from '@testing-library/react'
+import type { Mocked } from 'vitest'
 
 import type { CurrentUser } from '../../services/authService'
 import { AuthProvider, useAuth } from '../AuthContext'
 
 // Mock the authService (cookie-based, no token management)
-jest.mock('../../services/authService', () => ({
+vi.mock('../../services/authService', () => ({
   authService: {
-    getCurrentUser: jest.fn(),
-    getLoginUrl: jest.fn(),
-    logout: jest.fn(),
-    markOnboardingComplete: jest.fn(),
+    getCurrentUser: vi.fn(),
+    getLoginUrl: vi.fn(),
+    logout: vi.fn(),
+    markOnboardingComplete: vi.fn(),
   },
 }))
 
@@ -18,10 +19,10 @@ jest.mock('../../services/authService', () => ({
 import { authService } from '../../services/authService'
 
 // Type the mocked authService properly
-const mockAuthService = authService as jest.Mocked<typeof authService>
+const mockAuthService = authService as Mocked<typeof authService>
 
 // Mock console.error to test error handling but allow calls through
-const consoleSpy = jest.spyOn(console, 'error')
+const consoleSpy = vi.spyOn(console, 'error')
 
 describe('AuthContext (cookie-based auth)', () => {
   const mockUser: CurrentUser = {
@@ -46,11 +47,11 @@ describe('AuthContext (cookie-based auth)', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     consoleSpy.mockClear()
     // Reset GA4 globals before each test
     window.dataLayer = []
-    window.gtag = jest.fn()
+    window.gtag = vi.fn()
     window.sessionStorage.clear()
   })
 
@@ -569,7 +570,7 @@ describe('AuthContext (cookie-based auth)', () => {
       })
 
       it('should throw error when used outside AuthProvider', () => {
-        const consoleErrorSpy = jest
+        const consoleErrorSpy = vi
           .spyOn(console, 'error')
           .mockImplementation(() => {})
 
@@ -817,7 +818,7 @@ describe('AuthContext (cookie-based auth)', () => {
 
     describe('Context provider missing', () => {
       it('should throw error when useAuth is used outside provider', () => {
-        const consoleErrorSpy = jest
+        const consoleErrorSpy = vi
           .spyOn(console, 'error')
           .mockImplementation(() => {})
 
@@ -829,7 +830,7 @@ describe('AuthContext (cookie-based auth)', () => {
       })
 
       it('should provide helpful error message when context is undefined', () => {
-        const consoleErrorSpy = jest
+        const consoleErrorSpy = vi
           .spyOn(console, 'error')
           .mockImplementation(() => {})
 

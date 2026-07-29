@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { Shapes, SlidersHorizontal } from 'lucide-react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { SettingItem } from '@/components/settings/SettingsGrid'
 import type { Team } from '@/services/teamService'
@@ -9,7 +9,7 @@ import type { Team } from '@/services/teamService'
 // relocate pages here, so mocking it is the only way to execute the grid path
 // the acceptance criteria describe ("renders the hub using the shared grid").
 const cards: { items: SettingItem[] } = { items: [] }
-jest.mock('@/pages/teams/settings/team-settings-cards', () => ({
+vi.mock('@/pages/teams/settings/team-settings-cards', () => ({
   teamSettingsCardsFor: (teamId: string) =>
     cards.items.map(item => ({
       ...item,

@@ -1,25 +1,26 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type { Mock } from 'vitest'
 
 import type { Prompt } from '@/services/promptService'
 import type { Team } from '@/services/teamService'
 
-jest.mock('@/services/promptService', () => ({
+vi.mock('@/services/promptService', () => ({
   promptService: {
-    getPrompts: jest.fn(),
-    createPrompt: jest.fn(),
-    updatePrompt: jest.fn(),
-    getPromptPlaceholders: jest.fn(),
-    renderPrompt: jest.fn(),
+    getPrompts: vi.fn(),
+    createPrompt: vi.fn(),
+    updatePrompt: vi.fn(),
+    getPromptPlaceholders: vi.fn(),
+    renderPrompt: vi.fn(),
   },
 }))
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    warning: jest.fn(),
-    message: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
   },
 }))
 
@@ -67,11 +68,11 @@ const formData: PromptFormData = {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 describe('usePromptSave', () => {
-  const trackEvent = jest.fn()
+  const trackEvent = vi.fn()
 
   it('refuses to save without a team', async () => {
     const { result } = renderHook(() =>
@@ -90,7 +91,7 @@ describe('usePromptSave', () => {
   })
 
   it('creates a new prompt with the full payload and tracks the event', async () => {
-    ;(promptService.createPrompt as jest.Mock).mockResolvedValue(buildPrompt())
+    ;(promptService.createPrompt as Mock).mockResolvedValue(buildPrompt())
     const { result } = renderHook(() =>
       usePromptSave({ teamId: 'team-1', prompt: null, trackEvent })
     )
@@ -124,7 +125,7 @@ describe('usePromptSave', () => {
   })
 
   it('updates an existing prompt addressed by its current slug', async () => {
-    ;(promptService.updatePrompt as jest.Mock).mockResolvedValue(buildPrompt())
+    ;(promptService.updatePrompt as Mock).mockResolvedValue(buildPrompt())
     const existing = buildPrompt({ slug: 'old-slug' })
     const { result } = renderHook(() =>
       usePromptSave({ teamId: 'team-1', prompt: existing, trackEvent })
@@ -151,7 +152,7 @@ describe('usePromptSave', () => {
   })
 
   it('reports failures and resets the saving flag', async () => {
-    ;(promptService.createPrompt as jest.Mock).mockRejectedValue(
+    ;(promptService.createPrompt as Mock).mockRejectedValue(
       new Error('slug already taken')
     )
     const { result } = renderHook(() =>
@@ -193,7 +194,7 @@ describe('useSlugGeneration', () => {
   })
 
   it('keeps the base slug when it is not taken', async () => {
-    ;(promptService.getPrompts as jest.Mock).mockResolvedValue({
+    ;(promptService.getPrompts as Mock).mockResolvedValue({
       prompts: [buildPrompt({ slug: 'other' })],
     })
     const { result } = renderHook(() => useSlugGeneration(team, undefined))
@@ -207,7 +208,7 @@ describe('useSlugGeneration', () => {
   })
 
   it('appends a random suffix when the slug collides', async () => {
-    ;(promptService.getPrompts as jest.Mock).mockResolvedValue({
+    ;(promptService.getPrompts as Mock).mockResolvedValue({
       prompts: [buildPrompt({ slug: 'taken' })],
     })
     const { result } = renderHook(() => useSlugGeneration(team, undefined))
@@ -217,7 +218,7 @@ describe('useSlugGeneration', () => {
   })
 
   it('ignores the prompt currently being edited when checking collisions', async () => {
-    ;(promptService.getPrompts as jest.Mock).mockResolvedValue({
+    ;(promptService.getPrompts as Mock).mockResolvedValue({
       prompts: [buildPrompt({ slug: 'my-prompt' })],
     })
     const { result } = renderHook(() => useSlugGeneration(team, 'my-prompt'))
@@ -228,7 +229,7 @@ describe('useSlugGeneration', () => {
   })
 
   it('falls back to the base slug when the lookup fails', async () => {
-    ;(promptService.getPrompts as jest.Mock).mockRejectedValue(
+    ;(promptService.getPrompts as Mock).mockRejectedValue(
       new Error('network down')
     )
     const { result } = renderHook(() => useSlugGeneration(team, undefined))
@@ -260,7 +261,7 @@ describe('useRenderPreview', () => {
   }
 
   it('loads placeholders for a saved prompt and seeds their values', async () => {
-    ;(promptService.getPromptPlaceholders as jest.Mock).mockResolvedValue([
+    ;(promptService.getPromptPlaceholders as Mock).mockResolvedValue([
       'name',
       'tone',
     ])
@@ -295,7 +296,7 @@ describe('useRenderPreview', () => {
   })
 
   it('falls back to no placeholders when the lookup fails', async () => {
-    ;(promptService.getPromptPlaceholders as jest.Mock).mockRejectedValue(
+    ;(promptService.getPromptPlaceholders as Mock).mockRejectedValue(
       new Error('boom')
     )
     const { result } = renderPreviewHook(editingProps)
@@ -309,7 +310,7 @@ describe('useRenderPreview', () => {
   })
 
   it('renders the prompt (debounced) when the render view opens', async () => {
-    ;(promptService.renderPrompt as jest.Mock).mockResolvedValue({
+    ;(promptService.renderPrompt as Mock).mockResolvedValue({
       rendered_body: 'Hello Ada',
     })
     const { result, rerender } = renderPreviewHook(editingProps)
@@ -333,7 +334,7 @@ describe('useRenderPreview', () => {
   })
 
   it('surfaces render failures and clears the previous output', async () => {
-    ;(promptService.renderPrompt as jest.Mock).mockRejectedValue(
+    ;(promptService.renderPrompt as Mock).mockRejectedValue(
       new Error('placeholder missing')
     )
     const { result, rerender } = renderPreviewHook(editingProps)

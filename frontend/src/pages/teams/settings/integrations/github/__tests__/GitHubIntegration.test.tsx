@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type {
   GitHubInstallationStatus,
@@ -8,29 +9,8 @@ import type {
 } from '@/services/githubIntegrationService'
 import { ApiError } from '@/types/errors'
 
-// The shared lucide mock misses a few icons used only here (e.g. FolderGit2);
-// wrap it in a Proxy that synthesizes any missing icon on the fly.
-jest.mock('lucide-react', () => {
-  const actual = jest.requireActual<Record<string, unknown>>('lucide-react')
-  const React = jest.requireActual<typeof import('react')>('react')
-  return new Proxy(actual, {
-    get(target, prop) {
-      if (typeof prop !== 'string' || prop in target) {
-        return target[prop as string]
-      }
-      const MockIcon = (props: React.SVGProps<SVGSVGElement>) =>
-        React.createElement('svg', {
-          'data-testid': `${prop.toLowerCase()}-icon`,
-          ...props,
-        })
-      MockIcon.displayName = prop
-      return MockIcon
-    },
-  })
-})
-
 // Radix Select (RepositoryFilters) can loop in JSDOM — replace with plain divs.
-jest.mock('@/components/ui/select', () => ({
+vi.mock('@/components/ui/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="select">{children}</div>
   ),
@@ -52,30 +32,30 @@ jest.mock('@/components/ui/select', () => ({
   }) => <div data-value={value}>{children}</div>,
 }))
 
-jest.mock('@/services/githubIntegrationService', () => ({
+vi.mock('@/services/githubIntegrationService', () => ({
   githubIntegrationService: {
-    getStatus: jest.fn(),
-    getInstallUrl: jest.fn(),
-    handleCallback: jest.fn(),
-    getRepositories: jest.fn(),
-    disconnect: jest.fn(),
-    importProject: jest.fn(),
-    importBlueprints: jest.fn(),
+    getStatus: vi.fn(),
+    getInstallUrl: vi.fn(),
+    handleCallback: vi.fn(),
+    getRepositories: vi.fn(),
+    disconnect: vi.fn(),
+    importProject: vi.fn(),
+    importBlueprints: vi.fn(),
   },
 }))
 
 // The page now reads the team's own GitHub App (#484). Default it to a
 // configured team so the pre-existing install/repository tests keep exercising
 // what they were written for; the precondition tests below override it.
-jest.mock('@/services/githubAppConfigService', () => ({
-  ...jest.requireActual('@/services/githubAppConfigService'),
+vi.mock('@/services/githubAppConfigService', async () => ({
+  ...(await vi.importActual('@/services/githubAppConfigService')),
   githubAppConfigService: {
-    getAppConfig: jest.fn(),
-    createAppConfig: jest.fn(),
-    updateAppConfig: jest.fn(),
-    deleteAppConfig: jest.fn(),
-    validateAppConfig: jest.fn(),
-    rotateWebhookToken: jest.fn(),
+    getAppConfig: vi.fn(),
+    createAppConfig: vi.fn(),
+    updateAppConfig: vi.fn(),
+    deleteAppConfig: vi.fn(),
+    validateAppConfig: vi.fn(),
+    rotateWebhookToken: vi.fn(),
   },
 }))
 
@@ -85,57 +65,59 @@ jest.mock('@/services/githubAppConfigService', () => ({
 // The tuple type (rather than unknown[]) keeps the call ARITY intact, so an
 // argument-less `usePermissions()` is recorded as a zero-argument call and the
 // assertion below can tell it apart from `usePermissions(team)`.
-const mockUsePermissions = jest.fn((...args: [unknown?]) => {
-  void args
-  return {
-    can: jest.fn(() => true),
-    canDeleteResource: jest.fn(() => true),
-    canDeleteFeedContent: jest.fn(() => true),
-  }
-})
-jest.mock('@/hooks/usePermissions', () => ({
+const mockUsePermissions = vi.hoisted(() =>
+  vi.fn((...args: [unknown?]) => {
+    void args
+    return {
+      can: vi.fn(() => true),
+      canDeleteResource: vi.fn(() => true),
+      canDeleteFeedContent: vi.fn(() => true),
+    }
+  })
+)
+vi.mock('@/hooks/usePermissions', () => ({
   usePermissions: (...args: [unknown?]) => mockUsePermissions(...args),
 }))
 
-jest.mock('@/contexts/TeamContext', () => {
+vi.mock('@/contexts/TeamContext', () => {
   const currentTeam = { id: 'team-1', name: 'Test Team' }
   return {
     useTeam: () => ({ currentTeam, teams: [currentTeam], isLoading: false }),
   }
 })
 
-jest.mock('@/hooks', () => {
-  const trackEvent = jest.fn()
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
+vi.mock('@/hooks', () => {
+  const trackEvent = vi.fn()
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
   return {
     useAnalytics: () => ({ trackEvent }),
     useAlerts: () => ({ showSuccess, showError }),
   }
 })
 
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn(() => ({}))
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn(() => ({}))
   return {
     useErrorHandler: () => ({ handleError }),
   }
 })
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    warning: jest.fn(),
-    message: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
   },
 }))
 
 // The install CTA redirects the browser via safeRedirect (allowlisted to
 // github.com); mock it so jsdom never attempts real navigation and the
 // mechanism itself is assertable.
-jest.mock('@/utils/urlValidation', () => ({
-  safeRedirect: jest.fn(),
+vi.mock('@/utils/urlValidation', () => ({
+  safeRedirect: vi.fn(),
 }))
 
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -166,7 +148,7 @@ const appConfigured = {
   version: 1,
 }
 
-const mockedGetAppConfig = githubAppConfigService.getAppConfig as jest.Mock
+const mockedGetAppConfig = githubAppConfigService.getAppConfig as Mock
 
 const installed: GitHubInstallationStatus = {
   installed: true,
@@ -224,11 +206,9 @@ function renderPageWithLocation(initialEntry: string) {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
-  ;(githubIntegrationService.getStatus as jest.Mock).mockResolvedValue(
-    notInstalled
-  )
-  ;(githubIntegrationService.getRepositories as jest.Mock).mockResolvedValue({
+  vi.clearAllMocks()
+  ;(githubIntegrationService.getStatus as Mock).mockResolvedValue(notInstalled)
+  ;(githubIntegrationService.getRepositories as Mock).mockResolvedValue({
     repositories: [],
     total_count: 0,
   })
@@ -314,7 +294,7 @@ describe('GitHubIntegration — not installed', () => {
   })
 
   it('launching the install fetches the install URL and redirects via safeRedirect pinned to github.com', async () => {
-    ;(githubIntegrationService.getInstallUrl as jest.Mock).mockResolvedValue({
+    ;(githubIntegrationService.getInstallUrl as Mock).mockResolvedValue({
       install_url:
         'https://github.com/apps/vibexp-app/installations/new?state=team-1%3Asig',
     })
@@ -349,7 +329,7 @@ describe('GitHubIntegration — not installed', () => {
   })
 
   it('reports an install-URL failure and re-enables the launch button', async () => {
-    ;(githubIntegrationService.getInstallUrl as jest.Mock).mockRejectedValue(
+    ;(githubIntegrationService.getInstallUrl as Mock).mockRejectedValue(
       new Error('boom')
     )
 
@@ -378,7 +358,7 @@ describe('GitHubIntegration — not installed', () => {
   })
 
   it('reports a status load failure', async () => {
-    ;(githubIntegrationService.getStatus as jest.Mock).mockRejectedValue(
+    ;(githubIntegrationService.getStatus as Mock).mockRejectedValue(
       new Error('boom')
     )
 
@@ -395,13 +375,11 @@ describe('GitHubIntegration — not installed', () => {
 
 describe('GitHubIntegration — installed', () => {
   beforeEach(() => {
-    ;(githubIntegrationService.getStatus as jest.Mock).mockResolvedValue(
-      installed
-    )
+    ;(githubIntegrationService.getStatus as Mock).mockResolvedValue(installed)
   })
 
   it('shows the connected account and lists repositories from page 1', async () => {
-    ;(githubIntegrationService.getRepositories as jest.Mock).mockResolvedValue({
+    ;(githubIntegrationService.getRepositories as Mock).mockResolvedValue({
       repositories: [
         buildRepo(),
         buildRepo({
@@ -459,7 +437,7 @@ describe('GitHubIntegration — installed', () => {
   })
 
   it('reports a repositories load failure', async () => {
-    ;(githubIntegrationService.getRepositories as jest.Mock).mockRejectedValue(
+    ;(githubIntegrationService.getRepositories as Mock).mockRejectedValue(
       new Error('boom')
     )
 
@@ -477,7 +455,7 @@ describe('GitHubIntegration — installed', () => {
     const firstPage = Array.from({ length: 3 }, (_, i) =>
       buildRepo({ id: i + 1, name: `repo-${String(i + 1)}` })
     )
-    ;(githubIntegrationService.getRepositories as jest.Mock)
+    ;(githubIntegrationService.getRepositories as Mock)
       .mockResolvedValueOnce({ repositories: firstPage, total_count: 150 })
       .mockResolvedValueOnce({
         repositories: [buildRepo({ id: 200, name: 'aaa-appended' })],
@@ -506,13 +484,11 @@ describe('GitHubIntegration — installed', () => {
   })
 
   it('disconnects after confirmation, resets state, and walks through the uninstall step', async () => {
-    ;(githubIntegrationService.getRepositories as jest.Mock).mockResolvedValue({
+    ;(githubIntegrationService.getRepositories as Mock).mockResolvedValue({
       repositories: [buildRepo()],
       total_count: 1,
     })
-    ;(githubIntegrationService.disconnect as jest.Mock).mockResolvedValue(
-      undefined
-    )
+    ;(githubIntegrationService.disconnect as Mock).mockResolvedValue(undefined)
 
     renderPage()
     await screen.findByText('awesome-repo')
@@ -554,7 +530,7 @@ describe('GitHubIntegration — installed', () => {
   })
 
   it('shows the suspended alert and skips repository loading', async () => {
-    ;(githubIntegrationService.getStatus as jest.Mock).mockResolvedValue({
+    ;(githubIntegrationService.getStatus as Mock).mockResolvedValue({
       ...installed,
       suspended: true,
     })
@@ -576,7 +552,7 @@ describe('GitHubIntegration — install callback via URL params', () => {
     '/settings/integrations/github?installation_id=12345678&setup_action=install&state=csrf-state&code=gh-oauth-code'
 
   it('posts the callback from ?installation_id/setup_action/state/code and toasts on a new connection', async () => {
-    ;(githubIntegrationService.handleCallback as jest.Mock).mockResolvedValue({
+    ;(githubIntegrationService.handleCallback as Mock).mockResolvedValue({
       reconnected: false,
     })
 
@@ -601,13 +577,13 @@ describe('GitHubIntegration — install callback via URL params', () => {
     // Status is refreshed after a successful callback.
     await waitFor(() => {
       expect(
-        (githubIntegrationService.getStatus as jest.Mock).mock.calls.length
+        (githubIntegrationService.getStatus as Mock).mock.calls.length
       ).toBeGreaterThan(1)
     })
   })
 
   it('toasts the reconnect variant when the callback reports reconnected', async () => {
-    ;(githubIntegrationService.handleCallback as jest.Mock).mockResolvedValue({
+    ;(githubIntegrationService.handleCallback as Mock).mockResolvedValue({
       reconnected: true,
     })
 
@@ -638,9 +614,9 @@ describe('GitHubIntegration — install callback via URL params', () => {
   })
 
   it('never writes the code to the console', async () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
-    const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {})
-    ;(githubIntegrationService.handleCallback as jest.Mock).mockRejectedValue(
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {})
+    ;(githubIntegrationService.handleCallback as Mock).mockRejectedValue(
       new Error('boom')
     )
 
@@ -675,7 +651,7 @@ describe('GitHubIntegration — install callback via URL params', () => {
   })
 
   it('surfaces the already-connected-to-another-team message for that API error code', async () => {
-    ;(githubIntegrationService.handleCallback as jest.Mock).mockRejectedValue(
+    ;(githubIntegrationService.handleCallback as Mock).mockRejectedValue(
       new ApiError({
         type: 'about:blank',
         title: 'Conflict',
@@ -705,7 +681,7 @@ describe('GitHubIntegration — install callback via URL params', () => {
   ])(
     'strips the callback params from the URL after %s',
     async (_name, fails) => {
-      const mock = githubIntegrationService.handleCallback as jest.Mock
+      const mock = githubIntegrationService.handleCallback as Mock
       if (fails) mock.mockRejectedValue(new Error('boom'))
       else mock.mockResolvedValue({ reconnected: false })
 
@@ -726,7 +702,7 @@ describe('GitHubIntegration — install callback via URL params', () => {
     // #541 relocates this page to /teams/:id/settings/integrations/github. The
     // redirect derives from the current pathname precisely so that move does not
     // silently start redirecting into a 404 — this test is what would catch it.
-    ;(githubIntegrationService.handleCallback as jest.Mock).mockResolvedValue({
+    ;(githubIntegrationService.handleCallback as Mock).mockResolvedValue({
       reconnected: false,
     })
     const future =
@@ -745,7 +721,7 @@ describe('GitHubIntegration — install callback via URL params', () => {
   })
 
   it('reports a generic callback failure with the generic message', async () => {
-    ;(githubIntegrationService.handleCallback as jest.Mock).mockRejectedValue(
+    ;(githubIntegrationService.handleCallback as Mock).mockRejectedValue(
       new Error('boom')
     )
 
@@ -774,7 +750,7 @@ describe('GitHubIntegration — install callback via URL params', () => {
     ],
     ['github_user_auth_not_configured', 503, /Client ID and secret/i],
   ])('maps %s to its own actionable message', async (code, status, match) => {
-    ;(githubIntegrationService.handleCallback as jest.Mock).mockRejectedValue(
+    ;(githubIntegrationService.handleCallback as Mock).mockRejectedValue(
       new ApiError({
         type: 'about:blank',
         title: 'Error',
@@ -813,7 +789,7 @@ describe('GitHubIntegration — install callback targets the URL team (#584)', (
     '/settings/integrations/github?installation_id=12345678&setup_action=install&state=csrf-state&code=gh-oauth-code'
 
   it('posts to the URL team, never the ambient one', async () => {
-    ;(githubIntegrationService.handleCallback as jest.Mock).mockResolvedValue({
+    ;(githubIntegrationService.handleCallback as Mock).mockResolvedValue({
       reconnected: false,
     })
 
@@ -851,7 +827,7 @@ describe('GitHubIntegration — install callback targets the URL team (#584)', (
   })
 
   it('reads status, repositories and the install URL for the URL team too', async () => {
-    ;(githubIntegrationService.getStatus as jest.Mock).mockResolvedValue({
+    ;(githubIntegrationService.getStatus as Mock).mockResolvedValue({
       installed: true,
       suspended: false,
     })

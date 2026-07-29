@@ -26,7 +26,7 @@ const NOW = new Date(2026, 6, 24, 15, 30, 0)
 function renderPicker(
   overrides: Partial<React.ComponentProps<typeof DateRangePicker>> = {}
 ) {
-  const onChange = jest.fn()
+  const onChange = vi.fn()
   const view = render(
     <DateRangePicker value={{}} onChange={onChange} now={NOW} {...overrides} />
   )
@@ -317,7 +317,7 @@ describe('the default clock', () => {
 
   it('defaults to the system clock in the picker', () => {
     const range = rangeForPreset(DEFAULT_RANGE_PRESETS[0])
-    render(<DateRangePicker value={range} onChange={jest.fn()} />)
+    render(<DateRangePicker value={range} onChange={vi.fn()} />)
 
     // The label resolves against the same default clock, so a preset-shaped
     // value is still recognised as that preset.

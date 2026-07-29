@@ -6,13 +6,13 @@ import type {
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return {
@@ -42,7 +42,7 @@ const failure = (detail: string) =>
 const TEAM_ID = 'team-abc'
 const PROJECT_ID = 'project-xyz'
 
-const mockInventory: MigrationInventory = {
+const mockInventory: MigrationInventory = vi.hoisted(() => ({
   prompts: {
     count: 2,
     items: [
@@ -53,19 +53,19 @@ const mockInventory: MigrationInventory = {
   artifacts: { count: 1, items: [{ id: 'a1', name: 'Artifact A' }] },
   blueprints: { count: 0, items: [] },
   feed_items: { count: 3 },
-}
+}))
 
-const mockResult: MigrationResult = {
+const mockResult: MigrationResult = vi.hoisted(() => ({
   migrated: { prompts: 2, artifacts: 1, blueprints: 0, feed_items: 0 },
   skipped: {},
   failed: {},
   source_project_name: 'Source',
   destination_project_name: 'Destination',
-}
+}))
 
 describe('ProjectMigrationService', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('getInventory', () => {

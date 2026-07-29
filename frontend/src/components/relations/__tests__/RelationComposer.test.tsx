@@ -2,25 +2,25 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { RelationComposer } from '@/components/relations/RelationComposer'
 
-const showError = jest.fn()
-jest.mock('@/hooks', () => ({
+const showError = vi.fn()
+vi.mock('@/hooks', () => ({
   useAlerts: () => ({ showError }),
 }))
 
-const getArtifacts = jest.fn()
-const getBlueprints = jest.fn()
-const getPrompts = jest.fn()
-const getMemories = jest.fn()
-jest.mock('@/services/artifactService', () => ({
+const getArtifacts = vi.fn()
+const getBlueprints = vi.fn()
+const getPrompts = vi.fn()
+const getMemories = vi.fn()
+vi.mock('@/services/artifactService', () => ({
   artifactService: { getArtifacts: (...a: unknown[]) => getArtifacts(...a) },
 }))
-jest.mock('@/services/blueprintService', () => ({
+vi.mock('@/services/blueprintService', () => ({
   blueprintService: { getBlueprints: (...a: unknown[]) => getBlueprints(...a) },
 }))
-jest.mock('@/services/promptService', () => ({
+vi.mock('@/services/promptService', () => ({
   promptService: { getPrompts: (...a: unknown[]) => getPrompts(...a) },
 }))
-jest.mock('@/services/memoryService', () => ({
+vi.mock('@/services/memoryService', () => ({
   memoryService: { getMemories: (...a: unknown[]) => getMemories(...a) },
 }))
 
@@ -31,9 +31,9 @@ function renderComposer(
     teamId: 'team-1',
     subjectType: 'artifact' as const,
     subjectId: 'a1',
-    onAdd: jest.fn().mockResolvedValue(undefined),
-    onSuccess: jest.fn(),
-    onCancel: jest.fn(),
+    onAdd: vi.fn().mockResolvedValue(undefined),
+    onSuccess: vi.fn(),
+    onCancel: vi.fn(),
     ...overrides,
   }
   render(<RelationComposer {...props} />)
@@ -41,7 +41,7 @@ function renderComposer(
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   getArtifacts.mockResolvedValue({
     artifacts: [
       { id: 'a1', title: 'Self artifact' },
@@ -110,7 +110,7 @@ test('submitting a chosen target calls onAdd then onSuccess', async () => {
 })
 
 test('an onAdd failure surfaces an alert and does not call onSuccess', async () => {
-  const onAdd = jest.fn().mockRejectedValue(new Error('nope'))
+  const onAdd = vi.fn().mockRejectedValue(new Error('nope'))
   const props = renderComposer({ onAdd })
   await screen.findByText('Go standards')
 

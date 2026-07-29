@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type {
   Blueprint,
@@ -10,8 +11,8 @@ import type { Project } from '@/services/projectService'
 
 // Mock Radix Select (BlueprintFilters type dropdown) — it can loop in JSDOM.
 // onValueChange stays wired so tests can pick a type as a plain button.
-jest.mock('@/components/ui/select', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react')
+vi.mock('@/components/ui/select', async () => {
+  const ReactActual = await vi.importActual<typeof import('react')>('react')
   const SelectCtx = ReactActual.createContext<(value: string) => void>(() => {})
   return {
     Select: ({
@@ -58,22 +59,22 @@ jest.mock('@/components/ui/select', () => {
   }
 })
 
-jest.mock('@/services/blueprintService', () => ({
+vi.mock('@/services/blueprintService', () => ({
   blueprintService: {
-    getBlueprints: jest.fn(),
-    deleteBlueprint: jest.fn(),
+    getBlueprints: vi.fn(),
+    deleteBlueprint: vi.fn(),
   },
 }))
 
 // Only the catalog client is mocked; parseMetadataFilter/serializeMetadataFilter
 // stay real, since the URL round-trip is exactly what these tests assert.
-jest.mock('@/services/metadataService', () => {
-  const actual = jest.requireActual<
+vi.mock('@/services/metadataService', async () => {
+  const actual = await vi.importActual<
     typeof import('@/services/metadataService')
   >('@/services/metadataService')
   return {
     ...actual,
-    metadataService: { listKeys: jest.fn(), listValues: jest.fn() },
+    metadataService: { listKeys: vi.fn(), listValues: vi.fn() },
   }
 })
 
@@ -84,13 +85,13 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
@@ -103,42 +104,42 @@ const mockTeamState: {
   currentTeam: { id: 'team-1', name: 'Test Team', permissions: [] },
   isLoading: false,
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockTeamState.currentTeam,
     teams: mockTeamState.currentTeam ? [mockTeamState.currentTeam] : [],
     isLoading: mockTeamState.isLoading,
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn() as () => Promise<void>,
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn() as () => Promise<void>,
   }),
 }))
 
 // Mutable so tests choose the globally selected project (header selector).
 const projectContextValue: {
   currentProject: Project | null
-  setCurrentProject: jest.Mock
+  setCurrentProject: Mock
   isLoading: boolean
 } = {
   currentProject: null,
-  setCurrentProject: jest.fn(),
+  setCurrentProject: vi.fn(),
   isLoading: false,
 }
-jest.mock('@/contexts/ProjectContext', () => ({
+vi.mock('@/contexts/ProjectContext', () => ({
   useProject: () => projectContextValue,
 }))
 
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
+  const trackEvent = vi.fn()
   return {
     useAlerts: () => ({ showSuccess, showError }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return {
     useErrorHandler: () => ({ handleError }),
   }
@@ -219,7 +220,7 @@ function LocationProbe() {
 
 /** The filter object of the most recent getBlueprints call. */
 const lastQuery = () => {
-  const { calls } = (blueprintService.getBlueprints as jest.Mock).mock
+  const { calls } = (blueprintService.getBlueprints as Mock).mock
   return calls[calls.length - 1][1] as Record<string, unknown>
 }
 
@@ -253,21 +254,19 @@ function renderBlueprints(initialEntry = '/blueprints') {
 
 describe('Blueprints page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     setTeamPermissions([])
     projectContextValue.currentProject = null
     projectContextValue.isLoading = false
-    ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+    ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
       buildListResponse([])
     )
-    ;(blueprintService.deleteBlueprint as jest.Mock).mockResolvedValue(
-      undefined
-    )
-    ;(metadataService.listKeys as jest.Mock).mockResolvedValue({
+    ;(blueprintService.deleteBlueprint as Mock).mockResolvedValue(undefined)
+    ;(metadataService.listKeys as Mock).mockResolvedValue({
       keys: ['env', 'team'],
       truncated: false,
     })
-    ;(metadataService.listValues as jest.Mock).mockResolvedValue({
+    ;(metadataService.listValues as Mock).mockResolvedValue({
       values: ['prod', 'staging'],
       truncated: false,
     })
@@ -275,7 +274,7 @@ describe('Blueprints page', () => {
 
   describe('data states', () => {
     it('renders blueprint rows returned by the service and tracks the page view', async () => {
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([
           buildBlueprint(),
           buildBlueprint({
@@ -319,7 +318,7 @@ describe('Blueprints page', () => {
     })
 
     it('shows skeleton rows while the fetch is in flight', () => {
-      ;(blueprintService.getBlueprints as jest.Mock).mockImplementation(
+      ;(blueprintService.getBlueprints as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -339,7 +338,7 @@ describe('Blueprints page', () => {
     })
 
     it('shows the error state when the fetch fails', async () => {
-      ;(blueprintService.getBlueprints as jest.Mock).mockRejectedValue(
+      ;(blueprintService.getBlueprints as Mock).mockRejectedValue(
         new Error('network down')
       )
 
@@ -581,8 +580,7 @@ describe('Blueprints page', () => {
       await waitFor(() => {
         expect(blueprintService.getBlueprints).toHaveBeenCalled()
       })
-      const before = (blueprintService.getBlueprints as jest.Mock).mock.calls
-        .length
+      const before = (blueprintService.getBlueprints as Mock).mock.calls.length
 
       const user = userEvent.setup()
       await user.type(
@@ -597,9 +595,9 @@ describe('Blueprints page', () => {
         { timeout: 2000 }
       )
       // Three keystrokes must not become three requests.
-      expect(
-        (blueprintService.getBlueprints as jest.Mock).mock.calls.length
-      ).toBe(before + 1)
+      expect((blueprintService.getBlueprints as Mock).mock.calls.length).toBe(
+        before + 1
+      )
       expect(currentSearch).toContain('search=api')
     })
 
@@ -682,7 +680,7 @@ describe('Blueprints page', () => {
 
   describe('sorting', () => {
     it('sorts by title ascending, toggles to descending, then switches to updated descending', async () => {
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([buildBlueprint()])
       )
 
@@ -735,7 +733,7 @@ describe('Blueprints page', () => {
 
   describe('pagination', () => {
     it('fetches the next page from the footer controls', async () => {
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue({
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue({
         ...buildListResponse([buildBlueprint()]),
         total_count: 25,
         total_pages: 2,
@@ -758,7 +756,7 @@ describe('Blueprints page', () => {
 
   describe('navigation', () => {
     it('navigates to the creation form from the header New blueprint button', async () => {
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([buildBlueprint()])
       )
 
@@ -787,7 +785,7 @@ describe('Blueprints page', () => {
     })
 
     it('navigates to the blueprint view from the row title', async () => {
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([buildBlueprint()])
       )
 
@@ -800,7 +798,7 @@ describe('Blueprints page', () => {
     })
 
     it('navigates to edit from the row edit action', async () => {
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([buildBlueprint()])
       )
 
@@ -819,7 +817,7 @@ describe('Blueprints page', () => {
   describe('delete gating via the server permissions array (#225)', () => {
     it('shows the delete action on any row when the team grants resource.delete.any', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([
           buildBlueprint({ title: 'Their Blueprint', user_id: 'user-2' }),
         ])
@@ -835,7 +833,7 @@ describe('Blueprints page', () => {
 
     it('hides the delete action when the team grants no delete permission', async () => {
       setTeamPermissions([])
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([
           buildBlueprint({ title: 'Their Blueprint', user_id: 'user-2' }),
         ])
@@ -853,7 +851,7 @@ describe('Blueprints page', () => {
 
     it('with only resource.delete.own, shows delete on own rows but not on others', async () => {
       setTeamPermissions(['resource.delete.own'])
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([
           buildBlueprint({
             id: 'mine',
@@ -886,7 +884,7 @@ describe('Blueprints page', () => {
   describe('delete flow', () => {
     it('confirms and deletes via the service, then re-fetches and toasts', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([buildBlueprint()])
       )
 
@@ -901,8 +899,8 @@ describe('Blueprints page', () => {
       const dialog = await screen.findByRole('alertdialog')
       expect(within(dialog).getByText('Delete blueprint?')).toBeInTheDocument()
       expect(within(dialog).getByText('API Specification')).toBeInTheDocument()
-      const fetchCallsBefore = (blueprintService.getBlueprints as jest.Mock)
-        .mock.calls.length
+      const fetchCallsBefore = (blueprintService.getBlueprints as Mock).mock
+        .calls.length
       await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
       await waitFor(() => {
@@ -914,7 +912,7 @@ describe('Blueprints page', () => {
       })
       await waitFor(() => {
         expect(
-          (blueprintService.getBlueprints as jest.Mock).mock.calls.length
+          (blueprintService.getBlueprints as Mock).mock.calls.length
         ).toBeGreaterThan(fetchCallsBefore)
       })
       const { showSuccess } = useAlerts()
@@ -926,7 +924,7 @@ describe('Blueprints page', () => {
 
     it('cancelling the dialog closes it without deleting', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([buildBlueprint()])
       )
 
@@ -948,10 +946,10 @@ describe('Blueprints page', () => {
 
     it('reports the error and closes the dialog when the delete fails', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(blueprintService.getBlueprints as jest.Mock).mockResolvedValue(
+      ;(blueprintService.getBlueprints as Mock).mockResolvedValue(
         buildListResponse([buildBlueprint()])
       )
-      ;(blueprintService.deleteBlueprint as jest.Mock).mockRejectedValue(
+      ;(blueprintService.deleteBlueprint as Mock).mockRejectedValue(
         new Error('delete forbidden')
       )
 

@@ -1,17 +1,17 @@
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { Team } from '@/services/teamService'
 
 // Module-stable context: a fresh object per render loops effects keyed on it.
-const mockSetCurrentTeam = jest.fn()
+const mockSetCurrentTeam = vi.hoisted(() => vi.fn())
 const ctx: {
   teams: Team[]
   currentTeam: Team | null
   isLoading: boolean
 } = { teams: [], currentTeam: null, isLoading: false }
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     teams: ctx.teams,
     currentTeam: ctx.currentTeam,
@@ -49,7 +49,7 @@ const switcher = () => screen.getByTestId('team-switcher')
 
 describe('TeamSwitcher', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     ctx.teams = [ENGINEERING, DESIGN]
     ctx.currentTeam = ENGINEERING
     ctx.isLoading = false

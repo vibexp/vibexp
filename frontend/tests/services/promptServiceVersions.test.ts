@@ -1,13 +1,13 @@
 // Focused coverage for the prompt version-history service methods. Drives the
 // REAL promptService against a mocked generated client to lock in the operation
 // + path params for the version endpoints (mirrors blueprintService tests).
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+}))
 
-jest.mock('../../src/lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../src/lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../src/lib/apiClientGenerated')
   >('../../src/lib/apiClientGenerated')
   return {
@@ -44,7 +44,7 @@ describe('promptService version history', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('getPromptVersions fetches the versions endpoint', async () => {

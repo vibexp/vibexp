@@ -1,43 +1,43 @@
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import React from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 // ---------------------------------------------------------------------------
 // Mock hooks
 // ---------------------------------------------------------------------------
-const mockResetUnread = jest.fn()
+const mockResetUnread = vi.hoisted(() => vi.fn())
 let mockUnreadCount = 0
 
-jest.mock('../../../hooks/useUnreadCount', () => ({
+vi.mock('../../../hooks/useUnreadCount', () => ({
   useUnreadCount: () => ({
     unreadCount: mockUnreadCount,
-    incrementUnread: jest.fn(),
+    incrementUnread: vi.fn(),
     resetUnread: mockResetUnread,
-    refresh: jest.fn(),
+    refresh: vi.fn(),
   }),
 }))
 
-const mockMarkAllAsRead = jest.fn()
-const mockMarkAsRead = jest.fn()
+const mockMarkAllAsRead = vi.hoisted(() => vi.fn())
+const mockMarkAsRead = vi.hoisted(() => vi.fn())
 
-jest.mock('../../../hooks/useNotifications', () => ({
+vi.mock('../../../hooks/useNotifications', () => ({
   useNotifications: () => ({
     notifications: [],
     loading: false,
     error: null,
     hasMore: false,
-    fetchMore: jest.fn(),
+    fetchMore: vi.fn(),
     markAsRead: mockMarkAsRead,
     markAllAsRead: mockMarkAllAsRead,
-    refresh: jest.fn(),
+    refresh: vi.fn(),
   }),
 }))
 
 // ---------------------------------------------------------------------------
 // Mock UI primitives (Radix Popover does not render portal in JSDOM)
 // ---------------------------------------------------------------------------
-jest.mock('../../../components/ui/popover', () => {
+vi.mock('../../../components/ui/popover', () => {
   interface PopoverCtx {
     open: boolean
     setOpen: (v: boolean) => void
@@ -117,7 +117,7 @@ jest.mock('../../../components/ui/popover', () => {
 })
 
 // Mock NotificationDropdown to avoid deeply nested dependencies
-jest.mock('../NotificationDropdown', () => ({
+vi.mock('../NotificationDropdown', () => ({
   NotificationDropdown: ({
     onClose,
   }: {
@@ -138,7 +138,7 @@ function renderWithRouter(ui: React.ReactElement) {
 
 describe('NotificationBell', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockUnreadCount = 0
   })
 

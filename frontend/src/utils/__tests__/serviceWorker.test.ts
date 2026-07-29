@@ -1,3 +1,5 @@
+import type { Mock } from 'vitest'
+
 import { cleanupLegacyServiceWorkers } from '../serviceWorker'
 
 // The behaviour under test changed in #688: the app used to KEEP
@@ -6,12 +8,12 @@ import { cleanupLegacyServiceWorkers } from '../serviceWorker'
 // finds — including the retired Firebase one.
 
 interface Registration {
-  unregister: jest.Mock
+  unregister: Mock
   active: { scriptURL: string }
 }
 
 const makeRegistration = (scriptURL: string): Registration => ({
-  unregister: jest.fn().mockResolvedValue(true),
+  unregister: vi.fn().mockResolvedValue(true),
   active: { scriptURL },
 })
 
@@ -19,22 +21,22 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0))
 
 describe('cleanupLegacyServiceWorkers', () => {
   const originalNavigator = globalThis.navigator
-  let getRegistrations: jest.Mock
-  let cachesKeys: jest.Mock
-  let cachesDelete: jest.Mock
+  let getRegistrations: Mock
+  let cachesKeys: Mock
+  let cachesDelete: Mock
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
 
-    getRegistrations = jest.fn().mockResolvedValue([])
+    getRegistrations = vi.fn().mockResolvedValue([])
     Object.defineProperty(globalThis, 'navigator', {
       value: { serviceWorker: { getRegistrations } },
       configurable: true,
       writable: true,
     })
 
-    cachesKeys = jest.fn().mockResolvedValue([])
-    cachesDelete = jest.fn().mockResolvedValue(true)
+    cachesKeys = vi.fn().mockResolvedValue([])
+    cachesDelete = vi.fn().mockResolvedValue(true)
     Object.defineProperty(window, 'caches', {
       value: { keys: cachesKeys, delete: cachesDelete },
       configurable: true,

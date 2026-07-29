@@ -5,9 +5,9 @@ import { PromptFilters } from '../PromptFilters'
 
 // Radix Select relies on layout APIs jsdom doesn't implement.
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 function renderFilters(
@@ -15,11 +15,11 @@ function renderFilters(
 ) {
   const props = {
     searchInput: '',
-    onSearchInputChange: jest.fn(),
+    onSearchInputChange: vi.fn(),
     statusFilter: 'all' as const,
-    onStatusChange: jest.fn(),
+    onStatusChange: vi.fn(),
     sharedFilter: 'all' as const,
-    onSharedChange: jest.fn(),
+    onSharedChange: vi.fn(),
     ...overrides,
   }
   render(<PromptFilters {...props} />)

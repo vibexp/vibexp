@@ -1,36 +1,37 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { MockedFunction } from 'vitest'
 
 import { toast } from '@/lib/toast'
 import { modelProviderService } from '@/services/modelProviderService'
 
 import { ModelProviderDialog } from './ModelProviderDialog'
 
-jest.mock('@/services/modelProviderService', () => ({
+vi.mock('@/services/modelProviderService', async () => ({
   // Keep any other exports real; only the service singleton is mocked so
   // validate-on-save can be asserted.
-  ...jest.requireActual('@/services/modelProviderService'),
+  ...(await vi.importActual('@/services/modelProviderService')),
   modelProviderService: {
-    validateModelProvider: jest.fn(),
+    validateModelProvider: vi.fn(),
   },
 }))
 
-jest.mock('@/lib/toast', () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
 
 // Radix Select relies on browser APIs jsdom doesn't implement.
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 const mockedValidate =
-  modelProviderService.validateModelProvider as jest.MockedFunction<
+  modelProviderService.validateModelProvider as MockedFunction<
     typeof modelProviderService.validateModelProvider
   >
-const mockedToastError = toast.error as jest.MockedFunction<typeof toast.error>
+const mockedToastError = toast.error as MockedFunction<typeof toast.error>
 
 const fillValidForm = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(
@@ -48,12 +49,12 @@ const fillValidForm = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(screen.getByPlaceholderText('Enter API key'), 'sk-test')
 }
 
-const renderDialog = (onSubmit = jest.fn().mockResolvedValue(undefined)) => {
+const renderDialog = (onSubmit = vi.fn().mockResolvedValue(undefined)) => {
   render(
     <ModelProviderDialog
       teamId="team-1"
       open
-      onOpenChange={jest.fn()}
+      onOpenChange={vi.fn()}
       submitting={false}
       onSubmit={onSubmit}
     />
@@ -62,7 +63,7 @@ const renderDialog = (onSubmit = jest.fn().mockResolvedValue(undefined)) => {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 describe('ModelProviderDialog', () => {
@@ -142,12 +143,12 @@ describe('ModelProviderDialog', () => {
 
   it('skips validation on a name-only edit (identity unchanged)', async () => {
     const user = userEvent.setup()
-    const onSubmit = jest.fn().mockResolvedValue(undefined)
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <ModelProviderDialog
         teamId="team-1"
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         submitting={false}
         provider={existingProvider}
         onSubmit={onSubmit}
@@ -168,12 +169,12 @@ describe('ModelProviderDialog', () => {
   it('validates when the model changes on edit', async () => {
     const user = userEvent.setup()
     mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
-    const onSubmit = jest.fn().mockResolvedValue(undefined)
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <ModelProviderDialog
         teamId="team-1"
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         submitting={false}
         provider={existingProvider}
         onSubmit={onSubmit}

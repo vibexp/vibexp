@@ -1,27 +1,28 @@
+import type { MockedFunction } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useAlerts } from '../../src/hooks/useAlerts'
 import { useAlertContext } from '../../src/contexts/AlertContext'
 import type { AlertContextValue, Alert } from '../../src/types/alert'
 
 // Mock the AlertContext
-jest.mock('../../src/contexts/AlertContext')
+vi.mock('../../src/contexts/AlertContext')
 
-const mockUseAlertContext = useAlertContext as jest.MockedFunction<
+const mockUseAlertContext = useAlertContext as MockedFunction<
   typeof useAlertContext
 >
 
 describe('useAlerts', () => {
   let mockAlertContextValue: AlertContextValue
   let mockAlerts: Alert[]
-  let mockShowAlert: jest.MockedFunction<
+  let mockShowAlert: MockedFunction<
     (options: { message: string; title?: string; type: string }) => string
   >
-  let mockDismissAlert: jest.MockedFunction<(id: string) => void>
-  let mockClearAll: jest.MockedFunction<() => void>
+  let mockDismissAlert: MockedFunction<(id: string) => void>
+  let mockClearAll: MockedFunction<() => void>
 
   beforeEach(() => {
     // Reset mocks
-    jest.clearAllMocks()
+    vi.clearAllMocks()
 
     // Create mock alerts
     mockAlerts = [
@@ -45,9 +46,9 @@ describe('useAlerts', () => {
     ]
 
     // Create mock functions
-    mockShowAlert = jest.fn().mockReturnValue('mock-alert-id')
-    mockDismissAlert = jest.fn()
-    mockClearAll = jest.fn()
+    mockShowAlert = vi.fn().mockReturnValue('mock-alert-id')
+    mockDismissAlert = vi.fn()
+    mockClearAll = vi.fn()
 
     // Create mock context value
     mockAlertContextValue = {
@@ -329,7 +330,7 @@ describe('useAlerts', () => {
         }
 
         // Update showAlert function reference
-        const newShowAlert = jest.fn().mockReturnValue('new-alert-id')
+        const newShowAlert = vi.fn().mockReturnValue('new-alert-id')
         mockAlertContextValue.showAlert = newShowAlert
         mockUseAlertContext.mockReturnValue(mockAlertContextValue)
 

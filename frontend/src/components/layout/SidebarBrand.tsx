@@ -1,6 +1,6 @@
 import logoUrl from '@vibexp/design-system/brand/logo.svg'
 import { forwardRef } from 'react'
-import { Link, type LinkProps } from 'react-router-dom'
+import { Link, type LinkProps } from 'react-router'
 
 import { cn } from '@/lib/utils'
 

@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 
 import { emitInvitationsChanged } from '@/components/invitations/invitationEvents'
 import { STORAGE_KEYS } from '@/constants/storageKeys'

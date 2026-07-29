@@ -3,9 +3,9 @@ import type { ReactNode } from 'react'
 
 import type { ResourceCreationMetricsResponse } from '../../services/resourceCreationService'
 
-const mockGetResourceCreationMetrics = jest.fn()
+const mockGetResourceCreationMetrics = vi.hoisted(() => vi.fn())
 
-jest.mock('../../services/resourceCreationService', () => ({
+vi.mock('../../services/resourceCreationService', () => ({
   resourceCreationService: {
     getResourceCreationMetrics: (...args: unknown[]) =>
       mockGetResourceCreationMetrics(...args),
@@ -14,8 +14,8 @@ jest.mock('../../services/resourceCreationService', () => ({
 
 // recharts' ResponsiveContainer measures its parent, which has no layout in
 // jsdom. Render children with a fixed size so the chart mounts deterministically.
-jest.mock('recharts', () => {
-  const actual = jest.requireActual('recharts')
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual('recharts')
   return {
     ...actual,
     ResponsiveContainer: ({ children }: { children: ReactNode }) => (
@@ -57,7 +57,7 @@ function buildResponse(
 
 describe('ResourceCreationChart', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('shows a loading skeleton before data resolves', () => {
@@ -111,9 +111,7 @@ describe('ResourceCreationChart', () => {
   })
 
   it('renders a distinct error state when the fetch fails', async () => {
-    const consoleError = jest
-      .spyOn(console, 'error')
-      .mockImplementation(() => {})
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     mockGetResourceCreationMetrics.mockRejectedValue(new Error('boom'))
 
     render(<ResourceCreationChart {...props} />)

@@ -1,15 +1,15 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { ResourceVersion } from '@/types/version'
 
-const showSuccess = jest.fn()
-const handleError = jest.fn()
-jest.mock('@/hooks', () => ({
-  useAlerts: () => ({ showSuccess, showError: jest.fn() }),
+const showSuccess = vi.fn()
+const handleError = vi.fn()
+vi.mock('@/hooks', () => ({
+  useAlerts: () => ({ showSuccess, showError: vi.fn() }),
 }))
-jest.mock('@/hooks/useErrorHandler', () => ({
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError }),
 }))
 
@@ -20,9 +20,9 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 import type { VersionHistorySource } from '../types'
@@ -60,7 +60,7 @@ function buildSource(
     resourceType: 'artifact',
     resourceLabel: 'artifact',
     backHref: '/artifacts/p/s',
-    load: jest.fn().mockResolvedValue({
+    load: vi.fn().mockResolvedValue({
       currentContent: 'live content\nline two',
       currentUpdatedAt: '2026-06-12T12:00:00.000Z',
       resourceName: 'My artifact',
@@ -69,7 +69,7 @@ function buildSource(
         snapshot(1, 'first content', 'Created the artifact'),
       ],
     }),
-    restore: jest.fn().mockResolvedValue(undefined),
+    restore: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }

@@ -1,3 +1,5 @@
+import type { Mock } from 'vitest'
+
 import { generatedClient } from '@/lib/apiClientGenerated'
 import {
   githubAppConfigService,
@@ -5,22 +7,22 @@ import {
 } from '@/services/githubAppConfigService'
 import { ApiError } from '@/types/errors'
 
-jest.mock('@/lib/apiClientGenerated', () => ({
+vi.mock('@/lib/apiClientGenerated', () => ({
   generatedClient: {
-    GET: jest.fn(),
-    POST: jest.fn(),
-    PUT: jest.fn(),
-    DELETE: jest.fn(),
+    GET: vi.fn(),
+    POST: vi.fn(),
+    PUT: vi.fn(),
+    DELETE: vi.fn(),
   },
-  unwrap: jest.fn(async (p: Promise<{ data: unknown }>) => (await p).data),
+  unwrap: vi.fn(async (p: Promise<{ data: unknown }>) => (await p).data),
 }))
 
-const client = generatedClient as unknown as Record<string, jest.Mock>
+const client = generatedClient as unknown as Record<string, Mock>
 
 const TEAM_ID = 'team-1'
 const ok = (data: unknown) => Promise.resolve({ data })
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => vi.clearAllMocks())
 
 describe('githubAppConfigService', () => {
   it('reads the config from the settings prefix, scoped to the team', async () => {

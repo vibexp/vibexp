@@ -53,7 +53,7 @@ describe('<ListTable> sort behavior', () => {
         rows={ROWS}
         columns={BASIC_COLUMNS}
         sortableKeys={SORTABLE}
-        onSortChange={jest.fn()}
+        onSortChange={vi.fn()}
       />
     )
 
@@ -68,7 +68,7 @@ describe('<ListTable> sort behavior', () => {
         rows={ROWS}
         columns={BASIC_COLUMNS}
         sortableKeys={SORTABLE}
-        onSortChange={jest.fn()}
+        onSortChange={vi.fn()}
       />
     )
 
@@ -82,7 +82,7 @@ describe('<ListTable> sort behavior', () => {
 
   it('clicking a sortable header invokes onSortChange with the accessor key', async () => {
     const user = userEvent.setup()
-    const onSortChange = jest.fn()
+    const onSortChange = vi.fn()
 
     render(
       <ListTable<Row, SortKey>
@@ -99,7 +99,7 @@ describe('<ListTable> sort behavior', () => {
 
   it('pressing Enter on a sortable header invokes onSortChange', async () => {
     const user = userEvent.setup()
-    const onSortChange = jest.fn()
+    const onSortChange = vi.fn()
 
     render(
       <ListTable<Row, SortKey>
@@ -118,7 +118,7 @@ describe('<ListTable> sort behavior', () => {
 
   it('pressing Space on a sortable header invokes onSortChange', async () => {
     const user = userEvent.setup()
-    const onSortChange = jest.fn()
+    const onSortChange = vi.fn()
 
     render(
       <ListTable<Row, SortKey>
@@ -143,7 +143,7 @@ describe('<ListTable> sort behavior', () => {
         sortableKeys={SORTABLE}
         sortKey="name"
         sortDir="asc"
-        onSortChange={jest.fn()}
+        onSortChange={vi.fn()}
       />
     )
 
@@ -161,7 +161,7 @@ describe('<ListTable> sort behavior', () => {
         sortableKeys={SORTABLE}
         sortKey="status"
         sortDir="desc"
-        onSortChange={jest.fn()}
+        onSortChange={vi.fn()}
       />
     )
 
@@ -179,7 +179,7 @@ describe('<ListTable> sort behavior', () => {
         sortableKeys={SORTABLE}
         sortKey="name"
         sortDir="asc"
-        onSortChange={jest.fn()}
+        onSortChange={vi.fn()}
       />
     )
 
@@ -199,7 +199,7 @@ describe('<ListTable> sort behavior', () => {
         sortableKeys={SORTABLE}
         sortKey="name"
         sortDir="desc"
-        onSortChange={jest.fn()}
+        onSortChange={vi.fn()}
       />
     )
 
@@ -227,7 +227,7 @@ describe('<ListTable> sort behavior', () => {
 describe('<ListTable> row interactions', () => {
   it('calls onRowClick when a row is clicked', async () => {
     const user = userEvent.setup()
-    const onRowClick = jest.fn()
+    const onRowClick = vi.fn()
 
     render(
       <ListTable rows={ROWS} columns={BASIC_COLUMNS} onRowClick={onRowClick} />
@@ -241,7 +241,7 @@ describe('<ListTable> row interactions', () => {
 
   it('rows have cursor-pointer class when onRowClick is provided', () => {
     render(
-      <ListTable rows={ROWS} columns={BASIC_COLUMNS} onRowClick={jest.fn()} />
+      <ListTable rows={ROWS} columns={BASIC_COLUMNS} onRowClick={vi.fn()} />
     )
 
     const row = screen.getByText('Alpha').closest('tr')
@@ -258,7 +258,7 @@ describe('<ListTable> row interactions', () => {
 
   it('clicking inside the actions column does NOT trigger onRowClick', async () => {
     const user = userEvent.setup()
-    const onRowClick = jest.fn()
+    const onRowClick = vi.fn()
 
     render(
       <ListTable rows={ROWS} columns={BASIC_COLUMNS} onRowClick={onRowClick} />

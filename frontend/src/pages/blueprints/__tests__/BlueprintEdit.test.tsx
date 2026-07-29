@@ -1,38 +1,39 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type { Blueprint } from '@/services/blueprintService'
 
 // Mock BlueprintForm to avoid complex form internals in unit tests
-jest.mock('@/pages/blueprints/BlueprintForm', () => ({
-  BlueprintForm: jest.fn(() => <div data-testid="blueprint-form" />),
+vi.mock('@/pages/blueprints/BlueprintForm', () => ({
+  BlueprintForm: vi.fn(() => <div data-testid="blueprint-form" />),
 }))
 
 // Mock TeamContext — stable references to prevent effect re-runs
-const mockUseTeam = jest.fn()
-jest.mock('@/contexts/TeamContext', () => ({
+const mockUseTeam = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/services/blueprintService', () => ({
+vi.mock('@/services/blueprintService', () => ({
   blueprintService: {
-    getBlueprint: jest.fn(),
+    getBlueprint: vi.fn(),
   },
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProjects: jest.fn().mockResolvedValue({ projects: [] }),
+    getProjects: vi.fn().mockResolvedValue({ projects: [] }),
   },
 }))
 
-jest.mock('@/hooks', () => ({
-  useAlerts: () => ({ showSuccess: jest.fn() }),
-  useAnalytics: () => ({ trackEvent: jest.fn() }),
+vi.mock('@/hooks', () => ({
+  useAlerts: () => ({ showSuccess: vi.fn() }),
+  useAnalytics: () => ({ trackEvent: vi.fn() }),
 }))
 
-jest.mock('@/hooks/useErrorHandler', () => ({
-  useErrorHandler: () => ({ handleError: jest.fn() }),
+vi.mock('@/hooks/useErrorHandler', () => ({
+  useErrorHandler: () => ({ handleError: vi.fn() }),
 }))
 
 import { blueprintService } from '@/services/blueprintService'
@@ -71,7 +72,7 @@ function renderBlueprintEdit(project = 'my-project', slug = 'my-blueprint') {
 
 describe('BlueprintEdit', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('when TeamContext is still loading (isLoadingTeam = true)', () => {
@@ -80,8 +81,8 @@ describe('BlueprintEdit', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderBlueprintEdit()
@@ -95,8 +96,8 @@ describe('BlueprintEdit', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderBlueprintEdit()
@@ -111,12 +112,10 @@ describe('BlueprintEdit', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(blueprintService.getBlueprint as jest.Mock).mockResolvedValue(
-        mockBlueprint
-      )
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
 
       renderBlueprintEdit()
 
@@ -140,8 +139,8 @@ describe('BlueprintEdit', () => {
         currentTeam: null,
         teams: [],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderBlueprintEdit()
@@ -163,12 +162,10 @@ describe('BlueprintEdit', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(blueprintService.getBlueprint as jest.Mock).mockResolvedValue(
-        mockBlueprint
-      )
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
 
       const { rerender } = renderBlueprintEdit()
 
@@ -179,8 +176,8 @@ describe('BlueprintEdit', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
       rerender(
         <MemoryRouter

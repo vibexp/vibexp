@@ -1,15 +1,16 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type { Prompt } from '@/services/promptService'
 
 // The shared lucide mock lacks FileCode (PromptContentCard's raw-tab icon);
 // extend it locally instead of editing the shared mock file.
-jest.mock('lucide-react', () => {
-  const actual = jest.requireActual<Record<string, unknown>>('lucide-react')
-  const ReactActual = jest.requireActual<typeof import('react')>('react')
+vi.mock('lucide-react', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('lucide-react')
+  const ReactActual = await vi.importActual<typeof import('react')>('react')
   const icon = (name: string) => (props: object) =>
     ReactActual.createElement('svg', {
       'data-testid': `${name.toLowerCase()}-icon`,
@@ -22,14 +23,14 @@ jest.mock('lucide-react', () => {
 })
 
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues
-jest.mock('@/components/MarkdownRenderer', () => ({
+vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
     <div data-testid="markdown-renderer">{content}</div>
   ),
 }))
 
 // Radix primitives can loop/crash in JSDOM — replace with plain divs.
-jest.mock('@/components/ui/tabs', () => ({
+vi.mock('@/components/ui/tabs', () => ({
   Tabs: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="tabs">{children}</div>
   ),
@@ -43,7 +44,7 @@ jest.mock('@/components/ui/tabs', () => ({
     <div>{children}</div>
   ),
 }))
-jest.mock('@/components/ui/select', () => ({
+vi.mock('@/components/ui/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="select">{children}</div>
   ),
@@ -67,8 +68,8 @@ jest.mock('@/components/ui/select', () => ({
 
 // recharts' ResponsiveContainer measures its parent, which has no layout in
 // jsdom (AccessActivityPanel in the sidebar renders a chart).
-jest.mock('recharts', () => {
-  const actual = jest.requireActual<Record<string, unknown>>('recharts')
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('recharts')
   return {
     ...actual,
     ResponsiveContainer: ({ children }: { children: ReactNode }) => (
@@ -77,56 +78,54 @@ jest.mock('recharts', () => {
   }
 })
 
-jest.mock('@/services/promptService', () => ({
+vi.mock('@/services/promptService', () => ({
   promptService: {
-    getPrompt: jest.fn(),
-    getPromptDependencies: jest.fn(),
-    getPromptVersions: jest.fn(),
-    deletePrompt: jest.fn(),
+    getPrompt: vi.fn(),
+    getPromptDependencies: vi.fn(),
+    getPromptVersions: vi.fn(),
+    deletePrompt: vi.fn(),
   },
 }))
 
 // The sidebar self-fetching panels (attachments / access activity / comments)
 // hit their services on mount — resolve them all to empty.
-jest.mock('@/services/attachmentService', () => ({
+vi.mock('@/services/attachmentService', () => ({
   attachmentService: {
-    list: jest
-      .fn()
-      .mockResolvedValue({
-        attachments: [],
-        total_count: 0,
-        total_size_bytes: 0,
-      }),
-    upload: jest.fn(),
-    remove: jest.fn(),
-    download: jest.fn(),
+    list: vi.fn().mockResolvedValue({
+      attachments: [],
+      total_count: 0,
+      total_size_bytes: 0,
+    }),
+    upload: vi.fn(),
+    remove: vi.fn(),
+    download: vi.fn(),
   },
 }))
-jest.mock('@/services/resourceAccessService', () => ({
+vi.mock('@/services/resourceAccessService', () => ({
   resourceAccessService: {
-    getResourceAccessMetrics: jest.fn().mockResolvedValue({
+    getResourceAccessMetrics: vi.fn().mockResolvedValue({
       status: 'success',
       message: 'ok',
       data: { total_accesses: 0, range: '30d', counts: [] },
     }),
   },
 }))
-jest.mock('@/services/commentService', () => ({
+vi.mock('@/services/commentService', () => ({
   commentService: {
-    list: jest.fn().mockResolvedValue({ comments: [], total_count: 0 }),
-    create: jest.fn(),
-    update: jest.fn(),
-    remove: jest.fn(),
+    list: vi.fn().mockResolvedValue({ comments: [], total_count: 0 }),
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
   },
 }))
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    getTeamMembers: jest.fn().mockResolvedValue([]),
+    getTeamMembers: vi.fn().mockResolvedValue([]),
   },
 }))
 
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
@@ -139,20 +138,20 @@ const mockTeamState: {
   currentTeam: { id: 'team-1', name: 'Test Team', permissions: [] },
   isLoading: false,
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockTeamState.currentTeam,
     teams: mockTeamState.currentTeam ? [mockTeamState.currentTeam] : [],
     isLoading: mockTeamState.isLoading,
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn() as () => Promise<void>,
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn() as () => Promise<void>,
   }),
 }))
 
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
+  const trackEvent = vi.fn()
   // Stable object so PromptDetail's render effects do not loop.
   const renderer = {
     renderedBody: '',
@@ -161,9 +160,9 @@ jest.mock('@/hooks', () => {
     allPlaceholders: [] as string[],
     placeholderValues: {} as Record<string, string>,
     isLoadingPlaceholders: false,
-    renderPrompt: jest.fn().mockResolvedValue(undefined),
-    fetchPlaceholders: jest.fn().mockResolvedValue(undefined),
-    updatePlaceholderValue: jest.fn(),
+    renderPrompt: vi.fn().mockResolvedValue(undefined),
+    fetchPlaceholders: vi.fn().mockResolvedValue(undefined),
+    updatePlaceholderValue: vi.fn(),
   }
   return {
     useAlerts: () => ({ showSuccess, showError }),
@@ -172,8 +171,8 @@ jest.mock('@/hooks', () => {
   }
 })
 
-const mockHandleError = jest.fn()
-jest.mock('@/hooks/useErrorHandler', () => ({
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
@@ -224,14 +223,14 @@ function renderPromptDetail(slug = 'code-review-template') {
 
 describe('PromptDetail page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     setTeamPermissions([])
-    ;(promptService.getPrompt as jest.Mock).mockResolvedValue(buildPrompt())
-    ;(promptService.getPromptDependencies as jest.Mock).mockResolvedValue({
+    ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
+    ;(promptService.getPromptDependencies as Mock).mockResolvedValue({
       used_by: [],
       uses: [],
     })
-    ;(promptService.getPromptVersions as jest.Mock).mockResolvedValue({
+    ;(promptService.getPromptVersions as Mock).mockResolvedValue({
       versions: [],
     })
   })
@@ -257,7 +256,7 @@ describe('PromptDetail page', () => {
     })
 
     it('shows a loading header while the fetch is in flight', () => {
-      ;(promptService.getPrompt as jest.Mock).mockImplementation(
+      ;(promptService.getPrompt as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -269,7 +268,7 @@ describe('PromptDetail page', () => {
 
   describe('nullable labels (#121 drift class)', () => {
     it('renders without crashing when labels is null and hides the Labels card', async () => {
-      ;(promptService.getPrompt as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompt as Mock).mockResolvedValue(
         buildPrompt({ labels: null })
       )
 
@@ -295,7 +294,7 @@ describe('PromptDetail page', () => {
   describe('delete gating — own vs any (#225)', () => {
     it('shows delete for the owner holding resource.delete.own', async () => {
       setTeamPermissions(['resource.delete.own'])
-      ;(promptService.getPrompt as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompt as Mock).mockResolvedValue(
         buildPrompt({ user_id: 'user-1' })
       )
 
@@ -307,7 +306,7 @@ describe('PromptDetail page', () => {
 
     it('hides delete for a non-owner holding only resource.delete.own', async () => {
       setTeamPermissions(['resource.delete.own'])
-      ;(promptService.getPrompt as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompt as Mock).mockResolvedValue(
         buildPrompt({ user_id: 'user-2' })
       )
 
@@ -323,7 +322,7 @@ describe('PromptDetail page', () => {
 
     it('shows delete for a non-owner holding resource.delete.any', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(promptService.getPrompt as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompt as Mock).mockResolvedValue(
         buildPrompt({ user_id: 'user-2' })
       )
 
@@ -336,7 +335,7 @@ describe('PromptDetail page', () => {
 
   describe('versions and dependencies sections', () => {
     it('renders the version-history link with the snapshot count', async () => {
-      ;(promptService.getPromptVersions as jest.Mock).mockResolvedValue({
+      ;(promptService.getPromptVersions as Mock).mockResolvedValue({
         versions: [
           { id: 'v2', version_number: 2 },
           { id: 'v1', version_number: 1 },
@@ -363,7 +362,7 @@ describe('PromptDetail page', () => {
     })
 
     it('renders the "Used by" dependencies section from the service', async () => {
-      ;(promptService.getPromptDependencies as jest.Mock).mockResolvedValue({
+      ;(promptService.getPromptDependencies as Mock).mockResolvedValue({
         used_by: [
           { id: 'dep-1', slug: 'parent-prompt', name: 'Parent Prompt' },
         ],
@@ -379,10 +378,10 @@ describe('PromptDetail page', () => {
     })
 
     it('still renders the prompt when versions and dependencies fetches fail', async () => {
-      ;(promptService.getPromptVersions as jest.Mock).mockRejectedValue(
+      ;(promptService.getPromptVersions as Mock).mockRejectedValue(
         new Error('versions boom')
       )
-      ;(promptService.getPromptDependencies as jest.Mock).mockRejectedValue(
+      ;(promptService.getPromptDependencies as Mock).mockRejectedValue(
         new Error('deps boom')
       )
 
@@ -401,7 +400,7 @@ describe('PromptDetail page', () => {
   describe('interactions', () => {
     it('deletes the prompt after confirmation and navigates back to the list', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(promptService.deletePrompt as jest.Mock).mockResolvedValue(undefined)
+      ;(promptService.deletePrompt as Mock).mockResolvedValue(undefined)
 
       renderPromptDetail()
 
@@ -439,7 +438,7 @@ describe('PromptDetail page', () => {
 
   describe('service error', () => {
     it('reports the error and navigates back to the prompts list', async () => {
-      ;(promptService.getPrompt as jest.Mock).mockRejectedValue(
+      ;(promptService.getPrompt as Mock).mockRejectedValue(
         new Error('not found')
       )
 

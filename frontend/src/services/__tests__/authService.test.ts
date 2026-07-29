@@ -1,9 +1,9 @@
 import type { User } from '../authService'
 
-const mockGeneratedClient = { GET: jest.fn(), POST: jest.fn() }
+const mockGeneratedClient = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return { ...actual, generatedClient: mockGeneratedClient }
@@ -27,7 +27,7 @@ const problem = (status: number, detail: string, code: string) =>
     response: { ok: false, status, statusText: code } as Response,
   })
 
-const mockUser: User = {
+const mockUser: User = vi.hoisted(() => ({
   id: 'user-123',
   google_id: 'google-456',
   email: 'test@example.com',
@@ -37,11 +37,11 @@ const mockUser: User = {
   updated_at: '2023-01-01T00:00:00Z',
   onboarding_completed: true,
   version: 1,
-}
+}))
 
 describe('AuthService (cookie-based auth)', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('getProviders unwraps the providers array', async () => {

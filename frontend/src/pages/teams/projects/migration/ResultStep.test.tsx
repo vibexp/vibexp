@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { MigrationResult } from '@/services/projectMigrationService'
 
@@ -47,7 +47,7 @@ function renderResult(result: MigrationResult) {
         result={result}
         destinationProjectSlug="dest-project"
         destinationProjectName="Destination Project"
-        onDone={jest.fn()}
+        onDone={vi.fn()}
       />
     </MemoryRouter>
   )
@@ -143,7 +143,7 @@ describe('ResultStep', () => {
   })
 
   it('calls onDone when Done button is clicked', async () => {
-    const onDone = jest.fn()
+    const onDone = vi.fn()
     const user = userEvent.setup()
     render(
       <MemoryRouter>

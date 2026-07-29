@@ -7,11 +7,9 @@ import { marked } from 'marked'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
 // Mock all external dependencies
-jest.mock('mermaid', () => ({
-  initialize: jest.fn(),
-  render: jest
-    .fn()
-    .mockResolvedValue({ svg: '<svg>mock mermaid diagram</svg>' }),
+vi.mock('mermaid', () => ({
+  initialize: vi.fn(),
+  render: vi.fn().mockResolvedValue({ svg: '<svg>mock mermaid diagram</svg>' }),
 }))
 
 // Capture the link override installed by configureMarked so tests can
@@ -24,7 +22,7 @@ interface MockLinkToken {
 }
 let capturedLinkFn: ((token: MockLinkToken) => string) | undefined
 
-jest.mock('marked', () => {
+vi.mock('marked', () => {
   // A minimal Renderer stand-in. The component sets `renderer.link` after
   // construction, so we intercept that assignment via a property descriptor.
   class MockRenderer {
@@ -39,13 +37,17 @@ jest.mock('marked', () => {
   }
 
   return {
-    marked: jest.fn().mockResolvedValue('<p>mocked content</p>'),
+    marked: vi.fn().mockResolvedValue('<p>mocked content</p>'),
     Renderer: MockRenderer,
   }
 })
 
-jest.mock('prismjs', () => ({
-  highlight: jest.fn().mockReturnValue('highlighted code'),
+vi.mock('prismjs', () => ({
+  default: {
+    highlight: vi.fn().mockReturnValue('highlighted code'),
+    languages: {},
+  },
+  highlight: vi.fn().mockReturnValue('highlighted code'),
   languages: {
     javascript: {},
     typescript: {},
@@ -65,32 +67,32 @@ jest.mock('prismjs', () => ({
 // Mock clipboard API
 Object.assign(navigator, {
   clipboard: {
-    writeText: jest.fn().mockResolvedValue(undefined),
+    writeText: vi.fn().mockResolvedValue(undefined),
   },
 })
 
-const mockMarked = jest.mocked(marked)
+const mockMarked = vi.mocked(marked)
 
 // Mock all CSS imports
-jest.mock('prismjs/themes/prism-okaidia.css', () => ({}))
-jest.mock('prismjs/components/prism-javascript', () => ({}))
-jest.mock('prismjs/components/prism-typescript', () => ({}))
-jest.mock('prismjs/components/prism-jsx', () => ({}))
-jest.mock('prismjs/components/prism-tsx', () => ({}))
-jest.mock('prismjs/components/prism-python', () => ({}))
-jest.mock('prismjs/components/prism-bash', () => ({}))
-jest.mock('prismjs/components/prism-json', () => ({}))
-jest.mock('prismjs/components/prism-yaml', () => ({}))
-jest.mock('prismjs/components/prism-sql', () => ({}))
-jest.mock('prismjs/components/prism-go', () => ({}))
-jest.mock('prismjs/components/prism-java', () => ({}))
-jest.mock('prismjs/components/prism-css', () => ({}))
-jest.mock('prismjs/components/prism-scss', () => ({}))
-jest.mock('prismjs/components/prism-markdown', () => ({}))
+vi.mock('prismjs/themes/prism-okaidia.css', () => ({}))
+vi.mock('prismjs/components/prism-javascript', () => ({}))
+vi.mock('prismjs/components/prism-typescript', () => ({}))
+vi.mock('prismjs/components/prism-jsx', () => ({}))
+vi.mock('prismjs/components/prism-tsx', () => ({}))
+vi.mock('prismjs/components/prism-python', () => ({}))
+vi.mock('prismjs/components/prism-bash', () => ({}))
+vi.mock('prismjs/components/prism-json', () => ({}))
+vi.mock('prismjs/components/prism-yaml', () => ({}))
+vi.mock('prismjs/components/prism-sql', () => ({}))
+vi.mock('prismjs/components/prism-go', () => ({}))
+vi.mock('prismjs/components/prism-java', () => ({}))
+vi.mock('prismjs/components/prism-css', () => ({}))
+vi.mock('prismjs/components/prism-scss', () => ({}))
+vi.mock('prismjs/components/prism-markdown', () => ({}))
 
 describe('MarkdownRenderer', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('Component Rendering', () => {
@@ -400,7 +402,7 @@ describe('MarkdownRenderer', () => {
 
   describe('Error Handling', () => {
     it('calls onError callback when markdown rendering fails', async () => {
-      const mockOnError = jest.fn()
+      const mockOnError = vi.fn()
 
       mockMarked.mockRejectedValue(new Error('Markdown error'))
 

@@ -7,10 +7,10 @@ import type {
 } from '../../services/teamService'
 import type { TeamStats } from '../../services/teamService'
 
-const mockGetTeamResourceCreationMetrics = jest.fn()
-const mockGetTeamStats = jest.fn()
+const mockGetTeamResourceCreationMetrics = vi.hoisted(() => vi.fn())
+const mockGetTeamStats = vi.hoisted(() => vi.fn())
 
-jest.mock('../../services/teamService', () => ({
+vi.mock('../../services/teamService', () => ({
   teamService: {
     getTeamResourceCreationMetrics: (...args: unknown[]) =>
       mockGetTeamResourceCreationMetrics(...args),
@@ -18,8 +18,8 @@ jest.mock('../../services/teamService', () => ({
   },
 }))
 
-jest.mock('recharts', () => {
-  const actual = jest.requireActual('recharts')
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual('recharts')
   return {
     ...actual,
     ResponsiveContainer: ({ children }: { children: ReactNode }) => (
@@ -119,7 +119,7 @@ describe('buildCumulativeSeries', () => {
 
 describe('TeamResourceCumulativeChart', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('fetches creation metrics + stats and renders the grand total', async () => {

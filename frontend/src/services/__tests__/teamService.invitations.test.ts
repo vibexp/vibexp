@@ -1,9 +1,9 @@
 import type { TeamInvitation } from '../teamService'
 
-const mockGeneratedClient = { GET: jest.fn() }
+const mockGeneratedClient = vi.hoisted(() => ({ GET: vi.fn() }))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return { ...actual, generatedClient: mockGeneratedClient }
@@ -33,7 +33,7 @@ const PATH = '/api/v1/teams/{id}/invitations'
 
 describe('TeamService.getTeamInvitations', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('GETs the team invitations endpoint and returns the array', async () => {

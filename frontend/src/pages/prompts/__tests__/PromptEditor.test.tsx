@@ -1,41 +1,20 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type { Prompt } from '@/services/promptService'
 
-// The shared lucide mock (tests/mocks/lucide-react.tsx) lists icons explicitly
-// and misses Play/Wand2 used by EditorPane — serve any icon via a Proxy instead.
-jest.mock(
-  'lucide-react',
-  () =>
-    new Proxy(
-      {},
-      {
-        get: (_target, name) => {
-          if (name === '__esModule') return true
-          const Icon = (props: object) => (
-            <svg
-              data-testid={`${String(name).toLowerCase()}-icon`}
-              {...props}
-            />
-          )
-          return Icon
-        },
-      }
-    )
-)
-
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual<typeof import('react-router-dom')>('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router', async () => ({
+  ...(await vi.importActual<typeof import('react-router')>('react-router')),
   useNavigate: () => mockNavigate,
 }))
 
 // Mock Radix Select — it can loop in JSDOM (same approach as Artifacts.test.tsx),
 // but keep onValueChange wired so tests can still pick options as plain buttons.
-jest.mock('@/components/ui/select', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react')
+vi.mock('@/components/ui/select', async () => {
+  const ReactActual = await vi.importActual<typeof import('react')>('react')
   const SelectCtx = ReactActual.createContext<(value: string) => void>(() => {})
   return {
     Select: ({
@@ -85,8 +64,8 @@ jest.mock('@/components/ui/select', () => {
 // Functional Tabs mock: plain buttons that still forward onValueChange so the
 // page's view switching stays testable without Radix in jsdom. All TabsContent
 // panes render unconditionally, which is fine for these assertions.
-jest.mock('@/components/ui/tabs', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react')
+vi.mock('@/components/ui/tabs', async () => {
+  const ReactActual = await vi.importActual<typeof import('react')>('react')
   const TabsCtx = ReactActual.createContext<(value: string) => void>(() => {})
   return {
     Tabs: ({
@@ -132,7 +111,7 @@ jest.mock('@/components/ui/tabs', () => {
 
 // The mention textarea pulls in prompt search + a Radix popover; a plain
 // textarea keeps the body editable without any of that.
-jest.mock('@/components/PromptMentionTextarea', () => ({
+vi.mock('@/components/PromptMentionTextarea', () => ({
   PromptMentionTextarea: ({
     value,
     onChange,
@@ -150,14 +129,14 @@ jest.mock('@/components/PromptMentionTextarea', () => ({
   ),
 }))
 
-jest.mock('@/components/MarkdownRenderer', () => ({
+vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
 }))
 
 // Template loader dialog → a bare button that hands back a fixed template.
-jest.mock('@/components/PromptTemplateLoader', () => ({
+vi.mock('@/components/PromptTemplateLoader', () => ({
   PromptTemplateLoader: ({
     isOpen,
     onSelectPrompt,
@@ -178,45 +157,45 @@ jest.mock('@/components/PromptTemplateLoader', () => ({
     ) : null,
 }))
 
-jest.mock('@/services/promptService', () => ({
+vi.mock('@/services/promptService', () => ({
   promptService: {
-    getPrompt: jest.fn(),
-    getPrompts: jest.fn(),
-    createPrompt: jest.fn(),
-    updatePrompt: jest.fn(),
-    getPromptPlaceholders: jest.fn(),
-    renderPrompt: jest.fn(),
+    getPrompt: vi.fn(),
+    getPrompts: vi.fn(),
+    createPrompt: vi.fn(),
+    updatePrompt: vi.fn(),
+    getPromptPlaceholders: vi.fn(),
+    renderPrompt: vi.fn(),
   },
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProjects: jest.fn(),
+    getProjects: vi.fn(),
   },
 }))
 
-jest.mock('@/contexts/TeamContext', () => {
+vi.mock('@/contexts/TeamContext', () => {
   const currentTeam = { id: 'team-1', name: 'Test Team' }
   return {
     useTeam: () => ({ currentTeam, teams: [currentTeam], isLoading: false }),
   }
 })
 
-jest.mock('@/hooks', () => {
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const trackEvent = vi.fn()
   return {
-    useAlerts: () => ({ showSuccess: jest.fn(), showError: jest.fn() }),
+    useAlerts: () => ({ showSuccess: vi.fn(), showError: vi.fn() }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    warning: jest.fn(),
-    message: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
   },
 }))
 
@@ -250,12 +229,14 @@ function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   }
 }
 
-const mockTemplatePrompt = buildPrompt({
-  name: 'Great Template',
-  slug: 'great-template',
-  description: 'Template description',
-  body: 'Template body',
-})
+const mockTemplatePrompt = vi.hoisted(() =>
+  buildPrompt({
+    name: 'Great Template',
+    slug: 'great-template',
+    description: 'Template description',
+    body: 'Template body',
+  })
+)
 
 const projectAlpha = {
   id: 'p1',
@@ -276,8 +257,7 @@ const projectBeta = { ...projectAlpha, id: 'p2', name: 'Beta Project' }
 
 function renderEditor(
   initialEntry:
-    | string
-    | { pathname: string; state?: unknown } = '/prompts/create'
+    string | { pathname: string; state?: unknown } = '/prompts/create'
 ) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -290,13 +270,13 @@ function renderEditor(
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
-  ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+  vi.clearAllMocks()
+  ;(projectService.getProjects as Mock).mockResolvedValue({
     projects: [projectAlpha],
   })
-  ;(promptService.getPrompts as jest.Mock).mockResolvedValue({ prompts: [] })
-  ;(promptService.createPrompt as jest.Mock).mockResolvedValue(buildPrompt())
-  ;(promptService.updatePrompt as jest.Mock).mockResolvedValue(buildPrompt())
+  ;(promptService.getPrompts as Mock).mockResolvedValue({ prompts: [] })
+  ;(promptService.createPrompt as Mock).mockResolvedValue(buildPrompt())
+  ;(promptService.updatePrompt as Mock).mockResolvedValue(buildPrompt())
 })
 
 describe('PromptEditor — create mode', () => {
@@ -357,7 +337,7 @@ describe('PromptEditor — create mode', () => {
 
   it('surfaces validation errors and does not save an empty form', async () => {
     // Two projects → no auto-selection, so project_id is empty too.
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [projectAlpha, projectBeta],
     })
     const user = userEvent.setup()
@@ -515,7 +495,7 @@ describe('PromptEditor — create mode', () => {
   })
 
   it('asks for confirmation before a template overwrites existing content', async () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const user = userEvent.setup()
     renderEditor()
 
@@ -536,7 +516,7 @@ describe('PromptEditor — create mode', () => {
 
 describe('PromptEditor — edit mode', () => {
   it('prefills the form from the loaded prompt and updates on save', async () => {
-    ;(promptService.getPrompt as jest.Mock).mockResolvedValue(buildPrompt())
+    ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
     const user = userEvent.setup()
     renderEditor('/prompts/my-prompt/edit')
 
@@ -574,11 +554,9 @@ describe('PromptEditor — edit mode', () => {
   })
 
   it('opens the render view, loads placeholders, and shows the rendered output', async () => {
-    ;(promptService.getPrompt as jest.Mock).mockResolvedValue(buildPrompt())
-    ;(promptService.getPromptPlaceholders as jest.Mock).mockResolvedValue([
-      'name',
-    ])
-    ;(promptService.renderPrompt as jest.Mock).mockResolvedValue({
+    ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
+    ;(promptService.getPromptPlaceholders as Mock).mockResolvedValue(['name'])
+    ;(promptService.renderPrompt as Mock).mockResolvedValue({
       rendered_body: 'Hello Ada',
     })
     const { trackEvent } = useAnalytics()
@@ -622,7 +600,7 @@ describe('PromptEditor — edit mode', () => {
   })
 
   it('shows an error toast and navigates back when the prompt fails to load', async () => {
-    ;(promptService.getPrompt as jest.Mock).mockRejectedValue(
+    ;(promptService.getPrompt as Mock).mockRejectedValue(
       new Error('prompt not found')
     )
     renderEditor('/prompts/missing/edit')
@@ -634,8 +612,8 @@ describe('PromptEditor — edit mode', () => {
   })
 
   it('surfaces a save failure without navigating away', async () => {
-    ;(promptService.getPrompt as jest.Mock).mockResolvedValue(buildPrompt())
-    ;(promptService.updatePrompt as jest.Mock).mockRejectedValue(
+    ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
+    ;(promptService.updatePrompt as Mock).mockRejectedValue(
       new Error('validation failed upstream')
     )
     const user = userEvent.setup()

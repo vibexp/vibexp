@@ -3,13 +3,13 @@ import { renderHook } from '@testing-library/react'
 import { usePermissions } from '@/hooks/usePermissions'
 import type { Team } from '@/services/teamService'
 
-const mockUseTeam = jest.fn()
-jest.mock('@/contexts/TeamContext', () => ({
+const mockUseTeam = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-const mockUseAuth = jest.fn()
-jest.mock('@/contexts/useAuth', () => ({
+const mockUseAuth = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
@@ -51,7 +51,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 describe('usePermissions', () => {

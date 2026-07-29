@@ -28,11 +28,11 @@ beforeEach(() => {
   window.dataLayer = []
 
   // Reset mocks
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 
   // Mock console methods
-  console.log = jest.fn()
-  console.error = jest.fn()
+  console.log = vi.fn()
+  console.error = vi.fn()
 
   // Clear any existing GTM scripts
   const existingScripts = document.querySelectorAll(
@@ -52,26 +52,20 @@ afterEach(() => {
 
 describe('GTM Utilities', () => {
   describe('Environment Configuration (GTM Disabled)', () => {
-    it('should have test environment with GTM disabled by default', () => {
+    it('should have test environment with GTM disabled by default', async () => {
       // These tests run with GTM disabled (set in jest.config.js)
-      const {
-        GTM_ENABLED,
-        GTM_ID,
-        GA4_MEASUREMENT_ID,
-      } = require('../../src/utils/gtm')
+      const { GTM_ENABLED, GTM_ID, GA4_MEASUREMENT_ID } =
+        await import('../../src/utils/gtm')
 
       expect(GTM_ENABLED).toBe(false)
       expect(GTM_ID).toBe('')
       expect(GA4_MEASUREMENT_ID).toBe('')
     })
 
-    it('should have clear defaults that can be verified', () => {
+    it('should have clear defaults that can be verified', async () => {
       // Verify the constants are defined even when disabled
-      const {
-        GTM_ENABLED,
-        GTM_ID,
-        GA4_MEASUREMENT_ID,
-      } = require('../../src/utils/gtm')
+      const { GTM_ENABLED, GTM_ID, GA4_MEASUREMENT_ID } =
+        await import('../../src/utils/gtm')
 
       expect(GTM_ENABLED).toBeDefined()
       expect(GTM_ID).toBeDefined()
@@ -80,8 +74,8 @@ describe('GTM Utilities', () => {
   })
 
   describe('When GTM is disabled (default)', () => {
-    it('should not track events when GTM is disabled', () => {
-      const { trackEvent } = require('../../src/utils/gtm')
+    it('should not track events when GTM is disabled', async () => {
+      const { trackEvent } = await import('../../src/utils/gtm')
 
       trackEvent('test_event', { category: 'test' })
 
@@ -89,8 +83,8 @@ describe('GTM Utilities', () => {
       expect(window.dataLayer).toHaveLength(0)
     })
 
-    it('should not initialize GTM when disabled', () => {
-      const { initializeGTM } = require('../../src/utils/gtm')
+    it('should not initialize GTM when disabled', async () => {
+      const { initializeGTM } = await import('../../src/utils/gtm')
 
       initializeGTM()
 
@@ -110,11 +104,11 @@ describe('GTM Utilities (GTM Enabled)', () => {
     window.dataLayer = []
 
     // Reset mocks
-    jest.clearAllMocks()
+    vi.clearAllMocks()
 
     // Mock console methods
-    console.log = jest.fn()
-    console.error = jest.fn()
+    console.log = vi.fn()
+    console.error = vi.fn()
 
     // Clear any existing GTM scripts
     const existingScripts = document.querySelectorAll(
@@ -143,9 +137,10 @@ describe('GTM Utilities (GTM Enabled)', () => {
   })
 
   describe('trackEvent', () => {
-    it('should add prefixed event to dataLayer with no parameters', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should add prefixed event to dataLayer with no parameters', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         trackEvent('test_event')
 
@@ -153,12 +148,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
         expect(window.dataLayer?.[0]).toEqual({
           event: 'vx_frontend_test_event',
         })
-      })
+      })()
     })
 
-    it('should add prefixed event to dataLayer with parameters', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should add prefixed event to dataLayer with parameters', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         const parameters = {
           category: 'user_action',
@@ -175,12 +171,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
           label: 'button_click',
           value: 1,
         })
-      })
+      })()
     })
 
-    it('should exclude event property from parameters to prevent overwriting prefixed event name', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should exclude event property from parameters to prevent overwriting prefixed event name', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         const parameters = {
           event: 'original_event_name',
@@ -198,12 +195,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
           label: 'button_click',
           value: 1,
         })
-      })
+      })()
     })
 
-    it('should handle parameters with nested objects', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should handle parameters with nested objects', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         const parameters = {
           event: 'should_be_ignored',
@@ -231,12 +229,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
             version: '1.0.0',
           },
         })
-      })
+      })()
     })
 
-    it('should handle empty parameters object', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should handle empty parameters object', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         trackEvent('empty_params', {})
 
@@ -244,12 +243,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
         expect(window.dataLayer?.[0]).toEqual({
           event: 'vx_frontend_empty_params',
         })
-      })
+      })()
     })
 
-    it('should handle undefined parameters', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should handle undefined parameters', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         trackEvent('undefined_params', undefined)
 
@@ -257,12 +257,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
         expect(window.dataLayer?.[0]).toEqual({
           event: 'vx_frontend_undefined_params',
         })
-      })
+      })()
     })
 
-    it('should not track event when dataLayer is not available', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should not track event when dataLayer is not available', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         // Remove dataLayer. `Window.dataLayer` is declared non-optional
         // (src/utils/gtm.ts) because index.html always defines it; this test
@@ -274,12 +275,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
 
         // Should not throw error and dataLayer should remain undefined
         expect(window.dataLayer).toBeUndefined()
-      })
+      })()
     })
 
-    it('should handle multiple consecutive events', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should handle multiple consecutive events', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         trackEvent('first_event', { step: 1 })
         trackEvent('second_event', { step: 2 })
@@ -298,12 +300,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
           event: 'vx_frontend_third_event',
           step: 3,
         })
-      })
+      })()
     })
 
-    it('should preserve all parameter types correctly', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should preserve all parameter types correctly', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         const parameters = {
           event: 'ignore_me',
@@ -333,12 +336,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
 
         // Verify that the original event property is excluded
         expect(Object.keys(pushedData || {})).not.toContain('ignore_me')
-      })
+      })()
     })
 
-    it('should handle special characters in event names', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should handle special characters in event names', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         trackEvent('event-with-dashes_and_underscores', { test: true })
 
@@ -346,12 +350,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
           event: 'vx_frontend_event-with-dashes_and_underscores',
           test: true,
         })
-      })
+      })()
     })
 
-    it('should handle event names with numbers', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should handle event names with numbers', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         trackEvent('event123', { count: 456 })
 
@@ -359,14 +364,15 @@ describe('GTM Utilities (GTM Enabled)', () => {
           event: 'vx_frontend_event123',
           count: 456,
         })
-      })
+      })()
     })
   })
 
   describe('initializeGTM', () => {
-    it('should initialize GTM with correct script attributes', () => {
-      jest.isolateModules(() => {
-        const { initializeGTM, GTM_ID } = require('../../src/utils/gtm')
+    it('should initialize GTM with correct script attributes', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { initializeGTM, GTM_ID } = await import('../../src/utils/gtm')
 
         initializeGTM()
 
@@ -386,12 +392,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
         )
         // Check async property directly (hasAttribute may not work in jsdom)
         expect((gtmScript as HTMLScriptElement)?.async).toBe(true)
-      })
+      })()
     })
 
-    it('should not initialize when dataLayer already has GTM events', () => {
-      jest.isolateModules(() => {
-        const { initializeGTM } = require('../../src/utils/gtm')
+    it('should not initialize when dataLayer already has GTM events', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { initializeGTM } = await import('../../src/utils/gtm')
 
         // Pre-populate dataLayer
         window.dataLayer = [{ event: 'gtm.js', 'gtm.start': Date.now() }]
@@ -402,14 +409,16 @@ describe('GTM Utilities (GTM Enabled)', () => {
         expect(
           window.dataLayer?.filter(item => item.event === 'gtm.js')
         ).toHaveLength(2)
-      })
+      })()
     })
   })
 
   describe('Integration tests', () => {
-    it('should work together - initialize GTM and track events', () => {
-      jest.isolateModules(() => {
-        const { initializeGTM, trackEvent } = require('../../src/utils/gtm')
+    it('should work together - initialize GTM and track events', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { initializeGTM, trackEvent } =
+          await import('../../src/utils/gtm')
 
         // Initialize GTM
         initializeGTM()
@@ -446,12 +455,13 @@ describe('GTM Utilities (GTM Enabled)', () => {
           'script[src*="googletagmanager"]'
         )
         expect(gtmScript).toBeTruthy()
-      })
+      })()
     })
 
-    it('should work with analytics service pattern', () => {
-      jest.isolateModules(() => {
-        const { trackEvent } = require('../../src/utils/gtm')
+    it('should work with analytics service pattern', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { trackEvent } = await import('../../src/utils/gtm')
 
         // Simulate how analytics service calls trackEvent
         const eventData = {
@@ -473,7 +483,7 @@ describe('GTM Utilities (GTM Enabled)', () => {
 
         // Verify the original event name was excluded
         expect(window.dataLayer?.[0]).not.toHaveProperty('event', 'user_signup')
-      })
+      })()
     })
   })
 })

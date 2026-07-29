@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import type { Mock } from 'vitest'
 
 import type {
   Feed,
@@ -10,36 +11,14 @@ import type {
 } from '@/services/feedService'
 import type { TeamMember } from '@/services/teamService'
 
-// The shared lucide mock lists icons explicitly and misses some used here
-// (RefreshCw, Rss, …) — serve any icon via a Proxy instead (PromptEditor pattern).
-jest.mock(
-  'lucide-react',
-  () =>
-    new Proxy(
-      {},
-      {
-        get: (_target, name) => {
-          if (name === '__esModule') return true
-          const Icon = (props: object) => (
-            <svg
-              data-testid={`${String(name).toLowerCase()}-icon`}
-              {...props}
-            />
-          )
-          return Icon
-        },
-      }
-    )
-)
-
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual<typeof import('react-router-dom')>('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router', async () => ({
+  ...(await vi.importActual<typeof import('react-router')>('react-router')),
   useNavigate: () => mockNavigate,
 }))
 
 // Mock Radix Select (FeedToolbar) — it can loop in JSDOM (Artifacts.test.tsx approach)
-jest.mock('@/components/ui/select', () => ({
+vi.mock('@/components/ui/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="select">{children}</div>
   ),
@@ -63,7 +42,7 @@ jest.mock('@/components/ui/select', () => ({
 
 // FeedPostComposer has its own suite (FeedPostComposer.test.tsx) — probe it here
 // so the page test only asserts visibility/wiring, not composer internals.
-jest.mock('@/pages/feeds/FeedPostComposer', () => ({
+vi.mock('@/pages/feeds/FeedPostComposer', () => ({
   FeedPostComposer: ({
     feedId,
     onPosted,
@@ -79,30 +58,30 @@ jest.mock('@/pages/feeds/FeedPostComposer', () => ({
   ),
 }))
 
-jest.mock('@/services/feedService', () => ({
+vi.mock('@/services/feedService', () => ({
   feedService: {
-    getFeed: jest.fn(),
-    getFeedItemsForFeed: jest.fn(),
-    archiveFeedItem: jest.fn(),
-    unarchiveFeedItem: jest.fn(),
-    deleteFeedItem: jest.fn(),
+    getFeed: vi.fn(),
+    getFeedItemsForFeed: vi.fn(),
+    archiveFeedItem: vi.fn(),
+    unarchiveFeedItem: vi.fn(),
+    deleteFeedItem: vi.fn(),
   },
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProjects: jest.fn(),
+    getProjects: vi.fn(),
   },
 }))
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    getTeamMembers: jest.fn(),
+    getTeamMembers: vi.fn(),
   },
 }))
 
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
@@ -113,7 +92,7 @@ const mockTeamState: {
 } = {
   currentTeam: { id: 'team-1', name: 'Test Team', permissions: [] },
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockTeamState.currentTeam,
     teams: mockTeamState.currentTeam ? [mockTeamState.currentTeam] : [],
@@ -121,26 +100,26 @@ jest.mock('@/contexts/TeamContext', () => ({
   }),
 }))
 
-jest.mock('@/contexts/ProjectContext', () => ({
+vi.mock('@/contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProject: null,
-    setCurrentProject: jest.fn(),
+    setCurrentProject: vi.fn(),
     isLoading: false,
   }),
 }))
 
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
+  const trackEvent = vi.fn()
   return {
     useAlerts: () => ({ showSuccess, showError }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-const mockHandleError = jest.fn()
-jest.mock('@/hooks/useErrorHandler', () => ({
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
@@ -216,27 +195,27 @@ function renderFeedView() {
 
 /** Main-list fetches only — the tab-badge count fetch uses limit: 1. */
 function mainFetchCalls(): FeedItemFilters[] {
-  return (feedService.getFeedItemsForFeed as jest.Mock).mock.calls
+  return (feedService.getFeedItemsForFeed as Mock).mock.calls
     .map(call => call[2] as FeedItemFilters)
     .filter(f => f.limit !== 1)
 }
 
 describe('FeedView page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     setTeamPermissions([])
-    ;(feedService.getFeed as jest.Mock).mockResolvedValue(mockFeed)
-    ;(feedService.getFeedItemsForFeed as jest.Mock).mockResolvedValue(
+    ;(feedService.getFeed as Mock).mockResolvedValue(mockFeed)
+    ;(feedService.getFeedItemsForFeed as Mock).mockResolvedValue(
       buildItemsResponse([buildItem()])
     )
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [],
       total_count: 0,
       page: 1,
       per_page: 100,
       total_pages: 0,
     })
-    ;(teamService.getTeamMembers as jest.Mock).mockResolvedValue([member])
+    ;(teamService.getTeamMembers as Mock).mockResolvedValue([member])
   })
 
   it('renders the feed name and description after loading', async () => {
@@ -247,7 +226,7 @@ describe('FeedView page', () => {
   })
 
   it('shows a loading title while the feed is loading', async () => {
-    ;(feedService.getFeed as jest.Mock).mockImplementation(
+    ;(feedService.getFeed as Mock).mockImplementation(
       () => new Promise(() => undefined)
     )
     renderFeedView()
@@ -267,7 +246,7 @@ describe('FeedView page', () => {
   })
 
   it('renders the empty state when the feed has no items', async () => {
-    ;(feedService.getFeedItemsForFeed as jest.Mock).mockResolvedValue(
+    ;(feedService.getFeedItemsForFeed as Mock).mockResolvedValue(
       buildItemsResponse([])
     )
     renderFeedView()
@@ -275,7 +254,7 @@ describe('FeedView page', () => {
   })
 
   it('renders the error state when the items fetch fails', async () => {
-    ;(feedService.getFeedItemsForFeed as jest.Mock).mockRejectedValue(
+    ;(feedService.getFeedItemsForFeed as Mock).mockRejectedValue(
       new Error('Network error')
     )
     renderFeedView()
@@ -293,7 +272,7 @@ describe('FeedView page', () => {
       'data-feed-id',
       'feed-1'
     )
-    ;(feedService.getFeedItemsForFeed as jest.Mock).mockResolvedValue(
+    ;(feedService.getFeedItemsForFeed as Mock).mockResolvedValue(
       buildItemsResponse([])
     )
     await user.click(screen.getByRole('button', { name: /archived/i }))
@@ -349,7 +328,7 @@ describe('FeedView page', () => {
 
   it('archives an item from the card and re-fetches the list', async () => {
     const user = userEvent.setup()
-    ;(feedService.archiveFeedItem as jest.Mock).mockResolvedValue(undefined)
+    ;(feedService.archiveFeedItem as Mock).mockResolvedValue(undefined)
     renderFeedView()
     await screen.findByText('Sprint Retrospective')
 
@@ -374,7 +353,7 @@ describe('FeedView page', () => {
       title: 'Old Post',
       archived_at: '2026-01-05T00:00:00Z',
     })
-    ;(feedService.getFeedItemsForFeed as jest.Mock).mockImplementation(
+    ;(feedService.getFeedItemsForFeed as Mock).mockImplementation(
       (_teamId: string, _feedId: string, filters: FeedItemFilters) =>
         Promise.resolve(
           filters.archived === 'true'
@@ -382,7 +361,7 @@ describe('FeedView page', () => {
             : buildItemsResponse([buildItem()])
         )
     )
-    ;(feedService.unarchiveFeedItem as jest.Mock).mockResolvedValue(undefined)
+    ;(feedService.unarchiveFeedItem as Mock).mockResolvedValue(undefined)
     renderFeedView()
     await screen.findByText('Sprint Retrospective')
 
@@ -419,7 +398,7 @@ describe('FeedView page', () => {
 
     it('shows delete on your own item with resource.delete.own', async () => {
       setTeamPermissions(['resource.delete.own'])
-      ;(feedService.getFeedItemsForFeed as jest.Mock).mockResolvedValue(
+      ;(feedService.getFeedItemsForFeed as Mock).mockResolvedValue(
         buildItemsResponse([buildItem({ posted_by_user_id: 'user-1' })])
       )
       renderFeedView()
@@ -431,7 +410,7 @@ describe('FeedView page', () => {
   it('deletes an item through the confirm dialog and re-fetches', async () => {
     const user = userEvent.setup()
     setTeamPermissions(['feed.delete.any'])
-    ;(feedService.deleteFeedItem as jest.Mock).mockResolvedValue(undefined)
+    ;(feedService.deleteFeedItem as Mock).mockResolvedValue(undefined)
     renderFeedView()
     await screen.findByText('Sprint Retrospective')
 
@@ -453,7 +432,7 @@ describe('FeedView page', () => {
 
   it('paginates with Next when there are multiple pages', async () => {
     const user = userEvent.setup()
-    ;(feedService.getFeedItemsForFeed as jest.Mock).mockResolvedValue(
+    ;(feedService.getFeedItemsForFeed as Mock).mockResolvedValue(
       buildItemsResponse([buildItem()], { total_count: 25, total_pages: 2 })
     )
     renderFeedView()

@@ -4,12 +4,12 @@
  * `/auth/me` is still loading (never flashes admin content).
  */
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
 
 import { RequireInstanceAdmin } from '@/pages/admin/RequireInstanceAdmin'
 
-const mockUseAuth = jest.fn()
-jest.mock('@/contexts/useAuth', () => ({
+const mockUseAuth = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
@@ -32,7 +32,7 @@ function renderGuard() {
 }
 
 afterEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 it('renders children for an instance admin', () => {

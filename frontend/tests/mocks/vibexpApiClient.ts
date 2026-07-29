@@ -12,7 +12,7 @@ const reject = (method: string) => () =>
 
 export const PRODUCTION_BASE_URL = 'https://api.vibexp.io'
 
-export const createApiClient = jest.fn(() => ({
+export const createApiClient = vi.fn(() => ({
   GET: reject('GET'),
   POST: reject('POST'),
   PUT: reject('PUT'),

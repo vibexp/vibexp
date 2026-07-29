@@ -2,14 +2,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { AgentCredentialsEditor } from '../AgentCredentialsEditor'
 
-const mockUpdate = jest.fn()
-jest.mock('@/services/agentService', () => ({
+const mockUpdate = vi.hoisted(() => vi.fn())
+vi.mock('@/services/agentService', () => ({
   agentService: {
     updateAgentCredentials: (...args: unknown[]) => mockUpdate(...args),
   },
 }))
-jest.mock('@/lib/toast', () => ({
-  toast: { error: jest.fn(), success: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const schemes = {

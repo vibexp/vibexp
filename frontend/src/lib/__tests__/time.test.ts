@@ -55,12 +55,12 @@ describe('formatDateTime', () => {
 
 describe('formatRelativeTime', () => {
   beforeEach(() => {
-    jest.useFakeTimers()
-    jest.setSystemTime(new Date('2024-06-01T12:00:00Z'))
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2024-06-01T12:00:00Z'))
   })
 
   afterEach(() => {
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 
   it('returns "Never" for null', () => {

@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mocked } from 'vitest'
 
 import type { Team } from '@/services/teamService'
 import type { Type } from '@/services/typeService'
@@ -7,29 +8,29 @@ import type { Type } from '@/services/typeService'
 // The team TeamScopeLayout resolved from the URL (#584).
 const urlTeam = { id: 'team-1', name: 'Test Team' } as unknown as Team
 
-const mockUseTeam = jest.fn()
-jest.mock('@/contexts/TeamContext', () => ({
+const mockUseTeam = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/services/typeService', () => ({
+vi.mock('@/services/typeService', () => ({
   typeService: {
-    getTypes: jest.fn(),
-    createType: jest.fn(),
-    deleteType: jest.fn(),
+    getTypes: vi.fn(),
+    createType: vi.fn(),
+    deleteType: vi.fn(),
   },
 }))
 
-const mockHandleError = jest.fn(() => ({}))
-jest.mock('@/hooks/useErrorHandler', () => ({
+const mockHandleError = vi.hoisted(() => vi.fn(() => ({})))
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
-const mockToastSuccess = jest.fn()
-jest.mock('@/lib/toast', () => ({
+const mockToastSuccess = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/toast', () => ({
   toast: {
     success: (...a: unknown[]) => mockToastSuccess(...a),
-    error: jest.fn(),
+    error: vi.fn(),
   },
 }))
 
@@ -56,16 +57,16 @@ const customType: Type = {
   created_at: '2026-06-15T10:00:00Z',
 }
 
-const mockedService = typeService as jest.Mocked<typeof typeService>
+const mockedService = typeService as Mocked<typeof typeService>
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockUseTeam.mockReturnValue({
     currentTeam: { id: 'team-1', name: 'Test Team' },
     teams: [{ id: 'team-1', name: 'Test Team' }],
     isLoading: false,
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
   })
   mockedService.getTypes.mockResolvedValue([systemType, customType])
 })

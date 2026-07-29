@@ -26,9 +26,9 @@ function sizedFile(name: string, size: number, type = 'text/plain'): File {
 function renderCard(
   props: Partial<React.ComponentProps<typeof AttachmentCard>> = {}
 ) {
-  const onUpload = jest.fn().mockResolvedValue(undefined)
-  const onDelete = jest.fn().mockResolvedValue(undefined)
-  const onDownload = jest.fn()
+  const onUpload = vi.fn().mockResolvedValue(undefined)
+  const onDelete = vi.fn().mockResolvedValue(undefined)
+  const onDownload = vi.fn()
   render(
     <AttachmentCard
       attachments={props.attachments ?? []}

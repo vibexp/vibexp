@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
 
 import type { Team } from '@/services/teamService'
 import { ApiError } from '@/types/errors'
@@ -9,15 +9,15 @@ import { ApiError } from '@/types/errors'
 // module-stable reference: a fresh object per render loops any effect keyed on
 // its identity ("Maximum update depth exceeded").
 // --------------------------------------------------------------------------
-const mockSetCurrentTeam = jest.fn()
-const mockRefreshTeams = jest.fn()
+const mockSetCurrentTeam = vi.hoisted(() => vi.fn())
+const mockRefreshTeams = vi.hoisted(() => vi.fn())
 const teamContext: {
   teams: Team[]
   currentTeam: Team | null
   isLoading: boolean
 } = { teams: [], currentTeam: null, isLoading: false }
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     teams: teamContext.teams,
     currentTeam: teamContext.currentTeam,
@@ -27,8 +27,8 @@ jest.mock('@/contexts/TeamContext', () => ({
   }),
 }))
 
-const mockGetTeamDetails = jest.fn()
-jest.mock('@/services/teamService', () => ({
+const mockGetTeamDetails = vi.hoisted(() => vi.fn())
+vi.mock('@/services/teamService', () => ({
   teamService: {
     getTeamDetails: (...args: unknown[]) => mockGetTeamDetails(...args),
   },
@@ -36,13 +36,13 @@ jest.mock('@/services/teamService', () => ({
 
 // The nested routes and the scope header are exercised by their own suites;
 // stub them so this file tests the layout's resolution/gating logic only.
-jest.mock('@/pages/teams/TeamRoutes', () => ({
+vi.mock('@/pages/teams/TeamRoutes', () => ({
   TeamRoutes: ({ team }: { team: Team }) => (
     <div data-testid="team-routes">{team.name}</div>
   ),
 }))
 
-jest.mock('@/pages/teams/TeamScopeHeader', () => ({
+vi.mock('@/pages/teams/TeamScopeHeader', () => ({
   TeamScopeHeader: ({ team }: { team: Team }) => (
     <div data-testid="team-scope-header">{team.name}</div>
   ),
@@ -87,7 +87,7 @@ function renderAt(id: string) {
 
 describe('TeamScopeLayout', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     teamContext.teams = []
     teamContext.currentTeam = null
     teamContext.isLoading = false
@@ -156,7 +156,7 @@ describe('TeamScopeLayout', () => {
     // A 5xx or network error is also unrenderable, but it is NOT a permission
     // problem - swallowing it would make an outage indistinguishable from being
     // removed from a team.
-    const consoleError = jest
+    const consoleError = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined)
     teamContext.teams = [makeTeam({ id: 'other-team' })]
@@ -173,7 +173,7 @@ describe('TeamScopeLayout', () => {
   })
 
   it('does not log an expected 403 as an error', async () => {
-    const consoleError = jest
+    const consoleError = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined)
     teamContext.teams = [makeTeam({ id: 'other-team' })]
