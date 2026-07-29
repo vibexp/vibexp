@@ -29,7 +29,9 @@ if [ ! -d "$dir" ]; then
     exit 1
 fi
 
-files=$(find "$dir" -maxdepth 1 -name '*.sql' -printf '%f\n' | sort)
+# sed strips the directory prefix instead of find's -printf '%f\n', which is
+# GNU-only and errors on the BSD find that macOS contributors have.
+files=$(find "$dir" -maxdepth 1 -name '*.sql' | sed 's|.*/||' | sort)
 if [ -z "$files" ]; then
     echo "ERROR: no .sql files found in $dir" >&2
     exit 1
