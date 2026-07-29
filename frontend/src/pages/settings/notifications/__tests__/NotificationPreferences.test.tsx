@@ -35,11 +35,11 @@ const baseEmailPrefs = {
 }
 
 const baseNotifPrefs: NotificationPrefsType = {
-  channels: { in_app: true, email: true, web_push: false },
+  channels: { in_app: true, email: true },
   types: {
-    'feed.item.created': { in_app: true, email: 'digest', web_push: true },
-    'feed.reply.created': { in_app: true, email: 'instant', web_push: true },
-    'team.invitation': { in_app: true, email: 'instant', web_push: false },
+    'feed.item.created': { in_app: true, email: 'digest' },
+    'feed.reply.created': { in_app: true, email: 'instant' },
+    'team.invitation': { in_app: true, email: 'instant' },
   },
 }
 
@@ -407,7 +407,7 @@ describe('NotificationPreferences', () => {
 
   it('renders activity email card without crash when notifPrefs.types is undefined', async () => {
     const prefsWithoutTypes: NotificationPrefsType = {
-      channels: { in_app: true, email: true, web_push: false },
+      channels: { in_app: true, email: true },
       types: {},
     }
     mockPreferencesService.getPreferences.mockResolvedValue(
@@ -438,13 +438,12 @@ describe('NotificationPreferences', () => {
 
   it('shows digest as selected when typePrefs.email is undefined', async () => {
     const prefsWithUndefinedEmail = {
-      channels: { in_app: true, email: true, web_push: false },
+      channels: { in_app: true, email: true },
       types: {
         // email field intentionally omitted to simulate old backend data
         'feed.item.created': {
           in_app: true,
           email: undefined,
-          web_push: false,
         },
       },
     } as unknown as NotificationPrefsType
