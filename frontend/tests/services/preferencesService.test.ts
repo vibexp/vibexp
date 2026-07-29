@@ -37,7 +37,7 @@ describe('PreferencesService', () => {
         marketing_promotional: false,
       },
       notifications: {
-        channels: { in_app: true, email: true, web_push: false },
+        channels: { in_app: true, email: true },
         types: {},
       },
     },
@@ -102,7 +102,7 @@ describe('PreferencesService', () => {
             marketing_promotional: false,
           },
           notifications: {
-            channels: { in_app: true, email: true, web_push: false },
+            channels: { in_app: true, email: true },
             types: {},
           },
         },
@@ -143,7 +143,7 @@ describe('PreferencesService', () => {
             marketing_promotional: true,
           },
           notifications: {
-            channels: { in_app: true, email: true, web_push: false },
+            channels: { in_app: true, email: true },
             types: {},
           },
         },
