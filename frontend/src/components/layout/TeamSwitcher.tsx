@@ -1,6 +1,6 @@
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import {

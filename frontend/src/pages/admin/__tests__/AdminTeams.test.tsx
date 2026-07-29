@@ -7,7 +7,7 @@
  */
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router'
 import type { Mocked } from 'vitest'
 
 import type {
@@ -16,10 +16,8 @@ import type {
 } from '@/services/adminService'
 
 const mockNavigate = vi.hoisted(() => vi.fn())
-vi.mock('react-router-dom', async () => ({
-  ...(await vi.importActual<typeof import('react-router-dom')>(
-    'react-router-dom'
-  )),
+vi.mock('react-router', async () => ({
+  ...(await vi.importActual<typeof import('react-router')>('react-router')),
   useNavigate: () => mockNavigate,
 }))
 

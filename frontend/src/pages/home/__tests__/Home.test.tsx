@@ -5,7 +5,7 @@
  * grid are stubbed so this test focuses on Home's own wiring and data flow.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 import type { Mocked } from 'vitest'
 
 import type {
@@ -16,10 +16,8 @@ import type { FeedItem, FeedItemListResponse } from '@/services/feedService'
 import type { TeamStats } from '@/services/teamService'
 
 const mockNavigate = vi.hoisted(() => vi.fn())
-vi.mock('react-router-dom', async () => ({
-  ...(await vi.importActual<typeof import('react-router-dom')>(
-    'react-router-dom'
-  )),
+vi.mock('react-router', async () => ({
+  ...(await vi.importActual<typeof import('react-router')>('react-router')),
   useNavigate: () => mockNavigate,
 }))
 

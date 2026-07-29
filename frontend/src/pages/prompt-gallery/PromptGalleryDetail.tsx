@@ -1,6 +1,6 @@
 import { AlertCircle, ArrowLeft, FileText, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router'
 
 import { CopyButton } from '@/components/CopyButton'
 import { LoadingSpinner } from '@/components/LoadingSpinner'

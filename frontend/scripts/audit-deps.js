@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Production dependency audit — `npm audit` with a narrow, documented exception.
+ * Production dependency audit — `npm audit` gated at `moderate` and above.
  *
- * `npm audit` has no allowlist of its own: it is all-or-nothing per severity
- * level. This wrapper keeps the gate at `moderate` for **every** production
- * dependency except the packages named in ALLOWLIST below, so a real advisory in
- * anything else still fails the build.
+ * `npm audit`'s exit code is all-or-nothing per severity level; this wrapper
+ * exists so the gate, the report, and the fix guidance stay in one place.
+ * There is deliberately NO allowlist mechanism (#498 removed the last one —
+ * shipping with a tolerated advisory is how this gate lost its meaning).
  *
  * Run by the `frontend dependency audit` pre-commit hook (which fires only when
  * `package-lock.json` changes) and, since #547, by `make frontend-audit` in the
@@ -45,23 +45,6 @@
 
 import { execFileSync } from 'child_process'
 
-/**
- * Packages whose advisories are knowingly tolerated, each with the issue that
- * removes it. Keep this list as short as it can possibly be — an entry here is a
- * shipped vulnerability, not a resolved one.
- *
- * `react-router` / `react-router-dom` (5 advisories, 2 high): the vulnerable
- * range is `6.0.0 - 8.2.0` for `react-router` and `>=7.12.0-pre.0` for the
- * `react-router-dom` shim, patched only in `react-router@8.3.0`. We are on the
- * latest `react-router-dom` (7.18.x, bumped in #498 stage 1), which still
- * matches both entries, so **no version of the package we depend on satisfies
- * the gate** — v8 dropped the `react-router-dom` shim entirely. Fixing it is
- * a major migration across every routing import, tracked in #498; three of
- * the five advisories (RSC CSRF, RSCErrorHandler XSS, SSR `deserializeErrors`)
- * concern framework/SSR/RSC modes this client-only SPA does not use.
- */
-const ALLOWLIST = new Set(['react-router', 'react-router-dom'])
-
 const FAIL_AT = new Set(['moderate', 'high', 'critical'])
 
 /** Lowest severity in FAIL_AT, so the messages below cannot contradict it. */
@@ -88,26 +71,12 @@ function audit() {
 const report = JSON.parse(audit())
 const vulnerabilities = Object.values(report.vulnerabilities ?? {})
 
-const blocking = vulnerabilities.filter(
-  vulnerability =>
-    FAIL_AT.has(vulnerability.severity) && !ALLOWLIST.has(vulnerability.name)
+const blocking = vulnerabilities.filter(vulnerability =>
+  FAIL_AT.has(vulnerability.severity)
 )
-
-const tolerated = vulnerabilities.filter(
-  vulnerability =>
-    FAIL_AT.has(vulnerability.severity) && ALLOWLIST.has(vulnerability.name)
-)
-
-for (const vulnerability of tolerated) {
-  console.log(
-    `allowlisted: ${vulnerability.name} (${vulnerability.severity}) — see #498`
-  )
-}
 
 if (blocking.length === 0) {
-  console.log(
-    `npm audit: no blocking advisories at ${THRESHOLD} or above (${String(tolerated.length)} allowlisted).`
-  )
+  console.log(`npm audit: no blocking advisories at ${THRESHOLD} or above.`)
   process.exit(0)
 }
 
@@ -127,6 +96,6 @@ for (const vulnerability of blocking) {
   }
 }
 console.error(
-  '\nFix the advisory, or add the package to ALLOWLIST in scripts/audit-deps.js with a tracking issue.\n'
+  '\nFix the advisory (bump or override the vulnerable package) and link the tracking issue from the PR.\n'
 )
 process.exit(1)

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { Shapes, SlidersHorizontal } from 'lucide-react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { SettingItem } from '@/components/settings/SettingsGrid'
 import type { Team } from '@/services/teamService'

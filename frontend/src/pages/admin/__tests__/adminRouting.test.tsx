@@ -11,7 +11,7 @@
  * `teamService`/`projectService` are mocked only to assert they are never called.
  */
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mocked } from 'vitest'
 
 import { ThemeProvider } from '@/lib/theme'

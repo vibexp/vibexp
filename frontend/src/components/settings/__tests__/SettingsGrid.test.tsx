@@ -1,7 +1,7 @@
 import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Bell, Key } from 'lucide-react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
 
 import { type SettingItem, SettingSection } from '../SettingsGrid'
 

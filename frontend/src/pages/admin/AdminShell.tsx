@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { adminSectionFor } from '@/pages/admin/admin-nav'

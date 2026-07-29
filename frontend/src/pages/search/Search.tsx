@@ -1,6 +1,6 @@
 import { Search as SearchIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 
 import { EmptyState } from '@/components/EmptyState'
 import type { ListPageStatus } from '@/components/patterns/list-page'

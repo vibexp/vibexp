@@ -1,7 +1,7 @@
 import { AlertCircle, Check, Copy, Share2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router'
 
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'

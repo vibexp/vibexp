@@ -3,7 +3,7 @@
  * not-found path.
  */
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mocked } from 'vitest'
 
 import type { AdminProjectDetail as AdminProjectDetailType } from '@/services/adminService'

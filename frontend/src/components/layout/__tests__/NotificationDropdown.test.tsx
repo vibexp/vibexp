@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import React from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import type { Notification } from '@/services/notificationService'
 
@@ -29,8 +29,8 @@ vi.mock('../../../hooks/useNotifications', () => ({
 
 // Mock navigate
 const mockNavigate = vi.hoisted(() => vi.fn())
-vi.mock('react-router-dom', async () => ({
-  ...(await vi.importActual('react-router-dom')),
+vi.mock('react-router', async () => ({
+  ...(await vi.importActual('react-router')),
   useNavigate: () => mockNavigate,
 }))
 

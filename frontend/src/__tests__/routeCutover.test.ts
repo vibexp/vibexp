@@ -29,7 +29,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
-import { matchRoutes } from 'react-router-dom'
+import { matchRoutes } from 'react-router'
 
 /** Frontend routes retired by epic #536. */
 const RETIRED_SEGMENTS = [

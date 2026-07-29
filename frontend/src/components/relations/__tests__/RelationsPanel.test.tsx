@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 
 import { RelationsPanel } from '@/components/relations/RelationsPanel'
 import type { UseRelationsResult } from '@/hooks/useRelations'

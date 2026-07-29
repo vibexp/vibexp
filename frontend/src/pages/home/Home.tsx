@@ -1,6 +1,6 @@
 import { BookOpen, Server, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import {

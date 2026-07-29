@@ -1,5 +1,5 @@
 import { Bell } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 
 import { NotificationItem } from '@/components/layout/NotificationItem'
 import { Button } from '@/components/ui/button'

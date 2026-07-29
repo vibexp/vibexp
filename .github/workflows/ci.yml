@@ -547,8 +547,8 @@ jobs:
       - name: Lint
         run: make frontend-lint
 
-      # Production-dependency advisory gate (npm audit --omit=dev, with the
-      # documented allowlist in frontend/scripts/audit-deps.js). Previously
+      # Production-dependency advisory gate (npm audit --omit=dev, gated at
+      # moderate+ by frontend/scripts/audit-deps.js). Previously
       # pre-commit-only, so a contributor without the hooks installed bypassed it
       # entirely and dependency drift accumulated unseen (#547).
       - name: Dependency audit

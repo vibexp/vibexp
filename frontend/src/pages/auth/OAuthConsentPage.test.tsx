@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 import type { MockInstance } from 'vitest'
 
 import { ApiError } from '@/types/errors'
@@ -12,9 +12,9 @@ import type { OAuthConsentDetails } from '@/types/oauth'
 
 let mockLogin: string | null = 'login-abc'
 
-vi.mock('react-router-dom', async () => {
+vi.mock('react-router', async () => {
   const actual =
-    await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+    await vi.importActual<typeof import('react-router')>('react-router')
   return {
     ...actual,
     useSearchParams: () => [new URLSearchParams({ login: mockLogin ?? '' })],

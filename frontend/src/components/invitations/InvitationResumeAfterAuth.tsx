@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router'
 
 import { STORAGE_KEYS } from '@/constants/storageKeys'
 import { sessionStore } from '@/utils/storage'

@@ -1,6 +1,6 @@
 import { AlertCircle, ArrowLeft, Save } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router'
 
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'

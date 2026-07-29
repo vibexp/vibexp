@@ -1,6 +1,6 @@
 import { ChevronRight, Code2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import {

@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router'
 
 import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items'
 import { SidebarBrand } from '@/components/layout/SidebarBrand'

@@ -379,8 +379,8 @@ frontend-test:
 frontend-test-coverage:
 	cd frontend && npm run test:coverage
 
-# Audit production frontend dependencies (npm audit --omit=dev, with the
-# documented allowlist in frontend/scripts/audit-deps.js). Run by CI and by the
+# Audit production frontend dependencies (npm audit --omit=dev, gated at
+# moderate+ by frontend/scripts/audit-deps.js). Run by CI and by the
 # `frontend dependency audit` pre-commit hook.
 frontend-audit:
 	cd frontend && npm run audit:deps

@@ -3,7 +3,7 @@
  * error state (e.g. a 404 for an unknown id).
  */
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import type { Mocked } from 'vitest'
 
 import type { AdminTeamDetail as AdminTeamDetailType } from '@/services/adminService'

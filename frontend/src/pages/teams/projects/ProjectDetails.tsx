@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router'
 
 import { AccessActivityPanel } from '@/components/access-activity/AccessActivityPanel'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
