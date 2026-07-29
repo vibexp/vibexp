@@ -89,16 +89,25 @@ const (
 // that made the Playwright e2e suite chronically flaky (#299). The bypass is gated on
 // Config.IsLocalDevelopment() (localhost frontend.base_url — the same switch that enables
 // the dev-login bypass), so any internet-facing deployment keeps the limiter on.
-// clientIPMiddleware runs earlier in the chain and has already resolved RemoteAddr to the
-// client IP under the trusted-proxy rule, so the limiter keys on an address the caller
-// cannot forge (#465). With no trusted proxies configured that is the peer address.
+// clientIPMiddleware runs earlier in the chain and has already resolved the client IP
+// under the trusted-proxy rule (#465), so the limiter keys on the resolved address the
+// caller cannot forge. With no trusted proxies configured that is the peer address.
 // Limits are applied per route group, never globally, so internal Pub/Sub job routes,
 // Stripe/GitHub webhooks, and the /ping & /health probes are never throttled.
 func rateLimitByIP(r chi.Router, limit int, localDev bool) {
 	if limit < 1 || localDev {
 		return
 	}
-	r.Use(httprate.LimitByIP(limit, time.Minute))
+	r.Use(httprate.LimitBy(limit, time.Minute, rateLimitKey))
+}
+
+// rateLimitKey derives the per-client bucket key for httprate. It uses the
+// client IP resolved by clientIPMiddleware (trusted-proxy aware), falling back
+// to the peer/RemoteAddr value when the middleware did not run (direct handler
+// tests), and canonicalizes so IPv6 clients share a /64 bucket instead of
+// rotating through a limitless supply of individual addresses.
+func rateLimitKey(r *http.Request) (string, error) {
+	return httprate.CanonicalizeIP(clientIP(r)), nil
 }
 
 // defaultMaxBodyBytes is the fallback request-body cap (1MiB) used when the configured

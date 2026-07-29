@@ -204,7 +204,7 @@ func TestClientIPMiddleware_SetsContextAndRemoteAddr(t *testing.T) {
 }
 
 // TestRateLimiterNotBypassableByRotatingXFF reproduces the audit's PoC. It
-// drives the production chain (client-IP resolution -> httprate.LimitByIP) from
+// drives the production chain (client-IP resolution -> the per-IP rate limiter) from
 // a single peer and asserts that rotating X-Forwarded-For gives no advantage
 // over sending no header at all.
 //
@@ -248,7 +248,7 @@ func chiRouterWithLimiter(limit int) http.Handler {
 	var h http.Handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	h = httprate.LimitByIP(limit, time.Minute)(h)
+	h = httprate.LimitBy(limit, time.Minute, rateLimitKey)(h)
 	h = clientIPMiddleware(nil)(h)
 	return h
 }

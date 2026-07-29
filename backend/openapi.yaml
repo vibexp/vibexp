@@ -173,6 +173,8 @@ components:
       $ref: "./schemas/prompts.yaml#/CreatePromptRequest"
     UpdatePromptRequest:
       $ref: "./schemas/prompts.yaml#/UpdatePromptRequest"
+    PromptListEnvelope:
+      $ref: "./schemas/common.yaml#/PromptListEnvelope"
     PromptListResponse:
       $ref: "./schemas/prompts.yaml#/PromptListResponse"
     PromptVersionListResponse:
@@ -191,6 +193,10 @@ components:
     # Import prompt gallery schemas
     PromptGalleryTemplate:
       $ref: "./schemas/prompts.yaml#/PromptGalleryTemplate"
+    PromptGalleryCategoryList:
+      $ref: "./schemas/prompts.yaml#/PromptGalleryCategoryList"
+    PromptLabelsEnvelope:
+      $ref: "./schemas/common.yaml#/PromptLabelsEnvelope"
     PromptGalleryCategory:
       $ref: "./schemas/prompts.yaml#/PromptGalleryCategory"
     PromptGalleryListResponse:
@@ -241,14 +247,14 @@ components:
     # Import embedding provider schemas
     EmbeddingProvider:
       $ref: "./schemas/embedding-providers.yaml#/EmbeddingProvider"
+    EmbeddingProviderArrayResponse:
+      $ref: "./schemas/embedding-providers.yaml#/EmbeddingProviderArrayResponse"
     EmbeddingProviderResponse:
       $ref: "./schemas/embedding-providers.yaml#/EmbeddingProviderResponse"
     CreateEmbeddingProviderRequest:
       $ref: "./schemas/embedding-providers.yaml#/CreateEmbeddingProviderRequest"
     UpdateEmbeddingProviderRequest:
       $ref: "./schemas/embedding-providers.yaml#/UpdateEmbeddingProviderRequest"
-    EmbeddingProviderListResponse:
-      $ref: "./schemas/embedding-providers.yaml#/EmbeddingProviderListResponse"
     ValidateEmbeddingProviderRequest:
       $ref: "./schemas/embedding-providers.yaml#/ValidateEmbeddingProviderRequest"
     ValidateEmbeddingProviderResponse:
@@ -354,6 +360,8 @@ components:
       $ref: "./schemas/feeds.yaml#/FeedItemListResponse"
 
     # Import project schemas
+    GitHubImportProjectResultResponse:
+      $ref: "./schemas/github.yaml#/GitHubImportProjectResultResponse"
     Project:
       $ref: "./schemas/projects.yaml#/Project"
     CreateProjectRequest:
@@ -608,6 +616,8 @@ components:
       $ref: "./schemas/agents.yaml#/ExecuteAgentRequest"
     AgentExecutionListResponse:
       $ref: "./schemas/agents.yaml#/AgentExecutionListResponse"
+    AgentExecutionEventsResponse:
+      $ref: "./schemas/agents.yaml#/AgentExecutionEventsResponse"
     AgentExecutionEventsPollResponse:
       $ref: "./schemas/agents.yaml#/AgentExecutionEventsPollResponse"
     AgentExecutionEventsPageResponse:

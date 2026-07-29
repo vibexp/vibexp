@@ -698,3 +698,12 @@ ConversationExecutionsResponse:
     - has_more
     - total_count
     - count
+
+# One named wrapper for the GET execution-events 200 response so paths/agents.yaml
+# can use a direct $ref. An inline oneOf in a path file breaks
+# pb33f/libopenapi-validator v0.14.0's response-schema compile
+# (pb33f/libopenapi-validator#314).
+AgentExecutionEventsResponse:
+  oneOf:
+    - $ref: '#/AgentExecutionEventsPollResponse'
+    - $ref: '#/AgentExecutionEventsPageResponse'

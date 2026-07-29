@@ -292,34 +292,13 @@ api-v1-team_id-integrations-github-repositories-repo_id-import-project:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                project:
-                  $ref: '../openapi.yaml#/components/schemas/Project'
-                created:
-                  type: boolean
-                  example: false
-                message:
-                  type: string
-                  example: "Project already exists for this repository"
-              required:
-                - project
-                - created
+              $ref: '../openapi.yaml#/components/schemas/GitHubImportProjectResultResponse'
       '201':
         description: Project created successfully from the GitHub repository
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                project:
-                  $ref: '../openapi.yaml#/components/schemas/Project'
-                created:
-                  type: boolean
-                  example: true
-              required:
-                - project
-                - created
+              $ref: '../openapi.yaml#/components/schemas/GitHubImportProjectResultResponse'
       '400':
         description: Invalid repository ID
         content:

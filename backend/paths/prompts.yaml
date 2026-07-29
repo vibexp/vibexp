@@ -136,15 +136,9 @@ api-v1-team_id-prompts:
           application/json:
             schema:
               # The handler wraps the list in the legacy success envelope
-              # (writeOK with {status, message, data}); document the wire shape.
-              allOf:
-                - $ref: '../openapi.yaml#/components/schemas/SuccessResponse'
-                - type: object
-                  properties:
-                    data:
-                      $ref: '../openapi.yaml#/components/schemas/PromptListResponse'
-                  required:
-                    - data
+              # (writeOK with {status, message, data}); the named envelope
+              # component documents the wire shape.
+              $ref: '../openapi.yaml#/components/schemas/PromptListEnvelope'
       '401':
         description: Unauthorized
         content:
@@ -181,23 +175,9 @@ api-v1-team_id-prompts-labels:
           application/json:
             schema:
               # The handler wraps the labels in the legacy success envelope
-              # (writeOK with {status, message, data}); document the wire shape.
-              allOf:
-                - $ref: '../openapi.yaml#/components/schemas/SuccessResponse'
-                - type: object
-                  properties:
-                    data:
-                      type: object
-                      properties:
-                        labels:
-                          type: array
-                          items:
-                            type: string
-                          example: ["code-review", "documentation", "testing"]
-                      required:
-                        - labels
-                  required:
-                    - data
+              # (writeOK with {status, message, data}); the named envelope
+              # component documents the wire shape.
+              $ref: '../openapi.yaml#/components/schemas/PromptLabelsEnvelope'
       '401':
         description: Unauthorized
         content:
@@ -686,9 +666,7 @@ api-v1-prompt-gallery-categories:
         content:
           application/json:
             schema:
-              type: array
-              items:
-                $ref: '../openapi.yaml#/components/schemas/PromptGalleryCategory'
+              $ref: '../openapi.yaml#/components/schemas/PromptGalleryCategoryList'
       '401':
         description: Unauthorized
         content:
