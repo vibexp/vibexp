@@ -11,29 +11,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMigration018_RemoveWebPushPreferencesKeys verifies migration 018 (issue
-// #690) against a real Postgres, on its OWN scratch database.
+// TestMigration011_RemoveWebPushPreferencesKeys verifies the
+// remove-web-push-preferences-keys block of migration 011_consolidated (issue
+// #690; originally migration 018) against a real Postgres, on its OWN scratch
+// database.
 //
-// Like the 015–017 migration tests it avoids the shared `integrationDB`: this
-// test must observe the pre-018 state, seed rows carrying the stale JSONB keys
-// the migration has to strip, and only then apply 018.
+// Like the other migration-011 block tests it avoids the shared `integrationDB`:
+// this test must observe the pre-migration (v0.8.0, version 010) state, seed rows
+// carrying the stale JSONB keys the migration has to strip, and only then apply 011.
 //
 // The load-bearing property is not "web_push is gone" — that is trivially true
 // if the seed silently failed. It is that the SURVIVING keys (in_app, email,
 // per-type values, sibling preference categories) are byte-identical
 // afterwards, so the strip cannot have taken live preferences with it.
-func TestMigration018_RemoveWebPushPreferencesKeys(t *testing.T) {
+func TestMigration011_RemoveWebPushPreferencesKeys(t *testing.T) {
 	db, cleanup := newScratchMigrationDB(t)
 	defer cleanup()
 
 	m := newMigrator(t, db)
 
 	// 1. Bring the schema to the version immediately BEFORE this migration.
-	require.NoError(t, m.Migrate(17), "migrate to 017")
+	require.NoError(t, m.Migrate(10), "migrate to 010")
 
 	// 2. Seed the pre-migration state: one row with web_push at both shapes
 	// (channels + per-type), one row without any web_push key.
-	withKeysID, withoutKeysID := seedMigration018Fixtures(t, db)
+	withKeysID, withoutKeysID := seedWebPushPreferencesFixtures(t, db)
 
 	// Sanity-check the fixtures really are in the pre-migration shape, so a
 	// silently failed seed cannot make the post-migration assertions pass
@@ -48,8 +50,8 @@ func TestMigration018_RemoveWebPushPreferencesKeys(t *testing.T) {
 	require.False(t, jsonbKeyExists(t, db, withoutKeysID, "{notifications,channels}", "web_push"),
 		"fixture: the clean row must NOT carry web_push before migrating")
 
-	// 3. Apply migration 018.
-	require.NoError(t, m.Migrate(18), "migrate to 018")
+	// 3. Apply migration 011.
+	require.NoError(t, m.Migrate(11), "migrate to 011")
 
 	t.Run("web_push keys are stripped at both shapes", func(t *testing.T) {
 		assert.False(t, jsonbKeyExists(t, db, withKeysID, "{notifications,channels}", "web_push"),
@@ -87,21 +89,22 @@ func TestMigration018_RemoveWebPushPreferencesKeys(t *testing.T) {
 			"a row that never carried web_push must not be rewritten")
 	})
 
-	// 4. Down is a documented no-op; the cycle must land on the post-018 state.
+	// 4. This block's down is a documented no-op; the cycle must land on the
+	// post-migration state.
 	t.Run("down is a no-op and up re-applies cleanly", func(t *testing.T) {
-		require.NoError(t, m.Migrate(17), "migrate down to 017")
+		require.NoError(t, m.Migrate(10), "migrate down to 010")
 		assert.False(t, jsonbKeyExists(t, db, withKeysID, "{notifications,channels}", "web_push"),
 			"down must not resurrect web_push keys")
 
-		require.NoError(t, m.Migrate(18), "re-apply 018 after rolling back")
+		require.NoError(t, m.Migrate(11), "re-apply 011 after rolling back")
 		assert.False(t, jsonbKeyExists(t, db, withKeysID, "{notifications,channels}", "web_push"))
 	})
 }
 
-// seedMigration018Fixtures inserts two users with preferences rows: one
+// seedWebPushPreferencesFixtures inserts two users with preferences rows: one
 // carrying web_push at both shapes (channels and per-type) plus sibling
 // categories, one with no web_push key at all. Returns their user ids.
-func seedMigration018Fixtures(t *testing.T, db *sql.DB) (withKeys, withoutKeys string) {
+func seedWebPushPreferencesFixtures(t *testing.T, db *sql.DB) (withKeys, withoutKeys string) {
 	t.Helper()
 
 	withKeys = uuid.New().String()
