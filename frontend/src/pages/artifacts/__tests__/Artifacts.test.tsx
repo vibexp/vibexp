@@ -1,11 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { Project } from '@/services/projectService'
 
 // Mock Radix Select — it can loop in JSDOM (same approach as Feeds.test.tsx)
-jest.mock('@/components/ui/select', () => ({
+vi.mock('@/components/ui/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="select">{children}</div>
   ),
@@ -27,26 +28,26 @@ jest.mock('@/components/ui/select', () => ({
   }) => <div data-value={value}>{children}</div>,
 }))
 
-jest.mock('@/services/artifactService', () => ({
+vi.mock('@/services/artifactService', () => ({
   artifactService: {
-    getArtifacts: jest.fn(),
-    deleteArtifact: jest.fn(),
+    getArtifacts: vi.fn(),
+    deleteArtifact: vi.fn(),
   },
 }))
 
-jest.mock('@/hooks/useTypes', () => ({
+vi.mock('@/hooks/useTypes', () => ({
   useTypes: () => ({ types: [], loading: false }),
 }))
 
 // Only the catalog client is mocked; parseMetadataFilter/serializeMetadataFilter
 // stay real, since the URL round-trip is exactly what these tests assert.
-jest.mock('@/services/metadataService', () => {
-  const actual = jest.requireActual<
+vi.mock('@/services/metadataService', async () => {
+  const actual = await vi.importActual<
     typeof import('@/services/metadataService')
   >('@/services/metadataService')
   return {
     ...actual,
-    metadataService: { listKeys: jest.fn(), listValues: jest.fn() },
+    metadataService: { listKeys: vi.fn(), listValues: vi.fn() },
   }
 })
 
@@ -58,18 +59,18 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 // Mock TeamContext — stable references
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
-jest.mock('@/contexts/TeamContext', () => {
+vi.mock('@/contexts/TeamContext', () => {
   const currentTeam = { id: 'team-1', name: 'Test Team' }
   return {
     useTeam: () => ({ currentTeam, teams: [currentTeam], isLoading: false }),
@@ -79,29 +80,29 @@ jest.mock('@/contexts/TeamContext', () => {
 // Mock ProjectContext — mutable so tests choose the global selection
 const projectContextValue: {
   currentProject: Project | null
-  setCurrentProject: jest.Mock
+  setCurrentProject: Mock
   isLoading: boolean
 } = {
   currentProject: null,
-  setCurrentProject: jest.fn(),
+  setCurrentProject: vi.fn(),
   isLoading: false,
 }
-jest.mock('@/contexts/ProjectContext', () => ({
+vi.mock('@/contexts/ProjectContext', () => ({
   useProject: () => projectContextValue,
 }))
 
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
+  const trackEvent = vi.fn()
   return {
     useAlerts: () => ({ showSuccess, showError }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return {
     useErrorHandler: () => ({ handleError }),
   }
@@ -146,7 +147,7 @@ function LocationProbe() {
 
 /** The filter object of the most recent getArtifacts call. */
 const lastQuery = () => {
-  const { calls } = (artifactService.getArtifacts as jest.Mock).mock
+  const { calls } = (artifactService.getArtifacts as Mock).mock
   return calls[calls.length - 1][1] as Record<string, unknown>
 }
 
@@ -166,17 +167,15 @@ function renderArtifacts(initialEntry = '/artifacts') {
 
 describe('Artifacts page — global project filter', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     projectContextValue.currentProject = null
     projectContextValue.isLoading = false
-    ;(artifactService.getArtifacts as jest.Mock).mockResolvedValue(
-      emptyResponse
-    )
-    ;(metadataService.listKeys as jest.Mock).mockResolvedValue({
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue(emptyResponse)
+    ;(metadataService.listKeys as Mock).mockResolvedValue({
       keys: ['env', 'team'],
       truncated: false,
     })
-    ;(metadataService.listValues as jest.Mock).mockResolvedValue({
+    ;(metadataService.listValues as Mock).mockResolvedValue({
       values: ['prod', 'staging'],
       truncated: false,
     })
@@ -250,17 +249,15 @@ describe('Artifacts page — global project filter', () => {
 
 describe('Artifacts page — URL-synced filters (#523)', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     projectContextValue.currentProject = null
     projectContextValue.isLoading = false
-    ;(artifactService.getArtifacts as jest.Mock).mockResolvedValue(
-      emptyResponse
-    )
-    ;(metadataService.listKeys as jest.Mock).mockResolvedValue({
+    ;(artifactService.getArtifacts as Mock).mockResolvedValue(emptyResponse)
+    ;(metadataService.listKeys as Mock).mockResolvedValue({
       keys: ['env', 'team'],
       truncated: false,
     })
-    ;(metadataService.listValues as jest.Mock).mockResolvedValue({
+    ;(metadataService.listValues as Mock).mockResolvedValue({
       values: ['prod', 'staging'],
       truncated: false,
     })
@@ -380,7 +377,7 @@ describe('Artifacts page — URL-synced filters (#523)', () => {
     await waitFor(() => {
       expect(artifactService.getArtifacts).toHaveBeenCalled()
     })
-    const before = (artifactService.getArtifacts as jest.Mock).mock.calls.length
+    const before = (artifactService.getArtifacts as Mock).mock.calls.length
 
     const user = userEvent.setup()
     await user.type(
@@ -394,7 +391,7 @@ describe('Artifacts page — URL-synced filters (#523)', () => {
       },
       { timeout: 2000 }
     )
-    expect((artifactService.getArtifacts as jest.Mock).mock.calls.length).toBe(
+    expect((artifactService.getArtifacts as Mock).mock.calls.length).toBe(
       before + 1
     )
     expect(currentSearch).toContain('search=api')

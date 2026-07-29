@@ -5,12 +5,12 @@ import { MemoryRouter } from 'react-router-dom'
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockNavigate = jest.fn()
+const mockNavigate = vi.hoisted(() => vi.fn())
 let mockPathname = '/'
 
-jest.mock('react-router-dom', () => {
+vi.mock('react-router-dom', async () => {
   const actual =
-    jest.requireActual<typeof import('react-router-dom')>('react-router-dom')
+    await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -26,7 +26,7 @@ jest.mock('react-router-dom', () => {
 
 const sessionState = new Map<string, string>()
 
-jest.mock('@/utils/storage', () => ({
+vi.mock('@/utils/storage', () => ({
   sessionStore: {
     get: (key: string) => sessionState.get(key) ?? null,
     remove: (key: string) => {
@@ -50,7 +50,7 @@ const renderHere = () =>
 
 describe('InvitationResumeAfterAuth', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     sessionState.clear()
     mockPathname = '/'
   })

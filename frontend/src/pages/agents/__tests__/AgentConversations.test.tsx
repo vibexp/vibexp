@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type {
   Agent,
@@ -8,43 +9,20 @@ import type {
   ConversationSummary,
 } from '@/services/agentService'
 
-// The shared lucide mock (tests/mocks/lucide-react.tsx) lists icons explicitly
-// and misses some used here — serve any icon via a Proxy instead (same trick
-// as PromptEditor.test.tsx).
-jest.mock(
-  'lucide-react',
-  () =>
-    new Proxy(
-      {},
-      {
-        get: (_target, name) => {
-          if (name === '__esModule') return true
-          const Icon = (props: object) => (
-            <svg
-              data-testid={`${String(name).toLowerCase()}-icon`}
-              {...props}
-            />
-          )
-          return Icon
-        },
-      }
-    )
-)
-
 // Pagination buttons call window.scrollTo, which jsdom does not implement.
 beforeAll(() => {
-  window.scrollTo = jest.fn()
+  window.scrollTo = vi.fn()
 })
 
-jest.mock('@/services/agentService', () => ({
+vi.mock('@/services/agentService', () => ({
   agentService: {
-    getAgent: jest.fn(),
-    listAgentConversations: jest.fn(),
+    getAgent: vi.fn(),
+    listAgentConversations: vi.fn(),
   },
 }))
 
-jest.mock('@/lib/toast', () => ({
-  toast: { error: jest.fn(), success: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }))
 
 const mockTeamState: {
@@ -54,13 +32,13 @@ const mockTeamState: {
   currentTeam: { id: 'team-1', name: 'Test Team', permissions: [] },
   isLoading: false,
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockTeamState.currentTeam,
     teams: mockTeamState.currentTeam ? [mockTeamState.currentTeam] : [],
     isLoading: mockTeamState.isLoading,
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn() as () => Promise<void>,
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn() as () => Promise<void>,
   }),
 }))
 
@@ -146,21 +124,21 @@ function renderConversations() {
 
 describe('AgentConversations page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockTeamState.currentTeam = {
       id: 'team-1',
       name: 'Test Team',
       permissions: [],
     }
-    ;(agentService.getAgent as jest.Mock).mockResolvedValue(buildAgent())
-    ;(agentService.listAgentConversations as jest.Mock).mockResolvedValue(
+    ;(agentService.getAgent as Mock).mockResolvedValue(buildAgent())
+    ;(agentService.listAgentConversations as Mock).mockResolvedValue(
       buildListResponse([])
     )
   })
 
   describe('agent loading', () => {
     it('shows the loading skeleton while getAgent is in flight', () => {
-      ;(agentService.getAgent as jest.Mock).mockImplementation(
+      ;(agentService.getAgent as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -170,7 +148,7 @@ describe('AgentConversations page', () => {
     })
 
     it('shows the not-found alert when getAgent fails, with a way back', async () => {
-      ;(agentService.getAgent as jest.Mock).mockRejectedValue(
+      ;(agentService.getAgent as Mock).mockRejectedValue(
         new Error('agent exploded')
       )
 
@@ -213,7 +191,7 @@ describe('AgentConversations page', () => {
 
   describe('conversation list', () => {
     it('renders the conversations returned by the service', async () => {
-      ;(agentService.listAgentConversations as jest.Mock).mockResolvedValue(
+      ;(agentService.listAgentConversations as Mock).mockResolvedValue(
         buildListResponse([
           buildConversation(),
           buildConversation({
@@ -252,7 +230,7 @@ describe('AgentConversations page', () => {
     })
 
     it('falls back to an untitled label when the first message is empty', async () => {
-      ;(agentService.listAgentConversations as jest.Mock).mockResolvedValue(
+      ;(agentService.listAgentConversations as Mock).mockResolvedValue(
         buildListResponse([buildConversation({ first_message: '' })])
       )
 
@@ -264,7 +242,7 @@ describe('AgentConversations page', () => {
     })
 
     it('truncates a long first message', async () => {
-      ;(agentService.listAgentConversations as jest.Mock).mockResolvedValue(
+      ;(agentService.listAgentConversations as Mock).mockResolvedValue(
         buildListResponse([
           buildConversation({ first_message: 'x'.repeat(150) }),
         ])
@@ -276,7 +254,7 @@ describe('AgentConversations page', () => {
     })
 
     it('renders in-progress and unknown statuses as badges too', async () => {
-      ;(agentService.listAgentConversations as jest.Mock).mockResolvedValue(
+      ;(agentService.listAgentConversations as Mock).mockResolvedValue(
         buildListResponse([
           buildConversation({
             conversation_id: 'conv-running',
@@ -318,7 +296,7 @@ describe('AgentConversations page', () => {
     })
 
     it('shows the error alert with a retry that re-fetches', async () => {
-      ;(agentService.listAgentConversations as jest.Mock)
+      ;(agentService.listAgentConversations as Mock)
         .mockRejectedValueOnce(new Error('server down'))
         .mockResolvedValue(buildListResponse([buildConversation()]))
 
@@ -344,7 +322,7 @@ describe('AgentConversations page', () => {
 
   describe('navigation to chat', () => {
     it('resumes a conversation with its id in the query string', async () => {
-      ;(agentService.listAgentConversations as jest.Mock).mockResolvedValue(
+      ;(agentService.listAgentConversations as Mock).mockResolvedValue(
         buildListResponse([buildConversation({ conversation_id: 'conv-42' })])
       )
 
@@ -374,7 +352,7 @@ describe('AgentConversations page', () => {
 
   describe('pagination', () => {
     it('pages through results and disables the boundary buttons', async () => {
-      ;(agentService.listAgentConversations as jest.Mock).mockImplementation(
+      ;(agentService.listAgentConversations as Mock).mockImplementation(
         (
           _teamId: string,
           _agentId: string,

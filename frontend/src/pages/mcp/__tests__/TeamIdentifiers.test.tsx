@@ -5,7 +5,7 @@ import type { Team } from '@/services/teamService'
 import { TeamIdentifiers } from '../TeamIdentifiers'
 
 // Mock clipboard API. CopyButton calls navigator.clipboard.writeText directly.
-const writeText = jest.fn().mockResolvedValue(undefined)
+const writeText = vi.fn().mockResolvedValue(undefined)
 Object.assign(navigator, { clipboard: { writeText } })
 
 function makeTeam(overrides: Partial<Team> = {}): Team {

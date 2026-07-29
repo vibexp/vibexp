@@ -1,32 +1,33 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type {
   SearchResultItem,
   SearchResultsResponse,
 } from '@/services/searchService'
 
-const mockUseTeam = jest.fn()
-jest.mock('@/contexts/TeamContext', () => ({
+const mockUseTeam = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
 // A stable handleError identity across renders mirrors the real hook
 // (its returned callback is memoized with useCallback). Returning a fresh
-// jest.fn() per render would change the identity every render and re-run the
+// vi.fn() per render would change the identity every render and re-run the
 // fetch effect indefinitely.
-const mockHandleError = jest.fn()
-jest.mock('@/hooks/useErrorHandler', () => ({
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
-jest.mock('@/services/searchService', () => ({
-  searchService: { search: jest.fn() },
+vi.mock('@/services/searchService', () => ({
+  searchService: { search: vi.fn() },
 }))
 
-jest.mock('@/services/projectService', () => ({
-  projectService: { getProjects: jest.fn() },
+vi.mock('@/services/projectService', () => ({
+  projectService: { getProjects: vi.fn() },
 }))
 
 import { projectService } from '@/services/projectService'
@@ -34,8 +35,8 @@ import { searchService } from '@/services/searchService'
 
 import { Search } from '../Search'
 
-const mockSearch = searchService.search as jest.Mock
-const mockGetProjects = projectService.getProjects as jest.Mock
+const mockSearch = searchService.search as Mock
+const mockGetProjects = projectService.getProjects as Mock
 
 function makeItem(overrides: Partial<SearchResultItem>): SearchResultItem {
   return {
@@ -73,13 +74,13 @@ function renderSearch(initialEntry: string) {
 
 describe('Search page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockUseTeam.mockReturnValue({
       currentTeam: { id: 'team-1', name: 'Test Team' },
       teams: [{ id: 'team-1', name: 'Test Team' }],
       isLoading: false,
-      setCurrentTeam: jest.fn(),
-      refreshTeams: jest.fn() as () => Promise<void>,
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn() as () => Promise<void>,
     })
     mockGetProjects.mockResolvedValue({
       projects: [
@@ -290,8 +291,8 @@ describe('Search page', () => {
       currentTeam: null,
       teams: [],
       isLoading: false,
-      setCurrentTeam: jest.fn(),
-      refreshTeams: jest.fn() as () => Promise<void>,
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn() as () => Promise<void>,
     })
 
     const { container } = renderSearch('/search?q=foo')

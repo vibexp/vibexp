@@ -41,9 +41,9 @@ const emptySelection: ResourceSelections = {
 
 function renderStep(
   selectedResources: ResourceSelections = emptySelection,
-  onResourcesChange = jest.fn(),
-  onBack = jest.fn(),
-  onNext = jest.fn()
+  onResourcesChange = vi.fn(),
+  onBack = vi.fn(),
+  onNext = vi.fn()
 ) {
   return render(
     <SelectResourcesStep
@@ -122,8 +122,8 @@ describe('SelectResourcesStep', () => {
   })
 
   it('calls onBack when Back button is clicked', () => {
-    const onBack = jest.fn()
-    renderStep(emptySelection, jest.fn(), onBack)
+    const onBack = vi.fn()
+    renderStep(emptySelection, vi.fn(), onBack)
 
     fireEvent.click(screen.getByRole('button', { name: /back/i }))
 
@@ -131,11 +131,11 @@ describe('SelectResourcesStep', () => {
   })
 
   it('calls onNext when Next button is clicked with selection', () => {
-    const onNext = jest.fn()
+    const onNext = vi.fn()
     renderStep(
       { ...emptySelection, prompts: { all: false, ids: ['p1'] } },
-      jest.fn(),
-      jest.fn(),
+      vi.fn(),
+      vi.fn(),
       onNext
     )
 

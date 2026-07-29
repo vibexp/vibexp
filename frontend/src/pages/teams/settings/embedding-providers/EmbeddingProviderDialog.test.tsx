@@ -1,29 +1,30 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { MockedFunction } from 'vitest'
 
 import { toast } from '@/lib/toast'
 import { embeddingProviderService } from '@/services/embeddingProviderService'
 
 import { EmbeddingProviderDialog } from './EmbeddingProviderDialog'
 
-jest.mock('@/services/embeddingProviderService', () => ({
+vi.mock('@/services/embeddingProviderService', async () => ({
   // Keep EMBEDDING_VECTOR_DIMENSIONS (and any other exports) real; only the
   // service singleton is mocked so validate-on-save can be asserted.
-  ...jest.requireActual('@/services/embeddingProviderService'),
+  ...(await vi.importActual('@/services/embeddingProviderService')),
   embeddingProviderService: {
-    validateEmbeddingProvider: jest.fn(),
+    validateEmbeddingProvider: vi.fn(),
   },
 }))
 
-jest.mock('@/lib/toast', () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
 
 const mockedValidate =
-  embeddingProviderService.validateEmbeddingProvider as jest.MockedFunction<
+  embeddingProviderService.validateEmbeddingProvider as MockedFunction<
     typeof embeddingProviderService.validateEmbeddingProvider
   >
-const mockedToastError = toast.error as jest.MockedFunction<typeof toast.error>
+const mockedToastError = toast.error as MockedFunction<typeof toast.error>
 
 const fillValidForm = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(
@@ -41,13 +42,13 @@ const fillValidForm = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(screen.getByPlaceholderText('Enter API key'), 'sk-test')
 }
 
-const renderDialog = (onSubmit = jest.fn().mockResolvedValue(undefined)) => {
+const renderDialog = (onSubmit = vi.fn().mockResolvedValue(undefined)) => {
   render(
     <EmbeddingProviderDialog
       teamId="team-1"
       teamName="Team"
       open
-      onOpenChange={jest.fn()}
+      onOpenChange={vi.fn()}
       submitting={false}
       onSubmit={onSubmit}
     />
@@ -56,7 +57,7 @@ const renderDialog = (onSubmit = jest.fn().mockResolvedValue(undefined)) => {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 describe('EmbeddingProviderDialog', () => {
@@ -157,10 +158,10 @@ describe('EmbeddingProviderDialog', () => {
         teamId="team-1"
         teamName="Team"
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         submitting={false}
         provider={existingProvider}
-        onSubmit={jest.fn()}
+        onSubmit={vi.fn()}
       />
     )
     expect(screen.getByLabelText('Concurrency')).toHaveValue(5)
@@ -168,13 +169,13 @@ describe('EmbeddingProviderDialog', () => {
 
   it('skips validation on a name-only edit (identity unchanged)', async () => {
     const user = userEvent.setup()
-    const onSubmit = jest.fn().mockResolvedValue(undefined)
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <EmbeddingProviderDialog
         teamId="team-1"
         teamName="Team"
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         submitting={false}
         provider={existingProvider}
         onSubmit={onSubmit}
@@ -195,13 +196,13 @@ describe('EmbeddingProviderDialog', () => {
   it('confirms re-embed, then validates, when the model changes on edit', async () => {
     const user = userEvent.setup()
     mockedValidate.mockResolvedValue({ is_valid: true, message: 'ok' })
-    const onSubmit = jest.fn().mockResolvedValue(undefined)
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <EmbeddingProviderDialog
         teamId="team-1"
         teamName="Team"
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         submitting={false}
         provider={existingProvider}
         onSubmit={onSubmit}
@@ -257,13 +258,13 @@ describe('EmbeddingProviderDialog', () => {
 
   it('confirms re-embed and skips validation on a document-prefix-only edit', async () => {
     const user = userEvent.setup()
-    const onSubmit = jest.fn().mockResolvedValue(undefined)
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <EmbeddingProviderDialog
         teamId="team-1"
         teamName="Team"
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         submitting={false}
         provider={existingProvider}
         onSubmit={onSubmit}
@@ -291,13 +292,13 @@ describe('EmbeddingProviderDialog', () => {
 
   it('does not re-embed for a query-prefix-only edit and submits directly', async () => {
     const user = userEvent.setup()
-    const onSubmit = jest.fn().mockResolvedValue(undefined)
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(
       <EmbeddingProviderDialog
         teamId="team-1"
         teamName="Team"
         open
-        onOpenChange={jest.fn()}
+        onOpenChange={vi.fn()}
         submitting={false}
         provider={existingProvider}
         onSubmit={onSubmit}

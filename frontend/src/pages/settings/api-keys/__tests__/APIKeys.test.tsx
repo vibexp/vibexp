@@ -1,21 +1,22 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { APIKey } from '@/services/apiKeyService'
 
-jest.mock('@/services/apiKeyService', () => ({
+vi.mock('@/services/apiKeyService', () => ({
   apiKeyService: {
-    getAPIKeys: jest.fn(),
-    createAPIKey: jest.fn(),
-    deleteAPIKey: jest.fn(),
+    getAPIKeys: vi.fn(),
+    createAPIKey: vi.fn(),
+    deleteAPIKey: vi.fn(),
   },
 }))
 
-jest.mock('@/hooks', () => {
-  const trackEvent = jest.fn()
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
+vi.mock('@/hooks', () => {
+  const trackEvent = vi.fn()
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
   return {
     useAnalytics: () => ({ trackEvent }),
     useAlerts: () => ({ showSuccess, showError }),
@@ -24,20 +25,20 @@ jest.mock('@/hooks', () => {
 
 // handleError's return value feeds Object.entries() in the create flow, so the
 // mock must return an object (field → message map) by default.
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn(() => ({}))
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn(() => ({}))
   return {
     useErrorHandler: () => ({ handleError }),
   }
 })
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    warning: jest.fn(),
-    message: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
   },
 }))
 
@@ -74,20 +75,20 @@ function renderAPIKeys() {
 
 beforeAll(() => {
   Object.defineProperty(navigator, 'clipboard', {
-    value: { writeText: jest.fn().mockResolvedValue(undefined) },
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
     configurable: true,
   })
 })
 
 beforeEach(() => {
-  jest.clearAllMocks()
-  ;(apiKeyService.getAPIKeys as jest.Mock).mockResolvedValue([])
+  vi.clearAllMocks()
+  ;(apiKeyService.getAPIKeys as Mock).mockResolvedValue([])
 })
 
 describe('APIKeys page — list rendering', () => {
   it('shows the loading skeleton while keys are loading, then the list', async () => {
     let resolveKeys: (keys: APIKey[]) => void = () => {}
-    ;(apiKeyService.getAPIKeys as jest.Mock).mockReturnValue(
+    ;(apiKeyService.getAPIKeys as Mock).mockReturnValue(
       new Promise<APIKey[]>(resolve => {
         resolveKeys = resolve
       })
@@ -105,7 +106,7 @@ describe('APIKeys page — list rendering', () => {
   })
 
   it('renders rows with masked key, integration badges, and dates', async () => {
-    ;(apiKeyService.getAPIKeys as jest.Mock).mockResolvedValue([
+    ;(apiKeyService.getAPIKeys as Mock).mockResolvedValue([
       buildKey(),
       buildKey({
         id: 'key-2',
@@ -156,9 +157,7 @@ describe('APIKeys page — list rendering', () => {
   })
 
   it('reports a load failure and falls back to the empty list', async () => {
-    ;(apiKeyService.getAPIKeys as jest.Mock).mockRejectedValue(
-      new Error('boom')
-    )
+    ;(apiKeyService.getAPIKeys as Mock).mockRejectedValue(new Error('boom'))
 
     renderAPIKeys()
 
@@ -209,12 +208,12 @@ describe('APIKeys page — create flow and show-once secret', () => {
 
   it('creates the key with the typed name and selected integrations, then shows the secret exactly once', async () => {
     const created = buildKey({ id: 'key-new', key_prefix: 'vxk_new123' })
-    ;(apiKeyService.createAPIKey as jest.Mock).mockResolvedValue({
+    ;(apiKeyService.createAPIKey as Mock).mockResolvedValue({
       api_key: created,
       full_key: 'vxk_new123_full_secret_value',
       key_prefix: 'vxk_new123',
     })
-    ;(apiKeyService.getAPIKeys as jest.Mock)
+    ;(apiKeyService.getAPIKeys as Mock)
       .mockResolvedValueOnce([])
       .mockResolvedValue([created])
 
@@ -259,7 +258,7 @@ describe('APIKeys page — create flow and show-once secret', () => {
   })
 
   it('copies the freshly created secret to the clipboard', async () => {
-    ;(apiKeyService.createAPIKey as jest.Mock).mockResolvedValue({
+    ;(apiKeyService.createAPIKey as Mock).mockResolvedValue({
       api_key: buildKey({ id: 'key-new' }),
       full_key: 'vxk_copy_me_secret',
       key_prefix: 'vxk_copy',
@@ -274,14 +273,14 @@ describe('APIKeys page — create flow and show-once secret', () => {
 
     await screen.findByTestId('created-api-key-card')
     // userEvent.setup() installs its own clipboard stub — spy on that.
-    const writeText = jest.spyOn(navigator.clipboard, 'writeText')
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText')
     await user.click(screen.getByTestId('copy-api-key-button'))
 
     expect(writeText).toHaveBeenCalledWith('vxk_copy_me_secret')
   })
 
   it('dismissing the secret card removes the full key from the page for good', async () => {
-    ;(apiKeyService.createAPIKey as jest.Mock).mockResolvedValue({
+    ;(apiKeyService.createAPIKey as Mock).mockResolvedValue({
       api_key: buildKey({ id: 'key-new' }),
       full_key: 'vxk_gone_after_close',
       key_prefix: 'vxk_gone',
@@ -302,10 +301,10 @@ describe('APIKeys page — create flow and show-once secret', () => {
   })
 
   it('maps a create failure back onto the form fields and keeps the dialog open', async () => {
-    ;(apiKeyService.createAPIKey as jest.Mock).mockRejectedValue(
+    ;(apiKeyService.createAPIKey as Mock).mockRejectedValue(
       new Error('conflict')
     )
-    ;(handleError as jest.Mock).mockReturnValueOnce({
+    ;(handleError as Mock).mockReturnValueOnce({
       name: 'An API key with this name already exists',
     })
 
@@ -333,8 +332,8 @@ describe('APIKeys page — create flow and show-once secret', () => {
 
 describe('APIKeys page — delete flow', () => {
   it('confirms and deletes via the service, then re-fetches and toasts', async () => {
-    ;(apiKeyService.getAPIKeys as jest.Mock).mockResolvedValue([buildKey()])
-    ;(apiKeyService.deleteAPIKey as jest.Mock).mockResolvedValue(undefined)
+    ;(apiKeyService.getAPIKeys as Mock).mockResolvedValue([buildKey()])
+    ;(apiKeyService.deleteAPIKey as Mock).mockResolvedValue(undefined)
 
     renderAPIKeys()
 
@@ -344,8 +343,7 @@ describe('APIKeys page — delete flow', () => {
     const dialog = await screen.findByRole('alertdialog')
     expect(within(dialog).getByText('Delete API key?')).toBeInTheDocument()
 
-    const fetchesBefore = (apiKeyService.getAPIKeys as jest.Mock).mock.calls
-      .length
+    const fetchesBefore = (apiKeyService.getAPIKeys as Mock).mock.calls.length
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {
@@ -353,14 +351,14 @@ describe('APIKeys page — delete flow', () => {
     })
     await waitFor(() => {
       expect(
-        (apiKeyService.getAPIKeys as jest.Mock).mock.calls.length
+        (apiKeyService.getAPIKeys as Mock).mock.calls.length
       ).toBeGreaterThan(fetchesBefore)
     })
     expect(toast.success).toHaveBeenCalledWith('API key deleted')
   })
 
   it('cancelling the confirmation closes it without deleting', async () => {
-    ;(apiKeyService.getAPIKeys as jest.Mock).mockResolvedValue([buildKey()])
+    ;(apiKeyService.getAPIKeys as Mock).mockResolvedValue([buildKey()])
 
     renderAPIKeys()
 
@@ -376,8 +374,8 @@ describe('APIKeys page — delete flow', () => {
   })
 
   it('reports a delete failure and closes the confirmation', async () => {
-    ;(apiKeyService.getAPIKeys as jest.Mock).mockResolvedValue([buildKey()])
-    ;(apiKeyService.deleteAPIKey as jest.Mock).mockRejectedValue(
+    ;(apiKeyService.getAPIKeys as Mock).mockResolvedValue([buildKey()])
+    ;(apiKeyService.deleteAPIKey as Mock).mockRejectedValue(
       new Error('forbidden')
     )
 

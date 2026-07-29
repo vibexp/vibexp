@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mocked } from 'vitest'
 
 import { toast } from '@/lib/toast'
 import type {
@@ -18,39 +19,39 @@ const urlTeam = { id: 'team-1', name: 'Team' } as unknown as Team
 const renderPage = (team: Team = urlTeam) =>
   render(<EmbeddingProviders team={team} />)
 
-const mockUseTeam = jest.fn()
-jest.mock('@/contexts/TeamContext', () => ({
+const mockUseTeam = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
 // Stable handleError reference (like the real useCallback-backed hook) so
 // loadProviders isn't recreated every render — an unstable one loops the mount
 // effect and remounts the section under test.
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return { useErrorHandler: () => ({ handleError }) }
 })
 
-jest.mock('@/lib/toast', () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
 
-jest.mock('@/services/embeddingProviderService', () => ({
+vi.mock('@/services/embeddingProviderService', async () => ({
   // Keep types + EMBEDDING_VECTOR_DIMENSIONS real; only mock the singleton.
-  ...jest.requireActual('@/services/embeddingProviderService'),
+  ...(await vi.importActual('@/services/embeddingProviderService')),
   embeddingProviderService: {
-    getEmbeddingProviders: jest.fn(),
-    getEmbeddingCoverage: jest.fn(),
-    reprocessEmbeddingProvider: jest.fn(),
-    clearEmbeddings: jest.fn(),
-    validateEmbeddingProvider: jest.fn(),
+    getEmbeddingProviders: vi.fn(),
+    getEmbeddingCoverage: vi.fn(),
+    reprocessEmbeddingProvider: vi.fn(),
+    clearEmbeddings: vi.fn(),
+    validateEmbeddingProvider: vi.fn(),
   },
 }))
 
-const service = embeddingProviderService as jest.Mocked<
+const service = embeddingProviderService as Mocked<
   typeof embeddingProviderService
 >
-const mockedToast = toast as jest.Mocked<typeof toast>
+const mockedToast = toast as Mocked<typeof toast>
 
 const provider: EmbeddingProviderResponse = {
   id: 'provider-1',
@@ -95,7 +96,7 @@ const coverage: EmbeddingCoverageResponse = {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockUseTeam.mockReturnValue({ currentTeam: { id: 'team-1', name: 'Team' } })
   service.getEmbeddingProviders.mockResolvedValue([provider])
   service.getEmbeddingCoverage.mockResolvedValue(coverage)

@@ -1,35 +1,36 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { Project, ProjectStatsResponse } from '@/services/projectService'
 
 // Mock TeamContext — stable references to prevent effect re-runs
-const mockUseTeam = jest.fn()
+const mockUseTeam = vi.hoisted(() => vi.fn())
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProject: jest.fn(),
-    getProjectStats: jest.fn(),
-    deleteProject: jest.fn(),
+    getProject: vi.fn(),
+    getProjectStats: vi.fn(),
+    deleteProject: vi.fn(),
   },
 }))
 
-const mockShowSuccess = jest.fn()
-jest.mock('@/hooks', () => ({
+const mockShowSuccess = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks', () => ({
   useAlerts: () => ({ showSuccess: mockShowSuccess }),
 }))
 
-const mockHandleError = jest.fn()
-jest.mock('@/hooks/useErrorHandler', () => ({
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
@@ -71,16 +72,16 @@ const mockTeam = {
   },
   teams: [{ id: 'team-1', name: 'Test Team' }],
   isLoading: false,
-  setCurrentTeam: jest.fn(),
-  refreshTeams: jest.fn() as () => Promise<void>,
+  setCurrentTeam: vi.fn(),
+  refreshTeams: vi.fn() as () => Promise<void>,
 }
 
 const mockTeamLoading = {
   currentTeam: null,
   teams: [],
   isLoading: true,
-  setCurrentTeam: jest.fn(),
-  refreshTeams: jest.fn() as () => Promise<void>,
+  setCurrentTeam: vi.fn(),
+  refreshTeams: vi.fn() as () => Promise<void>,
 }
 
 function renderProjectDetails(slug = 'my-project') {
@@ -95,7 +96,7 @@ function renderProjectDetails(slug = 'my-project') {
 
 describe('ProjectDetails', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('when TeamContext is still loading', () => {
@@ -112,10 +113,8 @@ describe('ProjectDetails', () => {
   describe('when project loads successfully', () => {
     beforeEach(() => {
       mockUseTeam.mockReturnValue(mockTeam)
-      ;(projectService.getProject as jest.Mock).mockResolvedValue(mockProject)
-      ;(projectService.getProjectStats as jest.Mock).mockResolvedValue(
-        mockStats
-      )
+      ;(projectService.getProject as Mock).mockResolvedValue(mockProject)
+      ;(projectService.getProjectStats as Mock).mockResolvedValue(mockStats)
     })
 
     it.each([
@@ -228,7 +227,7 @@ describe('ProjectDetails', () => {
 
     it('confirms delete and calls deleteProject service', async () => {
       const user = userEvent.setup()
-      ;(projectService.deleteProject as jest.Mock).mockResolvedValue(undefined)
+      ;(projectService.deleteProject as Mock).mockResolvedValue(undefined)
       renderProjectDetails()
 
       await waitFor(() => {
@@ -257,10 +256,10 @@ describe('ProjectDetails', () => {
   describe('when project load fails', () => {
     it('shows error state with message', async () => {
       mockUseTeam.mockReturnValue(mockTeam)
-      ;(projectService.getProject as jest.Mock).mockRejectedValue(
+      ;(projectService.getProject as Mock).mockRejectedValue(
         new Error('Not found')
       )
-      ;(projectService.getProjectStats as jest.Mock).mockRejectedValue(
+      ;(projectService.getProjectStats as Mock).mockRejectedValue(
         new Error('Not found')
       )
 
@@ -273,10 +272,10 @@ describe('ProjectDetails', () => {
 
     it('shows Back to Projects button in error state', async () => {
       mockUseTeam.mockReturnValue(mockTeam)
-      ;(projectService.getProject as jest.Mock).mockRejectedValue(
+      ;(projectService.getProject as Mock).mockRejectedValue(
         new Error('Not found')
       )
-      ;(projectService.getProjectStats as jest.Mock).mockRejectedValue(
+      ;(projectService.getProjectStats as Mock).mockRejectedValue(
         new Error('Not found')
       )
 

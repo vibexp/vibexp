@@ -6,28 +6,28 @@ import { MemoryRouter } from 'react-router-dom'
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockDevLogin = jest.fn()
-const mockHardRedirect = jest.fn()
+const mockDevLogin = vi.hoisted(() => vi.fn())
+const mockHardRedirect = vi.hoisted(() => vi.fn())
 let mockDevLoginEnabled = true
 
-jest.mock('../../services/authService', () => ({
+vi.mock('../../services/authService', () => ({
   authService: {
     devLogin: (...args: unknown[]) => mockDevLogin(...args),
   },
 }))
 
-jest.mock('../../services/environmentService', () => ({
+vi.mock('../../services/environmentService', () => ({
   environmentService: {
     isDevLoginEnabled: () => mockDevLoginEnabled,
   },
 }))
 
-jest.mock('../../utils/navigation', () => ({
+vi.mock('../../utils/navigation', () => ({
   hardRedirect: (...args: unknown[]) => mockHardRedirect(...args),
 }))
 
 // Passthrough mocks for the heavy/radix UI components so the form renders.
-jest.mock('@/components/ui/collapsible', () => ({
+vi.mock('@/components/ui/collapsible', () => ({
   Collapsible: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -39,7 +39,7 @@ jest.mock('@/components/ui/collapsible', () => ({
   ),
 }))
 
-jest.mock('@/components/ui/button', () => ({
+vi.mock('@/components/ui/button', () => ({
   Button: ({
     children,
     ...props
@@ -48,13 +48,13 @@ jest.mock('@/components/ui/button', () => ({
   ),
 }))
 
-jest.mock('@/components/ui/input', () => ({
+vi.mock('@/components/ui/input', () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
     <input {...props} />
   ),
 }))
 
-jest.mock('@/components/ui/label', () => ({
+vi.mock('@/components/ui/label', () => ({
   Label: ({
     children,
     ...props
@@ -63,7 +63,7 @@ jest.mock('@/components/ui/label', () => ({
   ),
 }))
 
-jest.mock('@/lib/utils', () => ({
+vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }))
 
@@ -92,7 +92,7 @@ async function submitWithEmail() {
 
 describe('DevLogin', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockDevLoginEnabled = true
     mockDevLogin.mockResolvedValue({ id: 'u1' })
   })
@@ -135,7 +135,7 @@ describe('DevLogin', () => {
   })
 
   it('surfaces the restriction wording when the allowlist denies the login', async () => {
-    const onError = jest.fn()
+    const onError = vi.fn()
     mockDevLogin.mockRejectedValue(
       new ApiError({
         type: 'https://api.vibexp.io/errors/access-restricted',
@@ -158,7 +158,7 @@ describe('DevLogin', () => {
   })
 
   it('surfaces the backend detail for any other failure', async () => {
-    const onError = jest.fn()
+    const onError = vi.fn()
     mockDevLogin.mockRejectedValue(new Error('dev login is disabled'))
 
     renderDevLogin('/', onError)

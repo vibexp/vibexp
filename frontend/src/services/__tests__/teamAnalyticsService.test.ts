@@ -4,10 +4,10 @@ import type {
   TeamStats,
 } from '../teamService'
 
-const mockGeneratedClient = { GET: jest.fn() }
+const mockGeneratedClient = vi.hoisted(() => ({ GET: vi.fn() }))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return { ...actual, generatedClient: mockGeneratedClient }
@@ -22,7 +22,7 @@ describe('teamService analytics methods', () => {
   const teamId = 'team-123'
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('getTeamStats GETs the bare /stats endpoint and returns the stats object', async () => {

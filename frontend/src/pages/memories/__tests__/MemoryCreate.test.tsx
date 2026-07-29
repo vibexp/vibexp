@@ -1,33 +1,34 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 
-const mockUseTeam = jest.fn()
-jest.mock('@/contexts/TeamContext', () => ({
+const mockUseTeam = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/services/memoryService', () => ({
+vi.mock('@/services/memoryService', () => ({
   memoryService: {
-    createMemory: jest.fn(),
+    createMemory: vi.fn(),
   },
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProjects: jest.fn(),
+    getProjects: vi.fn(),
   },
 }))
 
-jest.mock('@/hooks', () => ({
-  useAlerts: () => ({ showSuccess: jest.fn(), showError: jest.fn() }),
-  useAnalytics: () => ({ trackEvent: jest.fn() }),
+vi.mock('@/hooks', () => ({
+  useAlerts: () => ({ showSuccess: vi.fn(), showError: vi.fn() }),
+  useAnalytics: () => ({ trackEvent: vi.fn() }),
 }))
 
-jest.mock('@/hooks/useErrorHandler', () => ({
-  useErrorHandler: () => ({ handleError: jest.fn() }),
+vi.mock('@/hooks/useErrorHandler', () => ({
+  useErrorHandler: () => ({ handleError: vi.fn() }),
 }))
 
 import { memoryService } from '@/services/memoryService'
@@ -73,18 +74,18 @@ function renderMemoryCreate() {
 
 describe('MemoryCreate', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockUseTeam.mockReturnValue({
       currentTeam: { id: 'team-1', name: 'Test Team' },
       teams: [{ id: 'team-1', name: 'Test Team' }],
       isLoading: false,
-      setCurrentTeam: jest.fn(),
-      refreshTeams: jest.fn() as () => Promise<void>,
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn() as () => Promise<void>,
     })
   })
 
   it('shows loading spinner while projects are being fetched', () => {
-    ;(projectService.getProjects as jest.Mock).mockImplementation(
+    ;(projectService.getProjects as Mock).mockImplementation(
       () => new Promise(() => undefined)
     )
 
@@ -98,7 +99,7 @@ describe('MemoryCreate', () => {
   })
 
   it('renders form once projects are loaded', async () => {
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [mockProject],
       total_count: 1,
       page: 1,
@@ -116,7 +117,7 @@ describe('MemoryCreate', () => {
   })
 
   it('submit button is disabled when no projects are available', async () => {
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [],
       total_count: 0,
       page: 1,
@@ -135,7 +136,7 @@ describe('MemoryCreate', () => {
   })
 
   it('submit is enabled when a project is available', async () => {
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [mockProject],
       total_count: 1,
       page: 1,
@@ -154,16 +155,14 @@ describe('MemoryCreate', () => {
   })
 
   it('calls createMemory with project_id when submitted', async () => {
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [mockProject],
       total_count: 1,
       page: 1,
       per_page: 100,
       total_pages: 1,
     })
-    ;(memoryService.createMemory as jest.Mock).mockResolvedValue(
-      mockCreatedMemory
-    )
+    ;(memoryService.createMemory as Mock).mockResolvedValue(mockCreatedMemory)
 
     renderMemoryCreate()
 
@@ -194,7 +193,7 @@ describe('MemoryCreate', () => {
   })
 
   it('loads projects using the current team id', async () => {
-    ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+    ;(projectService.getProjects as Mock).mockResolvedValue({
       projects: [mockProject],
       total_count: 1,
       page: 1,

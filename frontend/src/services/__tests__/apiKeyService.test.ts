@@ -4,14 +4,14 @@ import type {
   CreateAPIKeyResponse,
 } from '../apiKeyService'
 
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-  DELETE: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+  DELETE: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return { ...actual, generatedClient: mockGeneratedClient }
@@ -55,7 +55,7 @@ describe('APIKeyService', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('createAPIKey posts the request and returns the created key', async () => {

@@ -9,15 +9,15 @@ import type {
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-  PUT: jest.fn(),
-  DELETE: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+  PUT: vi.fn(),
+  DELETE: vi.fn(),
+}))
 
-jest.mock('../../lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../lib/apiClientGenerated')
   >('../../lib/apiClientGenerated')
   return {
@@ -36,20 +36,20 @@ const TEAM_ID = 'team-123'
 const FEED_ID = 'feed-abc'
 const ITEM_ID = 'item-xyz'
 
-const mockFeed: Feed = {
-  id: FEED_ID,
-  team_id: TEAM_ID,
+const mockFeed: Feed = vi.hoisted(() => ({
+  id: 'feed-abc',
+  team_id: 'team-123',
   name: 'Product Updates',
   description: 'AI-generated updates',
   created_by_user_id: 'user-1',
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
-}
+}))
 
-const mockFeedItem: FeedItem = {
-  id: ITEM_ID,
-  team_id: TEAM_ID,
-  feed_id: FEED_ID,
+const mockFeedItem: FeedItem = vi.hoisted(() => ({
+  id: 'item-xyz',
+  team_id: 'team-123',
+  feed_id: 'feed-abc',
   title: 'Sprint Retrospective',
   content: '## Summary\nAll tasks completed.',
   excerpt: 'All tasks completed.',
@@ -57,20 +57,20 @@ const mockFeedItem: FeedItem = {
   posted_by_user_id: 'user-1',
   posted_at: '2024-01-15T10:00:00Z',
   reply_count: 0,
-}
+}))
 
-const mockReply: FeedItemReply = {
+const mockReply: FeedItemReply = vi.hoisted(() => ({
   id: 'reply-1',
-  team_id: TEAM_ID,
-  feed_item_id: ITEM_ID,
+  team_id: 'team-123',
+  feed_item_id: 'item-xyz',
   content: 'Nice work',
   posted_by_user_id: 'user-1',
   posted_at: '2024-01-15T11:00:00Z',
-}
+}))
 
 describe('FeedService', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('getFeeds', () => {

@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
+import type { MockInstance } from 'vitest'
 
 import type { Team } from '@/services/teamService'
 
@@ -8,41 +9,41 @@ import type { Team } from '@/services/teamService'
 // Mocks (set up before importing the hook under test)
 // ---------------------------------------------------------------------------
 
-const mockNavigate = jest.fn()
+const mockNavigate = vi.hoisted(() => vi.fn())
 
-jest.mock('react-router-dom', () => {
+vi.mock('react-router-dom', async () => {
   const actual =
-    jest.requireActual<typeof import('react-router-dom')>('react-router-dom')
+    await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
   return {
     ...actual,
     useNavigate: () => mockNavigate,
   }
 })
 
-const mockAcceptInvitation = jest.fn()
-const mockGetTeamDetails = jest.fn()
+const mockAcceptInvitation = vi.hoisted(() => vi.fn())
+const mockGetTeamDetails = vi.hoisted(() => vi.fn())
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
     acceptInvitation: (...args: unknown[]) => mockAcceptInvitation(...args),
     getTeamDetails: (...args: unknown[]) => mockGetTeamDetails(...args),
   },
 }))
 
-const mockToastSuccess = jest.fn()
-const mockToastError = jest.fn()
+const mockToastSuccess = vi.hoisted(() => vi.fn())
+const mockToastError = vi.hoisted(() => vi.fn())
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),
   },
 }))
 
-const mockRefreshTeams = jest.fn()
-const mockSetCurrentTeam = jest.fn()
+const mockRefreshTeams = vi.hoisted(() => vi.fn())
+const mockSetCurrentTeam = vi.hoisted(() => vi.fn())
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     refreshTeams: mockRefreshTeams,
     setCurrentTeam: mockSetCurrentTeam,
@@ -52,9 +53,9 @@ jest.mock('@/contexts/TeamContext', () => ({
   }),
 }))
 
-const mockSessionStoreRemove = jest.fn()
+const mockSessionStoreRemove = vi.hoisted(() => vi.fn())
 
-jest.mock('@/utils/storage', () => ({
+vi.mock('@/utils/storage', () => ({
   sessionStore: {
     remove: (...args: unknown[]) => mockSessionStoreRemove(...args),
   },
@@ -95,11 +96,11 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 // ---------------------------------------------------------------------------
 
 describe('useAcceptAndEnterTeam', () => {
-  let consoleErrorSpy: jest.SpyInstance
+  let consoleErrorSpy: MockInstance
 
   beforeEach(() => {
-    jest.clearAllMocks()
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    vi.clearAllMocks()
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {

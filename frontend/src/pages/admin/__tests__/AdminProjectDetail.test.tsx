@@ -4,18 +4,19 @@
  */
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mocked } from 'vitest'
 
 import type { AdminProjectDetail as AdminProjectDetailType } from '@/services/adminService'
 
-jest.mock('@/services/adminService', () => ({
-  adminService: { getProject: jest.fn() },
+vi.mock('@/services/adminService', () => ({
+  adminService: { getProject: vi.fn() },
 }))
 
 import { adminService } from '@/services/adminService'
 
 import { AdminProjectDetail } from '../AdminProjectDetail'
 
-const mockAdminService = adminService as jest.Mocked<typeof adminService>
+const mockAdminService = adminService as Mocked<typeof adminService>
 
 function detail(
   overrides: Partial<AdminProjectDetailType> = {}
@@ -54,7 +55,7 @@ function renderDetail(id = 'p1') {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 it('renders the project with its team, creator and metadata', async () => {

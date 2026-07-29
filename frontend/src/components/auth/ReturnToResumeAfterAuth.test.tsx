@@ -7,13 +7,13 @@ import { STORAGE_KEYS } from '@/constants/storageKeys'
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockNavigate = jest.fn()
+const mockNavigate = vi.hoisted(() => vi.fn())
 let mockPathname = '/'
 let mockSearch = ''
 
-jest.mock('react-router-dom', () => {
+vi.mock('react-router-dom', async () => {
   const actual =
-    jest.requireActual<typeof import('react-router-dom')>('react-router-dom')
+    await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -42,7 +42,7 @@ const renderHere = () =>
 
 describe('ReturnToResumeAfterAuth', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     window.sessionStorage.clear()
     mockPathname = '/'
     mockSearch = ''

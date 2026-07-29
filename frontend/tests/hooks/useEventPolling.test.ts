@@ -4,12 +4,12 @@ import { renderHook, waitFor } from '@testing-library/react'
 // success/error resolution production uses (see searchService.test.ts). The
 // module under test is imported AFTER the mock so the factory runs once the
 // mock object is initialised.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+}))
 
-jest.mock('../../src/lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../src/lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../src/lib/apiClientGenerated')
   >('../../src/lib/apiClientGenerated')
   return {
@@ -34,19 +34,18 @@ const EVENTS_PATH = '/api/v1/{team_id}/agents/executions/{id}/events'
 // The `since` query value from the Nth (1-based) GET call.
 function sinceOf(callIndex: number): number | undefined {
   const call = mockGeneratedClient.GET.mock.calls[callIndex - 1] as
-    | [string, { params: { query: { since?: number } } }]
-    | undefined
+    [string, { params: { query: { since?: number } } }] | undefined
   return call?.[1].params.query.since
 }
 
 describe('useEventPolling', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    jest.useFakeTimers()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
   })
 
   afterEach(() => {
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 
   it('should start polling when enabled with team ID and execution ID', async () => {
@@ -135,7 +134,7 @@ describe('useEventPolling', () => {
       expect(result.current.events).toHaveLength(1)
     })
 
-    jest.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS)
+    vi.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS)
 
     await waitFor(() => {
       expect(result.current.events).toHaveLength(2)
@@ -184,8 +183,8 @@ describe('useEventPolling', () => {
       })
     )
 
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
 
     renderHook(() =>
       useEventPolling({
@@ -225,10 +224,10 @@ describe('useEventPolling', () => {
       })
     )
 
-    const onComplete = jest.fn()
+    const onComplete = vi.fn()
 
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
 
     const { result } = renderHook(() =>
       useEventPolling({
@@ -271,7 +270,7 @@ describe('useEventPolling', () => {
       })
     )
 
-    const onEvent = jest.fn()
+    const onEvent = vi.fn()
 
     renderHook(() =>
       useEventPolling({
@@ -301,7 +300,7 @@ describe('useEventPolling', () => {
       })
     )
 
-    jest.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS * 2)
+    vi.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS * 2)
 
     expect(mockGeneratedClient.GET).not.toHaveBeenCalled()
   })
@@ -315,7 +314,7 @@ describe('useEventPolling', () => {
       })
     )
 
-    jest.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS * 2)
+    vi.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS * 2)
 
     expect(mockGeneratedClient.GET).not.toHaveBeenCalled()
   })
@@ -329,7 +328,7 @@ describe('useEventPolling', () => {
       })
     )
 
-    jest.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS * 2)
+    vi.advanceTimersByTime(EVENT_POLLING_INTERVAL_MS * 2)
 
     expect(mockGeneratedClient.GET).not.toHaveBeenCalled()
   })
@@ -337,8 +336,8 @@ describe('useEventPolling', () => {
   it('should handle fetch errors gracefully and retry', async () => {
     mockGeneratedClient.GET.mockRejectedValue(new Error('Network error'))
 
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
 
     const { result } = renderHook(() =>
       useEventPolling({
@@ -383,8 +382,8 @@ describe('useEventPolling', () => {
       })
     )
 
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
 
     const { result } = renderHook(() =>
       useEventPolling({
@@ -423,8 +422,8 @@ describe('useEventPolling', () => {
       })
     )
 
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
 
     renderHook(() =>
       useEventPolling({

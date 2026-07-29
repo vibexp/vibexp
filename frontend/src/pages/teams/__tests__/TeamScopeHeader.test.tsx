@@ -1,37 +1,38 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import type { Mocked } from 'vitest'
 
 import type { Team } from '@/services/teamService'
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    getTeamMembers: jest.fn(),
-    inviteMembers: jest.fn(),
+    getTeamMembers: vi.fn(),
+    inviteMembers: vi.fn(),
   },
 }))
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({ currentTeam: null }),
 }))
 
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
 // The modals have their own suites; stub them to a marker so this file asserts
 // what the header decides to open, not what each dialog renders.
-jest.mock('../EditTeamModal', () => ({
+vi.mock('../EditTeamModal', () => ({
   EditTeamModal: () => <div data-testid="edit-team-modal" />,
 }))
-jest.mock('../DeleteTeamModal', () => ({
+vi.mock('../DeleteTeamModal', () => ({
   DeleteTeamModal: () => <div data-testid="delete-team-modal" />,
 }))
-jest.mock('../InviteTeamMembersModal', () => ({
+vi.mock('../InviteTeamMembersModal', () => ({
   InviteTeamMembersModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="invite-members-modal" /> : null,
 }))
-jest.mock('../TransferOwnershipModal', () => ({
+vi.mock('../TransferOwnershipModal', () => ({
   TransferOwnershipModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="transfer-ownership-modal" /> : null,
 }))
@@ -40,7 +41,7 @@ import { teamService } from '@/services/teamService'
 
 import { TeamScopeHeader } from '../TeamScopeHeader'
 
-const mocked = teamService as jest.Mocked<typeof teamService>
+const mocked = teamService as Mocked<typeof teamService>
 
 const ownerPermissions: Team['permissions'] = [
   'team.update',
@@ -64,7 +65,7 @@ const makeTeam = (overrides: Partial<Team> = {}): Team => ({
   ...overrides,
 })
 
-function renderHeader(team: Team = makeTeam(), onTeamChanged = jest.fn()) {
+function renderHeader(team: Team = makeTeam(), onTeamChanged = vi.fn()) {
   render(
     <MemoryRouter>
       <TeamScopeHeader team={team} onTeamChanged={onTeamChanged} />
@@ -74,7 +75,7 @@ function renderHeader(team: Team = makeTeam(), onTeamChanged = jest.fn()) {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mocked.getTeamMembers.mockResolvedValue([])
 })
 

@@ -6,6 +6,7 @@
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import type { Mocked } from 'vitest'
 
 import type {
   ActivitiesResponse,
@@ -14,17 +15,19 @@ import type {
 import type { FeedItem, FeedItemListResponse } from '@/services/feedService'
 import type { TeamStats } from '@/services/teamService'
 
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual<typeof import('react-router-dom')>('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router-dom', async () => ({
+  ...(await vi.importActual<typeof import('react-router-dom')>(
+    'react-router-dom'
+  )),
   useNavigate: () => mockNavigate,
 }))
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({ currentTeam: { id: 'team-1', name: 'Test Team' } }),
 }))
 
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({
     user: {
       id: 'user-1',
@@ -34,44 +37,44 @@ jest.mock('@/contexts/useAuth', () => ({
   }),
 }))
 
-jest.mock('@/services/activityService', () => ({
-  activityService: { getActivities: jest.fn() },
+vi.mock('@/services/activityService', () => ({
+  activityService: { getActivities: vi.fn() },
 }))
-jest.mock('@/services/feedService', () => ({
-  feedService: { getFeedItems: jest.fn() },
+vi.mock('@/services/feedService', () => ({
+  feedService: { getFeedItems: vi.fn() },
 }))
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    getTeamStats: jest.fn(),
-    getTeamResourceCreationMetrics: jest.fn(),
-    getTeamFeedCreationMetrics: jest.fn(),
-    getTeamMembers: jest.fn(),
+    getTeamStats: vi.fn(),
+    getTeamResourceCreationMetrics: vi.fn(),
+    getTeamFeedCreationMetrics: vi.fn(),
+    getTeamMembers: vi.fn(),
   },
 }))
-jest.mock('@/services/commentService', () => ({
-  commentService: { recent: jest.fn() },
+vi.mock('@/services/commentService', () => ({
+  commentService: { recent: vi.fn() },
 }))
-jest.mock('@/services/agentService', () => ({
-  agentService: { getAgentStats: jest.fn() },
+vi.mock('@/services/agentService', () => ({
+  agentService: { getAgentStats: vi.fn() },
 }))
 
 // Analytics widgets and the top-accessed grid are covered by their own tests.
-jest.mock('@/components/TeamResourceAccessChart', () => ({
+vi.mock('@/components/TeamResourceAccessChart', () => ({
   TeamResourceAccessChart: () => <div data-testid="access-chart" />,
 }))
-jest.mock('@/components/TeamResourceCreationChart', () => ({
+vi.mock('@/components/TeamResourceCreationChart', () => ({
   TeamResourceCreationChart: () => <div data-testid="creation-chart" />,
 }))
-jest.mock('@/components/TeamResourceCumulativeChart', () => ({
+vi.mock('@/components/TeamResourceCumulativeChart', () => ({
   TeamResourceCumulativeChart: () => <div data-testid="cumulative-chart" />,
 }))
-jest.mock('@/components/TeamFeedCreationChart', () => ({
+vi.mock('@/components/TeamFeedCreationChart', () => ({
   TeamFeedCreationChart: () => <div data-testid="feed-chart" />,
 }))
-jest.mock('@/pages/home/TopAccessedResources', () => ({
+vi.mock('@/pages/home/TopAccessedResources', () => ({
   TopAccessedResources: () => <div data-testid="top-accessed" />,
 }))
-jest.mock('@/pages/home/activityHelpers', () => ({
+vi.mock('@/pages/home/activityHelpers', () => ({
   getActivityIcon: () =>
     function MockIcon() {
       return <svg />
@@ -86,11 +89,11 @@ import { teamService } from '@/services/teamService'
 
 import { Home } from '../Home'
 
-const mockActivity = activityService as jest.Mocked<typeof activityService>
-const mockFeed = feedService as jest.Mocked<typeof feedService>
-const mockTeam = teamService as jest.Mocked<typeof teamService>
-const mockAgent = agentService as jest.Mocked<typeof agentService>
-const mockComment = commentService as jest.Mocked<typeof commentService>
+const mockActivity = activityService as Mocked<typeof activityService>
+const mockFeed = feedService as Mocked<typeof feedService>
+const mockTeam = teamService as Mocked<typeof teamService>
+const mockAgent = agentService as Mocked<typeof agentService>
+const mockComment = commentService as Mocked<typeof commentService>
 
 function makeStats(overrides: Partial<TeamStats> = {}): TeamStats {
   return {
@@ -195,7 +198,7 @@ function setup(stats: TeamStats = makeStats(), activities = [makeActivity()]) {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 function renderHome() {

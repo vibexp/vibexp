@@ -7,21 +7,21 @@ import type { Team } from '@/services/teamService'
 
 // usePermissions is deliberately NOT mocked — it reads the permissions off the
 // team the page passes it, so the fixtures below exercise the real gating.
-const mockUseTeam = jest.fn()
+const mockUseTeam = vi.hoisted(() => vi.fn())
 
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/services/searchSettingsService', () => ({
+vi.mock('@/services/searchSettingsService', () => ({
   searchSettingsService: {
-    getSearchSettings: jest.fn(),
-    updateSearchSettings: jest.fn(),
-    resetSearchSettings: jest.fn(),
+    getSearchSettings: vi.fn(),
+    updateSearchSettings: vi.fn(),
+    resetSearchSettings: vi.fn(),
   },
 }))
 
@@ -30,7 +30,7 @@ import { searchSettingsService } from '@/services/searchSettingsService'
 import { detectPreset } from '../searchRankingPresets'
 import { SearchSettings } from '../SearchSettings'
 
-const mockedService = jest.mocked(searchSettingsService)
+const mockedService = vi.mocked(searchSettingsService)
 
 const BALANCED = {
   recency_ranking_enabled: true,
@@ -68,8 +68,8 @@ const adminTeam = {
   },
   teams: [{ id: 'team-1', name: 'Test Team' }],
   isLoading: false,
-  setCurrentTeam: jest.fn(),
-  refreshTeams: jest.fn() as () => Promise<void>,
+  setCurrentTeam: vi.fn(),
+  refreshTeams: vi.fn() as () => Promise<void>,
 }
 
 const memberTeam = {
@@ -99,7 +99,7 @@ const openAdvanced = async (user: ReturnType<typeof userEvent.setup>) => {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockUseTeam.mockReturnValue(adminTeam)
   mockedService.getSearchSettings.mockResolvedValue(settings())
 })

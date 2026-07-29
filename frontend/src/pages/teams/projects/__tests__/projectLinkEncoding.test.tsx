@@ -16,8 +16,8 @@ import { buildProjectsColumns } from '../projectsColumns'
 describe('project row-action links', () => {
   const columns = buildProjectsColumns({
     teamId: 'team-1',
-    navigate: jest.fn(),
-    onDelete: jest.fn(),
+    navigate: vi.fn(),
+    onDelete: vi.fn(),
     canUpdate: true,
     canDelete: true,
   })
@@ -47,15 +47,15 @@ describe('project row-action links', () => {
     // and so does not fail CI.
     const first = buildProjectsColumns({
       teamId: 'team-1',
-      navigate: jest.fn(),
-      onDelete: jest.fn(),
+      navigate: vi.fn(),
+      onDelete: vi.fn(),
       canUpdate: true,
       canDelete: true,
     })
     const second = buildProjectsColumns({
       teamId: 'team-2',
-      navigate: jest.fn(),
-      onDelete: jest.fn(),
+      navigate: vi.fn(),
+      onDelete: vi.fn(),
       canUpdate: true,
       canDelete: true,
     })

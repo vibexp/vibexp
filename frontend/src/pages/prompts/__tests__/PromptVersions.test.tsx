@@ -1,16 +1,17 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { Prompt } from '@/services/promptService'
 import type { Team } from '@/services/teamService'
 import type { ResourceVersion } from '@/types/version'
 
-jest.mock('@/services/promptService', () => ({
+vi.mock('@/services/promptService', () => ({
   promptService: {
-    getPrompt: jest.fn(),
-    getPromptVersions: jest.fn(),
-    restorePromptVersion: jest.fn(),
+    getPrompt: vi.fn(),
+    getPromptVersions: vi.fn(),
+    restorePromptVersion: vi.fn(),
   },
 }))
 
@@ -22,17 +23,17 @@ const teamContextValue: {
   currentTeam: { id: 'team-1', name: 'Test Team' } as Team,
   isLoading: false,
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => teamContextValue,
 }))
 
-const showSuccess = jest.fn()
-const handleError = jest.fn()
-jest.mock('@/hooks', () => ({
-  useAlerts: () => ({ showSuccess, showError: jest.fn() }),
-  useAnalytics: () => ({ trackEvent: jest.fn() }),
+const showSuccess = vi.fn()
+const handleError = vi.fn()
+vi.mock('@/hooks', () => ({
+  useAlerts: () => ({ showSuccess, showError: vi.fn() }),
+  useAnalytics: () => ({ trackEvent: vi.fn() }),
 }))
-jest.mock('@/hooks/useErrorHandler', () => ({
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError }),
 }))
 
@@ -44,9 +45,9 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 import { promptService } from '@/services/promptService'
@@ -110,19 +111,17 @@ function renderVersions(slug = 'my-prompt') {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   teamContextValue.currentTeam = { id: 'team-1', name: 'Test Team' } as Team
   teamContextValue.isLoading = false
-  ;(promptService.getPrompt as jest.Mock).mockResolvedValue(buildPrompt())
-  ;(promptService.getPromptVersions as jest.Mock).mockResolvedValue({
+  ;(promptService.getPrompt as Mock).mockResolvedValue(buildPrompt())
+  ;(promptService.getPromptVersions as Mock).mockResolvedValue({
     versions: [
       snapshot(2, 'second body', 'Second edit'),
       snapshot(1, 'first body', 'Created the prompt'),
     ],
   })
-  ;(promptService.restorePromptVersion as jest.Mock).mockResolvedValue(
-    buildPrompt()
-  )
+  ;(promptService.restorePromptVersion as Mock).mockResolvedValue(buildPrompt())
 })
 
 describe('PromptVersions', () => {
@@ -196,7 +195,7 @@ describe('PromptVersions', () => {
   })
 
   it('shows the empty state when the prompt has no snapshots yet', async () => {
-    ;(promptService.getPromptVersions as jest.Mock).mockResolvedValue({
+    ;(promptService.getPromptVersions as Mock).mockResolvedValue({
       versions: [],
     })
     renderVersions()
@@ -207,7 +206,7 @@ describe('PromptVersions', () => {
   })
 
   it('surfaces a load failure with the error alert', async () => {
-    ;(promptService.getPromptVersions as jest.Mock).mockRejectedValue(
+    ;(promptService.getPromptVersions as Mock).mockRejectedValue(
       new Error('history unavailable')
     )
     renderVersions()
@@ -223,7 +222,7 @@ describe('PromptVersions', () => {
   })
 
   it('passes the route slug through to the prompt version source', async () => {
-    ;(promptService.getPrompt as jest.Mock).mockResolvedValue(
+    ;(promptService.getPrompt as Mock).mockResolvedValue(
       buildPrompt({ slug: 'my prompt+x' })
     )
     renderVersions('my prompt+x')

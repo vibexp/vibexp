@@ -1,10 +1,9 @@
-// Mock for mermaid library in Jest tests
-// Mermaid is an ESM-only module that needs to be mocked for Jest
+// Stub for the ESM-only `mermaid` package (kept from the jest era).
 const mermaid = {
-  initialize: jest.fn(),
-  render: jest.fn().mockResolvedValue({
+  initialize: vi.fn(),
+  render: vi.fn().mockResolvedValue({
     svg: '<svg>mocked mermaid diagram</svg>',
   }),
 }
 
-module.exports = mermaid
+export default mermaid

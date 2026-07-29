@@ -1,24 +1,25 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { Team, TeamStats } from '@/services/teamService'
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    getTeamDetails: jest.fn(),
-    getTeamStats: jest.fn(),
+    getTeamDetails: vi.fn(),
+    getTeamStats: vi.fn(),
   },
 }))
 
 // Stub the charts so the page test stays focused on layout + wiring (the charts
 // have their own tests). Each stub echoes the range it received so we can assert
 // a single page-level filter drives both.
-jest.mock('@/components/TeamResourceAccessChart', () => ({
+vi.mock('@/components/TeamResourceAccessChart', () => ({
   TeamResourceAccessChart: ({ range }: { range: string }) => (
     <div data-testid="access-chart">access:{range}</div>
   ),
 }))
-jest.mock('@/components/TeamResourceCreationChart', () => ({
+vi.mock('@/components/TeamResourceCreationChart', () => ({
   TeamResourceCreationChart: ({ range }: { range: string }) => (
     <div data-testid="creation-chart">creation:{range}</div>
   ),
@@ -51,12 +52,12 @@ function renderPage(id = 'team-1') {
 
 describe('TeamAnalyticsPage', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('renders stat cards and both charts once data loads', async () => {
-    ;(teamService.getTeamDetails as jest.Mock).mockResolvedValue(mockTeam)
-    ;(teamService.getTeamStats as jest.Mock).mockResolvedValue(mockStats)
+    ;(teamService.getTeamDetails as Mock).mockResolvedValue(mockTeam)
+    ;(teamService.getTeamStats as Mock).mockResolvedValue(mockStats)
 
     renderPage()
 
@@ -78,12 +79,8 @@ describe('TeamAnalyticsPage', () => {
   })
 
   it('shows an error alert when loading fails', async () => {
-    ;(teamService.getTeamDetails as jest.Mock).mockRejectedValue(
-      new Error('boom')
-    )
-    ;(teamService.getTeamStats as jest.Mock).mockRejectedValue(
-      new Error('boom')
-    )
+    ;(teamService.getTeamDetails as Mock).mockRejectedValue(new Error('boom'))
+    ;(teamService.getTeamStats as Mock).mockRejectedValue(new Error('boom'))
 
     renderPage()
 

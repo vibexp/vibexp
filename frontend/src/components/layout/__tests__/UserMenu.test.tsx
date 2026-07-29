@@ -9,16 +9,16 @@ import { MemoryRouter } from 'react-router-dom'
 
 import { UserMenu } from '@/components/layout/UserMenu'
 
-const mockUseAuth = jest.fn()
-jest.mock('@/contexts/useAuth', () => ({
+const mockUseAuth = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
 // Radix DropdownMenu needs these pointer/scroll APIs in jsdom.
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 function renderMenu() {
@@ -37,12 +37,12 @@ function authUser(isInstanceAdmin: boolean) {
       email: 'alice@example.com',
       is_instance_admin: isInstanceAdmin,
     },
-    logout: jest.fn(),
+    logout: vi.fn(),
   }
 }
 
 afterEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 it('shows the Admin Portal item for an instance admin', async () => {

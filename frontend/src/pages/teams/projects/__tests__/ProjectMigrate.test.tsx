@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type {
   ConflictPolicy,
@@ -15,7 +16,7 @@ import type { Project } from '@/services/projectService'
 // buttons for the callbacks, so this file tests ONLY the ProjectMigrate
 // wiring: step transitions, inventory loading, selection plumbing, and the
 // confirm-before-migrate guard (the ConfirmDialog stays real).
-jest.mock('@/pages/teams/projects/migration/SelectSourceStep', () => ({
+vi.mock('@/pages/teams/projects/migration/SelectSourceStep', () => ({
   SelectSourceStep: ({
     resolvedSourceProject,
     selectedProjectId,
@@ -56,7 +57,7 @@ jest.mock('@/pages/teams/projects/migration/SelectSourceStep', () => ({
   ),
 }))
 
-jest.mock('@/pages/teams/projects/migration/SelectResourcesStep', () => ({
+vi.mock('@/pages/teams/projects/migration/SelectResourcesStep', () => ({
   SelectResourcesStep: ({
     inventory,
     selectedResources,
@@ -103,7 +104,7 @@ jest.mock('@/pages/teams/projects/migration/SelectResourcesStep', () => ({
   ),
 }))
 
-jest.mock('@/pages/teams/projects/migration/SelectDestinationStep', () => ({
+vi.mock('@/pages/teams/projects/migration/SelectDestinationStep', () => ({
   SelectDestinationStep: ({
     sourceProjectName,
     destinationProjectId,
@@ -169,7 +170,7 @@ jest.mock('@/pages/teams/projects/migration/SelectDestinationStep', () => ({
   ),
 }))
 
-jest.mock('@/pages/teams/projects/migration/ResultStep', () => ({
+vi.mock('@/pages/teams/projects/migration/ResultStep', () => ({
   ResultStep: ({
     result,
     destinationProjectName,
@@ -194,40 +195,44 @@ jest.mock('@/pages/teams/projects/migration/ResultStep', () => ({
   ),
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProject: jest.fn(),
+    getProject: vi.fn(),
   },
 }))
 
-jest.mock('@/services/projectMigrationService', () => ({
+vi.mock('@/services/projectMigrationService', () => ({
   projectMigrationService: {
-    getInventory: jest.fn(),
-    migrate: jest.fn(),
+    getInventory: vi.fn(),
+    migrate: vi.fn(),
   },
 }))
 
 // Stable identity: a fresh currentTeam object per render would re-trigger the
 // page's load effect forever (it depends on currentTeam).
-const mockCurrentTeam = { id: 'team-1', name: 'Test Team', permissions: [] }
-jest.mock('@/contexts/TeamContext', () => ({
+const mockCurrentTeam = vi.hoisted(() => ({
+  id: 'team-1',
+  name: 'Test Team',
+  permissions: [],
+}))
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockCurrentTeam,
     teams: [mockCurrentTeam],
     isLoading: false,
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn() as () => Promise<void>,
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn() as () => Promise<void>,
   }),
 }))
 
-const mockShowSuccess = jest.fn()
-jest.mock('@/hooks', () => ({
-  useAlerts: () => ({ showSuccess: mockShowSuccess, showError: jest.fn() }),
-  useAnalytics: () => ({ trackEvent: jest.fn() }),
+const mockShowSuccess = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks', () => ({
+  useAlerts: () => ({ showSuccess: mockShowSuccess, showError: vi.fn() }),
+  useAnalytics: () => ({ trackEvent: vi.fn() }),
 }))
 
-const mockHandleError = jest.fn()
-jest.mock('@/hooks/useErrorHandler', () => ({
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
@@ -307,19 +312,17 @@ async function goToDestinationStep(user: ReturnType<typeof userEvent.setup>) {
 
 describe('ProjectMigrate wizard orchestrator', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    ;(projectService.getProject as jest.Mock).mockResolvedValue(sourceProject)
-    ;(projectMigrationService.getInventory as jest.Mock).mockResolvedValue(
-      inventory
-    )
-    ;(projectMigrationService.migrate as jest.Mock).mockResolvedValue(
+    vi.clearAllMocks()
+    ;(projectService.getProject as Mock).mockResolvedValue(sourceProject)
+    ;(projectMigrationService.getInventory as Mock).mockResolvedValue(inventory)
+    ;(projectMigrationService.migrate as Mock).mockResolvedValue(
       migrationResult
     )
   })
 
   describe('source resolution', () => {
     it('shows a spinner while the source project is loading', () => {
-      ;(projectService.getProject as jest.Mock).mockImplementation(
+      ;(projectService.getProject as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -347,7 +350,7 @@ describe('ProjectMigrate wizard orchestrator', () => {
     })
 
     it('shows the page error state with a back action when resolution fails', async () => {
-      ;(projectService.getProject as jest.Mock).mockRejectedValue(
+      ;(projectService.getProject as Mock).mockRejectedValue(
         new Error('project gone')
       )
 
@@ -407,7 +410,7 @@ describe('ProjectMigrate wizard orchestrator', () => {
     })
 
     it('stays on the source step and surfaces the error when the inventory fetch fails', async () => {
-      ;(projectMigrationService.getInventory as jest.Mock).mockRejectedValue(
+      ;(projectMigrationService.getInventory as Mock).mockRejectedValue(
         new Error('inventory unavailable')
       )
 
@@ -588,7 +591,7 @@ describe('ProjectMigrate wizard orchestrator', () => {
     })
 
     it('surfaces a migrate failure and stays on the destination step', async () => {
-      ;(projectMigrationService.migrate as jest.Mock).mockRejectedValue(
+      ;(projectMigrationService.migrate as Mock).mockRejectedValue(
         new Error('destination project not found in team')
       )
 

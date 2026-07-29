@@ -3,9 +3,9 @@ import type { ReactNode } from 'react'
 
 import type { ResourceAccessMetricsResponse } from '../../services/resourceAccessService'
 
-const mockGetTeamResourceAccessMetrics = jest.fn()
+const mockGetTeamResourceAccessMetrics = vi.hoisted(() => vi.fn())
 
-jest.mock('../../services/teamService', () => ({
+vi.mock('../../services/teamService', () => ({
   teamService: {
     getTeamResourceAccessMetrics: (...args: unknown[]) =>
       mockGetTeamResourceAccessMetrics(...args),
@@ -14,8 +14,8 @@ jest.mock('../../services/teamService', () => ({
 
 // recharts' ResponsiveContainer measures its parent, which has no layout in
 // jsdom. Render children with a fixed size so the chart mounts deterministically.
-jest.mock('recharts', () => {
-  const actual = jest.requireActual('recharts')
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual('recharts')
   return {
     ...actual,
     ResponsiveContainer: ({ children }: { children: ReactNode }) => (
@@ -45,7 +45,7 @@ function buildResponse(
 
 describe('TeamResourceAccessChart', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('fetches team-wide access metrics with the controlled range and renders the total', async () => {

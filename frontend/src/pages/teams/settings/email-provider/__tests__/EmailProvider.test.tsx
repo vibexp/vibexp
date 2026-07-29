@@ -12,41 +12,41 @@ import type { Team } from '@/services/teamService'
 
 // usePermissions is deliberately NOT mocked — it reads the permissions off the
 // team the page passes it, so the fixtures below exercise the real gating.
-const mockUseTeam = jest.fn()
+const mockUseTeam = vi.hoisted(() => vi.fn())
 
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
 // Stable handleError reference (like the real useCallback-backed hook) so the
 // load callback isn't recreated every render — an unstable one loops the mount
 // effect and remounts the page under test.
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return { useErrorHandler: () => ({ handleError }) }
 })
 
-jest.mock('@/lib/toast', () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
 
-jest.mock('@/services/emailProviderService', () => ({
+vi.mock('@/services/emailProviderService', () => ({
   emailProviderService: {
-    getEmailProvider: jest.fn(),
-    upsertEmailProvider: jest.fn(),
-    deleteEmailProvider: jest.fn(),
-    testEmailProvider: jest.fn(),
+    getEmailProvider: vi.fn(),
+    upsertEmailProvider: vi.fn(),
+    deleteEmailProvider: vi.fn(),
+    testEmailProvider: vi.fn(),
   },
 }))
 
 import { EmailProvider } from '../EmailProvider'
 
-const service = jest.mocked(emailProviderService)
-const mockedToast = jest.mocked(toast)
+const service = vi.mocked(emailProviderService)
+const mockedToast = vi.mocked(toast)
 
 const inheriting: TeamEmailProviderResponse = {
   configured: false,
@@ -82,8 +82,8 @@ const adminTeam = {
   },
   teams: [{ id: 'team-1', name: 'Test Team' }],
   isLoading: false,
-  setCurrentTeam: jest.fn(),
-  refreshTeams: jest.fn() as () => Promise<void>,
+  setCurrentTeam: vi.fn(),
+  refreshTeams: vi.fn() as () => Promise<void>,
 }
 
 const memberTeam = {
@@ -106,7 +106,7 @@ const renderPage = (team: Team = asTeam(adminTeam)) =>
   )
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockUseTeam.mockReturnValue(adminTeam)
   service.getEmailProvider.mockResolvedValue(inheriting)
 })

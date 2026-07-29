@@ -12,10 +12,10 @@ import { SearchFilters } from '../SearchFilters'
 describe('SearchFilters search tips', () => {
   const baseProps = {
     queryInput: '',
-    onQueryInputChange: jest.fn(),
-    onSubmit: jest.fn(),
-    onTypeChange: jest.fn(),
-    onProjectChange: jest.fn(),
+    onQueryInputChange: vi.fn(),
+    onSubmit: vi.fn(),
+    onTypeChange: vi.fn(),
+    onProjectChange: vi.fn(),
   }
 
   it('renders a search-tips trigger next to the query box', () => {

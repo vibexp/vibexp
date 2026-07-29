@@ -2,21 +2,21 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Mock preferencesService
-const mockPreferencesService = {
-  getPreferences: jest.fn(),
-  updatePreferences: jest.fn(),
-}
+const mockPreferencesService = vi.hoisted(() => ({
+  getPreferences: vi.fn(),
+  updatePreferences: vi.fn(),
+}))
 
-jest.mock('@/services/preferencesService', () => ({
+vi.mock('@/services/preferencesService', () => ({
   preferencesService: mockPreferencesService,
 }))
 
 // Mock LoadingSpinner and PageHeader to simplify test DOM
-jest.mock('@/components/LoadingSpinner', () => ({
+vi.mock('@/components/LoadingSpinner', () => ({
   LoadingSpinner: () => <div data-testid="loading-spinner" />,
 }))
 
-jest.mock('@/components/PageHeader', () => ({
+vi.mock('@/components/PageHeader', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
 
@@ -60,7 +60,7 @@ function makePrefsResponse(
 
 describe('NotificationPreferences', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockPreferencesService.getPreferences.mockResolvedValue(
       makePrefsResponse(baseNotifPrefs)
     )

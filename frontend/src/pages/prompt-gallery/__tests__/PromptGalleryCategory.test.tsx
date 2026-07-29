@@ -1,23 +1,24 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type {
   PromptGalleryListResponse,
   PromptGalleryTemplate,
 } from '@/services/promptGalleryService'
 
-jest.mock('@/services/promptGalleryService', () => ({
+vi.mock('@/services/promptGalleryService', () => ({
   promptGalleryService: {
-    getCategories: jest.fn(),
-    getPrompts: jest.fn(),
-    getPromptById: jest.fn(),
-    trackPromptUsage: jest.fn(),
+    getCategories: vi.fn(),
+    getPrompts: vi.fn(),
+    getPromptById: vi.fn(),
+    trackPromptUsage: vi.fn(),
   },
 }))
 
-const mockShowAlert = jest.fn()
-jest.mock('@/contexts/AlertContext', () => ({
+const mockShowAlert = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/AlertContext', () => ({
   useAlertContext: () => ({ showAlert: mockShowAlert }),
 }))
 
@@ -76,12 +77,12 @@ function renderCategory(initialEntry = '/prompt-gallery/Engineering') {
   )
 }
 
-const getPromptsMock = promptGalleryService.getPrompts as jest.Mock
+const getPromptsMock = promptGalleryService.getPrompts as Mock
 
 describe('PromptGalleryCategory page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    window.scrollTo = jest.fn()
+    vi.clearAllMocks()
+    window.scrollTo = vi.fn()
     getPromptsMock.mockResolvedValue(buildListResponse([]))
   })
 

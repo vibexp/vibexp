@@ -42,11 +42,11 @@ const mockProject: Project = {
 }
 
 describe('buildMemoriesColumns', () => {
-  const navigateMock = jest.fn()
-  const onDeleteMock = jest.fn()
+  const navigateMock = vi.fn()
+  const onDeleteMock = vi.fn()
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('includes a project column when projects are provided', () => {

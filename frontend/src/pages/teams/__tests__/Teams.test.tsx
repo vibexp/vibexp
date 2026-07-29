@@ -1,45 +1,46 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { PendingTeamInvitation, Team } from '@/services/teamService'
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
-    getTeams: jest.fn(),
-    getPendingInvitations: jest.fn(),
-    rejectInvitation: jest.fn(),
+    getTeams: vi.fn(),
+    getPendingInvitations: vi.fn(),
+    rejectInvitation: vi.fn(),
   },
 }))
 
 // The accept flow (accept → refresh teams → switch → navigate → toast) lives
 // in useAcceptAndEnterTeam and is not this page's logic — stub the hook and
 // assert only the page's reaction to its typed result.
-const mockAcceptAndEnterTeam = jest.fn()
-jest.mock('@/hooks/useAcceptAndEnterTeam', () => ({
+const mockAcceptAndEnterTeam = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useAcceptAndEnterTeam', () => ({
   useAcceptAndEnterTeam: () => mockAcceptAndEnterTeam,
 }))
 
-const mockHandleError = jest.fn()
-jest.mock('@/hooks/useErrorHandler', () => ({
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
-    info: jest.fn(),
-    success: jest.fn(),
-    error: jest.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }))
 
-jest.mock('@/components/invitations/invitationEvents', () => ({
-  emitInvitationsChanged: jest.fn(),
+vi.mock('@/components/invitations/invitationEvents', () => ({
+  emitInvitationsChanged: vi.fn(),
 }))
 
 // CreateTeamModal has its own service wiring (create + refresh); probe it so
 // this suite only asserts the open/close/success plumbing from the page.
-jest.mock('../CreateTeamModal', () => ({
+vi.mock('../CreateTeamModal', () => ({
   CreateTeamModal: ({
     isOpen,
     onClose,
@@ -116,17 +117,17 @@ function renderTeams() {
 
 describe('Teams page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    ;(teamService.getTeams as jest.Mock).mockResolvedValue([])
-    ;(teamService.getPendingInvitations as jest.Mock).mockResolvedValue([])
+    vi.clearAllMocks()
+    ;(teamService.getTeams as Mock).mockResolvedValue([])
+    ;(teamService.getPendingInvitations as Mock).mockResolvedValue([])
   })
 
   describe('data states', () => {
     it('shows loading skeletons while the fetches are in flight', () => {
-      ;(teamService.getTeams as jest.Mock).mockImplementation(
+      ;(teamService.getTeams as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
-      ;(teamService.getPendingInvitations as jest.Mock).mockImplementation(
+      ;(teamService.getPendingInvitations as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -139,7 +140,7 @@ describe('Teams page', () => {
     })
 
     it('renders the team list with role badges — role is display-only, no action gating on this page', async () => {
-      ;(teamService.getTeams as jest.Mock).mockResolvedValue([
+      ;(teamService.getTeams as Mock).mockResolvedValue([
         buildTeam(),
         buildTeam({
           id: 'team-2',
@@ -177,7 +178,7 @@ describe('Teams page', () => {
     })
 
     it('falls back to the member role badge and hides the member count for personal teams', async () => {
-      ;(teamService.getTeams as jest.Mock).mockResolvedValue([
+      ;(teamService.getTeams as Mock).mockResolvedValue([
         buildTeam({
           name: 'Personal',
           description: '',
@@ -199,7 +200,7 @@ describe('Teams page', () => {
     })
 
     it('shows the error alert and empties the lists when loading fails', async () => {
-      ;(teamService.getTeams as jest.Mock).mockRejectedValue(
+      ;(teamService.getTeams as Mock).mockRejectedValue(
         new Error('teams service down')
       )
 
@@ -229,7 +230,7 @@ describe('Teams page', () => {
 
   describe('navigation', () => {
     it('navigates to the team details when a team name is clicked', async () => {
-      ;(teamService.getTeams as jest.Mock).mockResolvedValue([buildTeam()])
+      ;(teamService.getTeams as Mock).mockResolvedValue([buildTeam()])
 
       renderTeams()
       const user = userEvent.setup()
@@ -247,7 +248,7 @@ describe('Teams page', () => {
       // guards the replacement hook: dropping it in a refactor must fail a
       // fast unit test rather than quietly re-hollow the e2e suite, which
       // only runs on demand (ci-e2e.yml is workflow_dispatch-only).
-      ;(teamService.getTeams as jest.Mock).mockResolvedValue([
+      ;(teamService.getTeams as Mock).mockResolvedValue([
         buildTeam(),
         buildTeam({ id: 'team-2', name: 'Design', slug: 'design' }),
       ])
@@ -271,15 +272,14 @@ describe('Teams page', () => {
       await user.click(screen.getByTestId('create-team-button'))
       expect(screen.getByTestId('create-team-modal')).toBeInTheDocument()
 
-      const fetchesBefore = (teamService.getTeams as jest.Mock).mock.calls
-        .length
+      const fetchesBefore = (teamService.getTeams as Mock).mock.calls.length
       await user.click(
         screen.getByRole('button', { name: 'probe-modal-success' })
       )
 
       await waitFor(() => {
         expect(
-          (teamService.getTeams as jest.Mock).mock.calls.length
+          (teamService.getTeams as Mock).mock.calls.length
         ).toBeGreaterThan(fetchesBefore)
       })
     })
@@ -302,7 +302,7 @@ describe('Teams page', () => {
 
   describe('pending invitations', () => {
     it('lists pending invitations with a count badge and inviter details', async () => {
-      ;(teamService.getPendingInvitations as jest.Mock).mockResolvedValue([
+      ;(teamService.getPendingInvitations as Mock).mockResolvedValue([
         buildInvitation(),
         buildInvitation({
           id: 'inv-2',
@@ -327,7 +327,7 @@ describe('Teams page', () => {
     })
 
     it('accept success removes the card and notifies other surfaces', async () => {
-      ;(teamService.getPendingInvitations as jest.Mock).mockResolvedValue([
+      ;(teamService.getPendingInvitations as Mock).mockResolvedValue([
         buildInvitation(),
       ])
       mockAcceptAndEnterTeam.mockResolvedValue({
@@ -352,7 +352,7 @@ describe('Teams page', () => {
     })
 
     it('accept failure keeps the invitation card (the hook already toasts)', async () => {
-      ;(teamService.getPendingInvitations as jest.Mock).mockResolvedValue([
+      ;(teamService.getPendingInvitations as Mock).mockResolvedValue([
         buildInvitation(),
       ])
       mockAcceptAndEnterTeam.mockResolvedValue({
@@ -374,10 +374,10 @@ describe('Teams page', () => {
     })
 
     it('decline rejects via the service, toasts, removes the card and notifies', async () => {
-      ;(teamService.getPendingInvitations as jest.Mock).mockResolvedValue([
+      ;(teamService.getPendingInvitations as Mock).mockResolvedValue([
         buildInvitation(),
       ])
-      ;(teamService.rejectInvitation as jest.Mock).mockResolvedValue(undefined)
+      ;(teamService.rejectInvitation as Mock).mockResolvedValue(undefined)
 
       renderTeams()
       const user = userEvent.setup()
@@ -398,10 +398,10 @@ describe('Teams page', () => {
     })
 
     it('decline failure reports the error and keeps the card', async () => {
-      ;(teamService.getPendingInvitations as jest.Mock).mockResolvedValue([
+      ;(teamService.getPendingInvitations as Mock).mockResolvedValue([
         buildInvitation(),
       ])
-      ;(teamService.rejectInvitation as jest.Mock).mockRejectedValue(
+      ;(teamService.rejectInvitation as Mock).mockRejectedValue(
         new Error('cannot reject')
       )
 

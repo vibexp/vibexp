@@ -7,15 +7,15 @@ import type {
 
 // Mock the generated client; unwrap stays real so service tests exercise the
 // same success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-  PUT: jest.fn(),
-  DELETE: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+  PUT: vi.fn(),
+  DELETE: vi.fn(),
+}))
 
-jest.mock('../../src/lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../src/lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../src/lib/apiClientGenerated')
   >('../../src/lib/apiClientGenerated')
   return {
@@ -45,14 +45,14 @@ const failure = (status: number, detail: string) =>
 const teamId = 'team-123'
 const slug = 'my-prompt'
 
-const mockPrompt: Prompt = {
+const mockPrompt: Prompt = vi.hoisted(() => ({
   id: 'prompt-1',
   name: 'My Prompt',
-  slug,
+  slug: 'my-prompt',
   description: 'A test prompt',
   body: 'Hello {{name}}',
   user_id: 'user-1',
-  team_id: teamId,
+  team_id: 'team-123',
   project_id: 'project-1',
   status: 'published',
   mcp_expose: true,
@@ -61,7 +61,7 @@ const mockPrompt: Prompt = {
   created_at: '2023-01-01T00:00:00Z',
   updated_at: '2023-01-02T00:00:00Z',
   version: 3,
-}
+}))
 
 const listResponse: PromptListResponse = {
   prompts: [mockPrompt],
@@ -73,7 +73,7 @@ const listResponse: PromptListResponse = {
 
 describe('PromptService', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('getPrompts', () => {

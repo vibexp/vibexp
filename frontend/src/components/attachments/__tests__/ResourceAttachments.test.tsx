@@ -3,12 +3,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { ResourceAttachments } from '@/components/attachments/ResourceAttachments'
 import type { Attachment } from '@/services/attachmentService'
 
-const mockList = jest.fn()
-const mockUpload = jest.fn()
-const mockRemove = jest.fn()
-const mockDownload = jest.fn()
+const mockList = vi.hoisted(() => vi.fn())
+const mockUpload = vi.hoisted(() => vi.fn())
+const mockRemove = vi.hoisted(() => vi.fn())
+const mockDownload = vi.hoisted(() => vi.fn())
 
-jest.mock('@/services/attachmentService', () => ({
+vi.mock('@/services/attachmentService', () => ({
   attachmentService: {
     list: (...args: unknown[]) => mockList(...args),
     upload: (...args: unknown[]) => mockUpload(...args),
@@ -17,9 +17,9 @@ jest.mock('@/services/attachmentService', () => ({
   },
 }))
 
-const showSuccess = jest.fn()
-const showError = jest.fn()
-jest.mock('@/hooks', () => ({
+const showSuccess = vi.fn()
+const showError = vi.fn()
+vi.mock('@/hooks', () => ({
   useAlerts: () => ({ showSuccess, showError }),
 }))
 
@@ -39,7 +39,7 @@ function makeAttachment(overrides: Partial<Attachment> = {}): Attachment {
 
 describe('ResourceAttachments', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('loads attachments for the given owner on mount', async () => {

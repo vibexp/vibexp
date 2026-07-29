@@ -15,6 +15,7 @@ import {
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
+import type { Mocked } from 'vitest'
 
 import type {
   AdminProjectListItem,
@@ -22,27 +23,29 @@ import type {
   AdminTeamListResponse,
 } from '@/services/adminService'
 
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual<typeof import('react-router-dom')>('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router-dom', async () => ({
+  ...(await vi.importActual<typeof import('react-router-dom')>(
+    'react-router-dom'
+  )),
   useNavigate: () => mockNavigate,
 }))
 
-jest.mock('@/services/adminService', () => ({
-  adminService: { listProjects: jest.fn(), listTeams: jest.fn() },
+vi.mock('@/services/adminService', () => ({
+  adminService: { listProjects: vi.fn(), listTeams: vi.fn() },
 }))
 
 import { adminService } from '@/services/adminService'
 
 import { AdminProjects } from '../AdminProjects'
 
-const mockAdminService = adminService as jest.Mocked<typeof adminService>
+const mockAdminService = adminService as Mocked<typeof adminService>
 
 beforeAll(() => {
   // Radix Popover/Command rely on layout APIs jsdom does not implement.
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 function project(
@@ -123,7 +126,7 @@ const lastQuery = () => {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockAdminService.listProjects.mockResolvedValue(page())
   mockAdminService.listTeams.mockResolvedValue(teamPage)
 })

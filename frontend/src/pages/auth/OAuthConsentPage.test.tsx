@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import type { MockInstance } from 'vitest'
 
 import { ApiError } from '@/types/errors'
 import type { OAuthConsentDetails } from '@/types/oauth'
@@ -11,20 +12,20 @@ import type { OAuthConsentDetails } from '@/types/oauth'
 
 let mockLogin: string | null = 'login-abc'
 
-jest.mock('react-router-dom', () => {
+vi.mock('react-router-dom', async () => {
   const actual =
-    jest.requireActual<typeof import('react-router-dom')>('react-router-dom')
+    await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
   return {
     ...actual,
     useSearchParams: () => [new URLSearchParams({ login: mockLogin ?? '' })],
   }
 })
 
-const mockGetConsent = jest.fn()
-const mockAttach = jest.fn()
-const mockSubmitConsent = jest.fn()
+const mockGetConsent = vi.hoisted(() => vi.fn())
+const mockAttach = vi.hoisted(() => vi.fn())
+const mockSubmitConsent = vi.hoisted(() => vi.fn())
 
-jest.mock('@/services/oauthService', () => ({
+vi.mock('@/services/oauthService', () => ({
   oauthService: {
     getConsent: (...args: unknown[]) => mockGetConsent(...args),
     attach: (...args: unknown[]) => mockAttach(...args),
@@ -32,9 +33,9 @@ jest.mock('@/services/oauthService', () => ({
   },
 }))
 
-const mockHardRedirect = jest.fn()
+const mockHardRedirect = vi.hoisted(() => vi.fn())
 
-jest.mock('@/utils/navigation', () => ({
+vi.mock('@/utils/navigation', () => ({
   hardRedirect: (...args: unknown[]) => mockHardRedirect(...args),
 }))
 
@@ -83,12 +84,12 @@ function renderPage() {
 // ---------------------------------------------------------------------------
 
 describe('OAuthConsentPage', () => {
-  let consoleErrorSpy: jest.SpyInstance
+  let consoleErrorSpy: MockInstance
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockLogin = 'login-abc'
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {

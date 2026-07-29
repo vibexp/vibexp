@@ -6,7 +6,7 @@ import { CommentComposer } from '../CommentComposer'
 describe('CommentComposer', () => {
   it('disables submit until there is non-whitespace content', async () => {
     const user = userEvent.setup()
-    render(<CommentComposer onSubmit={jest.fn()} submitLabel="Comment" />)
+    render(<CommentComposer onSubmit={vi.fn()} submitLabel="Comment" />)
 
     const submit = screen.getByRole('button', { name: 'Comment' })
     expect(submit).toBeDisabled()
@@ -20,8 +20,8 @@ describe('CommentComposer', () => {
 
   it('submits the trimmed content and calls onSuccess', async () => {
     const user = userEvent.setup()
-    const onSubmit = jest.fn().mockResolvedValue(undefined)
-    const onSuccess = jest.fn()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const onSuccess = vi.fn()
     render(
       <CommentComposer
         onSubmit={onSubmit}
@@ -43,8 +43,8 @@ describe('CommentComposer', () => {
 
   it('keeps the draft and shows an inline error when submit fails', async () => {
     const user = userEvent.setup()
-    const onSubmit = jest.fn().mockRejectedValue(new Error('Server said no'))
-    const onSuccess = jest.fn()
+    const onSubmit = vi.fn().mockRejectedValue(new Error('Server said no'))
+    const onSuccess = vi.fn()
     render(
       <CommentComposer
         onSubmit={onSubmit}

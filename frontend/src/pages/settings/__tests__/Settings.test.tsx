@@ -10,13 +10,13 @@ const teamContext: { currentTeam: Team | null; isLoading: boolean } = {
   isLoading: false,
 }
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: teamContext.currentTeam,
     isLoading: teamContext.isLoading,
     teams: teamContext.currentTeam ? [teamContext.currentTeam] : [],
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
   }),
 }))
 

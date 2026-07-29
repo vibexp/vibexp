@@ -11,21 +11,21 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 const baseProps = (
   overrides: Partial<MetadataFilterProps> = {}
 ): MetadataFilterProps => ({
   value: {},
-  onChange: jest.fn(),
+  onChange: vi.fn(),
   keys: ['env', 'team'],
-  onOpenCatalog: jest.fn(),
+  onOpenCatalog: vi.fn(),
   activeKey: null,
-  onSelectKey: jest.fn(),
+  onSelectKey: vi.fn(),
   values: [],
   valueQuery: '',
-  onValueQueryChange: jest.fn(),
+  onValueQueryChange: vi.fn(),
   ...overrides,
 })
 
@@ -61,7 +61,7 @@ describe('MetadataFilter', () => {
 
   it('multi-selecting values and applying emits one key with both values', async () => {
     const user = userEvent.setup()
-    const onChange = jest.fn()
+    const onChange = vi.fn()
     const props = baseProps({
       onChange,
       activeKey: 'env',
@@ -79,7 +79,7 @@ describe('MetadataFilter', () => {
 
   it('applying with nothing selected removes the key rather than emitting an empty array', async () => {
     const user = userEvent.setup()
-    const onChange = jest.fn()
+    const onChange = vi.fn()
     // An empty array means "the key exists" to the backend, which is not what
     // an emptied checkbox list expresses.
     const props = baseProps({
@@ -99,7 +99,7 @@ describe('MetadataFilter', () => {
 
   it('seeds the draft from the committed values so a chip can be edited', async () => {
     const user = userEvent.setup()
-    const onChange = jest.fn()
+    const onChange = vi.fn()
     const props = baseProps({
       onChange,
       value: { env: ['prod'] },
@@ -142,7 +142,7 @@ describe('MetadataFilter', () => {
 
   it('removing a chip omits that key entirely', async () => {
     const user = userEvent.setup()
-    const onChange = jest.fn()
+    const onChange = vi.fn()
     render(
       <MetadataFilter
         {...baseProps({ onChange, value: { env: ['prod'], team: ['core'] } })}
@@ -156,7 +156,7 @@ describe('MetadataFilter', () => {
 
   it('clear filters emits an empty object', async () => {
     const user = userEvent.setup()
-    const onChange = jest.fn()
+    const onChange = vi.fn()
     render(
       <MetadataFilter {...baseProps({ onChange, value: { env: ['prod'] } })} />
     )
@@ -178,7 +178,7 @@ describe('MetadataFilter', () => {
 
   it('typing in the value search reports each keystroke to the host, which debounces', async () => {
     const user = userEvent.setup()
-    const onValueQueryChange = jest.fn()
+    const onValueQueryChange = vi.fn()
     const props = baseProps({
       activeKey: 'env',
       values: ['prod'],

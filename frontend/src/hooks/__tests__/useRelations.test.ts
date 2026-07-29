@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type { Mock } from 'vitest'
 
 import { useRelations } from '@/hooks/useRelations'
 import type {
@@ -7,19 +8,19 @@ import type {
 } from '@/services/relationService'
 import { relationService } from '@/services/relationService'
 
-jest.mock('@/services/relationService', () => ({
+vi.mock('@/services/relationService', () => ({
   relationService: {
-    list: jest.fn(),
-    create: jest.fn(),
-    confirm: jest.fn(),
-    remove: jest.fn(),
+    list: vi.fn(),
+    create: vi.fn(),
+    confirm: vi.fn(),
+    remove: vi.fn(),
   },
 }))
 
-const mockList = relationService.list as jest.Mock
-const mockCreate = relationService.create as jest.Mock
-const mockConfirm = relationService.confirm as jest.Mock
-const mockRemove = relationService.remove as jest.Mock
+const mockList = relationService.list as Mock
+const mockCreate = relationService.create as Mock
+const mockConfirm = relationService.confirm as Mock
+const mockRemove = relationService.remove as Mock
 
 function makeRelation(
   overrides: Partial<RelatedResource> = {}
@@ -49,7 +50,7 @@ function listResp(relations: RelatedResource[]): RelationListResponse {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 async function renderLoaded(relations: RelatedResource[]) {

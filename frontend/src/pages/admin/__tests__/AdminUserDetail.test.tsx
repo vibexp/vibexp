@@ -5,32 +5,35 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mocked } from 'vitest'
 
 import type { AdminUserDetail as AdminUserDetailType } from '@/services/adminService'
 
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual<typeof import('react-router-dom')>('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router-dom', async () => ({
+  ...(await vi.importActual<typeof import('react-router-dom')>(
+    'react-router-dom'
+  )),
   useNavigate: () => mockNavigate,
 }))
 
-const mockUseAuth = jest.fn()
-jest.mock('@/contexts/useAuth', () => ({
+const mockUseAuth = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
-jest.mock('@/services/adminService', () => ({
+vi.mock('@/services/adminService', () => ({
   adminService: {
-    getUser: jest.fn(),
-    updateUser: jest.fn(),
-    suspendUser: jest.fn(),
-    reactivateUser: jest.fn(),
-    deleteUser: jest.fn(),
+    getUser: vi.fn(),
+    updateUser: vi.fn(),
+    suspendUser: vi.fn(),
+    reactivateUser: vi.fn(),
+    deleteUser: vi.fn(),
   },
 }))
 
-jest.mock('sonner', () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
 
 import { toast } from 'sonner'
@@ -39,12 +42,12 @@ import { adminService } from '@/services/adminService'
 
 import { AdminUserDetail } from '../AdminUserDetail'
 
-const mockAdminService = adminService as jest.Mocked<typeof adminService>
+const mockAdminService = adminService as Mocked<typeof adminService>
 
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 function user(
@@ -76,7 +79,7 @@ function renderDetail(id = 'u1') {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockUseAuth.mockReturnValue({
     user: {
       id: 'admin-1',

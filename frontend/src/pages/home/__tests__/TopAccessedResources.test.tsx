@@ -5,9 +5,9 @@ import type {
   TopAccessedResource,
 } from '@/services/teamService'
 
-const mockGetTeamTopAccessedResources = jest.fn()
+const mockGetTeamTopAccessedResources = vi.hoisted(() => vi.fn())
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
     getTeamTopAccessedResources: (...args: unknown[]) =>
       mockGetTeamTopAccessedResources(...args),
@@ -37,7 +37,7 @@ function buildResponse(
 
 describe('TopAccessedResources', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('renders the four per-type lists with a generous limit', async () => {

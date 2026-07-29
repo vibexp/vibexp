@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mock } from 'vitest'
 
 import type { Prompt } from '@/services/promptService'
 
@@ -10,17 +11,17 @@ const searchState: {
   prompts: Prompt[]
   loading: boolean
   error: string | null
-  searchPrompts: jest.Mock
-  clearResults: jest.Mock
+  searchPrompts: Mock
+  clearResults: Mock
 } = {
   prompts: [],
   loading: false,
   error: null,
-  searchPrompts: jest.fn(),
-  clearResults: jest.fn(),
+  searchPrompts: vi.fn(),
+  clearResults: vi.fn(),
 }
 let capturedOptions: unknown
-jest.mock('@/hooks/usePromptSearch', () => ({
+vi.mock('@/hooks/usePromptSearch', () => ({
   usePromptSearch: (options: unknown) => {
     capturedOptions = options
     return searchState
@@ -50,8 +51,8 @@ function buildPrompt(overrides: Partial<Prompt> = {}): Prompt {
   }
 }
 
-const onClose = jest.fn()
-const onSelectPrompt = jest.fn()
+const onClose = vi.fn()
+const onSelectPrompt = vi.fn()
 
 function renderLoader(
   props: Partial<React.ComponentProps<typeof PromptTemplateLoader>> = {}
@@ -68,7 +69,7 @@ function renderLoader(
 
 describe('PromptTemplateLoader', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     searchState.prompts = []
     searchState.loading = false
     searchState.error = null

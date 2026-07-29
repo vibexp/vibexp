@@ -5,37 +5,38 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react'
+import type { Mock, Mocked } from 'vitest'
 
 import type { Project } from '@/services/projectService'
 
 import { ProjectProvider, useProject } from '../ProjectContext'
 
 // Mock the projectService
-jest.mock('../../services/projectService', () => ({
+vi.mock('../../services/projectService', () => ({
   projectService: {
-    getProjects: jest.fn(),
+    getProjects: vi.fn(),
   },
 }))
 
 // Mock the centralized storage utilities
-jest.mock('../../utils/storage', () => ({
+vi.mock('../../utils/storage', () => ({
   storage: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
   },
   sessionStore: {
-    get: jest.fn(),
-    set: jest.fn(),
-    remove: jest.fn(),
-    clear: jest.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
   },
 }))
 
 // Mock TeamContext so tests control the current team directly
-jest.mock('../TeamContext', () => ({
-  useTeam: jest.fn(),
+vi.mock('../TeamContext', () => ({
+  useTeam: vi.fn(),
 }))
 
 // Import the mocked modules after the mock
@@ -43,9 +44,9 @@ import { projectService } from '../../services/projectService'
 import { storage } from '../../utils/storage'
 import { useTeam } from '../TeamContext'
 
-const mockProjectService = projectService as jest.Mocked<typeof projectService>
-const mockStorage = storage as jest.Mocked<typeof storage>
-const mockUseTeam = useTeam as jest.Mock
+const mockProjectService = projectService as Mocked<typeof projectService>
+const mockStorage = storage as Mocked<typeof storage>
+const mockUseTeam = useTeam as Mock
 
 function makeProject(id: string, name: string): Project {
   return {
@@ -73,8 +74,8 @@ function teamValue(teamId: string | null) {
   return {
     currentTeam: teamId ? { id: teamId, name: `Team ${teamId}` } : null,
     teams: [],
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
     isLoading: false,
   }
 }
@@ -109,7 +110,7 @@ const TestComponent = () => {
 
 describe('ProjectContext', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockStorage.get.mockReturnValue(null)
     mockStorage.set.mockImplementation(() => {})
     mockStorage.remove.mockImplementation(() => {})
@@ -290,7 +291,7 @@ describe('ProjectContext', () => {
   it('keeps the selection when storage restore fails but logs the error', async () => {
     mockStorage.get.mockReturnValue('project-1')
     mockProjectService.getProjects.mockRejectedValue(new Error('network down'))
-    const consoleErrorSpy = jest
+    const consoleErrorSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => {})
 
@@ -311,7 +312,7 @@ describe('ProjectContext', () => {
   })
 
   it('throws when useProject is used outside ProjectProvider', () => {
-    const consoleErrorSpy = jest
+    const consoleErrorSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => {})
 

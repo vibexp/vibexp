@@ -1,58 +1,59 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { Blueprint } from '@/services/blueprintService'
 
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues
-jest.mock('@/components/MarkdownRenderer', () => ({
+vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
     <div data-testid="markdown-renderer">{content}</div>
   ),
 }))
 
 // Mock TeamContext — stable references to prevent effect re-runs
-const mockUseTeam = jest.fn()
+const mockUseTeam = vi.hoisted(() => vi.fn())
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/services/blueprintService', () => ({
+vi.mock('@/services/blueprintService', () => ({
   blueprintService: {
-    getBlueprint: jest.fn(),
-    deleteBlueprint: jest.fn(),
+    getBlueprint: vi.fn(),
+    deleteBlueprint: vi.fn(),
   },
 }))
 
 // BlueprintView renders ResourceAttachments, which loads attachments on mount.
-jest.mock('@/services/attachmentService', () => ({
+vi.mock('@/services/attachmentService', () => ({
   attachmentService: {
-    list: jest.fn().mockResolvedValue({
+    list: vi.fn().mockResolvedValue({
       attachments: [],
       total_count: 0,
       total_size_bytes: 0,
     }),
-    upload: jest.fn(),
-    remove: jest.fn(),
-    download: jest.fn(),
+    upload: vi.fn(),
+    remove: vi.fn(),
+    download: vi.fn(),
   },
 }))
 
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const trackEvent = vi.fn()
   return {
     useAlerts: () => ({ showSuccess }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return {
     useErrorHandler: () => ({ handleError }),
   }
@@ -63,7 +64,7 @@ import { blueprintService } from '@/services/blueprintService'
 
 import { BlueprintView } from '../BlueprintView'
 
-const mockBlueprint: Blueprint = {
+const mockBlueprint: Blueprint = vi.hoisted(() => ({
   id: 'blueprint-1',
   project_id: 'my-project',
   slug: 'my-blueprint',
@@ -77,7 +78,7 @@ const mockBlueprint: Blueprint = {
   description: 'A test blueprint',
   type: 'general',
   metadata: {},
-}
+}))
 
 function renderBlueprintView(project = 'my-project', slug = 'my-blueprint') {
   return render(
@@ -91,7 +92,7 @@ function renderBlueprintView(project = 'my-project', slug = 'my-blueprint') {
 
 describe('BlueprintView', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('when TeamContext is still loading (isLoadingTeam = true)', () => {
@@ -100,8 +101,8 @@ describe('BlueprintView', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderBlueprintView()
@@ -115,8 +116,8 @@ describe('BlueprintView', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderBlueprintView()
@@ -131,12 +132,10 @@ describe('BlueprintView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(blueprintService.getBlueprint as jest.Mock).mockResolvedValue(
-        mockBlueprint
-      )
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
 
       renderBlueprintView()
 
@@ -163,12 +162,10 @@ describe('BlueprintView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(blueprintService.getBlueprint as jest.Mock).mockResolvedValue(
-        mockBlueprint
-      )
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
 
       renderBlueprintView()
 
@@ -189,10 +186,10 @@ describe('BlueprintView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(blueprintService.getBlueprint as jest.Mock).mockResolvedValue({
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue({
         ...mockBlueprint,
         source: {
           repo: 'https://github.com/vibexp/vibexp',
@@ -218,10 +215,10 @@ describe('BlueprintView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(blueprintService.getBlueprint as jest.Mock).mockImplementation(
+      ;(blueprintService.getBlueprint as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -239,12 +236,10 @@ describe('BlueprintView', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(blueprintService.getBlueprint as jest.Mock).mockResolvedValue(
-        mockBlueprint
-      )
+      ;(blueprintService.getBlueprint as Mock).mockResolvedValue(mockBlueprint)
 
       const { rerender } = renderBlueprintView()
 
@@ -257,8 +252,8 @@ describe('BlueprintView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
       rerender(
         <MemoryRouter initialEntries={['/blueprints/my-project/my-blueprint']}>
@@ -284,10 +279,10 @@ describe('BlueprintView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(blueprintService.getBlueprint as jest.Mock).mockRejectedValue(
+      ;(blueprintService.getBlueprint as Mock).mockRejectedValue(
         new Error('Not found')
       )
 
@@ -307,10 +302,10 @@ describe('BlueprintView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(blueprintService.getBlueprint as jest.Mock).mockRejectedValue(
+      ;(blueprintService.getBlueprint as Mock).mockRejectedValue(
         new Error('Blueprint does not exist')
       )
 

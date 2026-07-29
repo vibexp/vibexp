@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import type { MockedFunction } from 'vitest'
 
 import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
 import { useProject } from '@/contexts/ProjectContext'
@@ -8,13 +9,13 @@ import { useTeam } from '@/contexts/TeamContext'
 import type { Project, ProjectListResponse } from '@/services/projectService'
 import { projectService } from '@/services/projectService'
 
-jest.mock('@/contexts/TeamContext')
-jest.mock('@/contexts/ProjectContext')
-jest.mock('@/services/projectService')
+vi.mock('@/contexts/TeamContext')
+vi.mock('@/contexts/ProjectContext')
+vi.mock('@/services/projectService')
 
-const mockedUseTeam = useTeam as jest.MockedFunction<typeof useTeam>
-const mockedUseProject = useProject as jest.MockedFunction<typeof useProject>
-const mockedGetProjects = projectService.getProjects as jest.MockedFunction<
+const mockedUseTeam = useTeam as MockedFunction<typeof useTeam>
+const mockedUseProject = useProject as MockedFunction<typeof useProject>
+const mockedGetProjects = projectService.getProjects as MockedFunction<
   typeof projectService.getProjects
 >
 
@@ -48,21 +49,21 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 function setTeam(): void {
   mockedUseTeam.mockReturnValue({
     currentTeam: { id: 'team-1', name: 'Team One', slug: 'team-one' },
     teams: [],
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
     isLoading: false,
   } as unknown as ReturnType<typeof useTeam>)
 }
 
 function setProject(currentProject: Project | null, isLoading = false) {
-  const setCurrentProject = jest.fn()
+  const setCurrentProject = vi.fn()
   mockedUseProject.mockReturnValue({
     currentProject,
     setCurrentProject,
@@ -81,7 +82,7 @@ function renderAt(path: string) {
 
 describe('ProjectSwitcher', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     setTeam()
     mockedGetProjects.mockResolvedValue(listResponse([alpha]))
   })
@@ -155,8 +156,8 @@ describe('ProjectSwitcher', () => {
     mockedUseTeam.mockReturnValue({
       currentTeam: null,
       teams: [],
-      setCurrentTeam: jest.fn(),
-      refreshTeams: jest.fn(),
+      setCurrentTeam: vi.fn(),
+      refreshTeams: vi.fn(),
       isLoading: false,
     })
     setProject(null)

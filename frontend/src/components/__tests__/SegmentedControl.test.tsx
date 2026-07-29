@@ -31,7 +31,7 @@ describe('SegmentedControl', () => {
   })
 
   it('calls onChange with the option value when a segment is clicked', () => {
-    const onChange = jest.fn()
+    const onChange = vi.fn()
     render(
       <SegmentedControl options={OPTIONS} value="30d" onChange={onChange} />
     )

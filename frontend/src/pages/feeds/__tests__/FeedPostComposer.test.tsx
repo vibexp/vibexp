@@ -1,35 +1,32 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import type { FeedItem } from '@/services/feedService'
+import { feedService } from '@/services/feedService'
 
 import { USER_POST_ASSISTANT_NAME } from '../FeedPostComposer'
 import { FeedPostComposer } from '../FeedPostComposer'
 
-const mockHandleError = jest.fn()
-jest.mock('@/services/feedService', () => ({
-  feedService: { createFeedItem: jest.fn() },
+const mockHandleError = vi.hoisted(() => vi.fn())
+vi.mock('@/services/feedService', () => ({
+  feedService: { createFeedItem: vi.fn() },
 }))
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({ currentTeam: { id: 'team-1' } }),
 }))
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({
     user: { id: 'user-1', name: 'Test User', email: 'test@example.com' },
   }),
 }))
-jest.mock('@/hooks/useErrorHandler', () => ({
+vi.mock('@/hooks/useErrorHandler', () => ({
   useErrorHandler: () => ({ handleError: mockHandleError }),
 }))
-jest.mock('@/hooks', () => ({
-  useAlerts: () => ({ showSuccess: jest.fn() }),
-  useAnalytics: () => ({ trackEvent: jest.fn() }),
+vi.mock('@/hooks', () => ({
+  useAlerts: () => ({ showSuccess: vi.fn() }),
+  useAnalytics: () => ({ trackEvent: vi.fn() }),
 }))
 
-const { feedService } = require('@/services/feedService') as {
-  feedService: {
-    createFeedItem: jest.Mock
-  }
-}
+const mockedFeedService = vi.mocked(feedService)
 
 const mockFeedItem: FeedItem = {
   id: 'item-1',
@@ -44,7 +41,7 @@ const mockFeedItem: FeedItem = {
   reply_count: 0,
 }
 
-function renderComposer(onPosted = jest.fn()) {
+function renderComposer(onPosted = vi.fn()) {
   const result = render(
     <FeedPostComposer feedId="feed-1" projects={[]} onPosted={onPosted} />
   )
@@ -56,7 +53,7 @@ function renderComposer(onPosted = jest.fn()) {
 
 describe('FeedPostComposer', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   it('renders title input, content textarea, and submit button', () => {
@@ -111,8 +108,8 @@ describe('FeedPostComposer', () => {
     expect(screen.getByRole('button', { name: /post/i })).not.toBeDisabled()
   })
 
-  it('successful submit calls feedService.createFeedItem with correct payload', async () => {
-    feedService.createFeedItem.mockResolvedValue(mockFeedItem)
+  it('successful submit calls mockedFeedService.createFeedItem with correct payload', async () => {
+    mockedFeedService.createFeedItem.mockResolvedValue(mockFeedItem)
     renderComposer()
 
     fireEvent.change(screen.getByRole('textbox', { name: /post title/i }), {
@@ -124,7 +121,7 @@ describe('FeedPostComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: /post/i }))
 
     await waitFor(() => {
-      expect(feedService.createFeedItem).toHaveBeenCalledWith(
+      expect(mockedFeedService.createFeedItem).toHaveBeenCalledWith(
         'team-1',
         'feed-1',
         {
@@ -138,8 +135,10 @@ describe('FeedPostComposer', () => {
   })
 
   it('does not reset form and does not call onPosted on submission failure', async () => {
-    feedService.createFeedItem.mockRejectedValue(new Error('Network error'))
-    const onPosted = jest.fn()
+    mockedFeedService.createFeedItem.mockRejectedValue(
+      new Error('Network error')
+    )
+    const onPosted = vi.fn()
     render(
       <FeedPostComposer feedId="feed-1" projects={[]} onPosted={onPosted} />
     )
@@ -161,7 +160,9 @@ describe('FeedPostComposer', () => {
   })
 
   it('submit button re-enables after submission failure', async () => {
-    feedService.createFeedItem.mockRejectedValue(new Error('Network error'))
+    mockedFeedService.createFeedItem.mockRejectedValue(
+      new Error('Network error')
+    )
     renderComposer()
 
     fireEvent.change(screen.getByRole('textbox', { name: /post title/i }), {
@@ -178,7 +179,7 @@ describe('FeedPostComposer', () => {
   })
 
   it('form resets after successful submission', async () => {
-    feedService.createFeedItem.mockResolvedValue(mockFeedItem)
+    mockedFeedService.createFeedItem.mockResolvedValue(mockFeedItem)
     renderComposer()
 
     const titleInput = screen.getByRole('textbox', { name: /post title/i })
@@ -205,7 +206,7 @@ describe('FeedPostComposer', () => {
 
   it('submit button is disabled while submitting (loading state)', async () => {
     let resolveSubmit!: (value: FeedItem) => void
-    feedService.createFeedItem.mockReturnValue(
+    mockedFeedService.createFeedItem.mockReturnValue(
       new Promise<FeedItem>(resolve => {
         resolveSubmit = resolve
       })
@@ -230,8 +231,8 @@ describe('FeedPostComposer', () => {
   })
 
   it('onPosted callback is called after successful submission', async () => {
-    feedService.createFeedItem.mockResolvedValue(mockFeedItem)
-    const onPosted = jest.fn()
+    mockedFeedService.createFeedItem.mockResolvedValue(mockFeedItem)
+    const onPosted = vi.fn()
     render(
       <FeedPostComposer feedId="feed-1" projects={[]} onPosted={onPosted} />
     )

@@ -1,22 +1,24 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mock } from 'vitest'
 
+import { toast } from '@/lib/toast'
 import type { GitHubAppConfigResponse } from '@/services/githubAppConfigService'
 import { githubAppConfigService } from '@/services/githubAppConfigService'
 
 import { GitHubAppConfigCard } from './GitHubAppConfigCard'
 
-jest.mock('@/services/githubAppConfigService', () => ({
-  ...jest.requireActual('@/services/githubAppConfigService'),
+vi.mock('@/services/githubAppConfigService', async () => ({
+  ...(await vi.importActual('@/services/githubAppConfigService')),
   githubAppConfigService: {
-    validateAppConfig: jest.fn(),
-    rotateWebhookToken: jest.fn(),
-    deleteAppConfig: jest.fn(),
+    validateAppConfig: vi.fn(),
+    rotateWebhookToken: vi.fn(),
+    deleteAppConfig: vi.fn(),
   },
 }))
 
-jest.mock('@/lib/toast', () => ({
-  toast: { success: jest.fn(), error: jest.fn() },
+vi.mock('@/lib/toast', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
 
 const TEAM_ID = 'team-1'
@@ -44,7 +46,7 @@ const renderCard = (
       teamId={TEAM_ID}
       config={config}
       canManage
-      onChanged={jest.fn()}
+      onChanged={vi.fn()}
       {...props}
     />
   )
@@ -215,7 +217,7 @@ describe('GitHubAppSetupGuide — organization deep link', () => {
 })
 
 describe('GitHubAppConfigCard — actions', () => {
-  const service = githubAppConfigService as unknown as Record<string, jest.Mock>
+  const service = githubAppConfigService as unknown as Record<string, Mock>
 
   it('rotates, refreshes, and re-discloses the new webhook URL', async () => {
     const user = userEvent.setup()
@@ -223,7 +225,7 @@ describe('GitHubAppConfigCard — actions', () => {
       ...config,
       webhook_url: 'https://vibexp.example.com/api/v1/webhooks/github/new-tok',
     })
-    const onChanged = jest.fn()
+    const onChanged = vi.fn()
     renderCard({ onChanged })
 
     await user.click(screen.getByRole('button', { name: 'Rotate webhook URL' }))
@@ -248,7 +250,7 @@ describe('GitHubAppConfigCard — actions', () => {
   it('deletes and refreshes', async () => {
     const user = userEvent.setup()
     service.deleteAppConfig.mockResolvedValue(undefined)
-    const onChanged = jest.fn()
+    const onChanged = vi.fn()
     renderCard({ onChanged })
 
     await user.click(screen.getByRole('button', { name: 'Remove' }))
@@ -272,7 +274,9 @@ describe('GitHubAppConfigCard — actions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Verify' }))
 
-    const { toast } = jest.requireMock('@/lib/toast')
+    const { toast } = (await vi.importMock('@/lib/toast')) as {
+      toast: { success: Mock; error: Mock }
+    }
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith(
         'The App slug does not match',
@@ -293,7 +297,9 @@ describe('GitHubAppConfigCard — actions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Verify' }))
 
-    const { toast } = jest.requireMock('@/lib/toast')
+    const { toast } = (await vi.importMock('@/lib/toast')) as {
+      toast: { success: Mock; error: Mock }
+    }
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith('GitHub App verified')
     })
@@ -301,8 +307,9 @@ describe('GitHubAppConfigCard — actions', () => {
 })
 
 describe('GitHubAppConfigCard — failure paths', () => {
-  const service = githubAppConfigService as unknown as Record<string, jest.Mock>
-  const toastOf = () => jest.requireMock('@/lib/toast').toast
+  const service = githubAppConfigService as unknown as Record<string, Mock>
+  const toastMock = () =>
+    vi.mocked(toast) as unknown as { error: Mock; success: Mock }
 
   it.each([
     [
@@ -317,7 +324,7 @@ describe('GitHubAppConfigCard — failure paths', () => {
     async (method, trigger, confirm, message) => {
       const user = userEvent.setup()
       service[method].mockRejectedValue(new Error('boom'))
-      const onChanged = jest.fn()
+      const onChanged = vi.fn()
       renderCard({ onChanged })
 
       await user.click(screen.getByRole('button', { name: trigger }))
@@ -327,7 +334,7 @@ describe('GitHubAppConfigCard — failure paths', () => {
       await user.click(within(dialog).getByRole('button', { name: confirm }))
 
       await waitFor(() => {
-        expect(toastOf().error).toHaveBeenCalledWith(message)
+        expect(toastMock().error).toHaveBeenCalledWith(message)
       })
       // A failed mutation must not trigger a refetch that would imply it worked.
       expect(onChanged).not.toHaveBeenCalled()
@@ -342,7 +349,7 @@ describe('GitHubAppConfigCard — failure paths', () => {
     await user.click(screen.getByRole('button', { name: 'Verify' }))
 
     await waitFor(() => {
-      expect(toastOf().error).toHaveBeenCalledWith(
+      expect(toastMock().error).toHaveBeenCalledWith(
         'Could not verify the GitHub App'
       )
     })

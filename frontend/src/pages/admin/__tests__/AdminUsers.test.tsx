@@ -8,6 +8,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
+import type { Mocked } from 'vitest'
 
 import type {
   AdminUserDetail,
@@ -15,26 +16,28 @@ import type {
   AdminUserListResponse,
 } from '@/services/adminService'
 
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual<typeof import('react-router-dom')>('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router-dom', async () => ({
+  ...(await vi.importActual<typeof import('react-router-dom')>(
+    'react-router-dom'
+  )),
   useNavigate: () => mockNavigate,
 }))
 
-jest.mock('@/services/adminService', () => ({
-  adminService: { listUsers: jest.fn(), createUser: jest.fn() },
+vi.mock('@/services/adminService', () => ({
+  adminService: { listUsers: vi.fn(), createUser: vi.fn() },
 }))
 
 import { adminService } from '@/services/adminService'
 
 import { AdminUsers } from '../AdminUsers'
 
-const mockAdminService = adminService as jest.Mocked<typeof adminService>
+const mockAdminService = adminService as Mocked<typeof adminService>
 
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 function listItem(
@@ -88,7 +91,7 @@ const lastQuery = () => {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockAdminService.listUsers.mockResolvedValue(page())
 })
 

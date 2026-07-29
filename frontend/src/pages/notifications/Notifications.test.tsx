@@ -8,10 +8,10 @@ import type { Notification } from '@/services/notificationService'
 // ---------------------------------------------------------------------------
 // Mock hooks
 // ---------------------------------------------------------------------------
-const mockMarkAllAsRead = jest.fn()
-const mockMarkAsRead = jest.fn()
-const mockFetchMore = jest.fn()
-const mockRefresh = jest.fn()
+const mockMarkAllAsRead = vi.hoisted(() => vi.fn())
+const mockMarkAsRead = vi.hoisted(() => vi.fn())
+const mockFetchMore = vi.hoisted(() => vi.fn())
+const mockRefresh = vi.hoisted(() => vi.fn())
 
 let mockNotifications: Notification[] = []
 let mockLoading = false
@@ -22,7 +22,7 @@ let mockError: string | null = null
 // can assert on the filter / limit arguments.
 let lastUseNotificationsParams: Record<string, unknown> = {}
 
-jest.mock('../../hooks/useNotifications', () => ({
+vi.mock('../../hooks/useNotifications', () => ({
   useNotifications: (params: Record<string, unknown> = {}) => {
     lastUseNotificationsParams = params
     return {
@@ -39,16 +39,16 @@ jest.mock('../../hooks/useNotifications', () => ({
 }))
 
 // Mock notificationService for the strong filter test
-const mockNotificationService = {
-  listNotifications: jest.fn(),
-}
+const mockNotificationService = vi.hoisted(() => ({
+  listNotifications: vi.fn(),
+}))
 
-jest.mock('../../services/notificationService', () => ({
+vi.mock('../../services/notificationService', () => ({
   notificationService: mockNotificationService,
 }))
 
 // Mock UI components
-jest.mock('../../components/ui/card', () => ({
+vi.mock('../../components/ui/card', () => ({
   Card: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="card">{children}</div>
   ),
@@ -57,13 +57,13 @@ jest.mock('../../components/ui/card', () => ({
   ),
 }))
 
-jest.mock('../../components/ui/skeleton', () => ({
+vi.mock('../../components/ui/skeleton', () => ({
   Skeleton: ({ className }: { className?: string }) => (
     <div data-testid="skeleton" className={className} />
   ),
 }))
 
-jest.mock('../../components/ui/button', () => ({
+vi.mock('../../components/ui/button', () => ({
   Button: ({
     children,
     onClick,
@@ -79,7 +79,7 @@ jest.mock('../../components/ui/button', () => ({
   ),
 }))
 
-jest.mock('../../components/ui/alert', () => ({
+vi.mock('../../components/ui/alert', () => ({
   Alert: ({ children }: { children: React.ReactNode }) => (
     <div role="alert">{children}</div>
   ),
@@ -92,7 +92,7 @@ jest.mock('../../components/ui/alert', () => ({
 }))
 
 // Mock NotificationItem to avoid deep deps
-jest.mock('../../components/layout/NotificationItem', () => ({
+vi.mock('../../components/layout/NotificationItem', () => ({
   NotificationItem: ({
     notification,
     onRead,
@@ -136,7 +136,7 @@ function renderPage() {
 
 describe('Notifications page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockNotifications = []
     mockLoading = false
     mockHasMore = false

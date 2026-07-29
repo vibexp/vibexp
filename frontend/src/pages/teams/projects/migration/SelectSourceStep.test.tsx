@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mock, MockedFunction } from 'vitest'
 
 import { useTeam } from '@/contexts/TeamContext'
 import type { Project, ProjectListResponse } from '@/services/projectService'
@@ -7,11 +8,11 @@ import { projectService } from '@/services/projectService'
 
 import { SelectSourceStep } from './SelectSourceStep'
 
-jest.mock('@/contexts/TeamContext')
-jest.mock('@/services/projectService')
+vi.mock('@/contexts/TeamContext')
+vi.mock('@/services/projectService')
 
-const mockedUseTeam = useTeam as jest.MockedFunction<typeof useTeam>
-const mockedGetProjects = projectService.getProjects as jest.MockedFunction<
+const mockedUseTeam = useTeam as MockedFunction<typeof useTeam>
+const mockedGetProjects = projectService.getProjects as MockedFunction<
   typeof projectService.getProjects
 >
 
@@ -48,7 +49,7 @@ beforeAll(() => {
     unobserve(): void {}
     disconnect(): void {}
   }
-  Element.prototype.scrollIntoView = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 function setTeam(): void {
@@ -59,8 +60,8 @@ function setTeam(): void {
       slug: 'team-one',
     },
     teams: [],
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn(),
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn(),
     isLoading: false,
   } as unknown as ReturnType<typeof useTeam>)
 }
@@ -68,14 +69,14 @@ function setTeam(): void {
 function renderStep({
   resolvedSourceProject = alpha,
   selectedProjectId = 'p1',
-  onSelect = jest.fn(),
-  onNext = jest.fn(),
+  onSelect = vi.fn(),
+  onNext = vi.fn(),
   loadingInventory = false,
 }: {
   resolvedSourceProject?: Project | null
   selectedProjectId?: string
-  onSelect?: jest.Mock
-  onNext?: jest.Mock
+  onSelect?: Mock
+  onNext?: Mock
   loadingInventory?: boolean
 } = {}) {
   return render(
@@ -91,15 +92,15 @@ function renderStep({
 
 describe('SelectSourceStep', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    jest.useFakeTimers()
+    vi.clearAllMocks()
+    vi.useFakeTimers()
     setTeam()
     mockedGetProjects.mockResolvedValue(listResponse([alpha, beta]))
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   it('renders the heading', () => {
@@ -143,8 +144,8 @@ describe('SelectSourceStep', () => {
   })
 
   it('calls onNext when Next button is clicked', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
-    const onNext = jest.fn()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const onNext = vi.fn()
     renderStep({ selectedProjectId: 'p1', onNext })
 
     await user.click(screen.getByRole('button', { name: /next/i }))
@@ -153,7 +154,7 @@ describe('SelectSourceStep', () => {
   })
 
   it('searches the backend (debounced) when typing in the picker', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderStep({ resolvedSourceProject: null, selectedProjectId: '' })
 
     await user.click(screen.getByRole('combobox'))
@@ -167,7 +168,7 @@ describe('SelectSourceStep', () => {
       search: 'Beta',
     })
 
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     await waitFor(() => {
       expect(mockedGetProjects).toHaveBeenLastCalledWith('team-1', {
@@ -179,13 +180,13 @@ describe('SelectSourceStep', () => {
   })
 
   it('selecting a searched project calls onSelect with the project', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     mockedGetProjects.mockResolvedValue(listResponse([beta]))
-    const onSelect = jest.fn()
+    const onSelect = vi.fn()
     renderStep({ resolvedSourceProject: null, selectedProjectId: '', onSelect })
 
     await user.click(screen.getByRole('combobox'))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     const item = await screen.findByText('Beta Project')
     await user.click(item)
@@ -194,13 +195,13 @@ describe('SelectSourceStep', () => {
   })
 
   it('keeps the resolved source visible even when not in search results', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     // Search results do not include the resolved source project.
     mockedGetProjects.mockResolvedValue(listResponse([beta]))
     renderStep({ resolvedSourceProject: alpha, selectedProjectId: 'p1' })
 
     await user.click(screen.getByRole('combobox'))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     expect(await screen.findByText('Beta Project')).toBeInTheDocument()
     // Alpha (the resolved source) is prepended even though search omitted it.
@@ -209,7 +210,7 @@ describe('SelectSourceStep', () => {
   })
 
   it('shows a loading state while searching', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     let resolveFetch: (value: ProjectListResponse) => void = () => {}
     mockedGetProjects.mockReturnValue(
       new Promise<ProjectListResponse>(resolve => {
@@ -219,7 +220,7 @@ describe('SelectSourceStep', () => {
     renderStep({ resolvedSourceProject: null, selectedProjectId: '' })
 
     await user.click(screen.getByRole('combobox'))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     expect(await screen.findByText(/searching/i)).toBeInTheDocument()
 
@@ -230,12 +231,12 @@ describe('SelectSourceStep', () => {
   })
 
   it('shows an empty state when no projects match', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     mockedGetProjects.mockResolvedValue(listResponse([]))
     renderStep({ resolvedSourceProject: null, selectedProjectId: '' })
 
     await user.click(screen.getByRole('combobox'))
-    jest.advanceTimersByTime(300)
+    vi.advanceTimersByTime(300)
 
     expect(await screen.findByText(/no projects found/i)).toBeInTheDocument()
   })

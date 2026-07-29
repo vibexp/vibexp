@@ -1,20 +1,21 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { act } from 'react'
+import type { MockedFunction } from 'vitest'
 
 import * as TeamContextModule from '../../contexts/TeamContext'
 import type { Prompt, PromptListResponse } from '../../services/promptService'
 import { usePromptSearch } from '../usePromptSearch'
 
 // Mock the promptService module
-jest.mock('../../services/promptService', () => ({
+vi.mock('../../services/promptService', () => ({
   promptService: {
-    getPrompts: jest.fn(),
+    getPrompts: vi.fn(),
   },
 }))
 
 // Get the mocked function for use in tests
 import { promptService } from '../../services/promptService'
-const mockGetPrompts = promptService.getPrompts as jest.MockedFunction<
+const mockGetPrompts = promptService.getPrompts as MockedFunction<
   typeof promptService.getPrompts
 >
 
@@ -38,12 +39,12 @@ const mockTeamContext = {
   currentTeam: mockTeam,
   teams: [mockTeam],
   isLoading: false,
-  setCurrentTeam: jest.fn(),
-  refreshTeams: jest.fn().mockResolvedValue(undefined),
+  setCurrentTeam: vi.fn(),
+  refreshTeams: vi.fn().mockResolvedValue(undefined),
 }
 
 // Mock useTeam hook to return mock context
-jest.spyOn(TeamContextModule, 'useTeam').mockReturnValue(mockTeamContext)
+vi.spyOn(TeamContextModule, 'useTeam').mockReturnValue(mockTeamContext)
 
 describe('usePromptSearch', () => {
   const mockPrompts: Prompt[] = [
@@ -84,7 +85,7 @@ describe('usePromptSearch', () => {
   ]
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('initialization', () => {

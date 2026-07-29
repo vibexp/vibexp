@@ -6,27 +6,27 @@ import type { UseRelationsResult } from '@/hooks/useRelations'
 import type { RelatedResource } from '@/services/relationService'
 
 let mockState: UseRelationsResult
-jest.mock('@/hooks/useRelations', () => ({
+vi.mock('@/hooks/useRelations', () => ({
   useRelations: () => mockState,
 }))
 
 // Stub the composer — its own suite exercises the matrix picker; here we only
 // assert the panel opens it, without pulling in the four resource services.
-jest.mock('@/components/relations/RelationComposer', () => ({
+vi.mock('@/components/relations/RelationComposer', () => ({
   RelationComposer: () => <div data-testid="relation-composer-stub" />,
 }))
 
 const grantedPerms = new Set<string>()
 let canDismissRet = false
-jest.mock('@/hooks/usePermissions', () => ({
+vi.mock('@/hooks/usePermissions', () => ({
   usePermissions: () => ({
     can: (p: string) => grantedPerms.has(p),
     canDeleteResource: () => canDismissRet,
   }),
 }))
 
-const showError = jest.fn()
-jest.mock('@/hooks', () => ({
+const showError = vi.fn()
+vi.mock('@/hooks', () => ({
   useAlerts: () => ({ showError }),
 }))
 
@@ -54,10 +54,10 @@ function setState(overrides: Partial<UseRelationsResult> = {}) {
     relations: [],
     loading: false,
     error: false,
-    reload: jest.fn(),
-    addRelation: jest.fn().mockResolvedValue(undefined),
-    confirmRelation: jest.fn().mockResolvedValue(undefined),
-    removeRelation: jest.fn().mockResolvedValue(undefined),
+    reload: vi.fn(),
+    addRelation: vi.fn().mockResolvedValue(undefined),
+    confirmRelation: vi.fn().mockResolvedValue(undefined),
+    removeRelation: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }
@@ -107,7 +107,7 @@ test('Add button appears only with resource.create', () => {
 
 test('Accept confirms; gated on resource.update.any', () => {
   grantedPerms.add('resource.update.any')
-  const confirmRelation = jest.fn().mockResolvedValue(undefined)
+  const confirmRelation = vi.fn().mockResolvedValue(undefined)
   setState({
     relations: [makeRelation({ status: 'suggested' })],
     confirmRelation,
@@ -119,7 +119,7 @@ test('Accept confirms; gated on resource.update.any', () => {
 
 test('Dismiss deletes; gated on canDeleteResource', () => {
   canDismissRet = true
-  const removeRelation = jest.fn().mockResolvedValue(undefined)
+  const removeRelation = vi.fn().mockResolvedValue(undefined)
   setState({
     relations: [makeRelation({ status: 'suggested' })],
     removeRelation,
@@ -150,7 +150,7 @@ test('loading shows the skeleton', () => {
 })
 
 test('error shows a retry that reloads', () => {
-  const reload = jest.fn()
+  const reload = vi.fn()
   setState({ error: true, reload })
   renderPanel()
   fireEvent.click(screen.getByText('Retry'))
@@ -167,7 +167,7 @@ test('clicking Add opens the composer', () => {
 
 test('a failed confirm surfaces an alert', async () => {
   grantedPerms.add('resource.update.any')
-  const confirmRelation = jest.fn().mockRejectedValue(new Error('boom'))
+  const confirmRelation = vi.fn().mockRejectedValue(new Error('boom'))
   setState({
     relations: [makeRelation({ status: 'suggested' })],
     confirmRelation,
@@ -181,7 +181,7 @@ test('a failed confirm surfaces an alert', async () => {
 
 test('a failed dismiss surfaces an alert', async () => {
   canDismissRet = true
-  const removeRelation = jest.fn().mockRejectedValue(new Error('nope'))
+  const removeRelation = vi.fn().mockRejectedValue(new Error('nope'))
   setState({
     relations: [makeRelation({ status: 'suggested' })],
     removeRelation,

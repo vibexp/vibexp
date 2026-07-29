@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type {
   Agent,
@@ -11,8 +12,8 @@ import type {
 // Mock Radix Select (AgentFilters status dropdown) — it can loop in JSDOM
 // (same approach as PromptEditor.test.tsx), but keep onValueChange wired so
 // tests can still pick a status option as a plain button.
-jest.mock('@/components/ui/select', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react')
+vi.mock('@/components/ui/select', async () => {
+  const ReactActual = await vi.importActual<typeof import('react')>('react')
   const SelectCtx = ReactActual.createContext<(value: string) => void>(() => {})
   return {
     Select: ({
@@ -59,16 +60,16 @@ jest.mock('@/components/ui/select', () => {
   }
 })
 
-jest.mock('@/services/agentService', () => ({
+vi.mock('@/services/agentService', () => ({
   agentService: {
-    getAgents: jest.fn(),
-    getAgentStats: jest.fn(),
-    deleteAgent: jest.fn(),
+    getAgents: vi.fn(),
+    getAgentStats: vi.fn(),
+    deleteAgent: vi.fn(),
   },
 }))
 
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
@@ -81,30 +82,30 @@ const mockTeamState: {
   currentTeam: { id: 'team-1', name: 'Test Team', permissions: [] },
   isLoading: false,
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockTeamState.currentTeam,
     teams: mockTeamState.currentTeam ? [mockTeamState.currentTeam] : [],
     isLoading: mockTeamState.isLoading,
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn() as () => Promise<void>,
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn() as () => Promise<void>,
   }),
 }))
 
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return {
     useErrorHandler: () => ({ handleError }),
   }
 })
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    warning: jest.fn(),
-    message: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
   },
 }))
 
@@ -209,18 +210,16 @@ function renderAgents() {
 
 describe('Agents page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     setTeamPermissions([])
-    ;(agentService.getAgents as jest.Mock).mockResolvedValue(
-      buildListResponse([])
-    )
-    ;(agentService.getAgentStats as jest.Mock).mockResolvedValue(buildStats())
-    ;(agentService.deleteAgent as jest.Mock).mockResolvedValue(undefined)
+    ;(agentService.getAgents as Mock).mockResolvedValue(buildListResponse([]))
+    ;(agentService.getAgentStats as Mock).mockResolvedValue(buildStats())
+    ;(agentService.deleteAgent as Mock).mockResolvedValue(undefined)
   })
 
   describe('data states', () => {
     it('renders agent rows returned by the service', async () => {
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([
           buildAgent(),
           buildAgent({
@@ -263,7 +262,7 @@ describe('Agents page', () => {
     })
 
     it('shows skeleton rows while the fetch is in flight', () => {
-      ;(agentService.getAgents as jest.Mock).mockImplementation(
+      ;(agentService.getAgents as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -275,7 +274,7 @@ describe('Agents page', () => {
     })
 
     it('shows the error state when the fetch fails', async () => {
-      ;(agentService.getAgents as jest.Mock).mockRejectedValue(
+      ;(agentService.getAgents as Mock).mockRejectedValue(
         new Error('network down')
       )
 
@@ -305,7 +304,7 @@ describe('Agents page', () => {
 
   describe('stats', () => {
     it('renders the stat cards from getAgentStats once agents are loaded', async () => {
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([buildAgent()])
       )
 
@@ -328,7 +327,7 @@ describe('Agents page', () => {
     })
 
     it('falls back to stats computed from the loaded agents when the stats call fails', async () => {
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([
           buildAgent({ total_runs: 10, success_rate: 90, last_run: null }),
           buildAgent({
@@ -341,7 +340,7 @@ describe('Agents page', () => {
           }),
         ])
       )
-      ;(agentService.getAgentStats as jest.Mock).mockRejectedValue(
+      ;(agentService.getAgentStats as Mock).mockRejectedValue(
         new Error('stats unavailable')
       )
 
@@ -413,7 +412,7 @@ describe('Agents page', () => {
 
   describe('pagination', () => {
     it('fetches the next page from the footer controls', async () => {
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue({
+      ;(agentService.getAgents as Mock).mockResolvedValue({
         ...buildListResponse([buildAgent()]),
         total_count: 25,
         total_pages: 2,
@@ -462,7 +461,7 @@ describe('Agents page', () => {
     })
 
     it('navigates to the agent detail when a row is clicked', async () => {
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([buildAgent()])
       )
 
@@ -475,7 +474,7 @@ describe('Agents page', () => {
     })
 
     it('navigates to edit from the row edit action', async () => {
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([buildAgent()])
       )
 
@@ -488,7 +487,7 @@ describe('Agents page', () => {
     })
 
     it('navigates to chat from the row chat action', async () => {
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([buildAgent()])
       )
 
@@ -506,7 +505,7 @@ describe('Agents page', () => {
   describe('delete gating via the server permissions array (#225)', () => {
     it('shows the delete action on any row when the team grants resource.delete.any', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([
           buildAgent({ name: 'Their Agent', user_id: 'user-2' }),
         ])
@@ -520,7 +519,7 @@ describe('Agents page', () => {
 
     it('hides the delete action when the team grants no delete permission', async () => {
       setTeamPermissions([])
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([
           buildAgent({ name: 'Their Agent', user_id: 'user-2' }),
         ])
@@ -539,7 +538,7 @@ describe('Agents page', () => {
 
     it('with only resource.delete.own, shows delete on own rows but not on others', async () => {
       setTeamPermissions(['resource.delete.own'])
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([
           buildAgent({ id: 'mine', name: 'My Agent', user_id: 'user-1' }),
           buildAgent({ id: 'theirs', name: 'Their Agent', user_id: 'user-2' }),
@@ -566,7 +565,7 @@ describe('Agents page', () => {
   describe('delete flow', () => {
     it('confirms and deletes via the service, then re-fetches and toasts', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([buildAgent()])
       )
 
@@ -577,7 +576,7 @@ describe('Agents page', () => {
 
       const dialog = await screen.findByRole('alertdialog')
       expect(within(dialog).getByText('Delete agent?')).toBeInTheDocument()
-      const fetchCallsBefore = (agentService.getAgents as jest.Mock).mock.calls
+      const fetchCallsBefore = (agentService.getAgents as Mock).mock.calls
         .length
       await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
@@ -589,7 +588,7 @@ describe('Agents page', () => {
       })
       await waitFor(() => {
         expect(
-          (agentService.getAgents as jest.Mock).mock.calls.length
+          (agentService.getAgents as Mock).mock.calls.length
         ).toBeGreaterThan(fetchCallsBefore)
       })
       expect(toast.success).toHaveBeenCalledWith('Agent deleted successfully')
@@ -597,7 +596,7 @@ describe('Agents page', () => {
 
     it('cancelling the dialog closes it without deleting', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([buildAgent()])
       )
 
@@ -616,10 +615,10 @@ describe('Agents page', () => {
 
     it('keeps the page usable and reports the error when the delete fails', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(agentService.getAgents as jest.Mock).mockResolvedValue(
+      ;(agentService.getAgents as Mock).mockResolvedValue(
         buildListResponse([buildAgent()])
       )
-      ;(agentService.deleteAgent as jest.Mock).mockRejectedValue(
+      ;(agentService.deleteAgent as Mock).mockRejectedValue(
         new Error('delete forbidden')
       )
 

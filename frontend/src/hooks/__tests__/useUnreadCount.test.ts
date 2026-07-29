@@ -1,11 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 
 // Mock notificationService
-const mockNotificationService = {
-  getUnreadCount: jest.fn(),
-}
+const mockNotificationService = vi.hoisted(() => ({
+  getUnreadCount: vi.fn(),
+}))
 
-jest.mock('../../services/notificationService', () => ({
+vi.mock('../../services/notificationService', () => ({
   notificationService: mockNotificationService,
 }))
 
@@ -13,7 +13,7 @@ import { useUnreadCount } from '../useUnreadCount'
 
 describe('useUnreadCount', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     // Reset visibility state
     Object.defineProperty(document, 'visibilityState', {
       value: 'visible',
@@ -46,7 +46,7 @@ describe('useUnreadCount', () => {
   })
 
   it('logs a warning on error without changing UI state', async () => {
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mockNotificationService.getUnreadCount.mockRejectedValue(
       new Error('Network error')
     )

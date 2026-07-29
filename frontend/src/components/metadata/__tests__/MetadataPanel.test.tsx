@@ -76,7 +76,7 @@ describe('MetaSlugRow', () => {
   })
 
   it('still copies the full, untruncated slug on click', async () => {
-    const writeText = jest.fn().mockResolvedValue(undefined)
+    const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
       configurable: true,
@@ -104,7 +104,7 @@ describe('MetaSlugRow', () => {
   })
 
   it('copies the value to the clipboard when the chip is clicked', async () => {
-    const writeText = jest.fn().mockResolvedValue(undefined)
+    const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
       configurable: true,
@@ -123,8 +123,8 @@ describe('MetaSlugRow', () => {
   })
 
   it('shows transient "Copied!" feedback that reverts after ~1.5s', async () => {
-    jest.useFakeTimers()
-    const writeText = jest.fn().mockResolvedValue(undefined)
+    vi.useFakeTimers()
+    const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
       configurable: true,
@@ -146,11 +146,11 @@ describe('MetaSlugRow', () => {
     expect(button).toHaveAttribute('title', 'Copied!')
 
     act(() => {
-      jest.advanceTimersByTime(1500)
+      vi.advanceTimersByTime(1500)
     })
     expect(button).toHaveAttribute('title', 'Copy slug')
 
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 
   it('renders the chip as a real, keyboard-focusable <button>', () => {
@@ -242,12 +242,12 @@ describe('MetadataPanel', () => {
 
   it('renders a compact relative label for a recent created date', () => {
     const FIXED_NOW = new Date('2024-06-01T12:00:00Z').getTime()
-    jest.useFakeTimers()
-    jest.setSystemTime(FIXED_NOW)
+    vi.useFakeTimers()
+    vi.setSystemTime(FIXED_NOW)
     const recent = new Date(FIXED_NOW - 5000).toISOString()
     render(<MetadataPanel createdAt={recent} updatedAt={recent} />)
     expect(screen.getByText('just now')).toBeInTheDocument()
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 })
 

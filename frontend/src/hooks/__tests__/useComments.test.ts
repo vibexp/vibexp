@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type { Mock } from 'vitest'
 
 import { useComments } from '@/hooks/useComments'
 import type { Comment } from '@/services/commentService'
@@ -6,24 +7,24 @@ import { commentService } from '@/services/commentService'
 import type { TeamMember } from '@/services/teamService'
 import { teamService } from '@/services/teamService'
 
-jest.mock('@/services/commentService', () => ({
+vi.mock('@/services/commentService', () => ({
   commentService: {
-    list: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    remove: jest.fn(),
+    list: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
   },
 }))
 
-jest.mock('@/services/teamService', () => ({
-  teamService: { getTeamMembers: jest.fn() },
+vi.mock('@/services/teamService', () => ({
+  teamService: { getTeamMembers: vi.fn() },
 }))
 
-const mockList = commentService.list as jest.Mock
-const mockCreate = commentService.create as jest.Mock
-const mockUpdate = commentService.update as jest.Mock
-const mockRemove = commentService.remove as jest.Mock
-const mockMembers = teamService.getTeamMembers as jest.Mock
+const mockList = commentService.list as Mock
+const mockCreate = commentService.create as Mock
+const mockUpdate = commentService.update as Mock
+const mockRemove = commentService.remove as Mock
+const mockMembers = teamService.getTeamMembers as Mock
 
 function makeComment(overrides: Partial<Comment> = {}): Comment {
   return {
@@ -63,7 +64,7 @@ function page(
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockMembers.mockResolvedValue([member])
 })
 

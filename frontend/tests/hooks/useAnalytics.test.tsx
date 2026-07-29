@@ -23,17 +23,17 @@ import type {
 } from '../../src/types/analytics'
 
 // Mock the analyticsService
-const mockAnalyticsService = {
-  track: jest.fn(),
-  trackEvent: jest.fn(),
-  trackPage: jest.fn(),
-  trackAuth: jest.fn(),
-  trackError: jest.fn(),
-  identify: jest.fn(),
-  isEnabled: jest.fn(() => true),
-}
+const mockAnalyticsService = vi.hoisted(() => ({
+  track: vi.fn(),
+  trackEvent: vi.fn(),
+  trackPage: vi.fn(),
+  trackAuth: vi.fn(),
+  trackError: vi.fn(),
+  identify: vi.fn(),
+  isEnabled: vi.fn(() => true),
+}))
 
-jest.mock('../../src/services/analytics', () => ({
+vi.mock('../../src/services/analytics', () => ({
   analyticsService: mockAnalyticsService,
 }))
 
@@ -56,7 +56,7 @@ let mockAuthContext: AuthContextValue = {
   isAuthenticated: false,
 }
 
-jest.mock('../../src/contexts/AuthContext', () => ({
+vi.mock('../../src/contexts/AuthContext', () => ({
   useAuth: () => mockAuthContext,
 }))
 
@@ -82,7 +82,7 @@ describe('useAnalytics', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockAuthContext = {
       user: null,
       isAuthenticated: false,
@@ -264,7 +264,9 @@ describe('useAnalytics', () => {
     })
 
     it('should handle errors gracefully', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
       mockAnalyticsService.track.mockImplementation(() => {
         throw new Error('Tracking error')
       })
@@ -368,7 +370,9 @@ describe('useAnalytics', () => {
     })
 
     it('should handle errors gracefully', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
       mockAnalyticsService.trackEvent.mockImplementation(() => {
         throw new Error('Tracking error')
       })
@@ -439,7 +443,9 @@ describe('useAnalytics', () => {
     })
 
     it('should handle errors gracefully', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
       mockAnalyticsService.trackPage.mockImplementation(() => {
         throw new Error('Tracking error')
       })
@@ -524,7 +530,9 @@ describe('useAnalytics', () => {
     })
 
     it('should handle errors gracefully', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
       mockAnalyticsService.trackAuth.mockImplementation(() => {
         throw new Error('Tracking error')
       })
@@ -594,7 +602,9 @@ describe('useAnalytics', () => {
     })
 
     it('should handle errors gracefully', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
       mockAnalyticsService.trackError.mockImplementation(() => {
         throw new Error('Tracking error')
       })
@@ -635,7 +645,9 @@ describe('useAnalytics', () => {
     })
 
     it('should handle errors gracefully', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined)
       mockAnalyticsService.identify.mockImplementation(() => {
         throw new Error('Identify error')
       })

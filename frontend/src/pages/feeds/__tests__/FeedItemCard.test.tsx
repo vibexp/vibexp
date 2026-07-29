@@ -116,24 +116,24 @@ describe('FeedItemCard', () => {
   })
 
   it('shows archive button when onArchive is provided', () => {
-    renderCard({ onArchive: jest.fn() })
+    renderCard({ onArchive: vi.fn() })
     expect(screen.getByLabelText('Archive')).toBeInTheDocument()
   })
 
   it('calls onArchive when archive button clicked', () => {
-    const onArchive = jest.fn().mockResolvedValue(undefined)
+    const onArchive = vi.fn().mockResolvedValue(undefined)
     renderCard({ onArchive })
     fireEvent.click(screen.getByLabelText('Archive'))
     expect(onArchive).toHaveBeenCalledWith(mockItem)
   })
 
   it('shows delete button when onDelete is provided', () => {
-    renderCard({ onDelete: jest.fn() })
+    renderCard({ onDelete: vi.fn() })
     expect(screen.getByLabelText('Delete')).toBeInTheDocument()
   })
 
   it('calls onDelete when delete button clicked', () => {
-    const onDelete = jest.fn()
+    const onDelete = vi.fn()
     renderCard({ onDelete })
     fireEvent.click(screen.getByLabelText('Delete'))
     expect(onDelete).toHaveBeenCalledWith(mockItem)
@@ -151,14 +151,14 @@ describe('FeedItemCard', () => {
   it('shows unarchive button for archived items', () => {
     render(
       <MemoryRouter>
-        <FeedItemCard item={archivedItem} onUnarchive={jest.fn()} />
+        <FeedItemCard item={archivedItem} onUnarchive={vi.fn()} />
       </MemoryRouter>
     )
     expect(screen.getByLabelText('Unarchive')).toBeInTheDocument()
   })
 
   it('action buttons are inside a group that applies opacity transition', () => {
-    const { container } = renderCard({ onDelete: jest.fn() })
+    const { container } = renderCard({ onDelete: vi.fn() })
     // The outer post div carries the "group" class
     const groupEl = container.querySelector('.group')
     expect(groupEl).toBeInTheDocument()
@@ -170,7 +170,7 @@ describe('FeedItemCard', () => {
   })
 
   it('clicking the delete button stops propagation so the row is not also activated', () => {
-    const onDelete = jest.fn()
+    const onDelete = vi.fn()
     render(
       <MemoryRouter>
         <FeedItemCard item={mockItem} onDelete={onDelete} />

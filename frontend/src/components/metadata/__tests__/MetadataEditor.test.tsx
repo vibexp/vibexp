@@ -1,9 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mock } from 'vitest'
 
 import { MetadataEditor } from '../MetadataEditor'
 
-const lastEmitted = (fn: jest.Mock): Record<string, unknown> => {
+const lastEmitted = (fn: Mock): Record<string, unknown> => {
   const calls = fn.mock.calls
   return calls[calls.length - 1][0] as Record<string, unknown>
 }
@@ -13,7 +14,7 @@ describe('MetadataEditor', () => {
     render(
       <MetadataEditor
         value={{ author: 'ada', tags: ['x', 'y'], count: 3 }}
-        onChange={jest.fn()}
+        onChange={vi.fn()}
       />
     )
     expect(screen.getByDisplayValue('author')).toBeInTheDocument()
@@ -25,7 +26,7 @@ describe('MetadataEditor', () => {
 
   it('adds a new empty pair', async () => {
     const user = userEvent.setup()
-    render(<MetadataEditor value={{}} onChange={jest.fn()} />)
+    render(<MetadataEditor value={{}} onChange={vi.fn()} />)
     expect(screen.queryAllByTestId('metadata-row')).toHaveLength(0)
     await user.click(screen.getByTestId('metadata-add-pair'))
     expect(screen.getAllByTestId('metadata-row')).toHaveLength(1)
@@ -33,7 +34,7 @@ describe('MetadataEditor', () => {
 
   it('emits the recombined map with extras preserved when editing a value', async () => {
     const user = userEvent.setup()
-    const onChange = jest.fn()
+    const onChange = vi.fn()
     render(
       <MetadataEditor
         value={{ author: 'ada', tags: ['x'] }}
@@ -48,7 +49,7 @@ describe('MetadataEditor', () => {
 
   it('deletes a pair', async () => {
     const user = userEvent.setup()
-    const onChange = jest.fn()
+    const onChange = vi.fn()
     render(<MetadataEditor value={{ a: '1', b: '2' }} onChange={onChange} />)
     await user.click(screen.getByTestId('metadata-delete-0'))
     expect(screen.getAllByTestId('metadata-row')).toHaveLength(1)
@@ -57,11 +58,11 @@ describe('MetadataEditor', () => {
 
   it('shows an inline error and reports invalidity for a blank value', async () => {
     const user = userEvent.setup()
-    const onValidityChange = jest.fn()
+    const onValidityChange = vi.fn()
     render(
       <MetadataEditor
         value={{ a: '1' }}
-        onChange={jest.fn()}
+        onChange={vi.fn()}
         onValidityChange={onValidityChange}
       />
     )
@@ -76,7 +77,7 @@ describe('MetadataEditor', () => {
 
   it('flags a duplicate key', async () => {
     const user = userEvent.setup()
-    render(<MetadataEditor value={{ dup: '1' }} onChange={jest.fn()} />)
+    render(<MetadataEditor value={{ dup: '1' }} onChange={vi.fn()} />)
     await user.click(screen.getByTestId('metadata-add-pair'))
     await user.type(screen.getByTestId('metadata-key-1'), 'dup')
     await user.type(screen.getByTestId('metadata-value-1'), '2')
@@ -88,7 +89,7 @@ describe('MetadataEditor', () => {
   it('flags a reserved key', async () => {
     const user = userEvent.setup()
     render(
-      <MetadataEditor value={{}} onChange={jest.fn()} reservedKeys={['tags']} />
+      <MetadataEditor value={{}} onChange={vi.fn()} reservedKeys={['tags']} />
     )
     await user.click(screen.getByTestId('metadata-add-pair'))
     await user.type(screen.getByTestId('metadata-key-0'), 'tags')
@@ -100,7 +101,7 @@ describe('MetadataEditor', () => {
     render(
       <MetadataEditor
         value={{ model: 'opus' }}
-        onChange={jest.fn()}
+        onChange={vi.fn()}
         requiredKeys={['model']}
       />
     )
@@ -109,11 +110,11 @@ describe('MetadataEditor', () => {
   })
 
   it('reports validity true for well-formed metadata on mount', async () => {
-    const onValidityChange = jest.fn()
+    const onValidityChange = vi.fn()
     render(
       <MetadataEditor
         value={{ a: '1' }}
-        onChange={jest.fn()}
+        onChange={vi.fn()}
         onValidityChange={onValidityChange}
       />
     )
@@ -124,10 +125,10 @@ describe('MetadataEditor', () => {
 
   it('re-seeds rows when the host drives a new value (form reset)', () => {
     const { rerender } = render(
-      <MetadataEditor value={{ a: '1' }} onChange={jest.fn()} />
+      <MetadataEditor value={{ a: '1' }} onChange={vi.fn()} />
     )
     expect(screen.getByDisplayValue('a')).toBeInTheDocument()
-    rerender(<MetadataEditor value={{ b: '2' }} onChange={jest.fn()} />)
+    rerender(<MetadataEditor value={{ b: '2' }} onChange={vi.fn()} />)
     expect(screen.getByDisplayValue('b')).toBeInTheDocument()
     expect(screen.queryByDisplayValue('a')).not.toBeInTheDocument()
   })

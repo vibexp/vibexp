@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import type { MockInstance } from 'vitest'
 
 import type { TeamInvitation } from '@/services/teamService'
 import type { APIErrorResponse } from '@/types/errors'
@@ -10,12 +11,12 @@ import { ApiError } from '@/types/errors'
 // Mocks (set up before importing the component under test)
 // ---------------------------------------------------------------------------
 
-const mockNavigate = jest.fn()
+const mockNavigate = vi.hoisted(() => vi.fn())
 let mockTokenParam: string | undefined = 'token-abc'
 
-jest.mock('react-router-dom', () => {
+vi.mock('react-router-dom', async () => {
   const actual =
-    jest.requireActual<typeof import('react-router-dom')>('react-router-dom')
+    await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -23,11 +24,11 @@ jest.mock('react-router-dom', () => {
   }
 })
 
-const mockGetInvitationByToken = jest.fn()
-const mockAcceptInvitation = jest.fn()
-const mockRejectInvitation = jest.fn()
+const mockGetInvitationByToken = vi.hoisted(() => vi.fn())
+const mockAcceptInvitation = vi.hoisted(() => vi.fn())
+const mockRejectInvitation = vi.hoisted(() => vi.fn())
 
-jest.mock('@/services/teamService', () => ({
+vi.mock('@/services/teamService', () => ({
   teamService: {
     getInvitationByToken: (...args: unknown[]) =>
       mockGetInvitationByToken(...args),
@@ -38,9 +39,11 @@ jest.mock('@/services/teamService', () => ({
 
 let mockIsAuthenticated = true
 let mockAuthLoading = false
-const mockCheckPendingInvitation = jest.fn<string | null, []>(() => null)
+const mockCheckPendingInvitation = vi.hoisted(() =>
+  vi.fn((): string | null => null)
+)
 
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({
     isAuthenticated: mockIsAuthenticated,
     isLoading: mockAuthLoading,
@@ -48,10 +51,10 @@ jest.mock('@/contexts/useAuth', () => ({
   }),
 }))
 
-const mockSessionStoreSet = jest.fn()
-const mockSessionStoreRemove = jest.fn()
+const mockSessionStoreSet = vi.hoisted(() => vi.fn())
+const mockSessionStoreRemove = vi.hoisted(() => vi.fn())
 
-jest.mock('@/utils/storage', () => ({
+vi.mock('@/utils/storage', () => ({
   sessionStore: {
     set: (...args: unknown[]) => mockSessionStoreSet(...args),
     remove: (...args: unknown[]) => mockSessionStoreRemove(...args),
@@ -116,17 +119,17 @@ function renderPage() {
 // ---------------------------------------------------------------------------
 
 describe('AcceptInvitation', () => {
-  let consoleErrorSpy: jest.SpyInstance
+  let consoleErrorSpy: MockInstance
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     mockIsAuthenticated = true
     mockAuthLoading = false
     mockTokenParam = 'token-abc'
     mockCheckPendingInvitation.mockReturnValue(null)
     // Component logs a console.error on every catch — intentionally silence
     // it in tests so failure noise stays readable.
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {

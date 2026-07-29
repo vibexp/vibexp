@@ -45,12 +45,12 @@ function renderFilters(
 
 describe('useResourceListFilters', () => {
   beforeEach(() => {
-    jest.useFakeTimers()
+    vi.useFakeTimers()
   })
 
   afterEach(() => {
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   it('derives page and sort order, defaulting sensibly', () => {
@@ -104,7 +104,7 @@ describe('useResourceListFilters', () => {
     expect(result.current.filters.search).toBe('')
 
     act(() => {
-      jest.advanceTimersByTime(300)
+      vi.advanceTimersByTime(300)
     })
     expect(result.current.filters.search).toBe('ap')
   })

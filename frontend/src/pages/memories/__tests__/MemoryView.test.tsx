@@ -1,51 +1,52 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { Memory } from '@/services/memoryService'
 import type { Project } from '@/services/projectService'
 
 // Mock TeamContext — stable references to prevent effect re-runs
-const mockUseTeam = jest.fn()
+const mockUseTeam = vi.hoisted(() => vi.fn())
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => mockUseTeam(),
 }))
 
-jest.mock('@/services/memoryService', () => ({
+vi.mock('@/services/memoryService', () => ({
   memoryService: {
-    getMemory: jest.fn(),
-    deleteMemory: jest.fn(),
+    getMemory: vi.fn(),
+    deleteMemory: vi.fn(),
   },
 }))
 
-jest.mock('@/services/projectService', () => ({
+vi.mock('@/services/projectService', () => ({
   projectService: {
-    getProjects: jest.fn(),
+    getProjects: vi.fn(),
   },
 }))
 
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const trackEvent = vi.fn()
   return {
     useAlerts: () => ({ showSuccess }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return {
     useErrorHandler: () => ({ handleError }),
   }
 })
 
 // Mock MarkdownRenderer to verify content is passed through it
-jest.mock('@/components/MarkdownRenderer', () => ({
+vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
     <div data-testid="markdown-renderer">{content}</div>
   ),
@@ -96,7 +97,7 @@ function renderMemoryView(id = 'memory-1') {
 
 describe('MemoryView', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('when TeamContext is still loading (isLoadingTeam = true)', () => {
@@ -105,8 +106,8 @@ describe('MemoryView', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderMemoryView()
@@ -120,8 +121,8 @@ describe('MemoryView', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
 
       renderMemoryView()
@@ -136,11 +137,11 @@ describe('MemoryView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(memoryService.getMemory as jest.Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+      ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
+      ;(projectService.getProjects as Mock).mockResolvedValue({
         projects: [mockProject],
         page: 1,
         per_page: 100,
@@ -169,13 +170,11 @@ describe('MemoryView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(memoryService.getMemory as jest.Mock).mockResolvedValue(
-        memoryWithMarkdown
-      )
-      ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+      ;(memoryService.getMemory as Mock).mockResolvedValue(memoryWithMarkdown)
+      ;(projectService.getProjects as Mock).mockResolvedValue({
         projects: [mockProject],
         page: 1,
         per_page: 100,
@@ -205,10 +204,10 @@ describe('MemoryView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(memoryService.getMemory as jest.Mock).mockImplementation(
+      ;(memoryService.getMemory as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -222,11 +221,11 @@ describe('MemoryView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(memoryService.getMemory as jest.Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+      ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
+      ;(projectService.getProjects as Mock).mockResolvedValue({
         projects: [mockProject],
         page: 1,
         per_page: 100,
@@ -246,11 +245,11 @@ describe('MemoryView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(memoryService.getMemory as jest.Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+      ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
+      ;(projectService.getProjects as Mock).mockResolvedValue({
         projects: [mockProject],
         page: 1,
         per_page: 100,
@@ -274,11 +273,11 @@ describe('MemoryView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(memoryService.getMemory as jest.Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+      ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
+      ;(projectService.getProjects as Mock).mockResolvedValue({
         projects: [mockProject],
         page: 1,
         per_page: 100,
@@ -304,11 +303,11 @@ describe('MemoryView', () => {
         currentTeam: null,
         teams: [],
         isLoading: true,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(memoryService.getMemory as jest.Mock).mockResolvedValue(mockMemory)
-      ;(projectService.getProjects as jest.Mock).mockResolvedValue({
+      ;(memoryService.getMemory as Mock).mockResolvedValue(mockMemory)
+      ;(projectService.getProjects as Mock).mockResolvedValue({
         projects: [mockProject],
         page: 1,
         per_page: 100,
@@ -327,8 +326,8 @@ describe('MemoryView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
       rerender(
         <MemoryRouter initialEntries={['/memories/memory-1']}>
@@ -352,10 +351,10 @@ describe('MemoryView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(memoryService.getMemory as jest.Mock).mockRejectedValue(
+      ;(memoryService.getMemory as Mock).mockRejectedValue(
         new Error('Not found')
       )
 
@@ -375,10 +374,10 @@ describe('MemoryView', () => {
         currentTeam: { id: 'team-1', name: 'Test Team' },
         teams: [{ id: 'team-1', name: 'Test Team' }],
         isLoading: false,
-        setCurrentTeam: jest.fn(),
-        refreshTeams: jest.fn() as () => Promise<void>,
+        setCurrentTeam: vi.fn(),
+        refreshTeams: vi.fn() as () => Promise<void>,
       })
-      ;(memoryService.getMemory as jest.Mock).mockRejectedValue(
+      ;(memoryService.getMemory as Mock).mockRejectedValue(
         new Error('Memory does not exist')
       )
 

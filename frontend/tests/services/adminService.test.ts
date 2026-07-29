@@ -15,15 +15,15 @@ import type {
 
 // Mock the generated client; `unwrap` stays real so these exercise the same
 // success/error resolution production uses.
-const mockGeneratedClient = {
-  GET: jest.fn(),
-  POST: jest.fn(),
-  PATCH: jest.fn(),
-  DELETE: jest.fn(),
-}
+const mockGeneratedClient = vi.hoisted(() => ({
+  GET: vi.fn(),
+  POST: vi.fn(),
+  PATCH: vi.fn(),
+  DELETE: vi.fn(),
+}))
 
-jest.mock('../../src/lib/apiClientGenerated', () => {
-  const actual = jest.requireActual<
+vi.mock('../../src/lib/apiClientGenerated', async () => {
+  const actual = await vi.importActual<
     typeof import('../../src/lib/apiClientGenerated')
   >('../../src/lib/apiClientGenerated')
   return {
@@ -46,7 +46,7 @@ const emptyTeamPage: AdminTeamListResponse = {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 describe('listTeams', () => {

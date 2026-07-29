@@ -5,14 +5,14 @@ import type { RosterMember } from './teamMemberMerge'
 import { TeamMembersList } from './TeamMembersList'
 
 // Mock clipboard API. CopyButton calls navigator.clipboard.writeText directly.
-const writeText = jest.fn().mockResolvedValue(undefined)
+const writeText = vi.fn().mockResolvedValue(undefined)
 Object.assign(navigator, { clipboard: { writeText } })
 
 // Radix Select needs these in jsdom (same shim as ModelProviderDialog.test).
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 const makeMember = (overrides: Partial<RosterMember> = {}): RosterMember => ({
@@ -69,7 +69,7 @@ describe('TeamMembersList', () => {
       name: 'pending',
       invitation_status: 'pending',
     })
-    const onRemoveMember = jest.fn().mockResolvedValue(undefined)
+    const onRemoveMember = vi.fn().mockResolvedValue(undefined)
 
     render(
       <TeamMembersList
@@ -91,7 +91,7 @@ describe('TeamMembersList', () => {
       email: 'bob@example.com',
       invitation_status: 'accepted',
     })
-    const onRemoveMember = jest.fn().mockResolvedValue(undefined)
+    const onRemoveMember = vi.fn().mockResolvedValue(undefined)
 
     render(
       <TeamMembersList
@@ -108,7 +108,7 @@ describe('TeamMembersList', () => {
 
   it('hides the Remove action without the member.remove permission', () => {
     const accepted = makeMember({ user_id: 'user-2', name: 'Bob' })
-    const onRemoveMember = jest.fn().mockResolvedValue(undefined)
+    const onRemoveMember = vi.fn().mockResolvedValue(undefined)
 
     render(
       <TeamMembersList
@@ -146,7 +146,7 @@ describe('TeamMembersList', () => {
       name: 'Carol',
       role: 'owner',
     })
-    const onRemoveMember = jest.fn().mockResolvedValue(undefined)
+    const onRemoveMember = vi.fn().mockResolvedValue(undefined)
 
     render(
       <TeamMembersList
@@ -242,7 +242,7 @@ describe('TeamMembersList', () => {
         <TeamMembersList
           members={[makeMember({ name: 'Alice' })]}
           canManageRoles
-          onChangeRole={jest.fn()}
+          onChangeRole={vi.fn()}
         />
       )
 
@@ -258,7 +258,7 @@ describe('TeamMembersList', () => {
         <TeamMembersList
           members={[makeMember({ name: 'Alice', role: 'admin' })]}
           canManageRoles={false}
-          onChangeRole={jest.fn()}
+          onChangeRole={vi.fn()}
         />
       )
 
@@ -273,7 +273,7 @@ describe('TeamMembersList', () => {
         <TeamMembersList
           members={[makeMember({ name: 'Carol', role: 'owner' })]}
           canManageRoles
-          onChangeRole={jest.fn()}
+          onChangeRole={vi.fn()}
         />
       )
 
@@ -290,7 +290,7 @@ describe('TeamMembersList', () => {
             makeMember({ name: 'pending', invitation_status: 'pending' }),
           ]}
           canManageRoles
-          onChangeRole={jest.fn()}
+          onChangeRole={vi.fn()}
         />
       )
 
@@ -301,7 +301,7 @@ describe('TeamMembersList', () => {
 
     it('reports the picked role to the caller', async () => {
       const user = userEvent.setup()
-      const onChangeRole = jest.fn().mockResolvedValue(undefined)
+      const onChangeRole = vi.fn().mockResolvedValue(undefined)
 
       render(
         <TeamMembersList

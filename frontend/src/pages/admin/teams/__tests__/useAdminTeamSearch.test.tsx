@@ -6,21 +6,22 @@
  * the stale-response guard — are invisible through the picker UI.
  */
 import { act, render, screen, waitFor } from '@testing-library/react'
+import type { Mocked } from 'vitest'
 
 import type {
   AdminTeamListItem,
   AdminTeamListResponse,
 } from '@/services/adminService'
 
-jest.mock('@/services/adminService', () => ({
-  adminService: { listTeams: jest.fn() },
+vi.mock('@/services/adminService', () => ({
+  adminService: { listTeams: vi.fn() },
 }))
 
 import { adminService } from '@/services/adminService'
 
 import { useAdminTeamSearch } from '../useAdminTeamSearch'
 
-const mockAdminService = adminService as jest.Mocked<typeof adminService>
+const mockAdminService = adminService as Mocked<typeof adminService>
 
 function team(id: string, name: string): AdminTeamListItem {
   return {
@@ -62,7 +63,7 @@ function Probe() {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
 })
 
 it('loads the first page sorted by name, bounded in size', async () => {

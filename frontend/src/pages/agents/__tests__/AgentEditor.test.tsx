@@ -1,20 +1,23 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { Agent, AgentCard } from '@/services/agentService'
 
-const mockNavigate = jest.fn()
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual<typeof import('react-router-dom')>('react-router-dom'),
+const mockNavigate = vi.hoisted(() => vi.fn())
+vi.mock('react-router-dom', async () => ({
+  ...(await vi.importActual<typeof import('react-router-dom')>(
+    'react-router-dom'
+  )),
   useNavigate: () => mockNavigate,
 }))
 
 // Mock Radix Select — it can loop in JSDOM (same approach as
 // PromptEditor.test.tsx), but keep onValueChange wired so tests can still pick
 // the initial status as plain buttons.
-jest.mock('@/components/ui/select', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react')
+vi.mock('@/components/ui/select', async () => {
+  const ReactActual = await vi.importActual<typeof import('react')>('react')
   const SelectCtx = ReactActual.createContext<(value: string) => void>(() => {})
   return {
     Select: ({
@@ -63,7 +66,7 @@ jest.mock('@/components/ui/select', () => {
 
 // The preview pane has its own suite (editor/__tests__/AgentPreview.test.tsx);
 // a probe keeps these tests focused on the page's fetch/debounce/retry logic.
-jest.mock('../editor/AgentPreview', () => ({
+vi.mock('../editor/AgentPreview', () => ({
   AgentPreview: ({
     loading,
     data,
@@ -87,7 +90,7 @@ jest.mock('../editor/AgentPreview', () => ({
 
 // Already covered by editor/__tests__/AgentCredentialsEditor.test.tsx — here we
 // only assert the page's show/hide rule and the props it hands down.
-jest.mock('../editor/AgentCredentialsEditor', () => ({
+vi.mock('../editor/AgentCredentialsEditor', () => ({
   AgentCredentialsEditor: ({
     agentId,
     teamId,
@@ -103,29 +106,29 @@ jest.mock('../editor/AgentCredentialsEditor', () => ({
   ),
 }))
 
-jest.mock('@/services/agentService', () => ({
+vi.mock('@/services/agentService', () => ({
   agentService: {
-    getAgent: jest.fn(),
-    previewAgentCard: jest.fn(),
-    createAgent: jest.fn(),
-    updateAgent: jest.fn(),
+    getAgent: vi.fn(),
+    previewAgentCard: vi.fn(),
+    createAgent: vi.fn(),
+    updateAgent: vi.fn(),
   },
 }))
 
-jest.mock('@/contexts/TeamContext', () => {
+vi.mock('@/contexts/TeamContext', () => {
   const currentTeam = { id: 'team-1', name: 'Test Team' }
   return {
     useTeam: () => ({ currentTeam, teams: [currentTeam], isLoading: false }),
   }
 })
 
-jest.mock('@/lib/toast', () => ({
+vi.mock('@/lib/toast', () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    warning: jest.fn(),
-    message: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
   },
 }))
 
@@ -195,10 +198,10 @@ async function waitForPreviewName(name: string) {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
-  ;(agentService.previewAgentCard as jest.Mock).mockResolvedValue(buildCard())
-  ;(agentService.createAgent as jest.Mock).mockResolvedValue(buildAgent())
-  ;(agentService.updateAgent as jest.Mock).mockResolvedValue(buildAgent())
+  vi.clearAllMocks()
+  ;(agentService.previewAgentCard as Mock).mockResolvedValue(buildCard())
+  ;(agentService.createAgent as Mock).mockResolvedValue(buildAgent())
+  ;(agentService.updateAgent as Mock).mockResolvedValue(buildAgent())
 })
 
 describe('AgentEditor — create mode', () => {
@@ -308,7 +311,7 @@ describe('AgentEditor — create mode', () => {
   })
 
   it('surfaces a preview failure and refetches via retry', async () => {
-    ;(agentService.previewAgentCard as jest.Mock)
+    ;(agentService.previewAgentCard as Mock)
       .mockRejectedValueOnce(new Error('card unreachable'))
       .mockResolvedValueOnce(buildCard())
     const user = userEvent.setup()
@@ -329,7 +332,7 @@ describe('AgentEditor — create mode', () => {
   })
 
   it('surfaces a create failure without navigating away', async () => {
-    ;(agentService.createAgent as jest.Mock).mockRejectedValue(
+    ;(agentService.createAgent as Mock).mockRejectedValue(
       new Error('could not save agent')
     )
     const user = userEvent.setup()
@@ -349,7 +352,7 @@ describe('AgentEditor — create mode', () => {
 
 describe('AgentEditor — edit mode', () => {
   it('shows a loading skeleton while the agent loads', () => {
-    ;(agentService.getAgent as jest.Mock).mockImplementation(
+    ;(agentService.getAgent as Mock).mockImplementation(
       () => new Promise(() => undefined)
     )
 
@@ -360,8 +363,8 @@ describe('AgentEditor — edit mode', () => {
   })
 
   it('prefills from the loaded agent, disables the URL field, and updates on save', async () => {
-    ;(agentService.getAgent as jest.Mock).mockResolvedValue(buildAgent())
-    ;(agentService.previewAgentCard as jest.Mock).mockResolvedValue(
+    ;(agentService.getAgent as Mock).mockResolvedValue(buildAgent())
+    ;(agentService.previewAgentCard as Mock).mockResolvedValue(
       buildCard({ securitySchemes: { api_key: { type: 'apiKey' } } })
     )
     const user = userEvent.setup()
@@ -402,7 +405,7 @@ describe('AgentEditor — edit mode', () => {
   })
 
   it('maps an error-status agent to paused in the update payload', async () => {
-    ;(agentService.getAgent as jest.Mock).mockResolvedValue(
+    ;(agentService.getAgent as Mock).mockResolvedValue(
       buildAgent({ status: 'error' })
     )
     const user = userEvent.setup()
@@ -426,7 +429,7 @@ describe('AgentEditor — edit mode', () => {
   })
 
   it('toasts and navigates back when the agent fails to load', async () => {
-    ;(agentService.getAgent as jest.Mock).mockRejectedValue(
+    ;(agentService.getAgent as Mock).mockRejectedValue(
       new Error('agent not found')
     )
 

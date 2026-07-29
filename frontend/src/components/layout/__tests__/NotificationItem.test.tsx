@@ -66,7 +66,7 @@ const makeNotification = (
   ...overrides,
 })
 
-function renderItem(notification = makeNotification(), onRead = jest.fn()) {
+function renderItem(notification = makeNotification(), onRead = vi.fn()) {
   return render(
     <MemoryRouter>
       <NotificationItem notification={notification} onRead={onRead} />
@@ -99,7 +99,7 @@ describe('NotificationItem', () => {
 
   it('calls onRead when unread notification is clicked (anchor)', async () => {
     const user = userEvent.setup()
-    const onRead = jest.fn()
+    const onRead = vi.fn()
     renderItem(makeNotification({ action_url: '/feeds/1' }), onRead)
 
     await user.click(screen.getByRole('link'))
@@ -108,7 +108,7 @@ describe('NotificationItem', () => {
 
   it('does not call onRead when already read (anchor)', async () => {
     const user = userEvent.setup()
-    const onRead = jest.fn()
+    const onRead = vi.fn()
     renderItem(
       makeNotification({
         action_url: '/feeds/1',
@@ -123,7 +123,7 @@ describe('NotificationItem', () => {
 
   it('calls onRead when unread notification rendered as button is clicked', async () => {
     const user = userEvent.setup()
-    const onRead = jest.fn()
+    const onRead = vi.fn()
     renderItem(makeNotification({ action_url: 'javascript:alert(1)' }), onRead)
 
     await user.click(screen.getByRole('button'))

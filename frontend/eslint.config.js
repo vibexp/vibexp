@@ -258,7 +258,8 @@ export default tseslint.config(
       '@typescript-eslint/no-empty-function': 'off',
       // Disable React hooks rules for non-React test files
       'react-hooks/rules-of-hooks': 'off',
-      // Allow require() in test files for jest.isolateModules()
+      // Allow require() in test files (harmless under Vitest; kept off so a
+      // stray CommonJS-style import in a test does not fail the lint gate)
       '@typescript-eslint/no-require-imports': 'off',
     },
   },

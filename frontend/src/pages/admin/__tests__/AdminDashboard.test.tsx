@@ -4,16 +4,17 @@
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Mocked } from 'vitest'
 
 import type {
   AdminDashboardOverview,
   AdminTimeseriesResponse,
 } from '@/services/adminService'
 
-jest.mock('@/services/adminService', () => ({
+vi.mock('@/services/adminService', () => ({
   adminService: {
-    getDashboardOverview: jest.fn(),
-    getDashboardTimeseries: jest.fn(),
+    getDashboardOverview: vi.fn(),
+    getDashboardTimeseries: vi.fn(),
   },
 }))
 
@@ -21,12 +22,12 @@ import { adminService } from '@/services/adminService'
 
 import { AdminDashboard } from '../AdminDashboard'
 
-const mockAdminService = adminService as jest.Mocked<typeof adminService>
+const mockAdminService = adminService as Mocked<typeof adminService>
 
 beforeAll(() => {
-  Element.prototype.scrollIntoView = jest.fn()
-  Element.prototype.hasPointerCapture = jest.fn()
-  Element.prototype.releasePointerCapture = jest.fn()
+  Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.hasPointerCapture = vi.fn()
+  Element.prototype.releasePointerCapture = vi.fn()
 })
 
 function overview(
@@ -124,7 +125,7 @@ const lastSeriesQuery = () => {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  vi.clearAllMocks()
   mockAdminService.getDashboardOverview.mockResolvedValue(overview())
   mockAdminService.getDashboardTimeseries.mockResolvedValue(timeseries())
 })

@@ -1,11 +1,12 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { Prompt, PromptListResponse } from '@/services/promptService'
 
 // Mock Radix Select — it can loop in JSDOM (same approach as Artifacts.test.tsx)
-jest.mock('@/components/ui/select', () => ({
+vi.mock('@/components/ui/select', () => ({
   Select: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="select">{children}</div>
   ),
@@ -27,15 +28,15 @@ jest.mock('@/components/ui/select', () => ({
   }) => <div data-value={value}>{children}</div>,
 }))
 
-jest.mock('@/services/promptService', () => ({
+vi.mock('@/services/promptService', () => ({
   promptService: {
-    getPrompts: jest.fn(),
-    deletePrompt: jest.fn(),
+    getPrompts: vi.fn(),
+    deletePrompt: vi.fn(),
   },
 }))
 
 // usePermissions (#225) reads the signed-in user for own-vs-any delete gating.
-jest.mock('@/contexts/useAuth', () => ({
+vi.mock('@/contexts/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
 }))
 
@@ -48,36 +49,36 @@ const mockTeamState: {
   currentTeam: { id: 'team-1', name: 'Test Team', permissions: [] },
   isLoading: false,
 }
-jest.mock('@/contexts/TeamContext', () => ({
+vi.mock('@/contexts/TeamContext', () => ({
   useTeam: () => ({
     currentTeam: mockTeamState.currentTeam,
     teams: mockTeamState.currentTeam ? [mockTeamState.currentTeam] : [],
     isLoading: mockTeamState.isLoading,
-    setCurrentTeam: jest.fn(),
-    refreshTeams: jest.fn() as () => Promise<void>,
+    setCurrentTeam: vi.fn(),
+    refreshTeams: vi.fn() as () => Promise<void>,
   }),
 }))
 
-jest.mock('@/contexts/ProjectContext', () => ({
+vi.mock('@/contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProject: null,
-    setCurrentProject: jest.fn(),
+    setCurrentProject: vi.fn(),
     isLoading: false,
   }),
 }))
 
-jest.mock('@/hooks', () => {
-  const showSuccess = jest.fn()
-  const showError = jest.fn()
-  const trackEvent = jest.fn()
+vi.mock('@/hooks', () => {
+  const showSuccess = vi.fn()
+  const showError = vi.fn()
+  const trackEvent = vi.fn()
   return {
     useAlerts: () => ({ showSuccess, showError }),
     useAnalytics: () => ({ trackEvent }),
   }
 })
 
-jest.mock('@/hooks/useErrorHandler', () => {
-  const handleError = jest.fn()
+vi.mock('@/hooks/useErrorHandler', () => {
+  const handleError = vi.fn()
   return {
     useErrorHandler: () => ({ handleError }),
   }
@@ -148,16 +149,14 @@ function renderPrompts() {
 
 describe('Prompts page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     setTeamPermissions([])
-    ;(promptService.getPrompts as jest.Mock).mockResolvedValue(
-      buildListResponse([])
-    )
+    ;(promptService.getPrompts as Mock).mockResolvedValue(buildListResponse([]))
   })
 
   describe('data states', () => {
     it('renders prompt rows returned by the service', async () => {
-      ;(promptService.getPrompts as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompts as Mock).mockResolvedValue(
         buildListResponse([
           buildPrompt(),
           buildPrompt({
@@ -185,7 +184,7 @@ describe('Prompts page', () => {
     })
 
     it('shows skeleton rows while the fetch is in flight', () => {
-      ;(promptService.getPrompts as jest.Mock).mockImplementation(
+      ;(promptService.getPrompts as Mock).mockImplementation(
         () => new Promise(() => undefined)
       )
 
@@ -197,7 +196,7 @@ describe('Prompts page', () => {
     })
 
     it('shows the error state when the fetch fails', async () => {
-      ;(promptService.getPrompts as jest.Mock).mockRejectedValue(
+      ;(promptService.getPrompts as Mock).mockRejectedValue(
         new Error('network down')
       )
 
@@ -248,7 +247,7 @@ describe('Prompts page', () => {
 
   describe('sorting', () => {
     it('re-fetches sorted by name asc, then toggles to desc on a second click', async () => {
-      ;(promptService.getPrompts as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompts as Mock).mockResolvedValue(
         buildListResponse([buildPrompt()])
       )
 
@@ -292,7 +291,7 @@ describe('Prompts page', () => {
     })
 
     it('navigates to the prompt detail when the name is clicked', async () => {
-      ;(promptService.getPrompts as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompts as Mock).mockResolvedValue(
         buildListResponse([buildPrompt()])
       )
 
@@ -308,7 +307,7 @@ describe('Prompts page', () => {
   describe('delete gating via the server permissions array (#225)', () => {
     it('shows the delete action on any row when the team grants resource.delete.any', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(promptService.getPrompts as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompts as Mock).mockResolvedValue(
         buildListResponse([buildPrompt({ user_id: 'user-2' })])
       )
 
@@ -320,7 +319,7 @@ describe('Prompts page', () => {
 
     it('hides the delete action when the team grants no delete permission', async () => {
       setTeamPermissions([])
-      ;(promptService.getPrompts as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompts as Mock).mockResolvedValue(
         buildListResponse([buildPrompt({ user_id: 'user-2' })])
       )
 
@@ -336,7 +335,7 @@ describe('Prompts page', () => {
 
     it('with only resource.delete.own, shows delete on own rows but not on others', async () => {
       setTeamPermissions(['resource.delete.own'])
-      ;(promptService.getPrompts as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompts as Mock).mockResolvedValue(
         buildListResponse([
           buildPrompt({
             id: 'mine',
@@ -370,10 +369,10 @@ describe('Prompts page', () => {
   describe('delete flow', () => {
     it('confirms and deletes via the service, then re-fetches', async () => {
       setTeamPermissions(['resource.delete.any'])
-      ;(promptService.getPrompts as jest.Mock).mockResolvedValue(
+      ;(promptService.getPrompts as Mock).mockResolvedValue(
         buildListResponse([buildPrompt()])
       )
-      ;(promptService.deletePrompt as jest.Mock).mockResolvedValue(undefined)
+      ;(promptService.deletePrompt as Mock).mockResolvedValue(undefined)
 
       renderPrompts()
 
@@ -382,8 +381,8 @@ describe('Prompts page', () => {
 
       const dialog = await screen.findByRole('alertdialog')
       expect(within(dialog).getByText('Delete prompt?')).toBeInTheDocument()
-      const fetchCallsBefore = (promptService.getPrompts as jest.Mock).mock
-        .calls.length
+      const fetchCallsBefore = (promptService.getPrompts as Mock).mock.calls
+        .length
       await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
       await waitFor(() => {
@@ -394,7 +393,7 @@ describe('Prompts page', () => {
       })
       await waitFor(() => {
         expect(
-          (promptService.getPrompts as jest.Mock).mock.calls.length
+          (promptService.getPrompts as Mock).mock.calls.length
         ).toBeGreaterThan(fetchCallsBefore)
       })
     })

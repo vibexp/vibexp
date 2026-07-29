@@ -1,53 +1,28 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { Mock } from 'vitest'
 
 import type { PromptGalleryTemplate } from '@/services/promptGalleryService'
 
-// The shared lucide mock does not export every icon this page uses (Wand2),
-// so mock the whole module with a Proxy that fabricates any icon on demand.
-jest.mock('lucide-react', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react')
-  const iconCache = new Map<string, unknown>()
-  return new Proxy(
-    {},
-    {
-      get: (_target, prop: string | symbol) => {
-        if (prop === '__esModule') return true
-        const name = String(prop)
-        if (!iconCache.has(name)) {
-          const MockIcon = (props: Record<string, unknown>) =>
-            ReactActual.createElement('svg', {
-              'data-testid': `${name.toLowerCase()}-icon`,
-              ...props,
-            })
-          MockIcon.displayName = name
-          iconCache.set(name, MockIcon)
-        }
-        return iconCache.get(name)
-      },
-    }
-  )
-})
-
 // Mock MarkdownRenderer to avoid marked/DOMPurify JSDOM issues.
-jest.mock('@/components/MarkdownRenderer', () => ({
+vi.mock('@/components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
     <div data-testid="markdown-content">{content}</div>
   ),
 }))
 
-jest.mock('@/services/promptGalleryService', () => ({
+vi.mock('@/services/promptGalleryService', () => ({
   promptGalleryService: {
-    getCategories: jest.fn(),
-    getPrompts: jest.fn(),
-    getPromptById: jest.fn(),
-    trackPromptUsage: jest.fn(),
+    getCategories: vi.fn(),
+    getPrompts: vi.fn(),
+    getPromptById: vi.fn(),
+    trackPromptUsage: vi.fn(),
   },
 }))
 
-const mockShowAlert = jest.fn()
-jest.mock('@/contexts/AlertContext', () => ({
+const mockShowAlert = vi.hoisted(() => vi.fn())
+vi.mock('@/contexts/AlertContext', () => ({
   useAlertContext: () => ({ showAlert: mockShowAlert }),
 }))
 
@@ -96,18 +71,18 @@ function renderDetail() {
   )
 }
 
-const getPromptByIdMock = promptGalleryService.getPromptById as jest.Mock
-const trackPromptUsageMock = promptGalleryService.trackPromptUsage as jest.Mock
+const getPromptByIdMock = promptGalleryService.getPromptById as Mock
+const trackPromptUsageMock = promptGalleryService.trackPromptUsage as Mock
 
 describe('PromptGalleryDetail page', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
     getPromptByIdMock.mockResolvedValue(buildTemplate())
     trackPromptUsageMock.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
-    jest.useRealTimers()
+    vi.useRealTimers()
   })
 
   it('shows a loading header while the prompt is in flight', () => {
@@ -176,7 +151,7 @@ describe('PromptGalleryDetail page', () => {
   })
 
   it('alerts, shows not-found and redirects to the gallery when the fetch fails', async () => {
-    jest.useFakeTimers()
+    vi.useFakeTimers()
     getPromptByIdMock.mockRejectedValue(new Error('prompt gone'))
 
     renderDetail()
@@ -194,7 +169,7 @@ describe('PromptGalleryDetail page', () => {
     expect(screen.getAllByText('Prompt not found').length).toBeGreaterThan(0)
 
     act(() => {
-      jest.advanceTimersByTime(2000)
+      vi.advanceTimersByTime(2000)
     })
     expect(screen.getByTestId('gallery-probe')).toBeInTheDocument()
   })

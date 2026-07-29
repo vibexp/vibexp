@@ -2,6 +2,8 @@
 // embedded AS, outside openapi.yaml), so oauthService uses a local fetch wrapper
 // rather than the generated client. Mock global fetch and assert on the request
 // path (the API base-URL prefix is environment-driven and asserted loosely).
+import type { Mock } from 'vitest'
+
 import { ApiError } from '../../types/errors'
 import type {
   OAuthConsentAttachResponse,
@@ -33,11 +35,11 @@ function makeResponse(body: unknown, init: ResponseInit = {}): Response {
 }
 
 describe('OAuthService', () => {
-  let fetchMock: jest.Mock
+  let fetchMock: Mock
 
   beforeEach(() => {
-    jest.clearAllMocks()
-    fetchMock = jest.fn()
+    vi.clearAllMocks()
+    fetchMock = vi.fn()
     global.fetch = fetchMock
   })
 
