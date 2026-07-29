@@ -1145,9 +1145,7 @@ api-v1-team_id-agents-executions-id-events:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: '../openapi.yaml#/components/schemas/AgentExecutionEventsPollResponse'
-                - $ref: '../openapi.yaml#/components/schemas/AgentExecutionEventsPageResponse'
+              $ref: '../openapi.yaml#/components/schemas/AgentExecutionEventsResponse'
       '400':
         description: Invalid team_id
         content:

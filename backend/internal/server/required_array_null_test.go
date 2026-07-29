@@ -140,7 +140,6 @@ var requiredArrayResponseRegistry = map[string]any{
 	"BlueprintVersionListResponse":   models.BlueprintVersionListResponse{},
 	"ConversationListResponse":       models.ConversationListResponse{},
 	"EmbeddingCoverageResponse":      models.EmbeddingCoverageResponse{},
-	"EmbeddingProviderListResponse":  models.EmbeddingProviderListResponse{},
 	"FeedItemListResponse":           models.FeedItemListResponse{},
 	"FeedItemReplyListResponse":      models.FeedItemReplyListResponse{},
 	"FeedListResponse":               models.FeedListResponse{},

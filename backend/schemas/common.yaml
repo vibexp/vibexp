@@ -151,3 +151,36 @@ PaginatedResponse:
     - limit
     - total
     - total_pages
+
+# Legacy success-envelope wrappers for the prompts list/labels endpoints. They
+# compose SuccessResponse with a typed `data` payload. Named components (rather
+# than inline allOf in paths/prompts.yaml) because inline compositions with
+# cross-file refs break pb33f/libopenapi-validator v0.14.0's response-schema
+# compile (pb33f/libopenapi-validator#314).
+PromptListEnvelope:
+  allOf:
+    - $ref: '#/SuccessResponse'
+    - type: object
+      properties:
+        data:
+          $ref: '../schemas/prompts.yaml#/PromptListResponse'
+      required:
+        - data
+
+PromptLabelsEnvelope:
+  allOf:
+    - $ref: '#/SuccessResponse'
+    - type: object
+      properties:
+        data:
+          type: object
+          properties:
+            labels:
+              type: array
+              items:
+                type: string
+              example: ["code-review", "documentation", "testing"]
+          required:
+            - labels
+      required:
+        - data

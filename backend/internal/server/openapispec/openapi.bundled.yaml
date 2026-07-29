@@ -3424,14 +3424,7 @@ paths:
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/PromptListResponse'
-                    required:
-                      - data
+                $ref: '#/components/schemas/PromptListEnvelope'
         '401':
           description: Unauthorized
           content:
@@ -3466,25 +3459,7 @@ paths:
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
-                          labels:
-                            type: array
-                            items:
-                              type: string
-                            example:
-                              - code-review
-                              - documentation
-                              - testing
-                        required:
-                          - labels
-                    required:
-                      - data
+                $ref: '#/components/schemas/PromptLabelsEnvelope'
         '401':
           description: Unauthorized
           content:
@@ -4127,9 +4102,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/PromptGalleryCategory'
+                $ref: '#/components/schemas/PromptGalleryCategoryList'
         '401':
           description: Unauthorized
           content:
@@ -4616,34 +4589,13 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  project:
-                    $ref: '#/components/schemas/Project'
-                  created:
-                    type: boolean
-                    example: false
-                  message:
-                    type: string
-                    example: Project already exists for this repository
-                required:
-                  - project
-                  - created
+                $ref: '#/components/schemas/GitHubImportProjectResultResponse'
         '201':
           description: Project created successfully from the GitHub repository
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  project:
-                    $ref: '#/components/schemas/Project'
-                  created:
-                    type: boolean
-                    example: true
-                required:
-                  - project
-                  - created
+                $ref: '#/components/schemas/GitHubImportProjectResultResponse'
         '400':
           description: Invalid repository ID
           content:
@@ -6810,9 +6762,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: '#/components/schemas/AgentExecutionEventsPollResponse'
-                  - $ref: '#/components/schemas/AgentExecutionEventsPageResponse'
+                $ref: '#/components/schemas/AgentExecutionEventsResponse'
         '400':
           description: Invalid team_id
           content:
@@ -9996,9 +9946,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/EmbeddingProviderResponse'
+                $ref: '#/components/schemas/EmbeddingProviderArrayResponse'
         '401':
           description: Unauthorized
           content:
@@ -10730,9 +10678,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/EmbeddingProviderResponse'
+                $ref: '#/components/schemas/EmbeddingProviderArrayResponse'
         '401':
           description: Unauthorized
           content:
@@ -14385,6 +14331,15 @@ components:
             maxLength: 50
           maxItems: 10
           description: Labels for categorizing and filtering prompts
+    PromptListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PromptListResponse'
+          required:
+            - data
     PromptListResponse:
       type: object
       properties:
@@ -14544,6 +14499,30 @@ components:
         - category
         - created_at
         - updated_at
+    PromptGalleryCategoryList:
+      type: array
+      items:
+        $ref: '#/components/schemas/PromptGalleryCategory'
+    PromptLabelsEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                labels:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - code-review
+                    - documentation
+                    - testing
+              required:
+                - labels
+          required:
+            - data
     PromptGalleryCategory:
       type: object
       properties:
@@ -15265,6 +15244,10 @@ components:
         - created_at
         - updated_at
         - version
+    EmbeddingProviderArrayResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/EmbeddingProviderResponse'
     EmbeddingProviderResponse:
       allOf:
         - $ref: '#/components/schemas/EmbeddingProvider'
@@ -15378,27 +15361,6 @@ components:
         configuration:
           type: object
           additionalProperties: true
-    EmbeddingProviderListResponse:
-      type: object
-      properties:
-        embedding_providers:
-          type: array
-          items:
-            $ref: '#/components/schemas/EmbeddingProviderResponse'
-        total_count:
-          type: integer
-        page:
-          type: integer
-        per_page:
-          type: integer
-        total_pages:
-          type: integer
-      required:
-        - embedding_providers
-        - total_count
-        - page
-        - per_page
-        - total_pages
     ValidateEmbeddingProviderRequest:
       type: object
       properties:
@@ -16818,6 +16780,20 @@ components:
         - page
         - per_page
         - total_pages
+    GitHubImportProjectResultResponse:
+      type: object
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+        created:
+          type: boolean
+          description: Whether the project was created by this request (false when it already existed)
+        message:
+          type: string
+          example: Project already exists for this repository
+      required:
+        - project
+        - created
     Project:
       type: object
       properties:
@@ -18492,6 +18468,10 @@ components:
         - page
         - per_page
         - total_pages
+    AgentExecutionEventsResponse:
+      oneOf:
+        - $ref: '#/components/schemas/AgentExecutionEventsPollResponse'
+        - $ref: '#/components/schemas/AgentExecutionEventsPageResponse'
     AgentExecutionEventsPollResponse:
       type: object
       description: Cursor-based polling response (returned when the `since` query parameter is provided)

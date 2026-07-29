@@ -393,3 +393,21 @@ BlueprintImportUpToDate:
   required:
     - file_path
     - blueprint_id
+
+# Result envelope for POST .../import-project (200 and 201 share the shape;
+# `created` distinguishes them). Named component so the path file can use a
+# direct $ref (pb33f/libopenapi-validator#314).
+GitHubImportProjectResultResponse:
+  type: object
+  properties:
+    project:
+      $ref: '../schemas/projects.yaml#/Project'
+    created:
+      type: boolean
+      description: Whether the project was created by this request (false when it already existed)
+    message:
+      type: string
+      example: "Project already exists for this repository"
+  required:
+    - project
+    - created

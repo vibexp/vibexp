@@ -85,9 +85,7 @@ api-v1-embedding-providers:
         content:
           application/json:
             schema:
-              type: array
-              items:
-                $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderArrayResponse'
       '401':
         description: Unauthorized
         content:
@@ -488,9 +486,7 @@ api-v1-settings-embedding-providers:
         content:
           application/json:
             schema:
-              type: array
-              items:
-                $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderResponse'
+              $ref: '../openapi.yaml#/components/schemas/EmbeddingProviderArrayResponse'
       '401':
         description: Unauthorized
         content:

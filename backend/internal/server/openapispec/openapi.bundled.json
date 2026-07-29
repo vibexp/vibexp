@@ -5155,22 +5155,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponse"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PromptListResponse"
-                        }
-                      },
-                      "required": [
-                        "data"
-                      ]
-                    }
-                  ]
+                  "$ref": "#/components/schemas/PromptListEnvelope"
                 }
               }
             }
@@ -5224,38 +5209,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponse"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "labels": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              },
-                              "example": [
-                                "code-review",
-                                "documentation",
-                                "testing"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "labels"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "data"
-                      ]
-                    }
-                  ]
+                  "$ref": "#/components/schemas/PromptLabelsEnvelope"
                 }
               }
             }
@@ -6261,10 +6215,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PromptGalleryCategory"
-                  }
+                  "$ref": "#/components/schemas/PromptGalleryCategoryList"
                 }
               }
             }
@@ -7020,24 +6971,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "project": {
-                      "$ref": "#/components/schemas/Project"
-                    },
-                    "created": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Project already exists for this repository"
-                    }
-                  },
-                  "required": [
-                    "project",
-                    "created"
-                  ]
+                  "$ref": "#/components/schemas/GitHubImportProjectResultResponse"
                 }
               }
             }
@@ -7047,20 +6981,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "project": {
-                      "$ref": "#/components/schemas/Project"
-                    },
-                    "created": {
-                      "type": "boolean",
-                      "example": true
-                    }
-                  },
-                  "required": [
-                    "project",
-                    "created"
-                  ]
+                  "$ref": "#/components/schemas/GitHubImportProjectResultResponse"
                 }
               }
             }
@@ -10500,14 +10421,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/AgentExecutionEventsPollResponse"
-                    },
-                    {
-                      "$ref": "#/components/schemas/AgentExecutionEventsPageResponse"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/AgentExecutionEventsResponse"
                 }
               }
             }
@@ -15386,10 +15300,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EmbeddingProviderResponse"
-                  }
+                  "$ref": "#/components/schemas/EmbeddingProviderArrayResponse"
                 }
               }
             }
@@ -16527,10 +16438,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EmbeddingProviderResponse"
-                  }
+                  "$ref": "#/components/schemas/EmbeddingProviderArrayResponse"
                 }
               }
             }
@@ -21913,6 +21821,24 @@
           }
         }
       },
+      "PromptListEnvelope": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/PromptListResponse"
+              }
+            },
+            "required": [
+              "data"
+            ]
+          }
+        ]
+      },
       "PromptListResponse": {
         "type": "object",
         "properties": {
@@ -22131,6 +22057,46 @@
           "category",
           "created_at",
           "updated_at"
+        ]
+      },
+      "PromptGalleryCategoryList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PromptGalleryCategory"
+        }
+      },
+      "PromptLabelsEnvelope": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": [
+                      "code-review",
+                      "documentation",
+                      "testing"
+                    ]
+                  }
+                },
+                "required": [
+                  "labels"
+                ]
+              }
+            },
+            "required": [
+              "data"
+            ]
+          }
         ]
       },
       "PromptGalleryCategory": {
@@ -23101,6 +23067,12 @@
           "version"
         ]
       },
+      "EmbeddingProviderArrayResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EmbeddingProviderResponse"
+        }
+      },
       "EmbeddingProviderResponse": {
         "allOf": [
           {
@@ -23251,36 +23223,6 @@
             "additionalProperties": true
           }
         }
-      },
-      "EmbeddingProviderListResponse": {
-        "type": "object",
-        "properties": {
-          "embedding_providers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EmbeddingProviderResponse"
-            }
-          },
-          "total_count": {
-            "type": "integer"
-          },
-          "page": {
-            "type": "integer"
-          },
-          "per_page": {
-            "type": "integer"
-          },
-          "total_pages": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "embedding_providers",
-          "total_count",
-          "page",
-          "per_page",
-          "total_pages"
-        ]
       },
       "ValidateEmbeddingProviderRequest": {
         "type": "object",
@@ -25107,6 +25049,26 @@
           "page",
           "per_page",
           "total_pages"
+        ]
+      },
+      "GitHubImportProjectResultResponse": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "created": {
+            "type": "boolean",
+            "description": "Whether the project was created by this request (false when it already existed)"
+          },
+          "message": {
+            "type": "string",
+            "example": "Project already exists for this repository"
+          }
+        },
+        "required": [
+          "project",
+          "created"
         ]
       },
       "Project": {
@@ -27258,6 +27220,16 @@
           "page",
           "per_page",
           "total_pages"
+        ]
+      },
+      "AgentExecutionEventsResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AgentExecutionEventsPollResponse"
+          },
+          {
+            "$ref": "#/components/schemas/AgentExecutionEventsPageResponse"
+          }
         ]
       },
       "AgentExecutionEventsPollResponse": {

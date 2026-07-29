@@ -25,7 +25,7 @@ import (
 
 // clientIPMiddleware resolves the client IP for each request and makes it
 // available to the limiter, the request logger, access events, and activity
-// records. It rewrites r.RemoteAddr so httprate.LimitByIP keeps working
+// records. It rewrites r.RemoteAddr so the rate limiter key fallback keeps working
 // unchanged, and stashes the resolved value in the request context so
 // downstream consumers stop re-parsing headers themselves.
 func clientIPMiddleware(trusted []*net.IPNet) func(http.Handler) http.Handler {

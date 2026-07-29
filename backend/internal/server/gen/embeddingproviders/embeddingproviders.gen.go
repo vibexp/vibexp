@@ -86,6 +86,9 @@ type EmbeddingProvider struct {
 	Version int64 `json:"version"`
 }
 
+// EmbeddingProviderArrayResponse defines model for EmbeddingProviderArrayResponse.
+type EmbeddingProviderArrayResponse = []EmbeddingProviderResponse
+
 // EmbeddingProviderResponse defines model for EmbeddingProviderResponse.
 type EmbeddingProviderResponse struct {
 	BaseUrl *string `json:"base_url,omitempty"`
@@ -991,7 +994,7 @@ type ListEmbeddingProvidersResponseObject interface {
 	VisitListEmbeddingProvidersResponse(w http.ResponseWriter) error
 }
 
-type ListEmbeddingProviders200JSONResponse []EmbeddingProviderResponse
+type ListEmbeddingProviders200JSONResponse EmbeddingProviderArrayResponse
 
 func (response ListEmbeddingProviders200JSONResponse) VisitListEmbeddingProvidersResponse(w http.ResponseWriter) error {
 
@@ -1459,7 +1462,7 @@ type ListEmbeddingProvidersSettingsResponseObject interface {
 	VisitListEmbeddingProvidersSettingsResponse(w http.ResponseWriter) error
 }
 
-type ListEmbeddingProvidersSettings200JSONResponse []EmbeddingProviderResponse
+type ListEmbeddingProvidersSettings200JSONResponse EmbeddingProviderArrayResponse
 
 func (response ListEmbeddingProvidersSettings200JSONResponse) VisitListEmbeddingProvidersSettingsResponse(w http.ResponseWriter) error {
 

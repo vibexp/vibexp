@@ -452,3 +452,10 @@ PromptDependenciesResponse:
   required:
     - used_by
     - uses
+
+# Named array wrapper for the gallery-categories list endpoint
+# (pb33f/libopenapi-validator#314).
+PromptGalleryCategoryList:
+  type: array
+  items:
+    $ref: '#/PromptGalleryCategory'
