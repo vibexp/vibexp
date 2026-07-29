@@ -88,6 +88,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      migrations: ${{ steps.filter.outputs.migrations }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -109,6 +110,45 @@ jobs:
               - 'Makefile'
               - 'sonar-project.properties'
               - '.github/workflows/ci.yml'
+            migrations:
+              - 'backend/migrations/**'
+              - '.github/scripts/check-duplicate-migrations.sh'
+              - '.github/workflows/ci.yml'
+
+  # golang-migrate identifies a migration by its numeric prefix alone, so two
+  # branches each adding their own 0NN_*.sql merge cleanly in git yet break
+  # every startup with a duplicate-version error. Local pre-commit checks
+  # (make backend-check-migrations) cannot see the other branch; this job runs
+  # the script in merge mode, which compares every version number against
+  # origin/main. PR-only: on a push to main the tree IS main, so there is
+  # nothing to compare.
+  #
+  # The `migration-renumbering` label is the escape hatch: a deliberate
+  # renumbering (a post-release consolidation like #710) replaces main's
+  # filenames on purpose and would be rejected by design. Labels are read at
+  # event time, so add the label BEFORE pushing (or re-run the job after
+  # labeling) — same pattern as `no-issue-needed` on pr-linked-issue.yml.
+  migrations:
+    name: Migration collision check
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.migrations == 'true' &&
+      !contains(github.event.pull_request.labels.*.name, 'migration-renumbering')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Check migration versions against origin/main
+        run: |
+          # checkout fetches only the PR merge ref; merge mode needs the real
+          # origin/main tip to compare against.
+          git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
+          if ! (cd backend && bash ../.github/scripts/check-duplicate-migrations.sh migrations true); then
+            echo "::error::Migration version collision with origin/main. If this renumbering is deliberate (e.g. a post-release consolidation), add the 'migration-renumbering' label to the PR and re-run this job."
+            exit 1
+          fi
 
   unit:
     name: Build & Unit Test
