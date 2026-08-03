@@ -41,7 +41,7 @@ jobs:
       # Stage 1 -- mark issues inactive for 7 days as Stale (issues only).
       # Closing and un-staling are handled in stage 2 (see header comment).
       - name: Mark stale issues (7 days inactive)
-        uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10.4.0
+        uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
         with:
           days-before-stale: 7
           days-before-close: -1 # never close from here; stage 2 owns the 21d close
