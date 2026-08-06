@@ -185,7 +185,7 @@ health, curl the key surfaces, then hand the user a URL.
 name: vibexp-smokeXYZ            # replace XYZ, e.g. smoke030
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: vibexp
