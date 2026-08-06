@@ -270,7 +270,7 @@ jobs:
     # maintenance DB (see backend/internal/repositories/postgres/main_integration_test.go).
     services:
       postgres:
-        image: pgvector/pgvector:pg15
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: vibexp_app
           POSTGRES_PASSWORD: local_password
