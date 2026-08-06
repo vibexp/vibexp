@@ -225,6 +225,26 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-condition': 'off',
     },
   },
+  // 3d. Defensive null-coalescing flagged after the TypeScript 5.8 -> 6 bump
+  // (typescript-eslint runs on the TS 6 API; TS 7 has no JS API). TS 6's
+  // stricter nullability inference now types some defensively-guarded DOM /
+  // optional API values as non-nullable, producing false positives on `?? ''`
+  // and `?.` fallbacks that are intentional runtime guards. Scoped to the
+  // exact files affected; the rule stays enabled everywhere else.
+  {
+    files: [
+      'src/components/MarkdownRenderer.tsx',
+      'src/hooks/__tests__/useUrlFilters.test.tsx',
+      'src/pages/activities/__tests__/Activities.test.tsx',
+      'src/pages/memories/__tests__/MemoryView.test.tsx',
+      'src/pages/prompt-gallery/__tests__/PromptGalleryCategory.test.tsx',
+      'src/pages/teams/projects/migration/ResultStep.test.tsx',
+      'src/pages/teams/projects/migration/SelectResourcesStep.test.tsx',
+    ],
+    rules: {
+      '@typescript-eslint/no-unnecessary-condition': 'off',
+    },
+  },
   // 4. Relaxed Rules for Test Files (No changes from previous logic)
   {
     files: [
