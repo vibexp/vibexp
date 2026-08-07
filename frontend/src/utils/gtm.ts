@@ -29,8 +29,13 @@ export const initializeGTM = () => {
   // Install the globals GTM expects. Nothing else creates them — the app ships
   // no inline bootstrap — so this must run before the first dataLayer push.
   window.dataLayer ??= []
-  window.gtag ??= function gtag(...args: unknown[]) {
-    window.dataLayer?.push(args as unknown as Record<string, unknown>)
+  // Google's canonical shim, verbatim: gtag pushes the `arguments` OBJECT, which
+  // is how GTM tells a gtag command apart from an ordinary dataLayer push. A
+  // real array is NOT equivalent — commands pushed that way are ignored. This
+  // shim is the active gtag until gtm.js finishes loading (and the only one if
+  // it never does), so the shape matters.
+  window.gtag ??= function gtag() {
+    window.dataLayer?.push(arguments as unknown as Record<string, unknown>)
   }
 
   window.dataLayer.push({

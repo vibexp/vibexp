@@ -217,6 +217,16 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-type-parameters': 'off',
     },
   },
+  // 3c. GTM shim - Google's canonical gtag pushes the `arguments` OBJECT, which
+  // is how GTM distinguishes a gtag command from an ordinary dataLayer push. A
+  // rest-parameter array is NOT equivalent — GTM ignores commands pushed that
+  // way — so this one function must use `arguments` verbatim (#740).
+  {
+    files: ['src/utils/gtm.ts'],
+    rules: {
+      'prefer-rest-params': 'off',
+    },
+  },
   // 3d. Defensive null-coalescing flagged after the TypeScript 5.8 -> 6 bump
   // (typescript-eslint runs on the TS 6 API; TS 7 has no JS API). TS 6's
   // stricter nullability inference now types some defensively-guarded DOM /

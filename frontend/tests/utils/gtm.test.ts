@@ -404,8 +404,28 @@ describe('GTM Utilities (GTM Enabled)', () => {
 
         initializeGTM()
 
-        expect(Array.isArray(window.dataLayer)).toBe(true)
-        expect(typeof window.gtag).toBe('function')
+        // `delete` above narrows both globals to `never` for the rest of this
+        // block, so re-read them through a fresh view of `window`.
+        const w = window as Window
+        expect(Array.isArray(w.dataLayer)).toBe(true)
+        expect(typeof w.gtag).toBe('function')
+
+        // The shim must push the `arguments` OBJECT (Google's canonical form
+        // that GTM recognises as a command), never a plain array of the args —
+        // GTM ignores the latter, so gtag commands would silently do nothing.
+        const before = w.dataLayer?.length ?? 0
+        w.gtag?.('consent', 'default', { analytics_storage: 'denied' })
+        const pushed = w.dataLayer?.[before]
+
+        expect(Array.isArray(pushed)).toBe(false)
+        expect(Object.prototype.toString.call(pushed)).toBe(
+          '[object Arguments]'
+        )
+        expect(Array.from(pushed as unknown as ArrayLike<unknown>)).toEqual([
+          'consent',
+          'default',
+          { analytics_storage: 'denied' },
+        ])
       })()
     })
 
