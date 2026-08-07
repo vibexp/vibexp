@@ -130,9 +130,8 @@ func TestHandleSPA_NoEmbeddedFrontendReturns404(t *testing.T) {
 func TestHandleConfigJS_RendersWindowEnv(t *testing.T) {
 	cfg := &config.Config{
 		Frontend: config.FrontendConfig{
-			SiteName:   "Acme",
-			GTMEnabled: "true",
-			GTMID:      "GTM-XYZ",
+			SiteName: "Acme",
+			GTMID:    "GTM-XYZ",
 		},
 	}
 	// config.js is served regardless of whether the frontend is embedded.
@@ -154,10 +153,14 @@ func TestHandleConfigJS_RendersWindowEnv(t *testing.T) {
 	if !strings.HasPrefix(body, "window.__VIBEXP_ENV__ = ") {
 		t.Errorf("config.js body did not assign window.__VIBEXP_ENV__: %q", body)
 	}
-	for _, want := range []string{`"VITE_SITE_NAME":"Acme"`, `"VITE_GTM_ENABLED":"true"`, `"VITE_GTM_ID":"GTM-XYZ"`} {
+	for _, want := range []string{`"VITE_SITE_NAME":"Acme"`, `"VITE_GTM_ID":"GTM-XYZ"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("config.js missing %s; body = %q", want, body)
 		}
+	}
+	// GTM is ID-driven since #740 — there is no enable flag to serve.
+	if strings.Contains(body, "VITE_GTM_ENABLED") {
+		t.Errorf("config.js served a retired VITE_GTM_ENABLED key; body = %q", body)
 	}
 	// Unset values must be omitted so the build-time default remains the fallback.
 	if strings.Contains(body, "VITE_SITE_URL") {

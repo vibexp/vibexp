@@ -302,11 +302,6 @@ export const storageUtils = {
         current: STORAGE_KEYS.CURRENT_TEAM_ID,
         storage: localStorage,
       },
-      {
-        legacy: LEGACY_STORAGE_KEYS.COOKIE_CONSENT,
-        current: STORAGE_KEYS.COOKIE_CONSENT,
-        storage: localStorage,
-      },
       // sessionStorage migrations
       {
         legacy: LEGACY_STORAGE_KEYS.PENDING_INVITATION_TOKEN,
@@ -376,6 +371,19 @@ export const storageUtils = {
     try {
       localStorage.removeItem(LEGACY_STORAGE_KEYS.AUTH_TOKEN)
       localStorage.removeItem('vx_auth_token')
+    } catch {
+      // Ignore storage errors - storage may be unavailable
+    }
+
+    // Cookie consent was removed entirely (#740): VibeXP is self-hosted, so
+    // consent policy belongs to the operator's own tag container, not to the
+    // app. Both the legacy `cookieConsent` and the prefixed `vx_cookie_consent`
+    // keys are pure cleanup — delete (never re-create) them so a returning user
+    // does not carry a decision for a banner that no longer exists. Neither
+    // literal is in STORAGE_KEYS any more.
+    try {
+      localStorage.removeItem('cookieConsent')
+      localStorage.removeItem('vx_cookie_consent')
     } catch {
       // Ignore storage errors - storage may be unavailable
     }

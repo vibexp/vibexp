@@ -12,7 +12,7 @@ import { STORAGE_KEYS } from '../constants/storageKeys'
 import { analyticsService } from '../services/analytics'
 import type { CurrentUser } from '../services/authService'
 import { authService } from '../services/authService'
-import { grantCookieConsent } from '../utils/cookieConsent'
+import { pushDataLayerEvent, setGA4UserId } from '../utils/gtm'
 import { sessionStore } from '../utils/storage'
 import { isFirstTimeUser } from '../utils/userUtils'
 
@@ -63,17 +63,11 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
         }
         analyticsFiredRef.current = true
 
-        // Auto-grant cookie consent since user agreed to privacy policy during signup
-        try {
-          grantCookieConsent()
-        } catch (consentError) {
-          console.error('Failed to grant cookie consent:', consentError)
-        }
-
         // Set GA4 user_id for cross-session tracking
-        // This associates all subsequent GA4 events with the logged-in user
+        // This associates all subsequent GA4 events with the logged-in user.
+        // No-op unless an operator configured a GTM container.
         try {
-          window.gtag('set', 'user_id', currentUser.id)
+          setGA4UserId(currentUser.id)
         } catch (ga4UserIdError) {
           console.error('Failed to set GA4 user_id:', ga4UserIdError)
         }
@@ -108,21 +102,12 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
           // Track GA4 ecommerce events
           // Wrapped in try-catch to ensure GA4 tracking never affects authentication
           try {
-            if (isFirstTime) {
-              // Track sign_up
-              window.dataLayer.push({
-                event: 'sign_up',
-                method: loginMethod,
-                user_id: currentUser.id,
-              })
-            } else {
-              // Track login
-              window.dataLayer.push({
-                event: 'login',
-                method: loginMethod,
-                user_id: currentUser.id,
-              })
-            }
+            // GA4 reserved event names — pushed unprefixed, unlike trackEvent.
+            pushDataLayerEvent({
+              event: isFirstTime ? 'sign_up' : 'login',
+              method: loginMethod,
+              user_id: currentUser.id,
+            })
           } catch (ga4Error) {
             // Log GA4 tracking errors separately, but never let them affect authentication
             console.error('Failed to track GA4 ecommerce events:', ga4Error)
@@ -155,9 +140,9 @@ export function AuthProvider({ children }: Readonly<AuthProviderProps>) {
   }, [])
 
   const logout = useCallback(() => {
-    // Clear GA4 user_id before logout
+    // Clear GA4 user_id before logout (no-op without a GTM container)
     try {
-      window.gtag('set', 'user_id', undefined)
+      setGA4UserId(undefined)
     } catch (ga4UserIdError) {
       console.error('Failed to clear GA4 user_id:', ga4UserIdError)
     }

@@ -126,7 +126,6 @@ frontend:
   mcp_endpoint: https://connect.example.com/mcp/v1/common
   error_type_base_uri: https://errors.example.com
   gtm_id: GTM-XXXX
-  gtm_enabled: "true"
   ga4_measurement_id: G-XXXX
 search:
   recency_ranking_enabled: true
@@ -351,7 +350,7 @@ func TestLoad_ParityFixture(t *testing.T) {
 	assert.Equal(t, "https://app.example.com", cfg.Frontend.BaseURL)
 	assert.Equal(t, "VibeXP", cfg.Frontend.SiteName)
 	assert.Equal(t, "VibeXP Inc", cfg.Frontend.SiteLegalName)
-	assert.Equal(t, "true", cfg.Frontend.GTMEnabled)
+	assert.Equal(t, "GTM-XXXX", cfg.Frontend.GTMID)
 	assert.Equal(t, "G-XXXX", cfg.Frontend.GA4MeasurementID)
 
 	// Search.

@@ -23,7 +23,6 @@ vi.mock('../../src/utils/storage', () => ({
     INVITATION_BANNER_DISMISSED: 'invitation_banner_dismissed',
     ANALYTICS_REFERRER: 'analytics_referrer',
     PURCHASE_TRACKED: 'purchase_tracked',
-    COOKIE_CONSENT: 'cookieConsent',
   },
 }))
 

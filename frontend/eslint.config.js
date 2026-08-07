@@ -217,12 +217,14 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-type-parameters': 'off',
     },
   },
-  // 3c. Cookie consent - Allow runtime validation for potentially corrupted storage data
+  // 3c. GTM shim - Google's canonical gtag pushes the `arguments` OBJECT, which
+  // is how GTM distinguishes a gtag command from an ordinary dataLayer push. A
+  // rest-parameter array is NOT equivalent — GTM ignores commands pushed that
+  // way — so this one function must use `arguments` verbatim (#740).
   {
-    files: ['src/utils/cookieConsent.ts'],
+    files: ['src/utils/gtm.ts'],
     rules: {
-      // We do runtime validation for storage data which may be corrupted
-      '@typescript-eslint/no-unnecessary-condition': 'off',
+      'prefer-rest-params': 'off',
     },
   },
   // 3d. Defensive null-coalescing flagged after the TypeScript 5.8 -> 6 bump

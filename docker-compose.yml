@@ -109,8 +109,7 @@ services:
       # VITE_SITE_URL: "https://example.com"
       # VITE_SUPPORT_EMAIL: "support@example.com"
       # VITE_MCP_ENDPOINT: "https://vibexp.example.com/mcp/v1/common"
-      # Optional analytics (off unless VITE_GTM_ENABLED is exactly "true"):
-      # VITE_GTM_ENABLED: "true"
+      # Optional analytics (nothing loads unless VITE_GTM_ID is set):
       # VITE_GTM_ID: "GTM-XXXXXXX"
       # VITE_GA4_MEASUREMENT_ID: "G-XXXXXXXXXX"
 

@@ -224,9 +224,11 @@ frontend:
   brand_logo_url: ""
   mcp_endpoint: ""
   error_type_base_uri: ""
-  # Optional analytics. GTM is OFF unless gtm_enabled is exactly "true".
+  # Optional analytics. Setting gtm_id IS the opt-in: Google Tag Manager loads
+  # only when it is non-empty, and nothing analytics-related loads when it is
+  # empty (the default). VibeXP itself ships no cookie banner or consent
+  # gate — consent policy belongs to your own tag container.
   gtm_id: ""
-  gtm_enabled: ""
   ga4_measurement_id: ""
 
 # Search ranking — these are the INSTANCE DEFAULTS, not absolute settings.

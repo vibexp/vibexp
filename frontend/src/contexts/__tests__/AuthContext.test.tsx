@@ -1019,7 +1019,7 @@ describe('AuthContext (cookie-based auth)', () => {
       )
 
       await waitFor(() => {
-        const signUpEvent = window.dataLayer.find(e => e.event === 'sign_up')
+        const signUpEvent = window.dataLayer?.find(e => e.event === 'sign_up')
         expect(signUpEvent).toBeDefined()
         expect(signUpEvent?.method).toBe('Google')
       })
@@ -1036,7 +1036,7 @@ describe('AuthContext (cookie-based auth)', () => {
       )
 
       await waitFor(() => {
-        const loginEvent = window.dataLayer.find(e => e.event === 'login')
+        const loginEvent = window.dataLayer?.find(e => e.event === 'login')
         expect(loginEvent).toBeDefined()
         expect(loginEvent?.method).toBe('Google')
       })
@@ -1053,7 +1053,7 @@ describe('AuthContext (cookie-based auth)', () => {
       )
 
       await waitFor(() => {
-        const loginEvent = window.dataLayer.find(e => e.event === 'login')
+        const loginEvent = window.dataLayer?.find(e => e.event === 'login')
         expect(loginEvent).toBeDefined()
         expect(loginEvent?.method).toBe('unknown')
       })
@@ -1070,7 +1070,7 @@ describe('AuthContext (cookie-based auth)', () => {
       )
 
       await waitFor(() => {
-        expect(window.dataLayer.some(e => e.event === 'login')).toBe(true)
+        expect(window.dataLayer?.some(e => e.event === 'login')).toBe(true)
       })
 
       expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull()
@@ -1090,7 +1090,7 @@ describe('AuthContext (cookie-based auth)', () => {
       )
 
       await waitFor(() => {
-        expect(window.dataLayer.some(e => e.event === 'login')).toBe(true)
+        expect(window.dataLayer?.some(e => e.event === 'login')).toBe(true)
       })
 
       unmount()

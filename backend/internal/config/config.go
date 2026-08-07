@@ -362,8 +362,10 @@ type FrontendConfig struct {
 	BrandLogoURL     string `koanf:"brand_logo_url"`
 	MCPEndpoint      string `koanf:"mcp_endpoint"`
 	ErrorTypeBaseURI string `koanf:"error_type_base_uri"`
+	// GTMID is the Google Tag Manager container ID. Setting it IS the opt-in:
+	// the SPA loads GTM only when it is non-empty. There is no separate enable
+	// flag, and VibeXP ships no cookie-consent gate of its own (#740).
 	GTMID            string `koanf:"gtm_id"`
-	GTMEnabled       string `koanf:"gtm_enabled"`
 	GA4MeasurementID string `koanf:"ga4_measurement_id"`
 }
 
@@ -462,7 +464,6 @@ func (c *Config) RuntimeFrontendEnv() map[string]string {
 		{"VITE_MCP_ENDPOINT", c.Frontend.MCPEndpoint},
 		{"VITE_ERROR_TYPE_BASE_URI", c.Frontend.ErrorTypeBaseURI},
 		{"VITE_GTM_ID", c.Frontend.GTMID},
-		{"VITE_GTM_ENABLED", c.Frontend.GTMEnabled},
 		{"VITE_GA4_MEASUREMENT_ID", c.Frontend.GA4MeasurementID},
 	}
 	out := make(map[string]string, len(pairs))

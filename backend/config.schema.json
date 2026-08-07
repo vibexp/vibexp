@@ -323,9 +323,6 @@
         "gtm_id": {
           "type": "string"
         },
-        "gtm_enabled": {
-          "type": "string"
-        },
         "ga4_measurement_id": {
           "type": "string"
         }

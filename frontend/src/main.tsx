@@ -4,7 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import App from './App.tsx'
-import { GTM_ENABLED, initializeGTM } from './utils/gtm'
+import { initializeGTM } from './utils/gtm'
 import { cleanupLegacyServiceWorkers } from './utils/serviceWorker'
 import { storageUtils } from './utils/storage'
 
@@ -18,10 +18,9 @@ storageUtils.migrateStorageKeys()
 // that can hijack this origin and serve outdated content. No-op once clean.
 cleanupLegacyServiceWorkers()
 
-// Initialize Google Tag Manager only if explicitly enabled
-if (GTM_ENABLED) {
-  initializeGTM()
-}
+// Load Google Tag Manager when an operator configured a container ID.
+// No ID (the default) means this is a no-op and nothing third-party loads.
+initializeGTM()
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {

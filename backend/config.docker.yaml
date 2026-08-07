@@ -163,7 +163,6 @@ frontend:
   brand_logo_url: "${VITE_BRAND_LOGO_URL:-}"
   mcp_endpoint: "${VITE_MCP_ENDPOINT:-}"
   gtm_id: "${VITE_GTM_ID:-}"
-  gtm_enabled: "${VITE_GTM_ENABLED:-}"
   ga4_measurement_id: "${VITE_GA4_MEASUREMENT_ID:-}"
 
 # Resource-attachment storage. Empty disables attachments. Set to your GCS

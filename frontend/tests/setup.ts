@@ -7,7 +7,7 @@ import { TextEncoder, TextDecoder } from 'util'
 
 // import.meta.env is native under Vitest — values come from Vite env handling
 // (mode 'test'), so the jest-era `globals['import.meta']` shim is gone. Tests
-// that gate on VITE_GTM_ENABLED etc. rely on those being unset/empty here.
+// that gate on VITE_GTM_ID etc. rely on those being unset/empty here.
 
 // Add TextEncoder/TextDecoder for Node.js environment
 if (typeof global.TextEncoder === 'undefined') {
