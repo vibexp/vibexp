@@ -45,11 +45,6 @@ vi.mock('../../services/authService', () => ({
   },
 }))
 
-// Mock CookieConsentBanner so we don't need to stub its dependencies
-vi.mock('@/components/CookieConsentBanner', () => ({
-  CookieConsentBanner: () => null,
-}))
-
 // Mock theme hook
 vi.mock('@/lib/theme', () => ({
   useTheme: () => ({ resolvedTheme: 'light', setTheme: vi.fn() }),

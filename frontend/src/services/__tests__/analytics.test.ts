@@ -3,8 +3,8 @@
  *
  * The service reads its gate from `utils/gtm` (GTM_ENABLED) at module load, so
  * each variant is loaded through `vi.isolateModules` + `vi.doMock`:
- * - the default jest environment has VITE_GTM_ENABLED='false', which must make
- *   every dispatch a no-op;
+ * - the default test environment has no VITE_GTM_ID, which must make every
+ *   dispatch a no-op;
  * - the enabled variant mocks `@/utils/gtm` with GTM_ENABLED=true and a spy
  *   for its trackEvent to observe dispatches;
  * - the dev variant additionally mocks `../utils/environment` (the specifier
@@ -32,8 +32,8 @@ interface LoadOptions {
 async function loadService(opts: LoadOptions): Promise<Svc> {
   vi.resetModules()
   if (opts.useRealGtm) {
-    // Restore the real gtm module — its own GTM_ENABLED gate reads the
-    // default test env (VITE_GTM_ENABLED unset/'false').
+    // Restore the real gtm module — its own GTM_ENABLED gate is derived from
+    // VITE_GTM_ID, which is empty in the default test env.
     vi.doMock('@/utils/gtm', () => vi.importActual('@/utils/gtm'))
   } else {
     vi.doMock('@/utils/gtm', () => ({
@@ -43,6 +43,8 @@ async function loadService(opts: LoadOptions): Promise<Svc> {
       trackEvent: opts.gtmTrack ?? vi.fn(),
       initializeGTM: vi.fn(),
       getGA4ClientId: vi.fn(),
+      pushDataLayerEvent: vi.fn(),
+      setGA4UserId: vi.fn(),
     }))
   }
   vi.doMock('@/utils/environment', () => ({

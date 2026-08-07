@@ -78,10 +78,6 @@ export const STORAGE_KEYS = {
    * once the user lands back authenticated. Session scoped.
    */
   RETURN_TO: 'vx_return_to',
-
-  // Cookie Consent
-  /** User's cookie consent decision (granted/denied) with timestamp */
-  COOKIE_CONSENT: 'vx_cookie_consent',
 } as const
 
 /**
@@ -96,7 +92,6 @@ export const LEGACY_STORAGE_KEYS = {
   INVITATION_BANNER_DISMISSED: 'invitation_banner_dismissed',
   ANALYTICS_REFERRER: 'analytics_referrer',
   PURCHASE_TRACKED: 'purchase_tracked',
-  COOKIE_CONSENT: 'cookieConsent',
 } as const
 
 /**
@@ -110,7 +105,6 @@ export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
 export const LOCAL_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([
   STORAGE_KEYS.CURRENT_TEAM_ID,
   STORAGE_KEYS.CURRENT_PROJECT_ID,
-  STORAGE_KEYS.COOKIE_CONSENT,
 ])
 
 export const SESSION_STORAGE_KEYS: ReadonlySet<StorageKey> = new Set([

@@ -39,7 +39,6 @@ export default defineConfig({
       // src/utils/environment.ts still reads the test branch from process.env
       // (same process under Vitest's jsdom environment).
       VITE_API_BASE_URL: 'https://api.vibexp.io/api/v1',
-      VITE_GTM_ENABLED: 'false',
       VITE_GTM_ID: '',
       VITE_GA4_MEASUREMENT_ID: '',
     },

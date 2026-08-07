@@ -8,14 +8,15 @@ export {}
 // Pull in the `window.__VIBEXP_ENV__` global augmentation (issue #57).
 import '@/lib/runtimeEnv'
 
-// Extend Window type for tests
-// dataLayer and gtag are always defined in index.html; gtm.ts now reads its
-// config at runtime via getEnv(), which prefers window.__VIBEXP_ENV__ (issue
-// #57), so the enabled-GTM suite below sets that instead of build-time globals.
+// Extend Window type for tests. Both globals are OPTIONAL: nothing defines
+// them until initializeGTM() runs (#740 removed the inline index.html
+// bootstrap). gtm.ts reads its config at runtime via getEnv(), which prefers
+// window.__VIBEXP_ENV__ (issue #57), so the enabled-GTM suite below sets that
+// instead of build-time globals.
 declare global {
   interface Window {
-    dataLayer: Record<string, unknown>[]
-    gtag: (...args: unknown[]) => void
+    dataLayer?: Record<string, unknown>[]
+    gtag?: (...args: unknown[]) => void
   }
 }
 
@@ -53,7 +54,7 @@ afterEach(() => {
 describe('GTM Utilities', () => {
   describe('Environment Configuration (GTM Disabled)', () => {
     it('should have test environment with GTM disabled by default', async () => {
-      // These tests run with GTM disabled (set in jest.config.js)
+      // These tests run with GTM disabled (no VITE_GTM_ID in vitest.config.ts)
       const { GTM_ENABLED, GTM_ID, GA4_MEASUREMENT_ID } =
         await import('../../src/utils/gtm')
 
@@ -120,9 +121,9 @@ describe('GTM Utilities (GTM Enabled)', () => {
     existingNoscripts.forEach(noscript => noscript.remove())
 
     // Enable GTM at runtime for these tests (gtm.ts reads getEnv()).
+    // Setting the container ID IS the opt-in — there is no enable flag (#740).
     window.__VIBEXP_ENV__ = {
       VITE_GTM_ID: 'GTM-TEST123',
-      VITE_GTM_ENABLED: 'true',
       VITE_GA4_MEASUREMENT_ID: 'G-TEST123',
     }
   })
@@ -265,11 +266,8 @@ describe('GTM Utilities (GTM Enabled)', () => {
       await (async () => {
         const { trackEvent } = await import('../../src/utils/gtm')
 
-        // Remove dataLayer. `Window.dataLayer` is declared non-optional
-        // (src/utils/gtm.ts) because index.html always defines it; this test
-        // simulates the case where it is missing, so the delete needs a view of
-        // `window` where the property is optional.
-        delete (window as Partial<Window>).dataLayer
+        // No dataLayer at all — the normal state before initializeGTM() runs.
+        delete window.dataLayer
 
         trackEvent('test_event', { category: 'test' })
 
@@ -395,6 +393,22 @@ describe('GTM Utilities (GTM Enabled)', () => {
       })()
     })
 
+    it('installs window.dataLayer and window.gtag itself', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { initializeGTM } = await import('../../src/utils/gtm')
+
+        // index.html no longer bootstraps these (#740) — initializeGTM owns it.
+        delete window.dataLayer
+        delete window.gtag
+
+        initializeGTM()
+
+        expect(Array.isArray(window.dataLayer)).toBe(true)
+        expect(typeof window.gtag).toBe('function')
+      })()
+    })
+
     it('should not initialize when dataLayer already has GTM events', async () => {
       vi.resetModules()
       await (async () => {
@@ -409,6 +423,50 @@ describe('GTM Utilities (GTM Enabled)', () => {
         expect(
           window.dataLayer?.filter(item => item.event === 'gtm.js')
         ).toHaveLength(2)
+      })()
+    })
+  })
+
+  describe('pushDataLayerEvent / setGA4UserId', () => {
+    it('pushes an unprefixed payload when a dataLayer exists', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { pushDataLayerEvent } = await import('../../src/utils/gtm')
+
+        pushDataLayerEvent({ event: 'login', method: 'google' })
+
+        expect(window.dataLayer).toEqual([{ event: 'login', method: 'google' }])
+      })()
+    })
+
+    it('is a no-op when no dataLayer exists', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { pushDataLayerEvent } = await import('../../src/utils/gtm')
+
+        delete window.dataLayer
+
+        expect(() => {
+          pushDataLayerEvent({ event: 'login' })
+        }).not.toThrow()
+        expect(window.dataLayer).toBeUndefined()
+      })()
+    })
+
+    it('forwards the user id to gtag, and is a no-op without one', async () => {
+      vi.resetModules()
+      await (async () => {
+        const { setGA4UserId } = await import('../../src/utils/gtm')
+
+        const gtag = vi.fn()
+        window.gtag = gtag
+        setGA4UserId('user-1')
+        expect(gtag).toHaveBeenCalledWith('set', 'user_id', 'user-1')
+
+        delete window.gtag
+        expect(() => {
+          setGA4UserId('user-2')
+        }).not.toThrow()
       })()
     })
   })

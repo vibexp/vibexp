@@ -54,16 +54,19 @@ describe('storage utilities', () => {
     describe('getJSON', () => {
       it('returns null for non-existent key', () => {
         expect(
-          storage.getJSON<{ status: string }>(STORAGE_KEYS.COOKIE_CONSENT)
+          storage.getJSON<{ status: string }>(STORAGE_KEYS.CURRENT_PROJECT_ID)
         ).toBeNull()
       })
 
       it('parses JSON string and returns typed object', () => {
         const data = { status: 'granted', timestamp: 12345 }
-        localStorage.setItem(STORAGE_KEYS.COOKIE_CONSENT, JSON.stringify(data))
+        localStorage.setItem(
+          STORAGE_KEYS.CURRENT_PROJECT_ID,
+          JSON.stringify(data)
+        )
 
         const result = storage.getJSON<{ status: string; timestamp: number }>(
-          STORAGE_KEYS.COOKIE_CONSENT
+          STORAGE_KEYS.CURRENT_PROJECT_ID
         )
         expect(result).toEqual(data)
       })
@@ -72,10 +75,10 @@ describe('storage utilities', () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {
           // Suppress error output
         })
-        localStorage.setItem(STORAGE_KEYS.COOKIE_CONSENT, 'not-valid-json')
+        localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT_ID, 'not-valid-json')
 
         expect(
-          storage.getJSON<{ status: string }>(STORAGE_KEYS.COOKIE_CONSENT)
+          storage.getJSON<{ status: string }>(STORAGE_KEYS.CURRENT_PROJECT_ID)
         ).toBeNull()
         expect(consoleSpy).toHaveBeenCalled()
       })
@@ -89,7 +92,7 @@ describe('storage utilities', () => {
         })
 
         expect(
-          storage.getJSON<{ status: string }>(STORAGE_KEYS.COOKIE_CONSENT)
+          storage.getJSON<{ status: string }>(STORAGE_KEYS.CURRENT_PROJECT_ID)
         ).toBeNull()
         expect(consoleSpy).toHaveBeenCalled()
       })
@@ -105,8 +108,8 @@ describe('storage utilities', () => {
 
       it('serializes non-string values to JSON', () => {
         const data = { status: 'granted', timestamp: 12345 }
-        storage.set(STORAGE_KEYS.COOKIE_CONSENT, data)
-        expect(localStorage.getItem(STORAGE_KEYS.COOKIE_CONSENT)).toBe(
+        storage.set(STORAGE_KEYS.CURRENT_PROJECT_ID, data)
+        expect(localStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT_ID)).toBe(
           JSON.stringify(data)
         )
       })
@@ -186,7 +189,7 @@ describe('storage utilities', () => {
     describe('clear', () => {
       it('clears all items from localStorage', () => {
         localStorage.setItem(STORAGE_KEYS.CURRENT_TEAM_ID, 'test1')
-        localStorage.setItem(STORAGE_KEYS.COOKIE_CONSENT, 'test2')
+        localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT_ID, 'test2')
         storage.clear()
         expect(localStorage).toHaveLength(0)
       })
@@ -229,7 +232,7 @@ describe('storage utilities', () => {
       it('clears all VibeXP keys from localStorage and sessionStorage', () => {
         // Set up data in both storages
         localStorage.setItem(STORAGE_KEYS.CURRENT_TEAM_ID, 'team-123')
-        localStorage.setItem(STORAGE_KEYS.COOKIE_CONSENT, 'consent')
+        localStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT_ID, 'consent')
         sessionStorage.setItem(STORAGE_KEYS.ANALYTICS_REFERRER, '/page')
         sessionStorage.setItem(STORAGE_KEYS.PURCHASE_TRACKED, 'true')
         // Also add a non-VibeXP key that should be preserved
@@ -239,7 +242,7 @@ describe('storage utilities', () => {
 
         // VibeXP keys should be removed
         expect(localStorage.getItem(STORAGE_KEYS.CURRENT_TEAM_ID)).toBeNull()
-        expect(localStorage.getItem(STORAGE_KEYS.COOKIE_CONSENT)).toBeNull()
+        expect(localStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT_ID)).toBeNull()
         expect(
           sessionStorage.getItem(STORAGE_KEYS.ANALYTICS_REFERRER)
         ).toBeNull()
@@ -321,10 +324,6 @@ describe('storage utilities', () => {
           LEGACY_STORAGE_KEYS.CURRENT_TEAM_ID,
           'legacy-team-id'
         )
-        localStorage.setItem(
-          LEGACY_STORAGE_KEYS.COOKIE_CONSENT,
-          JSON.stringify({ status: 'granted' })
-        )
 
         storageUtils.migrateStorageKeys()
 
@@ -332,17 +331,30 @@ describe('storage utilities', () => {
         expect(localStorage.getItem(STORAGE_KEYS.CURRENT_TEAM_ID)).toBe(
           'legacy-team-id'
         )
-        expect(localStorage.getItem(STORAGE_KEYS.COOKIE_CONSENT)).toBe(
-          JSON.stringify({ status: 'granted' })
-        )
 
         // Legacy keys should be removed
         expect(
           localStorage.getItem(LEGACY_STORAGE_KEYS.CURRENT_TEAM_ID)
         ).toBeNull()
-        expect(
-          localStorage.getItem(LEGACY_STORAGE_KEYS.COOKIE_CONSENT)
-        ).toBeNull()
+      })
+
+      it('deletes any lingering cookie-consent keys without re-creating them', () => {
+        // Cookie consent was removed entirely (#740): both the legacy
+        // `cookieConsent` and the prefixed `vx_cookie_consent` keys must be
+        // wiped (never migrated) on init.
+        localStorage.setItem(
+          'cookieConsent',
+          JSON.stringify({ status: 'granted' })
+        )
+        localStorage.setItem(
+          'vx_cookie_consent',
+          JSON.stringify({ status: 'denied' })
+        )
+
+        storageUtils.migrateStorageKeys()
+
+        expect(localStorage.getItem('cookieConsent')).toBeNull()
+        expect(localStorage.getItem('vx_cookie_consent')).toBeNull()
       })
 
       it('deletes any lingering auth tokens without re-creating them', () => {
@@ -451,6 +463,6 @@ describe('STORAGE_KEYS', () => {
     expect(STORAGE_KEYS.INVITATION_BANNER_DISMISSED).toBeDefined()
     expect(STORAGE_KEYS.ANALYTICS_REFERRER).toBeDefined()
     expect(STORAGE_KEYS.PURCHASE_TRACKED).toBeDefined()
-    expect(STORAGE_KEYS.COOKIE_CONSENT).toBeDefined()
+    expect(STORAGE_KEYS.CURRENT_PROJECT_ID).toBeDefined()
   })
 })

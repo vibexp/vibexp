@@ -217,14 +217,6 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-type-parameters': 'off',
     },
   },
-  // 3c. Cookie consent - Allow runtime validation for potentially corrupted storage data
-  {
-    files: ['src/utils/cookieConsent.ts'],
-    rules: {
-      // We do runtime validation for storage data which may be corrupted
-      '@typescript-eslint/no-unnecessary-condition': 'off',
-    },
-  },
   // 3d. Defensive null-coalescing flagged after the TypeScript 5.8 -> 6 bump
   // (typescript-eslint runs on the TS 6 API; TS 7 has no JS API). TS 6's
   // stricter nullability inference now types some defensively-guarded DOM /

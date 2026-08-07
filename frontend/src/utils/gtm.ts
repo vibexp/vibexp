@@ -1,30 +1,38 @@
-// Google Analytics gtag function type definitions
-// gtag and dataLayer are always defined in index.html before any other scripts load
+// Google Tag Manager / gtag glue.
+//
+// `dataLayer` and `gtag` are OPTIONAL: nothing defines them unless an operator
+// configured a GTM container and `initializeGTM()` installed them. Every read
+// below (and in `services/analytics.ts`) must therefore guard rather than
+// assume — VibeXP ships with no analytics at all by default.
 import { getEnv } from '@/lib/runtimeEnv'
 
 declare global {
   interface Window {
-    dataLayer: Record<string, unknown>[]
-    gtag: (...args: unknown[]) => void
+    dataLayer?: Record<string, unknown>[]
+    gtag?: (...args: unknown[]) => void
   }
 }
 
 // Analytics config is read at runtime (issue #57): the backend injects
 // VITE_GTM_* via /config.js, with the build-time import.meta.env as fallback.
-// GTM is opt-in — enabled only when VITE_GTM_ENABLED is exactly "true" — so the
-// neutral default (unset) keeps analytics off.
+// GTM is opt-in and ID-driven — configuring a container ID is the whole
+// opt-in, so the neutral default (unset) keeps analytics off.
 export const GTM_ID = getEnv('VITE_GTM_ID') ?? ''
-export const GTM_ENABLED = getEnv('VITE_GTM_ENABLED') === 'true'
+export const GTM_ENABLED = GTM_ID !== ''
 export const GA4_MEASUREMENT_ID = getEnv('VITE_GA4_MEASUREMENT_ID') ?? ''
 
 export const initializeGTM = () => {
-  if (!GTM_ENABLED || !GTM_ID) {
-    console.log('GTM is disabled or GTM_ID is not provided')
+  if (!GTM_ENABLED) {
     return
   }
 
-  // dataLayer is already initialized in index.html with consent defaults
-  // Just push the GTM start event
+  // Install the globals GTM expects. Nothing else creates them — the app ships
+  // no inline bootstrap — so this must run before the first dataLayer push.
+  window.dataLayer ??= []
+  window.gtag ??= function gtag(...args: unknown[]) {
+    window.dataLayer?.push(args as unknown as Record<string, unknown>)
+  }
+
   window.dataLayer.push({
     'gtm.start': Date.now(),
     event: 'gtm.js',
@@ -46,6 +54,27 @@ export const initializeGTM = () => {
   }
 }
 
+// Push a raw dataLayer payload, no-op when no dataLayer exists (i.e. no GTM
+// container is configured). Use this for GA4's own reserved event names —
+// `trackEvent` below namespaces everything it pushes.
+export const pushDataLayerEvent = (payload: Record<string, unknown>) => {
+  if (!Array.isArray(window.dataLayer)) {
+    return
+  }
+
+  window.dataLayer.push(payload)
+}
+
+// Associate subsequent GA4 hits with a user (pass undefined to clear).
+// No-op when no GTM container is configured.
+export const setGA4UserId = (userId?: string) => {
+  if (typeof window.gtag !== 'function') {
+    return
+  }
+
+  window.gtag('set', 'user_id', userId)
+}
+
 // Helper function to track custom events
 export const trackEvent = (
   eventName: string,
@@ -55,9 +84,8 @@ export const trackEvent = (
     return
   }
 
-  // Defensive check: dataLayer is always initialized in index.html,
-  // but we check anyway to prevent errors in edge cases (e.g., tests)
-  // Using Array.isArray avoids TypeScript's "always truthy" warning
+  // No dataLayer means GTM never initialized (or we are under test) — the
+  // declared type is optional precisely because that is a normal state.
   if (!Array.isArray(window.dataLayer)) {
     return
   }
@@ -83,6 +111,12 @@ export const getGA4ClientId = (): Promise<string> => {
       return
     }
 
+    const gtag = window.gtag
+    if (typeof gtag !== 'function') {
+      resolve('')
+      return
+    }
+
     // Set a timeout to prevent hanging if callback never fires
     const timeoutId = setTimeout(() => {
       console.warn('GA4 client_id retrieval timed out after 2 seconds')
@@ -90,15 +124,10 @@ export const getGA4ClientId = (): Promise<string> => {
     }, 2000)
 
     try {
-      window.gtag(
-        'get',
-        GA4_MEASUREMENT_ID,
-        'client_id',
-        (clientId: string) => {
-          clearTimeout(timeoutId)
-          resolve(clientId || '')
-        }
-      )
+      gtag('get', GA4_MEASUREMENT_ID, 'client_id', (clientId: string) => {
+        clearTimeout(timeoutId)
+        resolve(clientId || '')
+      })
     } catch (error) {
       clearTimeout(timeoutId)
       console.error('Error getting GA4 client_id:', error)

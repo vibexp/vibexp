@@ -399,7 +399,7 @@ class EnhancedAnalyticsService implements AnalyticsService {
 
       // Update GTM data layer with user information
       if (this.isEnabled()) {
-        window.dataLayer.push({
+        window.dataLayer?.push({
           user_id: userProperties.user_id,
           user_properties: userProperties,
           event: 'user_identified',
@@ -427,7 +427,7 @@ class EnhancedAnalyticsService implements AnalyticsService {
 
         // Update GTM data layer
         if (this.isEnabled()) {
-          window.dataLayer.push({
+          window.dataLayer?.push({
             user_properties: this.userProperties,
             event: 'user_properties_updated',
           })
@@ -465,7 +465,7 @@ class EnhancedAnalyticsService implements AnalyticsService {
 
       // Clear user data from GTM data layer
       if (this.isEnabled()) {
-        window.dataLayer.push({
+        window.dataLayer?.push({
           user_id: undefined,
           user_properties: undefined,
           event: 'user_cleared',

@@ -2,7 +2,6 @@ import { KeyRound, Moon, Shield, Sun, Users, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
-import { CookieConsentBanner } from '@/components/CookieConsentBanner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/lib/theme'
@@ -391,8 +390,6 @@ export function SignInPage() {
           </div>
         </div>
       </div>
-
-      <CookieConsentBanner />
     </div>
   )
 }
