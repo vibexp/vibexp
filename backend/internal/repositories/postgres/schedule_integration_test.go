@@ -4,6 +4,7 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,21 +145,33 @@ func TestIntegrationSchedule_ListDueUsesIndex(t *testing.T) {
 		NextRunAt: time.Now().Add(-time.Minute),
 	}))
 
-	// A near-empty table makes the planner prefer a seq scan regardless of the
-	// index; SET LOCAL enable_seqscan = off makes the index preference visible
-	// (the planner still falls back to a seq scan if no usable index exists,
-	// so a dropped index fails this test).
+	// A small/seeded table makes the planner choose between an index scan, a
+	// bitmap scan (index used in a child node), or — with no usable index — a
+	// seq scan. SET LOCAL enable_seqscan = off removes the seq-scan fallback so
+	// the index preference is visible; EXPLAIN (without ANALYZE) is one plan
+	// line per node, joined here so both "Index Scan using idx_…" and a bitmap
+	// "Bitmap Index Scan on idx_…" child are caught. A dropped index still
+	// yields a seq scan and fails the assertion.
 	tx, err := integrationDB.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback() }()
 	_, err = tx.ExecContext(ctx, "SET LOCAL enable_seqscan = off")
 	require.NoError(t, err)
 
-	var plan string
-	require.NoError(t, tx.QueryRowContext(ctx,
-		"EXPLAIN SELECT id FROM schedules WHERE next_run_at <= now()").Scan(&plan))
-	assert.Contains(t, plan, "idx_schedules_next_run_at",
-		"due-selection must use the next_run_at index, got plan: %s", plan)
+	rows, err := tx.QueryContext(ctx,
+		"EXPLAIN SELECT id FROM schedules WHERE next_run_at <= now()")
+	require.NoError(t, err)
+	defer func() { _ = rows.Close() }()
+	var plan strings.Builder
+	for rows.Next() {
+		var line string
+		require.NoError(t, rows.Scan(&line))
+		plan.WriteString(line)
+		plan.WriteByte('\n')
+	}
+	require.NoError(t, rows.Err())
+	assert.Contains(t, plan.String(), "idx_schedules_next_run_at",
+		"due-selection must use the next_run_at index, got plan:\n%s", plan.String())
 }
 
 func TestIntegrationSchedule_MarkRunAdvancesFromDBClock(t *testing.T) {
